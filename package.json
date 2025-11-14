@@ -4,17 +4,23 @@
   "private": true,
   "description": "AI OCR Dashboard - Monorepo with backend services",
   "workspaces": [
-    "apps/backend-services"
+    "apps/backend-services",
+    "apps/frontend",
+    "packages/*"
   ],
   "scripts": {
     "dev:backend-services": "cd apps/backend-services && npm run start:dev",
     "dev": "npm run dev:backend-services",
     "build:backend-services": "cd apps/backend-services && npm run build",
     "build": "npm run build:backend-services",
-    "install:all": "npm install && cd apps/backend-services && npm install"
+    "install:all": "npm install && cd apps/backend-services && npm install",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "husky": "^9.0.0"
   },
   "engines": {
     "node": ">=22.0.0",

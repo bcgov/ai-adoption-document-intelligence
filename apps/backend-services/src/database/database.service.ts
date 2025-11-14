@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { OcrResult } from '../ocr/ocr.service';
 
 export interface DocumentData {
   id?: string;
@@ -8,7 +9,7 @@ export interface DocumentData {
   file_path: string;
   file_type: string;
   file_size: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   source: string;
   status: 'pending' | 'processed' | 'failed';
   created_at?: Date;
@@ -91,7 +92,7 @@ export class DatabaseService {
     return null;
   }
 
-  async findOcrResult(documentId: string): Promise<any | null> {
+  async findOcrResult(documentId: string): Promise<OcrResult | null> {
     this.logger.debug('=== DatabaseService.findOcrResult (STUBBED) ===');
     this.logger.debug(`Would GET: ${this.databaseApiUrl}/${documentId}/ocr`);
 

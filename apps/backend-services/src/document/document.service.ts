@@ -13,7 +13,7 @@ export interface UploadedDocument {
   file_path: string;
   file_type: string;
   file_size: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   source: string;
   status: 'pending' | 'processed' | 'failed';
   created_at: Date;
@@ -70,7 +70,7 @@ export class DocumentService {
     fileBase64: string,
     fileType: string,
     originalFilename: string,
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
   ): Promise<UploadedDocument> {
     this.logger.debug('=== DocumentService.uploadDocument ===');
     this.logger.debug(`Title: ${title}, FileType: ${fileType}, OriginalFilename: ${originalFilename}`);
