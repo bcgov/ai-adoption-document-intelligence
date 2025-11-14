@@ -1,0 +1,51 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Document {
+  id                String   @id @default(cuid())
+  title             String
+  original_filename String
+  file_path         String
+  file_type         String
+  file_size         Int
+  metadata          Json?
+  source            String
+  status            DocumentStatus @default(pending)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  ocr_results       OcrResult[]
+
+  @@map("documents")
+}
+
+model OcrResult {
+  id           String   @id @default(cuid())
+  document_id  String
+  document     Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  status       String
+  extracted_text String?
+  pages        Json
+  metadata     Json?
+  processed_at DateTime @default(now())
+
+  @@map("ocr_results")
+}
+
+enum DocumentStatus {
+  pending
+  processed
+  failed
+}
