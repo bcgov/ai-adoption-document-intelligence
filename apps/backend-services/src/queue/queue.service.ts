@@ -5,7 +5,7 @@ export interface QueueMessage {
   documentId: string;
   filePath: string;
   fileType: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   timestamp: Date;
 }
 

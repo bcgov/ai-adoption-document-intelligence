@@ -7,7 +7,7 @@ export interface OcrResult {
   status: 'success' | 'failed' | 'processing';
   extractedText?: string;
   pages?: OcrPage[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   error?: string;
   processedAt?: Date;
 }
@@ -103,7 +103,7 @@ export class OcrService {
   private async callAzureDocumentIntelligence(
     fileBuffer: Buffer,
     filePath: string,
-  ): Promise<{ extractedText: string; pages: OcrPage[]; metadata: Record<string, any> }> {
+  ): Promise<{ extractedText: string; pages: OcrPage[]; metadata: Record<string, unknown> }> {
     this.logger.debug('Calling Azure Document Intelligence (stubbed)');
 
     // TODO: Implement actual Azure Document Intelligence API call

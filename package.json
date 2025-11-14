@@ -15,10 +15,12 @@
     "build": "npm run build:backend-services",
     "install:all": "npm install && cd apps/backend-services && npm install",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "husky": "^9.0.0"
   },
   "engines": {
     "node": ">=22.0.0",

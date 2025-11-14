@@ -1,0 +1,5 @@
+# Run linting for backend-services
+cd apps/backend-services && npm run lint
+
+# Run linting for frontend (when it has its own lint script)
+# cd ../frontend && npm run lint
