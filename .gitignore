@@ -1,0 +1,4 @@
+node_modules
+
+# SpecStory
+.specstory/

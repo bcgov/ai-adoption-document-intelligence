@@ -1,0 +1,15 @@
+{
+  "name": "ai-ocr-frontend",
+  "version": "1.0.0",
+  "description": "AI OCR Frontend",
+  "author": "",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "lint": "eslint \"src/**/*.{ts,tsx}\" --fix"
+  },
+  "devDependencies": {
+    "eslint-config-custom": "file:../../packages/eslint-config-custom"
+  }
+}
+
