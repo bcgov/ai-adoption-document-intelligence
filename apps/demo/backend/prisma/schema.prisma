@@ -1,0 +1,144 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  user
+  viewer
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum DocumentFileType {
+  pdf
+  image
+  scan
+}
+
+enum IntakeMethod {
+  web_upload
+  email
+  mobile
+  citizen_portal
+  scan
+}
+
+enum DocumentStatus {
+  uploaded
+  processing
+  completed
+  needs_validation
+  archived
+}
+
+enum ValidationStatus {
+  pending
+  approved
+  rejected
+  not_required
+}
+
+enum Ministry {
+  health
+  education
+  transportation
+  justice
+  finance
+  environment
+  social_services
+}
+
+enum Priority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum WorkspaceStatus {
+  active
+  inactive
+  archived
+}
+
+enum AccessLevel {
+  public
+  internal
+  restricted
+  confidential
+}
+
+enum RetentionPolicy {
+  one_year
+  three_years
+  seven_years
+  permanent
+}
+
+model User {
+  id        String      @id @default(cuid())
+  email     String      @unique
+  full_name String?
+  role      UserRole    @default(user)
+  status    UserStatus  @default(active)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@map("users")
+}
+
+model Workspace {
+  id              String          @id @default(cuid())
+  name            String
+  ministry        Ministry
+  description     String?
+  status          WorkspaceStatus @default(active)
+  intake_methods  String[]        @default([])
+  retention_policy RetentionPolicy @default(seven_years)
+  access_level    AccessLevel     @default(internal)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  documents Document[]
+
+  @@map("workspaces")
+}
+
+model Document {
+  id               String           @id @default(cuid())
+  title            String
+  file_url         String
+  file_type        DocumentFileType
+  intake_method    IntakeMethod
+  workspace_id     String?
+  status           DocumentStatus   @default(uploaded)
+  confidence_score Float?
+  extracted_data   Json?
+  validation_status ValidationStatus @default(pending)
+  ministry         Ministry
+  priority         Priority         @default(medium)
+  retention_date   DateTime?
+  created_date     DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  workspace Workspace? @relation(fields: [workspace_id], references: [id], onDelete: SetNull)
+
+  @@map("documents")
+  @@index([workspace_id])
+  @@index([status])
+  @@index([ministry])
+  @@index([created_date])
+}
+

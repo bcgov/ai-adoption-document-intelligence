@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "deleteOutDir": false,
+    "webpack": false,
+    "tsConfigPath": "tsconfig.build.json",
+    "watchAssets": true,
+    "builder": "swc",
+    "assets": [
+      {
+        "include": "**/*.gql",
+        "watchAssets": true,
+        "outDir": "dist"
+      }
+    ]
+  },
+  "watchOptions": {
+    "watchAssets": true,
+    "watchExclude": [
+      "node_modules/**",
+      "dist/**",
+      "coverage/**",
+      "**/*.spec.ts",
+      "**/*.test.ts",
+      "**/*.map",
+      "**/.tsbuildinfo",
+      "**/migrations/**",
+      "**/schema.gql"
+    ],
+    "usePolling": true,
+    "interval": 1000
+  }
+}
+
