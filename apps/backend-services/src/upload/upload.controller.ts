@@ -22,7 +22,18 @@ export class UploadController {
 
   @Post('upload')
   @HttpCode(HttpStatus.CREATED)
-  async uploadDocument(@Body() uploadDto: UploadDocumentDto) {
+  async uploadDocument(@Body() uploadDto: UploadDocumentDto): Promise<{
+    success: boolean;
+    document: {
+      id: string;
+      title: string;
+      original_filename: string;
+      file_type: string;
+      file_size: number;
+      status: string;
+      created_at: Date;
+    };
+  }> {
     this.logger.debug('=== UploadController.uploadDocument ===');
     this.logger.debug(`Received upload request: ${JSON.stringify({
       title: uploadDto.title,
