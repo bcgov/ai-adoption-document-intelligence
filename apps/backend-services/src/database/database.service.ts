@@ -72,6 +72,24 @@ export class DatabaseService implements OnModuleInit {
     }
   }
 
+  async findAllDocuments(): Promise<DocumentData[]> {
+    this.logger.debug('=== DatabaseService.findAllDocuments ===');
+
+    try {
+      const documents = await this.prisma.document.findMany({
+        orderBy: { created_at: 'desc' },
+      });
+
+      this.logger.debug(`Found ${documents.length} documents`);
+      this.logger.debug('=== DatabaseService.findAllDocuments completed ===');
+
+      return documents;
+    } catch (error) {
+      this.logger.error(`Failed to find documents: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
   async updateDocument(
     id: string,
     data: Partial<Omit<DocumentData, 'id' | 'created_at'>>,

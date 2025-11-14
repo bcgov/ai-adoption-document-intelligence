@@ -78,13 +78,23 @@ npm run lint
 Create a `.env` file in the root directory based on `.env.example`:
 
 ```bash
-# API Configuration
-VITE_API_BASE_URL=http://localhost:4000/api
+# API Configuration (leave empty to use Vite proxy in development)
+VITE_API_BASE_URL=
 
 # Application Configuration
 VITE_APP_NAME=AI OCR Frontend
 VITE_APP_VERSION=1.0.0
 ```
+
+## Development with Proxy
+
+The development server uses Vite's proxy feature to avoid CORS issues:
+
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:3002`
+- API requests to `/api/*` are automatically proxied to the backend
+
+This eliminates CORS issues during development while maintaining clean API calls in the code.
 
 ## Architecture Guidelines
 

@@ -8,10 +8,16 @@ export interface User {
 
 export interface Document {
   id: string;
-  name: string;
-  content: string;
-  uploadedAt: Date;
-  processed: boolean;
+  title: string;
+  original_filename: string;
+  file_path: string;
+  file_type: string;
+  file_size: number;
+  metadata?: Record<string, unknown>;
+  source?: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ApiResponse<T> {
