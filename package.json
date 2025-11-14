@@ -1,0 +1,26 @@
+{
+  "name": "ai-ocr-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI OCR Dashboard - Monorepo with backend services",
+  "workspaces": [
+    "apps/backend-services"
+  ],
+  "scripts": {
+    "dev:backend-services": "cd apps/backend-services && npm run start:dev",
+    "dev": "npm run dev:backend-services",
+    "build:backend-services": "cd apps/backend-services && npm run build",
+    "build": "npm run build:backend-services",
+    "install:all": "npm install && cd apps/backend-services && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=9.0.0"
+  },
+  "dependencies": {
+    "apollo-server-express": "^3.13.0"
+  }
+}
