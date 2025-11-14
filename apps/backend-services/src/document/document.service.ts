@@ -5,6 +5,7 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { DatabaseService, DocumentData } from '../database/database.service';
+import { JsonValue } from '../generated/internal/prismaNamespace';
 
 export interface UploadedDocument {
   id: string;
@@ -110,7 +111,7 @@ export class DocumentService {
         file_path: filePath,
         file_type: fileType,
         file_size: fileSize,
-        metadata: metadata || {},
+        metadata: (metadata || {}) as JsonValue,
         source: 'api',
         status: 'pending',
       };
@@ -125,7 +126,7 @@ export class DocumentService {
         file_path: savedDocument.file_path,
         file_type: savedDocument.file_type,
         file_size: savedDocument.file_size,
-        metadata: savedDocument.metadata,
+        metadata: savedDocument.metadata as Record<string, unknown>,
         source: savedDocument.source,
         status: savedDocument.status,
         created_at: savedDocument.created_at || new Date(),
@@ -155,7 +156,7 @@ export class DocumentService {
       file_path: document.file_path,
       file_type: document.file_type,
       file_size: document.file_size,
-      metadata: document.metadata,
+      metadata: document.metadata as Record<string, unknown>,
       source: document.source,
       status: document.status,
       created_at: document.created_at || new Date(),
