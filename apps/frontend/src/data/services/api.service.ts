@@ -1,9 +1,11 @@
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL } from '../../shared/constants';
 import type { ApiResponse } from '../../shared/types';
 
+
 class ApiService {
   private axiosInstance: AxiosInstance;
+  private authToken: string | null = null;
 
   constructor(baseURL: string = API_BASE_URL) {
     this.axiosInstance = axios.create({
@@ -12,6 +14,17 @@ class ApiService {
         'Content-Type': 'application/json',
       },
     });
+
+    // Add request interceptor for authentication
+    this.axiosInstance.interceptors.request.use(
+      (config: InternalAxiosRequestConfig) => {
+        if (this.authToken && this.authToken !== 'undefined' && config.headers) {
+          config.headers.Authorization = `Bearer ${this.authToken}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
 
     // Add response interceptor for error handling
     this.axiosInstance.interceptors.response.use(
@@ -24,6 +37,11 @@ class ApiService {
         return Promise.reject(error);
       }
     );
+  }
+
+  // Method to set the authentication token
+  setAuthToken(token: string | null) {
+    this.authToken = token;
   }
 
   private async request<T>(

@@ -13,6 +13,7 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\" --fix"
   },
   "dependencies": {
+    "@bcgov/citz-imb-sso-react": "^1.0.1",
     "@tanstack/react-query": "^5.45.0",
     "axios": "^1.7.4",
     "react": "^18.2.0",
@@ -25,11 +26,10 @@
     "@typescript-eslint/parser": "^7.2.0",
     "@vitejs/plugin-react": "^4.2.1",
     "eslint": "^8.57.0",
+    "eslint-config-custom": "file:../../packages/eslint-config-custom",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.6",
     "typescript": "^5.2.2",
-    "vite": "^5.2.0",
-    "eslint-config-custom": "file:../../packages/eslint-config-custom"
+    "vite": "^5.2.0"
   }
 }
-

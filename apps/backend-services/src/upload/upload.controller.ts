@@ -6,7 +6,9 @@ import {
   HttpStatus,
   Logger,
   BadRequestException,
+  Get,
 } from '@nestjs/common';
+import { Public } from '../auth/public.decorator';
 import { DocumentService } from '../document/document.service';
 import { QueueService } from '../queue/queue.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
@@ -19,6 +21,12 @@ export class UploadController {
     private readonly documentService: DocumentService,
     private readonly queueService: QueueService,
   ) {}
+
+  @Get('public')
+  @Public()
+  getPublicData(): { message: string } {
+    return { message: 'This endpoint is public' };
+  }
 
   @Post('upload')
   @HttpCode(HttpStatus.CREATED)
