@@ -1,5 +1,17 @@
-# Run linting for backend-services
-cd apps/backend-services && npm run lint
+#!/bin/bash
+set -e
 
-# Run linting for frontend (when it has its own lint script)
-# cd ../frontend && npm run lint
+# Run TypeScript checking for backend-services
+(cd apps/backend-services && npx tsc --noEmit)
+
+# Run Prettier formatting for backend-services
+(cd apps/backend-services && npm run format)
+
+# Run linting for backend-services
+(cd apps/backend-services && npm run lint)
+
+# Run TypeScript checking for frontend
+(cd apps/frontend && npx tsc --noEmit)
+
+# Run linting for frontend
+(cd apps/frontend && npm run lint)
