@@ -10,10 +10,12 @@
   ],
   "scripts": {
     "dev:backend-services": "cd apps/backend-services && npm run start:dev",
-    "dev": "npm run dev:backend-services",
+    "dev:frontend": "cd apps/frontend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend-services\" \"npm run dev:frontend\"",
     "build:backend-services": "cd apps/backend-services && npm run build",
-    "build": "npm run build:backend-services",
-    "install:all": "npm install && cd apps/backend-services && npm install",
+    "build:frontend": "cd apps/frontend && npm run build",
+    "build": "npm run build:backend-services && npm run build:frontend",
+    "install:all": "npm install && cd apps/backend-services && npm install && cd ../frontend && npm install",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prepare": "husky"
