@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: backend-services
+  labels:
+    app: backend-services
+spec:
+  to:
+    kind: Service
+    name: backend-services
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+

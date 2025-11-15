@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-services-config
+  labels:
+    app: backend-services
+data:
+  FRONTEND_URL: "https://your-frontend-url.example.com"
+  DATABASE_API_URL: "http://database-api:3001/api/documents"
+  RABBITMQ_URL: "amqp://rabbitmq:5672"
+  RABBITMQ_EXCHANGE: "document_upload"
+  RABBITMQ_ROUTING_KEY: "document.uploaded"
+

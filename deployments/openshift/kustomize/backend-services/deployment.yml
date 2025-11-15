@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-services
+  labels:
+    app: backend-services
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend-services
+  template:
+    metadata:
+      labels:
+        app: backend-services
+    spec:
+      containers:
+      - name: backend-services
+        image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3002
+          name: http
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "3002"
+        - name: NODE_ENV
+          value: "production"
+        - name: FRONTEND_URL
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: FRONTEND_URL
+        - name: DATABASE_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: DATABASE_API_URL
+        - name: STORAGE_PATH
+          value: "/app/storage/documents"
+        - name: RABBITMQ_URL
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: RABBITMQ_URL
+        - name: RABBITMQ_EXCHANGE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: RABBITMQ_EXCHANGE
+        - name: RABBITMQ_ROUTING_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: RABBITMQ_ROUTING_KEY
+        volumeMounts:
+        - name: storage
+          mountPath: /app/storage
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          tcpSocket:
+            port: 3002
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: 3002
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: storage
+        persistentVolumeClaim:
+          claimName: backend-services-storage
+
