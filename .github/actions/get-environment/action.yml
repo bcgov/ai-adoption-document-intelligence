@@ -1,0 +1,23 @@
+name: Get Environment
+description: 'Determines the environment name based on branch name'
+outputs:
+  environment:
+    description: 'Environment name (dev, test, or prod)'
+    value: ${{ steps.get-env.outputs.environment }}
+runs:
+  using: composite
+  steps:
+    - name: Determine Environment
+      id: get-env
+      shell: bash
+      run: |
+        if [ "${{ github.ref_name }}" = "main" ]; then
+          ENV="prod"
+        elif [ "${{ github.ref_name }}" = "stage" ]; then
+          ENV="test"
+        else
+          ENV="dev"
+        fi
+        echo "environment=$ENV" >> $GITHUB_OUTPUT
+        echo "Determined environment: $ENV for branch: ${{ github.ref_name }}"
+
