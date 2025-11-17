@@ -73,57 +73,62 @@ Before you begin, ensure you have the following installed:
 ### Quick Start
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd ai-adoption-document-intelligence
    ```
 
 2. **Install dependencies**
+
    ```bash
-   npm run install:all
+   npm run install
+
    ```
+
    This installs dependencies for the monorepo root and all workspace packages.
 
 3. **Set up the database**
+
    ```bash
    # Start PostgreSQL database
    cd apps/backend-services
    podman-compose up -d
 
-   # Copy environment configuration
+   # Copy and configure environment configuration
    cp .env.sample .env
 
    # Run database migrations
    npm run db:migrate -- --name init
 
-   # Generate Prisma client
-   npm run db:generate
    ```
 
-   This will start a PostgreSQL 15 container with:
-   - Database: `ai_doc_intelligence`
-   - User: `postgres`
-   - Password: `postgres`
-   - Port: `5432`
 
-   The `.env` file contains:
-   - Database connection string
-   - Application port configuration
-   - CORS settings
-   - Storage paths
+4. **Start the development servers**
 
-   This creates the initial database schema with tables.
+   Copy and configure environment configuration for the front end:
 
-4. **Start the development server**
+   ```bash
+   cd apps/frontend
+
+   # Copy and configure environment configuration
+   cp .env.sample .env
+
+   ```
+
+   ```bash
+   # To start react project, from root:
+   npm run dev:frontend
+
+   ```
+
    ```bash
    # From the project root
-   npm run dev
+   npm run dev:backend
 
-   # Or start backend services directly
-   npm run dev:backend-services
    ```
 
-   The backend API will be available at `http://localhost:3002`.
+   The backend API will be available at `http://localhost:3002` and frontend on `http://localhost:3000`.
 
 ### Database Management
 
@@ -145,25 +150,7 @@ See `apps/backend-services/prisma/schema.prisma` for the complete schema definit
 
 ### Development Workflow
 
-#### Available Scripts
 
-From the project root:
-
-- `npm run dev` - Start backend services in development mode
-- `npm run build` - Build backend services for production
-- `npm run lint` - Run ESLint across the entire monorepo
-- `npm run lint:fix` - Auto-fix linting issues
-
-From `apps/backend-services/`:
-
-- `npm run start:dev` - Start NestJS in watch mode
-- `npm run test` - Run unit tests
-- `npm run test:watch` - Run tests in watch mode
-- `npm run test:cov` - Run tests with coverage report
-- `npm run db:studio` - Open Prisma Studio (database GUI)
-- `npm run db:reset` - Reset database and re-run all migrations
-- `npm run db:status` - Check migration status
-- `npm run db:seed` - Run database seed scripts
 
 #### Project Structure
 
@@ -198,14 +185,6 @@ The project uses several tools to maintain code quality:
 
 Run `npm run lint` to check code quality across the entire monorepo.
 
-#### Testing
-
-```bash
-cd apps/backend-services
-npm run test                    # Run all tests
-npm run test:watch             # Run tests in watch mode
-npm run test:cov               # Generate coverage report
-```
 
 #### Environment Configuration
 

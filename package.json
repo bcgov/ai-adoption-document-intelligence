@@ -9,7 +9,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:backend-services": "cd apps/backend-services && npm run start:dev",
+    "dev:backend": "cd apps/backend-services && npm run start:dev",
     "dev:frontend": "cd apps/frontend && npm run dev",
     "dev": "concurrently \"npm run dev:backend-services\" \"npm run dev:frontend\"",
     "build:backend-services": "cd apps/backend-services && npm run build",
