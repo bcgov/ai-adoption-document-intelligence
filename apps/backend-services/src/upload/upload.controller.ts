@@ -7,13 +7,13 @@ import {
   Logger,
   BadRequestException,
   Get,
-} from '@nestjs/common';
-import { Public } from '../auth/public.decorator';
-import { DocumentService } from '../document/document.service';
-import { QueueService } from '../queue/queue.service';
-import { UploadDocumentDto } from './dto/upload-document.dto';
+} from "@nestjs/common";
+import { Public } from "../auth/public.decorator";
+import { DocumentService } from "../document/document.service";
+import { QueueService } from "../queue/queue.service";
+import { UploadDocumentDto } from "./dto/upload-document.dto";
 
-@Controller('api')
+@Controller("api")
 export class UploadController {
   private readonly logger = new Logger(UploadController.name);
 
@@ -22,13 +22,13 @@ export class UploadController {
     private readonly queueService: QueueService,
   ) {}
 
-  @Get('public')
+  @Get("public")
   @Public()
   getPublicData(): { message: string } {
-    return { message: 'This endpoint is public' };
+    return { message: "This endpoint is public" };
   }
 
-  @Post('upload')
+  @Post("upload")
   @HttpCode(HttpStatus.CREATED)
   async uploadDocument(@Body() uploadDto: UploadDocumentDto): Promise<{
     success: boolean;
@@ -42,24 +42,31 @@ export class UploadController {
       created_at: Date;
     };
   }> {
-    this.logger.debug('=== UploadController.uploadDocument ===');
-    this.logger.debug(`Received upload request: ${JSON.stringify({
-      title: uploadDto.title,
-      file_type: uploadDto.file_type,
-      original_filename: uploadDto.original_filename,
-      metadata: uploadDto.metadata,
-      file_length: uploadDto.file?.length || 0,
-    }, null, 2)}`);
+    this.logger.debug("=== UploadController.uploadDocument ===");
+    this.logger.debug(
+      `Received upload request: ${JSON.stringify(
+        {
+          title: uploadDto.title,
+          file_type: uploadDto.file_type,
+          original_filename: uploadDto.original_filename,
+          metadata: uploadDto.metadata,
+          file_length: uploadDto.file?.length || 0,
+        },
+        null,
+        2,
+      )}`,
+    );
 
     try {
       // Validate base64 file data
       if (!uploadDto.file || uploadDto.file.trim().length === 0) {
-        throw new BadRequestException('File data is required');
+        throw new BadRequestException("File data is required");
       }
 
       // Use original_filename from DTO or default to title
       const originalFilename =
-        uploadDto.original_filename || `${uploadDto.title}.${uploadDto.file_type}`;
+        uploadDto.original_filename ||
+        `${uploadDto.title}.${uploadDto.file_type}`;
 
       // Upload document (saves file and stores metadata)
       const uploadedDocument = await this.documentService.uploadDocument(
@@ -70,7 +77,9 @@ export class UploadController {
         uploadDto.metadata,
       );
 
-      this.logger.debug(`Document uploaded successfully: ${uploadedDocument.id}`);
+      this.logger.debug(
+        `Document uploaded successfully: ${uploadedDocument.id}`,
+      );
 
       // Publish message to queue
       try {
@@ -81,13 +90,15 @@ export class UploadController {
           metadata: uploadedDocument.metadata,
           timestamp: new Date(),
         });
-        this.logger.debug('Message published to queue');
+        this.logger.debug("Message published to queue");
       } catch (queueError) {
-        this.logger.error(`Failed to publish message to queue: ${queueError.message}`);
+        this.logger.error(
+          `Failed to publish message to queue: ${queueError.message}`,
+        );
         // Don't fail the upload if queue publish fails - log and continue
       }
 
-      this.logger.debug('=== UploadController.uploadDocument completed ===');
+      this.logger.debug("=== UploadController.uploadDocument completed ===");
 
       return {
         success: true,
@@ -110,9 +121,8 @@ export class UploadController {
       }
 
       throw new BadRequestException(
-        error.message || 'Failed to upload document',
+        error.message || "Failed to upload document",
       );
     }
   }
 }
-

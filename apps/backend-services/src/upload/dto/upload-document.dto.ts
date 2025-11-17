@@ -1,9 +1,15 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsObject } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsEnum,
+  IsObject,
+} from "class-validator";
 
 export enum FileType {
-  PDF = 'pdf',
-  IMAGE = 'image',
-  SCAN = 'scan',
+  PDF = "pdf",
+  IMAGE = "image",
+  SCAN = "scan",
 }
 
 export class UploadDocumentDto {
@@ -27,4 +33,3 @@ export class UploadDocumentDto {
   @IsOptional()
   metadata?: Record<string, unknown>;
 }
-

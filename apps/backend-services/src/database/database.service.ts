@@ -1,11 +1,11 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { PrismaClient, Document } from '../generated/client';
-import { JsonValue } from '../generated/internal/prismaNamespace';
-import { DocumentStatus } from '../generated/enums';
-import { OcrResult } from '../ocr/ocr.service';
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { PrismaClient, Document } from "../generated/client";
+import { JsonValue } from "../generated/internal/prismaNamespace";
+import { DocumentStatus } from "../generated/enums";
+import { OcrResult } from "../ocr/ocr.service";
 
-export type DocumentData = Omit<Document, 'ocr_results'>;
+export type DocumentData = Omit<Document, "ocr_results">;
 
 @Injectable()
 export class DatabaseService implements OnModuleInit {
@@ -16,13 +16,15 @@ export class DatabaseService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     this.prisma = new PrismaClient({
-      log: ['query', 'info', 'warn', 'error'],
+      log: ["query", "info", "warn", "error"],
     });
-    this.logger.log('Database service initialized with Prisma');
+    this.logger.log("Database service initialized with Prisma");
   }
 
-  async createDocument(data: Omit<DocumentData, 'id' | 'created_at' | 'updated_at'>): Promise<DocumentData> {
-    this.logger.debug('=== DatabaseService.createDocument ===');
+  async createDocument(
+    data: Omit<DocumentData, "id" | "created_at" | "updated_at">,
+  ): Promise<DocumentData> {
+    this.logger.debug("=== DatabaseService.createDocument ===");
     this.logger.debug(`Creating document: ${data.title}`);
 
     try {
@@ -40,17 +42,20 @@ export class DatabaseService implements OnModuleInit {
       });
 
       this.logger.debug(`Document created: ${document.id}`);
-      this.logger.debug('=== DatabaseService.createDocument completed ===');
+      this.logger.debug("=== DatabaseService.createDocument completed ===");
 
       return document;
     } catch (error) {
-      this.logger.error(`Failed to create document: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to create document: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
 
   async findDocument(id: string): Promise<DocumentData | null> {
-    this.logger.debug('=== DatabaseService.findDocument ===');
+    this.logger.debug("=== DatabaseService.findDocument ===");
     this.logger.debug(`Finding document: ${id}`);
 
     try {
@@ -64,37 +69,43 @@ export class DatabaseService implements OnModuleInit {
         this.logger.debug(`Document not found: ${id}`);
       }
 
-      this.logger.debug('=== DatabaseService.findDocument completed ===');
+      this.logger.debug("=== DatabaseService.findDocument completed ===");
       return document;
     } catch (error) {
-      this.logger.error(`Failed to find document: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to find document: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
 
   async findAllDocuments(): Promise<DocumentData[]> {
-    this.logger.debug('=== DatabaseService.findAllDocuments ===');
+    this.logger.debug("=== DatabaseService.findAllDocuments ===");
 
     try {
       const documents = await this.prisma.document.findMany({
-        orderBy: { created_at: 'desc' },
+        orderBy: { created_at: "desc" },
       });
 
       this.logger.debug(`Found ${documents.length} documents`);
-      this.logger.debug('=== DatabaseService.findAllDocuments completed ===');
+      this.logger.debug("=== DatabaseService.findAllDocuments completed ===");
 
       return documents;
     } catch (error) {
-      this.logger.error(`Failed to find documents: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to find documents: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
 
   async updateDocument(
     id: string,
-    data: Partial<Omit<DocumentData, 'id' | 'created_at'>>,
+    data: Partial<Omit<DocumentData, "id" | "created_at">>,
   ): Promise<DocumentData | null> {
-    this.logger.debug('=== DatabaseService.updateDocument ===');
+    this.logger.debug("=== DatabaseService.updateDocument ===");
     this.logger.debug(`Updating document: ${id}`);
     this.logger.debug(`Update data: ${JSON.stringify(data, null, 2)}`);
 
@@ -115,51 +126,57 @@ export class DatabaseService implements OnModuleInit {
       });
 
       this.logger.debug(`Document updated: ${document.id}`);
-      this.logger.debug('=== DatabaseService.updateDocument completed ===');
+      this.logger.debug("=== DatabaseService.updateDocument completed ===");
 
       return document;
     } catch (error) {
-      if (error.code === 'P2025') {
+      if (error.code === "P2025") {
         this.logger.debug(`Document not found for update: ${id}`);
         return null;
       }
-      this.logger.error(`Failed to update document: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to update document: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
 
   async findOcrResult(documentId: string): Promise<OcrResult | null> {
-    this.logger.debug('=== DatabaseService.findOcrResult ===');
+    this.logger.debug("=== DatabaseService.findOcrResult ===");
     this.logger.debug(`Finding OCR result for document: ${documentId}`);
 
     try {
       const ocrResult = await this.prisma.ocrResult.findFirst({
         where: { document_id: documentId },
-        orderBy: { processed_at: 'desc' },
+        orderBy: { processed_at: "desc" },
       });
 
       if (!ocrResult) {
         this.logger.debug(`No OCR result found for document: ${documentId}`);
-        this.logger.debug('=== DatabaseService.findOcrResult completed ===');
+        this.logger.debug("=== DatabaseService.findOcrResult completed ===");
         return null;
       }
 
       // Transform Prisma result to OcrResult interface
       const result: OcrResult = {
         documentId: ocrResult.document_id,
-        status: ocrResult.status as 'success' | 'failed' | 'processing',
+        status: ocrResult.status as "success" | "failed" | "processing",
         extractedText: ocrResult.extracted_text || undefined,
-        pages: (ocrResult.pages as unknown as OcrResult['pages']) || [],
+        pages: (ocrResult.pages as unknown as OcrResult["pages"]) || [],
         metadata: (ocrResult.metadata as Record<string, unknown>) || undefined,
         processedAt: ocrResult.processed_at,
       };
 
       this.logger.debug(`OCR result found for document: ${documentId}`);
-      this.logger.debug('=== DatabaseService.findOcrResult completed ===');
+      this.logger.debug("=== DatabaseService.findOcrResult completed ===");
 
       return result;
     } catch (error) {
-      this.logger.error(`Failed to find OCR result: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to find OCR result: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -168,10 +185,10 @@ export class DatabaseService implements OnModuleInit {
     documentId: string;
     status: string;
     extractedText?: string;
-    pages: OcrResult['pages'];
+    pages: OcrResult["pages"];
     metadata?: Record<string, unknown>;
   }): Promise<void> {
-    this.logger.debug('=== DatabaseService.createOcrResult ===');
+    this.logger.debug("=== DatabaseService.createOcrResult ===");
     this.logger.debug(`Creating OCR result for document: ${data.documentId}`);
 
     try {
@@ -186,11 +203,13 @@ export class DatabaseService implements OnModuleInit {
       });
 
       this.logger.debug(`OCR result created for document: ${data.documentId}`);
-      this.logger.debug('=== DatabaseService.createOcrResult completed ===');
+      this.logger.debug("=== DatabaseService.createOcrResult completed ===");
     } catch (error) {
-      this.logger.error(`Failed to create OCR result: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to create OCR result: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
 }
-

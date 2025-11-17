@@ -8,7 +8,7 @@
   "scripts": {
     "build": "nest build",
     "build:prod": "NODE_ENV=production nest build",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",
     "start:dev": "CHOKIDAR_USEPOLLING=true CHOKIDAR_INTERVAL=1000 nest start --watch --preserveWatchOutput",
     "start:prod": "node dist/main",

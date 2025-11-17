@@ -1,11 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
-import { v4 as uuidv4 } from 'uuid';
-import { DatabaseService, DocumentData } from '../database/database.service';
-import { JsonValue } from '../generated/internal/prismaNamespace';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { writeFile, mkdir } from "fs/promises";
+import { join } from "path";
+import { existsSync } from "fs";
+import { v4 as uuidv4 } from "uuid";
+import { DatabaseService, DocumentData } from "../database/database.service";
+import { JsonValue } from "../generated/internal/prismaNamespace";
 
 export interface UploadedDocument {
   id: string;
@@ -16,7 +16,7 @@ export interface UploadedDocument {
   file_size: number;
   metadata?: Record<string, unknown>;
   source: string;
-  status: 'pending' | 'processed' | 'failed';
+  status: "pending" | "processed" | "failed";
   created_at: Date;
   updated_at: Date;
 }
@@ -31,8 +31,8 @@ export class DocumentService {
     private configService: ConfigService,
   ) {
     this.storagePath =
-      this.configService.get<string>('STORAGE_PATH') ||
-      join(process.cwd(), 'storage', 'documents');
+      this.configService.get<string>("STORAGE_PATH") ||
+      join(process.cwd(), "storage", "documents");
     this.ensureStorageDirectory();
   }
 
@@ -50,18 +50,18 @@ export class DocumentService {
 
   private getFileExtension(fileType: string): string {
     const typeMap: Record<string, string> = {
-      pdf: 'pdf',
-      image: 'jpg',
-      scan: 'pdf',
+      pdf: "pdf",
+      image: "jpg",
+      scan: "pdf",
     };
-    return typeMap[fileType.toLowerCase()] || 'bin';
+    return typeMap[fileType.toLowerCase()] || "bin";
   }
 
   private generateFileName(originalFilename: string, fileType: string): string {
     const extension = this.getFileExtension(fileType);
     const uuid = uuidv4();
     const sanitizedOriginal = originalFilename
-      .replace(/[^a-zA-Z0-9.-]/g, '_')
+      .replace(/[^a-zA-Z0-9.-]/g, "_")
       .substring(0, 50);
     return `${uuid}_${sanitizedOriginal}.${extension}`;
   }
@@ -73,21 +73,23 @@ export class DocumentService {
     originalFilename: string,
     metadata?: Record<string, unknown>,
   ): Promise<UploadedDocument> {
-    this.logger.debug('=== DocumentService.uploadDocument ===');
-    this.logger.debug(`Title: ${title}, FileType: ${fileType}, OriginalFilename: ${originalFilename}`);
+    this.logger.debug("=== DocumentService.uploadDocument ===");
+    this.logger.debug(
+      `Title: ${title}, FileType: ${fileType}, OriginalFilename: ${originalFilename}`,
+    );
 
     try {
       // Decode base64 file
       let fileBuffer: Buffer;
       try {
         // Remove data URL prefix if present (e.g., "data:application/pdf;base64,")
-        const base64Data = fileBase64.includes(',')
-          ? fileBase64.split(',')[1]
+        const base64Data = fileBase64.includes(",")
+          ? fileBase64.split(",")[1]
           : fileBase64;
-        fileBuffer = Buffer.from(base64Data, 'base64');
+        fileBuffer = Buffer.from(base64Data, "base64");
       } catch (error) {
         this.logger.error(`Failed to decode base64 file: ${error.message}`);
-        throw new Error('Invalid base64 file data');
+        throw new Error("Invalid base64 file data");
       }
 
       const fileSize = fileBuffer.length;
@@ -105,18 +107,22 @@ export class DocumentService {
       this.logger.debug(`File saved to: ${filePath}`);
 
       // Store metadata in database via API
-      const documentData: Omit<DocumentData, 'id' | 'created_at' | 'updated_at'> = {
+      const documentData: Omit<
+        DocumentData,
+        "id" | "created_at" | "updated_at"
+      > = {
         title,
         original_filename: originalFilename,
         file_path: filePath,
         file_type: fileType,
         file_size: fileSize,
         metadata: (metadata || {}) as JsonValue,
-        source: 'api',
-        status: 'pending',
+        source: "api",
+        status: "pending",
       };
 
-      const savedDocument = await this.databaseService.createDocument(documentData);
+      const savedDocument =
+        await this.databaseService.createDocument(documentData);
       this.logger.debug(`Document saved to database: ${savedDocument.id}`);
 
       const result: UploadedDocument = {
@@ -133,7 +139,7 @@ export class DocumentService {
         updated_at: savedDocument.updated_at || new Date(),
       };
 
-      this.logger.debug('=== DocumentService.uploadDocument completed ===');
+      this.logger.debug("=== DocumentService.uploadDocument completed ===");
       return result;
     } catch (error) {
       this.logger.error(`Error uploading document: ${error.message}`);
@@ -164,4 +170,3 @@ export class DocumentService {
     };
   }
 }
-
