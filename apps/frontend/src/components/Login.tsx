@@ -3,7 +3,7 @@ import { useSSO } from '@bcgov/citz-imb-sso-react';
 export const Login = () => {
   const { isAuthenticated, user, login, logout } = useSSO();
 
-  if (isAuthenticated) {
+  if (isAuthenticated && user) {
     return (
       <div className="login-container">
         <h1>Welcome, {user?.first_name} {user?.last_name}</h1>
@@ -16,7 +16,7 @@ export const Login = () => {
 
   return (
     <div className="login-container">
-      <h1>Welcome</h1>
+      <h1>Please log in to continue</h1>
       <button onClick={() => login()}>Login with IDIR</button>
     </div>
   );
