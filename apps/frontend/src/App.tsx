@@ -7,7 +7,19 @@ import { apiService } from './data/services/api.service'
 function App(): JSX.Element {
   const [count, setCount] = useState(0)
   const [isRefreshingToken, setIsRefreshingToken] = useState(false)
+  const [hasRefreshFailed, setHasRefreshFailed] = useState(false)
   const { isAuthenticated, isLoggingIn, getAuthorizationHeaderValue, refreshToken, logout } = useSSO()
+
+  // Reset refresh state when authentication state changes
+  useEffect(() => {
+    if (isAuthenticated) {
+      setHasRefreshFailed(false)
+      setIsRefreshingToken(false)
+    } else {
+      setHasRefreshFailed(false) // Reset for new login attempts
+      setIsRefreshingToken(false)
+    }
+  }, [isAuthenticated])
 
   // Handle token setup and refresh
   useEffect(() => {
@@ -21,8 +33,10 @@ function App(): JSX.Element {
           const token = authHeader.replace('Bearer ', '')
           console.log('✅ Valid token found, setting in API service')
           apiService.setAuthToken(token)
-        } else {
-          // Try to refresh the token if we don't have a valid one
+          setIsRefreshingToken(false) // Clear any refresh state
+          setHasRefreshFailed(false) // Reset failure flag on success
+        } else if (!hasRefreshFailed) {
+          // Try to refresh the token if we don't have a valid one and haven't failed before
           console.log('🔄 No valid token, attempting refresh...')
           setIsRefreshingToken(true)
           try {
@@ -37,23 +51,37 @@ function App(): JSX.Element {
               const newToken = newAuthHeader.replace('Bearer ', '')
               console.log('✅ Token refreshed successfully')
               apiService.setAuthToken(newToken)
+              setHasRefreshFailed(false) // Reset failure flag on success
             } else {
-              console.log('❌ Token refresh did not provide valid token')
+              console.log('❌ Token refresh did not provide valid token - marking as failed')
               apiService.setAuthToken(null)
+              setHasRefreshFailed(true) // Mark as failed to prevent infinite loop
+              // Force logout if token refresh fails completely
+              logout()
+              return // Exit early to prevent further processing
             }
           } catch (error) {
             console.log('❌ Token refresh failed with error:', error)
             console.log('🔐 Forcing logout due to refresh failure')
             apiService.setAuthToken(null)
+            setHasRefreshFailed(true) // Mark as failed to prevent infinite loop
             // Force logout if token refresh fails completely
             logout()
+            return // Exit early to prevent further processing
           } finally {
             setIsRefreshingToken(false)
           }
+        } else {
+          // We've already tried refreshing and it failed - force logout
+          console.log('🔐 Already tried refresh and failed - forcing logout')
+          apiService.setAuthToken(null)
+          logout()
+          return // Exit early
         }
       } else {
         console.log('❌ User not authenticated, clearing token')
         apiService.setAuthToken(null)
+        setIsRefreshingToken(false) // Clear refresh state when not authenticated
       }
     }
 
@@ -61,7 +89,7 @@ function App(): JSX.Element {
     if (!isRefreshingToken) {
       handleTokenSetup()
     }
-  }, [isAuthenticated, getAuthorizationHeaderValue, refreshToken, logout, isRefreshingToken])
+  }, [isAuthenticated, getAuthorizationHeaderValue, refreshToken, logout, isRefreshingToken, hasRefreshFailed])
 
   // Show loading state while determining authentication status or refreshing tokens
   if (isLoggingIn || isRefreshingToken) {
