@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "@bcgov/citz-imb-sso-react": "^1.0.1",
+    "@mantine/core": "^8.3.8",
+    "@mantine/hooks": "^8.3.8",
     "@tanstack/react-query": "^5.45.0",
     "axios": "^1.7.4",
     "react": "^18.2.0",
@@ -29,6 +31,9 @@
     "eslint-config-custom": "file:../../packages/eslint-config-custom",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.6",
+    "postcss": "^8.5.6",
+    "postcss-preset-mantine": "^1.18.0",
+    "postcss-simple-vars": "^7.0.1",
     "typescript": "^5.2.2",
     "vite": "^5.2.0"
   }
