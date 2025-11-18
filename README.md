@@ -1,6 +1,6 @@
 # AI Adoption - Document Intelligence
 
-A government-scale document intelligence platform designed to transform unstructured documents into structured, business-ready data across BC Government ministries.
+A government-scale document intelligence platform designed to transform unstructured documents into structured, business-ready data across BC Government ministries. The project is under early construction and is not production-ready.
 
 ## Vision
 
