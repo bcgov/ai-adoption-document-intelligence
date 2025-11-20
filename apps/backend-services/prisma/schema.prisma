@@ -27,7 +27,7 @@ model Document {
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
   apim_request_id   String?
-  ocr_result       OcrResult?
+  ocr_result        OcrResult?
 
   @@map("documents")
 }

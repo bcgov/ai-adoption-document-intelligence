@@ -3,11 +3,10 @@ import { DocumentStatus } from "@/generated/enums";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { readFile } from "fs/promises";
-import DocumentIntelligence, {
-  DocumentIntelligenceClient,
-} from "@azure-rest/ai-document-intelligence";
-import { AzureKeyCredential } from "@azure/core-auth";
 import { AnalysisResponse, AnalysisResult } from "@/ocr/azureTypes";
+import { join } from "path";
+import { HttpService } from "@nestjs/axios";
+import { lastValueFrom } from "rxjs";
 
 export interface OcrRequestResponse {
   status: DocumentStatus;
@@ -18,31 +17,33 @@ export interface OcrRequestResponse {
 @Injectable()
 export class OcrService {
   private readonly logger = new Logger(OcrService.name);
-  private readonly azureClient: DocumentIntelligenceClient;
   private readonly azureModelId: string;
+  private readonly storagePath: string;
+  private readonly azureEndpoint: string;
+  private readonly azureApiKey: string;
 
   constructor(
     private configService: ConfigService,
     private databaseService: DatabaseService,
+    private httpService: HttpService
   ) {
-    const azureEndpoint = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
+    this.azureEndpoint = this.configService.get<string>(
+      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT"
     );
-    const azureApiKey = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
+    this.azureApiKey = this.configService.get<string>(
+      "AZURE_DOCUMENT_INTELLIGENCE_API_KEY"
     );
     this.azureModelId = "prebuilt-layout";
 
-    if (!azureEndpoint || !azureApiKey) {
+    if (!this.azureEndpoint || !this.azureApiKey) {
       const azureConfigMessage =
         "Azure Document Intelligence credentials not configured.";
       this.logger.warn(azureConfigMessage);
       throw Error(azureConfigMessage);
     }
-    this.azureClient = DocumentIntelligence(
-      azureEndpoint,
-      new AzureKeyCredential(azureApiKey),
-    );
+    this.storagePath =
+      this.configService.get<string>("STORAGE_PATH") ||
+      join(process.cwd(), "storage", "documents");
   }
 
   async requestOcr(documentId: string): Promise<OcrRequestResponse> {
@@ -51,42 +52,52 @@ export class OcrService {
     const document = await this.databaseService.findDocument(documentId);
     if (document == null) {
       throw new NotFoundException(
-        `Entry for document with ID ${documentId} not found.`,
+        `Entry for document with ID ${documentId} not found.`
       );
     }
     try {
       // Read file from filesystem
       // TODO: Where is this actually meant to come from? Suggest separating to file service.
-      const fileBuffer = await readFile(document.file_path);
+      const filePath = `${this.storagePath}/${document.file_path}`;
+      const fileBuffer = await readFile(filePath);
       if (fileBuffer == null) throw Error("File not found.");
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);
 
       // Send file to Azure for OCR
-      const docPoller = await this.azureClient
-        .pathUnchecked(
-          `/documentModels/${this.azureModelId}:analyze?api-version=2024-11-30`,
-        )
-        .post({
-          body: {
-            base64Source: fileBuffer.toString("base64"),
+      const azureResponse = await lastValueFrom(this.httpService.post(
+        `${this.azureEndpoint}/documentModels/${this.azureModelId}:analyze?api-version=2024-11-30`,
+        {
+          base64Source: fileBuffer.toString("base64"),
+        },
+        {
+          headers: {
+            "api-key": this.azureApiKey,
           },
-        });
-      // Update status in database
-      if (docPoller.status == "202") {
-        const updateResult = await this.databaseService.updateDocument(
-          documentId,
-          {
-            apim_request_id: docPoller.headers["apim-request-id"],
-            status: DocumentStatus.ongoing_ocr,
-          },
-        );
+        }
+      ));      
 
-        // Return the apim request ID
-        return {
-          apimRequestId: updateResult.apim_request_id,
-          status: updateResult.status,
-        };
+      if (azureResponse.status != 202){
+        console.log(azureResponse.statusText, azureResponse.data);
+        throw Error("Error sending document to Azure");
       }
+      console.log(azureResponse.headers, azureResponse.headers["apim-request-id"])
+      const updateResult = await this.databaseService.updateDocument(
+        documentId,
+        {
+          apim_request_id: azureResponse.headers["apim-request-id"], // docPoller.headers["apim-request-id"],
+          status: DocumentStatus.ongoing_ocr,
+        }
+      );
+
+      // Return the apim request ID
+      console.log("success", {
+        apimRequestId: updateResult.apim_request_id,
+        status: updateResult.status,
+      });
+      return {
+        apimRequestId: updateResult.apim_request_id,
+        status: updateResult.status,
+      };
     } catch (error) {
       this.logger.error(`Error processing document: ${error.message}`);
       this.logger.error(`Stack: ${error.stack}`);
@@ -96,7 +107,7 @@ export class OcrService {
           status: DocumentStatus.failed,
         });
       }
-
+      console.log("failure", error);
       return {
         status: DocumentStatus.failed,
         error: error.message,
@@ -109,7 +120,7 @@ export class OcrService {
     const document = await this.databaseService.findDocument(documentId);
     if (document == null) {
       throw new NotFoundException(
-        `Entry for document with ID ${documentId} not found.`,
+        `Entry for document with ID ${documentId} not found.`
       );
     }
 
@@ -124,20 +135,23 @@ export class OcrService {
       throw Error(`Document ID ${documentId} has not yet been sent for OCR.`);
     }
 
-    // Get results from Azure
-    const docPoller = await this.azureClient
-      .pathUnchecked(
-        `/documentModels/${this.azureModelId}/analyzeResults/${apim}?api-version=2024-11-30`,
-      )
-      .get();
-
-    if (docPoller.status != "200") {
+    // Get OCR results from Azure
+    const azureResponse = await lastValueFrom(this.httpService.get(
+        `${this.azureEndpoint}/documentModels/${this.azureModelId}/analyzeResults/${apim}?api-version=2024-11-30`,
+        {
+          headers: {
+            "api-key": this.azureApiKey,
+          },
+        }
+      ));      
+    
+    if (azureResponse.status != 200){
       throw Error(
-        `Failed to retrieve OCR results for document ID ${documentId}`,
+        `Failed to retrieve OCR results for document ID ${documentId}`
       );
     }
 
-    const analysisResponse: AnalysisResponse = docPoller.body;
+    const analysisResponse: AnalysisResponse = azureResponse.data;
     const anaysisResult = analysisResponse.analyzeResult;
     // Update OCR results table
     this.databaseService.upsertOcrResult({

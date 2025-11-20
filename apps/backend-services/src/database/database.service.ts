@@ -118,14 +118,7 @@ export class DatabaseService implements OnModuleInit {
       const document = await this.prisma.document.update({
         where: { id },
         data: {
-          title: data.title,
-          original_filename: data.original_filename,
-          file_path: data.file_path,
-          file_type: data.file_type,
-          file_size: data.file_size,
-          metadata: data.metadata,
-          source: data.source,
-          status: data.status as DocumentStatus,
+          ...data,
           updated_at: new Date(),
         },
       });
