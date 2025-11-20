@@ -64,23 +64,23 @@ export class OcrService {
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);
 
       // Send file to Azure for OCR
-      const azureResponse = await lastValueFrom(this.httpService.post(
-        `${this.azureEndpoint}/documentModels/${this.azureModelId}:analyze?api-version=2024-11-30`,
-        {
-          base64Source: fileBuffer.toString("base64"),
-        },
-        {
-          headers: {
-            "api-key": this.azureApiKey,
+      const azureResponse = await lastValueFrom(
+        this.httpService.post(
+          `${this.azureEndpoint}/documentModels/${this.azureModelId}:analyze?api-version=2024-11-30&features=keyValuePairs`,
+          {
+            base64Source: fileBuffer.toString("base64"),
           },
-        }
-      ));      
+          {
+            headers: {
+              "api-key": this.azureApiKey,
+            },
+          }
+        )
+      );
 
-      if (azureResponse.status != 202){
-        console.log(azureResponse.statusText, azureResponse.data);
+      if (azureResponse.status != 202) {
         throw Error("Error sending document to Azure");
       }
-      console.log(azureResponse.headers, azureResponse.headers["apim-request-id"])
       const updateResult = await this.databaseService.updateDocument(
         documentId,
         {
@@ -90,10 +90,6 @@ export class OcrService {
       );
 
       // Return the apim request ID
-      console.log("success", {
-        apimRequestId: updateResult.apim_request_id,
-        status: updateResult.status,
-      });
       return {
         apimRequestId: updateResult.apim_request_id,
         status: updateResult.status,
@@ -107,7 +103,7 @@ export class OcrService {
           status: DocumentStatus.failed,
         });
       }
-      console.log("failure", error);
+
       return {
         status: DocumentStatus.failed,
         error: error.message,
@@ -136,16 +132,18 @@ export class OcrService {
     }
 
     // Get OCR results from Azure
-    const azureResponse = await lastValueFrom(this.httpService.get(
+    const azureResponse = await lastValueFrom(
+      this.httpService.get(
         `${this.azureEndpoint}/documentModels/${this.azureModelId}/analyzeResults/${apim}?api-version=2024-11-30`,
         {
           headers: {
             "api-key": this.azureApiKey,
           },
         }
-      ));      
-    
-    if (azureResponse.status != 200){
+      )
+    );
+
+    if (azureResponse.status != 200) {
       throw Error(
         `Failed to retrieve OCR results for document ID ${documentId}`
       );

@@ -27,7 +27,7 @@ export class DatabaseService implements OnModuleInit {
   }
 
   async createDocument(
-    data: Omit<DocumentData, "id" | "created_at" | "updated_at">,
+    data: Omit<DocumentData, "id" | "created_at" | "updated_at">
   ): Promise<DocumentData> {
     this.logger.debug("=== DatabaseService.createDocument ===");
     this.logger.debug(`Creating document: ${data.title}`);
@@ -53,7 +53,7 @@ export class DatabaseService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         `Failed to create document: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw error;
     }
@@ -79,7 +79,7 @@ export class DatabaseService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         `Failed to find document: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw error;
     }
@@ -100,7 +100,7 @@ export class DatabaseService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         `Failed to find documents: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw error;
     }
@@ -108,7 +108,7 @@ export class DatabaseService implements OnModuleInit {
 
   async updateDocument(
     id: string,
-    data: Partial<DocumentData>,
+    data: Partial<DocumentData>
   ): Promise<DocumentData | null> {
     this.logger.debug("=== DatabaseService.updateDocument ===");
     this.logger.debug(`Updating document: ${id}`);
@@ -134,7 +134,7 @@ export class DatabaseService implements OnModuleInit {
       }
       this.logger.error(
         `Failed to update document: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw error;
     }
@@ -154,7 +154,7 @@ export class DatabaseService implements OnModuleInit {
         this.logger.debug(`No OCR result found for document: ${documentId}`);
         this.logger.debug("=== DatabaseService.findOcrResult completed ===");
         throw new NotFoundException(
-          `No OCR result found for document: ${documentId}`,
+          `No OCR result found for document: ${documentId}`
         );
       }
 
@@ -171,7 +171,7 @@ export class DatabaseService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         `Failed to find OCR result: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw error;
     }
@@ -184,37 +184,42 @@ export class DatabaseService implements OnModuleInit {
   }): Promise<void> {
     this.logger.debug("=== DatabaseService.upsertOcrResult ===");
     this.logger.debug(
-      `Creating/Updating OCR result for document: ${data.documentId}`,
+      `Creating/Updating OCR result for document: ${data.documentId}`
     );
 
     try {
+      const analysisResult = data.analysisResponse.analyzeResult;
+      const asJson = (obj) => obj as unknown as JsonValue;
+      const updateObject = {
+        processed_at: data.analysisResponse.lastUpdatedDateTime,
+        extracted_text: analysisResult.content,
+        pages: asJson(analysisResult.pages),
+        tables: asJson(analysisResult.tables),
+        paragraphs: asJson(analysisResult.paragraphs),
+        styles: asJson(analysisResult.styles),
+        sections: asJson(analysisResult.sections),
+        figures: asJson(analysisResult.figures),
+        keyValuePairs: asJson(analysisResult.keyValuePairs),
+      };
       await this.prisma.ocrResult.upsert({
         where: {
           document_id: data.documentId,
         },
-        update: {
-          processed_at: data.analysisResponse.lastUpdatedDateTime,
-          extracted_text: data.analysisResponse.analyzeResult.content,
-          pages: data.analysisResponse.analyzeResult
-            .pages as unknown as JsonValue,
-        },
+        update: updateObject,
         create: {
           document_id: data.documentId,
-          processed_at: data.analysisResponse.lastUpdatedDateTime,
-          extracted_text: data.analysisResponse.analyzeResult.content,
-          pages: data.analysisResponse.analyzeResult
-            .pages as unknown as JsonValue,
+          ...updateObject,
         },
       });
 
       this.logger.debug(
-        `OCR result created/updated for document: ${data.documentId}`,
+        `OCR result created/updated for document: ${data.documentId}`
       );
       this.logger.debug("=== DatabaseService.upsertOcrResult completed ===");
     } catch (error) {
       this.logger.error(
         `Failed to create/update OCR result: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw error;
     }
