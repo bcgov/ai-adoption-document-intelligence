@@ -25,13 +25,13 @@ export class OcrService {
   constructor(
     private configService: ConfigService,
     private databaseService: DatabaseService,
-    private httpService: HttpService
+    private httpService: HttpService,
   ) {
     this.azureEndpoint = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT"
+      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
     );
     this.azureApiKey = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_API_KEY"
+      "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
     );
     this.azureModelId = "prebuilt-layout";
 
@@ -46,13 +46,18 @@ export class OcrService {
       join(process.cwd(), "storage", "documents");
   }
 
+  /**
+   * Sends a document to Azure for OCR processing.
+   * @param documentId ID from documents table
+   * @returns New status of document and request ID from Azure.
+   */
   async requestOcr(documentId: string): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
     // Find filepath of document
     const document = await this.databaseService.findDocument(documentId);
     if (document == null) {
       throw new NotFoundException(
-        `Entry for document with ID ${documentId} not found.`
+        `Entry for document with ID ${documentId} not found.`,
       );
     }
     try {
@@ -74,8 +79,8 @@ export class OcrService {
             headers: {
               "api-key": this.azureApiKey,
             },
-          }
-        )
+          },
+        ),
       );
 
       if (azureResponse.status != 202) {
@@ -86,7 +91,7 @@ export class OcrService {
         {
           apim_request_id: azureResponse.headers["apim-request-id"], // docPoller.headers["apim-request-id"],
           status: DocumentStatus.ongoing_ocr,
-        }
+        },
       );
 
       // Return the apim request ID
@@ -111,12 +116,17 @@ export class OcrService {
     }
   }
 
+  /**
+   * Retrieves the results of an Azure OCR request.
+   * @param documentId ID from documents table
+   * @returns The AnalysisResult of OCR processing.
+   */
   async retrieveOcrResults(documentId: string): Promise<AnalysisResult> {
     // Get apim ID of document
     const document = await this.databaseService.findDocument(documentId);
     if (document == null) {
       throw new NotFoundException(
-        `Entry for document with ID ${documentId} not found.`
+        `Entry for document with ID ${documentId} not found.`,
       );
     }
 
@@ -139,13 +149,13 @@ export class OcrService {
           headers: {
             "api-key": this.azureApiKey,
           },
-        }
-      )
+        },
+      ),
     );
 
     if (azureResponse.status != 200) {
       throw Error(
-        `Failed to retrieve OCR results for document ID ${documentId}`
+        `Failed to retrieve OCR results for document ID ${documentId}`,
       );
     }
 

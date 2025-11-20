@@ -189,7 +189,7 @@ export class DatabaseService implements OnModuleInit {
 
     try {
       const analysisResult = data.analysisResponse.analyzeResult;
-      const asJson = (obj) => obj as unknown as JsonValue;
+      const asJson = (obj): JsonValue => obj as unknown as JsonValue;
       const updateObject = {
         processed_at: data.analysisResponse.lastUpdatedDateTime,
         extracted_text: analysisResult.content,
