@@ -38,6 +38,12 @@ model OcrResult {
   document     Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
   extracted_text String
   pages        Json
+  tables       Json
+  paragraphs   Json
+  styles       Json
+  sections     Json
+  figures      Json
+  keyValuePairs Json?
   metadata     Json?
   processed_at DateTime @default(now())
 

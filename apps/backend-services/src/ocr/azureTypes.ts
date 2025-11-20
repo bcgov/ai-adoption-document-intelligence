@@ -17,6 +17,7 @@ export interface AnalysisResult {
   contentFormat: string;
   sections: Section[];
   figures: Figure[];
+  keyValuePairs?: KeyValuePair[]; // Optional b/c only returned with flag.
 }
 
 export interface Page {
@@ -100,4 +101,15 @@ export interface Span {
 export interface BoundingRegion {
   pageNumber: number;
   polygon: number[];
+}
+
+export interface KeyValuePair {
+  key: KeyValue;
+  confidence: number;
+}
+
+export interface KeyValue {
+  content: string;
+  boundingRegions: BoundingRegion[];
+  spans: Span[];
 }
