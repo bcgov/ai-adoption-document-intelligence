@@ -6,11 +6,16 @@ import {
   Query,
   Res,
   HttpStatus,
-  BadRequestException,
 } from "@nestjs/common";
 import { Response } from "express";
 import { AuthService } from "./auth.service";
 import { Public } from "./public.decorator";
+import {
+  AuthResultQueryDto,
+  LogoutQueryDto,
+  OAuthCallbackQueryDto,
+  RefreshTokenDto,
+} from "./dto";
 
 /**
  * Thin HTTP layer that exposes the OAuth entrypoints to the frontend.
@@ -26,10 +31,8 @@ export class AuthController {
    */
   @Public()
   @Post("refresh")
-  async refreshToken(@Body() body: { refresh_token: string }) {
-    const tokens = await this.authService.refreshAccessToken(
-      body.refresh_token,
-    );
+  async refreshToken(@Body() body: RefreshTokenDto) {
+    const tokens = await this.authService.refreshAccessToken(body.refresh_token);
     return {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
@@ -62,11 +65,11 @@ export class AuthController {
   @Public()
   @Get("logout")
   async logout(
-    @Query("id_token_hint") idTokenHint: string,
+    @Query() query: LogoutQueryDto,
     @Res() res: Response,
   ) {
     try {
-      const logoutUrl = this.authService.getLogoutUrl(idTokenHint);
+      const logoutUrl = this.authService.getLogoutUrl(query.id_token_hint);
       res.redirect(logoutUrl);
     } catch {
       res
@@ -83,17 +86,14 @@ export class AuthController {
   @Public()
   @Get("callback")
   async oauthCallback(
-    @Query("code") code: string,
-    @Query("state") state: string,
+    @Query() query: OAuthCallbackQueryDto,
     @Res() res: Response,
   ) {
-    if (!code || !state) {
-      const redirectUrl = this.authService.buildErrorRedirect("missing_params");
-      return res.redirect(redirectUrl);
-    }
-
     try {
-      const resultId = await this.authService.handleCallback(code, state);
+      const resultId = await this.authService.handleCallback(
+        query.code,
+        query.state,
+      );
       const redirectUrl = this.authService.buildAuthResultRedirect(resultId);
       return res.redirect(redirectUrl);
     } catch (error) {
@@ -110,11 +110,7 @@ export class AuthController {
    */
   @Public()
   @Get("result")
-  async consumeResult(@Query("result") resultId: string) {
-    if (!resultId) {
-      throw new BadRequestException("result parameter is required");
-    }
-
-    return this.authService.consumeAuthResult(resultId);
+  async consumeResult(@Query() query: AuthResultQueryDto) {
+    return this.authService.consumeAuthResult(query.result);
   }
 }

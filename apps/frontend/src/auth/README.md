@@ -12,7 +12,6 @@ The React auth folder contains the client-side glue that cooperates with the bac
 | File | Responsibility |
 | --- | --- |
 | `AuthContext.tsx` | React context that owns token storage, refresh logic, auth result handling, and exposes hooks to the app. |
-| `keycloak-config.ts` | (Legacy) Example OIDC client settings; kept for reference but unused in the current flow. |
 
 ## How `AuthContext` Works
 
@@ -20,6 +19,8 @@ The React auth folder contains the client-side glue that cooperates with the bac
 - When an `auth_result` parameter exists, it calls `/api/auth/result`, stores the returned tokens, and removes the query param.
 - Whenever the stored user changes, it updates the shared `apiService` with the latest access token so API requests automatically include `Authorization: Bearer ...`.
 - `login()` and `logout()` simply send the browser through the backend auth endpoints; the backend handles the rest.
+
+> Legacy note: the deprecated `keycloak-config.ts` file has been removed to avoid confusion with the backend-driven OAuth flow. Any future OIDC client tweaks should happen through the backend configuration only.
 
 ## Developer Notes
 

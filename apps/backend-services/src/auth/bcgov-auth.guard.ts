@@ -34,6 +34,7 @@ declare module "express" {
 @Injectable()
 export class BCGovAuthGuard implements CanActivate {
   private jwksClient: JwksClient;
+  private readonly clientId: string;
 
   constructor(
     private configService: ConfigService,
@@ -61,6 +62,12 @@ export class BCGovAuthGuard implements CanActivate {
       cache: true,
       cacheMaxAge: 86400000, // 24 hours
     });
+
+    const clientId = this.configService.get<string>("SSO_CLIENT_ID");
+    if (!clientId) {
+      throw new Error("SSO_CLIENT_ID must be configured");
+    }
+    this.clientId = clientId;
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -126,11 +133,44 @@ export class BCGovAuthGuard implements CanActivate {
       const verified = jwt.verify(token, signingKey, {
         algorithms: ["RS256"],
         issuer: expectedIssuer,
-      });
+        audience: this.clientId,
+      }) as jwt.JwtPayload & User;
 
-      return verified as User;
+      const normalizedRoles = this.extractRoles(verified);
+
+      return {
+        ...verified,
+        roles: normalizedRoles,
+      };
     } catch {
       throw new UnauthorizedException("Token validation failed");
     }
+  }
+
+  private extractRoles(
+    payload: jwt.JwtPayload & {
+      realm_access?: { roles?: string[] };
+      resource_access?: Record<string, { roles?: string[] }>;
+      roles?: string[];
+    },
+  ): string[] {
+    const roleSet = new Set<string>();
+
+    const pushRoles = (roles?: string[]) => {
+      roles?.forEach((role) => {
+        if (role) {
+          roleSet.add(role);
+        }
+      });
+    };
+
+    pushRoles(payload.roles);
+    pushRoles(payload.realm_access?.roles);
+
+    const resourceRoles = payload.resource_access ?? {};
+    Object.values(resourceRoles).forEach((access) => pushRoles(access.roles));
+    pushRoles(resourceRoles[this.clientId]?.roles);
+
+    return Array.from(roleSet);
   }
 }

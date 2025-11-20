@@ -19,8 +19,9 @@ This folder contains the NestJS pieces that implement the confidential OAuth 2.0
 | `auth.service.ts` | Builds Keycloak URLs, exchanges codes, validates ID tokens, and manages one-time auth results. |
 | `auth.controller.ts` | Exposes `/auth/login`, `/auth/callback`, `/auth/result`, `/auth/refresh`, and `/auth/logout`. |
 | `auth-session.store.ts` | In-memory, short-lived cache used to hand provider tokens to the SPA exactly once. |
-| `bcgov-auth.guard.ts` | Validates incoming bearer tokens via JWKS, attaching the decoded user to the request. |
+| `bcgov-auth.guard.ts` | Validates incoming bearer tokens via JWKS, enforces issuer+audience, and projects normalized Keycloak roles onto the request. |
 | `roles.guard.ts` | Enforces role metadata from `@Roles` decorators. |
+| `dto/*.ts` | DTOs that validate every auth route payload/query via Nest's ValidationPipe. |
 
 ## Configuration Flags
 
@@ -28,6 +29,11 @@ This folder contains the NestJS pieces that implement the confidential OAuth 2.0
 - `FRONTEND_URL` is used for redirecting the browser back to the SPA after login/logout.
 - `AUTH_STATE_SECRET` signs the state JWT; defaults to the client secret.
 - `AUTH_RESULT_TTL_SECONDS` controls how long an auth result can be redeemed (default 60).
+
+## Validation & Guardrails
+
+- Every auth controller route accepts a DTO (body or query) that is validated by the global `ValidationPipe`, preventing malformed requests from reaching the business logic.
+- `BCGovAuthGuard` now verifies both the issuer and the `aud` claim (matching `SSO_CLIENT_ID`) and normalizes Keycloak's realm/resource role claims into a single `roles` array for downstream guards.
 
 ## Testing Tips
 
