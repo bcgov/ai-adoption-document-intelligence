@@ -1,8 +1,8 @@
-import { useSSO } from '@bcgov/citz-imb-sso-react';
+import { useAuth } from '../auth/AuthContext';
 import { Card, Title, Text, Button, Stack, Group, Badge } from '@mantine/core';
 
 export const Login = () => {
-  const { isAuthenticated, user, login, logout } = useSSO();
+  const { isAuthenticated, user, login, logout } = useAuth();
 
   if (isAuthenticated && user) {
     return (
@@ -10,17 +10,17 @@ export const Login = () => {
         <Stack gap="lg" align="center">
           <Group gap="xs">
             <Title order={1}>Welcome,</Title>
-            <Title order={1} c="blue">{user?.first_name} {user?.last_name}</Title>
+            <Title order={1} c="blue">{String(user?.profile?.name || '')}</Title>
           </Group>
 
           <Stack gap="sm" style={{ width: '100%' }}>
             <Group justify="space-between">
-              <Text fw={500}>IDIR Username:</Text>
-              <Badge variant="light" color="blue">{user?.originalData?.idir_username}</Badge>
+              <Text fw={500}>Username:</Text>
+              <Badge variant="light" color="blue">{String(user?.profile?.preferred_username || '')}</Badge>
             </Group>
             <Group justify="space-between">
               <Text fw={500}>Email:</Text>
-              <Text size="sm">{user?.email}</Text>
+              <Text size="sm">{String(user?.profile?.email || '')}</Text>
             </Group>
           </Stack>
 

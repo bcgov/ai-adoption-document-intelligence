@@ -13,13 +13,14 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\" --fix"
   },
   "dependencies": {
-    "@bcgov/citz-imb-sso-react": "^1.0.1",
     "@mantine/core": "^8.3.8",
     "@mantine/hooks": "^8.3.8",
     "@tanstack/react-query": "^5.45.0",
     "axios": "^1.7.4",
+    "oidc-client-ts": "^3.4.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^7.9.6"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",

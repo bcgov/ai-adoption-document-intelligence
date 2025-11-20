@@ -26,6 +26,11 @@ declare module "express" {
   }
 }
 
+/**
+ * Verifies bearer tokens attached to protected routes.
+ * When the frontend sends provider-issued tokens, this guard validates signatures via JWKS
+ * and projects a `user` object onto the request for downstream role checks.
+ */
 @Injectable()
 export class BCGovAuthGuard implements CanActivate {
   private jwksClient: JwksClient;
