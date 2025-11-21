@@ -66,8 +66,8 @@ jobs:
             ${{ runner.os }}-node-
       - name: Install dependencies
         run: npm i
-      - name: Generate Prisma Client
-        run: npm run db:generate
+      # - name: Generate Prisma Client
+      #   run: npm run db:generate
       - name: Run tests
         run: npm test
       # - name: Run lint
