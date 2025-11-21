@@ -1,11 +1,12 @@
 name: Backend Quality Assurance
-
+permissions:
+    contents: read
 on:
   pull_request:
     types: [opened, synchronize]
     branches: [main, develop]
     paths:
-      - '.github/workflows/backend-unit-tests.yml'
+      - '.github/workflows/backend-qa.yml'
       - 'apps/backend-services/src/**'
   workflow_dispatch:
 
