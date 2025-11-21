@@ -62,4 +62,3 @@ jobs:
             ${{ runner.os }}-node-
       - name: Run Linter
         run: npm run lint
-  
