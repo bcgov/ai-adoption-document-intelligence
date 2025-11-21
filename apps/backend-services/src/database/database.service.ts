@@ -1,11 +1,16 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { PrismaClient, Document } from "../generated/client";
+import { PrismaClient, Document, OcrResult } from "../generated/client";
 import { JsonValue } from "../generated/internal/prismaNamespace";
 import { DocumentStatus } from "../generated/enums";
-import { OcrResult } from "../ocr/ocr.service";
+import { AnalysisResponse } from "@/ocr/azureTypes";
 
-export type DocumentData = Omit<Document, "ocr_results">;
+export type DocumentData = Document;
 
 @Injectable()
 export class DatabaseService implements OnModuleInit {
@@ -103,7 +108,7 @@ export class DatabaseService implements OnModuleInit {
 
   async updateDocument(
     id: string,
-    data: Partial<Omit<DocumentData, "id" | "created_at">>,
+    data: Partial<DocumentData>,
   ): Promise<DocumentData | null> {
     this.logger.debug("=== DatabaseService.updateDocument ===");
     this.logger.debug(`Updating document: ${id}`);
@@ -113,14 +118,7 @@ export class DatabaseService implements OnModuleInit {
       const document = await this.prisma.document.update({
         where: { id },
         data: {
-          title: data.title,
-          original_filename: data.original_filename,
-          file_path: data.file_path,
-          file_type: data.file_type,
-          file_size: data.file_size,
-          metadata: data.metadata,
-          source: data.source,
-          status: data.status as DocumentStatus,
+          ...data,
           updated_at: new Date(),
         },
       });
@@ -155,17 +153,15 @@ export class DatabaseService implements OnModuleInit {
       if (!ocrResult) {
         this.logger.debug(`No OCR result found for document: ${documentId}`);
         this.logger.debug("=== DatabaseService.findOcrResult completed ===");
-        return null;
+        throw new NotFoundException(
+          `No OCR result found for document: ${documentId}`,
+        );
       }
 
       // Transform Prisma result to OcrResult interface
       const result: OcrResult = {
-        documentId: ocrResult.document_id,
-        status: ocrResult.status as "success" | "failed" | "processing",
-        extractedText: ocrResult.extracted_text || undefined,
-        pages: (ocrResult.pages as unknown as OcrResult["pages"]) || [],
-        metadata: (ocrResult.metadata as Record<string, unknown>) || undefined,
-        processedAt: ocrResult.processed_at,
+        ...ocrResult,
+        pages: ocrResult.pages || [],
       };
 
       this.logger.debug(`OCR result found for document: ${documentId}`);
@@ -181,32 +177,48 @@ export class DatabaseService implements OnModuleInit {
     }
   }
 
-  async createOcrResult(data: {
+  async upsertOcrResult(data: {
     documentId: string;
-    status: string;
-    extractedText?: string;
-    pages: OcrResult["pages"];
+    analysisResponse: AnalysisResponse;
     metadata?: Record<string, unknown>;
   }): Promise<void> {
-    this.logger.debug("=== DatabaseService.createOcrResult ===");
-    this.logger.debug(`Creating OCR result for document: ${data.documentId}`);
+    this.logger.debug("=== DatabaseService.upsertOcrResult ===");
+    this.logger.debug(
+      `Creating/Updating OCR result for document: ${data.documentId}`,
+    );
 
     try {
-      await this.prisma.ocrResult.create({
-        data: {
+      const analysisResult = data.analysisResponse.analyzeResult;
+      const asJson = (obj): JsonValue => obj as unknown as JsonValue;
+      const updateObject = {
+        processed_at: data.analysisResponse.lastUpdatedDateTime,
+        extracted_text: analysisResult.content,
+        pages: asJson(analysisResult.pages),
+        tables: asJson(analysisResult.tables),
+        paragraphs: asJson(analysisResult.paragraphs),
+        styles: asJson(analysisResult.styles),
+        sections: asJson(analysisResult.sections),
+        figures: asJson(analysisResult.figures),
+        keyValuePairs: asJson(analysisResult.keyValuePairs),
+      };
+      await this.prisma.ocrResult.upsert({
+        where: {
           document_id: data.documentId,
-          status: data.status,
-          extracted_text: data.extractedText,
-          pages: data.pages as unknown as JsonValue,
-          metadata: data.metadata as unknown as JsonValue,
+        },
+        update: updateObject,
+        create: {
+          document_id: data.documentId,
+          ...updateObject,
         },
       });
 
-      this.logger.debug(`OCR result created for document: ${data.documentId}`);
-      this.logger.debug("=== DatabaseService.createOcrResult completed ===");
+      this.logger.debug(
+        `OCR result created/updated for document: ${data.documentId}`,
+      );
+      this.logger.debug("=== DatabaseService.upsertOcrResult completed ===");
     } catch (error) {
       this.logger.error(
-        `Failed to create OCR result: ${error.message}`,
+        `Failed to create/update OCR result: ${error.message}`,
         error.stack,
       );
       throw error;

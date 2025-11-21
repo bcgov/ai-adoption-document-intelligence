@@ -1,198 +1,171 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { DatabaseService } from "@/database/database.service";
+import { DocumentStatus } from "@/generated/enums";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { readFile } from "fs/promises";
+import { AnalysisResponse, AnalysisResult } from "@/ocr/azureTypes";
+import { join } from "path";
+import { HttpService } from "@nestjs/axios";
+import { lastValueFrom } from "rxjs";
 
-export interface OcrResult {
-  documentId: string;
-  status: "success" | "failed" | "processing";
-  extractedText?: string;
-  pages?: OcrPage[];
-  metadata?: Record<string, unknown>;
-  error?: string;
-  processedAt?: Date;
-}
-
-export interface OcrPage {
-  pageNumber: number;
-  text: string;
-  words?: OcrWord[];
-  lines?: OcrLine[];
-}
-
-export interface OcrWord {
-  text: string;
-  boundingBox: number[];
-  confidence: number;
-}
-
-export interface OcrLine {
-  text: string;
-  boundingBox: number[];
-  words: OcrWord[];
+export interface OcrRequestResponse {
+  status: DocumentStatus;
+  apimRequestId?: string;
+  error?: Error;
 }
 
 @Injectable()
 export class OcrService {
   private readonly logger = new Logger(OcrService.name);
-  private readonly azureEndpoint: string | undefined;
-  private readonly azureApiKey: string | undefined;
-  private readonly azureModelId: string | undefined;
+  private readonly azureModelId: string;
+  private readonly storagePath: string;
+  private readonly azureEndpoint: string;
+  private readonly azureApiKey: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private databaseService: DatabaseService,
+    private httpService: HttpService,
+  ) {
     this.azureEndpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
     );
     this.azureApiKey = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
     );
-    this.azureModelId =
-      this.configService.get<string>("AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID") ||
-      "prebuilt-read";
+    this.azureModelId = "prebuilt-layout";
 
     if (!this.azureEndpoint || !this.azureApiKey) {
-      this.logger.warn(
-        "Azure Document Intelligence credentials not configured. OCR service will operate in stub mode.",
-      );
+      const azureConfigMessage =
+        "Azure Document Intelligence credentials not configured.";
+      this.logger.warn(azureConfigMessage);
+      throw Error(azureConfigMessage);
     }
+    this.storagePath =
+      this.configService.get<string>("STORAGE_PATH") ||
+      join(process.cwd(), "storage", "documents");
   }
 
   /**
-   * Process a document using Azure Document Intelligence
-   * @param filePath Path to the document file
-   * @param documentId Optional document ID for tracking
-   * @returns OCR result with extracted text and metadata
+   * Sends a document to Azure for OCR processing.
+   * @param documentId ID from documents table
+   * @returns New status of document and request ID from Azure.
    */
-  async processDocument(
-    filePath: string,
-    documentId?: string,
-  ): Promise<OcrResult> {
-    this.logger.debug(`Processing document: ${filePath}`);
+  async requestOcr(documentId: string): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
-
+    // Find filepath of document
+    const document = await this.databaseService.findDocument(documentId);
+    if (document == null) {
+      throw new NotFoundException(
+        `Entry for document with ID ${documentId} not found.`,
+      );
+    }
     try {
       // Read file from filesystem
+      // TODO: Where is this actually meant to come from? Suggest separating to file service.
+      const filePath = `${this.storagePath}/${document.file_path}`;
       const fileBuffer = await readFile(filePath);
+      if (fileBuffer == null) throw Error("File not found.");
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);
 
-      // Check if Azure credentials are configured
-      if (!this.azureEndpoint || !this.azureApiKey) {
-        this.logger.warn(
-          "Azure credentials not configured, returning stub result",
-        );
-        return this.getStubResult(filePath, documentId);
-      }
-
-      // TODO: Implement Azure Document Intelligence API call
-      // This is where the actual Azure API integration will go
-      const result = await this.callAzureDocumentIntelligence(
-        fileBuffer,
-        filePath,
+      // Send file to Azure for OCR
+      const azureResponse = await lastValueFrom(
+        this.httpService.post(
+          `${this.azureEndpoint}/documentModels/${this.azureModelId}:analyze?api-version=2024-11-30&features=keyValuePairs`,
+          {
+            base64Source: fileBuffer.toString("base64"),
+          },
+          {
+            headers: {
+              "api-key": this.azureApiKey,
+            },
+          },
+        ),
       );
 
+      if (azureResponse.status != 202) {
+        throw Error("Error sending document to Azure");
+      }
+      const updateResult = await this.databaseService.updateDocument(
+        documentId,
+        {
+          apim_request_id: azureResponse.headers["apim-request-id"], // docPoller.headers["apim-request-id"],
+          status: DocumentStatus.ongoing_ocr,
+        },
+      );
+
+      // Return the apim request ID
       return {
-        documentId: documentId || "unknown",
-        status: "success",
-        extractedText: result.extractedText,
-        pages: result.pages,
-        metadata: result.metadata,
-        processedAt: new Date(),
+        apimRequestId: updateResult.apim_request_id,
+        status: updateResult.status,
       };
     } catch (error) {
       this.logger.error(`Error processing document: ${error.message}`);
       this.logger.error(`Stack: ${error.stack}`);
 
+      if (document != null) {
+        await this.databaseService.updateDocument(documentId, {
+          status: DocumentStatus.failed,
+        });
+      }
+
       return {
-        documentId: documentId || "unknown",
-        status: "failed",
+        status: DocumentStatus.failed,
         error: error.message,
-        processedAt: new Date(),
       };
     }
   }
 
   /**
-   * Stub implementation for Azure Document Intelligence API call
-   * This will be replaced with actual Azure API integration
+   * Retrieves the results of an Azure OCR request.
+   * @param documentId ID from documents table
+   * @returns The AnalysisResult of OCR processing.
    */
-  private async callAzureDocumentIntelligence(
-    fileBuffer: Buffer,
-    filePath: string,
-  ): Promise<{
-    extractedText: string;
-    pages: OcrPage[];
-    metadata: Record<string, unknown>;
-  }> {
-    this.logger.debug("Calling Azure Document Intelligence (stubbed)");
+  async retrieveOcrResults(documentId: string): Promise<AnalysisResult> {
+    // Get apim ID of document
+    const document = await this.databaseService.findDocument(documentId);
+    if (document == null) {
+      throw new NotFoundException(
+        `Entry for document with ID ${documentId} not found.`,
+      );
+    }
 
-    // TODO: Implement actual Azure Document Intelligence API call
-    // Example structure:
-    // 1. Create Form Recognizer client
-    // 2. Use analyzeDocument or beginAnalyzeDocument method
-    // 3. Poll for results if async
-    // 4. Parse response and extract text, pages, words, lines
-    // 5. Return structured OCR result
+    const apim = document.apim_request_id;
 
-    // Stub response
-    return {
-      extractedText: `[Stub] Extracted text from ${filePath}`,
-      pages: [
+    // Potentially was never sent or failed to send
+    if (
+      document.status == DocumentStatus.pre_ocr ||
+      document.status == DocumentStatus.failed ||
+      apim == null
+    ) {
+      throw Error(`Document ID ${documentId} has not yet been sent for OCR.`);
+    }
+
+    // Get OCR results from Azure
+    const azureResponse = await lastValueFrom(
+      this.httpService.get(
+        `${this.azureEndpoint}/documentModels/${this.azureModelId}/analyzeResults/${apim}?api-version=2024-11-30`,
         {
-          pageNumber: 1,
-          text: `[Stub] Page 1 text from ${filePath}`,
-          words: [],
-          lines: [],
+          headers: {
+            "api-key": this.azureApiKey,
+          },
         },
-      ],
-      metadata: {
-        modelId: this.azureModelId,
-        filePath,
-        fileSize: fileBuffer.length,
-        processedBy: "stub",
-      },
-    };
-  }
+      ),
+    );
 
-  /**
-   * Get stub result when Azure credentials are not configured
-   */
-  private getStubResult(filePath: string, documentId?: string): OcrResult {
-    return {
-      documentId: documentId || "unknown",
-      status: "success",
-      extractedText: `[Stub] OCR result for ${filePath}`,
-      pages: [
-        {
-          pageNumber: 1,
-          text: `[Stub] This is a placeholder OCR result. Configure Azure Document Intelligence credentials to enable actual OCR processing.`,
-          words: [],
-          lines: [],
-        },
-      ],
-      metadata: {
-        filePath,
-        stub: true,
-        message: "Azure Document Intelligence not configured",
-      },
-      processedAt: new Date(),
-    };
-  }
+    if (azureResponse.status != 200) {
+      throw Error(
+        `Failed to retrieve OCR results for document ID ${documentId}`,
+      );
+    }
 
-  /**
-   * Process a document by document ID (requires DocumentService)
-   * This method can be used when you have a document ID and need to fetch the file path
-   */
-  async processDocumentById(
-    documentId: string,
-    filePath: string,
-  ): Promise<OcrResult> {
-    this.logger.debug(`Processing document by ID: ${documentId}`);
-    return this.processDocument(filePath, documentId);
-  }
-
-  /**
-   * Check if Azure Document Intelligence is configured
-   */
-  isConfigured(): boolean {
-    return !!(this.azureEndpoint && this.azureApiKey);
+    const analysisResponse: AnalysisResponse = azureResponse.data;
+    const anaysisResult = analysisResponse.analyzeResult;
+    // Update OCR results table
+    this.databaseService.upsertOcrResult({
+      documentId,
+      analysisResponse,
+    });
+    return anaysisResult;
   }
 }
