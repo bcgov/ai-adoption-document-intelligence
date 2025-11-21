@@ -29,15 +29,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: 'apps/backend-services/package-lock.json'
-      # - name: Cache node modules
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ./node_modules
-      #     key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-node-
+          # cache: 'node_modules'
+          # cache-dependency-path: 'apps/backend-services/package-lock.json'
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ./node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
       - name: Install dependencies
         run: npm ci
 
@@ -55,15 +55,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: 'apps/backend-services/package-lock.json'
-      # - name: Restore Node.js modules cache
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ./node_modules
-      #     key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-node-
+          # cache: 'node_modules'
+          # cache-dependency-path: 'apps/backend-services/package-lock.json'
+      - name: Restore Node.js modules cache
+        uses: actions/cache@v4
+        with:
+          path: ./node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
       - name: Install dependencies
         run: npm ci
       - name: Generate Prisma Client
