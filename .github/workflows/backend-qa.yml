@@ -14,9 +14,6 @@ jobs:
   get-environment:
     name: Prepare Environment
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/backend-services
     outputs:
       environment: ${{ steps.env.outputs.environment }}
     steps:
@@ -37,7 +34,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
       - name: Install dependencies
-        run: npm ci
+        run: cd apps/backend-services && npm ci
 
   unit-tests:
     name: Unit Tests
