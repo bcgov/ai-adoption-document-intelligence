@@ -11,7 +11,7 @@ import {
 import { Request } from "express";
 import { Roles } from "../auth/roles.decorator";
 import { DatabaseService, DocumentData } from "../database/database.service";
-import { OcrResult } from "../ocr/ocr.service";
+import { OcrResult } from "@/generated/client";
 
 @Controller("api")
 export class DocumentController {
@@ -107,7 +107,7 @@ export class DocumentController {
       );
       this.logger.debug("=== DocumentController.getOcrResult completed ===");
 
-      return ocrResult as OcrResult;
+      return ocrResult;
     } catch (error) {
       this.logger.error(`Error retrieving OCR result: ${error.message}`);
       this.logger.error(`Stack: ${error.stack}`);
