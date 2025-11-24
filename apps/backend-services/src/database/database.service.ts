@@ -108,7 +108,7 @@ export class DatabaseService implements OnModuleInit {
 
   async updateDocument(
     id: string,
-    data: Partial<Omit<DocumentData, 'id' | 'created_at'>>,
+    data: Partial<Omit<DocumentData, "id" | "created_at">>,
   ): Promise<DocumentData | null> {
     this.logger.debug("=== DatabaseService.updateDocument ===");
     this.logger.debug(`Updating document: ${id}`);
