@@ -23,21 +23,27 @@ model Document {
   file_size         Int
   metadata          Json?
   source            String
-  status            DocumentStatus @default(pending)
+  status            DocumentStatus @default(pre_ocr)
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
-  ocr_results       OcrResult[]
+  apim_request_id   String?
+  ocr_result        OcrResult?
 
   @@map("documents")
 }
 
 model OcrResult {
   id           String   @id @default(cuid())
-  document_id  String
+  document_id  String   @unique
   document     Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
-  status       String
-  extracted_text String?
+  extracted_text String
   pages        Json
+  tables       Json
+  paragraphs   Json
+  styles       Json
+  sections     Json
+  figures      Json
+  keyValuePairs Json?
   metadata     Json?
   processed_at DateTime @default(now())
 
@@ -45,7 +51,8 @@ model OcrResult {
 }
 
 enum DocumentStatus {
-  pending
-  processed
+  pre_ocr
+  ongoing_ocr
+  completed_ocr
   failed
 }
