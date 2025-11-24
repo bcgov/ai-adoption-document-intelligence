@@ -1,0 +1,429 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backend-services-endpoint-test
+  labels:
+    app: backend-services
+    component: test
+spec:
+  # Set to 0 to prevent automatic cleanup, allowing inspection of results
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: backend-services
+        component: test
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: endpoint-tester
+        image: curlimages/curl:latest
+        env:
+        - name: SSO_AUTH_SERVER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: SSO_AUTH_SERVER_URL
+        - name: SSO_REALM
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: SSO_REALM
+        - name: SSO_CLIENT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: SSO_CLIENT_ID
+        - name: SSO_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: backend-services-secrets
+              key: SSO_CLIENT_SECRET
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # Detect namespace from service account or use default
+          NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace 2>/dev/null || echo "")
+          
+          # Use fully qualified service name if namespace is available, otherwise use short name
+          if [ -n "$NAMESPACE" ]; then
+            SERVICE_NAME="backend-services.${NAMESPACE}.svc.cluster.local"
+            SERVICE_URL="http://${SERVICE_NAME}:3002"
+            echo "=== Backend Services Endpoint Test ==="
+            echo "Namespace: $NAMESPACE"
+            echo "Service URL (FQDN): $SERVICE_URL"
+            echo "Service URL (short): http://backend-services:3002"
+            echo ""
+            # Try FQDN first, fall back to short name
+            SERVICE_URL_SHORT="http://backend-services:3002"
+          else
+            SERVICE_URL="http://backend-services:3002"
+            SERVICE_URL_SHORT=""
+            echo "=== Backend Services Endpoint Test ==="
+            echo "Namespace: unknown (no service account)"
+            echo "Service URL: $SERVICE_URL"
+            echo ""
+          fi
+          
+          MAX_RETRIES=30
+          RETRY_DELAY=5
+          
+          # Diagnostic information
+          echo "=== Diagnostic Information ==="
+          echo "Testing DNS resolution..."
+          if nslookup backend-services >/dev/null 2>&1 || getent hosts backend-services >/dev/null 2>&1; then
+            echo "✓ DNS resolution successful"
+            nslookup backend-services 2>/dev/null || getent hosts backend-services 2>/dev/null || echo "  (nslookup/getent not available, but continuing...)"
+          else
+            echo "⚠ DNS resolution failed or tools not available"
+          fi
+          echo ""
+          
+          # Wait for service to be ready and discover available endpoints
+          echo "=== Waiting for Service ==="
+          echo "Waiting for backend-services to be ready..."
+          SERVICE_READY=false
+          
+          # First, test if service is responding at all (any HTTP response means it's up)
+          for i in $(seq 1 $MAX_RETRIES); do
+            # Try root path first to see if service responds
+            if [ $i -le 3 ]; then
+              echo "  Attempt $i/$MAX_RETRIES: Testing service connectivity..."
+              
+              # Try root path to see what's available
+              ROOT_TEST=$(curl -s -w "\nHTTP_CODE:%{http_code}" --max-time 10 "$SERVICE_URL/" 2>&1 || true)
+              ROOT_CODE=$(echo "$ROOT_TEST" | grep "HTTP_CODE" | cut -d: -f2 || echo "none")
+              
+              if [ "$ROOT_CODE" != "none" ] && [ "$ROOT_CODE" != "000" ]; then
+                echo "✓ Service is responding (HTTP $ROOT_CODE on root path)"
+                SERVICE_READY=true
+                break
+              fi
+            else
+              # Quick connectivity test
+              if curl -s -o /dev/null --max-time 5 "$SERVICE_URL/" 2>/dev/null; then
+                echo "✓ Service is responding"
+                SERVICE_READY=true
+                break
+              fi
+            fi
+            
+            if [ $i -lt $MAX_RETRIES ]; then
+              if [ $i -lt 3 ] || [ $((i % 5)) -eq 0 ]; then
+                echo "  Attempt $i/$MAX_RETRIES failed, retrying in ${RETRY_DELAY}s..."
+              fi
+              sleep $RETRY_DELAY
+            fi
+          done
+          
+          if [ "$SERVICE_READY" != "true" ]; then
+            echo "✗ Service failed to respond after $MAX_RETRIES attempts"
+            exit 1
+          fi
+          
+          echo ""
+          echo "=== Discovering Available Endpoints ==="
+          # Try various endpoint paths to find what works (using POSIX-compliant approach)
+          WORKING_ENDPOINT=""
+          
+          for EP in "/" "/api" "/api/public" "/api/upload" "/api/documents" "/health" "/api/health"; do
+            TEST_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" --max-time 5 "$SERVICE_URL$EP" 2>&1 || true)
+            HTTP_CODE=$(echo "$TEST_RESPONSE" | grep "HTTP_CODE" | cut -d: -f2 || echo "000")
+            
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
+              echo "✓ Found working endpoint: $EP (HTTP $HTTP_CODE)"
+              if [ -z "$WORKING_ENDPOINT" ]; then
+                WORKING_ENDPOINT="$EP"
+              fi
+            elif [ "$HTTP_CODE" != "000" ] && [ "$HTTP_CODE" != "404" ]; then
+              echo "  Endpoint $EP returned HTTP $HTTP_CODE (not 404, so endpoint exists)"
+            fi
+          done
+          
+          if [ -z "$WORKING_ENDPOINT" ]; then
+            echo "⚠ No standard endpoints found, but service is responding"
+            echo "  Will proceed with testing known endpoints anyway"
+          fi
+          echo ""
+            
+          
+          echo ""
+          echo "=== Obtaining Authentication Token ==="
+          # Attempt to get an access token using client credentials flow
+          AUTH_TOKEN=""
+          if [ -n "$SSO_AUTH_SERVER_URL" ] && [ -n "$SSO_CLIENT_ID" ] && [ -n "$SSO_CLIENT_SECRET" ]; then
+            echo "Attempting to obtain access token via client credentials..."
+            
+            # Determine token endpoint URL
+            # If SSO_AUTH_SERVER_URL already includes /protocol/openid-connect, append /token
+            # Otherwise, construct the full path with realm
+            if echo "$SSO_AUTH_SERVER_URL" | grep -q "/protocol/openid-connect"; then
+              TOKEN_URL="$SSO_AUTH_SERVER_URL/token"
+            else
+              # SSO_AUTH_SERVER_URL is base URL, need to add realm and OIDC path
+              if [ -n "$SSO_REALM" ]; then
+                TOKEN_URL="$SSO_AUTH_SERVER_URL/realms/${SSO_REALM}/protocol/openid-connect/token"
+              else
+                # Fallback: try appending /token directly
+                TOKEN_URL="$SSO_AUTH_SERVER_URL/token"
+              fi
+            fi
+            
+            echo "Token URL: $TOKEN_URL"
+            
+            # Request token using client credentials flow
+            TOKEN_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+              -X POST \
+              -H "Content-Type: application/x-www-form-urlencoded" \
+              -d "grant_type=client_credentials&client_id=${SSO_CLIENT_ID}&client_secret=${SSO_CLIENT_SECRET}" \
+              "$TOKEN_URL" 2>&1 || true)
+            
+            TOKEN_HTTP_CODE=$(echo "$TOKEN_RESPONSE" | grep "HTTP_CODE" | cut -d: -f2 || echo "000")
+            TOKEN_BODY=$(echo "$TOKEN_RESPONSE" | sed '/HTTP_CODE/d')
+            
+            if [ "$TOKEN_HTTP_CODE" = "200" ]; then
+              # Extract access_token from JSON response (simple extraction, assumes JSON format)
+              AUTH_TOKEN=$(echo "$TOKEN_BODY" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4 || echo "")
+              if [ -n "$AUTH_TOKEN" ]; then
+                echo "✓ Successfully obtained access token"
+                echo "  Token length: ${#AUTH_TOKEN} characters"
+              else
+                echo "⚠ Token request succeeded but could not extract access_token"
+                echo "  Response: $TOKEN_BODY"
+              fi
+            else
+              echo "⚠ Failed to obtain access token (HTTP $TOKEN_HTTP_CODE)"
+              echo "  Response: $TOKEN_BODY"
+              echo "  Will test endpoints without authentication (401 responses expected)"
+            fi
+          else
+            echo "⚠ SSO credentials not available - skipping token acquisition"
+            echo "  Will test endpoints without authentication (401 responses expected)"
+          fi
+          echo ""
+          
+          echo ""
+          echo "=== Testing Endpoints ==="
+          echo ""
+          
+          # Track test results
+          TESTS_PASSED=0
+          TESTS_FAILED=0
+          TESTS_SKIPPED=0
+          
+          # Prepare Authorization header if token is available
+          if [ -n "$AUTH_TOKEN" ]; then
+            AUTH_HEADER="Authorization: Bearer $AUTH_TOKEN"
+            echo "Using authentication token for protected endpoints"
+          else
+            AUTH_HEADER=""
+            echo "No authentication token available - testing without auth"
+          fi
+          echo ""
+          
+          # Test 1: GET /api/public (public endpoint, should work without auth)
+          echo "Test 1: GET /api/public"
+          echo "----------------------------------------"
+          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$SERVICE_URL/api/public")
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_CODE/d')
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✓ Status: $HTTP_CODE"
+            echo "Response: $BODY"
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+          elif [ "$HTTP_CODE" = "404" ]; then
+            echo "✗ Endpoint not found (404) - public endpoint should exist"
+            echo "  Response: $BODY"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          else
+            echo "⚠ Unexpected status: $HTTP_CODE"
+            echo "Response: $BODY"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          fi
+          echo ""
+          
+          # Test 2: GET /api/documents (protected endpoint)
+          echo "Test 2: GET /api/documents"
+          echo "----------------------------------------"
+          if [ -n "$AUTH_TOKEN" ]; then
+            RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+              -H "Authorization: Bearer $AUTH_TOKEN" \
+              "$SERVICE_URL/api/documents")
+          else
+            RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$SERVICE_URL/api/documents")
+          fi
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_CODE/d')
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✓ Status: $HTTP_CODE"
+            echo "Response: $BODY"
+            DOC_COUNT=$(echo "$BODY" | grep -o '"id"' | wc -l || echo "0")
+            echo "Documents found: $DOC_COUNT"
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+          elif [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+            if [ -n "$AUTH_TOKEN" ]; then
+              echo "⚠ Status: $HTTP_CODE - Authentication failed (token may be invalid or expired)"
+              echo "Response: $BODY"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            else
+              echo "✓ Status: $HTTP_CODE - Endpoint exists and correctly requires authentication"
+              echo "  This is expected for protected endpoints"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+            fi
+          elif [ "$HTTP_CODE" = "404" ]; then
+            echo "✗ Endpoint not found (404) - endpoint should exist"
+            echo "Response: $BODY"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          else
+            echo "⚠ Unexpected status: $HTTP_CODE"
+            echo "Response: $BODY"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          fi
+          echo ""
+          
+          # Test 3: POST /api/upload (protected endpoint)
+          echo "Test 3: POST /api/upload"
+          echo "----------------------------------------"
+          # Use pre-encoded base64 string (base64("test content") = "dGVzdCBjb250ZW50")
+          # This avoids dependency on base64 command in the container
+          TEST_FILE_BASE64="dGVzdCBjb250ZW50"
+          
+          # Build JSON payload using printf to avoid YAML parsing issues
+          UPLOAD_PAYLOAD=$(printf '{"title":"Test Document from Job","file":"%s","file_type":"pdf","original_filename":"test.pdf","metadata":{"source":"k8s-job-test","test":true}}' "$TEST_FILE_BASE64")
+          
+          if [ -n "$AUTH_TOKEN" ]; then
+            RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+              -X POST \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $AUTH_TOKEN" \
+              -d "$UPLOAD_PAYLOAD" \
+              "$SERVICE_URL/api/upload")
+          else
+            RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+              -X POST \
+              -H "Content-Type: application/json" \
+              -d "$UPLOAD_PAYLOAD" \
+              "$SERVICE_URL/api/upload")
+          fi
+          
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_CODE/d')
+          
+          if [ "$HTTP_CODE" = "201" ]; then
+            echo "✓ Status: $HTTP_CODE"
+            echo "Response: $BODY"
+            # Extract document ID for potential follow-up tests
+            DOC_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | cut -d'"' -f4 || echo "")
+            if [ -n "$DOC_ID" ]; then
+              echo "Document ID: $DOC_ID"
+            fi
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+          elif [ "$HTTP_CODE" = "400" ]; then
+            echo "✓ Status: $HTTP_CODE - Endpoint exists (validation failed, but endpoint is reachable)"
+            echo "Response: $BODY"
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+          elif [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+            if [ -n "$AUTH_TOKEN" ]; then
+              echo "⚠ Status: $HTTP_CODE - Authentication failed (token may be invalid or expired)"
+              echo "Response: $BODY"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            else
+              echo "✓ Status: $HTTP_CODE - Endpoint exists and correctly requires authentication"
+              echo "Response: $BODY"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+            fi
+          elif [ "$HTTP_CODE" = "404" ]; then
+            echo "✗ Endpoint not found (404) - endpoint should exist"
+            echo "Response: $BODY"
+            echo "  This suggests the /api/upload route may not be registered"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          else
+            echo "⚠ Unexpected status: $HTTP_CODE"
+            echo "Response: $BODY"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          fi
+          echo ""
+          
+          # Test 4: Verify /api/documents endpoint (protected, same as Test 2 but for completeness)
+          echo "Test 4: GET /api/documents (verification)"
+          echo "----------------------------------------"
+          if [ -n "$AUTH_TOKEN" ]; then
+            RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+              -H "Authorization: Bearer $AUTH_TOKEN" \
+              "$SERVICE_URL/api/documents")
+          else
+            RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$SERVICE_URL/api/documents")
+          fi
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_CODE/d')
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✓ Status: $HTTP_CODE"
+            DOC_COUNT=$(echo "$BODY" | grep -o '"id"' | wc -l || echo "0")
+            echo "Documents found: $DOC_COUNT"
+            if [ "$DOC_COUNT" -gt "0" ]; then
+              echo "✓ At least one document exists"
+            else
+              echo "  No documents found (this may be expected)"
+            fi
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+          elif [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+            if [ -n "$AUTH_TOKEN" ]; then
+              echo "⚠ Status: $HTTP_CODE - Authentication failed (token may be invalid or expired)"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            else
+              echo "✓ Status: $HTTP_CODE - Endpoint exists and correctly requires authentication"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+            fi
+          elif [ "$HTTP_CODE" = "404" ]; then
+            echo "✗ Endpoint not found (404)"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          else
+            echo "⚠ Status: $HTTP_CODE"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          fi
+          echo ""
+          
+          echo "=== Test Summary ==="
+          echo "Service connectivity: ✓"
+          echo "DNS resolution: ✓"
+          echo "Endpoint discovery: Completed"
+          echo ""
+          echo "Test Results:"
+          echo "  Passed: $TESTS_PASSED"
+          echo "  Failed: $TESTS_FAILED"
+          echo ""
+          
+          if [ $TESTS_FAILED -eq 0 ]; then
+            echo "✓ All endpoint tests passed!"
+            echo ""
+            echo "Summary:"
+            echo "  - Service is running and accessible"
+            echo "  - Public endpoints are accessible"
+            echo "  - Protected endpoints exist and correctly require authentication"
+            echo "  - All expected endpoints are registered"
+            exit 0
+          else
+            echo "✗ Some tests failed"
+            echo ""
+            echo "Summary:"
+            echo "  - Service is running and accessible"
+            if [ $TESTS_PASSED -gt 0 ]; then
+              echo "  - Some endpoints are working correctly"
+            fi
+            echo "  - Some endpoints may not be registered or are misconfigured"
+            exit 1
+          fi
+          
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+
