@@ -5,4 +5,3 @@ export class LogoutQueryDto {
   @IsJWT()
   id_token_hint?: string;
 }
-

@@ -32,7 +32,9 @@ export class AuthController {
   @Public()
   @Post("refresh")
   async refreshToken(@Body() body: RefreshTokenDto) {
-    const tokens = await this.authService.refreshAccessToken(body.refresh_token);
+    const tokens = await this.authService.refreshAccessToken(
+      body.refresh_token,
+    );
     return {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
@@ -64,10 +66,7 @@ export class AuthController {
    */
   @Public()
   @Get("logout")
-  async logout(
-    @Query() query: LogoutQueryDto,
-    @Res() res: Response,
-  ) {
+  async logout(@Query() query: LogoutQueryDto, @Res() res: Response) {
     try {
       const logoutUrl = this.authService.getLogoutUrl(query.id_token_hint);
       res.redirect(logoutUrl);

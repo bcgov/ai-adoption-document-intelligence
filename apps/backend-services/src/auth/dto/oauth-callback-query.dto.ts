@@ -18,4 +18,3 @@ export class OAuthCallbackQueryDto {
   @IsString()
   iss?: string;
 }
-

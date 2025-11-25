@@ -4,4 +4,3 @@ export class AuthResultQueryDto {
   @IsUUID("4")
   result!: string;
 }
-
