@@ -93,18 +93,33 @@ export class DocumentController {
     this.logger.debug(`Document ID: ${documentId}`);
 
     try {
+      // First check if document exists and its status
+      const document = await this.databaseService.findDocument(documentId);
+      if (document) {
+        this.logger.debug(`Document status: ${document.status}`);
+        this.logger.debug(`Document created: ${document.created_at}`);
+        if (document.apim_request_id) {
+          this.logger.debug(`APIM Request ID: ${document.apim_request_id}`);
+        }
+      } else {
+        this.logger.warn(`Document not found: ${documentId}`);
+        throw new NotFoundException(`Document not found: ${documentId}`);
+      }
+
       const ocrResult = await this.databaseService.findOcrResult(documentId);
 
       if (!ocrResult) {
         this.logger.warn(`OCR result not found for document: ${documentId}`);
+        this.logger.warn(`Document status is: ${document.status}`);
         throw new NotFoundException(
-          `OCR result not found for document: ${documentId}`,
+          `OCR result not found for document: ${documentId}. Current status: ${document.status}`,
         );
       }
 
       this.logger.debug(
         `OCR result retrieved successfully for document: ${documentId}`,
       );
+      this.logger.debug(`OCR processed at: ${ocrResult.processed_at}`);
       this.logger.debug("=== DocumentController.getOcrResult completed ===");
 
       return ocrResult;

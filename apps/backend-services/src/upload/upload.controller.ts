@@ -81,22 +81,14 @@ export class UploadController {
         `Document uploaded successfully: ${uploadedDocument.id}`,
       );
 
-      // Publish message to queue
-      try {
-        await this.queueService.publishDocumentUploaded({
-          documentId: uploadedDocument.id,
-          filePath: uploadedDocument.file_path,
-          fileType: uploadedDocument.file_type,
-          metadata: uploadedDocument.metadata,
-          timestamp: new Date(),
-        });
-        this.logger.debug("Message published to queue");
-      } catch (queueError) {
-        this.logger.error(
-          `Failed to publish message to queue: ${queueError.message}`,
-        );
-        // Don't fail the upload if queue publish fails - log and continue
-      }
+      // Start OCR processing asynchronously (don't await)
+      this.startOcrProcessingAsync({
+        documentId: uploadedDocument.id,
+        filePath: uploadedDocument.file_path,
+        fileType: uploadedDocument.file_type,
+        metadata: uploadedDocument.metadata,
+        timestamp: new Date(),
+      });
 
       this.logger.debug("=== UploadController.uploadDocument completed ===");
 
@@ -124,5 +116,28 @@ export class UploadController {
         error.message || "Failed to upload document",
       );
     }
+  }
+
+  /**
+   * Start OCR processing asynchronously without blocking the upload response
+   */
+  private startOcrProcessingAsync(message: {
+    documentId: string;
+    filePath: string;
+    fileType: string;
+    metadata?: Record<string, unknown>;
+    timestamp: Date;
+  }): void {
+    // Run OCR processing in background
+    setImmediate(async () => {
+      try {
+        this.logger.debug(`Starting background OCR processing for document ${message.documentId}`);
+        await this.queueService.publishDocumentUploaded(message);
+        this.logger.debug(`Background OCR processing completed for document ${message.documentId}`);
+      } catch (error) {
+        this.logger.error(`Background OCR processing failed for document ${message.documentId}: ${error.message}`);
+        this.logger.error(`Stack: ${error.stack}`);
+      }
+    });
   }
 }

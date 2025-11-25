@@ -1,11 +1,24 @@
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, Logger } from "@nestjs/common";
+import { json, urlencoded } from "body-parser";
 import { AppModule } from "./app.module";
 
 const logger = new Logger("Bootstrap");
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
+
+  app.use(
+    json({
+      limit: process.env.BODY_LIMIT || "50mb",
+    }),
+  );
+  app.use(
+    urlencoded({
+      limit: process.env.BODY_LIMIT || "50mb",
+      extended: true,
+    }),
+  );
 
   // Enable CORS
   app.enableCors({

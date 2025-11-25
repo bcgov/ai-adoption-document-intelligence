@@ -98,14 +98,16 @@ export class DocumentService {
 
       // Generate unique filename and path
       const fileName = this.generateFileName(originalFilename, fileType);
-      const filePath = join(this.storagePath, fileName);
+      const fullFilePath = join(this.storagePath, fileName);
+      // Store relative path in database (relative to storage root)
+      const relativePath = `storage/documents/${fileName}`;
 
       // Ensure storage directory exists
       await this.ensureStorageDirectory();
 
       // Save file to filesystem
-      await writeFile(filePath, fileBuffer);
-      this.logger.debug(`File saved to: ${filePath}`);
+      await writeFile(fullFilePath, fileBuffer);
+      this.logger.debug(`File saved to: ${fullFilePath}`);
 
       // Store metadata in database via API
       const documentData: Omit<
@@ -114,7 +116,7 @@ export class DocumentService {
       > = {
         title,
         original_filename: originalFilename,
-        file_path: filePath,
+        file_path: relativePath,
         file_type: fileType,
         file_size: fileSize,
         metadata: (metadata || {}) as JsonValue,

@@ -15,7 +15,10 @@
   },
   "dependencies": {
     "@mantine/core": "^8.3.8",
+    "@mantine/dropzone": "^8.3.9",
     "@mantine/hooks": "^8.3.8",
+    "@mantine/notifications": "^8.3.8",
+    "@tabler/icons-react": "^3.14.0",
     "@tanstack/react-query": "^5.45.0",
     "axios": "^1.7.4",
     "oidc-client-ts": "^3.4.1",
