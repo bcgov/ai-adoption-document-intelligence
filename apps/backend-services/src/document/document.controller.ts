@@ -147,14 +147,6 @@ export class DocumentController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5e7 }), // 50 MB
-          // new FileTypeValidator({fileType: 'image/jpeg'})
-          // new FileTypeValidator({
-          //   fileType: [
-          //     /^application\/pdf$/,
-          //     /^image\/png$/,
-          //     /^image\/jpeg$/
-          //   ].map((reg: RegExp) => reg.source).join("|"),
-          // }),
         ],
       }),
     )
@@ -187,9 +179,17 @@ export class DocumentController {
         2,
       )}`,
     );
-    console.log(`title: ${body.title}`);
 
     try {
+      // Validate file types
+      const acceptedTypes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/png'
+      ]
+      if (!acceptedTypes.includes(file.mimetype)){
+        throw new BadRequestException(`File type must be one of the following: ${acceptedTypes.join(', ')}`);
+      }
       // Validate the file size
       if (!file || file.size === 0) {
         throw new BadRequestException("File data is required");
