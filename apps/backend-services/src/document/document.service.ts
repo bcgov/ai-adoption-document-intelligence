@@ -6,6 +6,7 @@ import { existsSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { JsonValue } from "../generated/internal/prismaNamespace";
+import { DocumentStatus } from "@/generated/enums";
 
 export interface UploadedDocument {
   id: string;
@@ -16,7 +17,7 @@ export interface UploadedDocument {
   file_size: number;
   metadata?: Record<string, unknown>;
   source: string;
-  status: "pending" | "processed" | "failed";
+  status: DocumentStatus;
   created_at: Date;
   updated_at: Date;
 }
@@ -118,7 +119,8 @@ export class DocumentService {
         file_size: fileSize,
         metadata: (metadata || {}) as JsonValue,
         source: "api",
-        status: "pending",
+        status: DocumentStatus.ongoing_ocr,
+        apim_request_id: null,
       };
 
       const savedDocument =

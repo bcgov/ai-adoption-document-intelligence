@@ -2,10 +2,7 @@ name: Build Docker Images
 
 on:
   push:
-    branches: [main, stage, develop]
-  pull_request:
-    branches: [main, stage, develop]
-  workflow_dispatch:
+    branches: [main, develop]
 jobs:
   metadata:
     name: Get Metadata
@@ -20,10 +17,6 @@ jobs:
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
-      - name: Fetch base branch for PRs
-        if: github.event_name == 'pull_request'
-        run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }}:${{ github.event.pull_request.base.ref }}
       - name: Discover and Get Changed Apps
         id: get-changed-apps
         run: |
@@ -40,11 +33,13 @@ jobs:
           echo "$apps"
           
           # Determine base ref for comparison
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            base_ref="${{ github.event.pull_request.base.sha }}"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # For manual dispatch, build all apps
-            echo "Workflow dispatch: building all apps"
+          # For push events (including merged PRs), compare with previous commit
+          # Check if HEAD~1 exists (not the first commit)
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            base_ref="HEAD~1"
+          else
+            # First commit, build all apps
+            echo "First commit: building all apps"
             apps_json=$(echo "$apps" | jq -R -s -c 'split("\n") | map(select(length > 0))')
             # Use multiline output format to avoid space/quote issues
             {
@@ -54,24 +49,6 @@ jobs:
             } >> $GITHUB_OUTPUT
             echo "Changed apps: $apps_json"
             exit 0
-          else
-            # For push events, compare with previous commit
-            # Check if HEAD~1 exists (not the first commit)
-            if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-              base_ref="HEAD~1"
-            else
-              # First commit, build all apps
-              echo "First commit: building all apps"
-              apps_json=$(echo "$apps" | jq -R -s -c 'split("\n") | map(select(length > 0))')
-              # Use multiline output format to avoid space/quote issues
-              {
-                echo "changes<<EOF"
-                echo "$apps_json"
-                echo "EOF"
-              } >> $GITHUB_OUTPUT
-              echo "Changed apps: $apps_json"
-              exit 0
-            fi
           fi
           
           # Check which apps have changes
