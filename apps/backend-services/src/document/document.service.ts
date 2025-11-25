@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from "uuid";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { JsonValue } from "../generated/internal/prismaNamespace";
 import { DocumentStatus } from "@/generated/enums";
+import { SaveDetails } from "@/document/interfaces/saveDetails";
 
 export interface UploadedDocument {
   id: string;
@@ -49,77 +50,49 @@ export class DocumentService {
     }
   }
 
-  private getFileExtension(fileType: string): string {
-    const typeMap: Record<string, string> = {
-      pdf: "pdf",
-      image: "jpg",
-      scan: "pdf",
-    };
-    return typeMap[fileType.toLowerCase()] || "bin";
-  }
-
-  private generateFileName(originalFilename: string, fileType: string): string {
-    const extension = this.getFileExtension(fileType);
+  private generateFileName(originalFilename: string): string {
+    const originalName = originalFilename.slice(
+      0,
+      originalFilename.lastIndexOf("."),
+    );
+    const extension =
+      originalFilename.lastIndexOf(".") > -1
+        ? originalFilename.slice(originalFilename.lastIndexOf("."))
+        : "";
     const uuid = uuidv4();
-    const sanitizedOriginal = originalFilename
+    const sanitizedOriginal = originalName
       .replace(/[^a-zA-Z0-9.-]/g, "_")
       .substring(0, 50);
-    return `${uuid}_${sanitizedOriginal}.${extension}`;
+    return `${uuid}_${sanitizedOriginal}${extension}`;
   }
 
-  async uploadDocument(
+  async addDocument(
     title: string,
-    fileBase64: string,
-    fileType: string,
-    originalFilename: string,
+    file: Express.Multer.File,
+    saveDetails: SaveDetails,
     metadata?: Record<string, unknown>,
   ): Promise<UploadedDocument> {
-    this.logger.debug("=== DocumentService.uploadDocument ===");
+    this.logger.debug("=== DocumentService.addDocument ===");
     this.logger.debug(
-      `Title: ${title}, FileType: ${fileType}, OriginalFilename: ${originalFilename}`,
+      `Title: ${title}, FileType: ${file.mimetype}, OriginalFilename: ${file.originalname}`,
     );
 
     try {
-      // Decode base64 file
-      let fileBuffer: Buffer;
-      try {
-        // Remove data URL prefix if present (e.g., "data:application/pdf;base64,")
-        const base64Data = fileBase64.includes(",")
-          ? fileBase64.split(",")[1]
-          : fileBase64;
-        fileBuffer = Buffer.from(base64Data, "base64");
-      } catch (error) {
-        this.logger.error(`Failed to decode base64 file: ${error.message}`);
-        throw new Error("Invalid base64 file data");
-      }
+      this.logger.debug(`Decoded file size: ${file.size} bytes`);
 
-      const fileSize = fileBuffer.length;
-      this.logger.debug(`Decoded file size: ${fileSize} bytes`);
-
-      // Generate unique filename and path
-      const fileName = this.generateFileName(originalFilename, fileType);
-      const filePath = join(this.storagePath, fileName);
-
-      // Ensure storage directory exists
-      await this.ensureStorageDirectory();
-
-      // Save file to filesystem
-      await writeFile(filePath, fileBuffer);
-      this.logger.debug(`File saved to: ${filePath}`);
-
-      // Store metadata in database via API
+      // Store metadata in database
       const documentData: Omit<
         DocumentData,
         "id" | "created_at" | "updated_at"
       > = {
         title,
-        original_filename: originalFilename,
-        file_path: filePath,
-        file_type: fileType,
-        file_size: fileSize,
+        original_filename: file.originalname,
+        file_path: saveDetails.filePath,
+        file_type: file.mimetype,
+        file_size: file.size,
         metadata: (metadata || {}) as JsonValue,
         source: "api",
-        status: DocumentStatus.ongoing_ocr,
+        status: DocumentStatus.pre_ocr,
         apim_request_id: null,
       };
 
@@ -141,13 +114,28 @@ export class DocumentService {
         updated_at: savedDocument.updated_at || new Date(),
       };
 
-      this.logger.debug("=== DocumentService.uploadDocument completed ===");
+      this.logger.debug("=== DocumentService.addDocument completed ===");
       return result;
     } catch (error) {
       this.logger.error(`Error uploading document: ${error.message}`);
       this.logger.error(`Stack: ${error.stack}`);
       throw error;
     }
+  }
+
+  async saveDocumentFile(file: Express.Multer.File): Promise<SaveDetails> {
+    // Generate unique filename and path
+    const fileName = uuidv4();
+    const filePath = join(this.storagePath, fileName);
+    // Ensure storage directory exists
+    await this.ensureStorageDirectory();
+
+    // Save file to filesystem
+    await writeFile(filePath, file.buffer);
+    this.logger.debug(`File saved to: ${filePath}`);
+    return {
+      filePath,
+    };
   }
 
   async getDocument(id: string): Promise<UploadedDocument | null> {

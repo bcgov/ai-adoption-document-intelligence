@@ -1,8 +1,11 @@
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, Logger } from "@nestjs/common";
 import { AppModule } from "./app.module";
+import { configDotenv } from "dotenv";
 
 const logger = new Logger("Bootstrap");
+// Load ENVs to allow for access outside ConfigService
+configDotenv();
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);

@@ -53,6 +53,7 @@
     "@swc/core": "^1.15.0",
     "@types/jest": "^29.5.11",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "2.0.0",
     "@types/node": "^22.0.0",
     "@types/uuid": "^9.0.8",
     "eslint-config-custom": "file:../../packages/eslint-config-custom",
