@@ -7,7 +7,7 @@
 import { join } from "path";
 
 interface Config {
- STORAGE_PATH: string;
+  STORAGE_PATH: string;
 }
 
 export const getConfig = (): Config => {
