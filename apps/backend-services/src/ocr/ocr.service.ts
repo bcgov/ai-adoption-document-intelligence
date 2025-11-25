@@ -64,10 +64,10 @@ export class OcrService {
       // Read file from filesystem
       // TODO: Where is this actually meant to come from? Suggest separating to file service.
       let filePath: string;
-      if (document.file_path.startsWith('/')) {
+      if (document.file_path.startsWith("/")) {
         // Absolute path
         filePath = document.file_path;
-      } else if (document.file_path.startsWith('storage/documents/')) {
+      } else if (document.file_path.startsWith("storage/documents/")) {
         // Relative path from project root
         filePath = join(process.cwd(), document.file_path);
       } else {
@@ -171,25 +171,37 @@ export class OcrService {
 
     const analysisResponse: AnalysisResponse = azureResponse.data;
     this.logger.debug(`Azure response status: ${analysisResponse.status}`);
-    this.logger.debug(`Azure response created: ${analysisResponse.createdDateTime}`);
-    this.logger.debug(`Azure response updated: ${analysisResponse.lastUpdatedDateTime}`);
+    this.logger.debug(
+      `Azure response created: ${analysisResponse.createdDateTime}`,
+    );
+    this.logger.debug(
+      `Azure response updated: ${analysisResponse.lastUpdatedDateTime}`,
+    );
 
     // Log the full response for debugging
     // this.logger.debug(`Full Azure response: ${JSON.stringify(analysisResponse, null, 2)}`);
 
     // If status is "running", processing is not complete yet
-    if (analysisResponse.status === 'running') {
-      this.logger.debug(`OCR processing still running for document ${documentId}, will retry later`);
+    if (analysisResponse.status === "running") {
+      this.logger.debug(
+        `OCR processing still running for document ${documentId}, will retry later`,
+      );
       return null; // Indicate processing not complete
     }
 
     const analysisResult = analysisResponse.analyzeResult;
     if (!analysisResult) {
-      throw new Error(`No analyzeResult in Azure response for document ${documentId} (status: ${analysisResponse.status})`);
+      throw new Error(
+        `No analyzeResult in Azure response for document ${documentId} (status: ${analysisResponse.status})`,
+      );
     }
 
-    this.logger.debug(`Analysis result content length: ${analysisResult.content?.length || 0}`);
-    this.logger.debug(`Analysis result pages: ${analysisResult.pages?.length || 0}`);
+    this.logger.debug(
+      `Analysis result content length: ${analysisResult.content?.length || 0}`,
+    );
+    this.logger.debug(
+      `Analysis result pages: ${analysisResult.pages?.length || 0}`,
+    );
 
     // Update OCR results table
     this.databaseService.upsertOcrResult({

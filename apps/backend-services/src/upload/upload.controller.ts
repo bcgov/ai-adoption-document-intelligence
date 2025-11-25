@@ -131,11 +131,17 @@ export class UploadController {
     // Run OCR processing in background
     setImmediate(async () => {
       try {
-        this.logger.debug(`Starting background OCR processing for document ${message.documentId}`);
+        this.logger.debug(
+          `Starting background OCR processing for document ${message.documentId}`,
+        );
         await this.queueService.publishDocumentUploaded(message);
-        this.logger.debug(`Background OCR processing completed for document ${message.documentId}`);
+        this.logger.debug(
+          `Background OCR processing completed for document ${message.documentId}`,
+        );
       } catch (error) {
-        this.logger.error(`Background OCR processing failed for document ${message.documentId}: ${error.message}`);
+        this.logger.error(
+          `Background OCR processing failed for document ${message.documentId}: ${error.message}`,
+        );
         this.logger.error(`Stack: ${error.stack}`);
       }
     });
