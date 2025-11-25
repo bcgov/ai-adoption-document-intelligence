@@ -182,13 +182,11 @@ export class DocumentController {
 
     try {
       // Validate file types
-      const acceptedTypes = [
-        'application/pdf',
-        'image/jpeg',
-        'image/png'
-      ]
-      if (!acceptedTypes.includes(file.mimetype)){
-        throw new BadRequestException(`File type must be one of the following: ${acceptedTypes.join(', ')}`);
+      const acceptedTypes = ["application/pdf", "image/jpeg", "image/png"];
+      if (!acceptedTypes.includes(file.mimetype)) {
+        throw new BadRequestException(
+          `File type must be one of the following: ${acceptedTypes.join(", ")}`,
+        );
       }
       // Validate the file size
       if (!file || file.size === 0) {
