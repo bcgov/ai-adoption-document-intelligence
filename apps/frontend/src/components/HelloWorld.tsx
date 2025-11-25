@@ -1,4 +1,5 @@
 import React from 'react';
+import { Title, Text, Stack } from '@mantine/core';
 
 interface HelloWorldProps {
   name?: string;
@@ -6,9 +7,11 @@ interface HelloWorldProps {
 
 export const HelloWorld: React.FC<HelloWorldProps> = ({ name = 'World' }) => {
   return (
-    <div>
-      <h2>Hello, {name}!</h2>
-      <p>Welcome to the AI OCR Frontend application.</p>
-    </div>
+    <Stack gap="xs">
+      <Title order={2}>Hello, {name}!</Title>
+      <Text size="lg" c="dimmed">
+        Welcome to the AI OCR Frontend application.
+      </Text>
+    </Stack>
   );
 };

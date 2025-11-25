@@ -25,7 +25,6 @@
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@bcgov/citz-imb-sso-express": "^1.0.2",
     "@nestjs/axios": "4.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
