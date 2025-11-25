@@ -1,0 +1,126 @@
+name: Migrate DB Schema
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Git SHA'
+        required: true
+        type: string
+      changed_apps:
+        description: 'Changed apps'
+        required: true
+        type: string
+
+jobs:
+  get-environment:
+    name: Get Environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Get Environment
+        id: env
+        uses: ./.github/actions/get-environment
+  metadata:
+    name: Get Metadata
+    runs-on: ubuntu-latest
+
+    outputs:
+      needs-migration: ${{ steps.get-migrations.outputs.changes }}
+    steps:
+      - name: Debug Info
+        run: |
+          echo "Ref: ${{ github.ref }}"
+          echo "Ref Name: ${{ github.ref_name }}"
+          echo "SHA: ${{ inputs.sha }}"
+          echo "Full Ref: ${{ github.ref }}"
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Get Migrations
+        id: get-migrations
+        uses: dorny/paths-filter@v2
+        with:
+          base: ${{ github.ref }}
+          ref: ${{ github.ref }}
+          filters: |
+            migration:
+              - 'apps/backend/prisma/migrations/**'
+  migrate:
+    name: Migrate DB Schema
+    needs: [get-environment, metadata]
+    if: ${{ contains(needs.metadata.outputs.needs-migration, 'migration') }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.get-environment.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: 'migrate db'
+        uses: ./.github/actions/migrate-db
+        with:
+          environment: ${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'stage' && 'test' || 'dev' }}
+          openshift-server: ${{ secrets.OPENSHIFT_SERVER }}
+          api-token: ${{ secrets.OPENSHIFT_API_TOKEN }}
+      - name: Create Version Changeset
+        run: npm install @changesets/cli && npx changeset version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit Version
+        if: ${{ github.ref_name == 'stage' }}
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: 'Update version [skip ci]'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  validate-inputs:
+    name: Validate Inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate changed_apps input
+        run: |
+          if [ -z "${{ inputs.changed_apps }}" ]; then
+            echo "Error: changed_apps input is required"
+            exit 1
+          fi
+          
+          # Validate JSON format
+          if ! echo '${{ inputs.changed_apps }}' | jq empty 2>/dev/null; then
+            echo "Error: changed_apps must be valid JSON array"
+            exit 1
+          fi
+          
+          # Check if array is empty
+          ARRAY_LENGTH=$(echo '${{ inputs.changed_apps }}' | jq 'length')
+          if [ "$ARRAY_LENGTH" -eq 0 ]; then
+            echo "Info: changed_apps is empty array, skipping deployment"
+            exit 0
+          fi
+          
+          echo "Validation passed: changed_apps contains $ARRAY_LENGTH item(s)"
+          
+  deploy:
+    name: Deploy
+    needs: [get-environment, metadata, validate-inputs]
+    if: ${{ needs.validate-inputs.result == 'success' && inputs.changed_apps != '[]' && inputs.changed_apps != '' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.get-environment.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Trigger Deployments
+        uses: ./.github/actions/trigger-deploy
+        with:
+          openshift-server: ${{ secrets.OPENSHIFT_SERVER }}
+          api-token: ${{ secrets.OPENSHIFT_API_TOKEN }}
+          project: ${{ inputs.changed_apps }}
+          environment: ${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'stage' && 'test' || 'dev' }}
+

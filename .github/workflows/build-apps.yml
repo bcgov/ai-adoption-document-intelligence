@@ -1,0 +1,213 @@
+name: Build Docker Images
+
+on:
+  push:
+    branches: [main, stage, develop]
+  pull_request:
+    branches: [main, stage, develop]
+  workflow_dispatch:
+jobs:
+  metadata:
+    name: Get Metadata
+    runs-on: ubuntu-latest
+
+    outputs:
+      changed-apps: ${{ steps.get-changed-apps.outputs.changes }}
+      short-sha: ${{ steps.get-short-sha.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+      - name: Fetch base branch for PRs
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}:${{ github.event.pull_request.base.ref }}
+      - name: Discover and Get Changed Apps
+        id: get-changed-apps
+        run: |
+          # Find all directories in apps/ that have a Dockerfile
+          apps=$(find apps -mindepth 1 -maxdepth 1 -type d -exec test -f {}/Dockerfile \; -print | sed 's|apps/||' | sort)
+          
+          if [ -z "$apps" ]; then
+            echo "No apps found with Dockerfiles"
+            echo "changes=[]" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "Discovered apps:"
+          echo "$apps"
+          
+          # Determine base ref for comparison
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_ref="${{ github.event.pull_request.base.sha }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # For manual dispatch, build all apps
+            echo "Workflow dispatch: building all apps"
+            apps_json=$(echo "$apps" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            # Use multiline output format to avoid space/quote issues
+            {
+              echo "changes<<EOF"
+              echo "$apps_json"
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
+            echo "Changed apps: $apps_json"
+            exit 0
+          else
+            # For push events, compare with previous commit
+            # Check if HEAD~1 exists (not the first commit)
+            if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+              base_ref="HEAD~1"
+            else
+              # First commit, build all apps
+              echo "First commit: building all apps"
+              apps_json=$(echo "$apps" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+              # Use multiline output format to avoid space/quote issues
+              {
+                echo "changes<<EOF"
+                echo "$apps_json"
+                echo "EOF"
+              } >> $GITHUB_OUTPUT
+              echo "Changed apps: $apps_json"
+              exit 0
+            fi
+          fi
+          
+          # Check which apps have changes
+          changed_apps_json="[]"
+          for app in $apps; do
+            # Check if any files in this app directory have changed
+            if git diff --quiet "$base_ref" HEAD -- "apps/$app/" 2>/dev/null; then
+              echo "App '$app' has no changes"
+            else
+              echo "App '$app' has changes"
+              changed_apps_json=$(echo "$changed_apps_json" | jq --arg app "$app" '. + [$app]')
+            fi
+          done
+          
+          # Use multiline output format to avoid space/quote issues with JSON
+          {
+            echo "changes<<EOF"
+            echo "$changed_apps_json"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+          echo "Changed apps: $changed_apps_json"
+      - name: Get Short SHA
+        id: get-short-sha
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+  get-environment:
+    name: Get Environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Get Environment
+        id: env
+        uses: ./.github/actions/get-environment
+  build-apps:
+    name: Build ${{ matrix.app }}
+    needs: [metadata, get-environment]
+    if: ${{needs.metadata.outputs.changed-apps != '[]' && needs.metadata.outputs.changed-apps != ''}}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.get-environment.outputs.environment }}
+    strategy:
+      fail-fast: false # Continue with other matrix jobs even if one fails
+      matrix:
+        app: ${{ fromJSON(needs.metadata.outputs.changed-apps) }}
+    env:
+      ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+      ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
+      ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ matrix.app }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-${{ matrix.app }}-
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/${{ matrix.app }}/node_modules
+          key: ${{ runner.os }}-npm-${{ matrix.app }}-${{ hashFiles('apps/${{ matrix.app }}/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-${{ matrix.app }}-
+      - name: Login to Artifactory
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ARTIFACTORY_URL }}
+          username: ${{ env.ARTIFACTORY_SA_USERNAME }}
+          password: ${{ env.ARTIFACTORY_SA_PASSWORD }}
+      - name: Get App Version
+        id: app-version
+        uses: notiz-dev/github-action-json-property@release
+        with:
+          path: apps/${{ matrix.app }}/package.json
+          prop_path: version
+      - name: Prepare Container Metadata
+        id: docker-metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.ARTIFACTORY_URL }}/kfd3-fd34fb-local/${{ matrix.app }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref_name == github.event.repository.default_branch }}
+            type=raw,value=${{ steps.app-version.outputs.prop }},enable=${{ github.ref_name == github.event.repository.default_branch }}
+            type=raw,value=${{ github.ref_name }}-latest
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/${{ matrix.app }}
+          file: apps/${{ matrix.app }}/Dockerfile
+          push: true
+          tags: ${{ steps.docker-metadata.outputs.tags }}
+          labels: ${{ steps.docker-metadata.outputs.labels }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          build-args: |
+            GITHUB_SHA=${{ github.sha }}
+            # Note: Sensitive secrets should be provided at runtime via environment variables
+            # Only non-sensitive build-time configuration is passed here
+            VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL }}
+            VITE_SUPPORT_EMAIL=${{ secrets.VITE_SUPPORT_EMAIL }}
+            VITE_ENV=${{ secrets.VITE_ENV }}
+            REACT_APP_URL=${{ secrets.REACT_APP_URL }}
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+  # trigger_migration:
+  #   needs: [metadata, build-apps]
+  #   if: ${{ always() && needs.build-apps.result == 'success' && needs.metadata.outputs.changed-apps != '[]' && needs.metadata.outputs.changed-apps != '' }}
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Trigger Migration Workflow
+  #       uses: actions/github-script@v7
+  #       with:
+  #         github-token: ${{ secrets.GITHUB_TOKEN }}
+  #         script: |
+  #           await github.rest.actions.createWorkflowDispatch({
+  #             owner: context.repo.owner,
+  #             repo: context.repo.repo,
+  #             workflow_id: 'migrate-db.yml',
+  #             ref: '${{ github.ref }}',
+  #             inputs: {
+  #               sha: '${{ github.sha }}',
+  #               changed_apps: '${{ needs.metadata.outputs.changed-apps }}'
+  #             }
+  #           });
+
