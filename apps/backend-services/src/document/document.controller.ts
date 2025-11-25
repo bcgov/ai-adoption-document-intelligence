@@ -189,6 +189,7 @@ export class DocumentController {
         );
       }
       // Validate the file size
+      // Max already validated in interceptor
       if (!file || file.size === 0) {
         throw new BadRequestException("File data is required");
       }

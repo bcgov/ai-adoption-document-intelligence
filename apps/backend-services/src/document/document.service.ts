@@ -50,22 +50,14 @@ export class DocumentService {
     }
   }
 
-  private generateFileName(originalFilename: string): string {
-    const originalName = originalFilename.slice(
-      0,
-      originalFilename.lastIndexOf("."),
-    );
-    const extension =
-      originalFilename.lastIndexOf(".") > -1
-        ? originalFilename.slice(originalFilename.lastIndexOf("."))
-        : "";
-    const uuid = uuidv4();
-    const sanitizedOriginal = originalName
-      .replace(/[^a-zA-Z0-9.-]/g, "_")
-      .substring(0, 50);
-    return `${uuid}_${sanitizedOriginal}${extension}`;
-  }
-
+  /**
+   * Adds a document record to the documents table.
+   * @param title User-provided title or original file name
+   * @param file Multer file object
+   * @param saveDetails Details from actual file save
+   * @param metadata Optional metadata to save
+   * @returns Object with document info
+   */
   async addDocument(
     title: string,
     file: Express.Multer.File,
@@ -123,6 +115,11 @@ export class DocumentService {
     }
   }
 
+  /**
+   * Saves the file to the expected storage path with a uuid name.
+   * @param file A file from Multer
+   * @returns Object with save details.
+   */
   async saveDocumentFile(file: Express.Multer.File): Promise<SaveDetails> {
     // Generate unique filename and path
     const fileName = uuidv4();
