@@ -1,7 +1,7 @@
 /**
- * This file is not ment to replace the ConfigService within Nest.
- * ConfigService cannot be used inside decorators, so this exists to provide access
- * to ENVs in those cases.
+ * This file is not meant to replace the ConfigService within Nest.
+ * ConfigService cannot be used inside decorators, 
+ * so this exists to provide access to ENVs in those cases.
  */
 
 import { join } from "path";
