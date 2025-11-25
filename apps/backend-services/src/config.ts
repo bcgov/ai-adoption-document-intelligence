@@ -1,6 +1,6 @@
 /**
  * This file is not meant to replace the ConfigService within Nest.
- * ConfigService cannot be used inside decorators, 
+ * ConfigService cannot be used inside decorators,
  * so this exists to provide access to ENVs in those cases.
  */
 
