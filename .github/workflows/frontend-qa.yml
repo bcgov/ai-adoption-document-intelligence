@@ -32,7 +32,7 @@ jobs:
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
-          path: apps/frontend/node_modules
+          path: ./node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
@@ -60,7 +60,7 @@ jobs:
       - name: Restore node_modules cache
         uses: actions/cache@v4
         with:
-          path: apps/frontend/node_modules
+          path: ./node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
