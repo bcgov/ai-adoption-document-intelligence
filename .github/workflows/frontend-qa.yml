@@ -37,6 +37,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
       - name: Install dependencies
+        env:
+          HUSKY: 0
         run: npm i
 
   linting:
