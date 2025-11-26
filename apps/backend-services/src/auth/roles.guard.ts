@@ -7,6 +7,10 @@ import {
 import { Reflector } from "@nestjs/core";
 import { ROLES_KEY } from "./roles.decorator";
 
+/**
+ * Post-authz guard that checks for required roles on the JWT payload.
+ * Uses metadata set by the `@Roles` decorator to decide whether to permit the request.
+ */
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}

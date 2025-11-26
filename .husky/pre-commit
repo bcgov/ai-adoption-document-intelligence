@@ -8,10 +8,10 @@ set -e
 (cd apps/backend-services && npm run format)
 
 # Run linting for backend-services
-(cd apps/backend-services && npm run lint)
+(cd apps/backend-services && npm run lint:fix)
 
 # Run TypeScript checking for frontend
 (cd apps/frontend && npx tsc --noEmit)
 
 # Run linting for frontend
-(cd apps/frontend && npm run lint)
+(cd apps/frontend && npm run lint:fix)
