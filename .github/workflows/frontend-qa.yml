@@ -14,8 +14,6 @@ jobs:
   get-environment:
     name: Prepare Environment
     runs-on: ubuntu-latest
-    env:
-      HUSKY: 0
     defaults:
       run:
         working-directory: ./apps/frontend
