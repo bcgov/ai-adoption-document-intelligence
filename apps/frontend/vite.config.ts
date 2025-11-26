@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -12,17 +12,17 @@ export default defineConfig({
     port: 3000,
     host: true,
     proxy: {
-      '/api/auth': {
-        target: 'http://localhost:3002',
+      "/api/auth": {
+        target: "http://localhost:3002",
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api\/auth/, '/auth'),
+        rewrite: (path) => path.replace(/^\/api\/auth/, "/auth"),
       },
-      '/api': {
-        target: 'http://localhost:3002',
+      "/api": {
+        target: "http://localhost:3002",
         changeOrigin: true,
         secure: false,
       },
     },
   },
-})
+});

@@ -1,13 +1,22 @@
-import { JSX, useState } from 'react'
-import { useAuth } from './auth/AuthContext'
-import './App.css'
-import { HelloWorld, DocumentsList, Login } from './components'
-import '@mantine/core/styles.css'
-import { MantineProvider, Title, Button, Card, Text, Badge, Group, Stack } from '@mantine/core'
+import { JSX, useState } from "react";
+import { useAuth } from "./auth/AuthContext";
+import "./App.css";
+import { DocumentsList, HelloWorld, Login } from "./components";
+import "@mantine/core/styles.css";
+import {
+  Badge,
+  Button,
+  Card,
+  Group,
+  MantineProvider,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
 
 function AppContent(): JSX.Element {
-  const [count, setCount] = useState(0)
-  const { isAuthenticated, isLoading, logout } = useAuth()
+  const [count, setCount] = useState(0);
+  const { isAuthenticated, isLoading, logout } = useAuth();
 
   // Show loading state while determining authentication status or refreshing tokens
   if (isLoading) {
@@ -18,7 +27,7 @@ function AppContent(): JSX.Element {
           <p>Checking authentication status...</p>
         </div>
       </MantineProvider>
-    )
+    );
   }
 
   if (!isAuthenticated) {
@@ -26,7 +35,7 @@ function AppContent(): JSX.Element {
       <MantineProvider>
         <Login />
       </MantineProvider>
-    )
+    );
   }
 
   // Token is set synchronously above, so API calls will have auth headers immediately
@@ -81,20 +90,23 @@ function AppContent(): JSX.Element {
         </Card>
 
         <Card shadow="sm" padding="lg" radius="md" withBorder>
-          <Title order={4} mb="sm">Built with Modern Tools</Title>
+          <Title order={4} mb="sm">
+            Built with Modern Tools
+          </Title>
           <Text size="sm">
-            This application uses Vite, React, TypeScript, and now Mantine UI components for a beautiful and consistent design system.
+            This application uses Vite, React, TypeScript, and now Mantine UI
+            components for a beautiful and consistent design system.
           </Text>
         </Card>
 
         <DocumentsList />
       </Stack>
     </MantineProvider>
-  )
+  );
 }
 
 function App(): JSX.Element {
-  return <AppContent />
+  return <AppContent />;
 }
 
-export default App
+export default App;

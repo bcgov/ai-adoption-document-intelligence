@@ -1,16 +1,16 @@
-import { useQuery } from '@tanstack/react-query';
-import { apiService } from '../services/api.service';
-import type { Document } from '../../shared/types';
+import { useQuery } from "@tanstack/react-query";
+import type { Document } from "../../shared/types";
+import { apiService } from "../services/api.service";
 
 export function useDocuments(): ReturnType<typeof useQuery<Document[], Error>> {
   return useQuery({
-    queryKey: ['documents'],
+    queryKey: ["documents"],
     queryFn: async (): Promise<Document[]> => {
-      const response = await apiService.get<Document[]>('/documents');
+      const response = await apiService.get<Document[]>("/documents");
       if (response.success && response.data) {
         return response.data;
       }
-      throw new Error(response.message || 'Failed to fetch documents');
+      throw new Error(response.message || "Failed to fetch documents");
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });

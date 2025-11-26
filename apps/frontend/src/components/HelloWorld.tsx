@@ -1,11 +1,11 @@
-import React from 'react';
-import { Title, Text, Stack } from '@mantine/core';
+import { Stack, Text, Title } from "@mantine/core";
+import React from "react";
 
 interface HelloWorldProps {
   name?: string;
 }
 
-export const HelloWorld: React.FC<HelloWorldProps> = ({ name = 'World' }) => {
+export const HelloWorld: React.FC<HelloWorldProps> = ({ name = "World" }) => {
   return (
     <Stack gap="xs">
       <Title order={2}>Hello, {name}!</Title>

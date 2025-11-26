@@ -1,7 +1,10 @@
-import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import { API_BASE_URL } from '../../shared/constants';
-import type { ApiResponse } from '../../shared/types';
-
+import axios, {
+  AxiosInstance,
+  AxiosResponse,
+  InternalAxiosRequestConfig,
+} from "axios";
+import { API_BASE_URL } from "../../shared/constants";
+import type { ApiResponse } from "../../shared/types";
 
 class ApiService {
   private axiosInstance: AxiosInstance;
@@ -11,19 +14,23 @@ class ApiService {
     this.axiosInstance = axios.create({
       baseURL,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
 
     // Add request interceptor for authentication
     this.axiosInstance.interceptors.request.use(
       (config: InternalAxiosRequestConfig) => {
-        if (this.authToken && this.authToken !== 'undefined' && config.headers) {
+        if (
+          this.authToken &&
+          this.authToken !== "undefined" &&
+          config.headers
+        ) {
           config.headers.Authorization = `Bearer ${this.authToken}`;
         }
         return config;
       },
-      (error) => Promise.reject(error)
+      (error) => Promise.reject(error),
     );
 
     // Add response interceptor for error handling
@@ -32,10 +39,10 @@ class ApiService {
       (error) => {
         // Log error in development only
         if (import.meta.env.DEV) {
-          console.error('API request failed:', error);
+          console.error("API request failed:", error);
         }
         return Promise.reject(error);
-      }
+      },
     );
   }
 
@@ -45,9 +52,9 @@ class ApiService {
   }
 
   private async request<T>(
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    method: "GET" | "POST" | "PUT" | "DELETE",
     endpoint: string,
-    data?: unknown
+    data?: unknown,
   ): Promise<ApiResponse<T>> {
     try {
       const response: AxiosResponse<T> = await this.axiosInstance({
@@ -63,30 +70,30 @@ class ApiService {
     } catch (error) {
       // Log error in development only
       if (import.meta.env.DEV) {
-        console.error('API request failed:', error);
+        console.error("API request failed:", error);
       }
       return {
         data: null as T,
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
 
   async get<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>('GET', endpoint);
+    return this.request<T>("GET", endpoint);
   }
 
   async post<T>(endpoint: string, data: unknown): Promise<ApiResponse<T>> {
-    return this.request<T>('POST', endpoint, data);
+    return this.request<T>("POST", endpoint, data);
   }
 
   async put<T>(endpoint: string, data: unknown): Promise<ApiResponse<T>> {
-    return this.request<T>('PUT', endpoint, data);
+    return this.request<T>("PUT", endpoint, data);
   }
 
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>('DELETE', endpoint);
+    return this.request<T>("DELETE", endpoint);
   }
 }
 
