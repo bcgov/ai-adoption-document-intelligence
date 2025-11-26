@@ -14,9 +14,38 @@ spec:
       labels:
         app: backend-services
     spec:
+      initContainers:
+      - name: migrate-db
+        image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services:main-latest
+        imagePullPolicy: Always
+        # Use the installed Prisma version from node_modules to avoid npx installing latest
+        # This ensures we use the version specified in package.json (6.19.0) instead of latest (7.0.0)
+        # Note: Permissions on public schema are granted via PostgresCluster postInitSQL
+        command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy || npx prisma@6.19.0 migrate deploy']
+        env:
+        # DATABASE_URL should be provided via a Secret containing the PostgreSQL connection string
+        # Format: postgresql://username:password@postgres-cluster-primary:5432/api
+        # The Secret should be created from the PostgresCluster credentials
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-cluster-pguser-admin
+              key: uri
+        - name: NODE_ENV
+          value: "production"
+        # Optimize Node.js memory usage for migrations
+        - name: NODE_OPTIONS
+          value: "--max-old-space-size=384"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
       containers:
       - name: backend-services
-        image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services:latest
+        image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services:main-latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3002
@@ -32,11 +61,21 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: FRONTEND_URL
+        - name: BACKEND_URL
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: BACKEND_URL
         - name: DATABASE_API_URL
           valueFrom:
             configMapKeyRef:
               name: backend-services-config
               key: DATABASE_API_URL
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-cluster-pguser-admin
+              key: uri
         - name: STORAGE_PATH
           value: "/app/storage/documents"
         - name: RABBITMQ_URL
@@ -54,6 +93,41 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: RABBITMQ_ROUTING_KEY
+        - name: SSO_AUTH_SERVER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: SSO_AUTH_SERVER_URL
+        - name: SSO_REALM
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: SSO_REALM
+        - name: SSO_CLIENT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: SSO_CLIENT_ID
+        - name: SSO_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: backend-services-secrets
+              key: SSO_CLIENT_SECRET
+        - name: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
+        - name: AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID
+        - name: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: backend-services-secrets
+              key: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
         volumeMounts:
         - name: storage
           mountPath: /app/storage
