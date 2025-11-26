@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { JSX, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import './App.css'
 import { HelloWorld, DocumentsList, Login } from './components'
