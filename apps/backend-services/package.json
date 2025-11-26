@@ -42,7 +42,7 @@
     "prisma": "^6.19.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
-    "uuid": "^9.0.1"
+    "uuid": "13.0.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.10",
@@ -52,8 +52,8 @@
     "@swc/core": "^1.15.0",
     "@types/jest": "^29.5.11",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^22.0.0",
-    "@types/uuid": "^9.0.8",
+    "@types/node": "24.10.1",
+    "@types/uuid": "11.0.0",
     "eslint-config-custom": "file:../../packages/eslint-config-custom",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
