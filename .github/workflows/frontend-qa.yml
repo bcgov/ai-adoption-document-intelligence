@@ -32,8 +32,8 @@ jobs:
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
-          path: ./node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          path: apps/frontend/node_modules # Does not respect working-directory
+          key: ${{ runner.os }}-node-${{ hashFiles('apps/frontend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
       - name: Guarantee Husky
@@ -45,8 +45,6 @@ jobs:
     name: Linting
     needs: get-environment
     runs-on: ubuntu-latest
-    env:
-      HUSKY: 0
     defaults:
       run:
         working-directory: ./apps/frontend
@@ -60,8 +58,8 @@ jobs:
       - name: Restore node_modules cache
         uses: actions/cache@v4
         with:
-          path: ./node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          path: apps/frontend/node_modules # Does not respect working-directory
+          key: ${{ runner.os }}-node-${{ hashFiles('apps/frontend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
       - name: Run Linter
