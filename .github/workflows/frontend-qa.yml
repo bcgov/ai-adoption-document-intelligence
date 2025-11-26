@@ -14,6 +14,8 @@ jobs:
   get-environment:
     name: Prepare Environment
     runs-on: ubuntu-latest
+    env:
+      HUSKY: 0
     defaults:
       run:
         working-directory: ./apps/frontend
@@ -37,14 +39,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
       - name: Install dependencies
-        env:
-          HUSKY: 0
         run: npm i
 
   linting:
     name: Linting
     needs: get-environment
     runs-on: ubuntu-latest
+    env:
+      HUSKY: 0
     defaults:
       run:
         working-directory: ./apps/frontend
