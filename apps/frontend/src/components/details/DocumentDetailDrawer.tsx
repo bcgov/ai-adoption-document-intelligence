@@ -50,6 +50,7 @@ export function DocumentDetailDrawer({ document, opened, onClose }: DocumentDeta
               </div>
               <Badge variant="light">{document.status ?? 'unknown'}</Badge>
             </Group>
+
             <SimpleGrid cols={2} spacing="xs">
               <Stack gap={2}>
                 <Text size="xs" c="dimmed">
@@ -127,6 +128,7 @@ export function DocumentDetailDrawer({ document, opened, onClose }: DocumentDeta
           </Tabs>
         </Stack>
       )}
+
     </Drawer>
   );
 }

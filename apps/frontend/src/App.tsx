@@ -6,7 +6,7 @@ import './App.css'
 import { Login } from './components'
 import { DocumentUploadPanel } from './components/upload/DocumentUploadPanel'
 import { ProcessingQueue } from './components/queue/ProcessingQueue'
-import { DocumentDetailDrawer } from './components/details/DocumentDetailDrawer'
+import { DocumentViewerModal } from './components/document/DocumentViewerModal'
 import type { Document } from './shared/types'
 
 type MainView = 'upload' | 'queue'
@@ -14,8 +14,8 @@ type MainView = 'upload' | 'queue'
 function AppContent(): JSX.Element {
   const { isAuthenticated, isLoading, logout, user } = useAuth()
   const [activeView, setActiveView] = useState<MainView>('upload')
+  const [viewerOpened, setViewerOpened] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
-  const [detailOpened, setDetailOpened] = useState(false)
 
   const navItems = useMemo(
     () => [
@@ -25,12 +25,9 @@ function AppContent(): JSX.Element {
     [],
   )
 
-  const openDocument = (doc: Document) => {
+  const openViewer = (doc: Document) => {
     setSelectedDocument(doc)
-    setDetailOpened(true)
-    if (activeView !== 'queue') {
-      setActiveView('queue')
-    }
+    setViewerOpened(true)
   }
 
   if (isLoading) {
@@ -120,18 +117,18 @@ function AppContent(): JSX.Element {
             </Group>
 
             {activeView === 'upload' ? (
-              <DocumentUploadPanel onDocumentFocus={openDocument} />
+              <DocumentUploadPanel onDocumentFocus={() => {}} />
             ) : (
-              <ProcessingQueue onSelectDocument={openDocument} />
+              <ProcessingQueue onSelectDocument={openViewer} />
             )}
           </Stack>
         </AppShell.Main>
       </AppShell>
 
-      <DocumentDetailDrawer
+      <DocumentViewerModal
         document={selectedDocument}
-        opened={detailOpened}
-        onClose={() => setDetailOpened(false)}
+        opened={viewerOpened}
+        onClose={() => setViewerOpened(false)}
       />
     </>
   )

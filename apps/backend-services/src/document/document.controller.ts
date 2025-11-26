@@ -7,7 +7,11 @@ import {
   Logger,
   NotFoundException,
   Req,
+  Res,
 } from "@nestjs/common";
+import { Response } from "express";
+import { readFile } from "fs/promises";
+import { join } from "path";
 import { Request } from "express";
 import { Roles } from "../auth/roles.decorator";
 import { DatabaseService, DocumentData } from "../database/database.service";
@@ -134,6 +138,78 @@ export class DocumentController {
       throw new NotFoundException(
         error.message ||
           `Failed to retrieve OCR result for document: ${documentId}`,
+      );
+    }
+  }
+
+  @Get("documents/:documentId/download")
+  @HttpCode(HttpStatus.OK)
+  async downloadDocument(
+    @Param("documentId") documentId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    this.logger.debug(`=== DocumentController.downloadDocument ===`);
+    this.logger.debug(`Document ID: ${documentId}`);
+
+    try {
+      // Find the document
+      const document = await this.databaseService.findDocument(documentId);
+      if (!document) {
+        throw new NotFoundException(`Document not found: ${documentId}`);
+      }
+
+      // Resolve file path
+      let filePath: string;
+      if (document.file_path.startsWith("/")) {
+        // Absolute path
+        filePath = document.file_path;
+      } else if (document.file_path.startsWith("storage/documents/")) {
+        // Relative path from project root
+        filePath = join(process.cwd(), document.file_path);
+      } else {
+        // Legacy relative path from storage directory
+        filePath = join(
+          process.cwd(),
+          "storage",
+          "documents",
+          document.file_path,
+        );
+      }
+
+      // Read file
+      const fileBuffer = await readFile(filePath);
+
+      // Set appropriate headers
+      const fileName = document.original_filename || `document-${documentId}`;
+      const mimeType =
+        document.file_type === "pdf"
+          ? "application/pdf"
+          : document.file_type === "image"
+            ? "image/jpeg"
+            : "application/octet-stream";
+
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+      res.setHeader("Content-Length", fileBuffer.length);
+
+      this.logger.debug(
+        `Serving file: ${filePath} (${fileBuffer.length} bytes)`,
+      );
+      this.logger.debug(
+        "=== DocumentController.downloadDocument completed ===",
+      );
+
+      res.send(fileBuffer);
+    } catch (error) {
+      this.logger.error(`Error downloading document: ${error.message}`);
+      this.logger.error(`Stack: ${error.stack}`);
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new NotFoundException(
+        error.message || `Failed to download document: ${documentId}`,
       );
     }
   }

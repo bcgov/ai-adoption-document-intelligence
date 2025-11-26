@@ -31,6 +31,26 @@ export interface Document {
   };
 }
 
+export interface BoundingRegion {
+  pageNumber: number;
+  polygon: number[];
+}
+
+export interface KeyValueElement {
+  content: string;
+  boundingRegions: BoundingRegion[];
+  spans: Array<{
+    offset: number;
+    length: number;
+  }>;
+}
+
+export interface KeyValuePair {
+  key: KeyValueElement;
+  value?: KeyValueElement;
+  confidence: number;
+}
+
 export interface OcrResult {
   id: string;
   document_id: string;
@@ -41,7 +61,7 @@ export interface OcrResult {
   styles: unknown[];
   sections: unknown[];
   figures: unknown[];
-  keyValuePairs?: unknown[];
+  keyValuePairs?: KeyValuePair[];
   metadata?: Record<string, unknown>;
   processed_at: string;
 }

@@ -7,7 +7,6 @@ import { AuthProvider } from './auth/AuthContext'
 import { queryClient } from './data/queryClient'
 import '@mantine/core/styles.css'
 import '@mantine/notifications/styles.css'
-import './shared/styles/index.css'
 import App from './App'
 
 createRoot(document.getElementById('root')!).render(

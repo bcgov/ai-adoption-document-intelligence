@@ -162,7 +162,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
               {filteredDocuments.map((doc) => {
                 const status = statusStyles[doc.status] ?? { color: 'gray', label: doc.status };
                 return (
-                  <Table.Tr key={doc.id} onClick={() => onSelectDocument?.(doc)} style={{ cursor: 'pointer' }}>
+                  <Table.Tr key={doc.id} onClick={() => doc.status === 'completed_ocr' && onSelectDocument?.(doc)} style={{ cursor: doc.status === 'completed_ocr' ? 'pointer' : 'default' }}>
                     <Table.Td>
                       <Stack gap={2}>
                         <Text fw={600}>{doc.title}</Text>
@@ -184,9 +184,12 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
                         <ActionIcon
                           variant="subtle"
                           color="blue"
+                          disabled={doc.status !== 'completed_ocr'}
                           onClick={(event) => {
                             event.stopPropagation();
-                            onSelectDocument?.(doc);
+                            if (doc.status === 'completed_ocr') {
+                              onSelectDocument?.(doc);
+                            }
                           }}
                         >
                           <IconEye size={18} />
