@@ -11,12 +11,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  get-environment:
-    name: Prepare Environment
+  test-and-lint:
+    name: Linting
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./apps/frontend
     outputs:
       environment: ${{ steps.env.outputs.environment }}
     steps:
@@ -29,38 +26,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: apps/frontend/node_modules # Does not respect working-directory
-          key: ${{ runner.os }}-node-${{ hashFiles('apps/frontend/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-      - name: Guarantee Husky
-        run: npm i husky
       - name: Install dependencies
         run: npm ci
-
-  linting:
-    name: Linting
-    needs: get-environment
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./apps/frontend
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - name: Restore node_modules cache
-        uses: actions/cache@v4
-        with:
-          path: apps/frontend/node_modules # Does not respect working-directory
-          key: ${{ runner.os }}-node-${{ hashFiles('apps/frontend/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
       - name: Run Linter
+        working-directory: apps/frontend
         run: npm run lint
