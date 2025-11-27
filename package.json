@@ -11,7 +11,7 @@
   "scripts": {
     "dev:backend": "cd apps/backend-services && npm run start:dev",
     "dev:frontend": "cd apps/frontend && npm run dev",
-    "dev": "concurrently \"npm run dev:backend-services\" \"npm run dev:frontend\"",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:backend-services": "cd apps/backend-services && npm run build",
     "build:frontend": "cd apps/frontend && npm run build",
     "build": "npm run build:backend-services && npm run build:frontend",
@@ -19,8 +19,8 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
-    "husky": "^9.0.0"
+    "concurrently": "^9.2.1",
+    "husky": "^9.1.7"
   },
   "engines": {
     "node": ">=24.0.0",
