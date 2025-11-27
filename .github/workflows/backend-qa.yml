@@ -36,8 +36,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run tests
+        working-directory: apps/backend-services
         run: npm test
       - name: Run Linter
+        working-directory: apps/backend-services
         run: npm run lint
 
   # unit-tests:
