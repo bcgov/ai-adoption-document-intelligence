@@ -32,12 +32,14 @@ jobs:
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
-          path: ./node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          path: apps/frontend/node_modules # Does not respect working-directory
+          key: ${{ runner.os }}-node-${{ hashFiles('apps/frontend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
+      - name: Guarantee Husky
+        run: npm i husky
       - name: Install dependencies
-        run: npm i
+        run: npm ci
 
   linting:
     name: Linting
@@ -56,8 +58,8 @@ jobs:
       - name: Restore node_modules cache
         uses: actions/cache@v4
         with:
-          path: ./node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          path: apps/frontend/node_modules # Does not respect working-directory
+          key: ${{ runner.os }}-node-${{ hashFiles('apps/frontend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
       - name: Run Linter

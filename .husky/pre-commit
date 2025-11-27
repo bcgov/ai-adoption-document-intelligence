@@ -4,9 +4,6 @@ set -e
 # Run TypeScript checking for backend-services
 (cd apps/backend-services && npx tsc --noEmit)
 
-# Run Prettier formatting for backend-services
-(cd apps/backend-services && npm run format)
-
 # Run linting for backend-services
 (cd apps/backend-services && npm run lint:fix)
 

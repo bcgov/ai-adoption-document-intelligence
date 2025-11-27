@@ -1,6 +1,13 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
-import axios from 'axios';
-import { apiService } from '../data/services/api.service';
+import axios from "axios";
+import React, {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { apiService } from "../data/services/api.service";
 
 /**
  * Shape of the token bundle returned by the backend `/auth/token` or `/auth/result` endpoints.
@@ -58,7 +65,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const handledAuthResultIdsRef = useRef<Set<string>>(new Set());
 
   // API base URL - use relative path for auth endpoints to work with Vite proxy
-  const apiBaseUrl = '';
+  const apiBaseUrl = "";
 
   useEffect(() => {
     const initAuth = async () => {
@@ -66,8 +73,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await restoreStoredTokens();
         await handleAuthResultFromUrl();
       } catch (error) {
-        console.error('Auth initialization error:', error);
-        localStorage.removeItem('auth_tokens');
+        console.error("Auth initialization error:", error);
+        localStorage.removeItem("auth_tokens");
         setUser(null);
       } finally {
         setIsLoading(false);
@@ -85,12 +92,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Rehydrates the last known token set from localStorage and refreshes if necessary.
    */
   const restoreStoredTokens = async () => {
-    const storedTokens = localStorage.getItem('auth_tokens');
+    const storedTokens = localStorage.getItem("auth_tokens");
     if (!storedTokens) {
       return;
     }
 
-    const tokens: TokenResponse & { expires_at?: number } = JSON.parse(storedTokens);
+    const tokens: TokenResponse & { expires_at?: number } =
+      JSON.parse(storedTokens);
     const now = Math.floor(Date.now() / 1000);
 
     if (tokens.expires_at && tokens.expires_at > now) {
@@ -103,12 +111,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         await refreshToken();
       } catch (error) {
-        console.log('Token refresh failed during stored token restoration:', error);
-        localStorage.removeItem('auth_tokens');
+        console.log(
+          "Token refresh failed during stored token restoration:",
+          error,
+        );
+        localStorage.removeItem("auth_tokens");
         setUser(null);
       }
     } else {
-      localStorage.removeItem('auth_tokens');
+      localStorage.removeItem("auth_tokens");
       setUser(null);
     }
   };
@@ -116,19 +127,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Decodes the ID token (if present) to provide profile metadata throughout the app.
    */
-  const decodeAndCreateUser = async (tokens: TokenResponse & { expires_at?: number }): Promise<AuthUser> => {
+  const decodeAndCreateUser = async (
+    tokens: TokenResponse & { expires_at?: number },
+  ): Promise<AuthUser> => {
     let profilePayload: Record<string, unknown> | undefined;
 
     if (tokens.id_token) {
       try {
-        const base64Payload = tokens.id_token.split('.')[1];
+        const base64Payload = tokens.id_token.split(".")[1];
         if (base64Payload) {
-          const normalized = base64Payload.replace(/-/g, '+').replace(/_/g, '/');
-          const padded = normalized.padEnd(normalized.length + (4 - (normalized.length % 4)) % 4, '=');
+          const normalized = base64Payload
+            .replace(/-/g, "+")
+            .replace(/_/g, "/");
+          const padded = normalized.padEnd(
+            normalized.length + ((4 - (normalized.length % 4)) % 4),
+            "=",
+          );
           profilePayload = JSON.parse(atob(padded));
         }
       } catch (error) {
-        console.error('Failed to decode ID token payload', error);
+        console.error("Failed to decode ID token payload", error);
       }
     }
 
@@ -140,7 +158,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       profile: profilePayload
         ? {
             name: profilePayload.name as string | undefined,
-            preferred_username: profilePayload.preferred_username as string | undefined,
+            preferred_username: profilePayload.preferred_username as
+              | string
+              | undefined,
             email: profilePayload.email as string | undefined,
             ...profilePayload,
           }
@@ -154,7 +174,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const persistTokens = async (tokens: TokenResponse) => {
     const expiresAt = Math.floor(Date.now() / 1000) + tokens.expires_in;
     const tokenData = { ...tokens, expires_at: expiresAt };
-    localStorage.setItem('auth_tokens', JSON.stringify(tokenData));
+    localStorage.setItem("auth_tokens", JSON.stringify(tokenData));
     const userData = await decodeAndCreateUser(tokenData);
     setUser(userData);
   };
@@ -167,7 +187,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     window.history.replaceState(
       {},
       document.title,
-      `${url.pathname}${newSearch ? `?${newSearch}` : ''}${url.hash}`,
+      `${url.pathname}${newSearch ? `?${newSearch}` : ""}${url.hash}`,
     );
   };
 
@@ -177,35 +197,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const handleAuthResultFromUrl = async () => {
     const url = new URL(window.location.href);
-    const authResult = url.searchParams.get('auth_result');
+    const authResult = url.searchParams.get("auth_result");
 
     if (!authResult) {
-      if (url.searchParams.has('auth_error')) {
-        console.warn('Authentication error flag present in URL:', url.searchParams.get('auth_error'));
-        url.searchParams.delete('auth_error');
+      if (url.searchParams.has("auth_error")) {
+        console.warn(
+          "Authentication error flag present in URL:",
+          url.searchParams.get("auth_error"),
+        );
+        url.searchParams.delete("auth_error");
         updateBrowserUrl(url);
       }
       return;
     }
 
     if (handledAuthResultIdsRef.current.has(authResult)) {
-      console.debug('Auth result already handled, skipping duplicate request', authResult);
+      console.debug(
+        "Auth result already handled, skipping duplicate request",
+        authResult,
+      );
       return;
     }
     handledAuthResultIdsRef.current.add(authResult);
 
     try {
-      const response = await axios.get<TokenResponse>(`${apiBaseUrl}/api/auth/result`, {
-        params: { result: authResult },
-      });
+      const response = await axios.get<TokenResponse>(
+        `${apiBaseUrl}/api/auth/result`,
+        {
+          params: { result: authResult },
+        },
+      );
 
       await persistTokens(response.data);
     } catch (error) {
-      console.error('Failed to consume auth result:', error);
-      localStorage.removeItem('auth_tokens');
+      console.error("Failed to consume auth result:", error);
+      localStorage.removeItem("auth_tokens");
       setUser(null);
     } finally {
-      url.searchParams.delete('auth_result');
+      url.searchParams.delete("auth_result");
       updateBrowserUrl(url);
     }
   };
@@ -218,7 +247,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = () => {
     const idTokenHint = user?.id_token;
     setUser(null);
-    localStorage.removeItem('auth_tokens');
+    localStorage.removeItem("auth_tokens");
     const logoutUrl = idTokenHint
       ? `${apiBaseUrl}/api/auth/logout?id_token_hint=${encodeURIComponent(idTokenHint)}`
       : `${apiBaseUrl}/api/auth/logout`;
@@ -234,25 +263,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const refreshToken = async (): Promise<void> => {
     try {
-      const storedTokens = localStorage.getItem('auth_tokens');
+      const storedTokens = localStorage.getItem("auth_tokens");
       if (!storedTokens) {
-        throw new Error('No tokens to refresh');
+        throw new Error("No tokens to refresh");
       }
 
       const tokens = JSON.parse(storedTokens);
       if (!tokens.refresh_token) {
-        throw new Error('No refresh token available');
+        throw new Error("No refresh token available");
       }
 
-      const response = await axios.post<TokenResponse>(`${apiBaseUrl}/api/auth/refresh`, {
-        refresh_token: tokens.refresh_token,
-      });
+      const response = await axios.post<TokenResponse>(
+        `${apiBaseUrl}/api/auth/refresh`,
+        {
+          refresh_token: tokens.refresh_token,
+        },
+      );
 
       await persistTokens(response.data);
     } catch (error) {
-      console.error('Token refresh failed:', error);
+      console.error("Token refresh failed:", error);
       // Clear invalid tokens
-      localStorage.removeItem('auth_tokens');
+      localStorage.removeItem("auth_tokens");
       setUser(null);
       throw error;
     }
@@ -268,13 +300,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     refreshToken,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-
 
 /**
  * Convenience hook for consuming the auth context with built-in guardrails.
@@ -282,10 +309,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
 // Backwards compatibility alias for useSSO
 export const useSSO = useAuth;
-
