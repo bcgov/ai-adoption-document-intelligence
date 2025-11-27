@@ -29,13 +29,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: apps/backend-services/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('apps/backend-services/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+          cache: 'npm'
+      # - name: Cache node_modules
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: apps/backend-services/node_modules
+      #     key: ${{ runner.os }}-node-${{ hashFiles('apps/backend-services/package-lock.json') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-node-
       - name: Guarantee Husky
         run: npm i husky
       - name: Install dependencies
@@ -55,13 +56,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Restore node_modules cache
-        uses: actions/cache@v4
-        with:
-          path: apps/backend-services/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('apps/backend-services/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+          cache: 'npm'
+      # - name: Restore node_modules cache
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: apps/backend-services/node_modules
+      #     key: ${{ runner.os }}-node-${{ hashFiles('apps/backend-services/package-lock.json') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-node-
       - name: Run tests
         run: npm test
 
@@ -79,12 +81,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Restore node_modules cache
-        uses: actions/cache@v4
-        with:
-          path: apps/backend-services/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('apps/backend-services/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+          cache: 'npm'
+      # - name: Restore node_modules cache
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: apps/backend-services/node_modules
+      #     key: ${{ runner.os }}-node-${{ hashFiles('apps/backend-services/package-lock.json') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-node-
       - name: Run Linter
         run: npm run lint
