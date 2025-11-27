@@ -39,7 +39,7 @@ jobs:
       - name: Guarantee Husky
         run: npm i husky
       - name: Install dependencies
-        run: npm i
+        run: npm ci
 
   unit-tests:
     name: Unit Tests
