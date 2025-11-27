@@ -1,17 +1,17 @@
 import {
   Controller,
   Get,
-  Param,
   HttpCode,
   HttpStatus,
   Logger,
   NotFoundException,
+  Param,
   Req,
 } from "@nestjs/common";
 import { Request } from "express";
+import { OcrResult } from "@/generated/client";
 import { Roles } from "../auth/roles.decorator";
 import { DatabaseService, DocumentData } from "../database/database.service";
-import { OcrResult } from "@/generated/client";
 
 @Controller("api")
 export class DocumentController {

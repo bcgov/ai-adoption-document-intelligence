@@ -1,5 +1,5 @@
+import { Logger, ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { ValidationPipe, Logger } from "@nestjs/common";
 import { AppModule } from "./app.module";
 
 const logger = new Logger("Bootstrap");

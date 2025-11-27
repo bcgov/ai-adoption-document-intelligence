@@ -16,8 +16,6 @@
     "build:frontend": "cd apps/frontend && npm run build",
     "build": "npm run build:backend-services && npm run build:frontend",
     "install:all": "npm install && cd apps/backend-services && npm install && cd ../frontend && npm install",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -25,8 +23,8 @@
     "husky": "^9.0.0"
   },
   "engines": {
-    "node": ">=22.0.0",
-    "npm": ">=9.0.0"
+    "node": ">=24.0.0",
+    "npm": ">=10.0.0"
   },
   "dependencies": {
     "apollo-server-express": "^3.13.0"

@@ -1,21 +1,21 @@
 import {
-  Controller,
-  Post,
   Body,
+  Controller,
   Get,
+  HttpStatus,
+  Post,
   Query,
   Res,
-  HttpStatus,
 } from "@nestjs/common";
 import { Response } from "express";
 import { AuthService } from "./auth.service";
-import { Public } from "./public.decorator";
 import {
   AuthResultQueryDto,
   LogoutQueryDto,
   OAuthCallbackQueryDto,
   RefreshTokenDto,
 } from "./dto";
+import { Public } from "./public.decorator";
 
 /**
  * Thin HTTP layer that exposes the OAuth entrypoints to the frontend.

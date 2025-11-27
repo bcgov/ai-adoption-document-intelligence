@@ -1,9 +1,9 @@
 import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
   IsEnum,
+  IsNotEmpty,
   IsObject,
+  IsOptional,
+  IsString,
 } from "class-validator";
 
 export enum FileType {

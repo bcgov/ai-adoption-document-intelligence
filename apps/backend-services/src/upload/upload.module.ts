@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
-import { UploadController } from "./upload.controller";
 import { DocumentModule } from "../document/document.module";
 import { QueueModule } from "../queue/queue.module";
+import { UploadController } from "./upload.controller";
 
 @Module({
   imports: [DocumentModule, QueueModule],

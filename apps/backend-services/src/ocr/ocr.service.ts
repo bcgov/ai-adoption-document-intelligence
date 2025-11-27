@@ -1,12 +1,12 @@
-import { DatabaseService } from "@/database/database.service";
-import { DocumentStatus } from "@/generated/enums";
+import { HttpService } from "@nestjs/axios";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { readFile } from "fs/promises";
-import { AnalysisResponse, AnalysisResult } from "@/ocr/azureTypes";
 import { join } from "path";
-import { HttpService } from "@nestjs/axios";
 import { lastValueFrom } from "rxjs";
+import { DatabaseService } from "@/database/database.service";
+import { DocumentStatus } from "@/generated/enums";
+import { AnalysisResponse, AnalysisResult } from "@/ocr/azureTypes";
 
 export interface OcrRequestResponse {
   status: DocumentStatus;

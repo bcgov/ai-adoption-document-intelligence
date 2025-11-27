@@ -1,10 +1,10 @@
-import { Injectable, HttpException, HttpStatus } from "@nestjs/common";
+import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import axios, { AxiosResponse } from "axios";
 import { randomBytes } from "crypto";
-import { URL } from "url";
 import * as jwt from "jsonwebtoken";
 import { JwksClient } from "jwks-rsa";
+import { URL } from "url";
 import { AuthSessionStore } from "./auth-session.store";
 
 /**
@@ -113,8 +113,7 @@ export class AuthService {
       );
 
       return response.data;
-    } catch (error) {
-      console.error("Token exchange failed:", error);
+    } catch (_error) {
       throw new HttpException(
         "Failed to exchange authorization code for tokens",
         HttpStatus.BAD_REQUEST,
@@ -146,8 +145,7 @@ export class AuthService {
       );
 
       return response.data;
-    } catch (error) {
-      console.error("Token refresh failed:", error);
+    } catch (_error) {
       throw new HttpException(
         "Failed to refresh access token",
         HttpStatus.BAD_REQUEST,
@@ -294,8 +292,7 @@ export class AuthService {
       if (verified.nonce !== expectedNonce) {
         throw new Error("Nonce mismatch");
       }
-    } catch (error) {
-      console.error("ID token validation failed:", error);
+    } catch (_error) {
       throw new HttpException("Invalid ID token", HttpStatus.BAD_REQUEST);
     }
   }

@@ -5,11 +5,11 @@ import {
   OnModuleInit,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { PrismaClient, Document, OcrResult } from "../generated/client";
-import { JsonValue } from "../generated/internal/prismaNamespace";
-import { DocumentStatus } from "../generated/enums";
-import { AnalysisResponse } from "@/ocr/azureTypes";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { AnalysisResponse } from "@/ocr/azureTypes";
+import { Document, OcrResult, PrismaClient } from "../generated/client";
+import { DocumentStatus } from "../generated/enums";
+import { JsonValue } from "../generated/internal/prismaNamespace";
 
 export type DocumentData = Document;
 
@@ -22,11 +22,11 @@ export class DatabaseService implements OnModuleInit {
   constructor(private configService: ConfigService) {}
 
   async onModuleInit(): Promise<void> {
-    this.databaseUrl = this.configService.get('DATABASE_URL');
+    this.databaseUrl = this.configService.get("DATABASE_URL");
     this.prisma = new PrismaClient({
       log: ["query", "info", "warn", "error"],
-      
-      adapter: new PrismaPg({ connectionString: this.databaseUrl })
+
+      adapter: new PrismaPg({ connectionString: this.databaseUrl }),
     });
     this.logger.log("Database service initialized with Prisma");
   }
