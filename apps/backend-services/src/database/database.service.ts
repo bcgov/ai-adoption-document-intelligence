@@ -9,6 +9,7 @@ import { PrismaClient, Document, OcrResult } from "../generated/client";
 import { JsonValue } from "../generated/internal/prismaNamespace";
 import { DocumentStatus } from "../generated/enums";
 import { AnalysisResponse } from "@/ocr/azureTypes";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 export type DocumentData = Document;
 
@@ -16,12 +17,16 @@ export type DocumentData = Document;
 export class DatabaseService implements OnModuleInit {
   private readonly logger = new Logger(DatabaseService.name);
   private prisma: PrismaClient;
+  private databaseUrl: string;
 
   constructor(private configService: ConfigService) {}
 
   async onModuleInit(): Promise<void> {
+    this.databaseUrl = this.configService.get('DATABASE_URL');
     this.prisma = new PrismaClient({
       log: ["query", "info", "warn", "error"],
+      
+      adapter: new PrismaPg({ connectionString: this.databaseUrl })
     });
     this.logger.log("Database service initialized with Prisma");
   }
