@@ -4,7 +4,7 @@
   "description": "AI OCR Backend Services",
   "author": "",
   "private": true,
-  "license": "MIT",
+  "license": "Apache-2.0",
   "scripts": {
     "build": "nest build",
     "build:prod": "NODE_ENV=production nest build",
