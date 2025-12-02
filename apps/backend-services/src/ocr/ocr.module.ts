@@ -1,7 +1,7 @@
-import { Module } from "@nestjs/common";
 import { HttpModule } from "@nestjs/axios";
-import { OcrService } from "./ocr.service";
+import { Module } from "@nestjs/common";
 import { DatabaseModule } from "@/database/database.module";
+import { OcrService } from "./ocr.service";
 
 @Module({
   providers: [OcrService],
