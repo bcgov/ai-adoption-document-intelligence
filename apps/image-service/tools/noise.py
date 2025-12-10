@@ -22,8 +22,14 @@ def calculate_noise_metrics(image):
     return mean_noise, std_noise
 
 
-def denoise():
-    image = cv2.imread("test-images/form1_noisy.jpg", cv2.IMREAD_UNCHANGED)
-    print(calculate_noise_metrics(image))
-    cv2.imwrite("result-images/form1_noisy.jpg", image)
-    return calculate_noise_metrics(image)
+def denoise(image):
+    # https://docs.opencv.org/3.4/d1/d79/group__photo__denoise.html#ga4c6b0031f56ea3f98f768881279ffe93
+    filter_strength = 20
+    search_window = 21  # Should be odd
+    template_window = 13  # Should be odd
+    # Must be greyscale for this version
+    grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    result = cv2.fastNlMeansDenoising(
+        grey, filter_strength, template_window, search_window
+    )
+    return result
