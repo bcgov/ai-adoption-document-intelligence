@@ -33,3 +33,16 @@ def denoise(image):
         grey, filter_strength, template_window, search_window
     )
     return result
+
+
+def denoise_binary(image):
+    filter_strength = 20
+    search_window = 21  # Should be odd
+    template_window = 13  # Should be odd
+    # Convert to greyscale then force to binary black/white
+    grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    thresh = cv2.threshold(grey, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+    result = cv2.fastNlMeansDenoising(
+        thresh, filter_strength, template_window, search_window
+    )
+    return result
