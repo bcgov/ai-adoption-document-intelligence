@@ -3,6 +3,12 @@ import numpy as np
 
 
 def calculate_noise_metrics(image):
+    """
+    Generates values to measure the level of noise in an image.
+
+    :param image: The image loaded through cv2 library.
+    :returns Tuple[mean_noise, std_noise]:
+    """
     # Convert the image to grayscale
     # Noise analysis should be performed on greyscale images
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -23,6 +29,12 @@ def calculate_noise_metrics(image):
 
 
 def denoise(image):
+    """
+    Attempts to denoise an image. This process also forces greyscaling.
+
+    :param image: The image loaded through cv2 library.
+    :returns result: The denoised image.
+    """
     # https://docs.opencv.org/3.4/d1/d79/group__photo__denoise.html#ga4c6b0031f56ea3f98f768881279ffe93
     filter_strength = 20
     search_window = 21  # Should be odd
@@ -36,6 +48,12 @@ def denoise(image):
 
 
 def denoise_binary(image):
+    """
+    Attempts to denoise an image. Forces black and white colour only.
+
+    :param image: The image loaded through cv2 library.
+    :returns result: The denoised binary image.
+    """
     filter_strength = 20
     search_window = 21  # Should be odd
     template_window = 13  # Should be odd
