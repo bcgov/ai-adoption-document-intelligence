@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
-import { QueueService } from "./queue.service";
-import { OcrModule } from "../ocr/ocr.module";
 import { DatabaseModule } from "../database/database.module";
+import { OcrModule } from "../ocr/ocr.module";
+import { QueueService } from "./queue.service";
 
 @Module({
   providers: [QueueService],

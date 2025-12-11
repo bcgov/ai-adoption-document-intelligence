@@ -1,12 +1,12 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
 import { existsSync } from "fs";
+import { mkdir, writeFile } from "fs/promises";
+import { join } from "path";
 import { v4 as uuidv4 } from "uuid";
+import { DocumentStatus } from "@/generated/enums";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { JsonValue } from "../generated/internal/prismaNamespace";
-import { DocumentStatus } from "@/generated/enums";
 
 export interface UploadedDocument {
   id: string;

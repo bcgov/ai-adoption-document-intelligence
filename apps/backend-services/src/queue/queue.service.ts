@@ -1,8 +1,8 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { OcrService } from "../ocr/ocr.service";
 import { DatabaseService } from "../database/database.service";
 import { DocumentStatus } from "../generated/enums";
+import { OcrService } from "../ocr/ocr.service";
 
 export interface QueueMessage {
   documentId: string;
@@ -131,7 +131,6 @@ export class QueueService {
             `OCR results not ready yet for document ${documentId} (results: ${ocrResults}), will retry...`,
           );
           await new Promise((resolve) => setTimeout(resolve, delayMs));
-          continue;
         }
       } catch (error) {
         if (
@@ -143,7 +142,6 @@ export class QueueService {
             `OCR still processing, waiting... (${error.message})`,
           );
           await new Promise((resolve) => setTimeout(resolve, delayMs));
-          continue;
         } else {
           // Other error, fail immediately
           throw error;

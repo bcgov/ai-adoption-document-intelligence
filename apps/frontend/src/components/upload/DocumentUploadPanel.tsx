@@ -1,41 +1,41 @@
-import { useEffect, useState } from 'react';
 import {
-  Paper,
-  Stack,
-  Title,
-  Text,
-  Group,
+  ActionIcon,
+  Avatar,
   Badge,
   Button,
-  Progress,
-  Avatar,
-  ActionIcon,
   Divider,
-  ScrollArea,
-  Tooltip,
+  Group,
+  Paper,
+  Progress,
   rem,
-} from '@mantine/core';
-import { Dropzone, FileRejection } from '@mantine/dropzone';
-import { notifications } from '@mantine/notifications';
-import { useQueryClient } from '@tanstack/react-query';
+  ScrollArea,
+  Stack,
+  Text,
+  Title,
+  Tooltip,
+} from "@mantine/core";
+import { Dropzone, FileRejection } from "@mantine/dropzone";
+import { notifications } from "@mantine/notifications";
 import {
-  IconUpload,
-  IconPhoto,
-  IconX,
-  IconTrash,
   IconAlertCircle,
   IconCircleCheck,
   IconFileDescription,
-} from '@tabler/icons-react';
-import { apiService } from '../../data/services/api.service';
-import { MAX_FILE_SIZE, SUPPORTED_FILE_TYPES } from '../../shared/constants';
-import type { Document, UploadDocumentPayload } from '../../shared/types';
+  IconPhoto,
+  IconTrash,
+  IconUpload,
+  IconX,
+} from "@tabler/icons-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { apiService } from "../../data/services/api.service";
+import { MAX_FILE_SIZE, SUPPORTED_FILE_TYPES } from "../../shared/constants";
+import type { Document, UploadDocumentPayload } from "../../shared/types";
 
 interface UploadQueueItem {
   id: string;
   file: File;
   previewUrl: string;
-  status: 'queued' | 'uploading' | 'success' | 'error';
+  status: "queued" | "uploading" | "success" | "error";
   message?: string;
   document?: Document;
   progress: number;
@@ -46,29 +46,31 @@ interface DocumentUploadPanelProps {
 }
 
 const dropzoneAccept: Record<string, string[]> = {
-  'application/pdf': ['.pdf'],
-  'image/jpeg': ['.jpg', '.jpeg'],
-  'image/png': ['.png'],
-  'image/tiff': ['.tif', '.tiff'],
+  "application/pdf": [".pdf"],
+  "image/jpeg": [".jpg", ".jpeg"],
+  "image/png": [".png"],
+  "image/tiff": [".tif", ".tiff"],
 };
 
-const formatStatusBadge = (status: UploadQueueItem['status']) => {
+const formatStatusBadge = (status: UploadQueueItem["status"]) => {
   switch (status) {
-    case 'queued':
-      return { label: 'Queued', color: 'gray' as const };
-    case 'uploading':
-      return { label: 'Uploading', color: 'blue' as const };
-    case 'success':
-      return { label: 'Uploaded', color: 'green' as const };
-    case 'error':
-      return { label: 'Failed', color: 'red' as const };
+    case "queued":
+      return { label: "Queued", color: "gray" as const };
+    case "uploading":
+      return { label: "Uploading", color: "blue" as const };
+    case "success":
+      return { label: "Uploaded", color: "green" as const };
+    case "error":
+      return { label: "Failed", color: "red" as const };
     default:
-      return { label: status, color: 'gray' as const };
+      return { label: status, color: "gray" as const };
   }
 };
 
 const generateId = () =>
-  typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -78,7 +80,9 @@ const fileToBase64 = (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
-export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocumentFocus }) => {
+export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
+  onDocumentFocus,
+}) => {
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const queryClient = useQueryClient();
@@ -91,12 +95,19 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
   );
 
   const handleDrop = async (acceptedFiles: File[]) => {
-    console.info('[Upload] Accepted files:', acceptedFiles.map((file) => ({ name: file.name, type: file.type, size: file.size })));
+    console.info(
+      "[Upload] Accepted files:",
+      acceptedFiles.map((file) => ({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      })),
+    );
     const newItems = acceptedFiles.map<UploadQueueItem>((file) => ({
       id: generateId(),
       file,
       previewUrl: URL.createObjectURL(file),
-      status: 'queued',
+      status: "queued",
       progress: 0,
     }));
 
@@ -111,8 +122,8 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
     rejections.forEach((rej) => {
       notifications.show({
         title: `Unable to add ${rej.file.name}`,
-        message: rej.errors.map((err) => err.message).join(', '),
-        color: 'red',
+        message: rej.errors.map((err) => err.message).join(", "),
+        color: "red",
       });
     });
   };
@@ -127,15 +138,19 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
 
     for (const item of itemsToUpload) {
       setQueue((prev) =>
-        prev.map((q) => (q.id === item.id ? { ...q, status: 'uploading', progress: 10, message: undefined } : q)),
+        prev.map((q) =>
+          q.id === item.id
+            ? { ...q, status: "uploading", progress: 10, message: undefined }
+            : q,
+        ),
       );
 
       try {
         const base64 = await fileToBase64(item.file);
         const payload: UploadDocumentPayload = {
-          title: item.file.name.replace(/\.[^/.]+$/, '') || 'Untitled document',
+          title: item.file.name.replace(/\.[^/.]+$/, "") || "Untitled document",
           file: base64,
-          file_type: item.file.type.includes('pdf') ? 'pdf' : 'image',
+          file_type: item.file.type.includes("pdf") ? "pdf" : "image",
           original_filename: item.file.name,
           metadata: {
             size: item.file.size,
@@ -143,27 +158,33 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
           },
         };
 
-        console.debug('[Upload] Sending payload to /api/upload', {
+        console.debug("[Upload] Sending payload to /api/upload", {
           title: payload.title,
           file_type: payload.file_type,
           original_filename: payload.original_filename,
           fileLength: payload.file.length,
         });
 
-        const response = await apiService.post<{ document: Document }>('/upload', payload);
+        const response = await apiService.post<{ document: Document }>(
+          "/upload",
+          payload,
+        );
 
         if (!response.success || !response.data) {
-          throw new Error(response.message || 'Upload failed');
+          throw new Error(response.message || "Upload failed");
         }
 
-        console.debug('[Upload] Successful response from /api/upload', response.data.document);
+        console.debug(
+          "[Upload] Successful response from /api/upload",
+          response.data.document,
+        );
 
         setQueue((prev) =>
           prev.map((q) =>
             q.id === item.id
               ? {
                   ...q,
-                  status: 'success',
+                  status: "success",
                   progress: 100,
                   document: response.data.document,
                 }
@@ -172,24 +193,25 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
         );
 
         notifications.show({
-          title: 'Upload complete',
+          title: "Upload complete",
           message: `${item.file.name} was uploaded successfully.`,
-          color: 'green',
+          color: "green",
         });
 
-        queryClient.invalidateQueries({ queryKey: ['documents'] });
+        queryClient.invalidateQueries({ queryKey: ["documents"] });
         if (response.data.document && onDocumentFocus) {
           onDocumentFocus(response.data.document);
         }
       } catch (error) {
-        console.error('Upload failed', error);
+        console.error("Upload failed", error);
         setQueue((prev) =>
           prev.map((q) =>
             q.id === item.id
               ? {
                   ...q,
-                  status: 'error',
-                  message: error instanceof Error ? error.message : 'Unknown error',
+                  status: "error",
+                  message:
+                    error instanceof Error ? error.message : "Unknown error",
                   progress: 0,
                 }
               : q,
@@ -197,8 +219,8 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
         );
         notifications.show({
           title: `Failed to upload ${item.file.name}`,
-          message: error instanceof Error ? error.message : 'Unknown error',
-          color: 'red',
+          message: error instanceof Error ? error.message : "Unknown error",
+          color: "red",
         });
       }
     }
@@ -206,14 +228,16 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
   };
 
   const uploadDocuments = async () => {
-    console.info('[Upload] Starting upload process');
-    const pending = queue.filter((item) => item.status === 'queued' || item.status === 'error');
+    console.info("[Upload] Starting upload process");
+    const pending = queue.filter(
+      (item) => item.status === "queued" || item.status === "error",
+    );
     if (pending.length === 0) {
-      console.info('[Upload] No pending files to upload');
+      console.info("[Upload] No pending files to upload");
       notifications.show({
-        title: 'Nothing to upload',
-        message: 'Add images first, then click upload.',
-        color: 'yellow',
+        title: "Nothing to upload",
+        message: "Add images first, then click upload.",
+        color: "yellow",
       });
       return;
     }
@@ -227,7 +251,8 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
         <Stack gap="sm">
           <Title order={3}>Upload images</Title>
           <Text c="dimmed" size="sm">
-            Drag and drop scans or mobile captures. Upload starts automatically and OCR processing begins immediately.
+            Drag and drop scans or mobile captures. Upload starts automatically
+            and OCR processing begins immediately.
           </Text>
         </Stack>
         <Dropzone
@@ -238,15 +263,31 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
           maxSize={MAX_FILE_SIZE}
           multiple
         >
-          <Group justify="center" gap="xl" mih={140} style={{ pointerEvents: 'none' }}>
+          <Group
+            justify="center"
+            gap="xl"
+            mih={140}
+            style={{ pointerEvents: "none" }}
+          >
             <Dropzone.Accept>
-              <IconUpload style={{ width: rem(40), height: rem(40) }} stroke={1.5} color="var(--mantine-color-blue-6)" />
+              <IconUpload
+                style={{ width: rem(40), height: rem(40) }}
+                stroke={1.5}
+                color="var(--mantine-color-blue-6)"
+              />
             </Dropzone.Accept>
             <Dropzone.Reject>
-              <IconX style={{ width: rem(40), height: rem(40) }} stroke={1.5} color="var(--mantine-color-red-6)" />
+              <IconX
+                style={{ width: rem(40), height: rem(40) }}
+                stroke={1.5}
+                color="var(--mantine-color-red-6)"
+              />
             </Dropzone.Reject>
             <Dropzone.Idle>
-              <IconPhoto style={{ width: rem(40), height: rem(40) }} stroke={1.5} />
+              <IconPhoto
+                style={{ width: rem(40), height: rem(40) }}
+                stroke={1.5}
+              />
             </Dropzone.Idle>
 
             <div>
@@ -254,7 +295,8 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
                 Drag images or click to browse
               </Text>
               <Text size="sm" c="dimmed" inline mt={7}>
-                Accepts {SUPPORTED_FILE_TYPES.join(', ')} up to {Math.round(MAX_FILE_SIZE / (1024 * 1024))} MB
+                Accepts {SUPPORTED_FILE_TYPES.join(", ")} up to{" "}
+                {Math.round(MAX_FILE_SIZE / (1024 * 1024))} MB
               </Text>
             </div>
           </Group>
@@ -262,14 +304,25 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
 
         <Group mt="md" justify="space-between">
           <Text size="sm" c="dimmed">
-            {queue.length === 0 ? 'No files queued yet' : `${queue.length} file(s) ready`}
+            {queue.length === 0
+              ? "No files queued yet"
+              : `${queue.length} file(s) ready`}
           </Text>
           <Group>
-            <Button variant="subtle" color="gray" disabled={queue.length === 0 || isUploading} onClick={() => setQueue([])}>
+            <Button
+              variant="subtle"
+              color="gray"
+              disabled={queue.length === 0 || isUploading}
+              onClick={() => setQueue([])}
+            >
               Clear all
             </Button>
-            <Button onClick={uploadDocuments} disabled={queue.length === 0 || isUploading} loading={isUploading}>
-              {isUploading ? 'Uploading...' : 'Retry failed'}
+            <Button
+              onClick={uploadDocuments}
+              disabled={queue.length === 0 || isUploading}
+              loading={isUploading}
+            >
+              {isUploading ? "Uploading..." : "Retry failed"}
             </Button>
           </Group>
         </Group>
@@ -290,18 +343,28 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
                   <Paper key={item.id} radius="md" p="sm" withBorder>
                     <Group align="flex-start" justify="space-between">
                       <Group align="center">
-                        <Avatar radius="sm" src={item.previewUrl} alt={item.file.name} variant="outline">
+                        <Avatar
+                          radius="sm"
+                          src={item.previewUrl}
+                          alt={item.file.name}
+                          variant="outline"
+                        >
                           <IconFileDescription size={20} />
                         </Avatar>
                         <div>
                           <Group gap={4} mb={4}>
                             <Text fw={600}>{item.file.name}</Text>
-                            <Badge size="sm" color={badge.color} variant="light">
+                            <Badge
+                              size="sm"
+                              color={badge.color}
+                              variant="light"
+                            >
                               {badge.label}
                             </Badge>
                           </Group>
                           <Text size="xs" c="dimmed">
-                            {Math.round(item.file.size / 1024)} KB • {item.file.type}
+                            {Math.round(item.file.size / 1024)} KB •{" "}
+                            {item.file.type}
                           </Text>
                         </div>
                       </Group>
@@ -311,22 +374,36 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
                             <ActionIcon
                               variant="subtle"
                               color="green"
-                              onClick={() => onDocumentFocus?.(item.document as Document)}
+                              onClick={() =>
+                                onDocumentFocus?.(item.document as Document)
+                              }
                             >
                               <IconCircleCheck size={18} />
                             </ActionIcon>
                           </Tooltip>
                         )}
-                        <ActionIcon variant="subtle" color="red" onClick={() => removeFromQueue(item.id)}>
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          onClick={() => removeFromQueue(item.id)}
+                        >
                           <IconTrash size={18} />
                         </ActionIcon>
                       </Group>
                     </Group>
-                    <Progress value={item.progress} mt="sm" color={badge.color} animated={item.status === 'uploading'} />
+                    <Progress
+                      value={item.progress}
+                      mt="sm"
+                      color={badge.color}
+                      animated={item.status === "uploading"}
+                    />
                     {item.message && (
                       <Group gap={4} mt="xs">
-                        {item.status === 'error' ? (
-                          <IconAlertCircle size={14} color="var(--mantine-color-red-6)" />
+                        {item.status === "error" ? (
+                          <IconAlertCircle
+                            size={14}
+                            color="var(--mantine-color-red-6)"
+                          />
                         ) : null}
                         <Text size="xs" c="dimmed">
                           {item.message}
@@ -342,5 +419,4 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({ onDocu
       )}
     </Stack>
   );
-}
-
+};

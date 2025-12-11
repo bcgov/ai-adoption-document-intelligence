@@ -1,21 +1,20 @@
 import {
   Controller,
   Get,
-  Param,
   HttpCode,
   HttpStatus,
   Logger,
   NotFoundException,
+  Param,
   Req,
   Res,
 } from "@nestjs/common";
-import { Response } from "express";
+import { Request, Response } from "express";
 import { readFile } from "fs/promises";
 import { join } from "path";
-import { Request } from "express";
+import { OcrResult } from "@/generated/client";
 import { Roles } from "../auth/roles.decorator";
 import { DatabaseService, DocumentData } from "../database/database.service";
-import { OcrResult } from "@/generated/client";
 
 @Controller("api")
 export class DocumentController {

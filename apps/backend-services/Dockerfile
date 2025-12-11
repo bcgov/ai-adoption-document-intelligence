@@ -1,5 +1,5 @@
 # Build stage
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -13,12 +13,15 @@ RUN npm install
 
 # Copy source code
 COPY src ./src
+COPY prisma ./prisma
+# generates the prisma client
+RUN npx prisma generate
 
 # Build the application
 RUN npm run build:prod
 
 # Production stage
-FROM node:22-alpine AS production
+FROM node:24-alpine AS production
 
 WORKDIR /app
 
@@ -29,12 +32,25 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy package files
 COPY package*.json ./
 
-# Install only production dependencies
+# openshift runs as a different user than what docker builds with
+# this fixes the issue as related to the npm cache
+# Create npm cache directory with proper permissions before npm install
+RUN mkdir -p /.npm && \
+    chgrp -R 0 /.npm && \
+    chmod -R g=u /.npm
+
+# Install only production dependencies (but include prisma for migrations)
 RUN npm install --omit=dev && \
     npm cache clean --force
 
+# Copy Prisma schema and migrations from builder stage (needed for migrations)
+COPY --from=builder /app/prisma/ ./prisma/
+
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
+
+# Copy Prisma generated client
+COPY --from=builder /app/src/generated ./dist/generated
 
 # Create storage directory and set permissions
 RUN mkdir -p /app/storage/documents && \
@@ -42,7 +58,6 @@ RUN mkdir -p /app/storage/documents && \
 
 # Switch to non-root user
 USER nestjs
-
 # Expose the port
 EXPOSE 3002
 

@@ -1,23 +1,23 @@
 import {
+  Alert,
+  Badge,
+  Button,
+  CopyButton,
   Drawer,
-  Tabs,
+  Group,
   Image,
   ScrollArea,
-  Text,
-  Stack,
-  Group,
-  Badge,
   SimpleGrid,
-  Button,
   Skeleton,
-  CopyButton,
+  Stack,
+  Tabs,
+  Text,
   Tooltip,
-  Alert,
-} from '@mantine/core';
-import { IconAlertCircle, IconCopy, IconEye } from '@tabler/icons-react';
-import { useDocumentOcr } from '../../data/hooks/useDocumentOcr';
-import type { Document } from '../../shared/types';
-import { formatDate, formatFileSize } from '../../shared/utils';
+} from "@mantine/core";
+import { IconAlertCircle, IconCopy, IconEye } from "@tabler/icons-react";
+import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
+import type { Document } from "../../shared/types";
+import { formatDate, formatFileSize } from "../../shared/utils";
 
 interface DocumentDetailDrawerProps {
   document: Document | null;
@@ -25,12 +25,27 @@ interface DocumentDetailDrawerProps {
   onClose: () => void;
 }
 
-export function DocumentDetailDrawer({ document, opened, onClose }: DocumentDetailDrawerProps) {
+export function DocumentDetailDrawer({
+  document,
+  opened,
+  onClose,
+}: DocumentDetailDrawerProps) {
   const documentId = document?.id;
-  const { data: ocrResult, isLoading, isError, error } = useDocumentOcr(documentId);
+  const {
+    data: ocrResult,
+    isLoading,
+    isError,
+    error,
+  } = useDocumentOcr(documentId);
 
   return (
-    <Drawer opened={opened} onClose={onClose} position="right" title={document?.title ?? 'Document details'} size="lg">
+    <Drawer
+      opened={opened}
+      onClose={onClose}
+      position="right"
+      title={document?.title ?? "Document details"}
+      size="lg"
+    >
       {!document ? (
         <Stack gap="sm">
           <Text fw={600}>Select a document to inspect its OCR output.</Text>
@@ -48,7 +63,7 @@ export function DocumentDetailDrawer({ document, opened, onClose }: DocumentDeta
                   {document.original_filename}
                 </Text>
               </div>
-              <Badge variant="light">{document.status ?? 'unknown'}</Badge>
+              <Badge variant="light">{document.status ?? "unknown"}</Badge>
             </Group>
 
             <SimpleGrid cols={2} spacing="xs">
@@ -56,7 +71,9 @@ export function DocumentDetailDrawer({ document, opened, onClose }: DocumentDeta
                 <Text size="xs" c="dimmed">
                   Created
                 </Text>
-                <Text size="sm">{formatDate(new Date(document.created_at))}</Text>
+                <Text size="sm">
+                  {formatDate(new Date(document.created_at))}
+                </Text>
               </Stack>
               <Stack gap={2}>
                 <Text size="xs" c="dimmed">
@@ -77,7 +94,12 @@ export function DocumentDetailDrawer({ document, opened, onClose }: DocumentDeta
 
             <Tabs.Panel value="image" pt="md">
               {document.file_url ? (
-                <Image src={document.file_url} radius="md" fallbackSrc="" alt={document.title} />
+                <Image
+                  src={document.file_url}
+                  radius="md"
+                  fallbackSrc=""
+                  alt={document.title}
+                />
               ) : (
                 <Alert
                   title="Original file unavailable"
@@ -85,8 +107,8 @@ export function DocumentDetailDrawer({ document, opened, onClose }: DocumentDeta
                   icon={<IconAlertCircle size={16} />}
                   variant="light"
                 >
-                  The backend does not yet expose the raw file stream. Add a download endpoint to preview the exact
-                  image here.
+                  The backend does not yet expose the raw file stream. Add a
+                  download endpoint to preview the exact image here.
                 </Alert>
               )}
             </Tabs.Panel>
@@ -99,37 +121,44 @@ export function DocumentDetailDrawer({ document, opened, onClose }: DocumentDeta
                 </Stack>
               ) : isError ? (
                 <Alert color="red" icon={<IconAlertCircle size={16} />}>
-                  {error instanceof Error ? error.message : 'Failed to load OCR output'}
+                  {error instanceof Error
+                    ? error.message
+                    : "Failed to load OCR output"}
                 </Alert>
               ) : ocrResult ? (
                 <Stack gap="sm">
                   <Group justify="space-between">
                     <Text fw={600}>Extracted text</Text>
-                    <CopyButton value={ocrResult.extracted_text ?? ''}>
+                    <CopyButton value={ocrResult.extracted_text ?? ""}>
                       {({ copied, copy }) => (
-                        <Tooltip label={copied ? 'Copied' : 'Copy'}>
-                          <Button size="xs" variant="light" leftSection={<IconCopy size={14} />} onClick={copy}>
-                            {copied ? 'Copied' : 'Copy text'}
+                        <Tooltip label={copied ? "Copied" : "Copy"}>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            leftSection={<IconCopy size={14} />}
+                            onClick={copy}
+                          >
+                            {copied ? "Copied" : "Copy text"}
                           </Button>
                         </Tooltip>
                       )}
                     </CopyButton>
                   </Group>
                   <ScrollArea h={260}>
-                    <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-                      {ocrResult.extracted_text || 'No text returned yet.'}
+                    <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                      {ocrResult.extracted_text || "No text returned yet."}
                     </Text>
                   </ScrollArea>
                 </Stack>
               ) : (
-                <Text c="dimmed">No OCR output recorded for this document.</Text>
+                <Text c="dimmed">
+                  No OCR output recorded for this document.
+                </Text>
               )}
             </Tabs.Panel>
           </Tabs>
         </Stack>
       )}
-
     </Drawer>
   );
 }
-

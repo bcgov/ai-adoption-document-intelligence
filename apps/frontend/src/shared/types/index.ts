@@ -6,7 +6,11 @@ export interface User {
   email: string;
 }
 
-export type DocumentStatus = 'pre_ocr' | 'ongoing_ocr' | 'completed_ocr' | 'failed';
+export type DocumentStatus =
+  | "pre_ocr"
+  | "ongoing_ocr"
+  | "completed_ocr"
+  | "failed";
 
 export interface Document {
   id: string;
@@ -23,7 +27,7 @@ export interface Document {
   apim_request_id?: string | null;
   intake_method?: string | null;
   ministry?: string | null;
-  priority?: 'low' | 'medium' | 'high' | 'urgent' | string;
+  priority?: "low" | "medium" | "high" | "urgent" | string;
   confidence_score?: number | null;
   file_url?: string | null;
   extracted_data?: Record<string, unknown> & {
@@ -69,7 +73,7 @@ export interface OcrResult {
 export interface UploadDocumentPayload {
   title: string;
   file: string; // base64
-  file_type: 'pdf' | 'image' | 'scan';
+  file_type: "pdf" | "image" | "scan";
   original_filename?: string;
   metadata?: Record<string, unknown>;
 }

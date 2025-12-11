@@ -23,7 +23,7 @@ spec:
         scheduled: true
       referencePolicy:
         type: Source
-    - name: latest
+    - name: main-latest
       from:
         kind: DockerImage
         name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services:main-latest

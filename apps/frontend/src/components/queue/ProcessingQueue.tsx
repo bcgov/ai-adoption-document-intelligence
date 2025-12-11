@@ -1,69 +1,85 @@
-import { useMemo, useState } from 'react';
 import {
-  Paper,
-  Stack,
+  ActionIcon,
+  Badge,
+  Center,
   Group,
-  Title,
-  Text,
-  TextInput,
+  Loader,
+  Paper,
   Select,
   SimpleGrid,
-  Badge,
+  Stack,
   Table,
-  Loader,
-  Center,
-  ActionIcon,
+  Text,
+  TextInput,
+  Title,
   Tooltip,
-} from '@mantine/core';
-import { IconSearch, IconEye, IconRefresh } from '@tabler/icons-react';
-import { useDocuments } from '../../data/hooks/useDocuments';
-import type { Document, DocumentStatus } from '../../shared/types';
-import { formatDate, formatFileSize } from '../../shared/utils';
+} from "@mantine/core";
+import { IconEye, IconRefresh, IconSearch } from "@tabler/icons-react";
+import { useMemo, useState } from "react";
+import { useDocuments } from "../../data/hooks/useDocuments";
+import type { Document, DocumentStatus } from "../../shared/types";
+import { formatDate, formatFileSize } from "../../shared/utils";
 
 interface ProcessingQueueProps {
   onSelectDocument?: (doc: Document) => void;
 }
 
-const statusOptions: { value: DocumentStatus | 'all'; label: string }[] = [
-  { value: 'all', label: 'All statuses' },
-  { value: 'pre_ocr', label: 'Waiting' },
-  { value: 'ongoing_ocr', label: 'Processing' },
-  { value: 'completed_ocr', label: 'Completed' },
-  { value: 'failed', label: 'Failed' },
+const statusOptions: { value: DocumentStatus | "all"; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  { value: "pre_ocr", label: "Waiting" },
+  { value: "ongoing_ocr", label: "Processing" },
+  { value: "completed_ocr", label: "Completed" },
+  { value: "failed", label: "Failed" },
 ];
 
 const statusStyles: Record<string, { color: string; label: string }> = {
-  pre_ocr: { color: 'gray', label: 'Queued' },
-  ongoing_ocr: { color: 'yellow', label: 'Processing' },
-  completed_ocr: { color: 'green', label: 'Complete' },
-  failed: { color: 'red', label: 'Failed' },
+  pre_ocr: { color: "gray", label: "Queued" },
+  ongoing_ocr: { color: "yellow", label: "Processing" },
+  completed_ocr: { color: "green", label: "Complete" },
+  failed: { color: "red", label: "Failed" },
 };
 
 export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<DocumentStatus | 'all'>('all');
-  const { data: documents, isLoading, isFetching, refetch } = useDocuments({ refetchInterval: 10000 });
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<DocumentStatus | "all">(
+    "all",
+  );
+  const {
+    data: documents,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useDocuments({ refetchInterval: 10000 });
 
   const filteredDocuments = useMemo(() => {
     if (!documents) return [];
     const needle = search.toLowerCase();
     return documents.filter((doc) => {
-      const ministry = typeof doc.metadata?.ministry === 'string' ? (doc.metadata.ministry as string) : '';
+      const ministry =
+        typeof doc.metadata?.ministry === "string"
+          ? (doc.metadata.ministry as string)
+          : "";
       const matchesSearch =
         doc.title.toLowerCase().includes(needle) ||
         doc.original_filename.toLowerCase().includes(needle) ||
         ministry.toLowerCase().includes(needle);
-      const matchesStatus = statusFilter === 'all' || doc.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "all" || doc.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
   }, [documents, search, statusFilter]);
 
   const stats = useMemo(() => {
-    const base = { total: documents?.length ?? 0, completed: 0, processing: 0, failed: 0 };
+    const base = {
+      total: documents?.length ?? 0,
+      completed: 0,
+      processing: 0,
+      failed: 0,
+    };
     documents?.forEach((doc) => {
-      if (doc.status === 'completed_ocr') base.completed += 1;
-      if (doc.status === 'ongoing_ocr') base.processing += 1;
-      if (doc.status === 'failed') base.failed += 1;
+      if (doc.status === "completed_ocr") base.completed += 1;
+      if (doc.status === "ongoing_ocr") base.processing += 1;
+      if (doc.status === "failed") base.failed += 1;
     });
     return base;
   }, [documents]);
@@ -79,7 +95,11 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
             </Text>
           </div>
           <Tooltip label="Refresh now">
-            <ActionIcon variant="light" onClick={() => refetch()} loading={isFetching}>
+            <ActionIcon
+              variant="light"
+              onClick={() => refetch()}
+              loading={isFetching}
+            >
               <IconRefresh size={18} />
             </ActionIcon>
           </Tooltip>
@@ -123,7 +143,9 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
           <Select
             data={statusOptions}
             value={statusFilter}
-            onChange={(value) => setStatusFilter((value as DocumentStatus | 'all') ?? 'all')}
+            onChange={(value) =>
+              setStatusFilter((value as DocumentStatus | "all") ?? "all")
+            }
             placeholder="Status"
             w={180}
           />
@@ -160,9 +182,21 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
             </Table.Thead>
             <Table.Tbody>
               {filteredDocuments.map((doc) => {
-                const status = statusStyles[doc.status] ?? { color: 'gray', label: doc.status };
+                const status = statusStyles[doc.status] ?? {
+                  color: "gray",
+                  label: doc.status,
+                };
                 return (
-                  <Table.Tr key={doc.id} onClick={() => doc.status === 'completed_ocr' && onSelectDocument?.(doc)} style={{ cursor: doc.status === 'completed_ocr' ? 'pointer' : 'default' }}>
+                  <Table.Tr
+                    key={doc.id}
+                    onClick={() =>
+                      doc.status === "completed_ocr" && onSelectDocument?.(doc)
+                    }
+                    style={{
+                      cursor:
+                        doc.status === "completed_ocr" ? "pointer" : "default",
+                    }}
+                  >
                     <Table.Td>
                       <Stack gap={2}>
                         <Text fw={600}>{doc.title}</Text>
@@ -177,17 +211,17 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
                       </Badge>
                     </Table.Td>
                     <Table.Td>{formatFileSize(doc.file_size)}</Table.Td>
-                    <Table.Td>{doc.source ?? '—'}</Table.Td>
+                    <Table.Td>{doc.source ?? "—"}</Table.Td>
                     <Table.Td>{formatDate(new Date(doc.created_at))}</Table.Td>
                     <Table.Td>
                       <Tooltip label="Open details">
                         <ActionIcon
                           variant="subtle"
                           color="blue"
-                          disabled={doc.status !== 'completed_ocr'}
+                          disabled={doc.status !== "completed_ocr"}
                           onClick={(event) => {
                             event.stopPropagation();
-                            if (doc.status === 'completed_ocr') {
+                            if (doc.status === "completed_ocr") {
                               onSelectDocument?.(doc);
                             }
                           }}
@@ -206,4 +240,3 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
     </Paper>
   );
 }
-

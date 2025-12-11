@@ -1,34 +1,55 @@
-import { useMemo, useState } from 'react'
-import { AppShell, Button, Group, Text, Title, Stack, Badge, Avatar } from '@mantine/core'
-import { IconLogout, IconUpload, IconList } from '@tabler/icons-react'
-import { useAuth } from './auth/AuthContext'
-import './App.css'
-import { Login } from './components'
-import { DocumentUploadPanel } from './components/upload/DocumentUploadPanel'
-import { ProcessingQueue } from './components/queue/ProcessingQueue'
-import { DocumentViewerModal } from './components/document/DocumentViewerModal'
-import type { Document } from './shared/types'
+import {
+  AppShell,
+  Avatar,
+  Badge,
+  Button,
+  Group,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
+import { IconList, IconLogout, IconUpload } from "@tabler/icons-react";
+import { JSX, useMemo, useState } from "react";
+import { useAuth } from "./auth/AuthContext";
+import "./App.css";
+import { Login } from "./components";
+import { DocumentViewerModal } from "./components/document/DocumentViewerModal";
+import { ProcessingQueue } from "./components/queue/ProcessingQueue";
+import { DocumentUploadPanel } from "./components/upload/DocumentUploadPanel";
+import type { Document } from "./shared/types";
 
-type MainView = 'upload' | 'queue'
+type MainView = "upload" | "queue";
 
 function AppContent(): JSX.Element {
-  const { isAuthenticated, isLoading, logout, user } = useAuth()
-  const [activeView, setActiveView] = useState<MainView>('upload')
-  const [viewerOpened, setViewerOpened] = useState(false)
-  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
+  const { isAuthenticated, isLoading, logout, user } = useAuth();
+  const [activeView, setActiveView] = useState<MainView>("upload");
+  const [viewerOpened, setViewerOpened] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(
+    null,
+  );
 
   const navItems = useMemo(
     () => [
-      { value: 'upload' as MainView, label: 'Upload', description: 'Send new files', icon: IconUpload },
-      { value: 'queue' as MainView, label: 'Processing queue', description: 'Track statuses', icon: IconList },
+      {
+        value: "upload" as MainView,
+        label: "Upload",
+        description: "Send new files",
+        icon: IconUpload,
+      },
+      {
+        value: "queue" as MainView,
+        label: "Processing queue",
+        description: "Track statuses",
+        icon: IconList,
+      },
     ],
     [],
-  )
+  );
 
   const openViewer = (doc: Document) => {
-    setSelectedDocument(doc)
-    setViewerOpened(true)
-  }
+    setSelectedDocument(doc);
+    setViewerOpened(true);
+  };
 
   if (isLoading) {
     return (
@@ -36,18 +57,18 @@ function AppContent(): JSX.Element {
         <Title order={3}>Loading…</Title>
         <Text c="dimmed">Checking authentication status</Text>
       </Stack>
-    )
+    );
   }
 
   if (!isAuthenticated) {
-    return <Login />
+    return <Login />;
   }
 
   return (
     <>
       <AppShell
         header={{ height: 64 }}
-        navbar={{ width: 240, breakpoint: 'sm' }}
+        navbar={{ width: 240, breakpoint: "sm" }}
         padding="md"
         withBorder
       >
@@ -62,14 +83,19 @@ function AppContent(): JSX.Element {
             <Group>
               <Stack gap={0}>
                 <Text size="sm" fw={600}>
-                  {user?.profile?.name ?? 'Authenticated user'}
+                  {user?.profile?.name ?? "Authenticated user"}
                 </Text>
                 <Text size="xs" c="dimmed">
-                  {user?.profile?.email ?? 'Logged in'}
+                  {user?.profile?.email ?? "Logged in"}
                 </Text>
               </Stack>
-              <Avatar radius="xl">{user?.profile?.name?.[0] ?? 'U'}</Avatar>
-              <Button variant="light" color="red" leftSection={<IconLogout size={16} />} onClick={() => logout()}>
+              <Avatar radius="xl">{user?.profile?.name?.[0] ?? "U"}</Avatar>
+              <Button
+                variant="light"
+                color="red"
+                leftSection={<IconLogout size={16} />}
+                onClick={() => logout()}
+              >
                 Logout
               </Button>
             </Group>
@@ -81,8 +107,8 @@ function AppContent(): JSX.Element {
             {navItems.map((item) => (
               <Button
                 key={item.value}
-                variant={activeView === item.value ? 'light' : 'subtle'}
-                color={activeView === item.value ? 'blue' : 'gray'}
+                variant={activeView === item.value ? "light" : "subtle"}
+                color={activeView === item.value ? "blue" : "gray"}
                 justify="space-between"
                 leftSection={<item.icon size={18} />}
                 onClick={() => setActiveView(item.value)}
@@ -104,11 +130,15 @@ function AppContent(): JSX.Element {
           <Stack gap="lg">
             <Group justify="space-between">
               <Stack gap={2}>
-                <Title order={2}>{activeView === 'upload' ? 'Upload documents' : 'Processing monitor'}</Title>
+                <Title order={2}>
+                  {activeView === "upload"
+                    ? "Upload documents"
+                    : "Processing monitor"}
+                </Title>
                 <Text c="dimmed" size="sm">
-                  {activeView === 'upload'
-                    ? 'Add new images and track their ingestion progress.'
-                    : 'View the OCR pipeline and drill into results.'}
+                  {activeView === "upload"
+                    ? "Add new images and track their ingestion progress."
+                    : "View the OCR pipeline and drill into results."}
                 </Text>
               </Stack>
               <Badge variant="outline" size="lg">
@@ -116,8 +146,8 @@ function AppContent(): JSX.Element {
               </Badge>
             </Group>
 
-            {activeView === 'upload' ? (
-              <DocumentUploadPanel onDocumentFocus={() => {}} />
+            {activeView === "upload" ? (
+              <DocumentUploadPanel />
             ) : (
               <ProcessingQueue onSelectDocument={openViewer} />
             )}
@@ -131,11 +161,11 @@ function AppContent(): JSX.Element {
         onClose={() => setViewerOpened(false)}
       />
     </>
-  )
+  );
 }
 
 function App(): JSX.Element {
-  return <AppContent />
+  return <AppContent />;
 }
 
-export default App
+export default App;

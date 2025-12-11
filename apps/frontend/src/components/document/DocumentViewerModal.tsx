@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Modal, Loader, Alert, Button } from '@mantine/core';
-import { IconAlertCircle, IconFileDownload } from '@tabler/icons-react';
-import { DocumentViewer } from './DocumentViewer';
-import { Document } from '../../shared/types';
-import { useDocumentOcr } from '../../data/hooks/useDocumentOcr';
-import { useAuth } from '../../auth/AuthContext';
+import { Alert, Button, Loader, Modal } from "@mantine/core";
+import { IconAlertCircle, IconFileDownload } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
+import { useAuth } from "../../auth/AuthContext";
+import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
+import { Document } from "../../shared/types";
+import { DocumentViewer } from "./DocumentViewer";
 
 interface DocumentViewerModalProps {
   document: Document | null;
@@ -20,9 +20,9 @@ export function DocumentViewerModal({
   const documentId = document?.id;
   const { data: ocrResult } = useDocumentOcr(documentId);
   const { getAccessToken } = useAuth();
-  const [imageUrl, setImageUrl] = useState<string>('');
+  const [imageUrl, setImageUrl] = useState<string>("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<string>("");
   const [showOverlays, setShowOverlays] = useState(true);
 
   useEffect(() => {
@@ -30,18 +30,18 @@ export function DocumentViewerModal({
       void loadDocumentImage(document);
     } else if (!opened) {
       // Clean up object URL when modal closes
-      if (imageUrl && imageUrl.startsWith('blob:')) {
+      if (imageUrl && imageUrl.startsWith("blob:")) {
         URL.revokeObjectURL(imageUrl);
       }
-      setImageUrl('');
-      setError('');
+      setImageUrl("");
+      setError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened, document]);
 
   const loadDocumentImage = async (doc: Document) => {
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
       const token = getAccessToken?.() ?? null;
@@ -56,7 +56,9 @@ export function DocumentViewerModal({
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to load document: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to load document: ${response.status} ${response.statusText}`,
+        );
       }
 
       const blob = await response.blob();
@@ -70,8 +72,8 @@ export function DocumentViewerModal({
         URL.revokeObjectURL(url);
       };
     } catch (err) {
-      console.error('Error loading document:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load document');
+      console.error("Error loading document:", err);
+      setError(err instanceof Error ? err.message : "Failed to load document");
 
       if (doc.file_url) {
         setImageUrl(doc.file_url);
@@ -86,7 +88,7 @@ export function DocumentViewerModal({
       return;
     }
 
-    const link = window.document.createElement('a');
+    const link = window.document.createElement("a");
     link.href = imageUrl;
     link.download = document?.original_filename || `document-${document?.id}`;
     window.document.body.appendChild(link);
@@ -95,11 +97,11 @@ export function DocumentViewerModal({
   };
 
   const handleClose = () => {
-    if (imageUrl && imageUrl.startsWith('blob:')) {
+    if (imageUrl && imageUrl.startsWith("blob:")) {
       URL.revokeObjectURL(imageUrl);
     }
-    setImageUrl('');
-    setError('');
+    setImageUrl("");
+    setError("");
     onClose();
   };
 
@@ -107,12 +109,12 @@ export function DocumentViewerModal({
     <Modal
       opened={opened}
       onClose={handleClose}
-      title={`Document Viewer - ${document?.title || 'Document'}`}
+      title={`Document Viewer - ${document?.title || "Document"}`}
       size="90vw"
       styles={{
-        body: { height: '90vh', display: 'flex', flexDirection: 'column' },
-        content: { height: '90vh' },
-        overlay: { backgroundColor: 'rgba(0, 0, 0, 0.8)' },
+        body: { height: "90vh", display: "flex", flexDirection: "column" },
+        content: { height: "90vh" },
+        overlay: { backgroundColor: "rgba(0, 0, 0, 0.8)" },
       }}
       withinPortal
       zIndex={9999}
@@ -141,7 +143,9 @@ export function DocumentViewerModal({
           <div className="flex items-center justify-between p-4 border-b bg-gray-50 flex-shrink-0">
             <div>
               <h3 className="font-semibold text-lg">{document.title}</h3>
-              <p className="text-sm text-gray-600">{document.original_filename}</p>
+              <p className="text-sm text-gray-600">
+                {document.original_filename}
+              </p>
             </div>
             <Button
               variant="outline"
@@ -164,7 +168,8 @@ export function DocumentViewerModal({
             ) : (
               <div className="flex items-center justify-center h-full">
                 <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
-                  Document file is not available for preview. The backend may not expose the raw file stream.
+                  Document file is not available for preview. The backend may
+                  not expose the raw file stream.
                 </Alert>
               </div>
             )}
