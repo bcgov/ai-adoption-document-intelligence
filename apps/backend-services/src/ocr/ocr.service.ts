@@ -57,16 +57,8 @@ export class OcrService {
       );
     }
     try {
-      // Read file from filesystem
-      // TODO: Where is this actually meant to come from? Suggest separating to file service.
-      let filePath: string;
-      if (document.file_path.startsWith("/")) {
-        // Absolute path
-        filePath = document.file_path;
-      } else if (document.file_path.startsWith("storage/documents/")) {
-        // Relative path from project root
-        filePath = join(process.cwd(), document.file_path);
-      }
+      // Resolve stored relative path to absolute (we only store relative paths)
+      const filePath = join(process.cwd(), document.file_path);
 
       const fileBuffer = await readFile(filePath);
       if (fileBuffer == null) throw Error("File not found.");
