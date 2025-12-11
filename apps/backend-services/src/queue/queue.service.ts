@@ -1,5 +1,4 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { DatabaseService } from "../database/database.service";
 import { DocumentStatus } from "../generated/enums";
 import { OcrService } from "../ocr/ocr.service";
@@ -15,52 +14,16 @@ export interface QueueMessage {
 @Injectable()
 export class QueueService {
   private readonly logger = new Logger(QueueService.name);
-  private readonly rabbitmqUrl: string;
-  private readonly exchangeName: string;
-  private readonly routingKey: string;
 
   constructor(
-    private configService: ConfigService,
     private ocrService: OcrService,
     private databaseService: DatabaseService,
-  ) {
-    this.rabbitmqUrl =
-      this.configService.get<string>("RABBITMQ_URL") || "amqp://localhost:5672";
-    this.exchangeName =
-      this.configService.get<string>("RABBITMQ_EXCHANGE") || "document_upload";
-    this.routingKey =
-      this.configService.get<string>("RABBITMQ_ROUTING_KEY") ||
-      "document.uploaded";
-    this.logger.log(`RabbitMQ URL: ${this.rabbitmqUrl}`);
-    this.logger.log(
-      `Exchange: ${this.exchangeName}, Routing Key: ${this.routingKey}`,
-    );
-  }
-
-  async publishDocumentUploaded(message: QueueMessage): Promise<boolean> {
-    this.logger.debug("=== QueueService.publishDocumentUploaded ===");
-    this.logger.debug(`Processing document for OCR: ${message.documentId}`);
-
-    try {
-      // Start OCR processing immediately instead of queuing
-      await this.processOcrForDocument(message);
-      this.logger.debug(
-        "=== QueueService.publishDocumentUploaded completed ===",
-      );
-      return true;
-    } catch (error) {
-      this.logger.error(
-        `Failed to process OCR for document ${message.documentId}: ${error.message}`,
-      );
-      this.logger.error(`Stack: ${error.stack}`);
-      throw error;
-    }
-  }
+  ) {}
 
   /**
    * Process OCR for a document directly (simple implementation)
    */
-  private async processOcrForDocument(message: QueueMessage): Promise<void> {
+  async processOcrForDocument(message: QueueMessage): Promise<void> {
     this.logger.debug(
       `=== Starting OCR processing for document ${message.documentId} ===`,
     );
@@ -152,15 +115,4 @@ export class QueueService {
     throw new Error(`OCR processing timed out after ${maxAttempts} attempts`);
   }
 
-  async connect(): Promise<void> {
-    this.logger.debug("=== QueueService.connect (STUBBED) ===");
-    this.logger.debug(`Would connect to RabbitMQ at: ${this.rabbitmqUrl}`);
-    // Stubbed - in real implementation would establish connection
-  }
-
-  async disconnect(): Promise<void> {
-    this.logger.debug("=== QueueService.disconnect (STUBBED) ===");
-    this.logger.debug("Would disconnect from RabbitMQ");
-    // Stubbed - in real implementation would close connection
-  }
 }

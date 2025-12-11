@@ -81,9 +81,9 @@ export class UploadController {
         `Document uploaded successfully: ${uploadedDocument.id}`,
       );
 
-      // Fire-and-forget OCR/queue publish; log errors but don't block the response
+      // Fire-and-forget OCR processing; log errors but don't block the response
       void this.queueService
-        .publishDocumentUploaded({
+        .processOcrForDocument({
           documentId: uploadedDocument.id,
           filePath: uploadedDocument.file_path,
           fileType: uploadedDocument.file_type,
