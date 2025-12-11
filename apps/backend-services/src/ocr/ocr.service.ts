@@ -18,7 +18,6 @@ export interface OcrRequestResponse {
 export class OcrService {
   private readonly logger = new Logger(OcrService.name);
   private readonly azureModelId: string;
-  private readonly storagePath: string;
   private readonly azureEndpoint: string;
   private readonly azureApiKey: string;
 
@@ -41,9 +40,6 @@ export class OcrService {
       this.logger.warn(azureConfigMessage);
       throw Error(azureConfigMessage);
     }
-    this.storagePath =
-      this.configService.get<string>("STORAGE_PATH") ||
-      join(process.cwd(), "storage", "documents");
   }
 
   /**
@@ -70,10 +66,8 @@ export class OcrService {
       } else if (document.file_path.startsWith("storage/documents/")) {
         // Relative path from project root
         filePath = join(process.cwd(), document.file_path);
-      } else {
-        // Legacy relative path from storage directory
-        filePath = join(this.storagePath, document.file_path);
       }
+
       const fileBuffer = await readFile(filePath);
       if (fileBuffer == null) throw Error("File not found.");
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);

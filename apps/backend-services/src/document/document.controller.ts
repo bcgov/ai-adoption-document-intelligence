@@ -165,14 +165,6 @@ export class DocumentController {
       } else if (document.file_path.startsWith("storage/documents/")) {
         // Relative path from project root
         filePath = join(process.cwd(), document.file_path);
-      } else {
-        // Legacy relative path from storage directory
-        filePath = join(
-          process.cwd(),
-          "storage",
-          "documents",
-          document.file_path,
-        );
       }
 
       // Read file
