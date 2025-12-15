@@ -1,9 +1,12 @@
 from tools import noise, skew, orientation, size, colour, positioning
 import cv2
+import os
 
-# Create a server instance
+# Ensure the 'result-images' directory exists
+result_images_path = os.path.join(os.path.dirname(__file__), "result-images")
+os.makedirs(result_images_path, exist_ok=True)
 
-# MCP currently just to test functions in isolation easily
+# Main file just for testing purposes
 
 
 def denoise():
