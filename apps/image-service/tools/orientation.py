@@ -1,4 +1,5 @@
 import cv2
+from tools import colour
 
 
 def rotate(image, degrees):
@@ -34,7 +35,7 @@ def rotate(image, degrees):
 
 def determine_rotation_angle(image, anchor) -> int:
     # Precompute template
-    anchor = cv2.cvtColor(anchor, cv2.COLOR_BGR2GRAY)
+    anchor = colour.toGreyscale(anchor)
 
     best_angle = 0
     best_score = -1
@@ -42,9 +43,9 @@ def determine_rotation_angle(image, anchor) -> int:
     for angle in [0, 90, 180, 270]:
         # rotate image without cropping
         rotated_image = rotate(image, angle)
-        gray = cv2.cvtColor(rotated_image, cv2.COLOR_BGR2GRAY)
+        grey = colour.toGreyscale(rotated_image)
 
-        result = cv2.matchTemplate(gray, anchor, cv2.TM_CCOEFF_NORMED)
+        result = cv2.matchTemplate(grey, anchor, cv2.TM_CCOEFF_NORMED)
         score = result.max()
 
         if score > best_score:

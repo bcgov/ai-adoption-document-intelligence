@@ -1,8 +1,6 @@
 import cv2
 import numpy as np
-import math
-import sys
-import traceback
+from tools import colour
 
 
 def rotational_skew(image):
@@ -16,7 +14,7 @@ def rotational_skew(image):
     :returns Tuple[rotated_image, original_angle]: original_angle is based of nearest 90 degree point.
     """
     # Convert to greyscale and invert colour values
-    grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    grey = colour.toGreyscale(image)
     grey = cv2.bitwise_not(grey)
     # Force all pixels to either black or white
     thresh = cv2.threshold(grey, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
@@ -61,8 +59,8 @@ def detect_lines(img, vertical=True, min_length=50):
     :param vertical: Boolean. True = looks for vertical lines. False = Horizontal
     :param min_length: Excludes any lines under this length in pixels
     """
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+    grey = colour.toGreyscale(img)
+    edges = cv2.Canny(grey, 50, 150, apertureSize=3)
 
     # Identify all of the vertical lines in the image
     lines = cv2.HoughLinesP(

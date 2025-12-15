@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from tools import colour
 
 
 def calculate_noise_metrics(image):
@@ -11,7 +12,7 @@ def calculate_noise_metrics(image):
     """
     # Convert the image to grayscale
     # Noise analysis should be performed on greyscale images
-    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray_image = colour.toGreyscale(image)
 
     # Gaussian blur reduces noise
     # Args after the image:
@@ -40,7 +41,7 @@ def denoise(image):
     search_window = 21  # Should be odd
     template_window = 13  # Should be odd
     # Must be greyscale for this version
-    grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    grey = colour.toGreyscale(image)
     result = cv2.fastNlMeansDenoising(
         grey, filter_strength, template_window, search_window
     )
@@ -58,8 +59,7 @@ def denoise_binary(image):
     search_window = 21  # Should be odd
     template_window = 13  # Should be odd
     # Convert to greyscale then force to binary black/white
-    grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    thresh = cv2.threshold(grey, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+    thresh = colour.toBlackWhite(image)
     result = cv2.fastNlMeansDenoising(
         thresh, filter_strength, template_window, search_window
     )
