@@ -1,7 +1,7 @@
-import { ConfigModule } from "@nestjs/config";
+import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { DocumentModule } from "../document/document.module";
-import { QueueModule } from "../queue/queue.module";
+import { DocumentService } from "../document/document.service";
+import { QueueService } from "../queue/queue.service";
 import { UploadController } from "./upload.controller";
 import { UploadModule } from "./upload.module";
 
@@ -10,13 +10,22 @@ describe("UploadModule", () => {
 
   beforeEach(async () => {
     module = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot(),
-        UploadModule,
-        DocumentModule,
-        QueueModule,
-      ],
-    }).compile();
+      imports: [UploadModule],
+    })
+      .overrideProvider(ConfigService)
+      .useValue({
+        get: jest.fn(() => "/tmp/storage"),
+      })
+      .overrideProvider(DocumentService)
+      .useValue({
+        uploadDocument: jest.fn(),
+        getDocument: jest.fn(),
+      })
+      .overrideProvider(QueueService)
+      .useValue({
+        publishDocumentUploaded: jest.fn(),
+      })
+      .compile();
   });
 
   it("should be defined", () => {

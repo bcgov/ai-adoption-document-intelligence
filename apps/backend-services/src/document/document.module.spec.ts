@@ -1,6 +1,6 @@
-import { ConfigModule } from "@nestjs/config";
+import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { DatabaseModule } from "../database/database.module";
+import { DatabaseService } from "../database/database.service";
 import { DocumentController } from "./document.controller";
 import { DocumentModule } from "./document.module";
 import { DocumentService } from "./document.service";
@@ -10,8 +10,19 @@ describe("DocumentModule", () => {
 
   beforeEach(async () => {
     module = await Test.createTestingModule({
-      imports: [ConfigModule.forRoot(), DocumentModule, DatabaseModule],
-    }).compile();
+      imports: [DocumentModule],
+    })
+      .overrideProvider(ConfigService)
+      .useValue({
+        get: jest.fn(() => "/tmp/storage"),
+      })
+      .overrideProvider(DatabaseService)
+      .useValue({
+        createDocument: jest.fn(),
+        findDocument: jest.fn(),
+        findAllDocuments: jest.fn(),
+      })
+      .compile();
   });
 
   it("should be defined", () => {

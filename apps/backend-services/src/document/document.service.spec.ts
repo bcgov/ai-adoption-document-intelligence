@@ -5,20 +5,11 @@ import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "./document.service";
 
 // Mock fs modules
-jest.mock("fs", () => ({
-  existsSync: jest.fn(),
-}));
-
-jest.mock("fs/promises", () => ({
-  mkdir: jest.fn(),
-  writeFile: jest.fn(),
-}));
+jest.mock("fs");
+jest.mock("fs/promises");
 
 import { existsSync } from "fs";
 import { mkdir, writeFile } from "fs/promises";
-
-const fs = { existsSync };
-const fsPromises = { mkdir, writeFile };
 
 describe("DocumentService", () => {
   let service: DocumentService;
@@ -41,7 +32,7 @@ describe("DocumentService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    fs.existsSync.mockReturnValue(true);
+    jest.mocked(existsSync).mockReturnValue(true);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -78,8 +69,8 @@ describe("DocumentService", () => {
 
   describe("constructor", () => {
     it("should create storage directory if it does not exist", async () => {
-      fs.existsSync.mockReturnValue(false);
-      fsPromises.mkdir.mockResolvedValue(undefined);
+      jest.mocked(existsSync).mockReturnValue(false);
+      jest.mocked(mkdir).mockResolvedValue(undefined);
 
       const module: TestingModule = await Test.createTestingModule({
         providers: [
@@ -126,7 +117,7 @@ describe("DocumentService", () => {
   describe("uploadDocument", () => {
     it("should successfully upload a document", async () => {
       const fileBase64 = Buffer.from("test content").toString("base64");
-      fsPromises.writeFile.mockResolvedValue(undefined);
+      jest.mocked(writeFile).mockResolvedValue(undefined);
       jest
         .spyOn(databaseService, "createDocument")
         .mockResolvedValue(mockDocument as any);
@@ -142,12 +133,12 @@ describe("DocumentService", () => {
       expect(result.id).toBe("doc-123");
       expect(result.title).toBe("Test Document");
       expect(databaseService.createDocument).toHaveBeenCalled();
-      expect(fsPromises.writeFile).toHaveBeenCalled();
+      expect(writeFile).toHaveBeenCalled();
     });
 
     it("should handle base64 data with data URL prefix", async () => {
       const fileBase64 = `data:application/pdf;base64,${Buffer.from("test content").toString("base64")}`;
-      fsPromises.writeFile.mockResolvedValue(undefined);
+      jest.mocked(writeFile).mockResolvedValue(undefined);
       jest
         .spyOn(databaseService, "createDocument")
         .mockResolvedValue(mockDocument as any);
@@ -160,12 +151,12 @@ describe("DocumentService", () => {
       );
 
       expect(result.id).toBe("doc-123");
-      expect(fsPromises.writeFile).toHaveBeenCalled();
+      expect(writeFile).toHaveBeenCalled();
     });
 
     it("should handle document without metadata", async () => {
       const fileBase64 = Buffer.from("test content").toString("base64");
-      fsPromises.writeFile.mockResolvedValue(undefined);
+      jest.mocked(writeFile).mockResolvedValue(undefined);
       jest
         .spyOn(databaseService, "createDocument")
         .mockResolvedValue(mockDocument as any);
@@ -190,7 +181,7 @@ describe("DocumentService", () => {
 
     it("should handle file write error", async () => {
       const fileBase64 = Buffer.from("test content").toString("base64");
-      fsPromises.writeFile.mockRejectedValue(new Error("Disk full"));
+      jest.mocked(writeFile).mockRejectedValue(new Error("Disk full"));
 
       await expect(
         service.uploadDocument("Test", fileBase64, "pdf", "test.pdf"),
@@ -199,7 +190,7 @@ describe("DocumentService", () => {
 
     it("should handle database error", async () => {
       const fileBase64 = Buffer.from("test content").toString("base64");
-      fsPromises.writeFile.mockResolvedValue(undefined);
+      jest.mocked(writeFile).mockResolvedValue(undefined);
       jest
         .spyOn(databaseService, "createDocument")
         .mockRejectedValue(new Error("Database error"));
@@ -211,7 +202,7 @@ describe("DocumentService", () => {
 
     it("should handle different file types", async () => {
       const fileBase64 = Buffer.from("test content").toString("base64");
-      fsPromises.writeFile.mockResolvedValue(undefined);
+      jest.mocked(writeFile).mockResolvedValue(undefined);
       jest
         .spyOn(databaseService, "createDocument")
         .mockResolvedValue(mockDocument as any);
@@ -245,7 +236,7 @@ describe("DocumentService", () => {
 
     it("should sanitize filenames with special characters", async () => {
       const fileBase64 = Buffer.from("test content").toString("base64");
-      fsPromises.writeFile.mockResolvedValue(undefined);
+      jest.mocked(writeFile).mockResolvedValue(undefined);
       jest
         .spyOn(databaseService, "createDocument")
         .mockResolvedValue(mockDocument as any);

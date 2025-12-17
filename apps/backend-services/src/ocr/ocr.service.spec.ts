@@ -7,10 +7,7 @@ import { DatabaseService } from "@/database/database.service";
 import { DocumentStatus } from "@/generated/enums";
 import { OcrService } from "./ocr.service";
 
-// Mock fs/promises
-jest.mock("fs/promises", () => ({
-  readFile: jest.fn(),
-}));
+jest.mock("fs/promises");
 
 import { readFile } from "fs/promises";
 
@@ -104,7 +101,7 @@ describe("OcrService", () => {
       jest
         .spyOn(databaseService, "findDocument")
         .mockResolvedValue(mockDocument as any);
-      readFile.mockResolvedValue(mockFileBuffer);
+      jest.mocked(readFile).mockResolvedValue(mockFileBuffer);
       jest.spyOn(httpService, "post").mockReturnValue(
         of({
           status: 202,
@@ -143,7 +140,7 @@ describe("OcrService", () => {
       jest
         .spyOn(databaseService, "findDocument")
         .mockResolvedValue(mockDocument as any);
-      readFile.mockRejectedValue(new Error("File not found"));
+      jest.mocked(readFile).mockRejectedValue(new Error("File not found"));
       jest.spyOn(databaseService, "updateDocument").mockResolvedValue({
         ...mockDocument,
         status: DocumentStatus.failed,
@@ -161,7 +158,7 @@ describe("OcrService", () => {
       jest
         .spyOn(databaseService, "findDocument")
         .mockResolvedValue(mockDocument as any);
-      readFile.mockResolvedValue(mockFileBuffer);
+      jest.mocked(readFile).mockResolvedValue(mockFileBuffer);
       jest
         .spyOn(httpService, "post")
         .mockReturnValue(throwError(() => new Error("Azure API error")) as any);
@@ -182,7 +179,7 @@ describe("OcrService", () => {
       jest
         .spyOn(databaseService, "findDocument")
         .mockResolvedValue(mockDocument as any);
-      readFile.mockResolvedValue(mockFileBuffer);
+      jest.mocked(readFile).mockResolvedValue(mockFileBuffer);
       jest.spyOn(httpService, "post").mockReturnValue(
         of({
           status: 500,

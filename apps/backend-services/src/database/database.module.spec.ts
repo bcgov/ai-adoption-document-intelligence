@@ -1,4 +1,4 @@
-import { ConfigModule } from "@nestjs/config";
+import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { DatabaseModule } from "./database.module";
 import { DatabaseService } from "./database.service";
@@ -8,8 +8,13 @@ describe("DatabaseModule", () => {
 
   beforeEach(async () => {
     module = await Test.createTestingModule({
-      imports: [ConfigModule.forRoot(), DatabaseModule],
-    }).compile();
+      imports: [DatabaseModule],
+    })
+      .overrideProvider(ConfigService)
+      .useValue({
+        get: jest.fn(() => "mock-db-url"),
+      })
+      .compile();
   });
 
   it("should be defined", () => {
