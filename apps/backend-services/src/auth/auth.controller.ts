@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpStatus,
+  Logger,
   Post,
   Query,
   Res,
@@ -23,6 +24,8 @@ import { Public } from "./public.decorator";
  */
 @Controller("auth")
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(private readonly authService: AuthService) {}
 
   /**
@@ -96,7 +99,7 @@ export class AuthController {
       const redirectUrl = this.authService.buildAuthResultRedirect(resultId);
       return res.redirect(redirectUrl);
     } catch (error) {
-      console.error("OAuth callback handling failed:", error);
+      this.logger.error("OAuth callback handling failed:", error);
       const redirectUrl =
         this.authService.buildErrorRedirect("callback_failed");
       return res.redirect(redirectUrl);

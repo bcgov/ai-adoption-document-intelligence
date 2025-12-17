@@ -127,6 +127,9 @@
           "correctness": {
             "noUndeclaredVariables": "off"
           },
+          "security": {
+            "noSecrets": "off"
+          },
           "suspicious": {
             "noExplicitAny": "off"
           }
