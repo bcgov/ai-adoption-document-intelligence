@@ -114,5 +114,4 @@ export class QueueService {
 
     throw new Error(`OCR processing timed out after ${maxAttempts} attempts`);
   }
-
 }
