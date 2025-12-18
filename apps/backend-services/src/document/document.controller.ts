@@ -7,8 +7,11 @@ import {
   NotFoundException,
   Param,
   Req,
+  Res,
 } from "@nestjs/common";
-import { Request } from "express";
+import { Request, Response } from "express";
+import { readFile } from "fs/promises";
+import { join } from "path";
 import { OcrResult } from "@/generated/client";
 import { Roles } from "../auth/roles.decorator";
 import { DatabaseService, DocumentData } from "../database/database.service";
@@ -93,18 +96,33 @@ export class DocumentController {
     this.logger.debug(`Document ID: ${documentId}`);
 
     try {
+      // First check if document exists and its status
+      const document = await this.databaseService.findDocument(documentId);
+      if (document) {
+        this.logger.debug(`Document status: ${document.status}`);
+        this.logger.debug(`Document created: ${document.created_at}`);
+        if (document.apim_request_id) {
+          this.logger.debug(`APIM Request ID: ${document.apim_request_id}`);
+        }
+      } else {
+        this.logger.warn(`Document not found: ${documentId}`);
+        throw new NotFoundException(`Document not found: ${documentId}`);
+      }
+
       const ocrResult = await this.databaseService.findOcrResult(documentId);
 
       if (!ocrResult) {
         this.logger.warn(`OCR result not found for document: ${documentId}`);
+        this.logger.warn(`Document status is: ${document.status}`);
         throw new NotFoundException(
-          `OCR result not found for document: ${documentId}`,
+          `OCR result not found for document: ${documentId}. Current status: ${document.status}`,
         );
       }
 
       this.logger.debug(
         `OCR result retrieved successfully for document: ${documentId}`,
       );
+      this.logger.debug(`OCR processed at: ${ocrResult.processed_at}`);
       this.logger.debug("=== DocumentController.getOcrResult completed ===");
 
       return ocrResult;
@@ -119,6 +137,63 @@ export class DocumentController {
       throw new NotFoundException(
         error.message ||
           `Failed to retrieve OCR result for document: ${documentId}`,
+      );
+    }
+  }
+
+  @Get("documents/:documentId/download")
+  @HttpCode(HttpStatus.OK)
+  async downloadDocument(
+    @Param("documentId") documentId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    this.logger.debug(`=== DocumentController.downloadDocument ===`);
+    this.logger.debug(`Document ID: ${documentId}`);
+
+    try {
+      // Find the document
+      const document = await this.databaseService.findDocument(documentId);
+      if (!document) {
+        throw new NotFoundException(`Document not found: ${documentId}`);
+      }
+
+      // Resolve stored relative path to absolute (we only store relative paths)
+      const filePath = join(process.cwd(), document.file_path);
+
+      // Read file
+      const fileBuffer = await readFile(filePath);
+
+      // Set appropriate headers
+      const fileName = document.original_filename || `document-${documentId}`;
+      const mimeType =
+        document.file_type === "pdf"
+          ? "application/pdf"
+          : document.file_type === "image"
+            ? "image/jpeg"
+            : "application/octet-stream";
+
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+      res.setHeader("Content-Length", fileBuffer.length);
+
+      this.logger.debug(
+        `Serving file: ${filePath} (${fileBuffer.length} bytes)`,
+      );
+      this.logger.debug(
+        "=== DocumentController.downloadDocument completed ===",
+      );
+
+      res.send(fileBuffer);
+    } catch (error) {
+      this.logger.error(`Error downloading document: ${error.message}`);
+      this.logger.error(`Stack: ${error.stack}`);
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new NotFoundException(
+        error.message || `Failed to download document: ${documentId}`,
       );
     }
   }

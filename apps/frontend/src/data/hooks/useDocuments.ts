@@ -2,7 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import type { Document } from "../../shared/types";
 import { apiService } from "../services/api.service";
 
-export function useDocuments(): ReturnType<typeof useQuery<Document[], Error>> {
+interface UseDocumentsOptions {
+  refetchInterval?: number;
+  staleTime?: number;
+}
+
+export function useDocuments(
+  options?: UseDocumentsOptions,
+): ReturnType<typeof useQuery<Document[], Error>> {
   return useQuery({
     queryKey: ["documents"],
     queryFn: async (): Promise<Document[]> => {
@@ -12,6 +19,7 @@ export function useDocuments(): ReturnType<typeof useQuery<Document[], Error>> {
       }
       throw new Error(response.message || "Failed to fetch documents");
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: options?.staleTime ?? 1000 * 60 * 5,
+    refetchInterval: options?.refetchInterval,
   });
 }

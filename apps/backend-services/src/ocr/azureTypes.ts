@@ -2,7 +2,7 @@ export interface AnalysisResponse {
   status: string;
   createdDateTime: string;
   lastUpdatedDateTime: string;
-  analyzeResult: AnalysisResult;
+  analyzeResult?: AnalysisResult; // Optional when status is "running"
 }
 
 export interface AnalysisResult {

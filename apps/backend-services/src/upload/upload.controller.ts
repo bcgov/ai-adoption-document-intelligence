@@ -81,22 +81,21 @@ export class UploadController {
         `Document uploaded successfully: ${uploadedDocument.id}`,
       );
 
-      // Publish message to queue
-      try {
-        await this.queueService.publishDocumentUploaded({
+      // Fire-and-forget OCR processing; log errors but don't block the response
+      void this.queueService
+        .processOcrForDocument({
           documentId: uploadedDocument.id,
           filePath: uploadedDocument.file_path,
           fileType: uploadedDocument.file_type,
           metadata: uploadedDocument.metadata,
           timestamp: new Date(),
+        })
+        .catch((error) => {
+          this.logger.error(
+            `Background OCR processing failed for document ${uploadedDocument.id}: ${error.message}`,
+          );
+          this.logger.error(`Stack: ${error.stack}`);
         });
-        this.logger.debug("Message published to queue");
-      } catch (queueError) {
-        this.logger.error(
-          `Failed to publish message to queue: ${queueError.message}`,
-        );
-        // Don't fail the upload if queue publish fails - log and continue
-      }
 
       this.logger.debug("=== UploadController.uploadDocument completed ===");
 

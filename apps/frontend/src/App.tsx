@@ -1,107 +1,166 @@
-import { JSX, useState } from "react";
-import { useAuth } from "./auth/AuthContext";
-import "./App.css";
-import { DocumentsList, HelloWorld, Login } from "./components";
-import "@mantine/core/styles.css";
 import {
+  AppShell,
+  Avatar,
   Badge,
   Button,
-  Card,
   Group,
-  MantineProvider,
   Stack,
   Text,
   Title,
 } from "@mantine/core";
+import { IconList, IconLogout, IconUpload } from "@tabler/icons-react";
+import { JSX, useMemo, useState } from "react";
+import { useAuth } from "./auth/AuthContext";
+import "./App.css";
+import { Login } from "./components";
+import { DocumentViewerModal } from "./components/document/DocumentViewerModal";
+import { ProcessingQueue } from "./components/queue/ProcessingQueue";
+import { DocumentUploadPanel } from "./components/upload/DocumentUploadPanel";
+import type { Document } from "./shared/types";
+
+type MainView = "upload" | "queue";
 
 function AppContent(): JSX.Element {
-  const [count, setCount] = useState(0);
-  const { isAuthenticated, isLoading, logout } = useAuth();
+  const { isAuthenticated, isLoading, logout, user } = useAuth();
+  const [activeView, setActiveView] = useState<MainView>("upload");
+  const [viewerOpened, setViewerOpened] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(
+    null,
+  );
 
-  // Show loading state while determining authentication status or refreshing tokens
+  const navItems = useMemo(
+    () => [
+      {
+        value: "upload" as MainView,
+        label: "Upload",
+        description: "Send new files",
+        icon: IconUpload,
+      },
+      {
+        value: "queue" as MainView,
+        label: "Processing queue",
+        description: "Track statuses",
+        icon: IconList,
+      },
+    ],
+    [],
+  );
+
+  const openViewer = (doc: Document) => {
+    setSelectedDocument(doc);
+    setViewerOpened(true);
+  };
+
   if (isLoading) {
     return (
-      <MantineProvider>
-        <div className="loading-container">
-          <h2>Loading...</h2>
-          <p>Checking authentication status...</p>
-        </div>
-      </MantineProvider>
+      <Stack align="center" justify="center" mih="100vh">
+        <Title order={3}>Loading…</Title>
+        <Text c="dimmed">Checking authentication status</Text>
+      </Stack>
     );
   }
 
   if (!isAuthenticated) {
-    return (
-      <MantineProvider>
-        <Login />
-      </MantineProvider>
-    );
+    return <Login />;
   }
 
-  // Token is set synchronously above, so API calls will have auth headers immediately
-
   return (
-    <MantineProvider>
-      <Stack p="md" gap="lg">
-        <Group justify="space-between" align="center">
-          <Title order={1}>AI OCR Frontend</Title>
-          <Group gap="sm">
-            <Badge size="lg" variant="light" color="blue">
-              Mantine UI
-            </Badge>
-            <Button
-              variant="filled"
-              color="red"
-              size="sm"
-              onClick={() => logout()}
-              leftSection="🚪"
-            >
-              Logout
-            </Button>
+    <>
+      <AppShell
+        header={{ height: 64 }}
+        navbar={{ width: 240, breakpoint: "sm" }}
+        padding="md"
+        withBorder
+      >
+        <AppShell.Header>
+          <Group h="100%" px="md" justify="space-between">
+            <Group>
+              <Title order={3}>Document intelligence</Title>
+              <Badge variant="light" color="blue">
+                Live OCR
+              </Badge>
+            </Group>
+            <Group>
+              <Stack gap={0}>
+                <Text size="sm" fw={600}>
+                  {user?.profile?.name ?? "Authenticated user"}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {user?.profile?.email ?? "Logged in"}
+                </Text>
+              </Stack>
+              <Avatar radius="xl">{user?.profile?.name?.[0] ?? "U"}</Avatar>
+              <Button
+                variant="light"
+                color="red"
+                leftSection={<IconLogout size={16} />}
+                onClick={() => logout()}
+              >
+                Logout
+              </Button>
+            </Group>
           </Group>
-        </Group>
+        </AppShell.Header>
 
-        <HelloWorld name="Developer" />
+        <AppShell.Navbar p="md">
+          <Stack gap="xs">
+            {navItems.map((item) => (
+              <Button
+                key={item.value}
+                variant={activeView === item.value ? "light" : "subtle"}
+                color={activeView === item.value ? "blue" : "gray"}
+                justify="space-between"
+                leftSection={<item.icon size={18} />}
+                onClick={() => setActiveView(item.value)}
+              >
+                <Stack gap={0} align="flex-start">
+                  <Text size="sm" fw={600}>
+                    {item.label}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {item.description}
+                  </Text>
+                </Stack>
+              </Button>
+            ))}
+          </Stack>
+        </AppShell.Navbar>
 
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-          <Group justify="space-between" mb="xs">
-            <Title order={3}>Interactive Counter</Title>
-            <Badge color="cyan" variant="light">
-              Counter: {count}
-            </Badge>
-          </Group>
+        <AppShell.Main>
+          <Stack gap="lg">
+            <Group justify="space-between">
+              <Stack gap={2}>
+                <Title order={2}>
+                  {activeView === "upload"
+                    ? "Upload documents"
+                    : "Processing monitor"}
+                </Title>
+                <Text c="dimmed" size="sm">
+                  {activeView === "upload"
+                    ? "Add new images and track their ingestion progress."
+                    : "View the OCR pipeline and drill into results."}
+                </Text>
+              </Stack>
+              <Badge variant="outline" size="lg">
+                {new Date().toLocaleDateString()}
+              </Badge>
+            </Group>
 
-          <Text size="sm" c="dimmed" mb="md">
-            Click the button below to increment the counter
-          </Text>
+            {activeView === "upload" ? (
+              <DocumentUploadPanel />
+            ) : (
+              <ProcessingQueue onSelectDocument={openViewer} />
+            )}
+          </Stack>
+        </AppShell.Main>
+      </AppShell>
 
-          <Button
-            variant="filled"
-            color="blue"
-            size="md"
-            onClick={() => setCount((count) => count + 1)}
-          >
-            Count is {count}
-          </Button>
-
-          <Text size="sm" c="dimmed" mt="md">
-            Edit <code>src/App.tsx</code> and save to test HMR
-          </Text>
-        </Card>
-
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-          <Title order={4} mb="sm">
-            Built with Modern Tools
-          </Title>
-          <Text size="sm">
-            This application uses Vite, React, TypeScript, and now Mantine UI
-            components for a beautiful and consistent design system.
-          </Text>
-        </Card>
-
-        <DocumentsList />
-      </Stack>
-    </MantineProvider>
+      <DocumentViewerModal
+        document={selectedDocument}
+        opened={viewerOpened}
+        onClose={() => setViewerOpened(false)}
+      />
+    </>
   );
 }
 
