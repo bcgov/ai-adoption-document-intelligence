@@ -1,21 +1,9 @@
+// This needs to be above imports
 const readFile = jest.fn().mockResolvedValue({
   toString: (s: String) => s,
   length: 100,
 });
 jest.mock("fs/promises", () => ({ readFile }));
-
-class MockLogger {
-  error() {}
-  warn() {}
-  log() {}
-  debug() {}
-  static overrideLogger() {}
-}
-// Suppress Logger Messages
-jest.mock("@nestjs/common", () => ({
-  ...jest.requireActual("@nestjs/common"),
-  Logger: MockLogger,
-}));
 
 import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";

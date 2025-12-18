@@ -94,6 +94,9 @@
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1"
     },
+    "setupFiles": [
+      "./testUtils/testSetup.ts"
+    ],
     "coverageThreshold": {
       "global": {
         "branches": 70,
