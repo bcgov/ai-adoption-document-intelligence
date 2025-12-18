@@ -128,7 +128,8 @@
             "noUndeclaredVariables": "off"
           },
           "suspicious": {
-            "noExplicitAny": "off"
+            "noExplicitAny": "off",
+            "noEmptyBlockStatements": "off"
           }
         }
       }
