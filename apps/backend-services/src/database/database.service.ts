@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  OnModuleInit,
-} from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { AnalysisResponse } from "@/ocr/azureTypes";
@@ -14,18 +9,15 @@ import { JsonValue } from "../generated/internal/prismaNamespace";
 export type DocumentData = Document;
 
 @Injectable()
-export class DatabaseService implements OnModuleInit {
+export class DatabaseService {
   private readonly logger = new Logger(DatabaseService.name);
   private prisma: PrismaClient;
   private databaseUrl: string;
 
-  constructor(private configService: ConfigService) {}
-
-  async onModuleInit(): Promise<void> {
+  constructor(private configService: ConfigService) {
     this.databaseUrl = this.configService.get("DATABASE_URL");
     this.prisma = new PrismaClient({
       log: ["query", "info", "warn", "error"],
-
       adapter: new PrismaPg({ connectionString: this.databaseUrl }),
     });
     this.logger.log("Database service initialized with Prisma");
