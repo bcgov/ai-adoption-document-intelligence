@@ -43,7 +43,7 @@ const analysisResult: AnalysisResult = {
   figures: [],
 };
 const analysisResponse: AnalysisResponse = {
-  status: "200",
+  status: "complete",
   analyzeResult: analysisResult,
   lastUpdatedDateTime: Date.now().toString(),
   createdDateTime: Date.now().toString(),
@@ -171,6 +171,34 @@ describe("OcrService", () => {
       (databaseService.findDocument as jest.Mock).mockReturnValueOnce(null);
       await expect(service.retrieveOcrResults("123")).rejects.toThrow(
         "Entry for document with ID 123 not found.",
+      );
+    });
+
+    it("should return null if the analysis is still running", async () => {
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.completed_ocr,
+      });
+      (httpService.get as jest.Mock).mockReturnValueOnce(
+        of({ status: 200, data: { ...analysisResponse, status: "running" } }),
+      );
+      const result = await service.retrieveOcrResults("123");
+      expect(result).toBeNull();
+    });
+
+    it("should throw an Error if the Azure response has no attached result", async () => {
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.completed_ocr,
+      });
+      (httpService.get as jest.Mock).mockReturnValueOnce(
+        of({
+          status: 200,
+          data: { ...analysisResponse, analyzeResult: null, status: "failed" },
+        }),
+      );
+      expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        "No analyzeResult in Azure response for document 123 (status: failed)",
       );
     });
 
