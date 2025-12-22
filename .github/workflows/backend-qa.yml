@@ -31,6 +31,8 @@ jobs:
       - name: Generate Prisma files
         working-directory: apps/backend-services
         run: npm run db:generate
+        env:
+          DATABASE_URL: "file:dev.db"
       - name: Run tests
         working-directory: apps/backend-services
         run: npm run test:cov
