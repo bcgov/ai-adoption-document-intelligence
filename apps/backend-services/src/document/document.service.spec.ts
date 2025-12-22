@@ -3,8 +3,8 @@ import { Test, TestingModule } from "@nestjs/testing";
 import * as fs from "fs";
 import * as fsPromises from "fs/promises";
 import { DatabaseService } from "../database/database.service";
-import { DocumentService } from "./document.service";
 import { DocumentStatus } from "../generated/enums";
+import { DocumentService } from "./document.service";
 
 describe("DocumentService", () => {
   let service: DocumentService;
