@@ -30,17 +30,15 @@ describe("BCGovAuthGuard", () => {
     jest
       .spyOn(jwt, "decode")
       .mockImplementation(() => ({ header: { kid: "kid" } }) as any);
-    jest
-      .spyOn(jwt, "verify")
-      .mockImplementation(
-        (token, key, opts) =>
-          ({
-            idir_username: "u",
-            display_name: "d",
-            email: "e",
-            roles: ["admin"],
-          }) as any,
-      );
+    jest.spyOn(jwt, "verify").mockImplementation(
+      (token, key, opts) =>
+        ({
+          idir_username: "u",
+          display_name: "d",
+          email: "e",
+          roles: ["admin"],
+        }) as any,
+    );
   });
 
   describe("constructor", () => {
