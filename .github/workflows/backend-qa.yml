@@ -30,7 +30,7 @@ jobs:
         run: npm ci
       - name: Run tests
         working-directory: apps/backend-services
-        run: npm test:cov
+        run: npm run test:cov
       - name: Run Linter
         working-directory: apps/backend-services
         run: npm run lint
