@@ -1,21 +1,12 @@
-import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/client";
-
-const POSTGRES_USER = "testuser";
-const POSTGRES_PASSWORD = "testpass";
-const POSTGRES_DB = "testdb";
-const PORT = 5555;
-
-const DATABASE_URL = `postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${PORT}/${POSTGRES_DB}?schema=public`;
-
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: DATABASE_URL }),
-});
+import { closeDb, openDb } from "./helpers/db-conn";
 
 describe("test", () => {
+  let db: PrismaClient;
   beforeAll(async () => {
     // Insert dummy document
-    await prisma.document.create({
+    db = openDb();
+    await db.document.create({
       data: {
         title: "Test Document",
         original_filename: "test.pdf",
@@ -29,13 +20,11 @@ describe("test", () => {
   });
 
   afterAll(async () => {
-    // Clean up
-    await prisma.document.deleteMany({ where: { source: "integration-test" } });
-    await prisma.$disconnect();
+    await closeDb(db);
   });
 
   it("tests", async () => {
-    const doc = await prisma.document.findFirst({
+    const doc = await db.document.findFirst({
       where: { source: "integration-test" },
     });
     expect(doc).toBeTruthy();
