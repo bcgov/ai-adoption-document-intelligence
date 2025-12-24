@@ -22,12 +22,6 @@ export class UploadController {
     private readonly queueService: QueueService,
   ) {}
 
-  @Get("public")
-  @Public()
-  getPublicData(): { message: string } {
-    return { message: "This endpoint is public" };
-  }
-
   @Post("upload")
   @HttpCode(HttpStatus.CREATED)
   async uploadDocument(@Body() uploadDto: UploadDocumentDto): Promise<{
