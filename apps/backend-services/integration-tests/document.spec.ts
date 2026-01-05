@@ -1,3 +1,5 @@
+import * as fs from "fs";
+import * as path from "path";
 import TestAgent from "supertest/lib/agent";
 import { DocumentStatus, PrismaClient } from "../src/generated/client";
 import { closeDb, openDb } from "./helpers/db-conn";
@@ -93,13 +95,6 @@ describe("GET /api/documents", () => {
   });
 });
 
-describe("GET /api/documents/:documentId/download", () => {
-  it("should return 404 for missing document", async () => {
-    const res = await agent.get("/api/documents/999999/download").expect(404);
-    expect(res.body.message).toMatch(/not found/i);
-  });
-});
-
 describe("GET /api/documents/:documentId/ocr", () => {
   let db: PrismaClient;
   let documentId;
@@ -168,6 +163,65 @@ describe("GET /api/documents/:documentId/ocr", () => {
 
   it("should return 404 for missing document", async () => {
     const res = await agent.get("/api/documents/999999/ocr").expect(404);
+    expect(res.body.message).toMatch(/not found/i);
+  });
+});
+
+describe("GET /api/documents/:documentId/download", () => {
+  let db: PrismaClient;
+  let documentId;
+  const storageDir = path.join(__dirname, "../storage/documents");
+  const testFilePath = path.join(storageDir, "test-download.pdf");
+  const testFileContent = Buffer.from("This is a test PDF file.");
+
+  beforeAll(() => {
+    db = openDb();
+    // Ensure storage directory exists
+    if (!fs.existsSync(storageDir))
+      fs.mkdirSync(storageDir, { recursive: true });
+    // Write a test file to disk
+    fs.writeFileSync(testFilePath, testFileContent);
+  });
+
+  afterEach(async () => {
+    await db.document.deleteMany();
+    await db.ocrResult.deleteMany();
+  });
+
+  afterAll(async () => {
+    await closeDb(db);
+    // Remove the test file
+    if (fs.existsSync(testFilePath)) fs.unlinkSync(testFilePath);
+  });
+
+  it("should return the file for an existing document", async () => {
+    // Create a document
+    const doc = await db.document.create({
+      data: {
+        title: "Download Test Document",
+        original_filename: "test-download.pdf",
+        file_path: `storage/documents/test-download.pdf`,
+        file_type: "pdf",
+        file_size: testFileContent.length,
+        source: "integration-test",
+        status: "pre_ocr",
+      },
+    });
+    documentId = doc.id;
+    // Test the endpoint
+    const res = await agent
+      .get(`/api/documents/${documentId}/download`)
+      .expect(200);
+    expect(res.header["content-type"]).toBe("application/pdf");
+    expect(res.header["content-disposition"]).toMatch(
+      /inline; filename="test-download.pdf"/,
+    );
+    expect(res.body).toBeInstanceOf(Buffer);
+    expect(Buffer.compare(res.body, testFileContent)).toBe(0);
+  });
+
+  it("should return 404 for missing document", async () => {
+    const res = await agent.get("/api/documents/999999/download").expect(404);
     expect(res.body.message).toMatch(/not found/i);
   });
 });
