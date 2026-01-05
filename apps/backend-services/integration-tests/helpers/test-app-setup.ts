@@ -1,12 +1,12 @@
 import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import * as request from "supertest";
-import { TestAppModule } from "./test-app.module";
 import TestAgent from "supertest/lib/agent";
+import { TestAppModule } from "./test-app.module";
 
 interface ITestModule {
   open: () => Promise<TestAgent>;
-  close: () => Promise<void>
+  close: () => Promise<void>;
 }
 
 const setupTestModule = (): ITestModule => {
@@ -20,15 +20,15 @@ const setupTestModule = (): ITestModule => {
     await app.init();
     const module = (request as unknown as Function)(app.getHttpServer());
     return module as TestAgent;
-  }
+  };
 
   const closeTestApp = async () => {
     if (app) {
       await app.close();
     }
-  }
+  };
 
   return { open: openTestApp, close: closeTestApp };
-}
+};
 
 export default setupTestModule;
