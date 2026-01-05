@@ -28,6 +28,7 @@ describe("how to manipulate database before/after test", () => {
   });
 
   afterAll(async () => {
+    await db.document.deleteMany();
     await closeDb(db);
   });
 
