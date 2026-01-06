@@ -129,9 +129,9 @@ export class OcrService {
   /**
    * Retrieves the results of an Azure OCR request.
    * @param documentId ID from documents table
-   * @returns The AnalysisResult of OCR processing.
+   * @returns The AnalysisResult of OCR processing, or null if still processing.
    */
-  async retrieveOcrResults(documentId: string): Promise<AnalysisResult> {
+  async retrieveOcrResults(documentId: string): Promise<AnalysisResult | null> {
     // Get apim ID of document
     const document = await this.databaseService.findDocument(documentId);
     if (document == null) {
