@@ -6,6 +6,8 @@ resources:
 images:
 - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services
   newTag: main-latest
+- name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/frontend
+  newTag: main-latest
 commonLabels:
   env: prod
 patches:

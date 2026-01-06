@@ -57,15 +57,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const handledAuthResultIdsRef = useRef<Set<string>>(new Set());
 
-  // API base URL - use relative path for auth endpoints to work with Vite proxy
-  const apiBaseUrl = '';
+  // API base URL - use backend URL in production, relative path in dev (for Vite proxy)
+  // VITE_BACKEND_URL should be set during Docker build for production deployments
+  const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || '';
 
   useEffect(() => {
-    const initAuth = async () => {
+    const initAuth = async (): Promise<void> => {
       try {
         await restoreStoredTokens();
         await handleAuthResultFromUrl();
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Auth initialization error:', error);
         localStorage.removeItem('auth_tokens');
         setUser(null);
@@ -75,6 +77,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -84,7 +87,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Rehydrates the last known token set from localStorage and refreshes if necessary.
    */
-  const restoreStoredTokens = async () => {
+  const restoreStoredTokens = async (): Promise<void> => {
     const storedTokens = localStorage.getItem('auth_tokens');
     if (!storedTokens) {
       return;
@@ -103,6 +106,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         await refreshToken();
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.log('Token refresh failed during stored token restoration:', error);
         localStorage.removeItem('auth_tokens');
         setUser(null);
@@ -128,6 +132,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           profilePayload = JSON.parse(atob(padded));
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to decode ID token payload', error);
       }
     }
@@ -151,7 +156,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Persists a token response, derives expiry, and updates React state.
    */
-  const persistTokens = async (tokens: TokenResponse) => {
+  const persistTokens = async (tokens: TokenResponse): Promise<void> => {
     const expiresAt = Math.floor(Date.now() / 1000) + tokens.expires_in;
     const tokenData = { ...tokens, expires_at: expiresAt };
     localStorage.setItem('auth_tokens', JSON.stringify(tokenData));
@@ -162,7 +167,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Removes transient query params (`auth_result` / `auth_error`) without reloading the page.
    */
-  const updateBrowserUrl = (url: URL) => {
+  const updateBrowserUrl = (url: URL): void => {
     const newSearch = url.searchParams.toString();
     window.history.replaceState(
       {},
@@ -175,12 +180,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Detects the backend redirect (`?auth_result=<uuid>`) and exchanges it for the actual token bundle.
    * The `handledAuthResultIdsRef` ensures React StrictMode does not double-consume the value.
    */
-  const handleAuthResultFromUrl = async () => {
+  const handleAuthResultFromUrl = async (): Promise<void> => {
     const url = new URL(window.location.href);
     const authResult = url.searchParams.get('auth_result');
 
     if (!authResult) {
       if (url.searchParams.has('auth_error')) {
+        // eslint-disable-next-line no-console
         console.warn('Authentication error flag present in URL:', url.searchParams.get('auth_error'));
         url.searchParams.delete('auth_error');
         updateBrowserUrl(url);
@@ -189,6 +195,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     if (handledAuthResultIdsRef.current.has(authResult)) {
+      // eslint-disable-next-line no-console
       console.debug('Auth result already handled, skipping duplicate request', authResult);
       return;
     }
@@ -201,6 +208,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       await persistTokens(response.data);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to consume auth result:', error);
       localStorage.removeItem('auth_tokens');
       setUser(null);
@@ -210,12 +218,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const login = () => {
+  const login = (): void => {
     const loginUrl = `${apiBaseUrl}/api/auth/login`;
     window.location.href = loginUrl;
   };
 
-  const logout = () => {
+  const logout = (): void => {
     const idTokenHint = user?.id_token;
     setUser(null);
     localStorage.removeItem('auth_tokens');
@@ -250,6 +258,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       await persistTokens(response.data);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Token refresh failed:', error);
       // Clear invalid tokens
       localStorage.removeItem('auth_tokens');

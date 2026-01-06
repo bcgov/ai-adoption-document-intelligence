@@ -147,7 +147,7 @@ jobs:
       - name: Build and Push
         uses: docker/build-push-action@v5
         with:
-          context: apps/${{ matrix.app }}
+          context: ${{ matrix.app == 'frontend' && '.' || format('apps/{0}', matrix.app) }}
           file: apps/${{ matrix.app }}/Dockerfile
           push: true
           tags: ${{ steps.docker-metadata.outputs.tags }}

@@ -8,6 +8,9 @@ const logger = new Logger("Bootstrap");
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
+  // Set global prefix for all routes
+  app.setGlobalPrefix('api');
+
   app.use(
     json({
       limit: process.env.BODY_LIMIT || "50mb",
@@ -38,6 +41,7 @@ async function bootstrap(): Promise<void> {
   const port = process.env.PORT || 3002;
   await app.listen(port, "0.0.0.0");
   logger.log(`Backend services is running on: http://localhost:${port}`);
+  logger.log(`Auth login endpoint: http://localhost:${port}/api/auth/login`);
   logger.log(`Upload endpoint: http://localhost:${port}/api/upload`);
 }
 

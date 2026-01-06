@@ -22,7 +22,8 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "husky": "^9.0.0"
+    "husky": "^9.0.0",
+    "lint-staged": "^16.2.7"
   },
   "engines": {
     "node": ">=22.0.0",
@@ -30,5 +31,14 @@
   },
   "dependencies": {
     "apollo-server-express": "^3.13.0"
+  },
+  "lint-staged": {
+    "apps/backend-services/**/*.ts": [
+      "prettier --write",
+      "eslint --fix --max-warnings=0"
+    ],
+    "apps/frontend/**/*.{ts,tsx}": [
+      "eslint --fix --max-warnings=0"
+    ]
   }
 }

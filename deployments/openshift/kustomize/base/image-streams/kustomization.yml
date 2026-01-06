@@ -3,3 +3,4 @@ kind: Kustomization
 namespace: fd34fb-tools
 resources:
   - backend-services-is.yml
+  - frontend-is.yml
