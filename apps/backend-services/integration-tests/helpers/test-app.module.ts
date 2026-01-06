@@ -1,3 +1,4 @@
+import { HttpService } from "@nestjs/axios";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
@@ -27,6 +28,29 @@ export class CompositeMockGuard {
   }
 }
 
+// Export a mutable mock for per-test overrides
+export const httpServiceMock = {
+  post: jest.fn().mockReturnValue({
+    toPromise: async () => ({
+      status: 202,
+      headers: { "apim-request-id": "mock-id" },
+    }),
+    subscribe: () => {},
+  }),
+  get: jest.fn().mockReturnValue({
+    toPromise: async () => ({
+      status: 200,
+      data: {
+        status: "succeeded",
+        createdDateTime: new Date().toISOString(),
+        lastUpdatedDateTime: new Date().toISOString(),
+        analyzeResult: { content: "mock-content", pages: [] },
+      },
+    }),
+    subscribe: () => {},
+  }),
+};
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ".env", cache: true }),
@@ -41,6 +65,10 @@ export class CompositeMockGuard {
     AuthService,
     AuthSessionStore,
     { provide: APP_GUARD, useClass: CompositeMockGuard },
+    {
+      provide: HttpService,
+      useValue: httpServiceMock,
+    },
   ],
 })
 export class TestAppModule {}
