@@ -36,7 +36,7 @@ npx prisma migrate deploy
 npx prisma generate
 
 echo "Running tests..."
-jest --config ./integration-tests/integration-config.json
+jest --config ./integration-tests/integration-config.json --runInBand
 
 # Stop the container
 podman stop $CONTAINER_NAME
