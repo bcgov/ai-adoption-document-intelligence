@@ -2,13 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
-  Get,
   HttpCode,
   HttpStatus,
   Logger,
   Post,
 } from "@nestjs/common";
-import { Public } from "../auth/public.decorator";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
