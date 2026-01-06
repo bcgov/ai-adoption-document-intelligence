@@ -38,6 +38,7 @@ describe("/upload endpoints", () => {
     });
 
     afterAll(async () => {
+      jest.clearAllMocks();
       await closeDb(db);
     });
 
