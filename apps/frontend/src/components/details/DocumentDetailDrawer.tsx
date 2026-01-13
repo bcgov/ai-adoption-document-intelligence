@@ -14,7 +14,11 @@ import {
 } from "@mantine/core";
 import { IconAlertCircle, IconEye, IconForms } from "@tabler/icons-react";
 import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
-import type { Document, DocumentField, ExtractedFields } from "../../shared/types";
+import type {
+  Document,
+  DocumentField,
+  ExtractedFields,
+} from "../../shared/types";
 import { formatDate, formatFileSize } from "../../shared/utils";
 
 interface DocumentDetailDrawerProps {
@@ -25,7 +29,9 @@ interface DocumentDetailDrawerProps {
 
 function getFieldDisplayValue(field: DocumentField): string {
   if (field.valueSelectionMark !== undefined) {
-    return field.valueSelectionMark === "selected" ? "☑ Selected" : "☐ Unselected";
+    return field.valueSelectionMark === "selected"
+      ? "☑ Selected"
+      : "☐ Unselected";
   }
   if (field.valueNumber !== undefined) {
     return field.valueNumber.toString();
@@ -60,16 +66,29 @@ function ExtractedFieldsTable({ fields }: { fields: ExtractedFields }) {
         {entries.map(([name, field]) => (
           <Table.Tr key={name}>
             <Table.Td>
-              <Text size="sm" fw={500}>{name}</Text>
+              <Text size="sm" fw={500}>
+                {name}
+              </Text>
             </Table.Td>
             <Table.Td>
               <Text size="sm">{getFieldDisplayValue(field)}</Text>
             </Table.Td>
             <Table.Td>
-              <Badge size="xs" variant="light">{field.type}</Badge>
+              <Badge size="xs" variant="light">
+                {field.type}
+              </Badge>
             </Table.Td>
             <Table.Td>
-              <Text size="sm" c={field.confidence >= 0.9 ? "green" : field.confidence >= 0.7 ? "yellow" : "red"}>
+              <Text
+                size="sm"
+                c={
+                  field.confidence >= 0.9
+                    ? "green"
+                    : field.confidence >= 0.7
+                      ? "yellow"
+                      : "red"
+                }
+              >
                 {(field.confidence * 100).toFixed(1)}%
               </Text>
             </Table.Td>
@@ -167,9 +186,7 @@ export function DocumentDetailDrawer({
                   <ExtractedFieldsTable fields={ocrResult.keyValuePairs} />
                 </ScrollArea>
               ) : (
-                <Text c="dimmed">
-                  No extracted fields for this document.
-                </Text>
+                <Text c="dimmed">No extracted fields for this document.</Text>
               )}
             </Tabs.Panel>
 

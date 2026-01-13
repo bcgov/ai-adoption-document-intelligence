@@ -59,7 +59,9 @@ export function DocumentViewer({
 
   const getFieldDisplayValue = (field: ExtractedFields[string]): string => {
     if (field.valueSelectionMark !== undefined) {
-      return field.valueSelectionMark === "selected" ? "☑ Selected" : "☐ Unselected";
+      return field.valueSelectionMark === "selected"
+        ? "☑ Selected"
+        : "☐ Unselected";
     }
     if (field.valueNumber !== undefined) {
       return field.valueNumber.toString();
@@ -88,7 +90,9 @@ export function DocumentViewer({
 
     return fieldEntries
       .filter(([, field]) =>
-        field.boundingRegions?.some((br: BoundingRegion) => br.pageNumber === pageNumber),
+        field.boundingRegions?.some(
+          (br: BoundingRegion) => br.pageNumber === pageNumber,
+        ),
       )
       .map(([fieldName, field], index) => {
         // Use the bounding region for this page
@@ -140,7 +144,9 @@ export function DocumentViewer({
             <div style={{ marginBottom: "4px" }}>
               Value: {getFieldDisplayValue(field)}
             </div>
-            <div style={{ marginBottom: "4px", fontSize: "12px", color: "#888" }}>
+            <div
+              style={{ marginBottom: "4px", fontSize: "12px", color: "#888" }}
+            >
               Type: {field.type}
             </div>
             <div

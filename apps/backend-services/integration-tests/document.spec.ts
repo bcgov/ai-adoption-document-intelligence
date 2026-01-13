@@ -130,7 +130,9 @@ describe("/document endpoints", () => {
       const ocrResult = await db.ocrResult.create({
         data: {
           document_id: documentId,
-          keyValuePairs: { field1: { type: "string", content: "value1", confidence: 0.95 } },
+          keyValuePairs: {
+            field1: { type: "string", content: "value1", confidence: 0.95 },
+          },
         },
       });
       // Test the endpoint

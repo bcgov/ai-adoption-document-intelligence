@@ -38,7 +38,9 @@ const defaultDocument = {
 const defaultOcrResult: OcrResult = {
   id: "123",
   processed_at: new Date(),
-  keyValuePairs: { field1: { type: "string", content: "value1", confidence: 0.95 } },
+  keyValuePairs: {
+    field1: { type: "string", content: "value1", confidence: 0.95 },
+  },
   document_id: "456",
 };
 
@@ -221,7 +223,7 @@ describe("DatabaseService", () => {
       });
       expect(result).toBeUndefined();
       expect(mockPrisma.ocrResult.upsert).toHaveBeenCalledTimes(1);
-      
+
       // The service converts keyValuePairs to ExtractedFields format
       // Expected: { field1: { type: "string", content: "value1", confidence: 0.95, ... } }
       const expectedExtractedFields = {
@@ -231,7 +233,7 @@ describe("DatabaseService", () => {
           confidence: 0.95,
         }),
       };
-      
+
       expect(mockPrisma.ocrResult.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {

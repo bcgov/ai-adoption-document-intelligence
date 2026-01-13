@@ -189,7 +189,8 @@ export class DatabaseService {
         type: "string",
         content: pair.value?.content || null,
         confidence: pair.confidence,
-        boundingRegions: pair.value?.boundingRegions || pair.key?.boundingRegions,
+        boundingRegions:
+          pair.value?.boundingRegions || pair.key?.boundingRegions,
         spans: pair.value?.spans || pair.key?.spans,
       };
 
