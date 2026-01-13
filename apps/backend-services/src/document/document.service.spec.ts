@@ -74,7 +74,13 @@ describe("DocumentService", () => {
 
     it("should throw on invalid base64", async () => {
       await expect(
-        service.uploadDocument("Test", {} as any, "pdf", "file.pdf", "test-model-id"),
+        service.uploadDocument(
+          "Test",
+          {} as any,
+          "pdf",
+          "file.pdf",
+          "test-model-id",
+        ),
       ).rejects.toThrow("Invalid base64 file data");
     });
   });
