@@ -13,6 +13,7 @@ import { Request, Response } from "express";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { OcrResult } from "@/generated/client";
+import { ApiKeyAuth } from "../auth/api-key-auth.decorator";
 import { Roles } from "../auth/roles.decorator";
 import { DatabaseService, DocumentData } from "../database/database.service";
 
@@ -89,6 +90,7 @@ export class DocumentController {
 
   @Get("documents/:documentId/ocr")
   @HttpCode(HttpStatus.OK)
+  @ApiKeyAuth()
   async getOcrResult(
     @Param("documentId") documentId: string,
   ): Promise<OcrResult> {
