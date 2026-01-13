@@ -69,6 +69,20 @@ export interface OcrResult {
   processed_at: string;
 }
 
+export interface OcrEndpointResponse {
+  document_id: string;
+  status: string;
+  title: string;
+  original_filename: string;
+  file_type: string;
+  file_size: number;
+  created_at: string;
+  updated_at: string;
+  apim_request_id: string | null;
+  model_id: string;
+  ocr_result: OcrResult | null;
+}
+
 export interface UploadDocumentPayload {
   title: string;
   file: string; // base64

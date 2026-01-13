@@ -181,9 +181,11 @@ export function DocumentDetailDrawer({
                     ? error.message
                     : "Failed to load OCR output"}
                 </Alert>
-              ) : ocrResult?.keyValuePairs ? (
+              ) : ocrResult?.ocr_result?.keyValuePairs ? (
                 <ScrollArea h={400}>
-                  <ExtractedFieldsTable fields={ocrResult.keyValuePairs} />
+                  <ExtractedFieldsTable
+                    fields={ocrResult.ocr_result.keyValuePairs}
+                  />
                 </ScrollArea>
               ) : (
                 <Text c="dimmed">No extracted fields for this document.</Text>
