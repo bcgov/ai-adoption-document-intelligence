@@ -33,19 +33,11 @@ model Document {
 }
 
 model OcrResult {
-  id           String   @id @default(cuid())
-  document_id  String   @unique
-  document     Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
-  extracted_text String
-  pages        Json
-  tables       Json
-  paragraphs   Json
-  styles       Json
-  sections     Json
-  figures      Json
+  id            String   @id @default(cuid())
+  document_id   String   @unique
+  document      Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
   keyValuePairs Json?
-  metadata     Json?
-  processed_at DateTime @default(now())
+  processed_at  DateTime @default(now())
 
   @@map("ocr_results")
 }

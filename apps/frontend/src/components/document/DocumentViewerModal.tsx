@@ -165,7 +165,7 @@ export function DocumentViewerModal({
             {imageUrl ? (
               <DocumentViewer
                 imageUrl={imageUrl}
-                keyValuePairs={ocrResult?.keyValuePairs}
+                extractedFields={ocrResult?.keyValuePairs}
                 pageNumber={1}
                 showOverlays={showOverlays}
                 onToggleOverlays={() => setShowOverlays(!showOverlays)}

@@ -41,33 +41,31 @@ export interface BoundingRegion {
   polygon: number[];
 }
 
-export interface KeyValueElement {
-  content: string;
-  boundingRegions: BoundingRegion[];
-  spans: Array<{
-    offset: number;
-    length: number;
-  }>;
+export interface Span {
+  offset: number;
+  length: number;
 }
 
-export interface KeyValuePair {
-  key: KeyValueElement;
-  value?: KeyValueElement;
+// Unified field format (used for both custom and prebuilt models)
+export interface DocumentField {
+  type: string; // "string", "number", "selectionMark", "date", etc.
+  content: string | null;
   confidence: number;
+  boundingRegions?: BoundingRegion[];
+  spans?: Span[];
+  // Type-specific values (from custom models)
+  valueString?: string;
+  valueNumber?: number;
+  valueSelectionMark?: "selected" | "unselected";
+  valueDate?: string;
 }
+
+export type ExtractedFields = Record<string, DocumentField>;
 
 export interface OcrResult {
   id: string;
   document_id: string;
-  extracted_text: string;
-  pages: unknown[];
-  tables: unknown[];
-  paragraphs: unknown[];
-  styles: unknown[];
-  sections: unknown[];
-  figures: unknown[];
-  keyValuePairs?: KeyValuePair[];
-  metadata?: Record<string, unknown>;
+  keyValuePairs?: ExtractedFields;
   processed_at: string;
 }
 

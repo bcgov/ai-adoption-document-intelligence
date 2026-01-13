@@ -130,23 +130,15 @@ describe("/document endpoints", () => {
       const ocrResult = await db.ocrResult.create({
         data: {
           document_id: documentId,
-          extracted_text: "some extracted text",
-          pages: [],
-          tables: [],
-          paragraphs: [],
-          styles: [],
-          sections: [],
-          figures: [],
+          keyValuePairs: { field1: { type: "string", content: "value1", confidence: 0.95 } },
         },
       });
       // Test the endpoint
       const res = await agent
         .get(`/api/documents/${documentId}/ocr`)
         .expect(200);
-      expect(res.body).toHaveProperty(
-        "extracted_text",
-        ocrResult.extracted_text,
-      );
+      expect(res.body).toHaveProperty("keyValuePairs");
+      expect(res.body.keyValuePairs).toEqual(ocrResult.keyValuePairs);
       expect(res.body).toHaveProperty("processed_at");
       expect(res.body).toHaveProperty("document_id", documentId);
     });

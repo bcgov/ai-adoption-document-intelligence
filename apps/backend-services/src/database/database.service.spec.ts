@@ -37,16 +37,8 @@ const defaultDocument = {
 
 const defaultOcrResult: OcrResult = {
   id: "123",
-  pages: [],
-  tables: [],
-  paragraphs: [],
-  styles: [],
-  sections: [],
-  figures: [],
-  extracted_text: "",
   processed_at: new Date(),
-  keyValuePairs: [],
-  metadata: {},
+  keyValuePairs: { field1: { type: "string", content: "value1", confidence: 0.95 } },
   document_id: "456",
 };
 
@@ -62,6 +54,21 @@ const analysisResult: AnalysisResult = {
   contentFormat: "json",
   sections: [],
   figures: [],
+  keyValuePairs: [
+    {
+      key: {
+        content: "field1",
+        boundingRegions: [],
+        spans: [],
+      },
+      value: {
+        content: "value1",
+        boundingRegions: [],
+        spans: [],
+      },
+      confidence: 0.95,
+    },
+  ],
 };
 const analysisResponse: AnalysisResponse = {
   status: "200",
@@ -214,30 +221,33 @@ describe("DatabaseService", () => {
       });
       expect(result).toBeUndefined();
       expect(mockPrisma.ocrResult.upsert).toHaveBeenCalledTimes(1);
-      const analysisResult = analysisResponse.analyzeResult;
-      const asJson = (obj: any): JsonValue => obj as unknown as JsonValue;
-      const updateObject = {
-        processed_at: analysisResponse.lastUpdatedDateTime,
-        extracted_text: analysisResult.content,
-        pages: asJson(analysisResult.pages),
-        tables: asJson(analysisResult.tables),
-        paragraphs: asJson(analysisResult.paragraphs),
-        styles: asJson(analysisResult.styles),
-        sections: asJson(analysisResult.sections),
-        figures: asJson(analysisResult.figures),
-        keyValuePairs: asJson(analysisResult.keyValuePairs),
+      
+      // The service converts keyValuePairs to ExtractedFields format
+      // Expected: { field1: { type: "string", content: "value1", confidence: 0.95, ... } }
+      const expectedExtractedFields = {
+        field1: expect.objectContaining({
+          type: "string",
+          content: "value1",
+          confidence: 0.95,
+        }),
       };
-      const expectedCallObj = {
-        where: {
-          document_id: "123",
-        },
-        update: updateObject,
-        create: {
-          document_id: "123",
-          ...updateObject,
-        },
-      };
-      expect(mockPrisma.ocrResult.upsert).toHaveBeenCalledWith(expectedCallObj);
+      
+      expect(mockPrisma.ocrResult.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            document_id: "123",
+          },
+          update: expect.objectContaining({
+            processed_at: analysisResponse.lastUpdatedDateTime,
+            keyValuePairs: expectedExtractedFields,
+          }),
+          create: expect.objectContaining({
+            document_id: "123",
+            processed_at: analysisResponse.lastUpdatedDateTime,
+            keyValuePairs: expectedExtractedFields,
+          }),
+        }),
+      );
     });
 
     it("should re-throw an error caught within", async () => {
