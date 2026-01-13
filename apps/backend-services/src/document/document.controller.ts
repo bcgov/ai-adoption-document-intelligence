@@ -91,9 +91,7 @@ export class DocumentController {
   @Get("documents/:documentId/ocr")
   @HttpCode(HttpStatus.OK)
   @ApiKeyAuth()
-  async getOcrResult(
-    @Param("documentId") documentId: string,
-  ): Promise<{
+  async getOcrResult(@Param("documentId") documentId: string): Promise<{
     document_id: string;
     status: string;
     title: string;
