@@ -138,8 +138,7 @@ export function SettingsPage() {
                       </Badge>
                     </Group>
                     <Text size="xs" c="dimmed">
-                      Created:{" "}
-                      {new Date(apiKey.createdAt).toLocaleDateString()}
+                      Created: {new Date(apiKey.createdAt).toLocaleDateString()}
                       {apiKey.lastUsed && (
                         <>
                           {" "}
@@ -239,7 +238,11 @@ export function SettingsPage() {
                       color={copied ? "teal" : "blue"}
                       onClick={copy}
                       leftSection={
-                        copied ? <IconCheck size={16} /> : <IconCopy size={16} />
+                        copied ? (
+                          <IconCheck size={16} />
+                        ) : (
+                          <IconCopy size={16} />
+                        )
                       }
                     >
                       {copied ? "Copied" : "Copy"}

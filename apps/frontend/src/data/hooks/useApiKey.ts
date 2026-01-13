@@ -39,8 +39,10 @@ export function useGenerateApiKey() {
 
   return useMutation({
     mutationFn: async (): Promise<GeneratedApiKey> => {
-      const response =
-        await apiService.post<GeneratedApiKeyResponse>("/api-key", {});
+      const response = await apiService.post<GeneratedApiKeyResponse>(
+        "/api-key",
+        {},
+      );
       if (!response.success || !response.data) {
         throw new Error(response.message || "Failed to generate API key");
       }
