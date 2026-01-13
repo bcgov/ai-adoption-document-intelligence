@@ -27,6 +27,7 @@ describe("UploadController", () => {
       file_type: FileType.PDF,
       original_filename: "test.pdf",
       metadata: { foo: "bar" },
+      model_id: "test-model-id",
     };
     const uploadedDoc = {
       id: "1",
@@ -40,6 +41,7 @@ describe("UploadController", () => {
       file_path: "path",
       metadata: { foo: "bar" },
       source: "api",
+      model_id: "test-model-id",
     };
 
     it("should upload document and queue OCR", async () => {
@@ -52,6 +54,7 @@ describe("UploadController", () => {
         baseDto.file,
         baseDto.file_type,
         baseDto.original_filename,
+        baseDto.model_id,
         baseDto.metadata,
       );
       expect(queueService.processOcrForDocument).toHaveBeenCalledWith(
