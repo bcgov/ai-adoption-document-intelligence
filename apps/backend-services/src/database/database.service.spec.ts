@@ -206,11 +206,10 @@ describe("DatabaseService", () => {
       expect(result).toEqual(defaultOcrResult);
     });
 
-    it("should throw NotFoundException if OCR results not found", async () => {
+    it("should return null if OCR results not found", async () => {
       mockPrisma.ocrResult.findFirst.mockResolvedValueOnce(null);
-      await expect(service.findOcrResult("123")).rejects.toThrow(
-        "No OCR result found for document: 123",
-      );
+      const result = await service.findOcrResult("123");
+      expect(result).toBeNull();
       expect(mockPrisma.ocrResult.findFirst).toHaveBeenCalledTimes(1);
     });
   });

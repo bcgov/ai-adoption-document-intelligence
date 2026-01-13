@@ -93,41 +93,67 @@ export class DocumentController {
   @ApiKeyAuth()
   async getOcrResult(
     @Param("documentId") documentId: string,
-  ): Promise<OcrResult> {
+  ): Promise<{
+    document_id: string;
+    status: string;
+    title: string;
+    original_filename: string;
+    file_type: string;
+    file_size: number;
+    created_at: Date;
+    updated_at: Date;
+    apim_request_id: string | null;
+    model_id: string;
+    ocr_result: OcrResult | null;
+  }> {
     this.logger.debug(`=== DocumentController.getOcrResult ===`);
     this.logger.debug(`Document ID: ${documentId}`);
 
     try {
       // First check if document exists and its status
       const document = await this.databaseService.findDocument(documentId);
-      if (document) {
-        this.logger.debug(`Document status: ${document.status}`);
-        this.logger.debug(`Document created: ${document.created_at}`);
-        if (document.apim_request_id) {
-          this.logger.debug(`APIM Request ID: ${document.apim_request_id}`);
-        }
-      } else {
+      if (!document) {
         this.logger.warn(`Document not found: ${documentId}`);
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      const ocrResult = await this.databaseService.findOcrResult(documentId);
-
-      if (!ocrResult) {
-        this.logger.warn(`OCR result not found for document: ${documentId}`);
-        this.logger.warn(`Document status is: ${document.status}`);
-        throw new NotFoundException(
-          `OCR result not found for document: ${documentId}. Current status: ${document.status}`,
-        );
+      this.logger.debug(`Document status: ${document.status}`);
+      this.logger.debug(`Document created: ${document.created_at}`);
+      if (document.apim_request_id) {
+        this.logger.debug(`APIM Request ID: ${document.apim_request_id}`);
       }
 
-      this.logger.debug(
-        `OCR result retrieved successfully for document: ${documentId}`,
-      );
-      this.logger.debug(`OCR processed at: ${ocrResult.processed_at}`);
-      this.logger.debug("=== DocumentController.getOcrResult completed ===");
+      const ocrResult = await this.databaseService.findOcrResult(documentId);
 
-      return ocrResult;
+      // Return consistent structure with document info and ocr_result
+      const response = {
+        document_id: document.id,
+        status: document.status,
+        title: document.title,
+        original_filename: document.original_filename,
+        file_type: document.file_type,
+        file_size: document.file_size,
+        created_at: document.created_at,
+        updated_at: document.updated_at,
+        apim_request_id: document.apim_request_id,
+        model_id: document.model_id,
+        ocr_result: ocrResult,
+      };
+
+      if (!ocrResult) {
+        this.logger.debug(
+          `OCR result not found for document: ${documentId}, returning document status with ocr_result: null`,
+        );
+        this.logger.debug(`Document status is: ${document.status}`);
+      } else {
+        this.logger.debug(
+          `OCR result retrieved successfully for document: ${documentId}`,
+        );
+        this.logger.debug(`OCR processed at: ${ocrResult.processed_at}`);
+      }
+
+      this.logger.debug("=== DocumentController.getOcrResult completed ===");
+      return response;
     } catch (error) {
       this.logger.error(`Error retrieving OCR result: ${error.message}`);
       this.logger.error(`Stack: ${error.stack}`);

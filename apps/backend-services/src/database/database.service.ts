@@ -156,9 +156,7 @@ export class DatabaseService {
       if (!ocrResult) {
         this.logger.debug(`No OCR result found for document: ${documentId}`);
         this.logger.debug("=== DatabaseService.findOcrResult completed ===");
-        throw new NotFoundException(
-          `No OCR result found for document: ${documentId}`,
-        );
+        return null;
       }
 
       this.logger.debug(`OCR result found for document: ${documentId}`);
