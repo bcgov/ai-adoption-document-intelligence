@@ -65,18 +65,50 @@ export class OcrService {
       // Send file to Azure for OCR using the document's model_id
       const modelId = document.model_id;
       this.logger.debug(`Using model: ${modelId}`);
-      const azureResponse = await lastValueFrom(
-        this.httpService.post(
-          `${this.azureEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30&features=keyValuePairs`,
-          {
-            base64Source: fileBuffer.toString("base64"),
-          },
-          {
-            headers: {
-              "api-key": this.azureApiKey,
+
+      // Build URL - only include features param for prebuilt models
+      const isPrebuiltModel =
+        modelId.startsWith("prebuilt-") || modelId === "prebuilt-read";
+      const url = isPrebuiltModel
+        ? `${this.azureEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30&features=keyValuePairs`
+        : `${this.azureEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30`;
+
+      const headers = {
+        "api-key": this.azureApiKey,
+        "Content-Type": "application/json",
+      };
+
+      this.logger.debug(`Request URL: ${url}`);
+      this.logger.debug(
+        `Request headers: ${JSON.stringify({ ...headers, "api-key": "[REDACTED]" })}`,
+      );
+
+      let azureResponse;
+      try {
+        azureResponse = await lastValueFrom(
+          this.httpService.post(
+            url,
+            {
+              base64Source: fileBuffer.toString("base64"),
             },
-          },
-        ),
+            { headers },
+          ),
+        );
+      } catch (axiosError) {
+        this.logger.error(`Azure API request failed`);
+        this.logger.error(`Status: ${axiosError.response?.status}`);
+        this.logger.error(
+          `Response data: ${JSON.stringify(axiosError.response?.data, null, 2)}`,
+        );
+        this.logger.error(
+          `Response headers: ${JSON.stringify(axiosError.response?.headers, null, 2)}`,
+        );
+        throw axiosError;
+      }
+
+      this.logger.debug(`Azure response status: ${azureResponse.status}`);
+      this.logger.debug(
+        `Azure response headers: ${JSON.stringify(azureResponse.headers, null, 2)}`,
       );
 
       if (azureResponse.status != 202) {
