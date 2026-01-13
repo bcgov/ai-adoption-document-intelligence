@@ -195,3 +195,46 @@ The backend services require several environment variables. Copy `.env.sample` t
 - `NODE_ENV` - Environment (development/production)
 - `FRONTEND_URL` - Frontend application URL for CORS
 - `UPLOAD_DESTINATION` - Directory for file uploads
+- `AZURE_DOC_INTELLIGENCE_MODELS` - Comma-separated list of allowed Azure Document Intelligence model IDs (default: `prebuilt-layout,prebuilt-document,prebuilt-invoice,prebuilt-receipt`)
+
+## Features
+
+### Custom Template Model Selection
+
+Users can select which Azure Document Intelligence model to use for processing documents. Available models are configured via the `AZURE_DOC_INTELLIGENCE_MODELS` environment variable.
+
+In the upload interface:
+1. Select a processing model from the dropdown
+2. Drag and drop files or click to browse
+3. Click "Upload" to start processing
+
+The selected model is stored with each document and displayed in the document viewer.
+
+### API Key Authentication
+
+For programmatic access to the upload endpoint, users can generate an API key from the Settings page.
+
+**Generating an API Key:**
+1. Navigate to Settings in the sidebar
+2. Click "Generate API Key"
+3. Copy the key immediately - it will only be shown once
+4. Use the key in the `X-API-Key` header for API requests
+
+**API Usage Example:**
+```bash
+curl -X POST http://localhost:3002/api/upload \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -d '{
+    "title": "Document Title",
+    "file": "BASE64_ENCODED_FILE",
+    "file_type": "image",
+    "model_id": "prebuilt-layout"
+  }'
+```
+
+**Key Management:**
+- Each user can have only one API key at a time
+- Keys can be regenerated (deletes old key, creates new one)
+- Keys can be deleted when no longer needed
+- Keys do not expire

@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { ApiKeyModule } from "./api-key/api-key.module";
 import { AuthModule } from "./auth/auth.module";
 import { DatabaseModule } from "./database/database.module";
 import { DocumentModule } from "./document/document.module";
@@ -15,6 +16,7 @@ import { UploadModule } from "./upload/upload.module";
       cache: true,
     }),
     AuthModule,
+    ApiKeyModule,
     DatabaseModule,
     DocumentModule,
     QueueModule,

@@ -27,6 +27,7 @@ const defaultDocument = {
   updated_at: new Date(),
   created_at: new Date(),
   apim_request_id: "uuidHere",
+  model_id: "prebuilt-layout",
 } as DocumentData;
 
 const analysisResult: AnalysisResult = {

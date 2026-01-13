@@ -20,6 +20,7 @@ export interface UploadedDocument {
   status: DocumentStatus;
   created_at: Date;
   updated_at: Date;
+  model_id: string;
 }
 
 @Injectable()
@@ -72,6 +73,7 @@ export class DocumentService {
     fileBase64: string,
     fileType: string,
     originalFilename: string,
+    modelId: string,
     metadata?: Record<string, unknown>,
   ): Promise<UploadedDocument> {
     this.logger.debug("=== DocumentService.uploadDocument ===");
@@ -123,6 +125,7 @@ export class DocumentService {
         source: "api",
         status: DocumentStatus.ongoing_ocr,
         apim_request_id: null,
+        model_id: modelId,
       };
 
       const savedDocument =
@@ -141,6 +144,7 @@ export class DocumentService {
         status: savedDocument.status,
         created_at: savedDocument.created_at || new Date(),
         updated_at: savedDocument.updated_at || new Date(),
+        model_id: savedDocument.model_id,
       };
 
       this.logger.debug("=== DocumentService.uploadDocument completed ===");
@@ -171,6 +175,7 @@ export class DocumentService {
       status: document.status,
       created_at: document.created_at || new Date(),
       updated_at: document.updated_at || new Date(),
+      model_id: document.model_id,
     };
   }
 }

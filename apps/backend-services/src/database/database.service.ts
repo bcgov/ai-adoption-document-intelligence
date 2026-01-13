@@ -40,6 +40,7 @@ export class DatabaseService {
           metadata: data.metadata,
           source: data.source,
           status: data.status as DocumentStatus,
+          model_id: data.model_id,
         },
       });
 

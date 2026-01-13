@@ -26,6 +26,7 @@ model Document {
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
   apim_request_id   String?
+  model_id          String   @default("prebuilt-layout")
   ocr_result        OcrResult?
 
   @@map("documents")
@@ -54,4 +55,16 @@ enum DocumentStatus {
   ongoing_ocr
   completed_ocr
   failed
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  key_hash    String    @unique
+  key_prefix  String
+  user_id     String    @unique
+  user_email  String
+  created_at  DateTime  @default(now())
+  last_used   DateTime?
+
+  @@map("api_keys")
 }

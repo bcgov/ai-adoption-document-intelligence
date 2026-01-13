@@ -145,6 +145,11 @@ export function DocumentViewerModal({
               <h3 className="font-semibold text-lg">{document.title}</h3>
               <p className="text-sm text-gray-600">
                 {document.original_filename}
+                {document.model_id && (
+                  <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                    Model: {document.model_id}
+                  </span>
+                )}
               </p>
             </div>
             <Button

@@ -33,6 +33,7 @@ export interface Document {
   extracted_data?: Record<string, unknown> & {
     content?: string;
   };
+  model_id?: string;
 }
 
 export interface BoundingRegion {
@@ -76,6 +77,7 @@ export interface UploadDocumentPayload {
   file_type: "pdf" | "image" | "scan";
   original_filename?: string;
   metadata?: Record<string, unknown>;
+  model_id: string;
 }
 
 export interface ApiResponse<T> {
