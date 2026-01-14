@@ -1,4 +1,4 @@
-import { forwardRef, Module } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { ApiKeyModule } from "../api-key/api-key.module";
@@ -10,7 +10,7 @@ import { BCGovAuthGuard } from "./bcgov-auth.guard";
 import { RolesGuard } from "./roles.guard";
 
 @Module({
-  imports: [ConfigModule, forwardRef(() => ApiKeyModule)],
+  imports: [ConfigModule, ApiKeyModule],
   controllers: [AuthController],
   providers: [
     AuthService,
