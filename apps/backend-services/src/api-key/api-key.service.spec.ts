@@ -140,12 +140,15 @@ describe("ApiKeyService", () => {
   });
 
   describe("validateApiKey", () => {
-    it("should return null for invalid key", async () => {
+    it("should return null when no keys match the prefix", async () => {
       mockPrismaApiKey.findMany.mockResolvedValue([]);
 
       const result = await service.validateApiKey("invalidkey");
 
       expect(result).toBeNull();
+      expect(mockPrismaApiKey.findMany).toHaveBeenCalledWith({
+        where: { key_prefix: "invalidk" },
+      });
     });
 
     it("should return user info and update last_used for valid key", async () => {
@@ -156,6 +159,7 @@ describe("ApiKeyService", () => {
         {
           id: "key123",
           key_hash: hashedKey,
+          key_prefix: "testkey1",
           user_id: "user123",
           user_email: "test@example.com",
         },
@@ -168,10 +172,34 @@ describe("ApiKeyService", () => {
         userId: "user123",
         userEmail: "test@example.com",
       });
+      expect(mockPrismaApiKey.findMany).toHaveBeenCalledWith({
+        where: { key_prefix: "testkey1" },
+      });
       expect(mockPrismaApiKey.update).toHaveBeenCalledWith({
         where: { id: "key123" },
         data: { last_used: expect.any(Date) },
       });
+    });
+
+    it("should return null when prefix matches but hash does not", async () => {
+      const validKey = "testkey123";
+      const differentKey = "testkey1differenthash";
+      const hashedDifferentKey = await bcrypt.hash(differentKey, 10);
+
+      mockPrismaApiKey.findMany.mockResolvedValue([
+        {
+          id: "key123",
+          key_hash: hashedDifferentKey,
+          key_prefix: "testkey1",
+          user_id: "user123",
+          user_email: "test@example.com",
+        },
+      ]);
+
+      const result = await service.validateApiKey(validKey);
+
+      expect(result).toBeNull();
+      expect(mockPrismaApiKey.update).not.toHaveBeenCalled();
     });
   });
 });

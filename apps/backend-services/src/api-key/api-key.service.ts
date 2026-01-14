@@ -129,9 +129,13 @@ export class ApiKeyService {
   async validateApiKey(
     key: string,
   ): Promise<{ userId: string; userEmail: string } | null> {
-    // Get all API keys and check against each one
-    // This is not ideal for large numbers of keys, but works for single-key-per-user model
-    const apiKeys = await this.prisma.apiKey.findMany();
+    // Extract prefix from the incoming key for indexed lookup
+    const prefix = key.substring(0, 8);
+
+    // Query only keys with matching prefix (O(1) lookup instead of O(n))
+    const apiKeys = await this.prisma.apiKey.findMany({
+      where: { key_prefix: prefix },
+    });
 
     for (const apiKey of apiKeys) {
       const isValid = await bcrypt.compare(key, apiKey.key_hash);
