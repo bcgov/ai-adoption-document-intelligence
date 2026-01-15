@@ -129,7 +129,9 @@ export class AuthController {
    */
   @Public()
   @Get("callback")
-  @ApiOperation({ summary: "Handle Keycloak OAuth callback and redirect to application" })
+  @ApiOperation({
+    summary: "Handle Keycloak OAuth callback and redirect to application",
+  })
   @ApiResponse({
     status: 302,
     description: "Redirects to the application with an auth result or error",
@@ -165,7 +167,9 @@ export class AuthController {
    */
   @Public()
   @Get("result")
-  @ApiOperation({ summary: "Retrieve provider tokens using a resultId after OAuth flow" })
+  @ApiOperation({
+    summary: "Retrieve provider tokens using a resultId after OAuth flow",
+  })
   @ApiQuery({ name: "result" })
   @ApiOkResponse({
     description: "Returns the provider tokens for a valid resultId",
