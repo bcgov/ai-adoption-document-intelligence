@@ -23,7 +23,7 @@ import {
   GeneratedApiKeyDto,
   GeneratedApiKeyWrapperDto,
 } from "@/api-key/dto/apikeyinfo.dto";
-import { KeycloakSSO } from "@/decorators/customAuthDecorators";
+import { KeycloakSSOAuth } from "@/decorators/customAuthDecorators";
 import { ApiKeyService } from "./api-key.service";
 
 @ApiTags("API Keys")
@@ -32,7 +32,7 @@ export class ApiKeyController {
   constructor(private readonly apiKeyService: ApiKeyService) {}
 
   @Get()
-  @KeycloakSSO()
+  @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get the current user's API key information" })
   @ApiOkResponse({
     description: "Returns the user's API key if it exists",
@@ -55,7 +55,7 @@ export class ApiKeyController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @KeycloakSSO()
+  @KeycloakSSOAuth()
   @ApiOperation({ summary: "Generate a new API key for the current user" })
   @ApiCreatedResponse({
     description: "Returns the newly generated API key",
@@ -79,7 +79,7 @@ export class ApiKeyController {
 
   @Delete()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @KeycloakSSO()
+  @KeycloakSSOAuth()
   @ApiOperation({ summary: "Delete the current user's API key" })
   @ApiNoContentResponse({ description: "API key deleted successfully" })
   @ApiUnauthorizedResponse({ description: "User is not authenticated" })
@@ -91,7 +91,7 @@ export class ApiKeyController {
   }
 
   @Post("regenerate")
-  @KeycloakSSO()
+  @KeycloakSSOAuth()
   @ApiOperation({ summary: "Regenerate the current user's API key" })
   @ApiOkResponse({
     description: "Returns the newly generated API key",

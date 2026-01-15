@@ -7,7 +7,7 @@ import {
   Logger,
   Post,
 } from "@nestjs/common";
-import { ApiKeyAuth } from "../auth/api-key-auth.decorator";
+import { ApiKeyAuth } from "@/decorators/customAuthDecorators";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";

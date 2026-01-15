@@ -18,11 +18,7 @@ async function bootstrap(): Promise<void> {
       { type: "http", scheme: "bearer", bearerFormat: "JWT" },
       "keycloak-sso", // This is the name/key for the security scheme
     )
-    .addBearerAuth({
-      name: "api-key",
-      type: "apiKey",
-      in: "x-api-key",
-    })
+    .addApiKey({ type: "apiKey", name: "x-api-key", in: "header" }, "api-key")
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup("api", app, documentFactory);
