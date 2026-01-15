@@ -1,8 +1,10 @@
-// A copy of TokenResponse Interface from auth.service
-
 import { ApiProperty } from "@nestjs/swagger";
 
-// Needed for OpenAPI return value
+/**
+ * Wire-format returned by Keycloak when exchanging or refreshing tokens.
+ * We preserve these fields to keep the frontend stateless and avoid issuing
+ * application-specific credentials.
+ */
 export class TokenResponseDto {
   @ApiProperty()
   access_token: string;

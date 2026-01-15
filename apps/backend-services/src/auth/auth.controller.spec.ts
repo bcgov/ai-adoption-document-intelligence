@@ -8,7 +8,6 @@ import {
   OAuthCallbackQueryDto,
   RefreshTokenDto,
 } from "./dto";
-import { Public } from "./public.decorator";
 
 describe("AuthController", () => {
   let controller: AuthController;
