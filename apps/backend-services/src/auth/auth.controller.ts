@@ -13,8 +13,10 @@ import {
   ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
+  ApiOperation,
   ApiQuery,
   ApiResponse,
+  ApiTags,
 } from "@nestjs/swagger";
 import { Response } from "express";
 import { TokenResponseDto } from "@/auth/dto/token-response.dto";
@@ -32,6 +34,7 @@ import { Public } from "./public.decorator";
  * Thin HTTP layer that exposes the OAuth entrypoints to the frontend.
  * All routes are public because authorization happens via bearer tokens on other controllers.
  */
+@ApiTags("Authorization")
 @Controller("auth")
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
@@ -43,6 +46,7 @@ export class AuthController {
    */
   @Public()
   @Post("refresh")
+  @ApiOperation({ summary: "Refresh provider tokens using a refresh token" })
   @ApiOkResponse({
     type: RefreshReturnDto,
     description: "Returns refreshed token if successful",
@@ -66,6 +70,7 @@ export class AuthController {
    */
   @Public()
   @Get("login")
+  @ApiOperation({ summary: "Redirect to Keycloak authorization endpoint" })
   @ApiResponse({
     status: 302,
     description: "Redirects to the Keycloak authorization endpoint",
@@ -94,6 +99,7 @@ export class AuthController {
    */
   @Public()
   @Get("logout")
+  @ApiOperation({ summary: "Redirect to Keycloak logout endpoint" })
   @ApiResponse({
     status: 302,
     description: "Redirects to the Keycloak logout endpoint",
@@ -123,6 +129,7 @@ export class AuthController {
    */
   @Public()
   @Get("callback")
+  @ApiOperation({ summary: "Handle Keycloak OAuth callback and redirect to application" })
   @ApiResponse({
     status: 302,
     description: "Redirects to the application with an auth result or error",
@@ -158,6 +165,7 @@ export class AuthController {
    */
   @Public()
   @Get("result")
+  @ApiOperation({ summary: "Retrieve provider tokens using a resultId after OAuth flow" })
   @ApiQuery({ name: "result" })
   @ApiOkResponse({
     description: "Returns the provider tokens for a valid resultId",
