@@ -15,13 +15,13 @@ async function bootstrap(): Promise<void> {
     .setDescription("API documentation for the CITZ OCR service.")
     .setVersion("1.0") // Would be interesting if we can tie this to actual versioning.
     .addBearerAuth(
-    { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
-    'keycloak-sso', // This is the name/key for the security scheme
-  )
+      { type: "http", scheme: "bearer", bearerFormat: "JWT" },
+      "keycloak-sso", // This is the name/key for the security scheme
+    )
     .addBearerAuth({
       name: "api-key",
       type: "apiKey",
-      in: 'x-api-key'
+      in: "x-api-key",
     })
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
