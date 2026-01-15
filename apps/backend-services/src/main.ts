@@ -1,5 +1,6 @@
 import { Logger, ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { json, urlencoded } from "body-parser";
 import { AppModule } from "./app.module";
 
@@ -7,6 +8,15 @@ const logger = new Logger("Bootstrap");
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
+
+    // Swagger (OpenAPI) Setup
+  const config = new DocumentBuilder()
+    .setTitle('CITZ OCR Service') // Taking suggestions on names
+    .setDescription('API documentation for the CITZ OCR service.')
+    .setVersion('1.0') // Would be interesting if we can tie this to actual versioning.
+    .build();
+  const documentFactory = () => SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, documentFactory);
 
   app.use(
     json({
