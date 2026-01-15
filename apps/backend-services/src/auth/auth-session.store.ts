@@ -1,7 +1,7 @@
-import { TokenResponseDto } from "@/auth/dto/token-response.dto";
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { randomUUID } from "crypto";
+import { TokenResponseDto } from "@/auth/dto/token-response.dto";
 
 interface StoredTokens {
   tokens: TokenResponseDto;
