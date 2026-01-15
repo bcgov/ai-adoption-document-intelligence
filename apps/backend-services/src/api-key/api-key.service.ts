@@ -8,19 +8,11 @@ import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import * as bcrypt from "bcrypt";
 import * as crypto from "crypto";
+import {
+  ApiKeyInfoDto,
+  GeneratedApiKeyDto,
+} from "@/api-key/dto/apikeyinfo.dto";
 import { PrismaClient } from "../generated/client";
-
-export interface ApiKeyInfo {
-  id: string;
-  keyPrefix: string;
-  userEmail: string;
-  createdAt: Date;
-  lastUsed: Date | null;
-}
-
-export interface GeneratedApiKey extends ApiKeyInfo {
-  key: string; // Full key, only returned once at creation
-}
 
 @Injectable()
 export class ApiKeyService {
@@ -34,7 +26,7 @@ export class ApiKeyService {
     });
   }
 
-  async getUserApiKey(userId: string): Promise<ApiKeyInfo | null> {
+  async getUserApiKey(userId: string): Promise<ApiKeyInfoDto | null> {
     const apiKey = await this.prisma.apiKey.findUnique({
       where: { user_id: userId },
     });
@@ -55,7 +47,7 @@ export class ApiKeyService {
   async generateApiKey(
     userId: string,
     userEmail: string,
-  ): Promise<GeneratedApiKey> {
+  ): Promise<GeneratedApiKeyDto> {
     // Check if user already has a key
     const existingKey = await this.prisma.apiKey.findUnique({
       where: { user_id: userId },
@@ -114,7 +106,7 @@ export class ApiKeyService {
   async regenerateApiKey(
     userId: string,
     userEmail: string,
-  ): Promise<GeneratedApiKey> {
+  ): Promise<GeneratedApiKeyDto> {
     // Delete existing key if any
     try {
       await this.deleteApiKey(userId);
