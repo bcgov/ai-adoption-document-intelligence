@@ -11,7 +11,7 @@ import * as crypto from "crypto";
 import {
   ApiKeyInfoDto,
   GeneratedApiKeyDto,
-} from "@/api-key/dto/apikeyinfo.dto";
+} from "@/api-key/dto/api-key-info.dto";
 import { PrismaClient } from "../generated/client";
 
 @Injectable()

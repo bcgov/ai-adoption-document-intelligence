@@ -17,7 +17,10 @@ import {
 import { Response } from "express";
 import { readFile } from "fs/promises";
 import { join } from "path";
-import { ApiKeyAuth, KeycloakSSOAuth } from "@/decorators/customAuthDecorators";
+import {
+  ApiKeyAuth,
+  KeycloakSSOAuth,
+} from "@/decorators/custom-auth-decorators";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import { DatabaseService } from "../database/database.service";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";

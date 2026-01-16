@@ -6,7 +6,7 @@ import { join } from "path";
 import { lastValueFrom } from "rxjs";
 import { DatabaseService } from "@/database/database.service";
 import { DocumentStatus } from "@/generated/enums";
-import { AnalysisResponse, AnalysisResult } from "@/ocr/azureTypes";
+import { AnalysisResponse, AnalysisResult } from "@/ocr/azure-types";
 
 export interface OcrRequestResponse {
   status: DocumentStatus;

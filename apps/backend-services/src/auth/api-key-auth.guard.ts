@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
-import { API_KEY_AUTH_KEY } from "@/decorators/customAuthDecorators";
+import { API_KEY_AUTH_KEY } from "@/decorators/custom-auth-decorators";
 import { ApiKeyService } from "../api-key/api-key.service";
 
 @Injectable()

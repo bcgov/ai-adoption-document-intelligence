@@ -22,8 +22,8 @@ import {
   ApiKeyInfoWrapperDto,
   GeneratedApiKeyDto,
   GeneratedApiKeyWrapperDto,
-} from "@/api-key/dto/apikeyinfo.dto";
-import { KeycloakSSOAuth } from "@/decorators/customAuthDecorators";
+} from "@/api-key/dto/api-key-info.dto";
+import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { ApiKeyService } from "./api-key.service";
 
 @ApiTags("API Keys")
