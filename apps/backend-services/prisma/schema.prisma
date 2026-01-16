@@ -26,6 +26,7 @@ model Document {
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
   apim_request_id   String?
+  workflow_id       String?  @unique
   ocr_result        OcrResult?
 
   @@map("documents")

@@ -5,6 +5,7 @@ import { DatabaseModule } from "./database/database.module";
 import { DocumentModule } from "./document/document.module";
 import { OcrModule } from "./ocr/ocr.module";
 import { QueueModule } from "./queue/queue.module";
+import { TemporalModule } from "./temporal/temporal.module";
 import { UploadModule } from "./upload/upload.module";
 
 @Module({
@@ -19,6 +20,7 @@ import { UploadModule } from "./upload/upload.module";
     DocumentModule,
     QueueModule,
     UploadModule,
+    TemporalModule,
     OcrModule,
   ],
 })
