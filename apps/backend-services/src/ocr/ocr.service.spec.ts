@@ -12,7 +12,7 @@ import * as fs from "fs/promises";
 import { of } from "rxjs";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { DocumentStatus } from "../generated/enums";
-import { AnalysisResponse, AnalysisResult } from "./azureTypes";
+import { AnalysisResponse, AnalysisResult } from "./azure-types";
 import { OcrService } from "./ocr.service";
 
 const defaultDocument = {
