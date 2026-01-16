@@ -6,7 +6,6 @@ import {
   Logger,
   NotFoundException,
   Param,
-  Req,
   Res,
 } from "@nestjs/common";
 import {
@@ -15,81 +14,22 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { Request, Response } from "express";
+import { Response } from "express";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { ApiKeyAuth, KeycloakSSOAuth } from "@/decorators/customAuthDecorators";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
-import { OcrResult } from "@/generated/client";
-import { Roles } from "../auth/roles.decorator";
-import { DatabaseService, DocumentData } from "../database/database.service";
-import { AdminDataResponseDto } from "./dto/admin-data-response.dto";
+import { DatabaseService } from "../database/database.service";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
-import { ProtectedDataResponseDto } from "./dto/protected-data-response.dto";
 
 @ApiTags("Documents")
-@Controller("api")
+@Controller("api/documents")
 export class DocumentController {
   private readonly logger = new Logger(DocumentController.name);
 
   constructor(private readonly databaseService: DatabaseService) {}
 
-  @Get("protected")
-  @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Get protected data for the authenticated user" })
-  @ApiOkResponse({
-    description: "Returns protected data and user info",
-    type: ProtectedDataResponseDto,
-  })
-  getProtectedData(@Req() req: Request): {
-    message: string;
-    user: {
-      idirUsername?: string;
-      displayName?: string;
-      email?: string;
-    };
-  } {
-    const user = req.user; // Contains decoded token
-    return {
-      message: "Protected data",
-      user: {
-        idirUsername: user?.idir_username,
-        displayName: user?.display_name,
-        email: user?.email,
-      },
-    };
-  }
-
-  @Get("admin")
-  @Roles("admin")
-  @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Get admin-only data for users with admin role" })
-  @ApiOkResponse({
-    description: "Returns admin data and user info",
-    type: AdminDataResponseDto,
-  })
-  getAdminData(@Req() req: Request): {
-    message: string;
-    user: {
-      idirUsername?: string;
-      displayName?: string;
-      email?: string;
-      roles: string[];
-    };
-  } {
-    const user = req.user;
-    return {
-      message: "Admin only data",
-      user: {
-        idirUsername: user?.idir_username,
-        displayName: user?.display_name,
-        email: user?.email,
-        roles: user?.roles || [],
-      },
-    };
-  }
-
-  @Get("documents")
+  @Get()
   @HttpCode(HttpStatus.OK)
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get all documents" })
@@ -117,7 +57,7 @@ export class DocumentController {
     }
   }
 
-  @Get("documents/:documentId/ocr")
+  @Get("/:documentId/ocr")
   @HttpCode(HttpStatus.OK)
   @ApiKeyAuth()
   @KeycloakSSOAuth()
@@ -193,7 +133,7 @@ export class DocumentController {
     }
   }
 
-  @Get("documents/:documentId/download")
+  @Get("/:documentId/download")
   @HttpCode(HttpStatus.OK)
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Download a document file by ID" })
