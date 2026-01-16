@@ -1,3 +1,4 @@
+import { ApiProperty } from "@nestjs/swagger";
 import {
   IsEnum,
   IsNotEmpty,
@@ -15,25 +16,31 @@ export enum FileType {
 export class UploadDocumentDto {
   @IsString()
   @IsNotEmpty()
+  @ApiProperty()
   title: string;
 
   @IsString()
   @IsNotEmpty()
+  @ApiProperty()
   file: string; // base64-encoded file
 
   @IsEnum(FileType)
   @IsNotEmpty()
+  @ApiProperty({ enum: FileType })
   file_type: FileType;
 
   @IsString()
   @IsOptional()
+  @ApiProperty()
   original_filename?: string;
 
   @IsObject()
   @IsOptional()
+  @ApiProperty({ type: Object })
   metadata?: Record<string, unknown>;
 
   @IsString()
   @IsNotEmpty()
+  @ApiProperty()
   model_id: string;
 }

@@ -11,8 +11,10 @@ import { ApiKeyAuth } from "@/decorators/customAuthDecorators";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
+import { UploadDocumentResponseDto } from "./dto/upload-document-response.dto";
+import { ApiOperation, ApiOkResponse, ApiBadRequestResponse } from "@nestjs/swagger";
 
-@Controller("api")
+@Controller("api/upload")
 export class UploadController {
   private readonly logger = new Logger(UploadController.name);
 
@@ -21,21 +23,14 @@ export class UploadController {
     private readonly queueService: QueueService,
   ) {}
 
-  @Post("upload")
+  @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiKeyAuth()
-  async uploadDocument(@Body() uploadDto: UploadDocumentDto): Promise<{
-    success: boolean;
-    document: {
-      id: string;
-      title: string;
-      original_filename: string;
-      file_type: string;
-      file_size: number;
-      status: string;
-      created_at: Date;
-    };
-  }> {
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Upload a new document and start OCR processing" })
+  @ApiOkResponse({ description: "Document uploaded successfully", type: UploadDocumentResponseDto })
+  @ApiBadRequestResponse({ description: "Invalid input or upload failed" })
+  async uploadDocument(@Body() uploadDto: UploadDocumentDto): Promise<UploadDocumentResponseDto> {
     this.logger.debug("=== UploadController.uploadDocument ===");
     this.logger.debug(
       `Received upload request: ${JSON.stringify(
