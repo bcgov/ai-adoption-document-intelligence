@@ -5,13 +5,17 @@ const readFile = jest.fn().mockResolvedValue({
 });
 jest.mock("fs/promises", () => ({ readFile }));
 
-import { HttpService } from "@nestjs/axios";
+import {
+  BadRequestException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as fs from "fs/promises";
-import { of } from "rxjs";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { DocumentStatus } from "../generated/enums";
+import { TemporalClientService } from "../temporal/temporal-client.service";
 import { AnalysisResponse, AnalysisResult } from "./azureTypes";
 import { OcrService } from "./ocr.service";
 
@@ -52,7 +56,7 @@ const analysisResponse: AnalysisResponse = {
 describe("OcrService", () => {
   let service: OcrService;
   let databaseService: DatabaseService;
-  let httpService: HttpService;
+  let temporalClientService: TemporalClientService;
   let moduleRef: TestingModule;
 
   beforeEach(async () => {
@@ -81,22 +85,18 @@ describe("OcrService", () => {
             updateDocument: jest.fn().mockResolvedValue({
               ...defaultDocument,
               status: DocumentStatus.ongoing_ocr,
+              workflow_id: "workflow-123",
             }),
             upsertOcrResult: jest.fn(),
+            findOcrResult: jest.fn(),
           },
         },
         {
-          provide: HttpService,
+          provide: TemporalClientService,
           useValue: {
-            post: jest.fn().mockReturnValue(
-              of({
-                status: 202,
-                headers: {
-                  "apim-request-id": "123",
-                },
-              }),
-            ),
-            get: jest.fn(),
+            startOCRWorkflow: jest.fn().mockResolvedValue("workflow-123"),
+            getWorkflowStatus: jest.fn(),
+            queryWorkflowStatus: jest.fn(),
           },
         },
       ],
@@ -104,30 +104,33 @@ describe("OcrService", () => {
 
     service = moduleRef.get<OcrService>(OcrService);
     databaseService = moduleRef.get<DatabaseService>(DatabaseService);
-    httpService = moduleRef.get<HttpService>(HttpService);
+    temporalClientService = moduleRef.get<TemporalClientService>(
+      TemporalClientService,
+    );
   });
 
   describe("OcrService constructor", () => {
-    it("throws if Azure config is missing", () => {
+    it("should initialize successfully", () => {
       const mockConfigService = {
-        get: jest.fn().mockReturnValueOnce(undefined), // Always returns undefined
+        get: jest.fn().mockReturnValue("/tmp/storage"),
       };
       expect(
         () =>
           new OcrService(
             mockConfigService as any,
             {} as DatabaseService,
-            {} as HttpService,
+            {} as TemporalClientService,
           ),
-      ).toThrow("Azure Document Intelligence credentials not configured.");
+      ).not.toThrow();
     });
   });
 
   describe("requestOcr", () => {
-    it("should return an apim id and ongoing status upon success", async () => {
+    it("should return workflow id and ongoing status upon success", async () => {
       const result = await service.requestOcr("0000");
       expect(result.status).toEqual(DocumentStatus.ongoing_ocr);
-      expect(result.apimRequestId).toEqual(defaultDocument.apim_request_id);
+      expect(result.workflowId).toEqual("workflow-123");
+      expect(temporalClientService.startOCRWorkflow).toHaveBeenCalled();
     });
 
     it("should throw a NotFoundException if no document matches that id", async () => {
@@ -145,26 +148,41 @@ describe("OcrService", () => {
       });
     });
 
-    it("should return a failed status with error if Azure does not return 202", async () => {
-      (httpService.post as jest.Mock).mockReturnValueOnce(of({ status: 400 }));
+    it("should return a failed status with error if Temporal workflow fails to start", async () => {
+      (
+        temporalClientService.startOCRWorkflow as jest.Mock
+      ).mockRejectedValueOnce(new Error("Temporal connection failed"));
       await expect(service.requestOcr("123")).resolves.toEqual({
         status: DocumentStatus.failed,
-        error: "Error sending document to Azure",
+        error: "Temporal connection failed",
       });
     });
   });
 
   describe("retrieveOcrResults", () => {
-    it("should return OCR results", async () => {
+    it("should return OCR results from database", async () => {
+      const mockOcrResult = {
+        document_id: "123",
+        extracted_text: "a bunch of content",
+        pages: [],
+        tables: [],
+        paragraphs: [],
+        styles: [],
+        sections: [],
+        figures: [],
+        keyValuePairs: null,
+        processed_at: new Date().toISOString(),
+      };
       (databaseService.findDocument as jest.Mock).mockResolvedValue({
         ...defaultDocument,
         status: DocumentStatus.completed_ocr,
+        workflow_id: "workflow-123",
       });
-      (httpService.get as jest.Mock).mockReturnValueOnce(
-        of({ status: 200, data: analysisResponse }),
+      (databaseService.findOcrResult as jest.Mock).mockResolvedValue(
+        mockOcrResult,
       );
       const result = await service.retrieveOcrResults("123");
-      expect(result).toEqual(analysisResult);
+      expect(result.content).toEqual("a bunch of content");
     });
 
     it("should throw a NotFoundException if document not found", async () => {
@@ -174,72 +192,375 @@ describe("OcrService", () => {
       );
     });
 
-    it("should return null if the analysis is still running", async () => {
+    it("should throw ServiceUnavailableException if workflow is still running", async () => {
       (databaseService.findDocument as jest.Mock).mockResolvedValue({
         ...defaultDocument,
-        status: DocumentStatus.completed_ocr,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: "workflow-123",
       });
-      (httpService.get as jest.Mock).mockReturnValueOnce(
-        of({ status: 200, data: { ...analysisResponse, status: "running" } }),
-      );
-      const result = await service.retrieveOcrResults("123");
-      expect(result).toBeNull();
-    });
-
-    it("should throw an Error if the Azure response has no attached result", async () => {
-      (databaseService.findDocument as jest.Mock).mockResolvedValue({
-        ...defaultDocument,
-        status: DocumentStatus.completed_ocr,
+      (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
+        throw new NotFoundException("No OCR result found");
       });
-      (httpService.get as jest.Mock).mockReturnValueOnce(
-        of({
-          status: 200,
-          data: { ...analysisResponse, analyzeResult: null, status: "failed" },
-        }),
-      );
-      expect(service.retrieveOcrResults("123")).rejects.toThrow(
-        "No analyzeResult in Azure response for document 123 (status: failed)",
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockResolvedValue({
+        status: "RUNNING",
+      });
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        "OCR processing is still in progress",
       );
     });
 
-    it("should throw an Error if document was never sent for OCR", async () => {
+    it("should throw BadRequestException if document was never sent for OCR", async () => {
       // if pre-ocr
       (databaseService.findDocument as jest.Mock).mockResolvedValue({
         ...defaultDocument,
         status: DocumentStatus.pre_ocr,
+        workflow_id: null,
       });
       await expect(service.retrieveOcrResults("123")).rejects.toThrow(
-        "Document ID 123 has not yet been sent for OCR.",
+        "Document ID 123 has not yet been sent for OCR",
       );
 
       // if failed
       (databaseService.findDocument as jest.Mock).mockResolvedValue({
         ...defaultDocument,
-        status: DocumentStatus.pre_ocr,
+        status: DocumentStatus.failed,
+        workflow_id: null,
       });
       await expect(service.retrieveOcrResults("123")).rejects.toThrow(
-        "Document ID 123 has not yet been sent for OCR.",
+        "Document ID 123 has not yet been sent for OCR",
       );
 
-      // if no apim
+      // if no workflow_id
       (databaseService.findDocument as jest.Mock).mockResolvedValue({
         ...defaultDocument,
-        status: DocumentStatus.completed_ocr,
-        apim_request_id: null,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: null,
       });
       await expect(service.retrieveOcrResults("123")).rejects.toThrow(
-        "Document ID 123 has not yet been sent for OCR.",
+        "Document ID 123 does not have an associated workflow",
       );
     });
 
-    it("should throw an Error if document cannot be retrieved from Azure", async () => {
+    it("should throw ServiceUnavailableException if workflow failed", async () => {
       (databaseService.findDocument as jest.Mock).mockResolvedValue({
         ...defaultDocument,
-        status: DocumentStatus.completed_ocr,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: "workflow-123",
       });
-      (httpService.get as jest.Mock).mockReturnValueOnce(of({ status: 400 }));
+      (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
+        throw new NotFoundException("No OCR result found");
+      });
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockResolvedValue({
+        status: "FAILED",
+      });
       await expect(service.retrieveOcrResults("123")).rejects.toThrow(
-        "Failed to retrieve OCR results for document ID 123",
+        "OCR processing failed",
+      );
+    });
+
+    it("should throw ServiceUnavailableException if workflow completed but results not in database", async () => {
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: "workflow-123",
+      });
+      (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
+        throw new NotFoundException("No OCR result found");
+      });
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockResolvedValue({
+        status: "COMPLETED",
+      });
+
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        "Workflow workflow-123 completed but OCR results not found in database",
+      );
+    }, 10000);
+
+    it("should return results after waiting for database when workflow completed", async () => {
+      jest.useFakeTimers();
+      const mockOcrResult = {
+        document_id: "123",
+        extracted_text: "content",
+        pages: [],
+        tables: [],
+        paragraphs: [],
+        styles: [],
+        sections: [],
+        figures: [],
+        keyValuePairs: null,
+        processed_at: new Date().toISOString(),
+      };
+
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: "workflow-123",
+      });
+      (databaseService.findOcrResult as jest.Mock)
+        .mockImplementationOnce(() => {
+          throw new NotFoundException("No OCR result found");
+        })
+        .mockResolvedValueOnce(mockOcrResult);
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockResolvedValue({
+        status: "COMPLETED",
+      });
+
+      const resultPromise = service.retrieveOcrResults("123");
+      
+      // Fast-forward timers to skip the delay
+      jest.advanceTimersByTime(1000);
+      
+      const result = await resultPromise;
+      expect(result.content).toEqual("content");
+      
+      jest.useRealTimers();
+    });
+
+    it("should provide detailed status message when workflow is running with query status", async () => {
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: "workflow-123",
+      });
+      (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
+        throw new NotFoundException("No OCR result found");
+      });
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockResolvedValue({
+        status: "RUNNING",
+      });
+      (
+        temporalClientService.queryWorkflowStatus as jest.Mock
+      ).mockResolvedValue({
+        currentStep: "polling",
+        status: "running",
+        retryCount: 2,
+        maxRetries: 5,
+      });
+
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        "Current step: polling",
+      );
+    });
+
+    it("should handle query error gracefully when workflow is running", async () => {
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: "workflow-123",
+      });
+      (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
+        throw new NotFoundException("No OCR result found");
+      });
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockResolvedValue({
+        status: "RUNNING",
+      });
+      (
+        temporalClientService.queryWorkflowStatus as jest.Mock
+      ).mockRejectedValue(new Error("Query failed"));
+
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+    });
+
+    it("should update document status to failed if workflow failed and document status is not failed", async () => {
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: "workflow-123",
+      });
+      (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
+        throw new NotFoundException("No OCR result found");
+      });
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockResolvedValue({
+        status: "FAILED",
+      });
+      (
+        temporalClientService.queryWorkflowStatus as jest.Mock
+      ).mockResolvedValue({
+        error: "Workflow error",
+      });
+
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+      expect(databaseService.updateDocument).toHaveBeenCalledWith("123", {
+        status: DocumentStatus.failed,
+      });
+    });
+
+    it("should not update document status if already failed", async () => {
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.failed,
+        workflow_id: "workflow-123",
+      });
+      (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
+        throw new NotFoundException("No OCR result found");
+      });
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockResolvedValue({
+        status: "FAILED",
+      });
+
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+      expect(databaseService.updateDocument).not.toHaveBeenCalled();
+    });
+
+    it("should throw ServiceUnavailableException for unknown workflow status", async () => {
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: "workflow-123",
+      });
+      (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
+        throw new NotFoundException("No OCR result found");
+      });
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockResolvedValue({
+        status: "UNKNOWN_STATUS",
+      });
+
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        "OCR processing has unknown status",
+      );
+    });
+
+    it("should handle Temporal unavailable error and fallback to database", async () => {
+      const mockOcrResult = {
+        document_id: "123",
+        extracted_text: "content",
+        pages: [],
+        tables: [],
+        paragraphs: [],
+        styles: [],
+        sections: [],
+        figures: [],
+        keyValuePairs: null,
+        processed_at: new Date().toISOString(),
+      };
+
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: "workflow-123",
+      });
+      (databaseService.findOcrResult as jest.Mock)
+        .mockImplementationOnce(() => {
+          throw new NotFoundException("No OCR result found");
+        })
+        .mockResolvedValueOnce(mockOcrResult);
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockRejectedValue(
+        new Error("Temporal client not initialized"),
+      );
+
+      const result = await service.retrieveOcrResults("123");
+      expect(result.content).toEqual("content");
+    });
+
+    it("should handle Temporal unavailable error and throw if database also fails", async () => {
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: "workflow-123",
+      });
+      (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
+        throw new NotFoundException("No OCR result found");
+      });
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockRejectedValue(
+        new Error("Temporal client not initialized"),
+      );
+
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+    });
+
+    it("should wrap non-NestJS errors in ServiceUnavailableException", async () => {
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: "workflow-123",
+      });
+      (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
+        throw new NotFoundException("No OCR result found");
+      });
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockRejectedValue(new Error("Unexpected error"));
+
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        "Failed to retrieve OCR results for document 123",
+      );
+    });
+
+    it("should handle non-Error objects in error handling", async () => {
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: "workflow-123",
+      });
+      (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
+        throw new NotFoundException("No OCR result found");
+      });
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockRejectedValue("String error");
+
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+    });
+
+    it("should re-throw NestJS exceptions without wrapping", async () => {
+      (databaseService.findDocument as jest.Mock).mockResolvedValue({
+        ...defaultDocument,
+        status: DocumentStatus.ongoing_ocr,
+        workflow_id: "workflow-123",
+      });
+      (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
+        throw new NotFoundException("No OCR result found");
+      });
+      (
+        temporalClientService.getWorkflowStatus as jest.Mock
+      ).mockRejectedValue(new BadRequestException("Bad request"));
+
+      await expect(service.retrieveOcrResults("123")).rejects.toThrow(
+        BadRequestException,
       );
     });
   });
