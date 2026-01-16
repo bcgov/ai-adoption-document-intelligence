@@ -4,5 +4,5 @@
  */
 
 export const WORKFLOW_TYPES = {
-  OCR_WORKFLOW: 'ocrWorkflow',
+  OCR_WORKFLOW: "ocrWorkflow",
 } as const;

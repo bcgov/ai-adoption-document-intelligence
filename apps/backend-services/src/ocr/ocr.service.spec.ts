@@ -46,7 +46,7 @@ const analysisResult: AnalysisResult = {
   sections: [],
   figures: [],
 };
-const analysisResponse: AnalysisResponse = {
+const _analysisResponse: AnalysisResponse = {
   status: "complete",
   analyzeResult: analysisResult,
   lastUpdatedDateTime: Date.now().toString(),
@@ -201,9 +201,7 @@ describe("OcrService", () => {
       (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
         throw new NotFoundException("No OCR result found");
       });
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockResolvedValue({
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockResolvedValue({
         status: "RUNNING",
       });
       await expect(service.retrieveOcrResults("123")).rejects.toThrow(
@@ -252,9 +250,7 @@ describe("OcrService", () => {
       (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
         throw new NotFoundException("No OCR result found");
       });
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockResolvedValue({
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockResolvedValue({
         status: "FAILED",
       });
       await expect(service.retrieveOcrResults("123")).rejects.toThrow(
@@ -271,9 +267,7 @@ describe("OcrService", () => {
       (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
         throw new NotFoundException("No OCR result found");
       });
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockResolvedValue({
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockResolvedValue({
         status: "COMPLETED",
       });
 
@@ -310,20 +304,18 @@ describe("OcrService", () => {
           throw new NotFoundException("No OCR result found");
         })
         .mockResolvedValueOnce(mockOcrResult);
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockResolvedValue({
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockResolvedValue({
         status: "COMPLETED",
       });
 
       const resultPromise = service.retrieveOcrResults("123");
-      
+
       // Fast-forward timers to skip the delay
       jest.advanceTimersByTime(1000);
-      
+
       const result = await resultPromise;
       expect(result.content).toEqual("content");
-      
+
       jest.useRealTimers();
     });
 
@@ -336,9 +328,7 @@ describe("OcrService", () => {
       (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
         throw new NotFoundException("No OCR result found");
       });
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockResolvedValue({
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockResolvedValue({
         status: "RUNNING",
       });
       (
@@ -367,9 +357,7 @@ describe("OcrService", () => {
       (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
         throw new NotFoundException("No OCR result found");
       });
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockResolvedValue({
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockResolvedValue({
         status: "RUNNING",
       });
       (
@@ -390,9 +378,7 @@ describe("OcrService", () => {
       (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
         throw new NotFoundException("No OCR result found");
       });
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockResolvedValue({
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockResolvedValue({
         status: "FAILED",
       });
       (
@@ -418,9 +404,7 @@ describe("OcrService", () => {
       (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
         throw new NotFoundException("No OCR result found");
       });
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockResolvedValue({
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockResolvedValue({
         status: "FAILED",
       });
 
@@ -439,9 +423,7 @@ describe("OcrService", () => {
       (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
         throw new NotFoundException("No OCR result found");
       });
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockResolvedValue({
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockResolvedValue({
         status: "UNKNOWN_STATUS",
       });
 
@@ -477,9 +459,7 @@ describe("OcrService", () => {
           throw new NotFoundException("No OCR result found");
         })
         .mockResolvedValueOnce(mockOcrResult);
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockRejectedValue(
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockRejectedValue(
         new Error("Temporal client not initialized"),
       );
 
@@ -496,9 +476,7 @@ describe("OcrService", () => {
       (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
         throw new NotFoundException("No OCR result found");
       });
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockRejectedValue(
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockRejectedValue(
         new Error("Temporal client not initialized"),
       );
 
@@ -516,9 +494,9 @@ describe("OcrService", () => {
       (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
         throw new NotFoundException("No OCR result found");
       });
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockRejectedValue(new Error("Unexpected error"));
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockRejectedValue(
+        new Error("Unexpected error"),
+      );
 
       await expect(service.retrieveOcrResults("123")).rejects.toThrow(
         ServiceUnavailableException,
@@ -537,9 +515,9 @@ describe("OcrService", () => {
       (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
         throw new NotFoundException("No OCR result found");
       });
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockRejectedValue("String error");
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockRejectedValue(
+        "String error",
+      );
 
       await expect(service.retrieveOcrResults("123")).rejects.toThrow(
         ServiceUnavailableException,
@@ -555,9 +533,9 @@ describe("OcrService", () => {
       (databaseService.findOcrResult as jest.Mock).mockImplementation(() => {
         throw new NotFoundException("No OCR result found");
       });
-      (
-        temporalClientService.getWorkflowStatus as jest.Mock
-      ).mockRejectedValue(new BadRequestException("Bad request"));
+      (temporalClientService.getWorkflowStatus as jest.Mock).mockRejectedValue(
+        new BadRequestException("Bad request"),
+      );
 
       await expect(service.retrieveOcrResults("123")).rejects.toThrow(
         BadRequestException,

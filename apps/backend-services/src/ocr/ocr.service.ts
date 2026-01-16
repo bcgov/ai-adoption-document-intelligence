@@ -9,17 +9,17 @@ import { ConfigService } from "@nestjs/config";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { DatabaseService } from "@/database/database.service";
-import { DocumentStatus } from "@/generated/enums";
 import { OcrResult } from "@/generated/client";
+import { DocumentStatus } from "@/generated/enums";
 import {
   AnalysisResult,
+  Figure,
   KeyValuePair,
   Page,
   Paragraph,
   Section,
   Style,
   Table,
-  Figure,
 } from "@/ocr/azureTypes";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
 
@@ -33,7 +33,6 @@ export interface OcrRequestResponse {
 @Injectable()
 export class OcrService {
   private readonly logger = new Logger(OcrService.name);
-  private readonly storagePath: string;
 
   // OCR result conversion constants
   private readonly OCR_CONSTANTS = {
@@ -52,14 +51,10 @@ export class OcrService {
   };
 
   constructor(
-    private configService: ConfigService,
+    _configService: ConfigService,
     private databaseService: DatabaseService,
     private temporalClientService: TemporalClientService,
-  ) {
-    this.storagePath =
-      this.configService.get<string>("STORAGE_PATH") ||
-      join(process.cwd(), "storage", "documents");
-  }
+  ) {}
 
   /**
    * Sends a document to Azure for OCR processing via Temporal workflow.
@@ -140,7 +135,8 @@ export class OcrService {
       }
 
       // Ensure error is a string for the response
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         status: DocumentStatus.failed,
         error: errorMessage,
@@ -153,20 +149,22 @@ export class OcrService {
    * @param ocrResult Database OCR result
    * @returns AnalysisResult formatted for API response
    */
-  private convertDbResultToAnalysisResult(ocrResult: OcrResult): AnalysisResult {
+  private convertDbResultToAnalysisResult(
+    ocrResult: OcrResult,
+  ): AnalysisResult {
     return {
       apiVersion: this.OCR_CONSTANTS.apiVersion,
       modelId: this.OCR_CONSTANTS.modelId,
       stringIndexType: this.OCR_CONSTANTS.stringIndexType,
       content: ocrResult.extracted_text,
       contentFormat: this.OCR_CONSTANTS.contentFormat,
-      pages: (ocrResult.pages as unknown) as Page[],
-      tables: (ocrResult.tables as unknown) as Table[],
-      paragraphs: (ocrResult.paragraphs as unknown) as Paragraph[],
-      styles: (ocrResult.styles as unknown) as Style[],
-      sections: (ocrResult.sections as unknown) as Section[],
-      figures: (ocrResult.figures as unknown) as Figure[],
-      keyValuePairs: (ocrResult.keyValuePairs as unknown) as
+      pages: ocrResult.pages as unknown as Page[],
+      tables: ocrResult.tables as unknown as Table[],
+      paragraphs: ocrResult.paragraphs as unknown as Paragraph[],
+      styles: ocrResult.styles as unknown as Style[],
+      sections: ocrResult.sections as unknown as Section[],
+      figures: ocrResult.figures as unknown as Figure[],
+      keyValuePairs: ocrResult.keyValuePairs as unknown as
         | KeyValuePair[]
         | undefined,
     };

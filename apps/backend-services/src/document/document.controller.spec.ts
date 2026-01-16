@@ -215,10 +215,7 @@ describe("DocumentController", () => {
         send: jest.fn(),
       };
       await controller.downloadDocument("1", res);
-      expect(res.setHeader).toHaveBeenCalledWith(
-        "Content-Type",
-        "image/jpeg",
-      );
+      expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "image/jpeg");
       expect(res.send).toHaveBeenCalledWith(Buffer.from("data"));
     });
 

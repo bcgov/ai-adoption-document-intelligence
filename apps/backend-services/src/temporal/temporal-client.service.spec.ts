@@ -1,6 +1,6 @@
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { Connection, Client } from "@temporalio/client";
+import { Client, Connection } from "@temporalio/client";
 import { TemporalClientService } from "./temporal-client.service";
 
 // Mock Temporal client
@@ -367,9 +367,9 @@ describe("TemporalClientService", () => {
     it("should throw error if client not initialized", async () => {
       const newService = new TemporalClientService(configService);
 
-      await expect(
-        newService.cancelWorkflow("workflow-123"),
-      ).rejects.toThrow("Temporal client not initialized");
+      await expect(newService.cancelWorkflow("workflow-123")).rejects.toThrow(
+        "Temporal client not initialized",
+      );
     });
   });
 

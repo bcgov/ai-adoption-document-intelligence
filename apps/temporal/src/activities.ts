@@ -159,6 +159,7 @@ export async function submitToAzureOCR(
   fileData: PreparedFileData
 ): Promise<SubmissionResult> {
   const activityName = 'submitToAzureOCR';
+  const startTime = Date.now();
 
   console.log(JSON.stringify({
     activity: activityName,
@@ -289,7 +290,6 @@ export async function pollOCRResults(apimRequestId: string): Promise<PollResult>
   }));
   
   if (!endpoint || !apiKey) {
-    const duration = Date.now() - startTime;
     console.error(JSON.stringify({
       activity: activityName,
       event: 'error',
@@ -487,6 +487,7 @@ export async function updateDocumentStatus(
   apimRequestId?: string
 ): Promise<void> {
   const activityName = 'updateDocumentStatus';
+  const startTime = Date.now();
 
   console.log(JSON.stringify({
     activity: activityName,
@@ -546,6 +547,7 @@ export async function upsertOcrResult(
   ocrResult: OCRResult
 ): Promise<void> {
   const activityName = 'upsertOcrResult';
+  const startTime = Date.now();
 
   console.log(JSON.stringify({
     activity: activityName,

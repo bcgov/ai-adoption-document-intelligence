@@ -1,6 +1,11 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { Connection, Client } from "@temporalio/client";
+import { Client, Connection } from "@temporalio/client";
 import { WORKFLOW_TYPES } from "./workflow-types";
 
 @Injectable()
@@ -54,7 +59,9 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       messageLower.includes("timeout")
     ) {
       enhancedMessage += `. Connection to Temporal server timed out. Check network connectivity.`;
-    } else if (messageLower.includes("no mapping defined for search attribute")) {
+    } else if (
+      messageLower.includes("no mapping defined for search attribute")
+    ) {
       enhancedMessage += `. Search attributes must be registered in the Temporal namespace. Register them using: tctl search-attribute create --name <AttributeName> --type <Type>`;
     }
 
@@ -164,7 +171,9 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
         },
       });
 
-      this.logger.log(`Workflow started: ${handle.workflowId} for document ${documentId}`);
+      this.logger.log(
+        `Workflow started: ${handle.workflowId} for document ${documentId}`,
+      );
       return handle.workflowId;
     } catch (error) {
       throw this.handleError(error, "start OCR workflow");
@@ -178,7 +187,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    */
   async getWorkflowStatus(workflowId: string): Promise<{
     status: string;
-    result?: any;
+    result?: unknown;
   }> {
     this.ensureClientInitialized();
 
@@ -203,7 +212,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * @param workflowId Workflow execution ID
    * @returns Workflow result
    */
-  async getWorkflowResult(workflowId: string): Promise<any> {
+  async getWorkflowResult(workflowId: string): Promise<unknown> {
     this.ensureClientInitialized();
 
     try {
@@ -270,7 +279,10 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       }>("getProgress");
       return progress;
     } catch (error) {
-      throw this.handleError(error, `query workflow progress for ${workflowId}`);
+      throw this.handleError(
+        error,
+        `query workflow progress for ${workflowId}`,
+      );
     }
   }
 

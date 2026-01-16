@@ -12,10 +12,7 @@ describe("QueueService", () => {
       requestOcr: jest.fn(),
     } as any;
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        QueueService,
-        { provide: OcrService, useValue: ocrService },
-      ],
+      providers: [QueueService, { provide: OcrService, useValue: ocrService }],
     }).compile();
     service = module.get<QueueService>(QueueService);
   });
