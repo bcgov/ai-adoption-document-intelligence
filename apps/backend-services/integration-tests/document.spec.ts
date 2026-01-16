@@ -18,45 +18,6 @@ describe("/document endpoints", () => {
     await testModule.close();
   });
 
-  describe("GET /api/protected", () => {
-    it("should return protected data and user info", async () => {
-      CompositeMockGuard.mockUser = {
-        idir_username: "testuser",
-        display_name: "Test User",
-        email: "test@example.com",
-        roles: ["user", "admin"],
-      };
-      const res = await agent.get("/api/protected").expect(200);
-      expect(res.body).toHaveProperty("message", "Protected data");
-      expect(res.body).toHaveProperty("user");
-      expect(res.body.user).toMatchObject({
-        idirUsername: "testuser",
-        displayName: "Test User",
-        email: "test@example.com",
-      });
-    });
-  });
-
-  describe("GET /api/admin", () => {
-    it("should return admin data and user info with roles", async () => {
-      CompositeMockGuard.mockUser = {
-        idir_username: "adminuser",
-        display_name: "Admin User",
-        email: "admin@example.com",
-        roles: ["admin"],
-      };
-      const res = await agent.get("/api/admin").expect(200);
-      expect(res.body).toHaveProperty("message", "Admin only data");
-      expect(res.body).toHaveProperty("user");
-      expect(res.body.user).toMatchObject({
-        idirUsername: "adminuser",
-        displayName: "Admin User",
-        email: "admin@example.com",
-        roles: ["admin"],
-      });
-    });
-  });
-
   describe("GET /api/documents", () => {
     let db: PrismaClient;
     beforeAll(() => {
@@ -139,13 +100,15 @@ describe("/document endpoints", () => {
       const res = await agent
         .get(`/api/documents/${documentId}/ocr`)
         .expect(200);
-      expect(res.body).toHaveProperty("keyValuePairs");
-      expect(res.body.keyValuePairs).toEqual(ocrResult.keyValuePairs);
-      expect(res.body).toHaveProperty("processed_at");
-      expect(res.body).toHaveProperty("document_id", documentId);
+      expect(res.body).toHaveProperty("ocr_result");
+      const return_ocr_result = res.body.ocr_result;
+      expect(return_ocr_result).toHaveProperty("keyValuePairs");
+      expect(return_ocr_result.keyValuePairs).toEqual(ocrResult.keyValuePairs);
+      expect(return_ocr_result).toHaveProperty("processed_at");
+      expect(return_ocr_result).toHaveProperty("document_id", documentId);
     });
 
-    it("should return 404 if document exists but no OCR result", async () => {
+    it("should return 200 with null result if document exists but no OCR result", async () => {
       // Create a document without OCR result
       const doc = await db.document.create({
         data: {
@@ -162,8 +125,10 @@ describe("/document endpoints", () => {
       // Test the endpoint
       const res = await agent
         .get(`/api/documents/${documentId}/ocr`)
-        .expect(404);
-      expect(res.body.message).toMatch(/No OCR result found/i);
+        .expect(200);
+      const returnedDoc = res.body;
+      expect(returnedDoc.title).toEqual("No OCR Document");
+      expect(returnedDoc.ocr_result).toBeNull();
     });
 
     it("should return 404 for missing document", async () => {

@@ -54,7 +54,7 @@ describe("how to mock Keycloak with app", () => {
     await testModule.close();
   });
 
-  it("should return protected data and user info (default user)", async () => {
+  it("should return model list behind Keycloak protections", async () => {
     // Mocking goes like this. There is a default.
     CompositeMockGuard.mockUser = {
       idir_username: "testuser",
@@ -62,14 +62,9 @@ describe("how to mock Keycloak with app", () => {
       email: "test@example.com",
       roles: ["user", "admin"],
     };
-    const res = await agent.get("/api/protected").expect(200);
-    expect(res.body).toHaveProperty("message", "Protected data");
-    expect(res.body).toHaveProperty("user");
-    expect(res.body.user).toMatchObject({
-      idirUsername: "testuser",
-      displayName: "Test User",
-      email: "test@example.com",
-    });
+    const res = await agent.get("/api/models").expect(200);
+    expect(res.body).toHaveProperty("models");
+    expect(res.body.models).toBeInstanceOf(Array);
   });
 });
 
