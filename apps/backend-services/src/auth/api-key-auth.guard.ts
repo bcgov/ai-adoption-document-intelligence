@@ -52,7 +52,7 @@ export class ApiKeyAuthGuard implements CanActivate {
 
     // Set user info from API key
     request.user = {
-      idir_username: keyInfo.userId,
+      sub: keyInfo.userId,
       email: keyInfo.userEmail,
       roles: [],
     };

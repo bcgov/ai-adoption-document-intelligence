@@ -14,6 +14,7 @@ import { API_KEY_AUTH_KEY } from "./api-key-auth.decorator";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 
 interface User {
+  sub?: string;
   idir_username?: string;
   display_name?: string;
   email?: string;
