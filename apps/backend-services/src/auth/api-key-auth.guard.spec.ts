@@ -68,10 +68,7 @@ describe("ApiKeyAuthGuard", () => {
   it("should return true if user is already authenticated", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
 
-    const context = createMockExecutionContext(
-      {},
-      { sub: "testuser" },
-    );
+    const context = createMockExecutionContext({}, { sub: "testuser" });
     const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
