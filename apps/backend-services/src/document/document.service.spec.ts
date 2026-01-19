@@ -54,6 +54,7 @@ describe("DocumentService", () => {
         status: DocumentStatus.ongoing_ocr,
         created_at: new Date(),
         updated_at: new Date(),
+        model_id: "test-model-id",
       };
       (databaseService.createDocument as jest.Mock).mockResolvedValue(mockDoc);
       const result = await service.uploadDocument(
@@ -61,6 +62,7 @@ describe("DocumentService", () => {
         base64,
         "pdf",
         "file.pdf",
+        "test-model-id",
         {},
       );
       expect(result.id).toBe("1");
@@ -72,7 +74,13 @@ describe("DocumentService", () => {
 
     it("should throw on invalid base64", async () => {
       await expect(
-        service.uploadDocument("Test", {} as any, "pdf", "file.pdf"),
+        service.uploadDocument(
+          "Test",
+          {} as any,
+          "pdf",
+          "file.pdf",
+          "test-model-id",
+        ),
       ).rejects.toThrow("Invalid base64 file data");
     });
   });
@@ -91,6 +99,7 @@ describe("DocumentService", () => {
         status: DocumentStatus.ongoing_ocr,
         created_at: new Date(),
         updated_at: new Date(),
+        model_id: "test-model-id",
       };
       (databaseService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
       const result = await service.getDocument("1");

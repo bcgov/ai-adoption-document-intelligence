@@ -33,6 +33,7 @@ export interface Document {
   extracted_data?: Record<string, unknown> & {
     content?: string;
   };
+  model_id?: string;
 }
 
 export interface BoundingRegion {
@@ -40,34 +41,46 @@ export interface BoundingRegion {
   polygon: number[];
 }
 
-export interface KeyValueElement {
-  content: string;
-  boundingRegions: BoundingRegion[];
-  spans: Array<{
-    offset: number;
-    length: number;
-  }>;
+export interface Span {
+  offset: number;
+  length: number;
 }
 
-export interface KeyValuePair {
-  key: KeyValueElement;
-  value?: KeyValueElement;
+// Unified field format (used for both custom and prebuilt models)
+export interface DocumentField {
+  type: string; // "string", "number", "selectionMark", "date", etc.
+  content: string | null;
   confidence: number;
+  boundingRegions?: BoundingRegion[];
+  spans?: Span[];
+  // Type-specific values (from custom models)
+  valueString?: string;
+  valueNumber?: number;
+  valueSelectionMark?: "selected" | "unselected";
+  valueDate?: string;
 }
+
+export type ExtractedFields = Record<string, DocumentField>;
 
 export interface OcrResult {
   id: string;
   document_id: string;
-  extracted_text: string;
-  pages: unknown[];
-  tables: unknown[];
-  paragraphs: unknown[];
-  styles: unknown[];
-  sections: unknown[];
-  figures: unknown[];
-  keyValuePairs?: KeyValuePair[];
-  metadata?: Record<string, unknown>;
+  keyValuePairs?: ExtractedFields;
   processed_at: string;
+}
+
+export interface OcrEndpointResponse {
+  document_id: string;
+  status: string;
+  title: string;
+  original_filename: string;
+  file_type: string;
+  file_size: number;
+  created_at: string;
+  updated_at: string;
+  apim_request_id: string | null;
+  model_id: string;
+  ocr_result: OcrResult | null;
 }
 
 export interface UploadDocumentPayload {
@@ -76,6 +89,7 @@ export interface UploadDocumentPayload {
   file_type: "pdf" | "image" | "scan";
   original_filename?: string;
   metadata?: Record<string, unknown>;
+  model_id: string;
 }
 
 export interface ApiResponse<T> {

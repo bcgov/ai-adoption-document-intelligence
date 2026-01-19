@@ -7,11 +7,11 @@ import {
   IconZoomOut,
 } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
-import { KeyValuePair } from "../../shared/types";
+import type { BoundingRegion, ExtractedFields } from "../../shared/types";
 
 interface DocumentViewerProps {
   imageUrl: string;
-  keyValuePairs?: KeyValuePair[];
+  extractedFields?: ExtractedFields;
   pageNumber?: number;
   onZoomChange?: (zoom: number) => void;
   showOverlays?: boolean;
@@ -20,7 +20,7 @@ interface DocumentViewerProps {
 
 export function DocumentViewer({
   imageUrl,
-  keyValuePairs = [],
+  extractedFields = {},
   pageNumber = 1,
   onZoomChange,
   showOverlays = true,
@@ -55,12 +55,32 @@ export function DocumentViewer({
   const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.25, 0.5));
   const handleResetZoom = () => setZoom(1);
 
-  const renderKeyValueOverlays = () => {
+  const fieldEntries = Object.entries(extractedFields);
+
+  const getFieldDisplayValue = (field: ExtractedFields[string]): string => {
+    if (field.valueSelectionMark !== undefined) {
+      return field.valueSelectionMark === "selected"
+        ? "☑ Selected"
+        : "☐ Unselected";
+    }
+    if (field.valueNumber !== undefined) {
+      return field.valueNumber.toString();
+    }
+    if (field.valueDate !== undefined) {
+      return field.valueDate;
+    }
+    if (field.valueString !== undefined) {
+      return field.valueString;
+    }
+    return field.content || "—";
+  };
+
+  const renderFieldOverlays = () => {
     if (
       !showOverlays ||
       !isImageLoaded ||
       !imageRef.current ||
-      keyValuePairs.length === 0
+      fieldEntries.length === 0
     ) {
       return null;
     }
@@ -68,14 +88,16 @@ export function DocumentViewer({
     const img = imageRef.current;
     const imgRect = img.getBoundingClientRect();
 
-    return keyValuePairs
-      .filter((kvp) =>
-        kvp.key?.boundingRegions?.some((br) => br.pageNumber === pageNumber),
+    return fieldEntries
+      .filter(([, field]) =>
+        field.boundingRegions?.some(
+          (br: BoundingRegion) => br.pageNumber === pageNumber,
+        ),
       )
-      .map((kvp, index) => {
+      .map(([fieldName, field], index) => {
         // Use the bounding region for this page
-        const boundingRegion = kvp.key.boundingRegions.find(
-          (br) => br.pageNumber === pageNumber,
+        const boundingRegion = field.boundingRegions?.find(
+          (br: BoundingRegion) => br.pageNumber === pageNumber,
         );
         if (!boundingRegion) return null;
 
@@ -106,9 +128,9 @@ export function DocumentViewer({
 
         // Color based on confidence
         const confidenceColor =
-          kvp.confidence >= 0.9
+          field.confidence >= 0.9
             ? "rgba(34, 197, 94, 0.3)" // green
-            : kvp.confidence >= 0.7
+            : field.confidence >= 0.7
               ? "rgba(251, 191, 36, 0.3)" // yellow
               : "rgba(239, 68, 68, 0.3)"; // red
 
@@ -117,17 +139,20 @@ export function DocumentViewer({
         const tooltipLabel = (
           <div style={{ padding: "4px", fontSize: "14px", lineHeight: "1.4" }}>
             <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
-              Key: "{kvp.key.content || "Unknown"}"
+              {fieldName}
             </div>
-            {kvp.value?.content && (
-              <div style={{ marginBottom: "4px" }}>
-                Value: "{kvp.value.content}"
-              </div>
-            )}
+            <div style={{ marginBottom: "4px" }}>
+              Value: {getFieldDisplayValue(field)}
+            </div>
+            <div
+              style={{ marginBottom: "4px", fontSize: "12px", color: "#888" }}
+            >
+              Type: {field.type}
+            </div>
             <div
               style={{ fontSize: "12px", color: "#666", fontWeight: "normal" }}
             >
-              Confidence: {Math.round(kvp.confidence * 100)}%
+              Confidence: {Math.round(field.confidence * 100)}%
             </div>
           </div>
         );
@@ -195,7 +220,7 @@ export function DocumentViewer({
             {showOverlays ? "Hide" : "Show"} Overlays
           </Button>
           <span style={{ fontSize: "0.875rem", color: "#4b5563" }}>
-            {keyValuePairs.length} key-value pairs
+            {fieldEntries.length} fields
           </span>
         </div>
 
@@ -256,7 +281,7 @@ export function DocumentViewer({
             }}
             onLoad={handleImageLoad}
           />
-          {renderKeyValueOverlays()}
+          {renderFieldOverlays()}
         </div>
       </div>
 

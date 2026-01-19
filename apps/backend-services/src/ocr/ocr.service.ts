@@ -17,7 +17,6 @@ export interface OcrRequestResponse {
 @Injectable()
 export class OcrService {
   private readonly logger = new Logger(OcrService.name);
-  private readonly azureModelId: string;
   private readonly azureEndpoint: string;
   private readonly azureApiKey: string;
 
@@ -32,7 +31,6 @@ export class OcrService {
     this.azureApiKey = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
     );
-    this.azureModelId = "prebuilt-layout";
 
     if (!this.azureEndpoint || !this.azureApiKey) {
       const azureConfigMessage =
@@ -64,19 +62,53 @@ export class OcrService {
       if (fileBuffer == null) throw Error("File not found.");
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);
 
-      // Send file to Azure for OCR
-      const azureResponse = await lastValueFrom(
-        this.httpService.post(
-          `${this.azureEndpoint}/documentModels/${this.azureModelId}:analyze?api-version=2024-11-30&features=keyValuePairs`,
-          {
-            base64Source: fileBuffer.toString("base64"),
-          },
-          {
-            headers: {
-              "api-key": this.azureApiKey,
+      // Send file to Azure for OCR using the document's model_id
+      const modelId = document.model_id;
+      this.logger.debug(`Using model: ${modelId}`);
+
+      // Build URL - only include features param for prebuilt models
+      const isPrebuiltModel =
+        modelId.startsWith("prebuilt-") || modelId === "prebuilt-read";
+      const url = isPrebuiltModel
+        ? `${this.azureEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30&features=keyValuePairs`
+        : `${this.azureEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30`;
+
+      const headers = {
+        "api-key": this.azureApiKey,
+        "Content-Type": "application/json",
+      };
+
+      this.logger.debug(`Request URL: ${url}`);
+      this.logger.debug(
+        `Request headers: ${JSON.stringify({ ...headers, "api-key": "[REDACTED]" })}`,
+      );
+
+      let azureResponse;
+      try {
+        azureResponse = await lastValueFrom(
+          this.httpService.post(
+            url,
+            {
+              base64Source: fileBuffer.toString("base64"),
             },
-          },
-        ),
+            { headers },
+          ),
+        );
+      } catch (axiosError) {
+        this.logger.error(`Azure API request failed`);
+        this.logger.error(`Status: ${axiosError.response?.status}`);
+        this.logger.error(
+          `Response data: ${JSON.stringify(axiosError.response?.data, null, 2)}`,
+        );
+        this.logger.error(
+          `Response headers: ${JSON.stringify(axiosError.response?.headers, null, 2)}`,
+        );
+        throw axiosError;
+      }
+
+      this.logger.debug(`Azure response status: ${azureResponse.status}`);
+      this.logger.debug(
+        `Azure response headers: ${JSON.stringify(azureResponse.headers, null, 2)}`,
       );
 
       if (azureResponse.status != 202) {
@@ -137,10 +169,11 @@ export class OcrService {
       throw Error(`Document ID ${documentId} has not yet been sent for OCR.`);
     }
 
-    // Get OCR results from Azure
+    // Get OCR results from Azure using the document's model_id
+    const modelId = document.model_id;
     const azureResponse = await lastValueFrom(
       this.httpService.get(
-        `${this.azureEndpoint}/documentModels/${this.azureModelId}/analyzeResults/${apim}?api-version=2024-11-30`,
+        `${this.azureEndpoint}/documentModels/${modelId}/analyzeResults/${apim}?api-version=2024-11-30`,
         {
           headers: {
             "api-key": this.azureApiKey,

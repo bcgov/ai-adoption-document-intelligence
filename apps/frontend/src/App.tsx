@@ -8,7 +8,12 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { IconList, IconLogout, IconUpload } from "@tabler/icons-react";
+import {
+  IconList,
+  IconLogout,
+  IconSettings,
+  IconUpload,
+} from "@tabler/icons-react";
 import { JSX, useMemo, useState } from "react";
 import { useAuth } from "./auth/AuthContext";
 import "./App.css";
@@ -16,9 +21,10 @@ import { Login } from "./components";
 import { DocumentViewerModal } from "./components/document/DocumentViewerModal";
 import { ProcessingQueue } from "./components/queue/ProcessingQueue";
 import { DocumentUploadPanel } from "./components/upload/DocumentUploadPanel";
+import { SettingsPage } from "./pages/SettingsPage";
 import type { Document } from "./shared/types";
 
-type MainView = "upload" | "queue";
+type MainView = "upload" | "queue" | "settings";
 
 function AppContent(): JSX.Element {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
@@ -41,6 +47,12 @@ function AppContent(): JSX.Element {
         label: "Processing queue",
         description: "Track statuses",
         icon: IconList,
+      },
+      {
+        value: "settings" as MainView,
+        label: "Settings",
+        description: "API key management",
+        icon: IconSettings,
       },
     ],
     [],
@@ -128,28 +140,34 @@ function AppContent(): JSX.Element {
 
         <AppShell.Main>
           <Stack gap="lg">
-            <Group justify="space-between">
-              <Stack gap={2}>
-                <Title order={2}>
-                  {activeView === "upload"
-                    ? "Upload documents"
-                    : "Processing monitor"}
-                </Title>
-                <Text c="dimmed" size="sm">
-                  {activeView === "upload"
-                    ? "Add new images and track their ingestion progress."
-                    : "View the OCR pipeline and drill into results."}
-                </Text>
-              </Stack>
-              <Badge variant="outline" size="lg">
-                {new Date().toLocaleDateString()}
-              </Badge>
-            </Group>
-
-            {activeView === "upload" ? (
-              <DocumentUploadPanel />
+            {activeView === "settings" ? (
+              <SettingsPage />
             ) : (
-              <ProcessingQueue onSelectDocument={openViewer} />
+              <>
+                <Group justify="space-between">
+                  <Stack gap={2}>
+                    <Title order={2}>
+                      {activeView === "upload"
+                        ? "Upload documents"
+                        : "Processing monitor"}
+                    </Title>
+                    <Text c="dimmed" size="sm">
+                      {activeView === "upload"
+                        ? "Add new images and track their ingestion progress."
+                        : "View the OCR pipeline and drill into results."}
+                    </Text>
+                  </Stack>
+                  <Badge variant="outline" size="lg">
+                    {new Date().toLocaleDateString()}
+                  </Badge>
+                </Group>
+
+                {activeView === "upload" ? (
+                  <DocumentUploadPanel />
+                ) : (
+                  <ProcessingQueue onSelectDocument={openViewer} />
+                )}
+              </>
             )}
           </Stack>
         </AppShell.Main>

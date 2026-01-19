@@ -26,25 +26,18 @@ model Document {
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
   apim_request_id   String?
+  model_id          String   @default("prebuilt-layout")
   ocr_result        OcrResult?
 
   @@map("documents")
 }
 
 model OcrResult {
-  id           String   @id @default(cuid())
-  document_id  String   @unique
-  document     Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
-  extracted_text String
-  pages        Json
-  tables       Json
-  paragraphs   Json
-  styles       Json
-  sections     Json
-  figures      Json
+  id            String   @id @default(cuid())
+  document_id   String   @unique
+  document      Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
   keyValuePairs Json?
-  metadata     Json?
-  processed_at DateTime @default(now())
+  processed_at  DateTime @default(now())
 
   @@map("ocr_results")
 }
@@ -54,4 +47,16 @@ enum DocumentStatus {
   ongoing_ocr
   completed_ocr
   failed
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  key_hash    String    @unique
+  key_prefix  String
+  user_id     String    @unique
+  user_email  String
+  created_at  DateTime  @default(now())
+  last_used   DateTime?
+
+  @@map("api_keys")
 }

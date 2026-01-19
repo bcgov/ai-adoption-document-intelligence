@@ -32,4 +32,8 @@ export class UploadDocumentDto {
   @IsObject()
   @IsOptional()
   metadata?: Record<string, unknown>;
+
+  @IsString()
+  @IsNotEmpty()
+  model_id: string;
 }

@@ -10,9 +10,11 @@ import { Reflector } from "@nestjs/core";
 import { Request } from "express";
 import * as jwt from "jsonwebtoken";
 import { JwksClient } from "jwks-rsa";
+import { API_KEY_AUTH_KEY } from "./api-key-auth.decorator";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 
 interface User {
+  sub?: string;
   idir_username?: string;
   display_name?: string;
   email?: string;
@@ -82,6 +84,19 @@ export class BCGovAuthGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<Request>();
+
+    // Check if this endpoint allows API key auth and an API key is provided
+    const allowApiKeyAuth = this.reflector.getAllAndOverride<boolean>(
+      API_KEY_AUTH_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    const apiKeyHeader = request.headers["x-api-key"];
+
+    if (allowApiKeyAuth && apiKeyHeader) {
+      // Skip bearer token validation - API key guard will handle it
+      return true;
+    }
+
     const authHeader = request.headers["authorization"];
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {

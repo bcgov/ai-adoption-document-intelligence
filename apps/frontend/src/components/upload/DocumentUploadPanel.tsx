@@ -9,6 +9,7 @@ import {
   Progress,
   rem,
   ScrollArea,
+  Select,
   Stack,
   Text,
   Title,
@@ -27,6 +28,7 @@ import {
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useModels } from "../../data/hooks/useModels";
 import { apiService } from "../../data/services/api.service";
 import { MAX_FILE_SIZE, SUPPORTED_FILE_TYPES } from "../../shared/constants";
 import type { Document, UploadDocumentPayload } from "../../shared/types";
@@ -85,7 +87,9 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
 }) => {
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { data: models, isLoading: modelsLoading } = useModels();
 
   useEffect(
     () => () => {
@@ -94,7 +98,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
     [queue],
   );
 
-  const handleDrop = async (acceptedFiles: File[]) => {
+  const handleDrop = (acceptedFiles: File[]) => {
     console.info(
       "[Upload] Accepted files:",
       acceptedFiles.map((file) => ({
@@ -111,11 +115,8 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
       progress: 0,
     }));
 
-    // Add to queue first
+    // Add to queue - upload will be triggered manually
     setQueue((prev) => [...newItems, ...prev]);
-
-    // Auto-start upload immediately with the new items
-    await uploadDocumentsFromFiles(newItems);
   };
 
   const handleReject = (rejections: FileRejection[]) => {
@@ -156,12 +157,14 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
             size: item.file.size,
             lastModified: item.file.lastModified,
           },
+          model_id: selectedModel!,
         };
 
         console.debug("[Upload] Sending payload to /api/upload", {
           title: payload.title,
           file_type: payload.file_type,
           original_filename: payload.original_filename,
+          model_id: payload.model_id,
           fileLength: payload.file.length,
         });
 
@@ -229,6 +232,15 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
 
   const uploadDocuments = async () => {
     console.info("[Upload] Starting upload process");
+    if (!selectedModel) {
+      notifications.show({
+        title: "Select a model",
+        message: "Please select a processing model before uploading.",
+        color: "yellow",
+      });
+      return;
+    }
+
     const pending = queue.filter(
       (item) => item.status === "queued" || item.status === "error",
     );
@@ -251,10 +263,20 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
         <Stack gap="sm">
           <Title order={3}>Upload images</Title>
           <Text c="dimmed" size="sm">
-            Drag and drop scans or mobile captures. Upload starts automatically
-            and OCR processing begins immediately.
+            Select a processing model, then drag and drop scans or mobile
+            captures. Click Upload to start OCR processing.
           </Text>
         </Stack>
+        <Select
+          mt="md"
+          label="Processing Model"
+          placeholder="Select a model"
+          data={models?.map((m) => ({ value: m, label: m })) || []}
+          value={selectedModel}
+          onChange={setSelectedModel}
+          disabled={modelsLoading}
+          searchable
+        />
         <Dropzone
           mt="lg"
           onDrop={handleDrop}
@@ -319,10 +341,10 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
             </Button>
             <Button
               onClick={uploadDocuments}
-              disabled={queue.length === 0 || isUploading}
+              disabled={queue.length === 0 || isUploading || !selectedModel}
               loading={isUploading}
             >
-              {isUploading ? "Uploading..." : "Retry failed"}
+              {isUploading ? "Uploading..." : "Upload"}
             </Button>
           </Group>
         </Group>

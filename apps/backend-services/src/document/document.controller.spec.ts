@@ -67,17 +67,41 @@ describe("DocumentController", () => {
   });
 
   describe("getOcrResult", () => {
-    it("should return OCR result if found", async () => {
-      databaseService.findDocument.mockResolvedValue({
+    it("should return consistent structure with OCR result if found", async () => {
+      const mockDocument = {
         id: "1",
-        status: "done",
+        status: "completed_ocr",
+        title: "Test Document",
+        original_filename: "test.pdf",
+        file_type: "pdf",
+        file_size: 1024,
+        created_at: new Date("2024-01-01"),
+        updated_at: new Date("2024-01-02"),
         apim_request_id: "123",
-      } as any);
-      databaseService.findOcrResult.mockResolvedValue({
-        processed_at: "now",
-      } as any);
+        model_id: "prebuilt-layout",
+      };
+      const mockOcrResult = {
+        id: "ocr-1",
+        document_id: "1",
+        processed_at: new Date("2024-01-02"),
+        keyValuePairs: { field1: "value1" },
+      };
+      databaseService.findDocument.mockResolvedValue(mockDocument as any);
+      databaseService.findOcrResult.mockResolvedValue(mockOcrResult as any);
       const result = await controller.getOcrResult("1");
-      expect(result).toEqual({ processed_at: "now" });
+      expect(result).toEqual({
+        document_id: "1",
+        status: "completed_ocr",
+        title: "Test Document",
+        original_filename: "test.pdf",
+        file_type: "pdf",
+        file_size: 1024,
+        created_at: mockDocument.created_at,
+        updated_at: mockDocument.updated_at,
+        apim_request_id: "123",
+        model_id: "prebuilt-layout",
+        ocr_result: mockOcrResult,
+      });
     });
 
     it("should throw NotFoundException if document not found", async () => {
@@ -87,15 +111,35 @@ describe("DocumentController", () => {
       );
     });
 
-    it("should throw NotFoundException if OCR result not found", async () => {
-      databaseService.findDocument.mockResolvedValue({
+    it("should return consistent structure with ocr_result null if OCR result not found", async () => {
+      const mockDocument = {
         id: "1",
-        status: "pending",
-      } as any);
+        status: "ongoing_ocr",
+        title: "Test Document",
+        original_filename: "test.pdf",
+        file_type: "pdf",
+        file_size: 1024,
+        created_at: new Date("2024-01-01"),
+        updated_at: new Date("2024-01-02"),
+        apim_request_id: null,
+        model_id: "prebuilt-layout",
+      };
+      databaseService.findDocument.mockResolvedValue(mockDocument as any);
       databaseService.findOcrResult.mockResolvedValue(null);
-      await expect(controller.getOcrResult("1")).rejects.toThrow(
-        NotFoundException,
-      );
+      const result = await controller.getOcrResult("1");
+      expect(result).toEqual({
+        document_id: "1",
+        status: "ongoing_ocr",
+        title: "Test Document",
+        original_filename: "test.pdf",
+        file_type: "pdf",
+        file_size: 1024,
+        created_at: mockDocument.created_at,
+        updated_at: mockDocument.updated_at,
+        apim_request_id: null,
+        model_id: "prebuilt-layout",
+        ocr_result: null,
+      });
     });
 
     it("should wrap other errors in NotFoundException", async () => {
