@@ -7,6 +7,7 @@ import {
   Logger,
   Post,
 } from "@nestjs/common";
+import { ApiKeyAuth } from "../auth/api-key-auth.decorator";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
@@ -22,6 +23,7 @@ export class UploadController {
 
   @Post("upload")
   @HttpCode(HttpStatus.CREATED)
+  @ApiKeyAuth()
   async uploadDocument(@Body() uploadDto: UploadDocumentDto): Promise<{
     success: boolean;
     document: {
@@ -42,6 +44,7 @@ export class UploadController {
           file_type: uploadDto.file_type,
           original_filename: uploadDto.original_filename,
           metadata: uploadDto.metadata,
+          model_id: uploadDto.model_id,
           file_length: uploadDto.file?.length || 0,
         },
         null,
@@ -66,6 +69,7 @@ export class UploadController {
         uploadDto.file,
         uploadDto.file_type,
         originalFilename,
+        uploadDto.model_id,
         uploadDto.metadata,
       );
 

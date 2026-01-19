@@ -17,7 +17,8 @@ export interface AnalysisResult {
   contentFormat: string;
   sections: Section[];
   figures: Figure[];
-  keyValuePairs?: KeyValuePair[]; // Optional b/c only returned with flag.
+  keyValuePairs?: KeyValuePair[]; // Optional - only returned with features=keyValuePairs flag
+  documents?: AnalyzedDocument[]; // Custom model results
 }
 
 export interface Page {
@@ -105,6 +106,7 @@ export interface BoundingRegion {
 
 export interface KeyValuePair {
   key: KeyValue;
+  value?: KeyValue;
   confidence: number;
 }
 
@@ -112,4 +114,27 @@ export interface KeyValue {
   content: string;
   boundingRegions: BoundingRegion[];
   spans: Span[];
+}
+
+// Custom model field types (used as the canonical format)
+export interface DocumentField {
+  type: string; // "string", "number", "selectionMark", "date", etc.
+  content: string | null;
+  confidence: number;
+  boundingRegions?: BoundingRegion[];
+  spans?: Span[];
+  // Type-specific values
+  valueString?: string;
+  valueNumber?: number;
+  valueSelectionMark?: "selected" | "unselected";
+  valueDate?: string;
+}
+
+export type ExtractedFields = Record<string, DocumentField>;
+
+export interface AnalyzedDocument {
+  docType: string;
+  boundingRegions?: BoundingRegion[];
+  fields: ExtractedFields;
+  confidence: number;
 }

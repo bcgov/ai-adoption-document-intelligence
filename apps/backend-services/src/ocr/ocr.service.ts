@@ -37,7 +37,6 @@ export class OcrService {
   // OCR result conversion constants
   private readonly OCR_CONSTANTS = {
     apiVersion: "2024-11-30",
-    modelId: "prebuilt-layout",
     stringIndexType: "textElements",
     contentFormat: "text",
   } as const;
@@ -95,7 +94,13 @@ export class OcrService {
         }
       }
 
+      // Get model_id from document (for future use when Temporal workflow supports it)
+      const modelId = document.model_id;
+      this.logger.debug(`Document model_id: ${modelId}`);
+
       // Start Temporal workflow
+      // NOTE: Currently the Temporal workflow hardcodes "prebuilt-layout" model.
+      // The workflow needs to be updated to accept and use model_id from the document.
       const workflowId = await this.temporalClientService.startOCRWorkflow(
         documentId,
         {
@@ -147,14 +152,16 @@ export class OcrService {
   /**
    * Converts database OCR result to AnalysisResult format
    * @param ocrResult Database OCR result
+   * @param modelId Model ID from document (optional, defaults to prebuilt-layout)
    * @returns AnalysisResult formatted for API response
    */
   private convertDbResultToAnalysisResult(
     ocrResult: OcrResult,
+    modelId?: string,
   ): AnalysisResult {
     return {
       apiVersion: this.OCR_CONSTANTS.apiVersion,
-      modelId: this.OCR_CONSTANTS.modelId,
+      modelId: modelId || "prebuilt-layout",
       stringIndexType: this.OCR_CONSTANTS.stringIndexType,
       content: ocrResult.extracted_text,
       contentFormat: this.OCR_CONSTANTS.contentFormat,
@@ -254,7 +261,10 @@ export class OcrService {
         this.logger.debug(
           `OCR results found in database for document ${documentId}`,
         );
-        return this.convertDbResultToAnalysisResult(ocrResult);
+        return this.convertDbResultToAnalysisResult(
+          ocrResult,
+          document.model_id,
+        );
       }
     } catch (error) {
       // NotFoundException is expected if results don't exist yet
@@ -312,7 +322,10 @@ export class OcrService {
 
         const retryResult = await this.waitForResultsInDatabase(documentId);
         if (retryResult != null) {
-          return this.convertDbResultToAnalysisResult(retryResult);
+          return this.convertDbResultToAnalysisResult(
+            retryResult,
+            document.model_id,
+          );
         }
 
         throw new ServiceUnavailableException(
@@ -354,7 +367,10 @@ export class OcrService {
           const fallbackResult =
             await this.databaseService.findOcrResult(documentId);
           if (fallbackResult != null) {
-            return this.convertDbResultToAnalysisResult(fallbackResult);
+            return this.convertDbResultToAnalysisResult(
+              fallbackResult,
+              document.model_id,
+            );
           }
         } catch (dbError) {
           // If database also fails, log and continue to throw original error

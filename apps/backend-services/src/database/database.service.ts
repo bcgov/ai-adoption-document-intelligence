@@ -1,7 +1,12 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { AnalysisResponse } from "@/ocr/azureTypes";
+import {
+  AnalysisResponse,
+  DocumentField,
+  ExtractedFields,
+  KeyValuePair,
+} from "@/ocr/azureTypes";
 import { Document, OcrResult, PrismaClient } from "../generated/client";
 import { DocumentStatus } from "../generated/enums";
 import { JsonValue } from "../generated/internal/prismaNamespace";
@@ -40,6 +45,7 @@ export class DatabaseService {
           metadata: data.metadata,
           source: data.source,
           status: data.status as DocumentStatus,
+          model_id: data.model_id,
         },
       });
 
@@ -150,21 +156,13 @@ export class DatabaseService {
       if (!ocrResult) {
         this.logger.debug(`No OCR result found for document: ${documentId}`);
         this.logger.debug("=== DatabaseService.findOcrResult completed ===");
-        throw new NotFoundException(
-          `No OCR result found for document: ${documentId}`,
-        );
+        return null;
       }
-
-      // Transform Prisma result to OcrResult interface
-      const result: OcrResult = {
-        ...ocrResult,
-        pages: ocrResult.pages || [],
-      };
 
       this.logger.debug(`OCR result found for document: ${documentId}`);
       this.logger.debug("=== DatabaseService.findOcrResult completed ===");
 
-      return result;
+      return ocrResult;
     } catch (error) {
       this.logger.error(
         `Failed to find OCR result: ${error.message}`,
@@ -172,6 +170,40 @@ export class DatabaseService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Converts prebuilt model keyValuePairs array to the custom model fields format.
+   * This ensures a unified format for all OCR results.
+   */
+  private convertKeyValuePairsToFields(
+    keyValuePairs: KeyValuePair[],
+  ): ExtractedFields {
+    const fields: ExtractedFields = {};
+
+    for (const pair of keyValuePairs) {
+      const fieldName = pair.key?.content || "unknown";
+      const field: DocumentField = {
+        type: "string",
+        content: pair.value?.content || null,
+        confidence: pair.confidence,
+        boundingRegions:
+          pair.value?.boundingRegions || pair.key?.boundingRegions,
+        spans: pair.value?.spans || pair.key?.spans,
+      };
+
+      // Handle duplicate field names by appending a suffix
+      let uniqueName = fieldName;
+      let counter = 1;
+      while (fields[uniqueName]) {
+        uniqueName = `${fieldName}_${counter}`;
+        counter++;
+      }
+
+      fields[uniqueName] = field;
+    }
+
+    return fields;
   }
 
   async upsertOcrResult(data: {
@@ -187,17 +219,31 @@ export class DatabaseService {
     try {
       const analysisResult = data.analysisResponse.analyzeResult;
       const asJson = (obj): JsonValue => obj as unknown as JsonValue;
+
+      // Determine extracted fields based on model type
+      let extractedFields: ExtractedFields | null = null;
+
+      if (analysisResult.documents?.length > 0) {
+        // Custom model: use fields directly from documents[0].fields
+        extractedFields = analysisResult.documents[0].fields;
+        this.logger.debug(
+          `Using custom model fields: ${Object.keys(extractedFields).length} fields`,
+        );
+      } else if (analysisResult.keyValuePairs?.length > 0) {
+        // Prebuilt model: convert keyValuePairs to fields format
+        extractedFields = this.convertKeyValuePairsToFields(
+          analysisResult.keyValuePairs,
+        );
+        this.logger.debug(
+          `Converted ${analysisResult.keyValuePairs.length} keyValuePairs to fields format`,
+        );
+      }
+
       const updateObject = {
         processed_at: data.analysisResponse.lastUpdatedDateTime,
-        extracted_text: analysisResult.content,
-        pages: asJson(analysisResult.pages),
-        tables: asJson(analysisResult.tables),
-        paragraphs: asJson(analysisResult.paragraphs),
-        styles: asJson(analysisResult.styles),
-        sections: asJson(analysisResult.sections),
-        figures: asJson(analysisResult.figures),
-        keyValuePairs: asJson(analysisResult.keyValuePairs),
+        keyValuePairs: asJson(extractedFields),
       };
+
       await this.prisma.ocrResult.upsert({
         where: {
           document_id: data.documentId,
