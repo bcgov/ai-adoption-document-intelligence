@@ -15,7 +15,7 @@ describe("ApiKeyController", () => {
 
   const mockRequest = {
     user: {
-      idir_username: "testuser",
+      sub: "testuser",
       email: "test@example.com",
     },
   };

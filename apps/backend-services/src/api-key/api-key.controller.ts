@@ -43,7 +43,7 @@ export class ApiKeyController {
     @Req() req: Request,
   ): Promise<{ apiKey: ApiKeyInfoDto | null }> {
     const user = req.user;
-    const userId = user?.idir_username || user?.sub;
+    const userId = user?.sub;
 
     if (!userId) {
       return { apiKey: null };
@@ -70,7 +70,7 @@ export class ApiKeyController {
     @Req() req: Request,
   ): Promise<{ apiKey: GeneratedApiKeyDto }> {
     const user = req.user;
-    const userId = (user?.idir_username || user?.sub) as string;
+    const userId = user?.sub as string;
     const userEmail = (user?.email || "unknown@example.com") as string;
 
     const apiKey = await this.apiKeyService.generateApiKey(userId, userEmail);
@@ -85,7 +85,7 @@ export class ApiKeyController {
   @ApiUnauthorizedResponse({ description: "User is not authenticated" })
   async deleteApiKey(@Req() req: Request): Promise<void> {
     const user = req.user;
-    const userId = (user?.idir_username || user?.sub) as string;
+    const userId = user?.sub as string;
 
     await this.apiKeyService.deleteApiKey(userId);
   }
@@ -102,7 +102,7 @@ export class ApiKeyController {
     @Req() req: Request,
   ): Promise<{ apiKey: GeneratedApiKeyDto }> {
     const user = req.user;
-    const userId = (user?.idir_username || user?.sub) as string;
+    const userId = user?.sub as string;
     const userEmail = (user?.email || "unknown@example.com") as string;
 
     const apiKey = await this.apiKeyService.regenerateApiKey(userId, userEmail);
