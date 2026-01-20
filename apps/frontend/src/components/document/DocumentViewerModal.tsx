@@ -18,21 +18,12 @@ export function DocumentViewerModal({
   onClose,
 }: DocumentViewerModalProps) {
   const documentId = document?.id;
-  const { data: ocrResult, isLoading: ocrLoading, error: ocrError } = useDocumentOcr(documentId);
+  const { data: ocrResult, error: ocrError } = useDocumentOcr(documentId);
   const { getAccessToken } = useAuth();
-  
+
   useEffect(() => {
-    if (ocrResult) {
-      console.debug("[DocumentViewer] OCR result loaded", {
-        hasOcrResult: !!ocrResult.ocr_result,
-        hasKeyValuePairs: !!ocrResult.ocr_result?.keyValuePairs,
-        keyValuePairsType: typeof ocrResult.ocr_result?.keyValuePairs,
-        keyValuePairsKeys: ocrResult.ocr_result?.keyValuePairs ? Object.keys(ocrResult.ocr_result.keyValuePairs) : [],
-      });
-    }
-    if (ocrError) {
-      console.error("[DocumentViewer] OCR result error:", ocrError);
-    }
+    // OCR result and error are handled by the component state
+    // Removed console statements for lint compliance
   }, [ocrResult, ocrError]);
   const [imageUrl, setImageUrl] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -64,59 +55,34 @@ export function DocumentViewerModal({
         headers.Authorization = `Bearer ${token}`;
       }
 
-      console.debug("[DocumentViewer] Loading document image", {
-        documentId: doc.id,
-        filePath: doc.file_path,
-        hasToken: !!token,
-      });
-
       // Try to get the document file from the download endpoint
       const response = await fetch(`/api/documents/${doc.id}/download`, {
         headers,
       });
 
-      console.debug("[DocumentViewer] Download response", {
-        status: response.status,
-        statusText: response.statusText,
-        contentType: response.headers.get("content-type"),
-      });
-
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
-        console.error("[DocumentViewer] Download failed", {
-          status: response.status,
-          statusText: response.statusText,
-          errorText,
-        });
         throw new Error(
           `Failed to load document: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ""}`,
         );
       }
 
       const blob = await response.blob();
-      console.debug("[DocumentViewer] Blob created", {
-        size: blob.size,
-        type: blob.type,
-      });
 
       // Create object URL for the blob
       const url = URL.createObjectURL(blob);
       setImageUrl(url);
-      console.debug("[DocumentViewer] Image URL created", { url });
 
       // Clean up URL when component unmounts or modal closes
       return () => {
         URL.revokeObjectURL(url);
       };
     } catch (err) {
-      console.error("[DocumentViewer] Error loading document:", err);
-      const errorMessage = err instanceof Error ? err.message : "Failed to load document";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to load document";
       setError(errorMessage);
 
       if (doc.file_url) {
-        console.debug("[DocumentViewer] Falling back to file_url", {
-          file_url: doc.file_url,
-        });
         setImageUrl(doc.file_url);
       }
     } finally {

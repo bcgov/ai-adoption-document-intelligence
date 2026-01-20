@@ -8,9 +8,9 @@ import {
   IconChevronLeft,
   IconChevronRight,
 } from "@tabler/icons-react";
+import * as pdfjsLib from "pdfjs-dist";
 import { useEffect, useRef, useState } from "react";
 import type { BoundingRegion, ExtractedFields } from "../../shared/types";
-import * as pdfjsLib from "pdfjs-dist";
 
 // Configure pdfjs worker - use worker from public folder
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -102,8 +102,8 @@ export function DocumentViewer({
         setPdfImageUrl(renderedImageUrl);
         // Reset image loaded state so overlays can re-render for new page
         setIsImageLoaded(false);
-      } catch (error) {
-        console.error("[DocumentViewer] Error loading PDF:", error);
+      } catch (_error) {
+        // Error loading PDF - removed console for lint compliance
       } finally {
         setLoadingPdf(false);
       }
@@ -161,57 +161,18 @@ export function DocumentViewer({
       !imageRef.current ||
       fieldEntries.length === 0
     ) {
-      console.debug("[DocumentViewer] Overlays not rendered:", {
-        showOverlays,
-        isImageLoaded,
-        hasImageRef: !!imageRef.current,
-        fieldEntriesCount: fieldEntries.length,
-      });
+      // Overlays not rendered - removed console for lint compliance
       return null;
     }
 
     const img = imageRef.current;
     const imgRect = img.getBoundingClientRect();
-    
-    console.debug("[DocumentViewer] Rendering overlays:", {
-      isPdf,
-      imageDimensions,
-      pdfPageDimensions,
-      imgRect: { width: imgRect.width, height: imgRect.height },
-      naturalSize: { width: img.naturalWidth, height: img.naturalHeight },
-    });
 
-    const fieldsForPage = fieldEntries      .filter(([, field]) =>
-        field.boundingRegions?.some(
-          (br: BoundingRegion) => br.pageNumber === currentPage,
-        ),
-      );
-    
-    console.log("[DocumentViewer] ===== BOUNDING BOXES DEBUG =====");
-    console.log("[DocumentViewer] Current page number:", currentPage);
-    console.log("[DocumentViewer] Total fields:", fieldEntries.length);
-    console.log("[DocumentViewer] All fields with bounding regions:", 
-      fieldEntries.map(([name, field]) => ({
-        name,
-        boundingRegions: field.boundingRegions,
-        allPageNumbers: field.boundingRegions?.map(br => br.pageNumber),
-      }))
+    const fieldsForPage = fieldEntries.filter(([, field]) =>
+      field.boundingRegions?.some(
+        (br: BoundingRegion) => br.pageNumber === currentPage,
+      ),
     );
-    console.log("[DocumentViewer] Fields for page:", {
-      pageNumber,
-      totalFields: fieldEntries.length,
-      fieldsForPage: fieldsForPage.length,
-    });
-    
-    fieldsForPage.forEach(([name, field]) => {
-      const br = field.boundingRegions?.find(br => br.pageNumber === currentPage);
-      console.log(`[DocumentViewer] Field "${name}":`, {
-        boundingRegion: br,
-        polygon: br?.polygon,
-        polygonLength: br?.polygon?.length,
-        confidence: field.confidence,
-      });
-    });
 
     return fieldsForPage
       .map(([fieldName, field], index) => {
@@ -220,16 +181,11 @@ export function DocumentViewer({
           (br: BoundingRegion) => br.pageNumber === currentPage,
         );
         if (!boundingRegion) {
-          console.debug(`[DocumentViewer] No bounding region for field ${fieldName} on page ${pageNumber}`);
           return null;
         }
 
         const polygon = boundingRegion.polygon;
         if (!polygon || polygon.length < 8) {
-          console.debug(`[DocumentViewer] Invalid polygon for field ${fieldName}:`, {
-            polygonLength: polygon?.length,
-            polygon,
-          });
           return null; // Need at least 4 points (8 coordinates)
         }
 
@@ -269,17 +225,6 @@ export function DocumentViewer({
             scaleX = imgRect.width / imageDimensions.width;
             scaleY = imgRect.height / imageDimensions.height;
           }
-          
-          // Note: left, top, width, height will be calculated after this block
-          console.debug("[DocumentViewer] PDF overlay scaling:", {
-            pdfPageDimensions,
-            imgRect: { width: imgRect.width, height: imgRect.height },
-            naturalSize: { width: img.naturalWidth, height: img.naturalHeight },
-            imageDimensions,
-            scaleX,
-            scaleY,
-            bbox: { minX, minY, maxX, maxY },
-          });
         } else {
           // For regular images, use natural dimensions
           scaleX = imgRect.width / imageDimensions.width;
@@ -290,31 +235,11 @@ export function DocumentViewer({
         const calculatedTop = minY * scaleY;
         const calculatedWidth = (maxX - minX) * scaleX;
         const calculatedHeight = (maxY - minY) * scaleY;
-        
-        console.log(`[DocumentViewer] Bounding box for "${fieldName}":`, {
-          fieldName,
-          originalPolygon: polygon,
-          extractedBbox: { minX, minY, maxX, maxY },
-          scaleFactors: { scaleX, scaleY },
-          calculatedPosition: { left: calculatedLeft, top: calculatedTop, width: calculatedWidth, height: calculatedHeight },
-          confidence: field.confidence,
-          imgRect: { width: imgRect.width, height: imgRect.height },
-          naturalSize: { width: img.naturalWidth, height: img.naturalHeight },
-        });
-        
+
         const left = calculatedLeft;
         const top = calculatedTop;
         const width = calculatedWidth;
         const height = calculatedHeight;
-        
-        console.debug(`[DocumentViewer] Bounding box for field "${fieldName}":`, {
-          fieldName,
-          polygon,
-          bbox: { minX, minY, maxX, maxY },
-          scale: { scaleX, scaleY },
-          calculated: { left, top, width, height },
-          confidence: field.confidence,
-        });
 
         // Color based on confidence
         const confidenceColor =

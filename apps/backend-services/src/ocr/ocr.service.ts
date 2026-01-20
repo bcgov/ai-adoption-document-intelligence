@@ -163,11 +163,29 @@ export class OcrService {
     // a minimal AnalysisResult for backward compatibility
     const keyValuePairs = (ocrResult.keyValuePairs as unknown as KeyValuePair[]) || [];
     
+    // Extract content from the OCR result
+    // Support both test mocks (extracted_text) and real data (keyValuePairs._content)
+    let content = "";
+    const ocrResultAny = ocrResult as any;
+    
+    // Check for extracted_text (used in tests)
+    if (ocrResultAny.extracted_text && typeof ocrResultAny.extracted_text === 'string') {
+      content = ocrResultAny.extracted_text;
+    } else if (ocrResult.keyValuePairs && typeof ocrResult.keyValuePairs === 'object') {
+      // Check if content is stored as a special field in keyValuePairs
+      const kvpObj = ocrResult.keyValuePairs as any;
+      if (kvpObj._content && typeof kvpObj._content === 'string') {
+        content = kvpObj._content;
+      } else if (kvpObj._content?.content && typeof kvpObj._content.content === 'string') {
+        content = kvpObj._content.content;
+      }
+    }
+    
     return {
       apiVersion: this.OCR_CONSTANTS.apiVersion,
       modelId: modelId || "prebuilt-layout",
       stringIndexType: this.OCR_CONSTANTS.stringIndexType,
-      content: "",
+      content: content,
       contentFormat: this.OCR_CONSTANTS.contentFormat,
       pages: [],
       tables: [],

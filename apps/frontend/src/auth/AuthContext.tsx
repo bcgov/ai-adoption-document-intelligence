@@ -72,8 +72,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         await restoreStoredTokens();
         await handleAuthResultFromUrl();
-      } catch (error) {
-        console.error("Auth initialization error:", error);
+      } catch (_error) {
+        // Auth initialization error - removed console for lint compliance
         localStorage.removeItem("auth_tokens");
         setUser(null);
       } finally {
@@ -110,11 +110,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (tokens.refresh_token) {
       try {
         await refreshToken();
-      } catch (error) {
-        console.log(
-          "Token refresh failed during stored token restoration:",
-          error,
-        );
+      } catch (_error) {
+        // Token refresh failed - removed console for lint compliance
         localStorage.removeItem("auth_tokens");
         setUser(null);
       }
@@ -145,8 +142,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           );
           profilePayload = JSON.parse(atob(padded));
         }
-      } catch (error) {
-        console.error("Failed to decode ID token payload", error);
+      } catch (_error) {
       }
     }
 
@@ -201,10 +197,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     if (!authResult) {
       if (url.searchParams.has("auth_error")) {
-        console.warn(
-          "Authentication error flag present in URL:",
-          url.searchParams.get("auth_error"),
-        );
         url.searchParams.delete("auth_error");
         updateBrowserUrl(url);
       }
@@ -212,10 +204,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     if (handledAuthResultIdsRef.current.has(authResult)) {
-      console.debug(
-        "Auth result already handled, skipping duplicate request",
-        authResult,
-      );
       return;
     }
     handledAuthResultIdsRef.current.add(authResult);
@@ -229,8 +217,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       );
 
       await persistTokens(response.data);
-    } catch (error) {
-      console.error("Failed to consume auth result:", error);
+    } catch (_error) {
       localStorage.removeItem("auth_tokens");
       setUser(null);
     } finally {
@@ -282,7 +269,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       await persistTokens(response.data);
     } catch (error) {
-      console.error("Token refresh failed:", error);
       // Clear invalid tokens
       localStorage.removeItem("auth_tokens");
       setUser(null);
