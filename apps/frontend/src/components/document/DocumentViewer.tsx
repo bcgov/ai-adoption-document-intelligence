@@ -1,19 +1,19 @@
 import { Button, Tooltip } from "@mantine/core";
 import {
+  IconChevronLeft,
+  IconChevronRight,
   IconEye,
   IconEyeOff,
   IconRotateClockwise,
   IconZoomIn,
   IconZoomOut,
-  IconChevronLeft,
-  IconChevronRight,
 } from "@tabler/icons-react";
 import * as pdfjsLib from "pdfjs-dist";
 import { useEffect, useRef, useState } from "react";
 import type { BoundingRegion, ExtractedFields } from "../../shared/types";
 
 // Configure pdfjs worker - use worker from public folder
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 interface DocumentViewerProps {
   imageUrl: string;
@@ -42,13 +42,16 @@ export function DocumentViewer({
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [pdfImageUrl, setPdfImageUrl] = useState<string>("");
   const [loadingPdf, setLoadingPdf] = useState(false);
-  const [pdfPageDimensions, setPdfPageDimensions] = useState({ width: 0, height: 0 });
+  const [pdfPageDimensions, setPdfPageDimensions] = useState({
+    width: 0,
+    height: 0,
+  });
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(pageNumber || 1);
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isPdf = fileType === "pdf";
-  
+
   // Update current page when pageNumber prop changes
   useEffect(() => {
     setCurrentPage(pageNumber || 1);
@@ -64,40 +67,40 @@ export function DocumentViewer({
   useEffect(() => {
     const loadPdfPage = async () => {
       if (!imageUrl || !isPdf) return;
-      
+
       setLoadingPdf(true);
       try {
         const response = await fetch(imageUrl);
         const arrayBuffer = await response.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        
+
         setTotalPages(pdf.numPages);
         const targetPage = Math.min(currentPage, pdf.numPages);
         const page = await pdf.getPage(targetPage);
         const viewport = page.getViewport({ scale: 2.0 });
-        
+
         // Store the original PDF page dimensions (in points) for coordinate scaling
         const pageViewport = page.getViewport({ scale: 1.0 });
         setPdfPageDimensions({
           width: pageViewport.width,
           height: pageViewport.height,
         });
-        
+
         const canvas = document.createElement("canvas");
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         const context = canvas.getContext("2d");
-        
+
         if (!context) {
           throw new Error("Could not get canvas context");
         }
-        
+
         await page.render({
           canvasContext: context,
           viewport: viewport,
           canvas: canvas,
         }).promise;
-        
+
         const renderedImageUrl = canvas.toDataURL("image/png");
         setPdfImageUrl(renderedImageUrl);
         // Reset image loaded state so overlays can re-render for new page
@@ -131,8 +134,10 @@ export function DocumentViewer({
   const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.25, 3));
   const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.25, 0.5));
   const handleResetZoom = () => setZoom(1);
-  const handlePreviousPage = () => setCurrentPage((prev) => Math.max(1, prev - 1));
-  const handleNextPage = () => setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+  const handlePreviousPage = () =>
+    setCurrentPage((prev) => Math.max(1, prev - 1));
+  const handleNextPage = () =>
+    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
 
   const fieldEntries = Object.entries(extractedFields);
 
@@ -174,139 +179,139 @@ export function DocumentViewer({
       ),
     );
 
-    return fieldsForPage
-      .map(([fieldName, field], index) => {
-        // Use the bounding region for this page
-        const boundingRegion = field.boundingRegions?.find(
-          (br: BoundingRegion) => br.pageNumber === currentPage,
-        );
-        if (!boundingRegion) {
-          return null;
-        }
+    return fieldsForPage.map(([fieldName, field], index) => {
+      // Use the bounding region for this page
+      const boundingRegion = field.boundingRegions?.find(
+        (br: BoundingRegion) => br.pageNumber === currentPage,
+      );
+      if (!boundingRegion) {
+        return null;
+      }
 
-        const polygon = boundingRegion.polygon;
-        if (!polygon || polygon.length < 8) {
-          return null; // Need at least 4 points (8 coordinates)
-        }
+      const polygon = boundingRegion.polygon;
+      if (!polygon || polygon.length < 8) {
+        return null; // Need at least 4 points (8 coordinates)
+      }
 
-        // Convert polygon to bounding box for overlay
-        const xs = [];
-        const ys = [];
-        for (let i = 0; i < polygon.length; i += 2) {
-          xs.push(polygon[i]);
-          ys.push(polygon[i + 1]);
-        }
+      // Convert polygon to bounding box for overlay
+      const xs = [];
+      const ys = [];
+      for (let i = 0; i < polygon.length; i += 2) {
+        xs.push(polygon[i]);
+        ys.push(polygon[i + 1]);
+      }
 
-        const minX = Math.min(...xs);
-        const minY = Math.min(...ys);
-        const maxX = Math.max(...xs);
-        const maxY = Math.max(...ys);
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs);
+      const maxY = Math.max(...ys);
 
-        // Scale to display coordinates
-        // For PDFs, bounding regions are in PDF points (72 DPI), need to scale to rendered image
-        let scaleX: number;
-        let scaleY: number;
-        
-        if (isPdf) {
-          // For PDFs, bounding regions are typically in PDF coordinate space (points)
-          // The rendered image natural size is PDF dimensions * render scale (2.0)
-          // But we need to check if coordinates are normalized (0-1) or in points
-          // Try using natural dimensions first (assumes coordinates match rendered size)
-          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-            scaleX = imgRect.width / img.naturalWidth;
-            scaleY = imgRect.height / img.naturalHeight;
-          } else if (pdfPageDimensions.width > 0 && pdfPageDimensions.height > 0) {
-            // Fallback: use PDF page dimensions (if coordinates are in PDF points)
-            // Account for 2x render scale
-            scaleX = imgRect.width / (pdfPageDimensions.width * 2.0);
-            scaleY = imgRect.height / (pdfPageDimensions.height * 2.0);
-          } else {
-            // Last resort: use imageDimensions
-            scaleX = imgRect.width / imageDimensions.width;
-            scaleY = imgRect.height / imageDimensions.height;
-          }
+      // Scale to display coordinates
+      // For PDFs, bounding regions are in PDF points (72 DPI), need to scale to rendered image
+      let scaleX: number;
+      let scaleY: number;
+
+      if (isPdf) {
+        // For PDFs, bounding regions are typically in PDF coordinate space (points)
+        // The rendered image natural size is PDF dimensions * render scale (2.0)
+        // But we need to check if coordinates are normalized (0-1) or in points
+        // Try using natural dimensions first (assumes coordinates match rendered size)
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          scaleX = imgRect.width / img.naturalWidth;
+          scaleY = imgRect.height / img.naturalHeight;
+        } else if (
+          pdfPageDimensions.width > 0 &&
+          pdfPageDimensions.height > 0
+        ) {
+          // Fallback: use PDF page dimensions (if coordinates are in PDF points)
+          // Account for 2x render scale
+          scaleX = imgRect.width / (pdfPageDimensions.width * 2.0);
+          scaleY = imgRect.height / (pdfPageDimensions.height * 2.0);
         } else {
-          // For regular images, use natural dimensions
+          // Last resort: use imageDimensions
           scaleX = imgRect.width / imageDimensions.width;
           scaleY = imgRect.height / imageDimensions.height;
         }
+      } else {
+        // For regular images, use natural dimensions
+        scaleX = imgRect.width / imageDimensions.width;
+        scaleY = imgRect.height / imageDimensions.height;
+      }
 
-        const calculatedLeft = minX * scaleX;
-        const calculatedTop = minY * scaleY;
-        const calculatedWidth = (maxX - minX) * scaleX;
-        const calculatedHeight = (maxY - minY) * scaleY;
+      const calculatedLeft = minX * scaleX;
+      const calculatedTop = minY * scaleY;
+      const calculatedWidth = (maxX - minX) * scaleX;
+      const calculatedHeight = (maxY - minY) * scaleY;
 
-        const left = calculatedLeft;
-        const top = calculatedTop;
-        const width = calculatedWidth;
-        const height = calculatedHeight;
+      const left = calculatedLeft;
+      const top = calculatedTop;
+      const width = calculatedWidth;
+      const height = calculatedHeight;
 
-        // Color based on confidence
-        const confidenceColor =
-          field.confidence >= 0.9
-            ? "rgba(34, 197, 94, 0.3)" // green
-            : field.confidence >= 0.7
-              ? "rgba(251, 191, 36, 0.3)" // yellow
-              : "rgba(239, 68, 68, 0.3)"; // red
+      // Color based on confidence
+      const confidenceColor =
+        field.confidence >= 0.9
+          ? "rgba(34, 197, 94, 0.3)" // green
+          : field.confidence >= 0.7
+            ? "rgba(251, 191, 36, 0.3)" // yellow
+            : "rgba(239, 68, 68, 0.3)"; // red
 
-        const borderColor = confidenceColor.replace("0.3", "1");
+      const borderColor = confidenceColor.replace("0.3", "1");
 
-        const tooltipLabel = (
-          <div style={{ padding: "4px", fontSize: "14px", lineHeight: "1.4" }}>
-            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
-              {fieldName}
-            </div>
-            <div style={{ marginBottom: "4px" }}>
-              Value: {getFieldDisplayValue(field)}
-            </div>
-            <div
-              style={{ marginBottom: "4px", fontSize: "12px", color: "#888" }}
-            >
-              Type: {field.type}
-            </div>
-            <div
-              style={{ fontSize: "12px", color: "#666", fontWeight: "normal" }}
-            >
-              Confidence: {Math.round(field.confidence * 100)}%
-            </div>
+      const tooltipLabel = (
+        <div style={{ padding: "4px", fontSize: "14px", lineHeight: "1.4" }}>
+          <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+            {fieldName}
           </div>
-        );
-
-        return (
-          <Tooltip
-            key={index}
-            label={tooltipLabel}
-            withArrow
-            withinPortal
-            openDelay={150}
-            closeDelay={150}
-            multiline
-            position="top"
-            zIndex={10000}
-            portalProps={{
-              target: document.body,
-            }}
+          <div style={{ marginBottom: "4px" }}>
+            Value: {getFieldDisplayValue(field)}
+          </div>
+          <div style={{ marginBottom: "4px", fontSize: "12px", color: "#888" }}>
+            Type: {field.type}
+          </div>
+          <div
+            style={{ fontSize: "12px", color: "#666", fontWeight: "normal" }}
           >
-            <div
-              style={{
-                position: "absolute",
-                left: `${left}px`,
-                top: `${top}px`,
-                width: `${width}px`,
-                height: `${height}px`,
-                pointerEvents: "auto",
-                cursor: "pointer",
-                borderRadius: "4px",
-                borderWidth: "2px",
-                borderStyle: "solid",
-                borderColor,
-                backgroundColor: confidenceColor,
-                transition: "box-shadow 120ms ease, transform 120ms ease",
-              }}
-            />
-          </Tooltip>
-        );
-      });
+            Confidence: {Math.round(field.confidence * 100)}%
+          </div>
+        </div>
+      );
+
+      return (
+        <Tooltip
+          key={index}
+          label={tooltipLabel}
+          withArrow
+          withinPortal
+          openDelay={150}
+          closeDelay={150}
+          multiline
+          position="top"
+          zIndex={10000}
+          portalProps={{
+            target: document.body,
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              left: `${left}px`,
+              top: `${top}px`,
+              width: `${width}px`,
+              height: `${height}px`,
+              pointerEvents: "auto",
+              cursor: "pointer",
+              borderRadius: "4px",
+              borderWidth: "2px",
+              borderStyle: "solid",
+              borderColor,
+              backgroundColor: confidenceColor,
+              transition: "box-shadow 120ms ease, transform 120ms ease",
+            }}
+          />
+        </Tooltip>
+      );
+    });
   };
 
   return (
@@ -338,7 +343,14 @@ export function DocumentViewer({
             {fieldEntries.length} fields
           </span>
           {isPdf && totalPages > 1 && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "16px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                marginLeft: "16px",
+              }}
+            >
               <Button
                 variant="outline"
                 size="sm"
@@ -348,7 +360,14 @@ export function DocumentViewer({
               >
                 Previous
               </Button>
-              <span style={{ fontSize: "0.875rem", color: "#4b5563", minWidth: "80px", textAlign: "center" }}>
+              <span
+                style={{
+                  fontSize: "0.875rem",
+                  color: "#4b5563",
+                  minWidth: "80px",
+                  textAlign: "center",
+                }}
+              >
                 Page {currentPage} of {totalPages}
               </span>
               <Button
@@ -410,7 +429,9 @@ export function DocumentViewer({
           }}
         >
           {loadingPdf || (isPdf && !pdfImageUrl) ? (
-            <div style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}>
+            <div
+              style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}
+            >
               Loading PDF page...
             </div>
           ) : (isPdf ? pdfImageUrl : imageUrl) ? (

@@ -143,6 +143,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           profilePayload = JSON.parse(atob(padded));
         }
       } catch (_error) {
+        // Ignore parsing errors - profile payload is optional
       }
     }
 
