@@ -168,13 +168,22 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
           fileLength: payload.file.length,
         });
 
+        console.info("[Upload] Making API request to /api/upload");
         const response = await apiService.post<{ document: Document }>(
           "/upload",
           payload,
         );
 
+        console.info("[Upload] Received API response", {
+          success: response.success,
+          hasData: !!response.data,
+          message: response.message,
+        });
+
         if (!response.success || !response.data) {
-          throw new Error(response.message || "Upload failed");
+          const errorMsg = response.message || "Upload failed";
+          console.error("[Upload] Upload failed:", errorMsg);
+          throw new Error(errorMsg);
         }
 
         console.debug(
@@ -231,8 +240,14 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
   };
 
   const uploadDocuments = async () => {
-    console.info("[Upload] Starting upload process");
+    console.info("[Upload] Starting upload process", {
+      selectedModel,
+      queueLength: queue.length,
+      queuedItems: queue.filter((item) => item.status === "queued").length,
+    });
+    
     if (!selectedModel) {
+      console.warn("[Upload] No model selected");
       notifications.show({
         title: "Select a model",
         message: "Please select a processing model before uploading.",
@@ -245,7 +260,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
       (item) => item.status === "queued" || item.status === "error",
     );
     if (pending.length === 0) {
-      console.info("[Upload] No pending files to upload");
+      console.warn("[Upload] No pending files to upload");
       notifications.show({
         title: "Nothing to upload",
         message: "Add images first, then click upload.",
@@ -254,6 +269,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
       return;
     }
 
+    console.info(`[Upload] Found ${pending.length} pending files, starting upload`);
     await uploadDocumentsFromFiles(pending);
   };
 

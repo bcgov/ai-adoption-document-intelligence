@@ -130,6 +130,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       fileName: string;
       fileType: string;
       contentType: string;
+      modelId?: string;
     },
   ): Promise<string> {
     this.ensureClientInitialized();
@@ -153,6 +154,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
             fileName: fileData.fileName,
             fileType: fileData.fileType as "pdf" | "image",
             contentType: fileData.contentType,
+            modelId: fileData.modelId,
           },
         ],
         taskQueue: this.taskQueue,

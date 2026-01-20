@@ -185,8 +185,8 @@ export async function ocrWorkflow(input: OCRWorkflowInput): Promise<OCRResult> {
         break;
       }
 
-      // Poll OCR results
-      pollResult = await pollOCRResults(submissionResult.apimRequestId);
+      // Poll OCR results (pass modelId from fileData)
+      pollResult = await pollOCRResults(submissionResult.apimRequestId, fileData.modelId);
 
       // If status is not "running", break the loop
       if (pollResult.status !== 'running') {
@@ -223,6 +223,7 @@ export async function ocrWorkflow(input: OCRWorkflowInput): Promise<OCRResult> {
       submissionResult.apimRequestId,
       fileData.fileName,
       fileData.fileType,
+      fileData.modelId,
       ocrResponse
     );
 

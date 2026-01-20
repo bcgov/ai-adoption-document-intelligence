@@ -132,6 +132,9 @@ export async function prepareFileData(input: OCRWorkflowInput): Promise<Prepared
     }
   }
 
+  // Get modelId from input, default to "prebuilt-layout"
+  const modelId = input.modelId || 'prebuilt-layout';
+
   console.log(JSON.stringify({
     activity: activityName,
     event: 'complete',
@@ -139,6 +142,7 @@ export async function prepareFileData(input: OCRWorkflowInput): Promise<Prepared
     fileName,
     fileType,
     contentType,
+    modelId,
     binaryDataLength: binaryData.length,
     timestamp: new Date().toISOString()
   }));
@@ -147,7 +151,8 @@ export async function prepareFileData(input: OCRWorkflowInput): Promise<Prepared
     fileName,
     fileType,
     contentType,
-    binaryData
+    binaryData,
+    modelId
   };
 }
 
@@ -167,6 +172,7 @@ export async function submitToAzureOCR(
     fileName: fileData.fileName,
     fileType: fileData.fileType,
     contentType: fileData.contentType,
+    modelId: fileData.modelId,
     dataSize: fileData.binaryData.length,
     timestamp: new Date().toISOString()
   }));
@@ -187,7 +193,13 @@ export async function submitToAzureOCR(
   }
 
   const normalizedEndpoint = normalizeEndpoint(endpoint);
-  const url = `${normalizedEndpoint}/documentModels/prebuilt-layout:analyze?api-version=2024-11-30&features=keyValuePairs`;
+  const modelId = fileData.modelId || 'prebuilt-layout';
+  
+  // Build URL - only include features param for prebuilt models
+  const isPrebuiltModel = modelId.startsWith('prebuilt-') || modelId === 'prebuilt-read';
+  const url = isPrebuiltModel
+    ? `${normalizedEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30&features=keyValuePairs`
+    : `${normalizedEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30`;
 
   try {
     const fileBuffer = Buffer.from(fileData.binaryData, 'base64');
@@ -279,13 +291,17 @@ export async function submitToAzureOCR(
  * Activity: Poll Azure Document Intelligence for OCR results
  * Returns status and full response if available
  */
-export async function pollOCRResults(apimRequestId: string): Promise<PollResult> {
+export async function pollOCRResults(
+  apimRequestId: string,
+  modelId: string
+): Promise<PollResult> {
   const activityName = 'pollOCRResults';
 
   console.log(JSON.stringify({
     activity: activityName,
     event: 'start',
     apimRequestId,
+    modelId,
     timestamp: new Date().toISOString()
   }));
   
@@ -294,6 +310,7 @@ export async function pollOCRResults(apimRequestId: string): Promise<PollResult>
       activity: activityName,
       event: 'error',
       apimRequestId,
+      modelId,
       error: 'missing_credentials',
       message: 'Azure Document Intelligence credentials not configured',
       timestamp: new Date().toISOString()
@@ -308,6 +325,7 @@ export async function pollOCRResults(apimRequestId: string): Promise<PollResult>
       activity: activityName,
       event: 'error',
       apimRequestId,
+      modelId,
       error: 'invalid_apim_request_id',
       message: 'APIM Request ID not available for polling',
       timestamp: new Date().toISOString()
@@ -316,7 +334,8 @@ export async function pollOCRResults(apimRequestId: string): Promise<PollResult>
   }
 
   const normalizedEndpoint = normalizeEndpoint(endpoint);
-  const url = `${normalizedEndpoint}/documentModels/prebuilt-layout/analyzeResults/${apimRequestId}?api-version=2024-11-30`;
+  const normalizedModelId = modelId || 'prebuilt-layout';
+  const url = `${normalizedEndpoint}/documentModels/${normalizedModelId}/analyzeResults/${apimRequestId}?api-version=2024-11-30`;
 
   try {
     const response = await axios.get<OCRResponse>(url, {
@@ -387,6 +406,7 @@ export async function extractOCRResults(
   apimRequestId: string,
   fileName: string,
   fileType: string,
+  modelId: string,
   ocrResponse?: OCRResponse
 ): Promise<OCRResult> {
   const activityName = 'extractOCRResults';
@@ -397,6 +417,7 @@ export async function extractOCRResults(
     apimRequestId,
     fileName,
     fileType,
+    modelId,
     timestamp: new Date().toISOString()
   }));
 
@@ -411,7 +432,8 @@ export async function extractOCRResults(
         );
       }
       const normalizedEndpoint = normalizeEndpoint(endpoint);
-      const url = `${normalizedEndpoint}/documentModels/prebuilt-layout/analyzeResults/${apimRequestId}?api-version=2024-11-30`;
+      const normalizedModelId = modelId || 'prebuilt-layout';
+      const url = `${normalizedEndpoint}/documentModels/${normalizedModelId}/analyzeResults/${apimRequestId}?api-version=2024-11-30`;
       const response = await axios.get<OCRResponse>(url, {
         headers: { 'api-key': apiKey }
       });
@@ -540,7 +562,8 @@ export async function updateDocumentStatus(
 
 /**
  * Activity: Upsert OCR result in database
- * Converts OCRResult to AnalysisResponse format and stores in database
+ * Stores only keyValuePairs in the simplified schema format
+ * Converts KeyValuePair[] array to ExtractedFields format (Record<string, DocumentField>)
  */
 export async function upsertOcrResult(
   documentId: string,
@@ -555,31 +578,51 @@ export async function upsertOcrResult(
     documentId,
     fileName: ocrResult.fileName,
     status: ocrResult.status,
-    pagesCount: ocrResult.pages.length,
-    tablesCount: ocrResult.tables.length,
+    keyValuePairsCount: ocrResult.keyValuePairs?.length || 0,
     timestamp: new Date().toISOString()
   }));
   
   try {
     const prisma = getPrismaClient();
     
-    // Convert OCRResult to AnalysisResponse format for database
-    // The database expects AnalysisResponse format with analyzeResult
+    // Convert keyValuePairs to JSON format for database
+    // The simplified schema only stores keyValuePairs as JSON in ExtractedFields format
     const asJson = (obj: any) => obj as unknown as any;
+    
+    // Extract keyValuePairs from OCR result (array of KeyValuePair objects)
+    const keyValuePairsArray = ocrResult.keyValuePairs || [];
+    
+    // Convert KeyValuePair[] array to ExtractedFields format (Record<string, DocumentField>)
+    // This matches the format expected by the backend and frontend
+    const extractedFields: Record<string, any> = {};
+    
+    for (const pair of keyValuePairsArray) {
+      const fieldName = pair.key?.content || "unknown";
+      const field = {
+        type: "string",
+        content: pair.value?.content || null,
+        confidence: pair.confidence,
+        boundingRegions: pair.value?.boundingRegions || pair.key?.boundingRegions,
+        spans: pair.value?.spans || pair.key?.spans,
+      };
+      
+      // Handle duplicate field names by appending a suffix
+      let uniqueName = fieldName;
+      let counter = 1;
+      while (extractedFields[uniqueName]) {
+        uniqueName = `${fieldName}_${counter}`;
+        counter++;
+      }
+      
+      extractedFields[uniqueName] = field;
+    }
     
     const updateObject = {
       processed_at: new Date(ocrResult.processedAt),
-      extracted_text: ocrResult.extractedText,
-      pages: asJson(ocrResult.pages),
-      tables: asJson(ocrResult.tables),
-      paragraphs: asJson(ocrResult.paragraphs),
-      styles: asJson([]), // Empty styles array (OCRResult doesn't have styles)
-      sections: asJson(ocrResult.sections),
-      figures: asJson(ocrResult.figures),
-      keyValuePairs: asJson(ocrResult.keyValuePairs || []),
+      keyValuePairs: asJson(extractedFields),
     };
     
-    // Upsert OCR result
+    // Upsert OCR result (only keyValuePairs field)
     await prisma.ocrResult.upsert({
       where: {
         document_id: documentId,
@@ -602,6 +645,7 @@ export async function upsertOcrResult(
       event: 'complete',
       documentId,
       fileName: ocrResult.fileName,
+      keyValuePairsCount: Object.keys(extractedFields).length,
       timestamp: new Date().toISOString()
     }));
   } catch (error) {

@@ -5,9 +5,15 @@ import {
   IconRotateClockwise,
   IconZoomIn,
   IconZoomOut,
+  IconChevronLeft,
+  IconChevronRight,
 } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import type { BoundingRegion, ExtractedFields } from "../../shared/types";
+import * as pdfjsLib from "pdfjs-dist";
+
+// Configure pdfjs worker - use worker from public folder
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 interface DocumentViewerProps {
   imageUrl: string;
@@ -16,6 +22,7 @@ interface DocumentViewerProps {
   onZoomChange?: (zoom: number) => void;
   showOverlays?: boolean;
   onToggleOverlays?: () => void;
+  fileType?: string;
 }
 
 export function DocumentViewer({
@@ -25,6 +32,7 @@ export function DocumentViewer({
   onZoomChange,
   showOverlays = true,
   onToggleOverlays,
+  fileType,
 }: DocumentViewerProps) {
   const [zoom, setZoom] = useState(1);
   const [imageDimensions, setImageDimensions] = useState({
@@ -32,14 +40,83 @@ export function DocumentViewer({
     height: 0,
   });
   const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const [pdfImageUrl, setPdfImageUrl] = useState<string>("");
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [pdfPageDimensions, setPdfPageDimensions] = useState({ width: 0, height: 0 });
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(pageNumber || 1);
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isPdf = fileType === "pdf";
+  
+  // Update current page when pageNumber prop changes
+  useEffect(() => {
+    setCurrentPage(pageNumber || 1);
+  }, [pageNumber]);
 
   useEffect(() => {
     if (onZoomChange) {
       onZoomChange(zoom);
     }
   }, [zoom, onZoomChange]);
+
+  // Load PDF and render first page to image
+  useEffect(() => {
+    const loadPdfPage = async () => {
+      if (!imageUrl || !isPdf) return;
+      
+      setLoadingPdf(true);
+      try {
+        const response = await fetch(imageUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        
+        setTotalPages(pdf.numPages);
+        const targetPage = Math.min(currentPage, pdf.numPages);
+        const page = await pdf.getPage(targetPage);
+        const viewport = page.getViewport({ scale: 2.0 });
+        
+        // Store the original PDF page dimensions (in points) for coordinate scaling
+        const pageViewport = page.getViewport({ scale: 1.0 });
+        setPdfPageDimensions({
+          width: pageViewport.width,
+          height: pageViewport.height,
+        });
+        
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const context = canvas.getContext("2d");
+        
+        if (!context) {
+          throw new Error("Could not get canvas context");
+        }
+        
+        await page.render({
+          canvasContext: context,
+          viewport: viewport,
+          canvas: canvas,
+        }).promise;
+        
+        const renderedImageUrl = canvas.toDataURL("image/png");
+        setPdfImageUrl(renderedImageUrl);
+        // Reset image loaded state so overlays can re-render for new page
+        setIsImageLoaded(false);
+      } catch (error) {
+        console.error("[DocumentViewer] Error loading PDF:", error);
+      } finally {
+        setLoadingPdf(false);
+      }
+    };
+
+    if (isPdf && imageUrl) {
+      void loadPdfPage();
+    } else {
+      setPdfImageUrl("");
+      setPdfPageDimensions({ width: 0, height: 0 });
+      setTotalPages(1);
+    }
+  }, [isPdf, imageUrl, currentPage]);
 
   const handleImageLoad = () => {
     if (imageRef.current) {
@@ -54,6 +131,8 @@ export function DocumentViewer({
   const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.25, 3));
   const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.25, 0.5));
   const handleResetZoom = () => setZoom(1);
+  const handlePreviousPage = () => setCurrentPage((prev) => Math.max(1, prev - 1));
+  const handleNextPage = () => setCurrentPage((prev) => Math.min(totalPages, prev + 1));
 
   const fieldEntries = Object.entries(extractedFields);
 
@@ -82,27 +161,77 @@ export function DocumentViewer({
       !imageRef.current ||
       fieldEntries.length === 0
     ) {
+      console.debug("[DocumentViewer] Overlays not rendered:", {
+        showOverlays,
+        isImageLoaded,
+        hasImageRef: !!imageRef.current,
+        fieldEntriesCount: fieldEntries.length,
+      });
       return null;
     }
 
     const img = imageRef.current;
     const imgRect = img.getBoundingClientRect();
+    
+    console.debug("[DocumentViewer] Rendering overlays:", {
+      isPdf,
+      imageDimensions,
+      pdfPageDimensions,
+      imgRect: { width: imgRect.width, height: imgRect.height },
+      naturalSize: { width: img.naturalWidth, height: img.naturalHeight },
+    });
 
-    return fieldEntries
-      .filter(([, field]) =>
+    const fieldsForPage = fieldEntries      .filter(([, field]) =>
         field.boundingRegions?.some(
-          (br: BoundingRegion) => br.pageNumber === pageNumber,
+          (br: BoundingRegion) => br.pageNumber === currentPage,
         ),
-      )
+      );
+    
+    console.log("[DocumentViewer] ===== BOUNDING BOXES DEBUG =====");
+    console.log("[DocumentViewer] Current page number:", currentPage);
+    console.log("[DocumentViewer] Total fields:", fieldEntries.length);
+    console.log("[DocumentViewer] All fields with bounding regions:", 
+      fieldEntries.map(([name, field]) => ({
+        name,
+        boundingRegions: field.boundingRegions,
+        allPageNumbers: field.boundingRegions?.map(br => br.pageNumber),
+      }))
+    );
+    console.log("[DocumentViewer] Fields for page:", {
+      pageNumber,
+      totalFields: fieldEntries.length,
+      fieldsForPage: fieldsForPage.length,
+    });
+    
+    fieldsForPage.forEach(([name, field]) => {
+      const br = field.boundingRegions?.find(br => br.pageNumber === currentPage);
+      console.log(`[DocumentViewer] Field "${name}":`, {
+        boundingRegion: br,
+        polygon: br?.polygon,
+        polygonLength: br?.polygon?.length,
+        confidence: field.confidence,
+      });
+    });
+
+    return fieldsForPage
       .map(([fieldName, field], index) => {
         // Use the bounding region for this page
         const boundingRegion = field.boundingRegions?.find(
-          (br: BoundingRegion) => br.pageNumber === pageNumber,
+          (br: BoundingRegion) => br.pageNumber === currentPage,
         );
-        if (!boundingRegion) return null;
+        if (!boundingRegion) {
+          console.debug(`[DocumentViewer] No bounding region for field ${fieldName} on page ${pageNumber}`);
+          return null;
+        }
 
         const polygon = boundingRegion.polygon;
-        if (!polygon || polygon.length < 8) return null; // Need at least 4 points (8 coordinates)
+        if (!polygon || polygon.length < 8) {
+          console.debug(`[DocumentViewer] Invalid polygon for field ${fieldName}:`, {
+            polygonLength: polygon?.length,
+            polygon,
+          });
+          return null; // Need at least 4 points (8 coordinates)
+        }
 
         // Convert polygon to bounding box for overlay
         const xs = [];
@@ -118,13 +247,74 @@ export function DocumentViewer({
         const maxY = Math.max(...ys);
 
         // Scale to display coordinates
-        const scaleX = imgRect.width / imageDimensions.width;
-        const scaleY = imgRect.height / imageDimensions.height;
+        // For PDFs, bounding regions are in PDF points (72 DPI), need to scale to rendered image
+        let scaleX: number;
+        let scaleY: number;
+        
+        if (isPdf) {
+          // For PDFs, bounding regions are typically in PDF coordinate space (points)
+          // The rendered image natural size is PDF dimensions * render scale (2.0)
+          // But we need to check if coordinates are normalized (0-1) or in points
+          // Try using natural dimensions first (assumes coordinates match rendered size)
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            scaleX = imgRect.width / img.naturalWidth;
+            scaleY = imgRect.height / img.naturalHeight;
+          } else if (pdfPageDimensions.width > 0 && pdfPageDimensions.height > 0) {
+            // Fallback: use PDF page dimensions (if coordinates are in PDF points)
+            // Account for 2x render scale
+            scaleX = imgRect.width / (pdfPageDimensions.width * 2.0);
+            scaleY = imgRect.height / (pdfPageDimensions.height * 2.0);
+          } else {
+            // Last resort: use imageDimensions
+            scaleX = imgRect.width / imageDimensions.width;
+            scaleY = imgRect.height / imageDimensions.height;
+          }
+          
+          // Note: left, top, width, height will be calculated after this block
+          console.debug("[DocumentViewer] PDF overlay scaling:", {
+            pdfPageDimensions,
+            imgRect: { width: imgRect.width, height: imgRect.height },
+            naturalSize: { width: img.naturalWidth, height: img.naturalHeight },
+            imageDimensions,
+            scaleX,
+            scaleY,
+            bbox: { minX, minY, maxX, maxY },
+          });
+        } else {
+          // For regular images, use natural dimensions
+          scaleX = imgRect.width / imageDimensions.width;
+          scaleY = imgRect.height / imageDimensions.height;
+        }
 
-        const left = minX * scaleX;
-        const top = minY * scaleY;
-        const width = (maxX - minX) * scaleX;
-        const height = (maxY - minY) * scaleY;
+        const calculatedLeft = minX * scaleX;
+        const calculatedTop = minY * scaleY;
+        const calculatedWidth = (maxX - minX) * scaleX;
+        const calculatedHeight = (maxY - minY) * scaleY;
+        
+        console.log(`[DocumentViewer] Bounding box for "${fieldName}":`, {
+          fieldName,
+          originalPolygon: polygon,
+          extractedBbox: { minX, minY, maxX, maxY },
+          scaleFactors: { scaleX, scaleY },
+          calculatedPosition: { left: calculatedLeft, top: calculatedTop, width: calculatedWidth, height: calculatedHeight },
+          confidence: field.confidence,
+          imgRect: { width: imgRect.width, height: imgRect.height },
+          naturalSize: { width: img.naturalWidth, height: img.naturalHeight },
+        });
+        
+        const left = calculatedLeft;
+        const top = calculatedTop;
+        const width = calculatedWidth;
+        const height = calculatedHeight;
+        
+        console.debug(`[DocumentViewer] Bounding box for field "${fieldName}":`, {
+          fieldName,
+          polygon,
+          bbox: { minX, minY, maxX, maxY },
+          scale: { scaleX, scaleY },
+          calculated: { left, top, width, height },
+          confidence: field.confidence,
+        });
 
         // Color based on confidence
         const confidenceColor =
@@ -222,6 +412,31 @@ export function DocumentViewer({
           <span style={{ fontSize: "0.875rem", color: "#4b5563" }}>
             {fieldEntries.length} fields
           </span>
+          {isPdf && totalPages > 1 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "16px" }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1 || loadingPdf}
+                leftSection={<IconChevronLeft size={16} />}
+              >
+                Previous
+              </Button>
+              <span style={{ fontSize: "0.875rem", color: "#4b5563", minWidth: "80px", textAlign: "center" }}>
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages || loadingPdf}
+                rightSection={<IconChevronRight size={16} />}
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -269,18 +484,24 @@ export function DocumentViewer({
             transformOrigin: "center",
           }}
         >
-          <img
-            ref={imageRef}
-            src={imageUrl}
-            alt="Document page"
-            style={{
-              display: "block",
-              maxWidth: "100%",
-              height: "auto",
-              boxShadow: "0 10px 25px rgba(15, 23, 42, 0.15)",
-            }}
-            onLoad={handleImageLoad}
-          />
+          {loadingPdf || (isPdf && !pdfImageUrl) ? (
+            <div style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}>
+              Loading PDF page...
+            </div>
+          ) : (isPdf ? pdfImageUrl : imageUrl) ? (
+            <img
+              ref={imageRef}
+              src={isPdf ? pdfImageUrl : imageUrl}
+              alt="Document page"
+              style={{
+                display: "block",
+                maxWidth: "100%",
+                height: "auto",
+                boxShadow: "0 10px 25px rgba(15, 23, 42, 0.15)",
+              }}
+              onLoad={handleImageLoad}
+            />
+          ) : null}
           {renderFieldOverlays()}
         </div>
       </div>
@@ -303,7 +524,7 @@ export function DocumentViewer({
             justifyContent: "space-between",
           }}
         >
-          <span>Page {pageNumber}</span>
+          <span>Page {currentPage}</span>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             <span>
               Image: {imageDimensions.width} × {imageDimensions.height}

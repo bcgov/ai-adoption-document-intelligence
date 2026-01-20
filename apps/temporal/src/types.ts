@@ -9,6 +9,7 @@ export interface OCRWorkflowInput {
   fileName?: string;
   fileType?: 'pdf' | 'image';
   contentType?: string;
+  modelId?: string; // Azure Document Intelligence model ID (defaults to "prebuilt-layout")
 }
 
 // Workflow State (internal)
@@ -159,6 +160,7 @@ export interface PreparedFileData {
   fileType: 'pdf' | 'image';
   contentType: string;
   binaryData: string;
+  modelId: string; // Azure Document Intelligence model ID
 }
 
 export interface SubmissionResult {

@@ -159,21 +159,23 @@ export class OcrService {
     ocrResult: OcrResult,
     modelId?: string,
   ): AnalysisResult {
+    // The simplified schema only stores keyValuePairs, so we need to reconstruct
+    // a minimal AnalysisResult for backward compatibility
+    const keyValuePairs = (ocrResult.keyValuePairs as unknown as KeyValuePair[]) || [];
+    
     return {
       apiVersion: this.OCR_CONSTANTS.apiVersion,
       modelId: modelId || "prebuilt-layout",
       stringIndexType: this.OCR_CONSTANTS.stringIndexType,
-      content: ocrResult.extracted_text,
+      content: "",
       contentFormat: this.OCR_CONSTANTS.contentFormat,
-      pages: ocrResult.pages as unknown as Page[],
-      tables: ocrResult.tables as unknown as Table[],
-      paragraphs: ocrResult.paragraphs as unknown as Paragraph[],
-      styles: ocrResult.styles as unknown as Style[],
-      sections: ocrResult.sections as unknown as Section[],
-      figures: ocrResult.figures as unknown as Figure[],
-      keyValuePairs: ocrResult.keyValuePairs as unknown as
-        | KeyValuePair[]
-        | undefined,
+      pages: [],
+      tables: [],
+      paragraphs: [],
+      styles: [],
+      sections: [],
+      figures: [],
+      keyValuePairs: keyValuePairs,
     };
   }
 
