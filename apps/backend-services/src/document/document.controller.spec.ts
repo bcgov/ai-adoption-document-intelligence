@@ -15,42 +15,6 @@ describe("DocumentController", () => {
     controller = new DocumentController(databaseService);
   });
 
-  describe("getProtectedData", () => {
-    it("should return protected data and user info", () => {
-      const req: any = {
-        user: { idir_username: "u", display_name: "d", email: "e" },
-      };
-      const result = controller.getProtectedData(req);
-      expect(result).toEqual({
-        message: "Protected data",
-        user: { idirUsername: "u", displayName: "d", email: "e" },
-      });
-    });
-  });
-
-  describe("getAdminData", () => {
-    it("should return admin data and user info", () => {
-      const req: any = {
-        user: {
-          idir_username: "u",
-          display_name: "d",
-          email: "e",
-          roles: ["admin"],
-        },
-      };
-      const result = controller.getAdminData(req);
-      expect(result).toEqual({
-        message: "Admin only data",
-        user: {
-          idirUsername: "u",
-          displayName: "d",
-          email: "e",
-          roles: ["admin"],
-        },
-      });
-    });
-  });
-
   describe("getAllDocuments", () => {
     it("should return all documents", async () => {
       databaseService.findAllDocuments.mockResolvedValue([{ id: "1" } as any]);

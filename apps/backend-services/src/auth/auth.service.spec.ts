@@ -3,7 +3,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import axios from "axios";
 import * as jwt from "jsonwebtoken";
 import { JwksClient, SigningKey } from "jwks-rsa";
-import { AuthService, TokenResponse } from "./auth.service";
+import { AuthService } from "./auth.service";
 import { AuthSessionStore } from "./auth-session.store";
 
 describe("AuthService", () => {

@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { randomUUID } from "crypto";
-import type { TokenResponse } from "./auth.service";
+import { TokenResponseDto } from "@/auth/dto/token-response.dto";
 
 interface StoredTokens {
-  tokens: TokenResponse;
+  tokens: TokenResponseDto;
   expiresAt: number;
 }
 
@@ -31,7 +31,7 @@ export class AuthSessionStore {
   /**
    * Saves provider tokens and returns a one-time opaque identifier.
    */
-  save(tokens: TokenResponse): string {
+  save(tokens: TokenResponseDto): string {
     const id = randomUUID();
     this.store.set(id, {
       tokens,
@@ -43,7 +43,7 @@ export class AuthSessionStore {
   /**
    * Reads and immediately deletes a stored token bundle.
    */
-  consume(id: string): TokenResponse {
+  consume(id: string): TokenResponseDto {
     const entry = this.store.get(id);
     if (!entry || entry.expiresAt < Date.now()) {
       this.store.delete(id);

@@ -10,7 +10,7 @@ import { Reflector } from "@nestjs/core";
 import { Request } from "express";
 import * as jwt from "jsonwebtoken";
 import { JwksClient } from "jwks-rsa";
-import { API_KEY_AUTH_KEY } from "./api-key-auth.decorator";
+import { API_KEY_AUTH_KEY } from "@/decorators/custom-auth-decorators";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 
 interface User {

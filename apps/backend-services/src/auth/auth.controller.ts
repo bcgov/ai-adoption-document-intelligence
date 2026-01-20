@@ -8,12 +8,24 @@ import {
   Query,
   Res,
 } from "@nestjs/common";
+import {
+  ApiBadRequestResponse,
+  ApiInternalServerErrorResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger";
 import { Response } from "express";
+import { TokenResponseDto } from "@/auth/dto/token-response.dto";
 import { AuthService } from "./auth.service";
 import {
   AuthResultQueryDto,
   LogoutQueryDto,
   OAuthCallbackQueryDto,
+  RefreshReturnDto,
   RefreshTokenDto,
 } from "./dto";
 import { Public } from "./public.decorator";
@@ -22,6 +34,7 @@ import { Public } from "./public.decorator";
  * Thin HTTP layer that exposes the OAuth entrypoints to the frontend.
  * All routes are public because authorization happens via bearer tokens on other controllers.
  */
+@ApiTags("Authorization")
 @Controller("auth")
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
@@ -33,7 +46,13 @@ export class AuthController {
    */
   @Public()
   @Post("refresh")
-  async refreshToken(@Body() body: RefreshTokenDto) {
+  @ApiOperation({ summary: "Refresh provider tokens using a refresh token" })
+  @ApiOkResponse({
+    type: RefreshReturnDto,
+    description: "Returns refreshed token if successful",
+  })
+  @ApiBadRequestResponse({ example: "Failed to refresh access token" })
+  async refreshToken(@Body() body: RefreshTokenDto): Promise<RefreshReturnDto> {
     const tokens = await this.authService.refreshAccessToken(
       body.refresh_token,
     );
@@ -51,6 +70,18 @@ export class AuthController {
    */
   @Public()
   @Get("login")
+  @ApiOperation({ summary: "Redirect to Keycloak authorization endpoint" })
+  @ApiResponse({
+    status: 302,
+    description: "Redirects to the Keycloak authorization endpoint",
+    headers: {
+      Location: {
+        description: "URL to redirect the client to",
+        schema: { type: "string" },
+      },
+    },
+  })
+  @ApiInternalServerErrorResponse({ example: "Failed to generate login URL" })
   async getLoginUrl(@Res() res: Response) {
     try {
       const loginUrl = this.authService.getLoginUrl();
@@ -68,6 +99,18 @@ export class AuthController {
    */
   @Public()
   @Get("logout")
+  @ApiOperation({ summary: "Redirect to Keycloak logout endpoint" })
+  @ApiResponse({
+    status: 302,
+    description: "Redirects to the Keycloak logout endpoint",
+    headers: {
+      Location: {
+        description: "URL to redirect the client to",
+        schema: { type: "string" },
+      },
+    },
+  })
+  @ApiInternalServerErrorResponse({ example: "Failed to generate logout URL" })
   async logout(@Query() query: LogoutQueryDto, @Res() res: Response) {
     try {
       const logoutUrl = this.authService.getLogoutUrl(query.id_token_hint);
@@ -86,6 +129,19 @@ export class AuthController {
    */
   @Public()
   @Get("callback")
+  @ApiOperation({
+    summary: "Handle Keycloak OAuth callback and redirect to application",
+  })
+  @ApiResponse({
+    status: 302,
+    description: "Redirects to the application with an auth result or error",
+    headers: {
+      Location: {
+        description: "URL to redirect the client to",
+        schema: { type: "string" },
+      },
+    },
+  })
   async oauthCallback(
     @Query() query: OAuthCallbackQueryDto,
     @Res() res: Response,
@@ -111,7 +167,21 @@ export class AuthController {
    */
   @Public()
   @Get("result")
-  async consumeResult(@Query() query: AuthResultQueryDto) {
+  @ApiOperation({
+    summary: "Retrieve provider tokens using a resultId after OAuth flow",
+  })
+  @ApiQuery({ name: "result" })
+  @ApiOkResponse({
+    description: "Returns the provider tokens for a valid resultId",
+    type: TokenResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: "No stored session was found",
+    example: "Auth result expired or invalid",
+  })
+  async consumeResult(
+    @Query() query: AuthResultQueryDto,
+  ): Promise<TokenResponseDto> {
     return this.authService.consumeAuthResult(query.result);
   }
 }

@@ -1,6 +1,9 @@
 import { Controller, Get } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 
+@ApiTags("OCR")
 @Controller("api")
 export class OcrController {
   private readonly allowedModels: string[];
@@ -15,6 +18,9 @@ export class OcrController {
   }
 
   @Get("models")
+  @ApiOperation({ summary: "Get a list of available OCR models" })
+  @KeycloakSSOAuth()
+  @ApiOkResponse({ schema: { default: { models: ["string"] } } })
   getModels(): { models: string[] } {
     return { models: this.allowedModels };
   }

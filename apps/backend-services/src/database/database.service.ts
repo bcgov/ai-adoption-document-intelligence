@@ -6,7 +6,7 @@ import {
   DocumentField,
   ExtractedFields,
   KeyValuePair,
-} from "@/ocr/azureTypes";
+} from "@/ocr/azure-types";
 import { Document, OcrResult, PrismaClient } from "../generated/client";
 import { DocumentStatus } from "../generated/enums";
 import { JsonValue } from "../generated/internal/prismaNamespace";

@@ -6,8 +6,8 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
+import { API_KEY_AUTH_KEY } from "@/decorators/custom-auth-decorators";
 import { ApiKeyService } from "../api-key/api-key.service";
-import { API_KEY_AUTH_KEY } from "./api-key-auth.decorator";
 
 @Injectable()
 export class ApiKeyAuthGuard implements CanActivate {
