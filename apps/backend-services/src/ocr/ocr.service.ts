@@ -195,7 +195,9 @@ export class OcrService {
       if (kvpObj._content && typeof kvpObj._content === "string") {
         content = kvpObj._content;
       } else if (
-        kvpObj._content?.content &&
+        kvpObj._content &&
+        typeof kvpObj._content === "object" &&
+        "content" in kvpObj._content &&
         typeof kvpObj._content.content === "string"
       ) {
         content = kvpObj._content.content;
