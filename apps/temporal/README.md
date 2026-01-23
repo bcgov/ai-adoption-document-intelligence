@@ -103,6 +103,9 @@ graph TB
    - Temporal server on port `7233` (gRPC)
    - Temporal Web UI on port `8088` (http://localhost:8088)
    - PostgreSQL database on port `5432`
+   - **Search attributes registration** (runs automatically on first startup)
+   
+   > **Note**: Search attributes are automatically registered when the Temporal server starts. The `register-search-attributes` service ensures all required search attributes are available before workflows can run.
 
 5. **Build the project:**
    ```bash

@@ -15,6 +15,12 @@ services:
     depends_on:
       postgresql:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "describe", "--address", "localhost:7233", "--namespace", "default"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks:
       - temporal-network
 
@@ -31,6 +37,23 @@ services:
       - temporal
     networks:
       - temporal-network
+
+  # Register Search Attributes (runs automatically on first startup)
+  register-search-attributes:
+    image: temporalio/auto-setup:latest
+    container_name: temporal-register-search-attributes
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_NAMESPACE=default
+    volumes:
+      - ./register-search-attributes-init.sh:/register-search-attributes-init.sh:ro
+    entrypoint: ["/bin/bash", "/register-search-attributes-init.sh"]
+    depends_on:
+      temporal:
+        condition: service_healthy
+    networks:
+      - temporal-network
+    restart: "no"  # Only run once, don't restart on failure
 
   # PostgreSQL Database
   postgresql:

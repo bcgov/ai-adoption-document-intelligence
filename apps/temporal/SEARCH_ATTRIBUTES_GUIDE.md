@@ -4,11 +4,38 @@
 
 ### Register Search Attributes
 
-Use the provided script to register all required search attributes:
+**Automatic Registration (Recommended):**
+
+Search attributes are **automatically registered** when you start the Temporal server using `docker-compose up`. The `register-search-attributes` service runs automatically on first startup and registers all required attributes.
+
+**Manual Registration (if needed):**
+
+If you need to manually register search attributes, you can use the Temporal CLI directly:
 
 ```bash
-cd apps/temporal
-./register-search-attributes.sh
+docker exec temporal temporal operator search-attribute create \
+  --address temporal:7233 \
+  --namespace default \
+  --name DocumentId \
+  --type Keyword
+
+docker exec temporal temporal operator search-attribute create \
+  --address temporal:7233 \
+  --namespace default \
+  --name FileName \
+  --type Keyword
+
+docker exec temporal temporal operator search-attribute create \
+  --address temporal:7233 \
+  --namespace default \
+  --name FileType \
+  --type Keyword
+
+docker exec temporal temporal operator search-attribute create \
+  --address temporal:7233 \
+  --namespace default \
+  --name Status \
+  --type Keyword
 ```
 
 This registers:
@@ -29,17 +56,13 @@ docker exec temporal temporal operator search-attribute list \
 
 **Step 1: Register the attribute**
 
-Option A - Using the script (recommended):
-1. Edit `register-search-attributes.sh`
-2. Add a new `docker exec` command for your attribute:
+Option A - Automatic registration (recommended):
+1. Edit `register-search-attributes-init.sh` (used by docker-compose)
+2. Add a new `register_attribute` call in the main execution section:
    ```bash
-   docker exec temporal temporal operator search-attribute create \
-       --address "${TEMPORAL_ADDRESS}" \
-       --namespace "${NAMESPACE}" \
-       --name YourNewAttribute \
-       --type Keyword
+   register_attribute "YourNewAttribute" "Keyword"
    ```
-3. Run the script: `./register-search-attributes.sh`
+3. Restart docker-compose: `docker-compose restart register-search-attributes` or `docker-compose up -d`
 
 Option B - Manual registration:
 ```bash

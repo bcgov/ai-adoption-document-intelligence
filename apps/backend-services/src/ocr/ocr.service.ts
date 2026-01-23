@@ -85,13 +85,11 @@ export class OcrService {
         }
       }
 
-      // Get model_id from document (for future use when Temporal workflow supports it)
+      // Get model_id from document
       const modelId = document.model_id;
       this.logger.debug(`Document model_id: ${modelId}`);
 
-      // Start Temporal workflow
-      // NOTE: Currently the Temporal workflow hardcodes "prebuilt-layout" model.
-      // The workflow needs to be updated to accept and use model_id from the document.
+      // Start Temporal workflow with modelId
       const workflowId = await this.temporalClientService.startOCRWorkflow(
         documentId,
         {
@@ -99,6 +97,7 @@ export class OcrService {
           fileName: document.original_filename,
           fileType: fileType,
           contentType: contentType,
+          modelId: modelId,
         },
       );
 
