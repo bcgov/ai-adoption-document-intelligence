@@ -21,7 +21,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { JsonValue } from "@prisma/client/runtime/client";
 import { OcrResult } from "../generated/client";
 import { DocumentStatus } from "../generated/enums";
-import { AnalysisResponse, AnalysisResult } from "../ocr/azureTypes";
+import { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
 import { DatabaseService } from "./database.service";
 
 const defaultDocument = {

@@ -7,15 +7,41 @@ import {
   Post,
   Req,
 } from "@nestjs/common";
+import {
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
 import { Request } from "express";
-import { ApiKeyInfo, ApiKeyService, GeneratedApiKey } from "./api-key.service";
+import {
+  ApiKeyInfoDto,
+  ApiKeyInfoWrapperDto,
+  GeneratedApiKeyDto,
+  GeneratedApiKeyWrapperDto,
+} from "@/api-key/dto/api-key-info.dto";
+import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
+import { ApiKeyService } from "./api-key.service";
 
+@ApiTags("API Keys")
 @Controller("api/api-key")
 export class ApiKeyController {
   constructor(private readonly apiKeyService: ApiKeyService) {}
 
   @Get()
-  async getApiKey(@Req() req: Request): Promise<{ apiKey: ApiKeyInfo | null }> {
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Get the current user's API key information" })
+  @ApiOkResponse({
+    description: "Returns the user's API key if it exists",
+    type: ApiKeyInfoWrapperDto,
+  })
+  @ApiUnauthorizedResponse({ description: "User is not authenticated" })
+  async getApiKey(
+    @Req() req: Request,
+  ): Promise<{ apiKey: ApiKeyInfoDto | null }> {
     const user = req.user;
     const userId = user?.sub;
 
@@ -29,9 +55,20 @@ export class ApiKeyController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Generate a new API key for the current user" })
+  @ApiCreatedResponse({
+    description: "Returns the newly generated API key",
+    type: GeneratedApiKeyWrapperDto,
+  })
+  @ApiConflictResponse({
+    description:
+      "User already has an API key. Delete it first or use regenerate.",
+  })
+  @ApiUnauthorizedResponse({ description: "User is not authenticated" })
   async generateApiKey(
     @Req() req: Request,
-  ): Promise<{ apiKey: GeneratedApiKey }> {
+  ): Promise<{ apiKey: GeneratedApiKeyDto }> {
     const user = req.user;
     const userId = user?.sub as string;
     const userEmail = (user?.email || "unknown@example.com") as string;
@@ -42,6 +79,10 @@ export class ApiKeyController {
 
   @Delete()
   @HttpCode(HttpStatus.NO_CONTENT)
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Delete the current user's API key" })
+  @ApiNoContentResponse({ description: "API key deleted successfully" })
+  @ApiUnauthorizedResponse({ description: "User is not authenticated" })
   async deleteApiKey(@Req() req: Request): Promise<void> {
     const user = req.user;
     const userId = user?.sub as string;
@@ -50,9 +91,16 @@ export class ApiKeyController {
   }
 
   @Post("regenerate")
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Regenerate the current user's API key" })
+  @ApiOkResponse({
+    description: "Returns the newly generated API key",
+    type: GeneratedApiKeyWrapperDto,
+  })
+  @ApiUnauthorizedResponse({ description: "User is not authenticated" })
   async regenerateApiKey(
     @Req() req: Request,
-  ): Promise<{ apiKey: GeneratedApiKey }> {
+  ): Promise<{ apiKey: GeneratedApiKeyDto }> {
     const user = req.user;
     const userId = user?.sub as string;
     const userEmail = (user?.email || "unknown@example.com") as string;

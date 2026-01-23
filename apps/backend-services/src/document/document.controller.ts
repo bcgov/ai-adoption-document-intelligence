@@ -6,69 +6,41 @@ import {
   Logger,
   NotFoundException,
   Param,
-  Req,
   Res,
 } from "@nestjs/common";
-import { Request, Response } from "express";
+import {
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from "@nestjs/swagger";
+import { Response } from "express";
 import { readFile } from "fs/promises";
 import { join } from "path";
-import { OcrResult } from "@/generated/client";
-import { ApiKeyAuth } from "../auth/api-key-auth.decorator";
-import { Roles } from "../auth/roles.decorator";
-import { DatabaseService, DocumentData } from "../database/database.service";
+import {
+  ApiKeyAuth,
+  KeycloakSSOAuth,
+} from "@/decorators/custom-auth-decorators";
+import { DocumentDataDto } from "@/document/dto/document-data.dto";
+import { DatabaseService } from "../database/database.service";
+import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
 
-@Controller("api")
+@ApiTags("Documents")
+@Controller("api/documents")
 export class DocumentController {
   private readonly logger = new Logger(DocumentController.name);
 
   constructor(private readonly databaseService: DatabaseService) {}
 
-  @Get("protected")
-  getProtectedData(@Req() req: Request): {
-    message: string;
-    user: {
-      idirUsername?: string;
-      displayName?: string;
-      email?: string;
-    };
-  } {
-    const user = req.user; // Contains decoded token
-    return {
-      message: "Protected data",
-      user: {
-        idirUsername: user?.idir_username,
-        displayName: user?.display_name,
-        email: user?.email,
-      },
-    };
-  }
-
-  @Get("admin")
-  @Roles("admin")
-  getAdminData(@Req() req: Request): {
-    message: string;
-    user: {
-      idirUsername?: string;
-      displayName?: string;
-      email?: string;
-      roles: string[];
-    };
-  } {
-    const user = req.user;
-    return {
-      message: "Admin only data",
-      user: {
-        idirUsername: user?.idir_username,
-        displayName: user?.display_name,
-        email: user?.email,
-        roles: user?.roles || [],
-      },
-    };
-  }
-
-  @Get("documents")
+  @Get()
   @HttpCode(HttpStatus.OK)
-  async getAllDocuments(): Promise<DocumentData[]> {
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Get all documents" })
+  @ApiOkResponse({
+    description: "Returns a list of all documents",
+    type: [DocumentDataDto],
+  })
+  async getAllDocuments(): Promise<DocumentDataDto[]> {
     this.logger.debug("=== DocumentController.getAllDocuments ===");
 
     try {
@@ -88,22 +60,19 @@ export class DocumentController {
     }
   }
 
-  @Get("documents/:documentId/ocr")
+  @Get("/:documentId/ocr")
   @HttpCode(HttpStatus.OK)
   @ApiKeyAuth()
-  async getOcrResult(@Param("documentId") documentId: string): Promise<{
-    document_id: string;
-    status: string;
-    title: string;
-    original_filename: string;
-    file_type: string;
-    file_size: number;
-    created_at: Date;
-    updated_at: Date;
-    apim_request_id: string | null;
-    model_id: string;
-    ocr_result: OcrResult | null;
-  }> {
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Get OCR result for a document by ID" })
+  @ApiOkResponse({
+    description: "Returns OCR result and document info",
+    type: OcrResultResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Document or OCR result not found" })
+  async getOcrResult(
+    @Param("documentId") documentId: string,
+  ): Promise<OcrResultResponseDto> {
     this.logger.debug(`=== DocumentController.getOcrResult ===`);
     this.logger.debug(`Document ID: ${documentId}`);
 
@@ -167,8 +136,14 @@ export class DocumentController {
     }
   }
 
-  @Get("documents/:documentId/download")
+  @Get("/:documentId/download")
   @HttpCode(HttpStatus.OK)
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Download a document file by ID" })
+  @ApiOkResponse({
+    description: "Returns the document file buffer as a download",
+  })
+  @ApiNotFoundResponse({ description: "Document not found or file missing" })
   async downloadDocument(
     @Param("documentId") documentId: string,
     @Res() res: Response,

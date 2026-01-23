@@ -5,20 +5,8 @@ import { randomBytes } from "crypto";
 import * as jwt from "jsonwebtoken";
 import { JwksClient } from "jwks-rsa";
 import { URL } from "url";
+import { TokenResponseDto } from "@/auth/dto/token-response.dto";
 import { AuthSessionStore } from "./auth-session.store";
-
-/**
- * Wire-format returned by Keycloak when exchanging or refreshing tokens.
- * We preserve these fields to keep the frontend stateless and avoid issuing
- * application-specific credentials.
- */
-export interface TokenResponse {
-  access_token: string;
-  refresh_token?: string;
-  id_token?: string;
-  expires_in: number;
-  token_type: string;
-}
 
 /**
  * Central orchestrator for the OAuth Authorization Code flow.
@@ -89,7 +77,7 @@ export class AuthService {
   async exchangeCodeForTokens(
     code: string,
     codeVerifier?: string,
-  ): Promise<TokenResponse> {
+  ): Promise<TokenResponseDto> {
     try {
       const params = new URLSearchParams();
       params.append("grant_type", "authorization_code");
@@ -102,7 +90,7 @@ export class AuthService {
         params.append("code_verifier", codeVerifier);
       }
 
-      const response: AxiosResponse<TokenResponse> = await axios.post(
+      const response: AxiosResponse<TokenResponseDto> = await axios.post(
         this.tokenEndpoint,
         params,
         {
@@ -126,7 +114,7 @@ export class AuthService {
    * The refresh token is never validated client-side; the backend performs this step
    * so we can keep the client secret and refresh permission on the server.
    */
-  async refreshAccessToken(refreshToken: string): Promise<TokenResponse> {
+  async refreshAccessToken(refreshToken: string): Promise<TokenResponseDto> {
     try {
       const params = new URLSearchParams();
       params.append("grant_type", "refresh_token");
@@ -134,7 +122,7 @@ export class AuthService {
       params.append("client_secret", this.clientSecret);
       params.append("refresh_token", refreshToken);
 
-      const response: AxiosResponse<TokenResponse> = await axios.post(
+      const response: AxiosResponse<TokenResponseDto> = await axios.post(
         this.tokenEndpoint,
         params,
         {
@@ -208,7 +196,7 @@ export class AuthService {
   /**
    * Exposes a one-time read for the frontend to retrieve tokens after redirect.
    */
-  consumeAuthResult(resultId: string): TokenResponse {
+  consumeAuthResult(resultId: string): TokenResponseDto {
     return this.authSessionStore.consume(resultId);
   }
 

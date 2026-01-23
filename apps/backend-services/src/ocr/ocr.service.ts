@@ -13,14 +13,8 @@ import { OcrResult } from "@/generated/client";
 import { DocumentStatus } from "@/generated/enums";
 import {
   AnalysisResult,
-  Figure,
   KeyValuePair,
-  Page,
-  Paragraph,
-  Section,
-  Style,
-  Table,
-} from "@/ocr/azureTypes";
+} from "@/ocr/azure-types";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
 
 export interface OcrRequestResponse {

@@ -16,7 +16,7 @@ import * as fs from "fs/promises";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { DocumentStatus } from "../generated/enums";
 import { TemporalClientService } from "../temporal/temporal-client.service";
-import { AnalysisResponse, AnalysisResult } from "./azureTypes";
+import { AnalysisResponse, AnalysisResult } from "./azure-types";
 import { OcrService } from "./ocr.service";
 
 const defaultDocument = {
