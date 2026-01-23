@@ -75,6 +75,10 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   const handleMouseDown = (e: any) => {
     const stage = e.target.getStage();
     const pos = stage.getPointerPosition();
+    console.debug("[AnnotationCanvas] Mouse down", {
+      tool: activeTool,
+      pointer: pos,
+    });
 
     if (activeTool === CanvasTool.PAN) {
       startPan(pos);
@@ -96,7 +100,6 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   const handleMouseMove = (e: any) => {
     const stage = e.target.getStage();
     const pos = stage.getPointerPosition();
-
     if (activeTool === CanvasTool.PAN) {
       updatePan(pos);
     } else if (activeTool === CanvasTool.DRAW_BOX && isDrawing) {
@@ -109,6 +112,7 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   };
 
   const handleMouseUp = () => {
+    console.debug("[AnnotationCanvas] Mouse up", { tool: activeTool });
     if (activeTool === CanvasTool.PAN) {
       endPan();
     } else if (activeTool === CanvasTool.DRAW_BOX && isDrawing) {
@@ -120,6 +124,7 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   };
 
   const handleBoxClick = (boxId: string) => {
+    console.debug("[AnnotationCanvas] Box clicked", { boxId, tool: activeTool });
     if (activeTool === CanvasTool.SELECT) {
       selectBox(boxId);
       onBoxSelect?.(boxId);

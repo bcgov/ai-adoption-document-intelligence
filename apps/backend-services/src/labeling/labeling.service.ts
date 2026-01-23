@@ -15,12 +15,17 @@ import {
 import { SaveLabelsDto } from "./dto/label.dto";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { FieldType, LabelingStatus } from "../generated/enums";
+import { LabelingUploadDto } from "@/labeling/dto/labeling-upload.dto";
+import { LabelingOcrService } from "@/labeling/labeling-ocr.service";
 
 @Injectable()
 export class LabelingService {
   private readonly logger = new Logger(LabelingService.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly labelingOcrService: LabelingOcrService,
+  ) {}
 
   // ========== PROJECT OPERATIONS ==========
 
@@ -153,7 +158,7 @@ export class LabelingService {
 
   async addDocumentToProject(projectId: string, dto: AddDocumentDto) {
     this.logger.debug(
-      `Adding document ${dto.documentId} to project: ${projectId}`,
+      `Adding document ${dto.labelingDocumentId} to project: ${projectId}`,
     );
 
     // Check project exists
@@ -162,15 +167,15 @@ export class LabelingService {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
 
-    // Check document exists
-    const document = await this.db.findDocument(dto.documentId);
+    // Check labeling document exists
+    const document = await this.db.findLabelingDocument(dto.labelingDocumentId);
     if (!document) {
       throw new NotFoundException(
-        `Document with id ${dto.documentId} not found`,
+        `Labeling document with id ${dto.labelingDocumentId} not found`,
       );
     }
 
-    return this.db.addDocumentToProject(projectId, dto.documentId);
+    return this.db.addDocumentToProject(projectId, dto.labelingDocumentId);
   }
 
   async getProjectDocument(projectId: string, documentId: string) {
@@ -279,24 +284,13 @@ export class LabelingService {
         `Document ${documentId} not found in project ${projectId}`,
       );
     }
-
-    // Return cached OCR data if available
-    if (labeledDoc.ocr_data) {
-      return labeledDoc.ocr_data;
-    }
-
-    // Otherwise fetch from OCR result
-    const ocrResult = await this.db.findOcrResult(documentId);
-    if (!ocrResult) {
+    if (!labeledDoc.labeling_document?.ocr_result) {
       throw new NotFoundException(
-        `OCR result not found for document ${documentId}`,
+        `OCR result not found for labeling document ${documentId}`,
       );
     }
 
-    // Cache the OCR data in the labeled document for future use
-    await this.db.updateLabeledDocumentOcrData(labeledDoc.id, ocrResult);
-
-    return ocrResult;
+    return labeledDoc.labeling_document.ocr_result;
   }
 
   // ========== EXPORT ==========
@@ -316,7 +310,9 @@ export class LabelingService {
     // Filter by document IDs if provided
     if (options.documentIds?.length) {
       documents = documents.filter((d) =>
-        options.documentIds!.includes(d.document_id),
+        options.documentIds!.includes(
+          (d as any).labeling_document_id ?? d.labeling_document.id,
+        ),
       );
     }
 
@@ -348,11 +344,11 @@ export class LabelingService {
 
     // Generate labels.json for each document
     const labelsFiles = documents.map((doc) => ({
-      filename: `${doc.document.original_filename}.labels.json`,
+      filename: `${doc.labeling_document.original_filename}.labels.json`,
       content: {
         $schema:
           "https://schema.cognitiveservices.azure.com/formrecognizer/2021-03-01/labels.json",
-        document: doc.document.original_filename,
+        document: doc.labeling_document.original_filename,
         labels: doc.labels.map((label: any) => ({
           label: label.field_key,
           key: null,
@@ -388,12 +384,37 @@ export class LabelingService {
         fieldSchema: project.field_schema,
       },
       documents: documents.map((doc) => ({
-        id: doc.document_id,
-        filename: doc.document.original_filename,
+        id: (doc as any).labeling_document_id ?? doc.labeling_document.id,
+        filename: doc.labeling_document.original_filename,
         status: doc.status,
         labels: doc.labels,
       })),
       exportedAt: new Date().toISOString(),
+    };
+  }
+
+  async uploadLabelingDocument(projectId: string, dto: LabelingUploadDto) {
+    this.logger.debug(`Uploading labeling document for project: ${projectId}`);
+
+    const project = await this.db.findLabelingProject(projectId);
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+
+    const labelingDocument = await this.labelingOcrService.createLabelingDocument(
+      dto,
+    );
+
+    const labeledDoc = await this.db.addDocumentToProject(
+      projectId,
+      labelingDocument.id,
+    );
+
+    void this.labelingOcrService.processOcrForLabelingDocument(labelingDocument.id);
+
+    return {
+      labeledDocument: labeledDoc,
+      labelingDocument,
     };
   }
 }

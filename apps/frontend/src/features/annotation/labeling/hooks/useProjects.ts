@@ -15,14 +15,15 @@ interface Project {
 
 interface ProjectDocument {
   id: string;
-  document_id: string;
+  labeling_document_id: string;
   status: string;
   created_at: string;
   updated_at: string;
-  document: {
+  labeling_document: {
     id: string;
     title: string;
     original_filename: string;
+    file_path?: string;
     file_type: string;
     file_size: number;
     status: string;
@@ -30,6 +31,7 @@ interface ProjectDocument {
     updated_at: string;
     model_id?: string;
     file_url?: string | null;
+    ocr_result?: any;
   };
   labels?: Array<{
     id: string;
@@ -148,7 +150,7 @@ export const useProjectDocuments = (projectId: string) => {
     mutationFn: async (documentId: string) => {
       const response = await apiService.post<ProjectDocument>(
         `/labeling/projects/${projectId}/documents`,
-        { documentId },
+        { labelingDocumentId: documentId },
       );
       return response.data;
     },

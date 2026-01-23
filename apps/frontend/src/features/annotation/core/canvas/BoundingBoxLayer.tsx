@@ -33,8 +33,11 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
   }
   points.push(box.polygon[0].x, box.polygon[0].y);
 
-  const strokeWidth = isSelected ? 3 : isHovered ? 2 : 1.5;
-  const opacity = isSelected ? 1 : isHovered ? 0.9 : 0.7;
+  const strokeWidth = isSelected ? 2.5 : isHovered ? 2 : 1.2;
+  const opacity = isSelected ? 0.9 : isHovered ? 0.8 : 0.6;
+  const hasLabel = Boolean(label);
+  const fillOpacity = hasLabel ? (isSelected ? 0.08 : 0.04) : 0;
+  const fillColor = hasLabel ? color : "transparent";
 
   const firstPoint = box.polygon[0];
 
@@ -45,7 +48,11 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
         stroke={color}
         strokeWidth={strokeWidth}
         opacity={opacity}
-        closed={false}
+        closed={true}
+        fill={fillColor}
+        fillOpacity={fillOpacity}
+        perfectDrawEnabled={false}
+        hitStrokeWidth={0}
         onClick={() => onClick?.(id)}
         onMouseEnter={() => onMouseEnter?.(id)}
         onMouseLeave={() => onMouseLeave?.(id)}

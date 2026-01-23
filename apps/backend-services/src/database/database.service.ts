@@ -34,8 +34,24 @@ export type LabelingProjectData = LabelingProject & {
   field_schema: FieldDefinition[];
   documents?: LabeledDocument[];
 };
+export type LabelingDocumentData = {
+  id: string;
+  title: string;
+  original_filename: string;
+  file_path: string;
+  file_type: string;
+  file_size: number;
+  metadata?: Record<string, unknown> | null;
+  source: string;
+  status: DocumentStatus;
+  created_at: Date;
+  updated_at: Date;
+  apim_request_id?: string | null;
+  model_id: string;
+  ocr_result?: JsonValue | null;
+};
 export type LabeledDocumentData = LabeledDocument & {
-  document: Document;
+  labeling_document: LabelingDocumentData;
   labels: DocumentLabel[];
 };
 export type ReviewSessionData = ReviewSession & {
@@ -114,6 +130,61 @@ export class DatabaseService {
         `Failed to find document: ${error.message}`,
         error.stack,
       );
+      throw error;
+    }
+  }
+
+  async createLabelingDocument(
+    data: Omit<LabelingDocumentData, "id" | "created_at" | "updated_at">,
+  ): Promise<LabelingDocumentData> {
+    this.logger.debug("=== DatabaseService.createLabelingDocument ===");
+    const prisma = this.prisma as unknown as any;
+    const labelingDocument = await prisma.labelingDocument.create({
+      data: {
+        title: data.title,
+        original_filename: data.original_filename,
+        file_path: data.file_path,
+        file_type: data.file_type,
+        file_size: data.file_size,
+        metadata: data.metadata as JsonValue,
+        source: data.source,
+        status: data.status as DocumentStatus,
+        apim_request_id: data.apim_request_id,
+        model_id: data.model_id,
+        ocr_result: data.ocr_result as JsonValue,
+      },
+    });
+    return labelingDocument as LabelingDocumentData;
+  }
+
+  async findLabelingDocument(id: string): Promise<LabelingDocumentData | null> {
+    this.logger.debug("=== DatabaseService.findLabelingDocument ===");
+    const prisma = this.prisma as unknown as any;
+    const labelingDocument = await prisma.labelingDocument.findUnique({
+      where: { id },
+    });
+    return labelingDocument as LabelingDocumentData | null;
+  }
+
+  async updateLabelingDocument(
+    id: string,
+    data: Partial<LabelingDocumentData>,
+  ): Promise<LabelingDocumentData | null> {
+    this.logger.debug("=== DatabaseService.updateLabelingDocument ===");
+    const prisma = this.prisma as unknown as any;
+    try {
+      const labelingDocument = await prisma.labelingDocument.update({
+        where: { id },
+        data: {
+          ...data,
+          updated_at: new Date(),
+        },
+      });
+      return labelingDocument as LabelingDocumentData;
+    } catch (error) {
+      if (error.code === "P2025") {
+        return null;
+      }
       throw error;
     }
   }
@@ -322,13 +393,14 @@ export class DatabaseService {
 
   async findLabelingProject(id: string): Promise<LabelingProjectData | null> {
     this.logger.debug(`Finding labeling project: ${id}`);
-    const project = await this.prisma.labelingProject.findUnique({
+    const prisma = this.prisma as unknown as any;
+    const project = await prisma.labelingProject.findUnique({
       where: { id },
       include: {
         field_schema: { orderBy: { display_order: "asc" } },
         documents: {
           include: {
-            document: true,
+            labeling_document: true,
             labels: true,
           },
         },
@@ -480,19 +552,20 @@ export class DatabaseService {
 
   async addDocumentToProject(
     projectId: string,
-    documentId: string,
+    labelingDocumentId: string,
   ): Promise<LabeledDocumentData> {
     this.logger.debug(
-      `Adding document ${documentId} to project ${projectId}`,
+      `Adding document ${labelingDocumentId} to project ${projectId}`,
     );
-    const labeledDoc = await this.prisma.labeledDocument.create({
+    const prisma = this.prisma as unknown as any;
+    const labeledDoc = await prisma.labeledDocument.create({
       data: {
         project_id: projectId,
-        document_id: documentId,
+        labeling_document_id: labelingDocumentId,
         status: LabelingStatus.unlabeled,
       },
       include: {
-        document: true,
+        labeling_document: true,
         labels: true,
       },
     });
@@ -501,20 +574,21 @@ export class DatabaseService {
 
   async findLabeledDocument(
     projectId: string,
-    documentId: string,
+    labelingDocumentId: string,
   ): Promise<LabeledDocumentData | null> {
     this.logger.debug(
-      `Finding labeled document ${documentId} in project ${projectId}`,
+      `Finding labeled document ${labelingDocumentId} in project ${projectId}`,
     );
-    const labeledDoc = await this.prisma.labeledDocument.findUnique({
+    const prisma = this.prisma as unknown as any;
+    const labeledDoc = await prisma.labeledDocument.findUnique({
       where: {
-        project_id_document_id: {
+        project_id_labeling_document_id: {
           project_id: projectId,
-          document_id: documentId,
+          labeling_document_id: labelingDocumentId,
         },
       },
       include: {
-        document: true,
+        labeling_document: true,
         labels: true,
       },
     });
@@ -523,11 +597,12 @@ export class DatabaseService {
 
   async findLabeledDocuments(projectId: string): Promise<LabeledDocumentData[]> {
     this.logger.debug(`Finding labeled documents for project: ${projectId}`);
-    const docs = await this.prisma.labeledDocument.findMany({
+    const prisma = this.prisma as unknown as any;
+    const docs = await prisma.labeledDocument.findMany({
       where: { project_id: projectId },
       orderBy: { created_at: "desc" },
       include: {
-        document: true,
+        labeling_document: true,
         labels: true,
       },
     });
@@ -536,17 +611,18 @@ export class DatabaseService {
 
   async removeDocumentFromProject(
     projectId: string,
-    documentId: string,
+    labelingDocumentId: string,
   ): Promise<boolean> {
     this.logger.debug(
-      `Removing document ${documentId} from project ${projectId}`,
+      `Removing document ${labelingDocumentId} from project ${projectId}`,
     );
     try {
-      await this.prisma.labeledDocument.delete({
+      const prisma = this.prisma as unknown as any;
+      await prisma.labeledDocument.delete({
         where: {
-          project_id_document_id: {
+          project_id_labeling_document_id: {
             project_id: projectId,
-            document_id: documentId,
+            labeling_document_id: labelingDocumentId,
           },
         },
       });

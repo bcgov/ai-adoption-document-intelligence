@@ -28,10 +28,29 @@ model Document {
   apim_request_id   String?
   model_id          String   @default("prebuilt-layout")
   ocr_result        OcrResult?
-  labeled_documents LabeledDocument[]
   review_sessions   ReviewSession[]
 
   @@map("documents")
+}
+
+model LabelingDocument {
+  id                String   @id @default(cuid())
+  title             String
+  original_filename String
+  file_path         String
+  file_type         String
+  file_size         Int
+  metadata          Json?
+  source            String
+  status            DocumentStatus @default(pre_ocr)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  apim_request_id   String?
+  model_id          String   @default("prebuilt-layout")
+  ocr_result        Json?
+  labeled_documents LabeledDocument[]
+
+  @@map("labeling_documents")
 }
 
 model OcrResult {
@@ -98,15 +117,15 @@ model LabeledDocument {
   id              String           @id @default(cuid())
   project_id      String
   project         LabelingProject  @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  document_id     String
-  document        Document         @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  labeling_document_id String
+  labeling_document    LabelingDocument @relation(fields: [labeling_document_id], references: [id], onDelete: Cascade)
   status          LabelingStatus   @default(unlabeled)
   assigned_to     String?
   labels          DocumentLabel[]
   ocr_data        Json?
   created_at      DateTime         @default(now())
   updated_at      DateTime         @updatedAt
-  @@unique([project_id, document_id])
+  @@unique([project_id, labeling_document_id])
   @@map("labeled_documents")
 }
 

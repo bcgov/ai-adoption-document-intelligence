@@ -21,6 +21,7 @@ import {
 } from "@mantine/core";
 import { Dropzone, FileRejection } from "@mantine/dropzone";
 import { notifications } from "@mantine/notifications";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   IconArrowLeft,
   IconPlus,
@@ -37,7 +38,13 @@ import { ExportPanel } from "../components/ExportPanel";
 import type { FieldDefinition } from "../../core/types/field";
 import { useUploadQueue, type UploadQueueItem } from "@/data/hooks/useUploadQueue";
 import { apiService } from "@/data/services/api.service";
-import type { Document, UploadDocumentPayload } from "@/shared/types";
+interface LabelingUploadPayload {
+  title: string;
+  file: string;
+  file_type: "pdf" | "image" | "scan";
+  original_filename?: string;
+  metadata?: Record<string, unknown>;
+}
 import {
   dropzoneAccept,
   fileToBase64,
@@ -74,10 +81,10 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
   onOpenDocument,
 }) => {
   const { project, isLoading: isProjectLoading } = useProject(projectId);
+  const queryClient = useQueryClient();
   const {
     documents,
     isLoading: isDocumentsLoading,
-    addDocumentAsync,
     removeDocument,
     isRemoving,
   } = useProjectDocuments(projectId);
@@ -98,12 +105,15 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
     removeFromQueue,
     clearQueue,
     uploadFiles,
-  } = useUploadQueue<Document>({
+  } = useUploadQueue<{ labelingDocumentId: string }>({
     onUploadSuccess: (item) => {
       notifications.show({
         title: "Upload complete",
         message: `${item.file.name} was uploaded successfully.`,
         color: "green",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["labeling-project-documents", projectId],
       });
     },
     onUploadError: (item, error) => {
@@ -139,7 +149,7 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
   const uploadDocumentsFromFiles = async (itemsToUpload: UploadQueueItem[]) => {
     await uploadFiles(async (file) => {
       const base64 = await fileToBase64(file);
-      const payload: UploadDocumentPayload = {
+      const payload: LabelingUploadPayload = {
         title: file.name.replace(/\.[^/.]+$/, "") || "Untitled document",
         file: base64,
         file_type: file.type.includes("pdf") ? "pdf" : "image",
@@ -148,11 +158,10 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
           size: file.size,
           lastModified: file.lastModified,
         },
-        model_id: "prebuilt-layout",
       };
 
-      const response = await apiService.post<{ document: Document }>(
-        "/upload",
+      const response = await apiService.post<{ labelingDocument: { id: string } }>(
+        `/labeling/projects/${projectId}/upload`,
         payload,
       );
 
@@ -160,8 +169,7 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
         throw new Error(response.message || "Upload failed");
       }
 
-      await addDocumentAsync(response.data.document.id);
-      return response.data.document;
+      return { labelingDocumentId: response.data.labelingDocument.id };
     }, itemsToUpload);
   };
 
@@ -271,15 +279,18 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
                 </Table.Thead>
                 <Table.Tbody>
                   {documents.map((doc) => {
-                    const isReady = doc.document.status === "completed_ocr";
+                    const isReady =
+                      doc.labeling_document.status === "completed_ocr";
 
                     return (
                     <Table.Tr key={doc.id}>
-                      <Table.Td>{doc.document.original_filename}</Table.Td>
+                      <Table.Td>
+                        {doc.labeling_document.original_filename}
+                      </Table.Td>
                       <Table.Td>
                         <Stack gap={2}>
                           <Badge size="sm" variant="light">
-                            {doc.document.status}
+                            {doc.labeling_document.status}
                           </Badge>
                           {!isReady && (
                             <Text size="xs" c="dimmed">
@@ -294,7 +305,9 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
                           <Button
                             size="xs"
                             variant="light"
-                            onClick={() => onOpenDocument(doc.document_id)}
+                            onClick={() =>
+                              onOpenDocument(doc.labeling_document_id)
+                            }
                             disabled={!isReady}
                             title={
                               isReady
@@ -309,7 +322,9 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
                             variant="subtle"
                             color="red"
                             leftSection={<IconTrash size={14} />}
-                            onClick={() => removeDocument(doc.document_id)}
+                            onClick={() =>
+                              removeDocument(doc.labeling_document_id)
+                            }
                             loading={isRemoving}
                           >
                             Remove
@@ -400,8 +415,8 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
           <ExportPanel
             projectId={projectId}
             documents={documents.map((doc) => ({
-              id: doc.document_id,
-              name: doc.document.original_filename,
+              id: doc.labeling_document_id,
+              name: doc.labeling_document.original_filename,
             }))}
           />
         </Tabs.Panel>

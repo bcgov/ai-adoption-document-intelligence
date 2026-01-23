@@ -8,6 +8,9 @@ import {
   Put,
   Query,
   Req,
+  Res,
+  HttpCode,
+  HttpStatus,
 } from "@nestjs/common";
 import { ApiOperation, ApiTags, ApiParam, ApiQuery } from "@nestjs/swagger";
 import {
@@ -24,6 +27,10 @@ import {
 import { SaveLabelsDto } from "./dto/label.dto";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { LabelingService } from "./labeling.service";
+import { LabelingUploadDto } from "./dto/labeling-upload.dto";
+import { Response } from "express";
+import { readFile } from "fs/promises";
+import { join } from "path";
 
 @ApiTags("labeling")
 @Controller("api/labeling")
@@ -163,6 +170,19 @@ export class LabelingController {
     return this.labelingService.addDocumentToProject(projectId, dto);
   }
 
+  @Post("projects/:id/upload")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Upload a document into a labeling project" })
+  @ApiParam({ name: "id", description: "Project ID" })
+  async uploadLabelingDocument(
+    @Param("id") projectId: string,
+    @Body() dto: LabelingUploadDto,
+  ) {
+    return this.labelingService.uploadLabelingDocument(projectId, dto);
+  }
+
   @Get("projects/:id/documents/:docId")
   @ApiKeyAuth()
   @KeycloakSSOAuth()
@@ -174,6 +194,40 @@ export class LabelingController {
     @Param("docId") documentId: string,
   ) {
     return this.labelingService.getProjectDocument(projectId, documentId);
+  }
+
+  @Get("projects/:id/documents/:docId/download")
+  @HttpCode(HttpStatus.OK)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Download a labeling document file" })
+  @ApiParam({ name: "id", description: "Project ID" })
+  @ApiParam({ name: "docId", description: "Labeling Document ID" })
+  async downloadLabelingDocument(
+    @Param("id") projectId: string,
+    @Param("docId") documentId: string,
+    @Res() res: Response,
+  ) {
+    const labeledDoc = await this.labelingService.getProjectDocument(
+      projectId,
+      documentId,
+    );
+    const labelingDocument = labeledDoc.labeling_document;
+    const filePath = join(process.cwd(), labelingDocument.file_path);
+    const fileBuffer = await readFile(filePath);
+
+    const fileName = labelingDocument.original_filename || `document-${documentId}`;
+    const mimeType =
+      labelingDocument.file_type === "pdf"
+        ? "application/pdf"
+        : labelingDocument.file_type === "image"
+          ? "image/jpeg"
+          : "application/octet-stream";
+
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+    res.setHeader("Content-Length", fileBuffer.length);
+    res.send(fileBuffer);
   }
 
   @Delete("projects/:id/documents/:docId")
