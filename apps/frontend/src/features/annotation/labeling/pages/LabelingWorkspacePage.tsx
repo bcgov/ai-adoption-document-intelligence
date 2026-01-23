@@ -99,6 +99,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     setLabelState(mapped);
   }, [labels]);
 
+
   useEffect(() => {
     console.debug("[Labeling] Active field changed", {
       activeFieldKey,
@@ -196,6 +197,45 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     });
     return map;
   }, [ocrWords]);
+
+  useEffect(() => {
+    if (!labels || labels.length === 0 || ocrWords.length === 0) {
+      return;
+    }
+
+    const nextAssignments: Record<string, string> = {};
+
+    const getBounds = (polygon: number[]) => {
+      const xs = polygon.filter((_, idx) => idx % 2 === 0);
+      const ys = polygon.filter((_, idx) => idx % 2 === 1);
+      return {
+        minX: Math.min(...xs),
+        minY: Math.min(...ys),
+        maxX: Math.max(...xs),
+        maxY: Math.max(...ys),
+      };
+    };
+
+    const intersects = (
+      a: ReturnType<typeof getBounds>,
+      b: ReturnType<typeof getBounds>,
+    ) => a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
+
+    labels.forEach((label) => {
+      const polygon = label.bounding_box?.polygon;
+      if (!polygon || polygon.length < 8) return;
+      const labelBounds = getBounds(polygon);
+
+      ocrWords.forEach((word) => {
+        const wordBounds = getBounds(word.polygon);
+        if (intersects(labelBounds, wordBounds)) {
+          nextAssignments[word.id] = label.field_key;
+        }
+      });
+    });
+
+    setWordAssignments(nextAssignments);
+  }, [labels, ocrWords]);
 
   useEffect(() => {
     console.debug("[Labeling] OCR words loaded", {
