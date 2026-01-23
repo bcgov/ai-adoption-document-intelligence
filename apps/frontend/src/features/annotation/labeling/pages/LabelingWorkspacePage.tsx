@@ -70,6 +70,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   const [wordAssignments, setWordAssignments] = useState<Record<string, string>>(
     {},
   );
+  const [assignmentsHydrated, setAssignmentsHydrated] = useState(false);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number }>(
     { width: 1000, height: 1400 },
@@ -98,6 +99,11 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     });
     setLabelState(mapped);
   }, [labels]);
+
+  useEffect(() => {
+    setAssignmentsHydrated(false);
+    setWordAssignments({});
+  }, [documentId]);
 
 
   useEffect(() => {
@@ -199,43 +205,45 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   }, [ocrWords]);
 
   useEffect(() => {
-    if (!labels || labels.length === 0 || ocrWords.length === 0) {
+    if (
+      assignmentsHydrated ||
+      !labels ||
+      labels.length === 0 ||
+      ocrWords.length === 0
+    ) {
       return;
     }
 
     const nextAssignments: Record<string, string> = {};
+    const polygonKey = (polygon: number[]) => polygon.join(",");
+    const wordPolygonMap = new Map<string, string>();
 
-    const getBounds = (polygon: number[]) => {
-      const xs = polygon.filter((_, idx) => idx % 2 === 0);
-      const ys = polygon.filter((_, idx) => idx % 2 === 1);
-      return {
-        minX: Math.min(...xs),
-        minY: Math.min(...ys),
-        maxX: Math.max(...xs),
-        maxY: Math.max(...ys),
-      };
-    };
+    ocrWords.forEach((word) => {
+      wordPolygonMap.set(word.id, polygonKey(word.polygon));
+    });
 
-    const intersects = (
-      a: ReturnType<typeof getBounds>,
-      b: ReturnType<typeof getBounds>,
-    ) => a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
+    const polygonToWord = new Map<string, string>();
+    ocrWords.forEach((word) => {
+      polygonToWord.set(polygonKey(word.polygon), word.id);
+    });
 
     labels.forEach((label) => {
       const polygon = label.bounding_box?.polygon;
       if (!polygon || polygon.length < 8) return;
-      const labelBounds = getBounds(polygon);
+      const wordId = polygonToWord.get(polygonKey(polygon));
+      if (wordId) {
+        nextAssignments[wordId] = label.field_key;
+      }
+    });
 
-      ocrWords.forEach((word) => {
-        const wordBounds = getBounds(word.polygon);
-        if (intersects(labelBounds, wordBounds)) {
-          nextAssignments[word.id] = label.field_key;
-        }
-      });
+    console.debug("[Labeling] Hydrated assignments from labels", {
+      labels: labels.length,
+      matched: Object.keys(nextAssignments).length,
     });
 
     setWordAssignments(nextAssignments);
-  }, [labels, ocrWords]);
+    setAssignmentsHydrated(true);
+  }, [labels, ocrWords, assignmentsHydrated]);
 
   useEffect(() => {
     console.debug("[Labeling] OCR words loaded", {
@@ -390,17 +398,29 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   };
 
   const handleSave = async () => {
-    const payload = Object.values(labelState)
-      .filter((label) => label.bounding_box?.polygon?.length)
-      .map((label) => ({
-        field_key: label.field_key,
-        label_name: label.label_name,
-        value: label.value,
-        page_number: label.page_number,
-        bounding_box: label.bounding_box!,
-        confidence: label.confidence,
-        is_manual: label.is_manual,
-      })) as LabelDto[];
+    const wordLookup = new Map(ocrWords.map((word) => [word.id, word]));
+    const payload = Object.entries(wordAssignments)
+      .map(([wordId, fieldKey]) => {
+        const word = wordLookup.get(wordId);
+        if (!word) return null;
+        return {
+          field_key: fieldKey,
+          label_name: fieldKey,
+          value: word.content,
+          page_number: word.pageNumber,
+          bounding_box: {
+            polygon: word.polygon,
+          },
+          is_manual: false,
+        };
+      })
+      .filter(Boolean) as LabelDto[];
+
+    console.debug("[Labeling] Saving labels", {
+      wordAssignments: Object.keys(wordAssignments).length,
+      payloadCount: payload.length,
+      existingLabels: labels?.length ?? 0,
+    });
     await saveLabelsAsync(payload);
   };
 
