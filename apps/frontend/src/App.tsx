@@ -13,6 +13,8 @@ import {
   IconLogout,
   IconSettings,
   IconUpload,
+  IconTags,
+  IconClipboardCheck,
 } from "@tabler/icons-react";
 import { JSX, useMemo, useState } from "react";
 import { useAuth } from "./auth/AuthContext";
@@ -21,10 +23,15 @@ import { Login } from "./components";
 import { DocumentViewerModal } from "./components/document/DocumentViewerModal";
 import { ProcessingQueue } from "./components/queue/ProcessingQueue";
 import { DocumentUploadPanel } from "./components/upload/DocumentUploadPanel";
+import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
+import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
+import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/LabelingWorkspacePage";
+import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
+import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWorkspacePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import type { Document } from "./shared/types";
 
-type MainView = "upload" | "queue" | "settings";
+type MainView = "upload" | "queue" | "labeling" | "review" | "settings";
 
 function AppContent(): JSX.Element {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
@@ -33,6 +40,15 @@ function AppContent(): JSX.Element {
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(
     null,
   );
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null,
+  );
+  const [selectedProjectDocumentId, setSelectedProjectDocumentId] = useState<
+    string | null
+  >(null);
+  const [activeReviewSessionId, setActiveReviewSessionId] = useState<
+    string | null
+  >(null);
 
   const navItems = useMemo(
     () => [
@@ -47,6 +63,18 @@ function AppContent(): JSX.Element {
         label: "Processing queue",
         description: "Track statuses",
         icon: IconList,
+      },
+      {
+        value: "labeling" as MainView,
+        label: "Training Labels",
+        description: "Create datasets",
+        icon: IconTags,
+      },
+      {
+        value: "review" as MainView,
+        label: "HITL Review",
+        description: "Validate OCR results",
+        icon: IconClipboardCheck,
       },
       {
         value: "settings" as MainView,
@@ -142,6 +170,41 @@ function AppContent(): JSX.Element {
           <Stack gap="lg">
             {activeView === "settings" ? (
               <SettingsPage />
+            ) : activeView === "labeling" ? (
+              selectedProjectId ? (
+                selectedProjectDocumentId ? (
+                  <LabelingWorkspacePage
+                    projectId={selectedProjectId}
+                    documentId={selectedProjectDocumentId}
+                    onBack={() => setSelectedProjectDocumentId(null)}
+                  />
+                ) : (
+                  <ProjectDetailPage
+                    projectId={selectedProjectId}
+                    onBack={() => setSelectedProjectId(null)}
+                    onOpenDocument={(documentId) =>
+                      setSelectedProjectDocumentId(documentId)
+                    }
+                  />
+                )
+              ) : (
+                <ProjectListPage
+                  onSelectProject={(projectId) => setSelectedProjectId(projectId)}
+                />
+              )
+            ) : activeView === "review" ? (
+              activeReviewSessionId ? (
+                <ReviewWorkspacePage
+                  sessionId={activeReviewSessionId}
+                  onBack={() => setActiveReviewSessionId(null)}
+                />
+              ) : (
+                <ReviewQueuePage
+                  onStartSession={(sessionId) =>
+                    setActiveReviewSessionId(sessionId)
+                  }
+                />
+              )
             ) : (
               <>
                 <Group justify="space-between">

@@ -1,0 +1,49 @@
+import { FC } from "react";
+import { Checkbox, NumberInput, TextInput } from "@mantine/core";
+import type { FieldDefinition } from "../types/field";
+import { FieldType } from "../types/field";
+import { TableFieldView } from "./TableFieldView";
+
+interface FieldEditorProps {
+  field: FieldDefinition;
+  value?: string;
+  onChange?: (value: string) => void;
+}
+
+export const FieldEditor: FC<FieldEditorProps> = ({ field, value, onChange }) => {
+  if (field.fieldType === FieldType.TABLE) {
+    return <TableFieldView value={value} />;
+  }
+
+  if (field.fieldType === FieldType.SELECTION_MARK) {
+    return (
+      <Checkbox
+        checked={value === "selected"}
+        onChange={(event) =>
+          onChange?.(event.currentTarget.checked ? "selected" : "unselected")
+        }
+        label="Selected"
+      />
+    );
+  }
+
+  if (field.fieldType === FieldType.NUMBER) {
+    return (
+      <NumberInput
+        value={value ? Number(value) : undefined}
+        onChange={(val) => onChange?.(val?.toString() || "")}
+        placeholder="Enter value"
+        size="xs"
+      />
+    );
+  }
+
+  return (
+    <TextInput
+      value={value || ""}
+      onChange={(event) => onChange?.(event.currentTarget.value)}
+      placeholder="Enter value"
+      size="xs"
+    />
+  );
+};

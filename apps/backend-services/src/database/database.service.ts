@@ -7,11 +7,41 @@ import {
   ExtractedFields,
   KeyValuePair,
 } from "@/ocr/azure-types";
-import { Document, OcrResult, PrismaClient } from "../generated/client";
-import { DocumentStatus } from "../generated/enums";
+import {
+  Document,
+  OcrResult,
+  PrismaClient,
+  LabelingProject,
+  FieldDefinition,
+  LabeledDocument,
+  DocumentLabel,
+  ReviewSession,
+  FieldCorrection,
+} from "../generated/client";
+import {
+  DocumentStatus,
+  ProjectStatus,
+  FieldType,
+  TableType,
+  LabelingStatus,
+  ReviewStatus,
+  CorrectionAction,
+} from "../generated/enums";
 import { JsonValue } from "../generated/internal/prismaNamespace";
 
 export type DocumentData = Document;
+export type LabelingProjectData = LabelingProject & {
+  field_schema: FieldDefinition[];
+  documents?: LabeledDocument[];
+};
+export type LabeledDocumentData = LabeledDocument & {
+  document: Document;
+  labels: DocumentLabel[];
+};
+export type ReviewSessionData = ReviewSession & {
+  document: Document;
+  corrections: FieldCorrection[];
+};
 
 @Injectable()
 export class DatabaseService {
@@ -266,5 +296,501 @@ export class DatabaseService {
       );
       throw error;
     }
+  }
+
+  // ========== LABELING PROJECT OPERATIONS ==========
+
+  async createLabelingProject(data: {
+    name: string;
+    description?: string;
+    created_by: string;
+  }): Promise<LabelingProjectData> {
+    this.logger.debug(`Creating labeling project: ${data.name}`);
+    const project = await this.prisma.labelingProject.create({
+      data: {
+        name: data.name,
+        description: data.description,
+        created_by: data.created_by,
+        status: ProjectStatus.active,
+      },
+      include: {
+        field_schema: { orderBy: { display_order: "asc" } },
+      },
+    });
+    return project as LabelingProjectData;
+  }
+
+  async findLabelingProject(id: string): Promise<LabelingProjectData | null> {
+    this.logger.debug(`Finding labeling project: ${id}`);
+    const project = await this.prisma.labelingProject.findUnique({
+      where: { id },
+      include: {
+        field_schema: { orderBy: { display_order: "asc" } },
+        documents: {
+          include: {
+            document: true,
+            labels: true,
+          },
+        },
+      },
+    });
+    return project as LabelingProjectData | null;
+  }
+
+  async findAllLabelingProjects(
+    userId?: string,
+  ): Promise<LabelingProjectData[]> {
+    this.logger.debug("Finding all labeling projects");
+    const projects = await this.prisma.labelingProject.findMany({
+      where: userId ? { created_by: userId } : undefined,
+      orderBy: { updated_at: "desc" },
+      include: {
+        field_schema: { orderBy: { display_order: "asc" } },
+        _count: { select: { documents: true } },
+      },
+    });
+    return projects as LabelingProjectData[];
+  }
+
+  async updateLabelingProject(
+    id: string,
+    data: { name?: string; description?: string; status?: ProjectStatus },
+  ): Promise<LabelingProjectData | null> {
+    this.logger.debug(`Updating labeling project: ${id}`);
+    try {
+      const project = await this.prisma.labelingProject.update({
+        where: { id },
+        data,
+        include: {
+          field_schema: { orderBy: { display_order: "asc" } },
+        },
+      });
+      return project as LabelingProjectData;
+    } catch (error) {
+      if (error.code === "P2025") return null;
+      throw error;
+    }
+  }
+
+  async deleteLabelingProject(id: string): Promise<boolean> {
+    this.logger.debug(`Deleting labeling project: ${id}`);
+    try {
+      await this.prisma.labelingProject.delete({ where: { id } });
+      return true;
+    } catch (error) {
+      if (error.code === "P2025") return false;
+      throw error;
+    }
+  }
+
+  // ========== FIELD DEFINITION OPERATIONS ==========
+
+  async createFieldDefinition(
+    projectId: string,
+    data: {
+      field_key: string;
+      field_type: FieldType;
+      field_format?: string;
+      display_order?: number;
+      is_required?: boolean;
+      is_table?: boolean;
+      table_type?: TableType;
+      column_headers?: unknown;
+    },
+  ): Promise<FieldDefinition> {
+    this.logger.debug(
+      `Creating field definition: ${data.field_key} for project: ${projectId}`,
+    );
+
+    // Get max display_order if not provided
+    if (data.display_order === undefined) {
+      const maxOrder = await this.prisma.fieldDefinition.aggregate({
+        where: { project_id: projectId },
+        _max: { display_order: true },
+      });
+      data.display_order = (maxOrder._max.display_order ?? -1) + 1;
+    }
+
+    return this.prisma.fieldDefinition.create({
+      data: {
+        project_id: projectId,
+        field_key: data.field_key,
+        field_type: data.field_type,
+        field_format: data.field_format,
+        display_order: data.display_order,
+        is_required: data.is_required ?? false,
+        is_table: data.is_table ?? false,
+        table_type: data.table_type,
+        column_headers: data.column_headers as JsonValue,
+      },
+    });
+  }
+
+  async updateFieldDefinition(
+    id: string,
+    data: {
+      field_format?: string;
+      display_order?: number;
+      is_required?: boolean;
+      column_headers?: unknown;
+    },
+  ): Promise<FieldDefinition | null> {
+    this.logger.debug(`Updating field definition: ${id}`);
+    try {
+      return await this.prisma.fieldDefinition.update({
+        where: { id },
+        data: {
+          ...data,
+          column_headers: data.column_headers as JsonValue,
+        },
+      });
+    } catch (error) {
+      if (error.code === "P2025") return null;
+      throw error;
+    }
+  }
+
+  async deleteFieldDefinition(id: string): Promise<boolean> {
+    this.logger.debug(`Deleting field definition: ${id}`);
+    try {
+      await this.prisma.fieldDefinition.delete({ where: { id } });
+      return true;
+    } catch (error) {
+      if (error.code === "P2025") return false;
+      throw error;
+    }
+  }
+
+  async reorderFieldDefinitions(
+    projectId: string,
+    fieldIds: string[],
+  ): Promise<void> {
+    this.logger.debug(`Reordering fields for project: ${projectId}`);
+    await this.prisma.$transaction(
+      fieldIds.map((id, index) =>
+        this.prisma.fieldDefinition.update({
+          where: { id },
+          data: { display_order: index },
+        }),
+      ),
+    );
+  }
+
+  // ========== LABELED DOCUMENT OPERATIONS ==========
+
+  async addDocumentToProject(
+    projectId: string,
+    documentId: string,
+  ): Promise<LabeledDocumentData> {
+    this.logger.debug(
+      `Adding document ${documentId} to project ${projectId}`,
+    );
+    const labeledDoc = await this.prisma.labeledDocument.create({
+      data: {
+        project_id: projectId,
+        document_id: documentId,
+        status: LabelingStatus.unlabeled,
+      },
+      include: {
+        document: true,
+        labels: true,
+      },
+    });
+    return labeledDoc as LabeledDocumentData;
+  }
+
+  async findLabeledDocument(
+    projectId: string,
+    documentId: string,
+  ): Promise<LabeledDocumentData | null> {
+    this.logger.debug(
+      `Finding labeled document ${documentId} in project ${projectId}`,
+    );
+    const labeledDoc = await this.prisma.labeledDocument.findUnique({
+      where: {
+        project_id_document_id: {
+          project_id: projectId,
+          document_id: documentId,
+        },
+      },
+      include: {
+        document: true,
+        labels: true,
+      },
+    });
+    return labeledDoc as LabeledDocumentData | null;
+  }
+
+  async findLabeledDocuments(projectId: string): Promise<LabeledDocumentData[]> {
+    this.logger.debug(`Finding labeled documents for project: ${projectId}`);
+    const docs = await this.prisma.labeledDocument.findMany({
+      where: { project_id: projectId },
+      orderBy: { created_at: "desc" },
+      include: {
+        document: true,
+        labels: true,
+      },
+    });
+    return docs as LabeledDocumentData[];
+  }
+
+  async removeDocumentFromProject(
+    projectId: string,
+    documentId: string,
+  ): Promise<boolean> {
+    this.logger.debug(
+      `Removing document ${documentId} from project ${projectId}`,
+    );
+    try {
+      await this.prisma.labeledDocument.delete({
+        where: {
+          project_id_document_id: {
+            project_id: projectId,
+            document_id: documentId,
+          },
+        },
+      });
+      return true;
+    } catch (error) {
+      if (error.code === "P2025") return false;
+      throw error;
+    }
+  }
+
+  async updateLabeledDocumentStatus(
+    labeledDocId: string,
+    status: LabelingStatus,
+  ): Promise<void> {
+    this.logger.debug(`Updating labeled document status: ${labeledDocId}`);
+    await this.prisma.labeledDocument.update({
+      where: { id: labeledDocId },
+      data: { status },
+    });
+  }
+
+  async updateLabeledDocumentOcrData(
+    labeledDocId: string,
+    ocrData: unknown,
+  ): Promise<void> {
+    this.logger.debug(`Updating OCR data for labeled document: ${labeledDocId}`);
+    await this.prisma.labeledDocument.update({
+      where: { id: labeledDocId },
+      data: { ocr_data: ocrData as JsonValue },
+    });
+  }
+
+  // ========== DOCUMENT LABEL OPERATIONS ==========
+
+  async saveDocumentLabels(
+    labeledDocId: string,
+    labels: Array<{
+      field_key: string;
+      label_name: string;
+      value?: string;
+      page_number: number;
+      bounding_box: unknown;
+      confidence?: number;
+      is_manual?: boolean;
+    }>,
+  ): Promise<DocumentLabel[]> {
+    this.logger.debug(`Saving ${labels.length} labels for document: ${labeledDocId}`);
+
+    // Delete existing labels and create new ones in a transaction
+    await this.prisma.$transaction([
+      this.prisma.documentLabel.deleteMany({
+        where: { labeled_doc_id: labeledDocId },
+      }),
+      ...labels.map((label) =>
+        this.prisma.documentLabel.create({
+          data: {
+            labeled_doc_id: labeledDocId,
+            field_key: label.field_key,
+            label_name: label.label_name,
+            value: label.value,
+            page_number: label.page_number,
+            bounding_box: label.bounding_box as JsonValue,
+            confidence: label.confidence,
+            is_manual: label.is_manual ?? true,
+          },
+        }),
+      ),
+    ]);
+
+    // Return the created labels
+    return this.prisma.documentLabel.findMany({
+      where: { labeled_doc_id: labeledDocId },
+    });
+  }
+
+  async deleteDocumentLabel(labelId: string): Promise<boolean> {
+    this.logger.debug(`Deleting document label: ${labelId}`);
+    try {
+      await this.prisma.documentLabel.delete({ where: { id: labelId } });
+      return true;
+    } catch (error) {
+      if (error.code === "P2025") return false;
+      throw error;
+    }
+  }
+
+  // ========== HITL REVIEW SESSION OPERATIONS ==========
+
+  async createReviewSession(
+    documentId: string,
+    reviewerId: string,
+  ): Promise<ReviewSessionData> {
+    this.logger.debug(`Creating review session for document: ${documentId}`);
+    const session = await this.prisma.reviewSession.create({
+      data: {
+        document_id: documentId,
+        reviewer_id: reviewerId,
+        status: ReviewStatus.in_progress,
+      },
+      include: {
+        document: true,
+        corrections: true,
+      },
+    });
+    return session as ReviewSessionData;
+  }
+
+  async findReviewSession(id: string): Promise<ReviewSessionData | null> {
+    this.logger.debug(`Finding review session: ${id}`);
+    const session = await this.prisma.reviewSession.findUnique({
+      where: { id },
+      include: {
+        document: true,
+        corrections: true,
+      },
+    });
+    return session as ReviewSessionData | null;
+  }
+
+  async findReviewQueue(filters: {
+    status?: DocumentStatus;
+    modelId?: string;
+    minConfidence?: number;
+    maxConfidence?: number;
+    limit?: number;
+    offset?: number;
+  }): Promise<Document[]> {
+    this.logger.debug("Finding review queue");
+
+    const where: any = {
+      status: filters.status ?? DocumentStatus.completed_ocr,
+    };
+
+    if (filters.modelId) {
+      where.model_id = filters.modelId;
+    }
+
+    return this.prisma.document.findMany({
+      where,
+      orderBy: { created_at: "desc" },
+      take: filters.limit ?? 50,
+      skip: filters.offset ?? 0,
+      include: {
+        ocr_result: true,
+      },
+    });
+  }
+
+  async updateReviewSession(
+    id: string,
+    data: { status?: ReviewStatus; completed_at?: Date },
+  ): Promise<ReviewSessionData | null> {
+    this.logger.debug(`Updating review session: ${id}`);
+    try {
+      const session = await this.prisma.reviewSession.update({
+        where: { id },
+        data,
+        include: {
+          document: true,
+          corrections: true,
+        },
+      });
+      return session as ReviewSessionData;
+    } catch (error) {
+      if (error.code === "P2025") return null;
+      throw error;
+    }
+  }
+
+  // ========== FIELD CORRECTION OPERATIONS ==========
+
+  async createFieldCorrection(
+    sessionId: string,
+    data: {
+      field_key: string;
+      original_value?: string;
+      corrected_value?: string;
+      original_conf?: number;
+      action: CorrectionAction;
+    },
+  ): Promise<FieldCorrection> {
+    this.logger.debug(`Creating field correction for session: ${sessionId}`);
+    return this.prisma.fieldCorrection.create({
+      data: {
+        session_id: sessionId,
+        ...data,
+      },
+    });
+  }
+
+  async findSessionCorrections(sessionId: string): Promise<FieldCorrection[]> {
+    this.logger.debug(`Finding corrections for session: ${sessionId}`);
+    return this.prisma.fieldCorrection.findMany({
+      where: { session_id: sessionId },
+      orderBy: { created_at: "asc" },
+    });
+  }
+
+  async getReviewAnalytics(filters: {
+    startDate?: Date;
+    endDate?: Date;
+    reviewerId?: string;
+  }): Promise<{
+    totalSessions: number;
+    completedSessions: number;
+    totalCorrections: number;
+    correctionsByAction: Record<string, number>;
+  }> {
+    this.logger.debug("Getting review analytics");
+
+    const where: any = {};
+    if (filters.startDate || filters.endDate) {
+      where.started_at = {};
+      if (filters.startDate) where.started_at.gte = filters.startDate;
+      if (filters.endDate) where.started_at.lte = filters.endDate;
+    }
+    if (filters.reviewerId) {
+      where.reviewer_id = filters.reviewerId;
+    }
+
+    const [sessions, corrections] = await Promise.all([
+      this.prisma.reviewSession.findMany({ where }),
+      this.prisma.fieldCorrection.findMany({
+        where: {
+          session: where,
+        },
+      }),
+    ]);
+
+    const correctionsByAction = corrections.reduce(
+      (acc, c) => {
+        acc[c.action] = (acc[c.action] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    return {
+      totalSessions: sessions.length,
+      completedSessions: sessions.filter(
+        (s) => s.status === ReviewStatus.approved,
+      ).length,
+      totalCorrections: corrections.length,
+      correctionsByAction,
+    };
   }
 }

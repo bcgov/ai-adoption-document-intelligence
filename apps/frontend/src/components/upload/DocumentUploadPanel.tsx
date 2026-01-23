@@ -28,31 +28,16 @@ import {
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useUploadQueue, type UploadQueueItem } from "../../data/hooks/useUploadQueue";
 import { useModels } from "../../data/hooks/useModels";
 import { apiService } from "../../data/services/api.service";
 import { MAX_FILE_SIZE, SUPPORTED_FILE_TYPES } from "../../shared/constants";
+import { dropzoneAccept, fileToBase64 } from "../../shared/utils";
 import type { Document, UploadDocumentPayload } from "../../shared/types";
-
-interface UploadQueueItem {
-  id: string;
-  file: File;
-  previewUrl: string;
-  status: "queued" | "uploading" | "success" | "error";
-  message?: string;
-  document?: Document;
-  progress: number;
-}
 
 interface DocumentUploadPanelProps {
   onDocumentFocus?: (document: Document) => void;
 }
-
-const dropzoneAccept: Record<string, string[]> = {
-  "application/pdf": [".pdf"],
-  "image/jpeg": [".jpg", ".jpeg"],
-  "image/png": [".png"],
-  "image/tiff": [".tif", ".tiff"],
-};
 
 const formatStatusBadge = (status: UploadQueueItem["status"]) => {
   switch (status) {
@@ -69,27 +54,33 @@ const formatStatusBadge = (status: UploadQueueItem["status"]) => {
   }
 };
 
-const generateId = () =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2);
-
-const fileToBase64 = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-
 export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
   onDocumentFocus,
 }) => {
-  const [queue, setQueue] = useState<UploadQueueItem[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { data: models, isLoading: modelsLoading } = useModels();
+  const { queue, isUploading, addFiles, removeFromQueue, clearQueue, uploadFiles } =
+    useUploadQueue<Document>({
+      onUploadSuccess: (item, document) => {
+        notifications.show({
+          title: "Upload complete",
+          message: `${item.file.name} was uploaded successfully.`,
+          color: "green",
+        });
+        queryClient.invalidateQueries({ queryKey: ["documents"] });
+        if (document && onDocumentFocus) {
+          onDocumentFocus(document);
+        }
+      },
+      onUploadError: (item, error) => {
+        notifications.show({
+          title: `Failed to upload ${item.file.name}`,
+          message: error.message,
+          color: "red",
+        });
+      },
+    });
 
   useEffect(
     () => () => {
@@ -107,16 +98,8 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
         size: file.size,
       })),
     );
-    const newItems = acceptedFiles.map<UploadQueueItem>((file) => ({
-      id: generateId(),
-      file,
-      previewUrl: URL.createObjectURL(file),
-      status: "queued",
-      progress: 0,
-    }));
-
     // Add to queue - upload will be triggered manually
-    setQueue((prev) => [...newItems, ...prev]);
+    addFiles(acceptedFiles);
   };
 
   const handleReject = (rejections: FileRejection[]) => {
@@ -129,105 +112,46 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
     });
   };
 
-  const removeFromQueue = (id: string) => {
-    setQueue((prev) => prev.filter((item) => item.id !== id));
-  };
-
   const uploadDocumentsFromFiles = async (itemsToUpload: UploadQueueItem[]) => {
     console.info(`[Upload] Processing ${itemsToUpload.length} files`);
-    setIsUploading(true);
+    await uploadFiles(async (file) => {
+      const base64 = await fileToBase64(file);
+      const payload: UploadDocumentPayload = {
+        title: file.name.replace(/\.[^/.]+$/, "") || "Untitled document",
+        file: base64,
+        file_type: file.type.includes("pdf") ? "pdf" : "image",
+        original_filename: file.name,
+        metadata: {
+          size: file.size,
+          lastModified: file.lastModified,
+        },
+        model_id: selectedModel!,
+      };
 
-    for (const item of itemsToUpload) {
-      setQueue((prev) =>
-        prev.map((q) =>
-          q.id === item.id
-            ? { ...q, status: "uploading", progress: 10, message: undefined }
-            : q,
-        ),
+      console.debug("[Upload] Sending payload to /api/upload", {
+        title: payload.title,
+        file_type: payload.file_type,
+        original_filename: payload.original_filename,
+        model_id: payload.model_id,
+        fileLength: payload.file.length,
+      });
+
+      const response = await apiService.post<{ document: Document }>(
+        "/upload",
+        payload,
       );
 
-      try {
-        const base64 = await fileToBase64(item.file);
-        const payload: UploadDocumentPayload = {
-          title: item.file.name.replace(/\.[^/.]+$/, "") || "Untitled document",
-          file: base64,
-          file_type: item.file.type.includes("pdf") ? "pdf" : "image",
-          original_filename: item.file.name,
-          metadata: {
-            size: item.file.size,
-            lastModified: item.file.lastModified,
-          },
-          model_id: selectedModel!,
-        };
-
-        console.debug("[Upload] Sending payload to /api/upload", {
-          title: payload.title,
-          file_type: payload.file_type,
-          original_filename: payload.original_filename,
-          model_id: payload.model_id,
-          fileLength: payload.file.length,
-        });
-
-        const response = await apiService.post<{ document: Document }>(
-          "/upload",
-          payload,
-        );
-
-        if (!response.success || !response.data) {
-          throw new Error(response.message || "Upload failed");
-        }
-
-        console.debug(
-          "[Upload] Successful response from /api/upload",
-          response.data.document,
-        );
-
-        setQueue((prev) =>
-          prev.map((q) =>
-            q.id === item.id
-              ? {
-                  ...q,
-                  status: "success",
-                  progress: 100,
-                  document: response.data.document,
-                }
-              : q,
-          ),
-        );
-
-        notifications.show({
-          title: "Upload complete",
-          message: `${item.file.name} was uploaded successfully.`,
-          color: "green",
-        });
-
-        queryClient.invalidateQueries({ queryKey: ["documents"] });
-        if (response.data.document && onDocumentFocus) {
-          onDocumentFocus(response.data.document);
-        }
-      } catch (error) {
-        console.error("Upload failed", error);
-        setQueue((prev) =>
-          prev.map((q) =>
-            q.id === item.id
-              ? {
-                  ...q,
-                  status: "error",
-                  message:
-                    error instanceof Error ? error.message : "Unknown error",
-                  progress: 0,
-                }
-              : q,
-          ),
-        );
-        notifications.show({
-          title: `Failed to upload ${item.file.name}`,
-          message: error instanceof Error ? error.message : "Unknown error",
-          color: "red",
-        });
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Upload failed");
       }
-    }
-    setIsUploading(false);
+
+      console.debug(
+        "[Upload] Successful response from /api/upload",
+        response.data.document,
+      );
+
+      return response.data.document;
+    }, itemsToUpload);
   };
 
   const uploadDocuments = async () => {
@@ -335,7 +259,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
               variant="subtle"
               color="gray"
               disabled={queue.length === 0 || isUploading}
-              onClick={() => setQueue([])}
+              onClick={clearQueue}
             >
               Clear all
             </Button>
@@ -391,13 +315,13 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
                         </div>
                       </Group>
                       <Group gap="xs">
-                        {item.document && (
+                        {item.result && (
                           <Tooltip label="Open in viewer">
                             <ActionIcon
                               variant="subtle"
                               color="green"
                               onClick={() =>
-                                onDocumentFocus?.(item.document as Document)
+                                onDocumentFocus?.(item.result as Document)
                               }
                             >
                               <IconCircleCheck size={18} />

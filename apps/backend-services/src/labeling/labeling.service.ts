@@ -1,0 +1,399 @@
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ConflictException,
+} from "@nestjs/common";
+import { DatabaseService } from "../database/database.service";
+import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
+import { ExportDto, ExportFormat } from "./dto/export.dto";
+import {
+  CreateFieldDefinitionDto,
+  UpdateFieldDefinitionDto,
+  ReorderFieldsDto,
+} from "./dto/field-definition.dto";
+import { SaveLabelsDto } from "./dto/label.dto";
+import { AddDocumentDto } from "./dto/add-document.dto";
+import { FieldType, LabelingStatus } from "../generated/enums";
+
+@Injectable()
+export class LabelingService {
+  private readonly logger = new Logger(LabelingService.name);
+
+  constructor(private readonly db: DatabaseService) {}
+
+  // ========== PROJECT OPERATIONS ==========
+
+  async getProjects(userId?: string) {
+    this.logger.debug("Getting all projects");
+    return this.db.findAllLabelingProjects(userId);
+  }
+
+  async createProject(dto: CreateProjectDto, userId: string) {
+    this.logger.debug(`Creating project: ${dto.name}`);
+    return this.db.createLabelingProject({
+      name: dto.name,
+      description: dto.description,
+      created_by: userId,
+    });
+  }
+
+  async getProject(id: string) {
+    this.logger.debug(`Getting project: ${id}`);
+    const project = await this.db.findLabelingProject(id);
+    if (!project) {
+      throw new NotFoundException(`Project with id ${id} not found`);
+    }
+    return project;
+  }
+
+  async updateProject(id: string, dto: UpdateProjectDto) {
+    this.logger.debug(`Updating project: ${id}`);
+    const project = await this.db.updateLabelingProject(id, dto);
+    if (!project) {
+      throw new NotFoundException(`Project with id ${id} not found`);
+    }
+    return project;
+  }
+
+  async deleteProject(id: string) {
+    this.logger.debug(`Deleting project: ${id}`);
+    const deleted = await this.db.deleteLabelingProject(id);
+    if (!deleted) {
+      throw new NotFoundException(`Project with id ${id} not found`);
+    }
+    return { success: true, id };
+  }
+
+  // ========== FIELD SCHEMA OPERATIONS ==========
+
+  async getFieldSchema(projectId: string) {
+    this.logger.debug(`Getting field schema for project: ${projectId}`);
+    const project = await this.db.findLabelingProject(projectId);
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return project.field_schema;
+  }
+
+  async addField(projectId: string, dto: CreateFieldDefinitionDto) {
+    this.logger.debug(`Adding field ${dto.field_key} to project: ${projectId}`);
+
+    // Check project exists
+    const project = await this.db.findLabelingProject(projectId);
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+
+    // Check field key is unique within project
+    const existingField = project.field_schema.find(
+      (f) => f.field_key === dto.field_key,
+    );
+    if (existingField) {
+      throw new ConflictException(
+        `Field with key ${dto.field_key} already exists in project`,
+      );
+    }
+
+    return this.db.createFieldDefinition(projectId, {
+      field_key: dto.field_key,
+      field_type: dto.field_type as unknown as FieldType,
+      field_format: dto.field_format,
+      display_order: dto.display_order,
+      is_required: dto.is_required,
+      is_table: dto.is_table,
+      table_type: dto.table_type as any,
+      column_headers: dto.column_headers,
+    });
+  }
+
+  async updateField(
+    projectId: string,
+    fieldId: string,
+    dto: UpdateFieldDefinitionDto,
+  ) {
+    this.logger.debug(`Updating field ${fieldId} in project: ${projectId}`);
+    const field = await this.db.updateFieldDefinition(fieldId, {
+      field_format: dto.field_format,
+      display_order: dto.display_order,
+      is_required: dto.is_required,
+      column_headers: dto.column_headers,
+    });
+    if (!field) {
+      throw new NotFoundException(`Field with id ${fieldId} not found`);
+    }
+    return field;
+  }
+
+  async deleteField(projectId: string, fieldId: string) {
+    this.logger.debug(`Deleting field ${fieldId} from project: ${projectId}`);
+    const deleted = await this.db.deleteFieldDefinition(fieldId);
+    if (!deleted) {
+      throw new NotFoundException(`Field with id ${fieldId} not found`);
+    }
+    return { success: true, id: fieldId };
+  }
+
+  async reorderFields(projectId: string, dto: ReorderFieldsDto) {
+    this.logger.debug(`Reordering fields in project: ${projectId}`);
+    await this.db.reorderFieldDefinitions(projectId, dto.fieldIds);
+    return this.getFieldSchema(projectId);
+  }
+
+  // ========== DOCUMENT OPERATIONS ==========
+
+  async getProjectDocuments(projectId: string) {
+    this.logger.debug(`Getting documents for project: ${projectId}`);
+    const project = await this.db.findLabelingProject(projectId);
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return this.db.findLabeledDocuments(projectId);
+  }
+
+  async addDocumentToProject(projectId: string, dto: AddDocumentDto) {
+    this.logger.debug(
+      `Adding document ${dto.documentId} to project: ${projectId}`,
+    );
+
+    // Check project exists
+    const project = await this.db.findLabelingProject(projectId);
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+
+    // Check document exists
+    const document = await this.db.findDocument(dto.documentId);
+    if (!document) {
+      throw new NotFoundException(
+        `Document with id ${dto.documentId} not found`,
+      );
+    }
+
+    return this.db.addDocumentToProject(projectId, dto.documentId);
+  }
+
+  async getProjectDocument(projectId: string, documentId: string) {
+    this.logger.debug(
+      `Getting document ${documentId} from project: ${projectId}`,
+    );
+    const labeledDoc = await this.db.findLabeledDocument(projectId, documentId);
+    if (!labeledDoc) {
+      throw new NotFoundException(
+        `Document ${documentId} not found in project ${projectId}`,
+      );
+    }
+    return labeledDoc;
+  }
+
+  async removeDocumentFromProject(projectId: string, documentId: string) {
+    this.logger.debug(
+      `Removing document ${documentId} from project: ${projectId}`,
+    );
+    const deleted = await this.db.removeDocumentFromProject(
+      projectId,
+      documentId,
+    );
+    if (!deleted) {
+      throw new NotFoundException(
+        `Document ${documentId} not found in project ${projectId}`,
+      );
+    }
+    return { success: true, documentId };
+  }
+
+  // ========== LABEL OPERATIONS ==========
+
+  async getDocumentLabels(projectId: string, documentId: string) {
+    this.logger.debug(
+      `Getting labels for document ${documentId} in project: ${projectId}`,
+    );
+    const labeledDoc = await this.db.findLabeledDocument(projectId, documentId);
+    if (!labeledDoc) {
+      throw new NotFoundException(
+        `Document ${documentId} not found in project ${projectId}`,
+      );
+    }
+    return labeledDoc.labels;
+  }
+
+  async saveDocumentLabels(
+    projectId: string,
+    documentId: string,
+    dto: SaveLabelsDto,
+  ) {
+    this.logger.debug(
+      `Saving labels for document ${documentId} in project: ${projectId}`,
+    );
+
+    const labeledDoc = await this.db.findLabeledDocument(projectId, documentId);
+    if (!labeledDoc) {
+      throw new NotFoundException(
+        `Document ${documentId} not found in project ${projectId}`,
+      );
+    }
+
+    // Save labels
+    await this.db.saveDocumentLabels(
+      labeledDoc.id,
+      dto.labels.map((label) => ({
+        field_key: label.field_key,
+        label_name: label.label_name,
+        value: label.value,
+        page_number: label.page_number,
+        bounding_box: label.bounding_box,
+        confidence: label.confidence,
+        is_manual: label.is_manual,
+      })),
+    );
+
+    // Update document status
+    const newStatus =
+      dto.labels.length > 0 ? LabelingStatus.labeled : LabelingStatus.in_progress;
+    await this.db.updateLabeledDocumentStatus(labeledDoc.id, newStatus);
+
+    return this.db.findLabeledDocument(projectId, documentId);
+  }
+
+  async deleteLabel(projectId: string, documentId: string, labelId: string) {
+    this.logger.debug(
+      `Deleting label ${labelId} from document ${documentId} in project: ${projectId}`,
+    );
+    const deleted = await this.db.deleteDocumentLabel(labelId);
+    if (!deleted) {
+      throw new NotFoundException(`Label with id ${labelId} not found`);
+    }
+    return { success: true, id: labelId };
+  }
+
+  // ========== OCR DATA ==========
+
+  async getDocumentOcr(projectId: string, documentId: string) {
+    this.logger.debug(
+      `Getting OCR data for document ${documentId} in project: ${projectId}`,
+    );
+
+    const labeledDoc = await this.db.findLabeledDocument(projectId, documentId);
+    if (!labeledDoc) {
+      throw new NotFoundException(
+        `Document ${documentId} not found in project ${projectId}`,
+      );
+    }
+
+    // Return cached OCR data if available
+    if (labeledDoc.ocr_data) {
+      return labeledDoc.ocr_data;
+    }
+
+    // Otherwise fetch from OCR result
+    const ocrResult = await this.db.findOcrResult(documentId);
+    if (!ocrResult) {
+      throw new NotFoundException(
+        `OCR result not found for document ${documentId}`,
+      );
+    }
+
+    // Cache the OCR data in the labeled document for future use
+    await this.db.updateLabeledDocumentOcrData(labeledDoc.id, ocrResult);
+
+    return ocrResult;
+  }
+
+  // ========== EXPORT ==========
+
+  async exportProject(projectId: string, options: ExportDto) {
+    this.logger.debug(
+      `Exporting project ${projectId} in format: ${options.format}`,
+    );
+
+    const project = await this.db.findLabelingProject(projectId);
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+
+    let documents = await this.db.findLabeledDocuments(projectId);
+
+    // Filter by document IDs if provided
+    if (options.documentIds?.length) {
+      documents = documents.filter((d) =>
+        options.documentIds!.includes(d.document_id),
+      );
+    }
+
+    // Filter by labeled status if requested
+    if (options.labeledOnly) {
+      documents = documents.filter((d) => d.status === LabelingStatus.labeled);
+    }
+
+    switch (options.format) {
+      case ExportFormat.AZURE:
+        return this.exportAzureFormat(project, documents);
+      case ExportFormat.JSON:
+      default:
+        return this.exportJsonFormat(project, documents);
+    }
+  }
+
+  private exportAzureFormat(project: any, documents: any[]) {
+    // Generate fields.json (Azure Document Intelligence format)
+    const fieldsJson = {
+      $schema:
+        "https://schema.cognitiveservices.azure.com/formrecognizer/2021-03-01/fields.json",
+      fields: project.field_schema.map((field: any) => ({
+        fieldKey: field.field_key,
+        fieldType: field.field_type,
+        fieldFormat: field.field_format || "NotSpecified",
+      })),
+    };
+
+    // Generate labels.json for each document
+    const labelsFiles = documents.map((doc) => ({
+      filename: `${doc.document.original_filename}.labels.json`,
+      content: {
+        $schema:
+          "https://schema.cognitiveservices.azure.com/formrecognizer/2021-03-01/labels.json",
+        document: doc.document.original_filename,
+        labels: doc.labels.map((label: any) => ({
+          label: label.field_key,
+          key: null,
+          value: [
+            {
+              page: label.page_number,
+              text: label.value,
+              boundingBoxes: [label.bounding_box],
+            },
+          ],
+        })),
+      },
+    }));
+
+    return {
+      fieldsJson,
+      labelsFiles,
+      projectName: project.name,
+      documentCount: documents.length,
+      labeledCount: documents.filter(
+        (d) => d.status === LabelingStatus.labeled,
+      ).length,
+    };
+  }
+
+  private exportJsonFormat(project: any, documents: any[]) {
+    return {
+      project: {
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        created_at: project.created_at,
+        fieldSchema: project.field_schema,
+      },
+      documents: documents.map((doc) => ({
+        id: doc.document_id,
+        filename: doc.document.original_filename,
+        status: doc.status,
+        labels: doc.labels,
+      })),
+      exportedAt: new Date().toISOString(),
+    };
+  }
+}
