@@ -11,10 +11,7 @@ import { join } from "path";
 import { DatabaseService } from "@/database/database.service";
 import { OcrResult } from "@/generated/client";
 import { DocumentStatus } from "@/generated/enums";
-import {
-  AnalysisResult,
-  KeyValuePair,
-} from "@/ocr/azure-types";
+import { AnalysisResult, KeyValuePair } from "@/ocr/azure-types";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
 
 export interface OcrRequestResponse {
