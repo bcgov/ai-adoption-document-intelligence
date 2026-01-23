@@ -125,6 +125,7 @@ export class DocumentService {
         source: "api",
         status: DocumentStatus.ongoing_ocr,
         apim_request_id: null,
+        workflow_id: null,
         model_id: modelId,
       };
 

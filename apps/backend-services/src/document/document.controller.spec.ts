@@ -106,6 +106,20 @@ describe("DocumentController", () => {
       });
     });
 
+    it("should re-throw NotFoundException without wrapping", async () => {
+      databaseService.findDocument.mockResolvedValue({
+        id: "1",
+        status: "done",
+        created_at: new Date(),
+      } as any);
+      databaseService.findOcrResult.mockRejectedValue(
+        new NotFoundException("Not found"),
+      );
+      await expect(controller.getOcrResult("1")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
     it("should wrap other errors in NotFoundException", async () => {
       databaseService.findDocument.mockRejectedValue(new Error("fail"));
       await expect(controller.getOcrResult("1")).rejects.toThrow(
@@ -115,11 +129,11 @@ describe("DocumentController", () => {
   });
 
   describe("downloadDocument", () => {
-    it("should send file if document found", async () => {
+    it("should send PDF file if document found", async () => {
       databaseService.findDocument.mockResolvedValue({
         id: "1",
-        file_path: "file.txt",
-        original_filename: "file.txt",
+        file_path: "file.pdf",
+        original_filename: "file.pdf",
         file_type: "pdf",
       } as any);
       const readFile = await import("fs/promises");
@@ -137,11 +151,97 @@ describe("DocumentController", () => {
         "Content-Type",
         "application/pdf",
       );
+      expect(res.setHeader).toHaveBeenCalledWith(
+        "Content-Disposition",
+        'inline; filename="file.pdf"',
+      );
+      expect(res.setHeader).toHaveBeenCalledWith("Content-Length", 4);
       expect(res.send).toHaveBeenCalledWith(Buffer.from("data"));
+    });
+
+    it("should send image file with correct MIME type", async () => {
+      databaseService.findDocument.mockResolvedValue({
+        id: "1",
+        file_path: "file.jpg",
+        original_filename: "file.jpg",
+        file_type: "image",
+      } as any);
+      const readFile = await import("fs/promises");
+      jest.spyOn(readFile, "readFile").mockResolvedValue(Buffer.from("data"));
+      const path = await import("path");
+      jest
+        .spyOn(path, "join")
+        .mockImplementation((_cwd: string, fp: string) => fp);
+      const res: any = {
+        setHeader: jest.fn(),
+        send: jest.fn(),
+      };
+      await controller.downloadDocument("1", res);
+      expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "image/jpeg");
+      expect(res.send).toHaveBeenCalledWith(Buffer.from("data"));
+    });
+
+    it("should send file with default MIME type for unknown file type", async () => {
+      databaseService.findDocument.mockResolvedValue({
+        id: "1",
+        file_path: "file.unknown",
+        original_filename: "file.unknown",
+        file_type: "unknown",
+      } as any);
+      const readFile = await import("fs/promises");
+      jest.spyOn(readFile, "readFile").mockResolvedValue(Buffer.from("data"));
+      const path = await import("path");
+      jest
+        .spyOn(path, "join")
+        .mockImplementation((_cwd: string, fp: string) => fp);
+      const res: any = {
+        setHeader: jest.fn(),
+        send: jest.fn(),
+      };
+      await controller.downloadDocument("1", res);
+      expect(res.setHeader).toHaveBeenCalledWith(
+        "Content-Type",
+        "application/octet-stream",
+      );
+      expect(res.send).toHaveBeenCalledWith(Buffer.from("data"));
+    });
+
+    it("should use document ID as filename if original_filename is missing", async () => {
+      databaseService.findDocument.mockResolvedValue({
+        id: "1",
+        file_path: "file.pdf",
+        original_filename: null,
+        file_type: "pdf",
+      } as any);
+      const readFile = await import("fs/promises");
+      jest.spyOn(readFile, "readFile").mockResolvedValue(Buffer.from("data"));
+      const path = await import("path");
+      jest
+        .spyOn(path, "join")
+        .mockImplementation((_cwd: string, fp: string) => fp);
+      const res: any = {
+        setHeader: jest.fn(),
+        send: jest.fn(),
+      };
+      await controller.downloadDocument("1", res);
+      expect(res.setHeader).toHaveBeenCalledWith(
+        "Content-Disposition",
+        'inline; filename="document-1"',
+      );
     });
 
     it("should throw NotFoundException if document not found", async () => {
       databaseService.findDocument.mockResolvedValue(null);
+      const res: any = {};
+      await expect(controller.downloadDocument("1", res)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("should re-throw NotFoundException without wrapping", async () => {
+      databaseService.findDocument.mockRejectedValue(
+        new NotFoundException("Not found"),
+      );
       const res: any = {};
       await expect(controller.downloadDocument("1", res)).rejects.toThrow(
         NotFoundException,

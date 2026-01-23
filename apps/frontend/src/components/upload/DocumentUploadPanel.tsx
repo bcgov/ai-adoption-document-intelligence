@@ -99,14 +99,6 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
   );
 
   const handleDrop = (acceptedFiles: File[]) => {
-    console.info(
-      "[Upload] Accepted files:",
-      acceptedFiles.map((file) => ({
-        name: file.name,
-        type: file.type,
-        size: file.size,
-      })),
-    );
     const newItems = acceptedFiles.map<UploadQueueItem>((file) => ({
       id: generateId(),
       file,
@@ -134,7 +126,6 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
   };
 
   const uploadDocumentsFromFiles = async (itemsToUpload: UploadQueueItem[]) => {
-    console.info(`[Upload] Processing ${itemsToUpload.length} files`);
     setIsUploading(true);
 
     for (const item of itemsToUpload) {
@@ -160,27 +151,15 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
           model_id: selectedModel!,
         };
 
-        console.debug("[Upload] Sending payload to /api/upload", {
-          title: payload.title,
-          file_type: payload.file_type,
-          original_filename: payload.original_filename,
-          model_id: payload.model_id,
-          fileLength: payload.file.length,
-        });
-
         const response = await apiService.post<{ document: Document }>(
           "/upload",
           payload,
         );
 
         if (!response.success || !response.data) {
-          throw new Error(response.message || "Upload failed");
+          const errorMsg = response.message || "Upload failed";
+          throw new Error(errorMsg);
         }
-
-        console.debug(
-          "[Upload] Successful response from /api/upload",
-          response.data.document,
-        );
 
         setQueue((prev) =>
           prev.map((q) =>
@@ -206,7 +185,6 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
           onDocumentFocus(response.data.document);
         }
       } catch (error) {
-        console.error("Upload failed", error);
         setQueue((prev) =>
           prev.map((q) =>
             q.id === item.id
@@ -231,7 +209,6 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
   };
 
   const uploadDocuments = async () => {
-    console.info("[Upload] Starting upload process");
     if (!selectedModel) {
       notifications.show({
         title: "Select a model",
@@ -245,7 +222,6 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
       (item) => item.status === "queued" || item.status === "error",
     );
     if (pending.length === 0) {
-      console.info("[Upload] No pending files to upload");
       notifications.show({
         title: "Nothing to upload",
         message: "Add images first, then click upload.",

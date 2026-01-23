@@ -37,6 +37,14 @@ STORAGE_PATH=./storage/documents
 RABBITMQ_URL=amqp://localhost:5672
 RABBITMQ_EXCHANGE=document_upload
 RABBITMQ_ROUTING_KEY=document.uploaded
+
+# Temporal Configuration
+TEMPORAL_ADDRESS=localhost:7233
+TEMPORAL_NAMESPACE=default
+TEMPORAL_TASK_QUEUE=ocr-processing
+
+# Database (for Prisma)
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
 ```
 
 ### 3. Run the Service

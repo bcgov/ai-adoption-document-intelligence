@@ -18,8 +18,13 @@ export function DocumentViewerModal({
   onClose,
 }: DocumentViewerModalProps) {
   const documentId = document?.id;
-  const { data: ocrResult } = useDocumentOcr(documentId);
+  const { data: ocrResult, error: ocrError } = useDocumentOcr(documentId);
   const { getAccessToken } = useAuth();
+
+  useEffect(() => {
+    // OCR result and error are handled by the component state
+    // Removed console statements for lint compliance
+  }, [ocrResult, ocrError]);
   const [imageUrl, setImageUrl] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
@@ -56,8 +61,9 @@ export function DocumentViewerModal({
       });
 
       if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
         throw new Error(
-          `Failed to load document: ${response.status} ${response.statusText}`,
+          `Failed to load document: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ""}`,
         );
       }
 
@@ -72,8 +78,9 @@ export function DocumentViewerModal({
         URL.revokeObjectURL(url);
       };
     } catch (err) {
-      console.error("Error loading document:", err);
-      setError(err instanceof Error ? err.message : "Failed to load document");
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to load document";
+      setError(errorMessage);
 
       if (doc.file_url) {
         setImageUrl(doc.file_url);
@@ -169,6 +176,7 @@ export function DocumentViewerModal({
                 pageNumber={1}
                 showOverlays={showOverlays}
                 onToggleOverlays={() => setShowOverlays(!showOverlays)}
+                fileType={document.file_type}
               />
             ) : (
               <div className="flex items-center justify-center h-full">
