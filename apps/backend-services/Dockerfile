@@ -11,11 +11,12 @@ COPY tsconfig*.json ./
 # Install dependencies (including dev dependencies for build)
 RUN npm install
 
-# Copy source code
+# Copy source code and scripts
 COPY src ./src
-COPY prisma ./prisma
-# generates the prisma client
-RUN npx prisma generate
+COPY scripts ./scripts
+COPY ../shared/prisma ./shared/prisma
+# Generate Prisma client locally (will be in src/generated)
+RUN npm run db:generate
 
 # Build the application
 RUN npm run build:prod
@@ -44,13 +45,10 @@ RUN npm install --omit=dev && \
     npm cache clean --force
 
 # Copy Prisma schema and migrations from builder stage (needed for migrations)
-COPY --from=builder /app/prisma/ ./prisma/
+COPY --from=builder /app/shared/prisma ./shared/prisma
 
-# Copy built application from builder stage
+# Copy built application from builder stage (includes generated client in dist)
 COPY --from=builder /app/dist ./dist
-
-# Copy Prisma generated client
-COPY --from=builder /app/src/generated ./dist/generated
 
 # Create storage directory and set permissions
 RUN mkdir -p /app/storage/documents && \

@@ -11,7 +11,8 @@
   "transformIgnorePatterns": ["node_modules/(?!uuid)"],
   "moduleDirectories": ["node_modules", "src"],
   "moduleNameMapper": {
-    "^@/(.*)$": "<rootDir>/src/$1"
+    "^@/(.*)$": "<rootDir>/src/$1",
+    "^@generated/(.*)$": "<rootDir>/src/generated/$1"
   },
   "setupFilesAfterEnv": ["<rootDir>/integration-tests/jest.setup.ts"]
 }

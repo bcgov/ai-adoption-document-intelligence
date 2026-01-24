@@ -1,3 +1,6 @@
+import { Document, OcrResult, PrismaClient } from "@generated/client";
+import { DocumentStatus } from "@generated/enums";
+import { JsonValue } from "@generated/internal/prismaNamespace";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -7,9 +10,6 @@ import {
   ExtractedFields,
   KeyValuePair,
 } from "@/ocr/azure-types";
-import { Document, OcrResult, PrismaClient } from "../generated/client";
-import { DocumentStatus } from "../generated/enums";
-import { JsonValue } from "../generated/internal/prismaNamespace";
 
 export type DocumentData = Document;
 
@@ -46,6 +46,9 @@ export class DatabaseService {
           source: data.source,
           status: data.status as DocumentStatus,
           model_id: data.model_id,
+          workflow_id: data.workflow_id || null,
+          workflow_config_id: data.workflow_config_id || null,
+          workflow_execution_id: data.workflow_execution_id || null,
         },
       });
 

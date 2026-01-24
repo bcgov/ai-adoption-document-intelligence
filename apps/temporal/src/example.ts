@@ -7,7 +7,7 @@
 require('dotenv').config();
 
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './generated/client';
+import { PrismaClient } from '@generated/client';
 import { executeOCRWorkflow } from './client';
 
 /**

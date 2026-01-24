@@ -1,5 +1,5 @@
 // Mock out the prisma client
-jest.mock("../generated/client", () => {
+jest.mock("@generated/client", () => {
   return {
     PrismaClient: jest.fn().mockImplementation(() => ({
       document: {
@@ -16,11 +16,11 @@ jest.mock("../generated/client", () => {
   };
 });
 
+import { OcrResult } from "@generated/client";
+import { DocumentStatus } from "@generated/enums";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { JsonValue } from "@prisma/client/runtime/client";
-import { OcrResult } from "../generated/client";
-import { DocumentStatus } from "../generated/enums";
 import { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
 import { DatabaseService } from "./database.service";
 

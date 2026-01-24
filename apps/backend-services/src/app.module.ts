@@ -8,6 +8,7 @@ import { OcrModule } from "./ocr/ocr.module";
 import { QueueModule } from "./queue/queue.module";
 import { TemporalModule } from "./temporal/temporal.module";
 import { UploadModule } from "./upload/upload.module";
+import { WorkflowModule } from "./workflow/workflow.module";
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { UploadModule } from "./upload/upload.module";
     UploadModule,
     TemporalModule,
     OcrModule,
+    WorkflowModule,
   ],
 })
 export class AppModule {}

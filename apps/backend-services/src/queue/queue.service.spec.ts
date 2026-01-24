@@ -1,5 +1,5 @@
+import { DocumentStatus } from "@generated/enums";
 import { Test, TestingModule } from "@nestjs/testing";
-import { DocumentStatus } from "../generated/enums";
 import { OcrService } from "../ocr/ocr.service";
 import { QueueMessage, QueueService } from "./queue.service";
 

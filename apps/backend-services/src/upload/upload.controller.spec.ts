@@ -1,6 +1,6 @@
+import { DocumentStatus } from "@generated/enums";
 import { BadRequestException } from "@nestjs/common";
 import { DocumentService } from "../document/document.service";
-import { DocumentStatus } from "../generated/enums";
 import { QueueService } from "../queue/queue.service";
 import { FileType, UploadDocumentDto } from "./dto/upload-document.dto";
 import { UploadController } from "./upload.controller";

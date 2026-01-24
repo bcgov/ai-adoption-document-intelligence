@@ -47,7 +47,49 @@ TEMPORAL_TASK_QUEUE=ocr-processing
 DATABASE_URL=postgresql://user:password@localhost:5432/dbname
 ```
 
-### 3. Run the Service
+### 3. Database Setup (Prisma)
+
+This project uses Prisma with a shared schema located at `apps/shared/prisma/schema.prisma`. The Prisma client is generated locally in this app.
+
+#### Generate Prisma Client
+
+```bash
+npm run db:generate
+```
+
+This will:
+- Read the shared schema from `apps/shared/prisma/schema.prisma`
+- Generate the Prisma client locally in `src/generated/`
+- The client is automatically generated before builds
+
+#### Database Migrations
+
+```bash
+# Create a new migration
+npm run db:migrate
+
+# Check migration status
+npm run db:status
+
+# Reset database (WARNING: deletes all data)
+npm run db:reset
+
+# Open Prisma Studio (database GUI)
+npm run db:studio
+```
+
+> **Note**: Migrations are stored in `apps/shared/prisma/migrations/` and are shared between `backend-services` and `temporal` apps. The schema is the single source of truth for both applications.
+
+#### Prisma Commands
+
+- `npm run db:generate` - Generate Prisma client from shared schema
+- `npm run db:migrate` - Create and apply a new migration
+- `npm run db:status` - Check migration status
+- `npm run db:reset` - Reset database (deletes all data)
+- `npm run db:studio` - Open Prisma Studio (database GUI)
+- `npm run db:seed` - Run database seed script
+
+### 4. Run the Service
 
 ```bash
 # Development mode

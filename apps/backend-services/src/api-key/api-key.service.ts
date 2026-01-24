@@ -1,3 +1,4 @@
+import { PrismaClient } from "@generated/client";
 import {
   ConflictException,
   Injectable,
@@ -12,7 +13,6 @@ import {
   ApiKeyInfoDto,
   GeneratedApiKeyDto,
 } from "@/api-key/dto/api-key-info.dto";
-import { PrismaClient } from "../generated/client";
 
 @Injectable()
 export class ApiKeyService {

@@ -71,6 +71,9 @@ export class UploadController {
         `${uploadDto.title}.${uploadDto.file_type}`;
 
       // Upload document (saves file and stores metadata)
+      // Use workflow_config_id if provided, fallback to workflow_id for backward compatibility
+      const workflowConfigId =
+        uploadDto.workflow_config_id || uploadDto.workflow_id;
       const uploadedDocument = await this.documentService.uploadDocument(
         uploadDto.title,
         uploadDto.file,
@@ -78,6 +81,7 @@ export class UploadController {
         originalFilename,
         uploadDto.model_id,
         uploadDto.metadata,
+        workflowConfigId,
       );
 
       this.logger.debug(

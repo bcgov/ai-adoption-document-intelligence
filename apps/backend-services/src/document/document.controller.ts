@@ -1,4 +1,7 @@
+import { DocumentStatus } from "@generated/enums";
 import {
+  BadRequestException,
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -6,6 +9,7 @@ import {
   Logger,
   NotFoundException,
   Param,
+  Post,
   Res,
 } from "@nestjs/common";
 import {
@@ -22,7 +26,8 @@ import {
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
-import { DatabaseService } from "../database/database.service";
+import { DatabaseService, DocumentData } from "../database/database.service";
+import { TemporalClientService } from "../temporal/temporal-client.service";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
 
 @ApiTags("Documents")
@@ -30,7 +35,10 @@ import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
 export class DocumentController {
   private readonly logger = new Logger(DocumentController.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly temporalClientService: TemporalClientService,
+  ) {}
 
   @Get()
   @HttpCode(HttpStatus.OK)
@@ -40,16 +48,59 @@ export class DocumentController {
     description: "Returns a list of all documents",
     type: [DocumentDataDto],
   })
-  async getAllDocuments(): Promise<DocumentDataDto[]> {
+  async getAllDocuments(): Promise<
+    (DocumentData & { needsReview?: boolean })[]
+  > {
     this.logger.debug("=== DocumentController.getAllDocuments ===");
 
     try {
       const documents = await this.databaseService.findAllDocuments();
 
+      // Check workflow status for documents that have workflow_execution_id
+      const documentsWithWorkflowStatus = await Promise.all(
+        documents.map(async (doc) => {
+          // Check workflow status for documents with execution ID and status ongoing_ocr or completed_ocr
+          // (completed_ocr documents may be awaiting review if OCR results were stored before human review)
+          if (
+            doc.workflow_execution_id &&
+            (doc.status === "ongoing_ocr" || doc.status === "completed_ocr")
+          ) {
+            try {
+              // Use workflow_execution_id directly (it's the Temporal workflow execution ID)
+              const workflowId = doc.workflow_execution_id;
+              const workflowQueryStatus =
+                await this.temporalClientService.queryWorkflowStatus(
+                  workflowId,
+                );
+
+              // If workflow is awaiting review, mark document as needing review
+              if (workflowQueryStatus.status === "awaiting_review") {
+                this.logger.debug(
+                  `Document ${doc.id} workflow is awaiting review`,
+                );
+                return {
+                  ...doc,
+                  // Override status for UI - needs_validation is not a valid DocumentStatus enum value but used for UI display
+                  status: "needs_validation" as DocumentStatus,
+                  needsReview: true,
+                };
+              }
+            } catch (error) {
+              // If workflow query fails, log but don't fail the entire request
+              // This can happen if workflow is not found, completed, or Temporal is unavailable
+              this.logger.debug(
+                `Could not query workflow status for document ${doc.id}: ${error.message}`,
+              );
+            }
+          }
+          return doc;
+        }),
+      );
+
       this.logger.debug(`Retrieved ${documents.length} documents`);
       this.logger.debug("=== DocumentController.getAllDocuments completed ===");
 
-      return documents;
+      return documentsWithWorkflowStatus;
     } catch (error) {
       this.logger.error(`Error retrieving documents: ${error.message}`);
       this.logger.error(`Stack: ${error.stack}`);
@@ -195,6 +246,81 @@ export class DocumentController {
 
       throw new NotFoundException(
         error.message || `Failed to download document: ${documentId}`,
+      );
+    }
+  }
+
+  @Post("/:documentId/approve")
+  @HttpCode(HttpStatus.OK)
+  async approveDocument(
+    @Param("documentId") documentId: string,
+    @Body()
+    body: {
+      approved: boolean;
+      reviewer?: string;
+      comments?: string;
+      rejectionReason?: string;
+      annotations?: string;
+    },
+  ): Promise<{ success: boolean; message: string }> {
+    this.logger.debug(`=== DocumentController.approveDocument ===`);
+    this.logger.debug(`Document ID: ${documentId}`);
+    this.logger.debug(`Approved: ${body.approved}`);
+
+    try {
+      // Validate rejection reason is provided when rejecting
+      if (!body.approved && !body.rejectionReason) {
+        throw new BadRequestException(
+          "Rejection reason is required when rejecting a document",
+        );
+      }
+
+      // Find the document
+      const document = await this.databaseService.findDocument(documentId);
+      if (!document) {
+        throw new NotFoundException(`Document not found: ${documentId}`);
+      }
+
+      // Get workflow execution ID from document
+      // Use workflow_execution_id (new field) or fallback to workflow_id (legacy)
+      const workflowId = document.workflow_execution_id || document.workflow_id;
+      if (!workflowId) {
+        throw new BadRequestException(
+          `Document ${documentId} does not have an associated workflow execution ID.`,
+        );
+      }
+
+      // Send human approval signal to the workflow
+      await this.temporalClientService.sendHumanApproval(workflowId, {
+        approved: body.approved,
+        reviewer: body.reviewer,
+        comments: body.comments,
+        rejectionReason: body.rejectionReason,
+        annotations: body.annotations,
+      });
+
+      this.logger.log(
+        `Human approval signal sent for document ${documentId}: ${body.approved ? "approved" : "rejected"}`,
+      );
+      if (!body.approved && body.rejectionReason) {
+        this.logger.log(`Rejection reason: ${body.rejectionReason}`);
+      }
+      this.logger.debug("=== DocumentController.approveDocument completed ===");
+
+      return {
+        success: true,
+        message: `Document ${body.approved ? "approved" : "rejected"} successfully`,
+      };
+    } catch (error) {
+      this.logger.error(`Error approving document: ${error.message}`);
+      this.logger.error(`Stack: ${error.stack}`);
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new NotFoundException(
+        error.message || `Failed to approve document: ${documentId}`,
       );
     }
   }
