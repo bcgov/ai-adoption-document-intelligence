@@ -464,6 +464,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           page_number: element.pageNumber,
           bounding_box: {
             polygon: element.polygon,
+            span: element.span,
           },
           is_manual: false,
         };
