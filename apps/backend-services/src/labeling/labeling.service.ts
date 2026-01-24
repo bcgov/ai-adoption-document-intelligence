@@ -333,13 +333,19 @@ export class LabelingService {
   private exportAzureFormat(project: any, documents: any[]) {
     // Generate fields.json (Azure Document Intelligence format)
     const fieldsJson = {
-      $schema:
-        "https://schema.cognitiveservices.azure.com/formrecognizer/2021-03-01/fields.json",
-      fields: project.field_schema.map((field: any) => ({
-        fieldKey: field.field_key,
-        fieldType: field.field_type,
-        fieldFormat: field.field_format || "NotSpecified",
-      })),
+      fields: project.field_schema.map((field: any) => {
+        const exportField: any = {
+          fieldKey: field.field_key,
+          fieldType: field.field_type,
+        };
+
+        // Only include fieldFormat for date fields
+        if (field.field_type === 'date' && field.field_format) {
+          exportField.fieldFormat = field.field_format;
+        }
+
+        return exportField;
+      }),
     };
 
     // Generate labels.json for each document
