@@ -94,6 +94,8 @@ model LabelingProject {
   status          ProjectStatus    @default(active)
   field_schema    FieldDefinition[]
   documents       LabeledDocument[]
+  training_jobs   TrainingJob[]
+  trained_models  TrainedModel[]
   @@map("labeling_projects")
 }
 
@@ -143,6 +145,50 @@ model DocumentLabel {
   created_at      DateTime         @default(now())
   @@index([labeled_doc_id, field_key])
   @@map("document_labels")
+}
+
+// ========== TRAINING MODELS ==========
+
+model TrainingJob {
+  id              String         @id @default(cuid())
+  project_id      String
+  project         LabelingProject @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  status          TrainingStatus @default(PENDING)
+  container_name  String
+  sas_url         String?
+  blob_count      Int            @default(0)
+
+  model_id        String?
+  operation_id    String?
+  error_message   String?
+
+  started_at      DateTime       @default(now())
+  completed_at    DateTime?
+
+  trained_models  TrainedModel[]
+
+  @@index([project_id])
+  @@index([status])
+  @@map("training_jobs")
+}
+
+model TrainedModel {
+  id              String         @id @default(cuid())
+  project_id      String
+  project         LabelingProject @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  training_job_id String
+  training_job    TrainingJob    @relation(fields: [training_job_id], references: [id])
+
+  model_id        String         @unique
+  description     String?
+  doc_types       Json?
+  field_count     Int            @default(0)
+
+  created_at      DateTime       @default(now())
+
+  @@index([project_id])
+  @@map("trained_models")
 }
 
 // ========== HITL MODELS ==========
@@ -213,4 +259,13 @@ enum CorrectionAction {
   corrected
   flagged
   deleted
+}
+
+enum TrainingStatus {
+  PENDING
+  UPLOADING
+  UPLOADED
+  TRAINING
+  SUCCEEDED
+  FAILED
 }
