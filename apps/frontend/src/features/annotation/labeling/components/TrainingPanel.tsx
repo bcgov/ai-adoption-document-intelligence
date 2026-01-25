@@ -50,16 +50,16 @@ export function TrainingPanel({ projectId }: TrainingPanelProps) {
   const [description, setDescription] = useState('');
   const [modelIdError, setModelIdError] = useState('');
 
-  // Validate model ID format (kebab-case)
+  // Validate model ID format (Azure Document Intelligence modelId)
   const validateModelId = (value: string): boolean => {
-    const kebabCaseRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+    const modelIdRegex = /^[a-zA-Z0-9][a-zA-Z0-9._~-]{1,63}$/;
     if (!value) {
       setModelIdError('Model ID is required');
       return false;
     }
-    if (!kebabCaseRegex.test(value)) {
+    if (!modelIdRegex.test(value)) {
       setModelIdError(
-        'Model ID must be kebab-case (lowercase letters, numbers, and hyphens only)',
+        'Model ID must be 2-64 chars, start with a letter/number, and only include letters, numbers, ".", "_", "~", or "-"',
       );
       return false;
     }
@@ -205,7 +205,7 @@ export function TrainingPanel({ projectId }: TrainingPanelProps) {
         <Stack gap="md">
           <TextInput
             label="Model ID"
-            description="Unique identifier for your model (kebab-case: lowercase, numbers, hyphens)"
+            description='Unique identifier (2-64 chars; letters, numbers, ".", "_", "~", "-")'
             placeholder="my-custom-model-v1"
             value={modelId}
             onChange={(e) => {

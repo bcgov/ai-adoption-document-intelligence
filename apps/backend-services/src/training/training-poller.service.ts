@@ -1,14 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
-import { DocumentModelAdministrationClient, AzureKeyCredential } from '@azure/ai-form-recognizer';
+import DocumentIntelligence, {
+  isUnexpected,
+  type DocumentIntelligenceClient,
+} from '@azure-rest/ai-document-intelligence';
 import { DatabaseService } from '../database/database.service';
 import { TrainingStatus } from '../generated/enums';
 
 @Injectable()
 export class TrainingPollerService {
   private readonly logger = new Logger(TrainingPollerService.name);
-  private adminClient: DocumentModelAdministrationClient;
+  private adminClient: DocumentIntelligenceClient;
   private readonly pollInterval: number;
   private readonly maxAttempts: number;
 
@@ -17,7 +20,7 @@ export class TrainingPollerService {
     private readonly configService: ConfigService,
   ) {
     const endpoint = this.configService.get<string>(
-      'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT',
+      'AZURE_DOCUMENT_INTELLIGENCE_TRAIN_ENDPOINT',
     );
     const apiKey = this.configService.get<string>(
       'AZURE_DOCUMENT_INTELLIGENCE_API_KEY',
@@ -28,10 +31,7 @@ export class TrainingPollerService {
         'Azure Document Intelligence credentials not configured. Training polling will not work.',
       );
     } else {
-      this.adminClient = new DocumentModelAdministrationClient(
-        endpoint,
-        new AzureKeyCredential(apiKey),
-      );
+      this.adminClient = DocumentIntelligence(endpoint, { key: apiKey });
     }
 
     this.pollInterval = this.configService.get<number>(
@@ -102,6 +102,11 @@ export class TrainingPollerService {
     }
 
     try {
+      if (!operationId) {
+        this.logger.warn(`Training job ${jobId} has no operation ID`);
+        return;
+      }
+
       // Calculate attempt number based on job start time
       const job = await prisma.trainingJob.findUnique({
         where: { id: jobId },
@@ -132,19 +137,75 @@ export class TrainingPollerService {
         return;
       }
 
-      // Try to get the model to check if training completed
-      try {
-        const model = await this.adminClient.getDocumentModel(modelId);
+      this.logger.debug(
+        `Polling operation ${operationId} for job ${jobId} (model ${modelId})`,
+      );
 
-        // If we successfully retrieved the model, training is complete
+      // Poll the build operation status
+      try {
+        const operationResponse = await this.adminClient
+          .path('/operations/{operationId}', operationId)
+          .get();
+
+        if (isUnexpected(operationResponse)) {
+          if (operationResponse.status === '404') {
+            this.logger.debug(
+              `Operation ${operationId} not ready yet (attempt ${attempts}/${this.maxAttempts})`,
+            );
+            return;
+          }
+
+          const errorMessage =
+            (operationResponse.body as any)?.error?.message ||
+            `Error retrieving operation ${operationId} (status ${operationResponse.status})`;
+          throw new Error(errorMessage);
+        }
+
+        const operation = operationResponse.body as any;
+        const status = operation.status as string;
+
+        if (status === 'notStarted' || status === 'running') {
+          this.logger.debug(
+            `Training still in progress for job ${jobId} (status: ${status}, attempt ${attempts}/${this.maxAttempts})`,
+          );
+          return;
+        }
+
+        if (status !== 'succeeded') {
+          const errorMessage =
+            operation.error?.message ||
+            `Training failed with status ${status}`;
+          throw new Error(errorMessage);
+        }
+
+        // Training succeeded
         this.logger.log(`Training completed successfully for job ${jobId}`);
 
-        // Extract model information
-        const docTypes = model.docTypes || {};
+        const resultModel = operation.result;
+        let docTypes = resultModel?.docTypes || {};
+        let description = resultModel?.description;
+
+        if (!resultModel) {
+          // Fallback: fetch the model by ID
+          const modelResponse = await this.adminClient
+            .path('/documentModels/{modelId}', modelId)
+            .get();
+
+          if (isUnexpected(modelResponse)) {
+            const errorMessage =
+              (modelResponse.body as any)?.error?.message ||
+              `Error retrieving model ${modelId} (status ${modelResponse.status})`;
+            throw new Error(errorMessage);
+          }
+
+          docTypes = modelResponse.body.docTypes || {};
+          description = modelResponse.body.description;
+        }
+
         let fieldCount = 0;
         for (const docType of Object.values(docTypes)) {
-          if (docType.fieldSchema) {
-            fieldCount = Object.keys(docType.fieldSchema).length;
+          if ((docType as any).fieldSchema) {
+            fieldCount = Object.keys((docType as any).fieldSchema).length;
             break;
           }
         }
@@ -164,7 +225,7 @@ export class TrainingPollerService {
             project_id: job.project_id,
             training_job_id: jobId,
             model_id: modelId,
-            description: model.description,
+            description,
             doc_types: docTypes as any,
             field_count: fieldCount,
           },
@@ -172,29 +233,19 @@ export class TrainingPollerService {
 
         this.logger.log(`Created trained model record for: ${modelId}`);
       } catch (modelError) {
-        // Model not found yet - training still in progress
-        // Check if it's a real error or just not ready
-        if (modelError.statusCode === 404 || modelError.code === 'ModelNotFound') {
-          this.logger.debug(
-            `Model ${modelId} not ready yet (attempt ${attempts}/${this.maxAttempts})`,
-          );
-          // Job status remains TRAINING
-        } else {
-          // Real error occurred
-          this.logger.error(
-            `Error retrieving model ${modelId}: ${modelError.message}`,
-          );
+        this.logger.error(
+          `Error polling operation ${operationId} for model ${modelId}: ${modelError.message}`,
+        );
 
-          // Mark job as failed
-          await prisma.trainingJob.update({
-            where: { id: jobId },
-            data: {
-              status: TrainingStatus.FAILED,
-              error_message: `Training failed: ${modelError.message}`,
-              completed_at: new Date(),
-            },
-          });
-        }
+        // Mark job as failed
+        await prisma.trainingJob.update({
+          where: { id: jobId },
+          data: {
+            status: TrainingStatus.FAILED,
+            error_message: `Training failed: ${modelError.message}`,
+            completed_at: new Date(),
+          },
+        });
       }
     } catch (error) {
       this.logger.error(

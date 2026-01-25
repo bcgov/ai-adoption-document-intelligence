@@ -170,7 +170,8 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   }, [labelState]);
 
   const ocrWords = useMemo<OcrElement[]>(() => {
-    const ocrResult = projectDocument?.labeling_document?.ocr_result as any;
+    const ocrResult = (projectDocument?.labeling_document?.ocr_result as any)
+      ?.analyzeResult;
     console.debug("[Labeling] OCR result shape", {
       hasOcr: Boolean(ocrResult),
       hasPages: Boolean(ocrResult?.pages),
@@ -358,7 +359,9 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
         element.polygon.filter((_, idx) => idx % 2 === 1),
       ));
       const ocrPage = (projectDocument?.labeling_document?.ocr_result as any)
-        ?.pages?.find((p: any) => p.pageNumber === (ordered[0]?.pageNumber ?? 1));
+        ?.analyzeResult?.pages?.find(
+          (p: any) => p.pageNumber === (ordered[0]?.pageNumber ?? 1),
+        );
       updates[fieldKey] = {
         field_key: fieldKey,
         label_name: fieldKey,
@@ -618,7 +621,9 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                     const maxX = Math.max(...xs);
                     const maxY = Math.max(...ys);
                     const ocrPage = (projectDocument?.labeling_document?.ocr_result as any)
-                      ?.pages?.find((p: any) => p.pageNumber === element.pageNumber);
+                      ?.analyzeResult?.pages?.find(
+                        (p: any) => p.pageNumber === element.pageNumber,
+                      );
                     const scaleX =
                       ocrPage?.width && pdfWidth
                         ? pdfWidth / ocrPage.width

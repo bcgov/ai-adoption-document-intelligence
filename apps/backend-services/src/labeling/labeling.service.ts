@@ -376,11 +376,23 @@ export class LabelingService {
         const valueEntries = sortedLabels.map((label: any) => {
           // Normalize bounding box coordinates if page dimensions are available
           let normalizedPolygon = label.bounding_box.polygon;
-          if (label.bounding_box.pageWidth && label.bounding_box.pageHeight) {
-            normalizedPolygon = label.bounding_box.polygon.map((coord: number, idx: number) => {
-              const divisor = idx % 2 === 0 ? label.bounding_box.pageWidth : label.bounding_box.pageHeight;
-              return coord / divisor;
-            });
+          const pageWidth =
+            label.bounding_box.pageWidth ??
+            doc.labeling_document.ocr_result?.analyzeResult?.pages?.find(
+              (page: any) => page.pageNumber === label.page_number,
+            )?.width;
+          const pageHeight =
+            label.bounding_box.pageHeight ??
+            doc.labeling_document.ocr_result?.analyzeResult?.pages?.find(
+              (page: any) => page.pageNumber === label.page_number,
+            )?.height;
+          if (pageWidth && pageHeight) {
+            normalizedPolygon = label.bounding_box.polygon.map(
+              (coord: number, idx: number) => {
+                const divisor = idx % 2 === 0 ? pageWidth : pageHeight;
+                return coord / divisor;
+              },
+            );
           }
 
           // Format text for checkboxes

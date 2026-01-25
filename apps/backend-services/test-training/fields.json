@@ -1,0 +1,306 @@
+{
+  "fields": [
+    {
+      "fieldKey": "checkbox_need_assistance_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_need_assistance_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_family_assets_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_family_assets_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_shelter_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_shelter_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_employment_changes_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_employment_changes_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_employment_changes_spouse_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_employment_changes_spouse_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_school_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_school_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_school_spouse_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_school_spouse_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_moved_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_moved_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_moved_spouse_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_moved_spouse_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_warrant_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_warrant_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_warrant_spouse_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_warrant_spouse_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "explain_changes",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "signature",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "spouse_signature",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "date",
+      "fieldType": "date",
+      "fieldFormat": "dmy"
+    },
+    {
+      "fieldKey": "spouse_date",
+      "fieldType": "date",
+      "fieldFormat": "dmy"
+    },
+    {
+      "fieldKey": "name",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "spouse_name",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "phone",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "spouse_phone",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "sin",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "spouse_sin",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "income1",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income2",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income3",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income4",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income5",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income6",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income7",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income8",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income9",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income10",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income11",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income12",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income13",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income14",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income15",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income16",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income17",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "income18",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income1",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income2",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income3",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income4",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income5",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income6",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income7",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income8",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income9",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income10",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income11",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income12",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income13",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income14",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income15",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income16",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income17",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income18",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "checkbox_dependants_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_dependants_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_work_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_work_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_work_souse_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_work_souse_no",
+      "fieldType": "selectionMark"
+    }
+  ]
+}

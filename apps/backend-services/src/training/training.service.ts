@@ -5,7 +5,11 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DocumentModelAdministrationClient, AzureKeyCredential } from '@azure/ai-form-recognizer';
+import DocumentIntelligence, {
+  isUnexpected,
+  parseResultIdFromResponse,
+  type DocumentIntelligenceClient,
+} from '@azure-rest/ai-document-intelligence';
 import { DatabaseService } from '../database/database.service';
 import { BlobStorageService } from '../blob-storage/blob-storage.service';
 import { LabelingService } from '../labeling/labeling.service';
@@ -20,7 +24,7 @@ import * as path from 'path';
 @Injectable()
 export class TrainingService {
   private readonly logger = new Logger(TrainingService.name);
-  private adminClient: DocumentModelAdministrationClient;
+  private adminClient: DocumentIntelligenceClient;
   private readonly minDocuments: number;
   private readonly sasExpiryDays: number;
 
@@ -31,7 +35,7 @@ export class TrainingService {
     private readonly configService: ConfigService,
   ) {
     const endpoint = this.configService.get<string>(
-      'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT',
+      'AZURE_DOCUMENT_INTELLIGENCE_TRAIN_ENDPOINT',
     );
     const apiKey = this.configService.get<string>(
       'AZURE_DOCUMENT_INTELLIGENCE_API_KEY',
@@ -42,11 +46,9 @@ export class TrainingService {
         'Azure Document Intelligence credentials not configured. Training features will not work.',
       );
     } else {
-      this.adminClient = new DocumentModelAdministrationClient(
-        endpoint,
-        new AzureKeyCredential(apiKey),
-      );
+      this.adminClient = DocumentIntelligence(endpoint, { key: apiKey });
       this.logger.log('Document Intelligence Admin client initialized');
+      this.logger.log(`Document Intelligence endpoint: ${endpoint}`);
     }
 
     this.minDocuments = this.configService.get<number>(
@@ -125,13 +127,20 @@ export class TrainingService {
       format: ExportFormat.AZURE,
       labeledOnly: true,
     });
+    if (!('fieldsJson' in exportResult) || !('labelsFiles' in exportResult)) {
+      throw new Error('Azure export did not return training data');
+    }
+    const { fieldsJson, labelsFiles } = exportResult as {
+      fieldsJson: unknown;
+      labelsFiles: Array<{ filename: string; content: unknown }>;
+    };
 
     const files: Array<{ name: string; content: string | Buffer }> = [];
 
     // Add fields.json
     files.push({
       name: 'fields.json',
-      content: JSON.stringify(exportResult.fieldsJson, null, 2),
+      content: JSON.stringify(fieldsJson, null, 2),
     });
 
     // Add document images and their labels/OCR files
@@ -166,7 +175,7 @@ export class TrainingService {
       }
 
       // Add labels JSON
-      const labelsFile = exportResult.labelsFiles.find(
+      const labelsFile = labelsFiles.find(
         (f: any) => f.filename === `${filename}.labels.json`,
       );
       if (labelsFile) {
@@ -202,15 +211,19 @@ export class TrainingService {
       });
     }
 
-    // Check if model ID already exists
+    // Remove existing Azure model if present to avoid conflicts
+    await this.deleteModelIfExists(dto.modelId);
+
+    // Remove any local record with the same model ID
     const existingModel = await this.prisma.trainedModel.findUnique({
       where: { model_id: dto.modelId },
     });
     if (existingModel) {
-      throw new BadRequestException(
-        `Model ID '${dto.modelId}' already exists. Please choose a unique model ID.`,
-      );
+      await this.prisma.trainedModel.delete({
+        where: { model_id: dto.modelId },
+      });
     }
+
 
     // Create training job record
     const containerName = `training-${projectId}`;
@@ -258,6 +271,9 @@ export class TrainingService {
         where: { id: jobId },
       });
 
+      // Clear container contents so each training run starts clean
+      await this.blobStorage.clearContainerContents(job.container_name);
+
       // Upload to blob storage
       const uploadResult = await this.blobStorage.uploadFiles(
         job.container_name,
@@ -286,22 +302,146 @@ export class TrainingService {
         },
       });
 
+      const containerUrl = sasUrl.split('?')[0];
+      const sasToken = sasUrl.split('?')[1] || '';
+      const hasSasToken = sasToken.length > 0;
+      const sasParams = new URLSearchParams(sasToken);
+      const sasSummary = {
+        sp: sasParams.get('sp'),
+        sr: sasParams.get('sr'),
+        se: sasParams.get('se'),
+        spr: sasParams.get('spr'),
+      };
+
+      if (!sasUrl.startsWith('https://') || !hasSasToken) {
+        throw new Error(
+          'Invalid SAS URL for training container. Expected HTTPS URL with SAS token.',
+        );
+      }
+
       // Initiate training with Azure
       this.logger.log(
         `Initiating Azure training for model: ${dto.modelId}`,
       );
-
-      const poller = await this.adminClient.beginBuildDocumentModel(
-        dto.modelId,
-        sasUrl,
-        'template',
-        {
-          description: dto.description,
-        },
+      this.logger.debug(
+        `Training container URL: ${containerUrl} (sas: ${hasSasToken ? 'present' : 'missing'})`,
       );
+      this.logger.debug(`Training container SAS URL: ${sasUrl}`);
+      this.logger.debug(
+        `Training SAS summary: ${JSON.stringify(sasSummary)}`,
+      );
+      if (!sasSummary.sr || sasSummary.sr !== 'c') {
+        this.logger.warn(
+          `Training SAS 'sr' is not 'c' (container). Current: ${sasSummary.sr}`,
+        );
+      }
+      if (!sasSummary.sp || !sasSummary.sp.includes('r') || !sasSummary.sp.includes('l')) {
+        this.logger.warn(
+          `Training SAS permissions should include read/list (sp=rl). Current: ${sasSummary.sp}`,
+        );
+      }
 
-      // Extract operation ID from poller
-      const operationId = this.extractOperationId(poller);
+      const sasValidation = await this.blobStorage.validateContainerSasUrl(sasUrl);
+      if (!sasValidation.canList) {
+        this.logger.error(
+          `Training SAS validation failed: ${sasValidation.error || 'unknown error'}`,
+        );
+      } else {
+        this.logger.debug(
+          `Training SAS can list ${sasValidation.blobCount} blobs (sample: ${sasValidation.sampleBlobs?.join(', ') || 'none'})`,
+        );
+      }
+
+      const blobs = await this.blobStorage.listBlobs(job.container_name);
+      const blobNames = new Set(blobs.map((blob) => blob.name));
+      const labelFiles = blobs.filter((blob) => blob.name.endsWith('.labels.json'));
+      const missingPairs: string[] = [];
+
+      if (!blobNames.has('fields.json')) {
+        missingPairs.push('fields.json (missing)');
+      }
+
+      if (labelFiles.length === 0) {
+        missingPairs.push('*.labels.json (none found)');
+      }
+
+      for (const labelFile of labelFiles) {
+        const baseName = labelFile.name.replace(/\.labels\.json$/, '');
+        if (!blobNames.has(baseName)) {
+          missingPairs.push(`${baseName} (missing document for ${labelFile.name})`);
+        }
+      }
+
+      if (missingPairs.length > 0) {
+        this.logger.error(
+          `Training data validation failed: ${missingPairs.join('; ')}`,
+        );
+        throw new Error(
+          'Training data in blob container is incomplete or invalid. See logs for details.',
+        );
+      }
+
+      const initialResponse = await this.adminClient
+        .path('/documentModels:build')
+        .post({
+          contentType: 'application/json',
+          body: {
+            modelId: dto.modelId,
+            description: dto.description,
+            buildMode: 'template',
+            azureBlobSource: {
+              containerUrl: sasUrl,
+            },
+          },
+        });
+
+      if (isUnexpected(initialResponse)) {
+        const requestUrl = initialResponse.request?.url;
+        const requestMethod = initialResponse.request?.method;
+        if (requestUrl) {
+          this.logger.error(
+            `Azure training request failed: ${requestMethod || 'UNKNOWN'} ${requestUrl}`,
+          );
+        }
+        this.logger.error(
+          `Azure training response status: ${initialResponse.status}`,
+        );
+        this.logger.error(
+          `Azure training response headers: ${JSON.stringify(
+            initialResponse.headers,
+            null,
+            2,
+          )}`,
+        );
+        this.logger.error(
+          `Azure training response body: ${JSON.stringify(
+            initialResponse.body,
+            null,
+            2,
+          )}`,
+        );
+        const errorMessage =
+          (initialResponse.body as any)?.error?.message ||
+          `Azure training request failed with status ${initialResponse.status}`;
+        throw new Error(errorMessage);
+      }
+
+      const operationLocation =
+        initialResponse.headers?.['operation-location'] ||
+        initialResponse.headers?.['Operation-Location'];
+      let operationId: string | undefined;
+      try {
+        operationId = parseResultIdFromResponse(initialResponse);
+      } catch (error) {
+        if (operationLocation) {
+          operationId = this.extractOperationIdFromLocation(operationLocation);
+        }
+      }
+      if (!operationId) {
+        throw new Error(
+          `Failed to parse operation ID from operation-location header: ${operationLocation}`,
+        );
+      }
 
       // Update status to TRAINING
       await this.prisma.trainingJob.update({
@@ -315,7 +455,25 @@ export class TrainingService {
       this.logger.log(
         `Training initiated for job ${jobId}, operation ID: ${operationId}`,
       );
+      this.logger.debug(
+        `Azure training response headers: ${JSON.stringify(
+          initialResponse.headers,
+          null,
+          2,
+        )}`,
+      );
+      if (operationLocation) {
+        this.logger.log(`Training operation location: ${operationLocation}`);
+      }
     } catch (error) {
+      const requestUrl = (error as any)?.request?.url;
+      const requestMethod = (error as any)?.request?.method;
+      if (requestUrl) {
+        this.logger.error(
+          `Azure training request failed: ${requestMethod || 'UNKNOWN'} ${requestUrl}`,
+        );
+      }
+
       // Update job status to FAILED
       await this.prisma.trainingJob.update({
         where: { id: jobId },
@@ -327,23 +485,6 @@ export class TrainingService {
       });
 
       throw error;
-    }
-  }
-
-  /**
-   * Extract operation ID from the poller for tracking
-   */
-  private extractOperationId(poller: any): string {
-    try {
-      // The operation ID is typically in the polling URL or operation location header
-      if (poller.operationLocation) {
-        const parts = poller.operationLocation.split('/');
-        return parts[parts.length - 1];
-      }
-      return 'unknown';
-    } catch (error) {
-      this.logger.warn('Could not extract operation ID from poller');
-      return 'unknown';
     }
   }
 
@@ -438,6 +579,42 @@ export class TrainingService {
       startedAt: job.started_at,
       completedAt: job.completed_at,
     };
+  }
+
+
+  private extractOperationIdFromLocation(operationLocation: string): string | undefined {
+    try {
+      const url = new URL(operationLocation);
+      const parts = url.pathname.split('/');
+      return parts[parts.length - 1] || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async deleteModelIfExists(modelId: string): Promise<void> {
+    if (!this.adminClient) {
+      this.logger.warn(
+        `Azure client not configured. Skipping model deletion for ${modelId}`,
+      );
+      return;
+    }
+
+    const response = await this.adminClient
+      .path('/documentModels/{modelId}', modelId)
+      .delete();
+
+    if (isUnexpected(response)) {
+      if (response.status === '404') {
+        return;
+      }
+      const errorMessage =
+        (response.body as any)?.error?.message ||
+        `Failed to delete model ${modelId} (status ${response.status})`;
+      throw new Error(errorMessage);
+    }
+
+    this.logger.log(`Deleted Azure model: ${modelId}`);
   }
 
   /**

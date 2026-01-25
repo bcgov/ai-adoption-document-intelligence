@@ -74,13 +74,16 @@ export class OcrService {
         : `${this.azureEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30`;
 
       const headers = {
-        "api-key": this.azureApiKey,
+        "Ocp-Apim-Subscription-Key": this.azureApiKey,
         "Content-Type": "application/json",
       };
 
       this.logger.debug(`Request URL: ${url}`);
       this.logger.debug(
-        `Request headers: ${JSON.stringify({ ...headers, "api-key": "[REDACTED]" })}`,
+        `Request headers: ${JSON.stringify({
+          ...headers,
+          "Ocp-Apim-Subscription-Key": "[REDACTED]",
+        })}`,
       );
 
       let azureResponse;
@@ -176,7 +179,7 @@ export class OcrService {
         `${this.azureEndpoint}/documentModels/${modelId}/analyzeResults/${apim}?api-version=2024-11-30`,
         {
           headers: {
-            "api-key": this.azureApiKey,
+            "Ocp-Apim-Subscription-Key": this.azureApiKey,
           },
         },
       ),
