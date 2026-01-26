@@ -35,6 +35,7 @@ import { useProject, useProjectDocuments } from "../hooks/useProjects";
 import { useFieldSchema } from "../hooks/useFieldSchema";
 import { FieldSchemaEditor } from "../components/FieldSchemaEditor";
 import { ExportPanel } from "../components/ExportPanel";
+import { TrainingPanel } from "../components/TrainingPanel";
 import type { FieldDefinition } from "../../core/types/field";
 import { useUploadQueue, type UploadQueueItem } from "@/data/hooks/useUploadQueue";
 import { apiService } from "@/data/services/api.service";
@@ -245,6 +246,7 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
           <Tabs.Tab value="documents">Documents</Tabs.Tab>
           <Tabs.Tab value="schema">Field Schema</Tabs.Tab>
           <Tabs.Tab value="export">Export</Tabs.Tab>
+          <Tabs.Tab value="training">Training</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="documents" pt="md">
@@ -419,6 +421,10 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
               name: doc.labeling_document.original_filename,
             }))}
           />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="training" pt="md">
+          <TrainingPanel projectId={projectId} />
         </Tabs.Panel>
       </Tabs>
 

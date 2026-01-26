@@ -333,35 +333,96 @@ export class LabelingService {
   private exportAzureFormat(project: any, documents: any[]) {
     // Generate fields.json (Azure Document Intelligence format)
     const fieldsJson = {
-      $schema:
-        "https://schema.cognitiveservices.azure.com/formrecognizer/2021-03-01/fields.json",
-      fields: project.field_schema.map((field: any) => ({
-        fieldKey: field.field_key,
-        fieldType: field.field_type,
-        fieldFormat: field.field_format || "NotSpecified",
-      })),
+      fields: project.field_schema.map((field: any) => {
+        const exportField: any = {
+          fieldKey: field.field_key,
+          fieldType: field.field_type,
+        };
+
+        // Only include fieldFormat for date fields
+        if (field.field_type === 'date' && field.field_format) {
+          exportField.fieldFormat = field.field_format;
+        }
+
+        return exportField;
+      }),
     };
 
     // Generate labels.json for each document
-    const labelsFiles = documents.map((doc) => ({
-      filename: `${doc.labeling_document.original_filename}.labels.json`,
-      content: {
-        $schema:
-          "https://schema.cognitiveservices.azure.com/formrecognizer/2021-03-01/labels.json",
-        document: doc.labeling_document.original_filename,
-        labels: doc.labels.map((label: any) => ({
-          label: label.field_key,
-          key: null,
-          value: [
-            {
-              page: label.page_number,
-              text: label.value,
-              boundingBoxes: [label.bounding_box],
-            },
-          ],
-        })),
-      },
-    }));
+    const labelsFiles = documents.map((doc) => {
+      // Group labels by field_key to handle multi-word fields
+      const groupedLabels: Record<string, any[]> = {};
+      doc.labels.forEach((label: any) => {
+        if (!groupedLabels[label.field_key]) {
+          groupedLabels[label.field_key] = [];
+        }
+        groupedLabels[label.field_key].push(label);
+      });
+
+      // Convert grouped labels to the export format
+      const exportLabels = Object.entries(groupedLabels).map(([fieldKey, labels]) => {
+        // Sort labels by their original OCR order using span offset
+        // This preserves the correct reading order from Azure Document Intelligence
+        const sortedLabels = [...labels].sort((a: any, b: any) => {
+          // First by page
+          if (a.page_number !== b.page_number) {
+            return a.page_number - b.page_number;
+          }
+
+          // Then by span offset (preserves OCR reading order)
+          return (a.bounding_box?.span?.offset ?? 0) - (b.bounding_box?.span?.offset ?? 0);
+        });
+
+        const valueEntries = sortedLabels.map((label: any) => {
+          // Normalize bounding box coordinates if page dimensions are available
+          let normalizedPolygon = label.bounding_box.polygon;
+          const pageWidth =
+            label.bounding_box.pageWidth ??
+            doc.labeling_document.ocr_result?.analyzeResult?.pages?.find(
+              (page: any) => page.pageNumber === label.page_number,
+            )?.width;
+          const pageHeight =
+            label.bounding_box.pageHeight ??
+            doc.labeling_document.ocr_result?.analyzeResult?.pages?.find(
+              (page: any) => page.pageNumber === label.page_number,
+            )?.height;
+          if (pageWidth && pageHeight) {
+            normalizedPolygon = label.bounding_box.polygon.map(
+              (coord: number, idx: number) => {
+                const divisor = idx % 2 === 0 ? pageWidth : pageHeight;
+                return coord / divisor;
+              },
+            );
+          }
+
+          // Format text for checkboxes
+          let text = label.value;
+          const field = project.field_schema.find((f: any) => f.field_key === fieldKey);
+          if (field?.field_type === 'selectionMark') {
+            text = label.value === 'selected' ? ':selected:' : ':unselected:';
+          }
+
+          return {
+            page: label.page_number,
+            text: text,
+            boundingBoxes: [normalizedPolygon],
+          };
+        });
+
+        return {
+          label: fieldKey,
+          value: valueEntries,
+        };
+      });
+
+      return {
+        filename: `${doc.labeling_document.original_filename}.labels.json`,
+        content: {
+          document: doc.labeling_document.original_filename,
+          labels: exportLabels,
+        },
+      };
+    });
 
     return {
       fieldsJson,

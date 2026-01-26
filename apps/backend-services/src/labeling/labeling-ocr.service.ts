@@ -98,14 +98,14 @@ export class LabelingOcrService {
         status: DocumentStatus.ongoing_ocr,
       });
 
-      const analysisResult = await this.waitForOcrCompletion(
+      const analysisResponse = await this.waitForOcrCompletion(
         labelingDocument.model_id,
         apimRequestId,
       );
 
       await this.db.updateLabelingDocument(labelingDocumentId, {
         status: DocumentStatus.completed_ocr,
-        ocr_result: analysisResult as JsonValue,
+        ocr_result: analysisResponse as JsonValue,
       });
     } catch (error) {
       this.logger.error(
@@ -128,7 +128,7 @@ export class LabelingOcrService {
       : `${this.azureEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30`;
 
     const headers = {
-      "api-key": this.azureApiKey,
+      "Ocp-Apim-Subscription-Key": this.azureApiKey,
       "Content-Type": "application/json",
     };
 
@@ -152,12 +152,12 @@ export class LabelingOcrService {
     apimRequestId: string,
     maxAttempts = 30,
     delayMs = 2000,
-  ): Promise<AnalysisResult> {
+  ): Promise<AnalysisResponse> {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const response = await lastValueFrom(
         this.httpService.get(
           `${this.azureEndpoint}/documentModels/${modelId}/analyzeResults/${apimRequestId}?api-version=2024-11-30`,
-          { headers: { "api-key": this.azureApiKey } },
+          { headers: { "Ocp-Apim-Subscription-Key": this.azureApiKey } },
         ),
       );
 
@@ -175,7 +175,7 @@ export class LabelingOcrService {
         throw new Error("OCR response missing analyzeResult");
       }
 
-      return analysisResponse.analyzeResult;
+      return analysisResponse;
     }
 
     throw new Error("OCR processing timed out");

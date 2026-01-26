@@ -68,7 +68,7 @@ export class DatabaseService {
   constructor(private configService: ConfigService) {
     this.databaseUrl = this.configService.get("DATABASE_URL");
     this.prisma = new PrismaClient({
-      log: ["query", "info", "warn", "error"],
+      log: ["info", "warn", "error"],
       adapter: new PrismaPg({ connectionString: this.databaseUrl }),
     });
     this.logger.log("Database service initialized with Prisma");

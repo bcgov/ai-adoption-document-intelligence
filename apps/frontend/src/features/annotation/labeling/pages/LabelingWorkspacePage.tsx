@@ -43,13 +43,15 @@ interface LabelState {
   is_manual?: boolean;
 }
 
-interface OcrWord {
+interface OcrElement {
+  type: 'word' | 'selectionMark';
   content: string;
   polygon: number[];
   confidence: number;
   span?: { offset: number; length: number };
   pageNumber: number;
   id: string;
+  state?: 'selected' | 'unselected'; // for selectionMarks
 }
 
 export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
@@ -167,8 +169,9 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     return values;
   }, [labelState]);
 
-  const ocrWords = useMemo<OcrWord[]>(() => {
-    const ocrResult = projectDocument?.labeling_document?.ocr_result as any;
+  const ocrWords = useMemo<OcrElement[]>(() => {
+    const ocrResult = (projectDocument?.labeling_document?.ocr_result as any)
+      ?.analyzeResult;
     console.debug("[Labeling] OCR result shape", {
       hasOcr: Boolean(ocrResult),
       hasPages: Boolean(ocrResult?.pages),
@@ -176,12 +179,15 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     });
     if (!ocrResult?.pages) return [];
 
-    const words: OcrWord[] = [];
+    const elements: OcrElement[] = [];
     ocrResult.pages.forEach((page: any) => {
       const pageNumber = page.pageNumber ?? page.page_number ?? 1;
+
+      // Extract words
       (page.words || []).forEach((word: any, index: number) => {
         if (!word.polygon || word.polygon.length < 8) return;
-        words.push({
+        elements.push({
+          type: 'word',
           content: word.content,
           polygon: word.polygon,
           confidence: word.confidence ?? 0,
@@ -190,16 +196,37 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           id: `p${pageNumber}-w${index}`,
         });
       });
+
+      // Extract selection marks (checkboxes)
+      (page.selectionMarks || []).forEach((mark: any, index: number) => {
+        if (!mark.polygon || mark.polygon.length < 8) return;
+        elements.push({
+          type: 'selectionMark',
+          content: mark.state === 'selected' ? '☑' : '☐',
+          polygon: mark.polygon,
+          confidence: mark.confidence ?? 0,
+          span: mark.span,
+          pageNumber,
+          id: `p${pageNumber}-sm${index}`,
+          state: mark.state,
+        });
+      });
     });
 
-    return words;
+    console.debug("[Labeling] Extracted OCR elements", {
+      total: elements.length,
+      words: elements.filter(e => e.type === 'word').length,
+      selectionMarks: elements.filter(e => e.type === 'selectionMark').length,
+    });
+
+    return elements;
   }, [projectDocument?.labeling_document?.ocr_result]);
 
   const wordsByPage = useMemo(() => {
-    const map: Record<number, OcrWord[]> = {};
-    ocrWords.forEach((word) => {
-      if (!map[word.pageNumber]) map[word.pageNumber] = [];
-      map[word.pageNumber].push(word);
+    const map: Record<number, OcrElement[]> = {};
+    ocrWords.forEach((element) => {
+      if (!map[element.pageNumber]) map[element.pageNumber] = [];
+      map[element.pageNumber].push(element);
     });
     return map;
   }, [ocrWords]);
@@ -246,29 +273,36 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   }, [labels, ocrWords, assignmentsHydrated]);
 
   useEffect(() => {
-    console.debug("[Labeling] OCR words loaded", {
-      totalWords: ocrWords.length,
+    console.debug("[Labeling] OCR elements loaded", {
+      totalElements: ocrWords.length,
+      words: ocrWords.filter(e => e.type === 'word').length,
+      selectionMarks: ocrWords.filter(e => e.type === 'selectionMark').length,
       pages: Object.keys(wordsByPage),
     });
   }, [ocrWords, wordsByPage]);
 
   const wordBoxes = useMemo(() => {
-    console.debug("[Labeling] Building word boxes", {
-      totalWords: ocrWords.length,
+    console.debug("[Labeling] Building element boxes", {
+      totalElements: ocrWords.length,
       assignments: Object.keys(wordAssignments).length,
     });
-    return ocrWords.map((word) => {
+    return ocrWords.map((element) => {
       const points = [];
-      for (let i = 0; i < word.polygon.length; i += 2) {
-        points.push({ x: word.polygon[i], y: word.polygon[i + 1] });
+      for (let i = 0; i < element.polygon.length; i += 2) {
+        points.push({ x: element.polygon[i], y: element.polygon[i + 1] });
       }
-      const assignedField = wordAssignments[word.id];
+      const assignedField = wordAssignments[element.id];
       const isActive = assignedField === activeFieldKey;
+      const isCheckbox = element.type === 'selectionMark';
       return {
-        id: word.id,
+        id: element.id,
         box: { polygon: points },
         label: assignedField ?? undefined,
-        color: assignedField ? (isActive ? "#228be6" : "#adb5bd") : "#ced4da",
+        color: assignedField
+          ? (isActive ? "#228be6" : "#adb5bd")
+          : isCheckbox
+            ? "#FFA500"
+            : "#ced4da",
         confidence: undefined,
       };
     });
@@ -279,38 +313,55 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       assignments: Object.keys(wordAssignments).length,
     });
     const updates: Record<string, LabelState> = {};
-    const wordsInOrder = [...ocrWords].sort((a, b) => {
+    const elementsInOrder = [...ocrWords].sort((a, b) => {
       if (a.pageNumber !== b.pageNumber) return a.pageNumber - b.pageNumber;
       return a.id.localeCompare(b.id);
     });
 
-    const grouped: Record<string, OcrWord[]> = {};
-    Object.entries(wordAssignments).forEach(([wordId, fieldKey]) => {
-      const word = ocrWords.find((item) => item.id === wordId);
-      if (!word) return;
+    const grouped: Record<string, OcrElement[]> = {};
+    Object.entries(wordAssignments).forEach(([elementId, fieldKey]) => {
+      const element = ocrWords.find((item) => item.id === elementId);
+      if (!element) return;
       if (!grouped[fieldKey]) grouped[fieldKey] = [];
-      grouped[fieldKey].push(word);
+      grouped[fieldKey].push(element);
     });
 
-    Object.entries(grouped).forEach(([fieldKey, words]) => {
-      const ordered = wordsInOrder.filter((word) =>
-        words.some((w) => w.id === word.id),
+    Object.entries(grouped).forEach(([fieldKey, elements]) => {
+      const ordered = elementsInOrder.filter((element) =>
+        elements.some((e) => e.id === element.id),
       );
-      const text = ordered.map((word) => word.content).join(" ");
-      const minX = Math.min(...ordered.flatMap((word) =>
-        word.polygon.filter((_, idx) => idx % 2 === 0),
+
+      // Check if this is a single selection mark (checkbox)
+      const isSingleCheckbox = ordered.length === 1 && ordered[0].type === 'selectionMark';
+
+      let text: string;
+      if (isSingleCheckbox) {
+        // For checkboxes, use the state value
+        text = ordered[0].state || 'unselected';
+      } else {
+        // For words (or mixed), concatenate content
+        text = ordered
+          .filter(e => e.type === 'word')
+          .map((element) => element.content)
+          .join(" ");
+      }
+
+      const minX = Math.min(...ordered.flatMap((element) =>
+        element.polygon.filter((_, idx) => idx % 2 === 0),
       ));
-      const minY = Math.min(...ordered.flatMap((word) =>
-        word.polygon.filter((_, idx) => idx % 2 === 1),
+      const minY = Math.min(...ordered.flatMap((element) =>
+        element.polygon.filter((_, idx) => idx % 2 === 1),
       ));
-      const maxX = Math.max(...ordered.flatMap((word) =>
-        word.polygon.filter((_, idx) => idx % 2 === 0),
+      const maxX = Math.max(...ordered.flatMap((element) =>
+        element.polygon.filter((_, idx) => idx % 2 === 0),
       ));
-      const maxY = Math.max(...ordered.flatMap((word) =>
-        word.polygon.filter((_, idx) => idx % 2 === 1),
+      const maxY = Math.max(...ordered.flatMap((element) =>
+        element.polygon.filter((_, idx) => idx % 2 === 1),
       ));
       const ocrPage = (projectDocument?.labeling_document?.ocr_result as any)
-        ?.pages?.find((p: any) => p.pageNumber === (ordered[0]?.pageNumber ?? 1));
+        ?.analyzeResult?.pages?.find(
+          (p: any) => p.pageNumber === (ordered[0]?.pageNumber ?? 1),
+        );
       updates[fieldKey] = {
         field_key: fieldKey,
         label_name: fieldKey,
@@ -347,36 +398,36 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     }));
   }, [updateLabelsFromAssignments]);
 
-  const handleWordSelect = (wordId: string | null) => {
-    console.debug("[Labeling] Word selection clicked", {
-      wordId,
+  const handleWordSelect = (elementId: string | null) => {
+    console.debug("[Labeling] Element selection clicked", {
+      elementId,
       activeFieldKey,
     });
-    if (!wordId) return;
+    if (!elementId) return;
     if (!activeFieldKey) {
       console.warn("[Labeling] No active field selected for assignment");
       notifications.show({
         title: "Select a field",
-        message: "Choose a field on the right before assigning OCR boxes.",
+        message: "Choose a field on the right before assigning OCR elements.",
         color: "yellow",
       });
       return;
     }
     setWordAssignments((prev) => {
-      const current = prev[wordId];
+      const current = prev[elementId];
       const next = { ...prev };
       if (current === activeFieldKey) {
-        console.debug("[Labeling] Unassigning word from field", {
-          wordId,
+        console.debug("[Labeling] Unassigning element from field", {
+          elementId,
           fieldKey: activeFieldKey,
         });
-        delete next[wordId];
+        delete next[elementId];
       } else {
-        console.debug("[Labeling] Assigning word to field", {
-          wordId,
+        console.debug("[Labeling] Assigning element to field", {
+          elementId,
           fieldKey: activeFieldKey,
         });
-        next[wordId] = activeFieldKey;
+        next[elementId] = activeFieldKey;
       }
       return next;
     });
@@ -398,18 +449,25 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   };
 
   const handleSave = async () => {
-    const wordLookup = new Map(ocrWords.map((word) => [word.id, word]));
+    const elementLookup = new Map(ocrWords.map((element) => [element.id, element]));
     const payload = Object.entries(wordAssignments)
-      .map(([wordId, fieldKey]) => {
-        const word = wordLookup.get(wordId);
-        if (!word) return null;
+      .map(([elementId, fieldKey]) => {
+        const element = elementLookup.get(elementId);
+        if (!element) return null;
+
+        // For selection marks, use the state value; for words, use content
+        const value = element.type === 'selectionMark'
+          ? (element.state || 'unselected')
+          : element.content;
+
         return {
           field_key: fieldKey,
           label_name: fieldKey,
-          value: word.content,
-          page_number: word.pageNumber,
+          value: value,
+          page_number: element.pageNumber,
           bounding_box: {
-            polygon: word.polygon,
+            polygon: element.polygon,
+            span: element.span,
           },
           is_manual: false,
         };
@@ -417,7 +475,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       .filter(Boolean) as LabelDto[];
 
     console.debug("[Labeling] Saving labels", {
-      wordAssignments: Object.keys(wordAssignments).length,
+      elementAssignments: Object.keys(wordAssignments).length,
       payloadCount: payload.length,
       existingLabels: labels?.length ?? 0,
     });
@@ -555,15 +613,17 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                     inset: 0,
                   }}
                 >
-                  {(wordsByPage[currentPage] || []).map((word) => {
-                    const xs = word.polygon.filter((_, idx) => idx % 2 === 0);
-                    const ys = word.polygon.filter((_, idx) => idx % 2 === 1);
+                  {(wordsByPage[currentPage] || []).map((element) => {
+                    const xs = element.polygon.filter((_, idx) => idx % 2 === 0);
+                    const ys = element.polygon.filter((_, idx) => idx % 2 === 1);
                     const minX = Math.min(...xs);
                     const minY = Math.min(...ys);
                     const maxX = Math.max(...xs);
                     const maxY = Math.max(...ys);
                     const ocrPage = (projectDocument?.labeling_document?.ocr_result as any)
-                      ?.pages?.find((p: any) => p.pageNumber === word.pageNumber);
+                      ?.analyzeResult?.pages?.find(
+                        (p: any) => p.pageNumber === element.pageNumber,
+                      );
                     const scaleX =
                       ocrPage?.width && pdfWidth
                         ? pdfWidth / ocrPage.width
@@ -572,41 +632,53 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                       ocrPage?.height && pdfHeight
                         ? pdfHeight / ocrPage.height
                         : 1;
-                    const assignedField = wordAssignments[word.id];
+                    const assignedField = wordAssignments[element.id];
                     const isActive = assignedField === activeFieldKey;
                     const borderColor = assignedField
                       ? isActive
                         ? "#228be6"
                         : "#adb5bd"
                       : "#ced4da";
+                    const isCheckbox = element.type === 'selectionMark';
                     return (
                       <div
-                        key={word.id}
-                        data-word-id={word.id}
+                        key={element.id}
+                        data-word-id={element.id}
                         style={{
                           position: "absolute",
                           left: minX * scaleX,
                           top: minY * scaleY,
                           width: (maxX - minX) * scaleX,
                           height: (maxY - minY) * scaleY,
-                          border: `1px solid ${borderColor}`,
+                          border: isCheckbox ? `2px solid ${borderColor}` : `1px solid ${borderColor}`,
                           backgroundColor: assignedField
                             ? "rgba(34, 139, 230, 0.15)"
-                            : "rgba(173, 181, 189, 0.08)",
+                            : isCheckbox
+                              ? "rgba(255, 165, 0, 0.1)"
+                              : "rgba(173, 181, 189, 0.08)",
                           pointerEvents: "auto",
                           cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: isCheckbox ? `${Math.min((maxX - minX) * scaleX, (maxY - minY) * scaleY) * 0.8}px` : undefined,
+                          fontWeight: "bold",
+                          color: element.state === 'selected' ? "#228be6" : "#adb5bd",
                         }}
                         onClick={(event) => {
-                          console.debug("[Labeling] OCR box clicked", {
-                            wordId: word.id,
-                            page: word.pageNumber,
+                          console.debug("[Labeling] OCR element clicked", {
+                            elementId: element.id,
+                            type: element.type,
+                            page: element.pageNumber,
                             activeFieldKey,
                             target: (event.target as HTMLElement)?.dataset?.wordId,
                           });
-                          handleWordSelect(word.id);
+                          handleWordSelect(element.id);
                         }}
-                        title={assignedField || "Unlabeled"}
-                      />
+                        title={assignedField || (isCheckbox ? `Checkbox (${element.state})` : "Unlabeled")}
+                      >
+                        {isCheckbox ? element.content : null}
+                      </div>
                     );
                   })}
                 </div>

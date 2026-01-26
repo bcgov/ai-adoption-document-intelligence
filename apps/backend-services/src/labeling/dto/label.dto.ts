@@ -10,6 +10,16 @@ import {
 } from "class-validator";
 import { Type } from "class-transformer";
 
+export class SpanDto {
+  @ApiProperty({ description: "Offset in the document content" })
+  @IsNumber()
+  offset: number;
+
+  @ApiProperty({ description: "Length of the span" })
+  @IsNumber()
+  length: number;
+}
+
 export class BoundingBoxDto {
   @ApiProperty({ description: "Polygon points as array of numbers [x1,y1,x2,y2,...]" })
   @IsArray()
@@ -25,6 +35,12 @@ export class BoundingBoxDto {
   @IsOptional()
   @IsNumber()
   pageHeight?: number;
+
+  @ApiPropertyOptional({ description: "Span information from OCR for ordering" })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SpanDto)
+  span?: SpanDto;
 }
 
 export class CreateLabelDto {
