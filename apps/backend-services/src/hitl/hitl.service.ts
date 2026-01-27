@@ -18,6 +18,8 @@ export class HitlService {
   async getQueue(filters: QueueFilterDto) {
     this.logger.debug("Getting review queue with filters", filters);
 
+    const maxConfidence = filters.maxConfidence ?? 0.9;
+
     const status =
       filters.status === DocumentStatusFilter.ALL
         ? undefined
@@ -32,16 +34,17 @@ export class HitlService {
     });
 
     // Filter by confidence if OCR results exist
-    const filtered = documents.filter((doc) => {
-      if (!doc.ocr_result?.fields) return false;
+    const filtered = documents.filter((doc: any) => {
+      if (!doc.ocr_result) return false;
 
-      const fields = doc.ocr_result.fields as any;
+      const fields = doc.ocr_result.keyValuePairs;
+      if (!fields) return false;
       if (typeof fields !== "object") return false;
 
       // Check if any field has confidence below threshold
       const hasLowConfidence = Object.values(fields).some((field: any) => {
         if (field?.confidence !== undefined) {
-          return field.confidence < (filters.maxConfidence ?? 0.9);
+          return field.confidence < maxConfidence;
         }
         return false;
       });
@@ -50,14 +53,16 @@ export class HitlService {
     });
 
     return {
-      documents: filtered.map((doc) => ({
+      documents: filtered.map((doc: any) => ({
         id: doc.id,
         original_filename: doc.original_filename,
         status: doc.status,
         model_id: doc.model_id,
         created_at: doc.created_at,
         updated_at: doc.updated_at,
-        ocr_result: doc.ocr_result,
+        ocr_result: {
+          fields: doc.ocr_result?.keyValuePairs || {},
+        },
       })),
       total: filtered.length,
     };
@@ -71,9 +76,9 @@ export class HitlService {
       limit: 1000,
     });
 
-    const lowConfidenceDocs = allDocs.filter((doc) => {
-      if (!doc.ocr_result?.fields) return false;
-      const fields = doc.ocr_result.fields as any;
+    const lowConfidenceDocs = allDocs.filter((doc: any) => {
+      if (!doc.ocr_result?.keyValuePairs) return false;
+      const fields = doc.ocr_result.keyValuePairs as any;
       if (typeof fields !== "object") return false;
 
       return Object.values(fields).some((field: any) => {
@@ -120,8 +125,10 @@ export class HitlService {
       document: {
         id: session.document.id,
         original_filename: session.document.original_filename,
-        storage_path: session.document.storage_path,
-        ocr_result: session.document.ocr_result,
+        storage_path: session.document.file_path,
+        ocr_result: {
+          fields: (session.document as any).ocr_result?.keyValuePairs || {},
+        },
       },
     };
   }
@@ -144,8 +151,10 @@ export class HitlService {
       document: {
         id: session.document.id,
         original_filename: session.document.original_filename,
-        storage_path: session.document.storage_path,
-        ocr_result: session.document.ocr_result,
+        storage_path: session.document.file_path,
+        ocr_result: {
+          fields: (session.document as any).ocr_result?.keyValuePairs || {},
+        },
       },
       corrections: session.corrections,
     };

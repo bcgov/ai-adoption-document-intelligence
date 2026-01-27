@@ -358,6 +358,7 @@ export class BlobStorageService {
    */
   async clearContainerContents(containerName: string): Promise<number> {
     try {
+      await this.ensureContainerExists(containerName);
       const containerClient =
         this.blobServiceClient.getContainerClient(containerName);
       let deleted = 0;

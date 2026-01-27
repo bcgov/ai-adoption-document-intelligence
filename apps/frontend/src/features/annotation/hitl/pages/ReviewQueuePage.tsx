@@ -14,6 +14,7 @@ import {
 } from "@mantine/core";
 import { IconEye, IconAlertCircle } from "@tabler/icons-react";
 import { useReviewQueue } from "../hooks/useReviewQueue";
+import { HITL_MAX_CONFIDENCE } from "@/shared/constants";
 
 interface ReviewQueuePageProps {
   onStartSession?: (sessionId: string) => void;
@@ -29,7 +30,7 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
     startSessionAsync,
     isStartingSession,
   } = useReviewQueue({
-      maxConfidence: 0.9,
+      maxConfidence: HITL_MAX_CONFIDENCE,
       limit: 50,
     });
 

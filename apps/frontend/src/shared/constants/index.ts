@@ -12,3 +12,7 @@ export const SUPPORTED_FILE_TYPES = [
   "image/png",
   "image/tiff",
 ] as const;
+
+// HITL Review Queue Configuration
+export const HITL_MAX_CONFIDENCE =
+  parseFloat(import.meta.env.VITE_HITL_MAX_CONFIDENCE) || 0.9;
