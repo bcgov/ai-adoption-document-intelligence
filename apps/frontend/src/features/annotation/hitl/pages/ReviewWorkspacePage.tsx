@@ -11,6 +11,7 @@ import {
   Title,
 } from "@mantine/core";
 import { IconArrowLeft, IconCheck } from "@tabler/icons-react";
+import { useElementSize } from "@mantine/hooks";
 import { useAuth } from "@/auth/AuthContext";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { DocumentViewer } from "../../core/document-viewer/DocumentViewer";
@@ -52,6 +53,11 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   } = useReviewSession(sessionId);
   const { getAccessToken } = useAuth();
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [imageSize, setImageSize] = useState<{ width: number; height: number }>(
+    { width: 1000, height: 1400 },
+  );
+  const { ref: canvasRef, width: canvasWidth, height: canvasHeight } =
+    useElementSize();
   const [correctionMap, setCorrectionMap] = useState<
     Record<
       string,
@@ -98,11 +104,22 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
     };
   }, [documentUrl]);
 
+  useEffect(() => {
+    if (!documentUrl) return;
+    const img = new window.Image();
+    img.src = documentUrl;
+    img.onload = () => {
+      setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+  }, [documentUrl]);
+
   const fields = useMemo<ReviewField[]>(() => {
     const ocrFields = session?.document?.ocr_result?.fields;
-    if (!ocrFields || typeof ocrFields !== "object") return [];
+    if (!ocrFields || typeof ocrFields !== "object") {
+      return [];
+    }
 
-    return Object.entries(ocrFields).map(([fieldKey, field]: any) => {
+    const result = Object.entries(ocrFields).map(([fieldKey, field]: any) => {
       const value =
         field.valueString ??
         field.valueNumber?.toString() ??
@@ -116,6 +133,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
         points.push({ x: polygon[i], y: polygon[i + 1] });
       }
       const boundingBox = points.length ? { polygon: points } : undefined;
+
       return {
         fieldKey,
         value,
@@ -123,6 +141,8 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
         boundingBox,
       };
     });
+
+    return result;
   }, [session?.document?.ocr_result]);
 
   const sortedFields = useMemo(
@@ -133,19 +153,18 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
     [fields],
   );
 
-  const boxes = useMemo(
-    () =>
-      sortedFields
-        .filter((field) => field.boundingBox)
-        .map((field) => ({
-          id: field.fieldKey,
-          box: field.boundingBox!,
-          label: field.fieldKey,
-          color: "#fab005",
-          confidence: field.confidence,
-        })),
-    [sortedFields],
-  );
+  const boxes = useMemo(() => {
+    const result = sortedFields
+      .filter((field) => field.boundingBox)
+      .map((field) => ({
+        id: field.fieldKey,
+        box: field.boundingBox!,
+        label: field.fieldKey,
+        color: "#fab005",
+        confidence: field.confidence,
+      }));
+    return result;
+  }, [sortedFields]);
 
   const handleFieldChange = (field: ReviewField, value: string) => {
     setCorrectionMap((prev) => ({
@@ -283,13 +302,18 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
           ) : isPdf ? (
             <DocumentViewer documentUrl={documentUrl} />
           ) : (
-            <AnnotationCanvas
-              imageUrl={documentUrl}
-              width={1200}
-              height={1600}
-              boxes={boxes}
-              activeTool={CanvasTool.SELECT}
-            />
+            <div
+              ref={canvasRef}
+              style={{ width: "100%", height: "100%", overflow: "auto" }}
+            >
+              <AnnotationCanvas
+                imageUrl={documentUrl}
+                width={canvasWidth || imageSize.width}
+                height={canvasHeight || imageSize.height}
+                boxes={boxes}
+                activeTool={CanvasTool.SELECT}
+              />
+            </div>
           )}
         </Paper>
       </Group>

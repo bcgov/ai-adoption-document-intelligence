@@ -55,7 +55,9 @@ export type LabeledDocumentData = LabeledDocument & {
   labels: DocumentLabel[];
 };
 export type ReviewSessionData = ReviewSession & {
-  document: Document;
+  document: Document & {
+    ocr_result: OcrResult | null;
+  };
   corrections: FieldCorrection[];
 };
 
@@ -723,7 +725,11 @@ export class DatabaseService {
         status: ReviewStatus.in_progress,
       },
       include: {
-        document: true,
+        document: {
+          include: {
+            ocr_result: true,
+          },
+        },
         corrections: true,
       },
     });
@@ -735,7 +741,11 @@ export class DatabaseService {
     const session = await this.prisma.reviewSession.findUnique({
       where: { id },
       include: {
-        document: true,
+        document: {
+          include: {
+            ocr_result: true,
+          },
+        },
         corrections: true,
       },
     });
