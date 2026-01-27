@@ -759,6 +759,7 @@ export class DatabaseService {
     maxConfidence?: number;
     limit?: number;
     offset?: number;
+    reviewStatus?: 'pending' | 'reviewed' | 'all';
   }): Promise<Document[]> {
     this.logger.debug("Finding review queue");
 
@@ -770,6 +771,23 @@ export class DatabaseService {
       where.model_id = filters.modelId;
     }
 
+    if (filters.reviewStatus === 'pending') {
+      where.OR = [
+        { review_sessions: { none: {} } },
+        {
+          review_sessions: {
+            every: { status: ReviewStatus.in_progress }
+          }
+        }
+      ];
+    } else if (filters.reviewStatus === 'reviewed') {
+      where.review_sessions = {
+        some: {
+          status: { in: [ReviewStatus.approved, ReviewStatus.escalated, ReviewStatus.skipped] }
+        }
+      };
+    }
+
     return this.prisma.document.findMany({
       where,
       orderBy: { created_at: "desc" },
@@ -777,6 +795,16 @@ export class DatabaseService {
       skip: filters.offset ?? 0,
       include: {
         ocr_result: true,
+        review_sessions: {
+          where: {
+            status: { in: [ReviewStatus.approved, ReviewStatus.escalated, ReviewStatus.skipped] }
+          },
+          include: {
+            corrections: true,
+          },
+          orderBy: { completed_at: 'desc' },
+          take: 1
+        }
       },
     });
   }

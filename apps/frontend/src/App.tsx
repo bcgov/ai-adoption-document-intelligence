@@ -49,6 +49,7 @@ function AppContent(): JSX.Element {
   const [activeReviewSessionId, setActiveReviewSessionId] = useState<
     string | null
   >(null);
+  const [reviewSessionReadOnly, setReviewSessionReadOnly] = useState(false);
 
   const navItems = useMemo(
     () => [
@@ -196,13 +197,18 @@ function AppContent(): JSX.Element {
               activeReviewSessionId ? (
                 <ReviewWorkspacePage
                   sessionId={activeReviewSessionId}
-                  onBack={() => setActiveReviewSessionId(null)}
+                  onBack={() => {
+                    setActiveReviewSessionId(null);
+                    setReviewSessionReadOnly(false);
+                  }}
+                  readOnly={reviewSessionReadOnly}
                 />
               ) : (
                 <ReviewQueuePage
-                  onStartSession={(sessionId) =>
-                    setActiveReviewSessionId(sessionId)
-                  }
+                  onStartSession={(sessionId, readOnly) => {
+                    setActiveReviewSessionId(sessionId);
+                    setReviewSessionReadOnly(readOnly || false);
+                  }}
                 />
               )
             ) : (

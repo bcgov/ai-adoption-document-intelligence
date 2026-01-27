@@ -1,4 +1,4 @@
-import { FC } from "react";
+import { FC, useState } from "react";
 import {
   Stack,
   Title,
@@ -11,30 +11,36 @@ import {
   Center,
   Grid,
   Paper,
+  Tabs,
 } from "@mantine/core";
-import { IconEye, IconAlertCircle } from "@tabler/icons-react";
+import { IconEye, IconAlertCircle, IconClock, IconCheck } from "@tabler/icons-react";
 import { useReviewQueue } from "../hooks/useReviewQueue";
 import { HITL_MAX_CONFIDENCE } from "@/shared/constants";
 
 interface ReviewQueuePageProps {
-  onStartSession?: (sessionId: string) => void;
+  onStartSession?: (sessionId: string, readOnly?: boolean) => void;
 }
 
 export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
   onStartSession,
 }) => {
-  const {
-    queue,
-    stats,
-    isLoading,
-    startSessionAsync,
-    isStartingSession,
-  } = useReviewQueue({
-      maxConfidence: HITL_MAX_CONFIDENCE,
-      limit: 50,
-    });
+  const [activeTab, setActiveTab] = useState<string | null>('pending');
 
-  if (isLoading) {
+  const pendingQueue = useReviewQueue({
+    maxConfidence: HITL_MAX_CONFIDENCE,
+    limit: 50,
+    reviewStatus: 'pending',
+  });
+
+  const reviewedQueue = useReviewQueue({
+    maxConfidence: HITL_MAX_CONFIDENCE,
+    limit: 50,
+    reviewStatus: 'reviewed',
+  });
+
+  const activeQueue = activeTab === 'reviewed' ? reviewedQueue : pendingQueue;
+
+  if (activeQueue.isLoading) {
     return (
       <Center h="70vh">
         <Loader size="lg" />
@@ -56,14 +62,31 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
     return sum / fields.length;
   };
 
-  const handleStartSession = async (documentId: string) => {
+  const handleStartSession = async (documentId: string, readOnly: boolean = false) => {
     try {
-      const session = await startSessionAsync(documentId);
-      if (session?.id) {
-        onStartSession?.(session.id);
+      if (readOnly) {
+        onStartSession?.(documentId, true);
+      } else {
+        const session = await activeQueue.startSessionAsync(documentId);
+        if (session?.id) {
+          onStartSession?.(session.id, false);
+        }
       }
     } catch (error) {
       console.error("Failed to start review session", error);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'green';
+      case 'escalated':
+        return 'orange';
+      case 'skipped':
+        return 'gray';
+      default:
+        return 'blue';
     }
   };
 
@@ -76,7 +99,7 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
         </Text>
       </Stack>
 
-      {stats && (
+      {activeQueue.stats && (
         <Grid>
           <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
             <Paper withBorder p="md">
@@ -85,7 +108,7 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
                   Total Documents
                 </Text>
                 <Text size="xl" fw={700}>
-                  {stats.totalDocuments}
+                  {activeQueue.stats.totalDocuments}
                 </Text>
               </Stack>
             </Paper>
@@ -97,7 +120,7 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
                   Requires Review
                 </Text>
                 <Text size="xl" fw={700} c="orange">
-                  {stats.requiresReview}
+                  {activeQueue.stats.requiresReview}
                 </Text>
               </Stack>
             </Paper>
@@ -109,7 +132,7 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
                   Avg Confidence
                 </Text>
                 <Text size="xl" fw={700}>
-                  {Math.round(stats.averageConfidence * 100)}%
+                  {Math.round(activeQueue.stats.averageConfidence * 100)}%
                 </Text>
               </Stack>
             </Paper>
@@ -121,7 +144,7 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
                   Reviewed Today
                 </Text>
                 <Text size="xl" fw={700} c="green">
-                  {stats.reviewedToday}
+                  {activeQueue.stats.reviewedToday}
                 </Text>
               </Stack>
             </Paper>
@@ -129,86 +152,178 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
         </Grid>
       )}
 
-      {queue.length === 0 ? (
-        <Card withBorder p="xl">
-          <Center>
-            <Stack align="center" gap="md">
-              <IconAlertCircle size={48} stroke={1.5} color="gray" />
-              <Stack gap={4} align="center">
-                <Text fw={600}>No documents in review queue</Text>
-                <Text size="sm" c="dimmed">
-                  All documents have been reviewed or have high confidence scores
-                </Text>
-              </Stack>
-            </Stack>
-          </Center>
-        </Card>
-      ) : (
-        <Card withBorder padding={0}>
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Document</Table.Th>
-                <Table.Th>Status</Table.Th>
-                <Table.Th>Model</Table.Th>
-                <Table.Th>Avg Confidence</Table.Th>
-                <Table.Th>Uploaded</Table.Th>
-                <Table.Th>Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {queue.map((doc: any) => {
-                const avgConfidence = getAverageConfidence(doc);
+      <Tabs value={activeTab} onChange={setActiveTab}>
+        <Tabs.List>
+          <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
+            Pending Review ({pendingQueue.total})
+          </Tabs.Tab>
+          <Tabs.Tab value="reviewed" leftSection={<IconCheck size={16} />}>
+            Reviewed ({reviewedQueue.total})
+          </Tabs.Tab>
+        </Tabs.List>
 
-                return (
-                  <Table.Tr key={doc.id}>
-                    <Table.Td>
-                      <Text size="sm" fw={500}>
-                        {doc.original_filename}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge variant="light" size="sm">
-                        {doc.status}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" c="dimmed">
-                        {doc.model_id || "N/A"}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge
-                        variant="light"
-                        color={getConfidenceColor(avgConfidence)}
-                        size="sm"
-                      >
-                        {Math.round(avgConfidence * 100)}%
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" c="dimmed">
-                        {new Date(doc.created_at).toLocaleDateString()}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        leftSection={<IconEye size={14} />}
-                        onClick={() => handleStartSession(doc.id)}
-                        loading={isStartingSession}
-                      >
-                        Review
-                      </Button>
-                    </Table.Td>
+        <Tabs.Panel value="pending" pt="md">
+          {pendingQueue.queue.length === 0 ? (
+            <Card withBorder p="xl">
+              <Center>
+                <Stack align="center" gap="md">
+                  <IconAlertCircle size={48} stroke={1.5} color="gray" />
+                  <Stack gap={4} align="center">
+                    <Text fw={600}>No documents pending review</Text>
+                    <Text size="sm" c="dimmed">
+                      All documents have been reviewed or have high confidence scores
+                    </Text>
+                  </Stack>
+                </Stack>
+              </Center>
+            </Card>
+          ) : (
+            <Card withBorder padding={0}>
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Document</Table.Th>
+                    <Table.Th>Status</Table.Th>
+                    <Table.Th>Model</Table.Th>
+                    <Table.Th>Avg Confidence</Table.Th>
+                    <Table.Th>Uploaded</Table.Th>
+                    <Table.Th>Actions</Table.Th>
                   </Table.Tr>
-                );
-              })}
-            </Table.Tbody>
-          </Table>
-        </Card>
-      )}
+                </Table.Thead>
+                <Table.Tbody>
+                  {pendingQueue.queue.map((doc: any) => {
+                    const avgConfidence = getAverageConfidence(doc);
+
+                    return (
+                      <Table.Tr key={doc.id}>
+                        <Table.Td>
+                          <Text size="sm" fw={500}>
+                            {doc.original_filename}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge variant="light" size="sm">
+                            {doc.status}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="sm" c="dimmed">
+                            {doc.model_id || "N/A"}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge
+                            variant="light"
+                            color={getConfidenceColor(avgConfidence)}
+                            size="sm"
+                          >
+                            {Math.round(avgConfidence * 100)}%
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="sm" c="dimmed">
+                            {new Date(doc.created_at).toLocaleDateString()}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            leftSection={<IconEye size={14} />}
+                            onClick={() => handleStartSession(doc.id, false)}
+                            loading={pendingQueue.isStartingSession}
+                          >
+                            Review
+                          </Button>
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            </Card>
+          )}
+        </Tabs.Panel>
+
+        <Tabs.Panel value="reviewed" pt="md">
+          {reviewedQueue.queue.length === 0 ? (
+            <Card withBorder p="xl">
+              <Center>
+                <Stack align="center" gap="md">
+                  <IconAlertCircle size={48} stroke={1.5} color="gray" />
+                  <Stack gap={4} align="center">
+                    <Text fw={600}>No reviewed documents</Text>
+                    <Text size="sm" c="dimmed">
+                      Documents will appear here after they have been reviewed
+                    </Text>
+                  </Stack>
+                </Stack>
+              </Center>
+            </Card>
+          ) : (
+            <Card withBorder padding={0}>
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Document</Table.Th>
+                    <Table.Th>Reviewer</Table.Th>
+                    <Table.Th>Reviewed Date</Table.Th>
+                    <Table.Th>Status</Table.Th>
+                    <Table.Th>Corrections</Table.Th>
+                    <Table.Th>Actions</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {reviewedQueue.queue.map((doc: any) => {
+                    return (
+                      <Table.Tr key={doc.id}>
+                        <Table.Td>
+                          <Text size="sm" fw={500}>
+                            {doc.original_filename}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="sm">{doc.lastSession?.reviewer_id || 'N/A'}</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="sm" c="dimmed">
+                            {doc.lastSession?.completed_at
+                              ? new Date(doc.lastSession.completed_at).toLocaleDateString()
+                              : 'N/A'}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge
+                            variant="light"
+                            color={getStatusColor(doc.lastSession?.status || '')}
+                            size="sm"
+                          >
+                            {doc.lastSession?.status || 'N/A'}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="sm">{doc.lastSession?.corrections_count || 0}</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            leftSection={<IconEye size={14} />}
+                            onClick={() => handleStartSession(doc.lastSession?.id || doc.id, true)}
+                            disabled={!doc.lastSession?.id}
+                          >
+                            View
+                          </Button>
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            </Card>
+          )}
+        </Tabs.Panel>
+      </Tabs>
     </Stack>
   );
 };

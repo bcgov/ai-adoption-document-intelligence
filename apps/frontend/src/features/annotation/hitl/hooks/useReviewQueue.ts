@@ -9,6 +9,13 @@ interface QueueDocument {
   created_at: string;
   updated_at: string;
   ocr_result?: any;
+  lastSession?: {
+    id: string;
+    reviewer_id: string;
+    status: string;
+    completed_at: string;
+    corrections_count: number;
+  };
 }
 
 interface QueueResponse {
@@ -22,6 +29,7 @@ interface QueueFilters {
   maxConfidence?: number;
   limit?: number;
   offset?: number;
+  reviewStatus?: 'pending' | 'reviewed' | 'all';
 }
 
 export const useReviewQueue = (filters?: QueueFilters) => {
@@ -37,6 +45,7 @@ export const useReviewQueue = (filters?: QueueFilters) => {
         params.append("maxConfidence", filters.maxConfidence.toString());
       if (filters?.limit) params.append("limit", filters.limit.toString());
       if (filters?.offset) params.append("offset", filters.offset.toString());
+      if (filters?.reviewStatus) params.append("reviewStatus", filters.reviewStatus);
 
       const endpoint = `/hitl/queue${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await apiService.get<QueueResponse>(endpoint);
@@ -45,14 +54,18 @@ export const useReviewQueue = (filters?: QueueFilters) => {
   });
 
   const statsQuery = useQuery({
-    queryKey: ["hitl-queue-stats"],
+    queryKey: ["hitl-queue-stats", filters?.reviewStatus],
     queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filters?.reviewStatus) params.append("reviewStatus", filters.reviewStatus);
+
+      const endpoint = `/hitl/queue/stats${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await apiService.get<{
         totalDocuments: number;
         requiresReview: number;
         averageConfidence: number;
         reviewedToday: number;
-      }>("/hitl/queue/stats");
+      }>(endpoint);
       return response.data;
     },
   });

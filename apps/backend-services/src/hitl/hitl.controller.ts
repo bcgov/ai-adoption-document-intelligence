@@ -17,7 +17,7 @@ import {
   SubmitCorrectionsDto,
   EscalateDto,
 } from "./dto/correction.dto";
-import { QueueFilterDto } from "./dto/queue-filter.dto";
+import { QueueFilterDto, ReviewStatusFilter } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import { HitlService } from "./hitl.service";
 
@@ -38,8 +38,8 @@ export class HitlController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get queue statistics" })
-  async getQueueStats() {
-    return this.hitlService.getQueueStats();
+  async getQueueStats(@Query('reviewStatus') reviewStatus?: ReviewStatusFilter) {
+    return this.hitlService.getQueueStats(reviewStatus);
   }
 
   @Post("sessions")

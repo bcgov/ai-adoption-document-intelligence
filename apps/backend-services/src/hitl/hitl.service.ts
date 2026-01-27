@@ -3,7 +3,7 @@ import { DatabaseService } from "../database/database.service";
 import { ReviewStatus, CorrectionAction, DocumentStatus } from "../generated/enums";
 import { AnalyticsService } from "./analytics.service";
 import { SubmitCorrectionsDto, EscalateDto } from "./dto/correction.dto";
-import { QueueFilterDto, DocumentStatusFilter } from "./dto/queue-filter.dto";
+import { QueueFilterDto, DocumentStatusFilter, ReviewStatusFilter } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 
 @Injectable()
@@ -25,12 +25,19 @@ export class HitlService {
         ? undefined
         : DocumentStatus.completed_ocr;
 
+    const reviewStatusFilter = filters.reviewStatus === ReviewStatusFilter.ALL
+      ? 'all'
+      : filters.reviewStatus === ReviewStatusFilter.REVIEWED
+      ? 'reviewed'
+      : 'pending';
+
     const documents = await this.db.findReviewQueue({
       status,
       modelId: filters.modelId,
       maxConfidence: filters.maxConfidence ?? 0.9,
       limit: filters.limit ?? 50,
       offset: filters.offset ?? 0,
+      reviewStatus: reviewStatusFilter,
     });
 
     // Filter by confidence if OCR results exist
@@ -63,17 +70,31 @@ export class HitlService {
         ocr_result: {
           fields: doc.ocr_result?.keyValuePairs || {},
         },
+        lastSession: doc.review_sessions?.[0] ? {
+          id: doc.review_sessions[0].id,
+          reviewer_id: doc.review_sessions[0].reviewer_id,
+          status: doc.review_sessions[0].status,
+          completed_at: doc.review_sessions[0].completed_at,
+          corrections_count: doc.review_sessions[0].corrections?.length || 0,
+        } : undefined,
       })),
       total: filtered.length,
     };
   }
 
-  async getQueueStats() {
+  async getQueueStats(reviewStatus?: ReviewStatusFilter) {
     this.logger.debug("Getting queue statistics");
+
+    const reviewStatusFilter = reviewStatus === ReviewStatusFilter.ALL
+      ? 'all'
+      : reviewStatus === ReviewStatusFilter.REVIEWED
+      ? 'reviewed'
+      : 'pending';
 
     const allDocs = await this.db.findReviewQueue({
       status: DocumentStatus.completed_ocr,
       limit: 1000,
+      reviewStatus: reviewStatusFilter,
     });
 
     const lowConfidenceDocs = allDocs.filter((doc: any) => {

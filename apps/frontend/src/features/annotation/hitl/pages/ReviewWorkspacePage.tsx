@@ -10,7 +10,7 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { IconArrowLeft, IconCheck } from "@tabler/icons-react";
+import { IconArrowLeft } from "@tabler/icons-react";
 import { useElementSize } from "@mantine/hooks";
 import { useAuth } from "@/auth/AuthContext";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
@@ -26,6 +26,7 @@ import type { BoundingBox } from "../../core/types/canvas";
 interface ReviewWorkspacePageProps {
   sessionId: string;
   onBack: () => void;
+  readOnly?: boolean;
 }
 
 interface ReviewField {
@@ -38,6 +39,7 @@ interface ReviewField {
 export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   sessionId,
   onBack,
+  readOnly = false,
 }) => {
   const {
     session,
@@ -179,25 +181,15 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
     }));
   };
 
-  const handleConfirmField = (field: ReviewField) => {
-    setCorrectionMap((prev) => ({
-      ...prev,
-      [field.fieldKey]: {
-        field_key: field.fieldKey,
-        original_value: field.value,
-        corrected_value: field.value,
-        original_conf: field.confidence,
-        action: CorrectionAction.CONFIRMED,
-      },
-    }));
-  };
-
   const handleApprove = async () => {
-    const payload = Object.values(correctionMap);
-    if (payload.length) {
+    const payload = Object.values(correctionMap).filter(
+      correction => correction.action === CorrectionAction.CORRECTED
+    );
+    if (payload.length > 0) {
       await submitCorrectionsAsync(payload);
     }
     await approveSessionAsync();
+    onBack();
   };
 
   const handleEscalate = async () => {
@@ -239,7 +231,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
             Back
           </Button>
           <Stack gap={2}>
-            <Title order={2}>Review Session</Title>
+            <Title order={2}>{readOnly ? "View Session" : "Review Session"}</Title>
             <Text size="sm" c="dimmed">
               {session?.document?.original_filename || "Document review"}
             </Text>
@@ -247,48 +239,63 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
         </Group>
       </Group>
 
-      <ReviewToolbar
-        onApprove={handleApprove}
-        onEscalate={() => setEscalationOpen(true)}
-        onSkip={() => skipSessionAsync()}
-        isApproving={isApproving}
-        isEscalating={isEscalating}
-        isSkipping={isSkipping}
-      />
+      {!readOnly && (
+        <ReviewToolbar
+          onApprove={handleApprove}
+          onEscalate={() => setEscalationOpen(true)}
+          onSkip={() => skipSessionAsync()}
+          isApproving={isApproving}
+          isEscalating={isEscalating}
+          isSkipping={isSkipping}
+        />
+      )}
 
       <Group align="stretch" gap="lg" style={{ flex: 1 }}>
         <Paper withBorder style={{ width: 360, minHeight: 0 }}>
           <Stack gap="md" p="md">
             <Text fw={600}>Fields</Text>
-            {sortedFields.map((field) => (
-              <Paper key={field.fieldKey} withBorder p="sm">
-                <Stack gap="xs">
-                  <Group justify="space-between">
-                    <Text fw={600} size="sm">
-                      {field.fieldKey}
-                    </Text>
-                    <ConfidenceIndicator confidence={field.confidence} />
-                  </Group>
-                  <TextInput
-                    value={
-                      correctionMap[field.fieldKey]?.corrected_value ??
-                      field.value
-                    }
-                    onChange={(event) =>
-                      handleFieldChange(field, event.currentTarget.value)
-                    }
-                  />
-                  <Button
-                    size="xs"
-                    variant="light"
-                    leftSection={<IconCheck size={14} />}
-                    onClick={() => handleConfirmField(field)}
-                  >
-                    Confirm
-                  </Button>
-                </Stack>
-              </Paper>
-            ))}
+            {sortedFields.map((field) => {
+              const correction = correctionMap[field.fieldKey];
+              const isCorrected = correction?.action === CorrectionAction.CORRECTED;
+
+              return (
+                <Paper
+                  key={field.fieldKey}
+                  withBorder
+                  p="sm"
+                  style={{
+                    borderColor: isCorrected ? '#ffd43b' : undefined,
+                    borderWidth: isCorrected ? 2 : 1,
+                  }}
+                >
+                  <Stack gap="xs">
+                    <Group justify="space-between">
+                      <Group gap="xs">
+                        <Text fw={600} size="sm">
+                          {field.fieldKey}
+                        </Text>
+                        {isCorrected && (
+                          <Text size="xs" c="yellow" fw={500}>
+                            ✎ Edited
+                          </Text>
+                        )}
+                      </Group>
+                      <ConfidenceIndicator confidence={field.confidence} />
+                    </Group>
+                    <TextInput
+                      value={
+                        correctionMap[field.fieldKey]?.corrected_value ??
+                        field.value
+                      }
+                      onChange={(event) =>
+                        handleFieldChange(field, event.currentTarget.value)
+                      }
+                      disabled={readOnly}
+                    />
+                  </Stack>
+                </Paper>
+              );
+            })}
           </Stack>
         </Paper>
 

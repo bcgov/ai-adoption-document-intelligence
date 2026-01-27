@@ -7,6 +7,12 @@ export enum DocumentStatusFilter {
   ALL = "all",
 }
 
+export enum ReviewStatusFilter {
+  PENDING = 'pending',
+  REVIEWED = 'reviewed',
+  ALL = 'all',
+}
+
 export class QueueFilterDto {
   @ApiPropertyOptional({
     description: "Filter by document status",
@@ -47,6 +53,15 @@ export class QueueFilterDto {
   @IsNumber()
   @Min(0)
   offset?: number;
+
+  @ApiPropertyOptional({
+    description: "Filter by review status",
+    enum: ReviewStatusFilter,
+    default: ReviewStatusFilter.PENDING,
+  })
+  @IsOptional()
+  @IsEnum(ReviewStatusFilter)
+  reviewStatus?: ReviewStatusFilter;
 }
 
 export class AnalyticsFilterDto {
