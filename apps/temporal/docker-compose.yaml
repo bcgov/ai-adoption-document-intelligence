@@ -1,0 +1,85 @@
+services:
+  # Temporal Server
+  temporal:
+    image: temporalio/auto-setup:latest
+    container_name: temporal
+    ports:
+      - "7233:7233"  # gRPC
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+      - SKIP_DEFAULT_NAMESPACE_CREATION=false
+      - BIND_ON_IP=0.0.0.0
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "describe", "--address", "localhost:7233", "--namespace", "default"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - temporal-network
+
+  # Temporal Web UI
+  temporal-ui:
+    image: temporalio/ui:2.25.0
+    container_name: temporal-ui
+    ports:
+      - "8088:8080"  # Web UI
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    depends_on:
+      - temporal
+    networks:
+      - temporal-network
+
+  # Register Search Attributes (runs automatically on first startup)
+  register-search-attributes:
+    image: temporalio/auto-setup:latest
+    container_name: temporal-register-search-attributes
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_NAMESPACE=default
+    volumes:
+      - ./register-search-attributes-init.sh:/register-search-attributes-init.sh:ro
+    entrypoint: ["/bin/bash", "/register-search-attributes-init.sh"]
+    depends_on:
+      temporal:
+        condition: service_healthy
+    networks:
+      - temporal-network
+    restart: "no"  # Only run once, don't restart on failure
+
+  # PostgreSQL Database
+  postgresql:
+    image: postgres:12-alpine
+    container_name: temporal-postgresql
+    environment:
+      - POSTGRES_USER=temporal
+      - POSTGRES_PASSWORD=temporal
+      - POSTGRES_DB=temporal
+    ports:
+      - "5433:5432"
+    volumes:
+      - temporal-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - temporal-network
+
+volumes:
+  temporal-postgresql-data:
+
+networks:
+  temporal-network:
+    driver: bridge
+

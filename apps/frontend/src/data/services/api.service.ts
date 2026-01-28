@@ -37,10 +37,7 @@ class ApiService {
     this.axiosInstance.interceptors.response.use(
       (response) => response,
       (error) => {
-        // Log error in development only
-        if (import.meta.env.DEV) {
-          console.error("API request failed:", error);
-        }
+        // Error handling - logging removed for lint compliance
         return Promise.reject(error);
       },
     );
@@ -68,10 +65,7 @@ class ApiService {
         success: true,
       };
     } catch (error) {
-      // Log error in development only
-      if (import.meta.env.DEV) {
-        console.error("API request failed:", error);
-      }
+      // Error handling - logging removed for lint compliance
       return {
         data: null as T,
         success: false,

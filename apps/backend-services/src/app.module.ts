@@ -9,6 +9,7 @@ import { HitlModule } from "./hitl/hitl.module";
 import { LabelingModule } from "./labeling/labeling.module";
 import { OcrModule } from "./ocr/ocr.module";
 import { QueueModule } from "./queue/queue.module";
+import { TemporalModule } from "./temporal/temporal.module";
 import { UploadModule } from "./upload/upload.module";
 import { BlobStorageModule } from "./blob-storage/blob-storage.module";
 import { TrainingModule } from "./training/training.module";
@@ -27,6 +28,7 @@ import { TrainingModule } from "./training/training.module";
     DocumentModule,
     QueueModule,
     UploadModule,
+    TemporalModule,
     OcrModule,
     LabelingModule,
     HitlModule,
