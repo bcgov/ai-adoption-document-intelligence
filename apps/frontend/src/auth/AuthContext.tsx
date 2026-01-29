@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { API_BASE_URL } from "../shared/constants";
 import { apiService } from "../data/services/api.service";
 
 /**
@@ -64,8 +65,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const handledAuthResultIdsRef = useRef<Set<string>>(new Set());
 
-  // API base URL - use relative path for auth endpoints to work with Vite proxy
-  const apiBaseUrl = "";
+  // Use same API base as rest of app (VITE_API_BASE_URL); relative /api in dev, full backend URL in prod
+  const apiBaseUrl = API_BASE_URL;
 
   useEffect(() => {
     const initAuth = async () => {
@@ -211,7 +212,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
       const response = await axios.get<TokenResponse>(
-        `${apiBaseUrl}/api/auth/result`,
+        `${apiBaseUrl}/auth/result`,
         {
           params: { result: authResult },
         },
@@ -228,7 +229,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const login = () => {
-    const loginUrl = `${apiBaseUrl}/api/auth/login`;
+    const loginUrl = `${apiBaseUrl}/auth/login`;
     window.location.href = loginUrl;
   };
 
@@ -237,8 +238,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
     localStorage.removeItem("auth_tokens");
     const logoutUrl = idTokenHint
-      ? `${apiBaseUrl}/api/auth/logout?id_token_hint=${encodeURIComponent(idTokenHint)}`
-      : `${apiBaseUrl}/api/auth/logout`;
+      ? `${apiBaseUrl}/auth/logout?id_token_hint=${encodeURIComponent(idTokenHint)}`
+      : `${apiBaseUrl}/auth/logout`;
     window.location.href = logoutUrl;
   };
 
@@ -262,7 +263,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       const response = await axios.post<TokenResponse>(
-        `${apiBaseUrl}/api/auth/refresh`,
+        `${apiBaseUrl}/auth/refresh`,
         {
           refresh_token: tokens.refresh_token,
         },

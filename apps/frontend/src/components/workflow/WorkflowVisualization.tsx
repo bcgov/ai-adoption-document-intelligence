@@ -1,5 +1,5 @@
 import { Paper, Stack, Text, Title } from "@mantine/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 
 interface WorkflowStepConfig {
   enabled: boolean;

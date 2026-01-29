@@ -1,4 +1,4 @@
-import { DocumentStatus } from "@generated/enums";
+import { DocumentStatus } from "@generated/client";
 import {
   BadRequestException,
   Body,

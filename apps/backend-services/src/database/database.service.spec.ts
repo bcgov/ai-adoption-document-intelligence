@@ -16,8 +16,7 @@ jest.mock("@generated/client", () => {
   };
 });
 
-import { OcrResult } from "@generated/client";
-import { DocumentStatus } from "@generated/enums";
+import { DocumentStatus, OcrResult } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { JsonValue } from "@prisma/client/runtime/client";

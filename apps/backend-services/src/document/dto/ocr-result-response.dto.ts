@@ -1,4 +1,4 @@
-import { DocumentStatus } from "@generated/enums";
+import { DocumentStatus } from "@generated/client";
 import { ApiProperty } from "@nestjs/swagger";
 import { OcrResultDto } from "@/document/dto/ocr-result.dto";
 

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: temporal-worker-config
+  labels:
+    app: temporal-worker
+data:
+  TEMPORAL_ADDRESS: "temporal:7233"
+  TEMPORAL_NAMESPACE: "default"
+  TEMPORAL_TASK_QUEUE: "ocr-processing"
+  AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://your-azure-endpoint.cognitiveservices.azure.com"

@@ -12,7 +12,7 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconFlask, IconPlus } from "@tabler/icons-react";
+import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
 import { WorkflowVisualization } from "../components/workflow/WorkflowVisualization";
 import { useCreateWorkflow } from "../data/hooks/useWorkflows";
@@ -469,7 +469,6 @@ export function WorkflowPage() {
                           min={0}
                           max={1}
                           step={0.05}
-                          precision={2}
                           description="Minimum confidence score (0-1). Documents below this will require human review."
                         />
                       )}
@@ -505,7 +504,6 @@ export function WorkflowPage() {
                           }}
                           min={0}
                           step={1}
-                          precision={1}
                           description="Maximum time to wait for human review (days). Default: 1 day"
                         />
                       )}

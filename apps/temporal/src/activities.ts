@@ -585,9 +585,8 @@ export async function storeDocumentRejection(
   
   try {
     const prisma = getPrismaClient();
-    
-    // Upsert rejection record (only one rejection per document)
-    await prisma.documentRejection.upsert({
+    // documentRejection: add DocumentRejection model to shared prisma schema and run migration when ready
+    await (prisma as any).documentRejection.upsert({
       where: { document_id: documentId },
       update: {
         reason: reason as any,
@@ -830,12 +829,12 @@ export async function postOcrCleanup(ocrResult: OCRResult): Promise<OCRResult> {
         .replace(/([^a-zA-Z])O(?=\d)/g, '$10') // O before digit -> 0
         .replace(/(\d)O(?=[^a-zA-Z0-9])/g, '$10') // O after digit -> 0
         // Normalize date separators
-        .replace(/(\d{1,2})[.\s]+(\d{1,2})[.\s]+(\d{2,4})/g, (match, d, m, y) => {
+        .replace(/(\d{1,2})[.\s]+(\d{1,2})[.\s]+(\d{2,4})/g, (_match, d, m, y) => {
           // Normalize dates - keep format but normalize separators
           return `${d}/${m}/${y}`;
         })
         // Normalize time separators
-        .replace(/(\d{1,2})[.\s]+(\d{2})[.\s]*([ap]m)?/gi, (match, h, m, ampm) => {
+        .replace(/(\d{1,2})[.\s]+(\d{2})[.\s]*([ap]m)?/gi, (_match, h, m, ampm) => {
           return ampm ? `${h}:${m} ${ampm}` : `${h}:${m}`;
         })
         // Fix common decimal point issues (comma to period in number contexts)

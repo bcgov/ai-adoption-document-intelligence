@@ -4,13 +4,13 @@
 
 ### Register Search Attributes
 
-**Automatic Registration (Recommended):**
+**Automatic Registration:**
 
-Search attributes are **automatically registered** when you start the Temporal server using `docker-compose up`. The `register-search-attributes` service runs automatically on first startup and registers all required attributes.
+The **backend** ensures these attributes when it connects to Temporal (`TemporalClientService.onModuleInit`). No separate Job or docker-compose service is used.
 
 **Manual Registration (if needed):**
 
-If you need to manually register search attributes, you can use the Temporal CLI directly:
+If you need to manually register search attributes (e.g. when running Temporal without the backend), use the Temporal CLI:
 
 ```bash
 docker exec temporal temporal operator search-attribute create \
@@ -54,28 +54,12 @@ docker exec temporal temporal operator search-attribute list \
 
 ### Adding a New Search Attribute
 
-**Step 1: Register the attribute**
+**Step 1: Update the backend**
 
-Option A - Automatic registration (recommended):
-1. Edit `register-search-attributes-init.sh` (used by docker-compose)
-2. Add a new `register_attribute` call in the main execution section:
-   ```bash
-   register_attribute "YourNewAttribute" "Keyword"
-   ```
-3. Restart docker-compose: `docker-compose restart register-search-attributes` or `docker-compose up -d`
+In `apps/backend-services/src/temporal/temporal-client.service.ts`:
 
-Option B - Manual registration:
-```bash
-docker exec temporal temporal operator search-attribute create \
-  --address temporal:7233 \
-  --namespace default \
-  --name YourNewAttribute \
-  --type Keyword
-```
-
-**Step 2: Update the code**
-
-In `apps/backend-services/src/temporal/temporal-client.service.ts`, add the new attribute to the `searchAttributes` object:
+1. Add the new attribute to the `SEARCH_ATTRIBUTES` array in `ensureSearchAttributes` (same file).
+2. Add the new attribute to the `searchAttributes` object in `startOCRWorkflow`:
 
 ```typescript
 searchAttributes: {
@@ -87,11 +71,11 @@ searchAttributes: {
 },
 ```
 
-**Step 3: Verify**
+**Step 2: Verify**
 
+- Restart the backend to pick up code changes.
 - Check registration: `docker exec temporal temporal operator search-attribute list --address temporal:7233 --namespace default`
 - Test in UI: `YourNewAttribute = "test-value"`
-- Restart backend services to pick up code changes
 
 **Supported Types:**
 - `Keyword` - For exact string matches (most common)

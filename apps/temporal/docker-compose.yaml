@@ -12,6 +12,7 @@ services:
       - POSTGRES_PWD=temporal
       - POSTGRES_SEEDS=postgresql
       - SKIP_DEFAULT_NAMESPACE_CREATION=false
+      - BIND_ON_IP=0.0.0.0
     depends_on:
       postgresql:
         condition: service_healthy
@@ -37,23 +38,6 @@ services:
       - temporal
     networks:
       - temporal-network
-
-  # Register Search Attributes (runs automatically on first startup)
-  register-search-attributes:
-    image: temporalio/auto-setup:latest
-    container_name: temporal-register-search-attributes
-    environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_NAMESPACE=default
-    volumes:
-      - ./register-search-attributes-init.sh:/register-search-attributes-init.sh:ro
-    entrypoint: ["/bin/bash", "/register-search-attributes-init.sh"]
-    depends_on:
-      temporal:
-        condition: service_healthy
-    networks:
-      - temporal-network
-    restart: "no"  # Only run once, don't restart on failure
 
   # PostgreSQL Database
   postgresql:

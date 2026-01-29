@@ -53,7 +53,7 @@ export class AuthService {
       this.configService.get<string>("SSO_CLIENT_SECRET") || "";
     this.redirectUri =
       this.configService.get<string>("SSO_REDIRECT_URI") ||
-      "http://localhost:3002/auth/callback";
+      "http://localhost:3002/api/auth/callback";
     this.frontendUrl =
       this.configService.get<string>("FRONTEND_URL") || "http://localhost:3000";
     this.stateSecret =

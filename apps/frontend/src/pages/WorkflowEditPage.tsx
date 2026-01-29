@@ -101,7 +101,7 @@ export function WorkflowEditPage({
         "steps" in configData &&
         configData.steps
       ) {
-        stepsConfig = configData.steps;
+        stepsConfig = configData.steps as WorkflowStepsConfig;
       } else {
         stepsConfig = configData as WorkflowStepsConfig;
       }
@@ -143,7 +143,7 @@ export function WorkflowEditPage({
 
       setConfig({
         name: workflow.name,
-        description: workflow.description,
+        description: workflow.description ?? undefined,
         steps: localConfig,
       });
     }
@@ -567,7 +567,6 @@ export function WorkflowEditPage({
                           min={0}
                           max={1}
                           step={0.05}
-                          precision={2}
                           description="Minimum confidence score (0-1). Documents below this will require human review."
                         />
                       )}
@@ -603,7 +602,6 @@ export function WorkflowEditPage({
                           }}
                           min={0}
                           step={1}
-                          precision={1}
                           description="Maximum time to wait for human review (days). Default: 1 day"
                         />
                       )}

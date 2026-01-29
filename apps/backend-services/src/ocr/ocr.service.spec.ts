@@ -5,7 +5,7 @@ const readFile = jest.fn().mockResolvedValue({
 });
 jest.mock("fs/promises", () => ({ readFile }));
 
-import { DocumentStatus } from "@generated/enums";
+import { DocumentStatus } from "@generated/client";
 import {
   BadRequestException,
   NotFoundException,

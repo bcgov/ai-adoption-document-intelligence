@@ -1,4 +1,4 @@
-import { DocumentStatus } from "@generated/enums";
+import { DocumentStatus } from "@generated/client";
 import { JsonValue } from "@generated/internal/prismaNamespace";
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";

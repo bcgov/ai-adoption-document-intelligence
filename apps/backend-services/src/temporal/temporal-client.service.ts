@@ -19,6 +19,16 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   private readonly namespace: string;
   private readonly taskQueue: string;
 
+  // INDEXED_VALUE_TYPE_KEYWORD = 2 (temporal.api.enums.v1.IndexedValueType)
+  private static readonly KEYWORD = 2;
+
+  private static readonly SEARCH_ATTRIBUTES: readonly { name: string }[] = [
+    { name: "DocumentId" },
+    { name: "FileName" },
+    { name: "FileType" },
+    { name: "Status" },
+  ] as const;
+
   /**
    * Ensures the Temporal client is initialized
    * @throws Error if client is not initialized
@@ -64,7 +74,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
     } else if (
       messageLower.includes("no mapping defined for search attribute")
     ) {
-      enhancedMessage += `. Search attributes must be registered in the Temporal namespace. Register them using: tctl search-attribute create --name <AttributeName> --type <Type>`;
+      enhancedMessage += `. The backend registers required search attributes on startup. If this error persists, check backend startup logs and Temporal connectivity.`;
     }
 
     this.logger.error(enhancedMessage);
@@ -91,6 +101,52 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       this.configService.get<string>("TEMPORAL_TASK_QUEUE") || "ocr-processing";
   }
 
+  private async ensureDefaultNamespace(): Promise<void> {
+    try {
+      await this.connection!.workflowService.describeNamespace({
+        namespace: "default",
+      });
+      this.logger.debug("Default namespace exists.");
+    } catch (e: unknown) {
+      const msg = String((e as Error).message);
+      if (/NOT_FOUND|not found|does not exist/i.test(msg)) {
+        await this.connection!.workflowService.registerNamespace({
+          namespace: "default",
+          workflowExecutionRetentionPeriod: { seconds: 86400 } as never,
+          description: "Default namespace for Temporal Server.",
+        });
+        this.logger.debug("Default namespace created.");
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  private async ensureSearchAttributes(): Promise<void> {
+    for (const { name } of TemporalClientService.SEARCH_ATTRIBUTES) {
+      try {
+        await this.connection!.operatorService.addSearchAttributes({
+          namespace: this.namespace,
+          searchAttributes: { [name]: TemporalClientService.KEYWORD },
+        });
+        this.logger.debug(`${name} registered.`);
+      } catch (e: unknown) {
+        const code = (e as { code?: number; details?: string })?.code;
+        const details = String(
+          (e as { details?: string })?.details ?? (e as Error).message,
+        );
+        if (
+          code === 6 ||
+          /ALREADY_EXISTS|already exists|already registered/i.test(details)
+        ) {
+          this.logger.debug(`${name} already exists, skipping.`);
+        } else {
+          throw e;
+        }
+      }
+    }
+  }
+
   async onModuleInit(): Promise<void> {
     try {
       this.logger.log(
@@ -99,6 +155,9 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       this.connection = await Connection.connect({
         address: this.address,
       });
+
+      await this.ensureDefaultNamespace();
+      await this.ensureSearchAttributes();
 
       this.client = new Client({
         connection: this.connection,

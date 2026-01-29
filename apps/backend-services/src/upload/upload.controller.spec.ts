@@ -1,4 +1,4 @@
-import { DocumentStatus } from "@generated/enums";
+import { DocumentStatus } from "@generated/client";
 import { BadRequestException } from "@nestjs/common";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";

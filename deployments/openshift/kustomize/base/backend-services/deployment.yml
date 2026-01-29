@@ -16,12 +16,14 @@ spec:
     spec:
       initContainers:
       - name: migrate-db
+        # Tag is resolved only when a NEW pod is created. After pushing a new image, run: oc rollout restart deployment/backend-services -n <namespace>
         image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services:main-latest
         imagePullPolicy: Always
+        workingDir: /app
         # Use the installed Prisma version from node_modules to avoid npx installing latest
-        # This ensures we use the version specified in package.json (6.19.0) instead of latest (7.0.0)
+        # This ensures we use the version specified in package.json (7.0.1) instead of latest
         # Note: Permissions on public schema are granted via PostgresCluster postInitSQL
-        command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy || npx prisma@6.19.0 migrate deploy']
+        command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy --schema=/app/shared/prisma/schema.prisma || npx prisma@7.0.1 migrate deploy --schema=/app/shared/prisma/schema.prisma']
         env:
         # DATABASE_URL should be provided via a Secret containing the PostgreSQL connection string
         # Format: postgresql://username:password@postgres-cluster-primary:5432/api
@@ -45,6 +47,7 @@ spec:
             cpu: "500m"
       containers:
       - name: backend-services
+        # Tag is resolved only when a NEW pod is created. After pushing a new image, run: oc rollout restart deployment/backend-services -n <namespace>
         image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services:main-latest
         imagePullPolicy: Always
         ports:
@@ -108,6 +111,11 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: SSO_CLIENT_ID
+        - name: SSO_REDIRECT_URI
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: SSO_REDIRECT_URI
         - name: SSO_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
@@ -128,6 +136,21 @@ spec:
             secretKeyRef:
               name: backend-services-secrets
               key: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+        - name: TEMPORAL_ADDRESS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: TEMPORAL_ADDRESS
+        - name: TEMPORAL_NAMESPACE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: TEMPORAL_NAMESPACE
+        - name: TEMPORAL_TASK_QUEUE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: TEMPORAL_TASK_QUEUE
         volumeMounts:
         - name: storage
           mountPath: /app/storage

@@ -3,7 +3,7 @@
  * Provides default step configurations matching current workflow behavior
  */
 
-import type { WorkflowStepsConfig, WorkflowStepId, PollStepParams, ConfidenceStepParams, HumanReviewParams } from './types';
+import type { WorkflowStepsConfig, WorkflowStepId } from './types';
 
 // Default configuration matching current workflow behavior
 export const DEFAULT_WORKFLOW_STEPS: Required<Record<WorkflowStepId, { enabled: boolean; parameters?: Record<string, unknown> }>> = {
@@ -14,17 +14,17 @@ export const DEFAULT_WORKFLOW_STEPS: Required<Record<WorkflowStepId, { enabled: 
   waitBeforePoll: { enabled: true, parameters: { waitTime: 5000 } },
   pollOCRResults: { 
     enabled: true, 
-    parameters: { maxRetries: 20, waitBeforeFirstPoll: 5000, waitBetweenPolls: 10000 } as PollStepParams
+    parameters: { maxRetries: 20, waitBeforeFirstPoll: 5000, waitBetweenPolls: 10000 } as unknown as Record<string, unknown>
   },
   extractOCRResults: { enabled: true },
   postOcrCleanup: { enabled: true },
   checkOcrConfidence: { 
     enabled: true, 
-    parameters: { threshold: 0.95 } as ConfidenceStepParams 
+    parameters: { threshold: 0.95 } as unknown as Record<string, unknown>
   },
   humanReview: { 
     enabled: true, 
-    parameters: { timeout: 86400000 } as HumanReviewParams // 24 hours
+    parameters: { timeout: 86400000 } as unknown as Record<string, unknown> // 24 hours
   },
   storeResults: { enabled: true },
 };

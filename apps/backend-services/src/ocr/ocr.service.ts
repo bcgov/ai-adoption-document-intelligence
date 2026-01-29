@@ -1,5 +1,4 @@
-import { OcrResult } from "@generated/client";
-import { DocumentStatus } from "@generated/enums";
+import { DocumentStatus, OcrResult } from "@generated/client";
 import {
   BadRequestException,
   Injectable,

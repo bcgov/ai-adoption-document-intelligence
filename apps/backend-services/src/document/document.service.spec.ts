@@ -1,4 +1,4 @@
-import { DocumentStatus } from "@generated/enums";
+import { DocumentStatus } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as fs from "fs";

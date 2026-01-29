@@ -147,7 +147,8 @@ jobs:
       - name: Build and Push
         uses: docker/build-push-action@v5
         with:
-          context: apps/${{ matrix.app }}
+          # temporal and backend-services need repo root context to COPY apps/shared; other apps use apps/<name>
+          context: ${{ (matrix.app == 'temporal' || matrix.app == 'backend-services') && '.' || 'apps/' }}${{ (matrix.app != 'temporal' && matrix.app != 'backend-services') && matrix.app || '' }}
           file: apps/${{ matrix.app }}/Dockerfile
           push: true
           tags: ${{ steps.docker-metadata.outputs.tags }}
@@ -162,6 +163,7 @@ jobs:
             VITE_SUPPORT_EMAIL=${{ secrets.VITE_SUPPORT_EMAIL }}
             VITE_ENV=${{ secrets.VITE_ENV }}
             REACT_APP_URL=${{ secrets.REACT_APP_URL }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
       - name: Move cache
         run: |
           rm -rf /tmp/.buildx-cache
