@@ -1,6 +1,6 @@
 import {
-  validateWorkflowConfig,
   type ValidationError,
+  validateWorkflowConfig,
 } from "./workflow-validator";
 
 describe("workflow-validator", () => {
@@ -59,7 +59,9 @@ describe("workflow-validator", () => {
           },
         });
         expect(result.valid).toBe(false);
-        expect(result.errors.some((e: ValidationError) => e.field === "maxRetries")).toBe(true);
+        expect(
+          result.errors.some((e: ValidationError) => e.field === "maxRetries"),
+        ).toBe(true);
       });
 
       it("returns invalid when maxRetries > 100", () => {

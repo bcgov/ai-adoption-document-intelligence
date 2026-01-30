@@ -214,15 +214,17 @@ describe("WorkflowService", () => {
   describe("deleteWorkflow", () => {
     it("throws NotFoundException when workflow not found", async () => {
       mockWorkflow.findFirst.mockResolvedValue(null);
-      await expect(
-        service.deleteWorkflow("wf-1", "user-1"),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.deleteWorkflow("wf-1", "user-1")).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it("deletes workflow when found", async () => {
       mockWorkflow.findFirst.mockResolvedValue(mockWorkflowRecord);
       await service.deleteWorkflow("wf-1", "user-1");
-      expect(mockWorkflow.delete).toHaveBeenCalledWith({ where: { id: "wf-1" } });
+      expect(mockWorkflow.delete).toHaveBeenCalledWith({
+        where: { id: "wf-1" },
+      });
     });
   });
 });

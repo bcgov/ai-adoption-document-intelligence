@@ -1,11 +1,11 @@
-import { Request } from "express";
 import { Test, TestingModule } from "@nestjs/testing";
+import { Request } from "express";
+import { WorkflowController } from "./workflow.controller";
 import {
   CreateWorkflowDto,
   WorkflowInfo,
   WorkflowService,
 } from "./workflow.service";
-import { WorkflowController } from "./workflow.controller";
 
 const mockWorkflowInfo: WorkflowInfo = {
   id: "wf-1",
@@ -67,7 +67,10 @@ describe("WorkflowController", () => {
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
       const result = await controller.getWorkflow("wf-1", req);
       expect(result).toEqual({ workflow: mockWorkflowInfo });
-      expect(workflowService.getWorkflow).toHaveBeenCalledWith("wf-1", "user-1");
+      expect(workflowService.getWorkflow).toHaveBeenCalledWith(
+        "wf-1",
+        "user-1",
+      );
     });
   });
 
@@ -81,7 +84,10 @@ describe("WorkflowController", () => {
       workflowService.createWorkflow.mockResolvedValue(mockWorkflowInfo);
       const result = await controller.createWorkflow(dto, req);
       expect(result).toEqual({ workflow: mockWorkflowInfo });
-      expect(workflowService.createWorkflow).toHaveBeenCalledWith("user-1", dto);
+      expect(workflowService.createWorkflow).toHaveBeenCalledWith(
+        "user-1",
+        dto,
+      );
     });
   });
 

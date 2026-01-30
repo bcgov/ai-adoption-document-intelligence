@@ -52,7 +52,9 @@ export class WorkflowService {
       return JSON.stringify(obj);
     }
     if (Array.isArray(obj)) {
-      return "[" + obj.map((item) => this.stableStringify(item)).join(",") + "]";
+      return (
+        "[" + obj.map((item) => this.stableStringify(item)).join(",") + "]"
+      );
     }
     const sortedKeys = Object.keys(obj as object).sort();
     const pairs = sortedKeys.map(

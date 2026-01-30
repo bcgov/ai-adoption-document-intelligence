@@ -155,7 +155,7 @@ describe("ApiKeyController", () => {
       };
       mockApiKeyService.regenerateApiKey.mockResolvedValue(mockRegeneratedKey);
 
-      const result = await controller.regenerateApiKey({
+      const _result = await controller.regenerateApiKey({
         user: { sub: "testuser" },
       } as any);
 

@@ -15,10 +15,7 @@ describe("DocumentController", () => {
       findOcrResult: jest.fn(),
     } as any;
     temporalClientService = {} as jest.Mocked<TemporalClientService>;
-    controller = new DocumentController(
-      databaseService,
-      temporalClientService,
-    );
+    controller = new DocumentController(databaseService, temporalClientService);
   });
 
   describe("getAllDocuments", () => {
