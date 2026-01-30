@@ -7,8 +7,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { API_BASE_URL } from "../shared/constants";
 import { apiService } from "../data/services/api.service";
+import { API_BASE_URL } from "../shared/constants";
 
 /**
  * Shape of the token bundle returned by the backend `/auth/token` or `/auth/result` endpoints.

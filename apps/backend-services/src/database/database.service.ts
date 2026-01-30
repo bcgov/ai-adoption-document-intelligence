@@ -1,4 +1,9 @@
-import { Document, DocumentStatus, OcrResult, PrismaClient } from "@generated/client";
+import {
+  Document,
+  DocumentStatus,
+  OcrResult,
+  PrismaClient,
+} from "@generated/client";
 import { JsonValue } from "@generated/internal/prismaNamespace";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -17,11 +22,11 @@ export type DocumentData = Document;
 export class DatabaseService {
   private readonly logger = new Logger(DatabaseService.name);
   private prisma: PrismaClient;
-  private databaseUrl: string;
 
   constructor(private configService: ConfigService) {
-    const dbOptions = getPrismaPgOptions(this.configService.get("DATABASE_URL"));
-    this.databaseUrl = dbOptions.connectionString;
+    const dbOptions = getPrismaPgOptions(
+      this.configService.get("DATABASE_URL"),
+    );
     this.prisma = new PrismaClient({
       log: ["query", "info", "warn", "error"],
       adapter: new PrismaPg(dbOptions),

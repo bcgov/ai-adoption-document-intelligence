@@ -21,7 +21,9 @@ export class ApiKeyService {
   private prisma: PrismaClient;
 
   constructor(private configService: ConfigService) {
-    const dbOptions = getPrismaPgOptions(this.configService.get("DATABASE_URL"));
+    const dbOptions = getPrismaPgOptions(
+      this.configService.get("DATABASE_URL"),
+    );
     this.prisma = new PrismaClient({
       adapter: new PrismaPg(dbOptions),
     });
