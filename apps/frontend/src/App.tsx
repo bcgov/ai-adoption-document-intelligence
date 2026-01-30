@@ -168,7 +168,7 @@ function AppContent(): JSX.Element {
         </AppShell.Navbar>
 
         <AppShell.Main>
-          <Stack gap="lg">
+          <Stack gap="lg" style={{ flex: 1, minHeight: 0 }}>
             {activeView === "settings" ? (
               <SettingsPage />
             ) : activeView === "labeling" ? (

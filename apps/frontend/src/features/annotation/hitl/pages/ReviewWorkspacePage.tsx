@@ -55,9 +55,6 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   } = useReviewSession(sessionId);
   const { getAccessToken } = useAuth();
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
-  const [imageSize, setImageSize] = useState<{ width: number; height: number }>(
-    { width: 1000, height: 1400 },
-  );
   const { ref: canvasRef, width: canvasWidth, height: canvasHeight } =
     useElementSize();
   const [correctionMap, setCorrectionMap] = useState<
@@ -103,15 +100,6 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
       if (documentUrl) {
         URL.revokeObjectURL(documentUrl);
       }
-    };
-  }, [documentUrl]);
-
-  useEffect(() => {
-    if (!documentUrl) return;
-    const img = new window.Image();
-    img.src = documentUrl;
-    img.onload = () => {
-      setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
     };
   }, [documentUrl]);
 
@@ -220,7 +208,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   const isPdf = session.document?.storage_path?.endsWith(".pdf");
 
   return (
-    <Stack gap="lg" style={{ height: "100%" }}>
+    <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: "hidden" }}>
       <Group justify="space-between">
         <Group>
           <Button
@@ -250,8 +238,37 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
         />
       )}
 
-      <Group align="stretch" gap="lg" style={{ flex: 1 }}>
-        <Paper withBorder style={{ width: 360, minHeight: 0 }}>
+      <Group align="stretch" gap="md" style={{ flex: 1, minHeight: 0, overflow: "hidden" }} wrap="nowrap">
+        <Paper withBorder style={{ flex: 1, minHeight: 0, minWidth: 0, position: "relative", overflow: "hidden" }}>
+          {!documentUrl ? (
+            <Stack align="center" justify="center" style={{ position: "absolute", inset: 0 }}>
+              <Text size="sm" c="dimmed">
+                Document preview is unavailable.
+              </Text>
+            </Stack>
+          ) : isPdf ? (
+            <div style={{ position: "absolute", inset: 0 }}>
+              <DocumentViewer documentUrl={documentUrl} fitToContainer />
+            </div>
+          ) : (
+            <div
+              ref={canvasRef}
+              style={{ position: "absolute", inset: 0, overflow: "hidden" }}
+            >
+              {canvasWidth > 0 && canvasHeight > 0 && (
+                <AnnotationCanvas
+                  imageUrl={documentUrl}
+                  width={canvasWidth}
+                  height={canvasHeight}
+                  boxes={boxes}
+                  activeTool={CanvasTool.SELECT}
+                />
+              )}
+            </div>
+          )}
+        </Paper>
+
+        <Paper withBorder style={{ width: 360, minHeight: 0, overflow: "auto" }}>
           <Stack gap="md" p="md">
             <Text fw={600}>Fields</Text>
             {sortedFields.map((field) => {
@@ -297,31 +314,6 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
               );
             })}
           </Stack>
-        </Paper>
-
-        <Paper withBorder style={{ flex: 1, minHeight: 0 }}>
-          {!documentUrl ? (
-            <Stack align="center" justify="center" h="100%">
-              <Text size="sm" c="dimmed">
-                Document preview is unavailable.
-              </Text>
-            </Stack>
-          ) : isPdf ? (
-            <DocumentViewer documentUrl={documentUrl} />
-          ) : (
-            <div
-              ref={canvasRef}
-              style={{ width: "100%", height: "100%", overflow: "auto" }}
-            >
-              <AnnotationCanvas
-                imageUrl={documentUrl}
-                width={canvasWidth || imageSize.width}
-                height={canvasHeight || imageSize.height}
-                boxes={boxes}
-                activeTool={CanvasTool.SELECT}
-              />
-            </div>
-          )}
         </Paper>
       </Group>
 

@@ -1,4 +1,4 @@
-import { FC, useEffect, useMemo, useState } from "react";
+import { FC, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Group,
@@ -79,11 +79,27 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   );
   const { ref: canvasRef, width: canvasWidth, height: canvasHeight } =
     useElementSize();
-  const { zoom, zoomIn, zoomOut, resetZoom } = useCanvasZoom();
+  const { zoom, zoomIn, zoomOut, resetZoom, zoomToFit } = useCanvasZoom();
   const [currentPage, setCurrentPage] = useState(1);
   const [numPages, setNumPages] = useState(0);
-  const { ref: pdfContainerRef, width: pdfWidth, height: pdfHeight } =
+  const { ref: pdfContainerRef, width: pdfContainerWidth, height: pdfContainerHeight } =
     useElementSize();
+  const [pdfRenderedSize, setPdfRenderedSize] = useState<{ width: number; height: number } | null>(null);
+  const [pdfOriginalSize, setPdfOriginalSize] = useState<{ width: number; height: number } | null>(null);
+  const initialZoomSetRef = useRef(false);
+
+  // Auto-fit zoom when container dimensions and PDF size are available
+  useEffect(() => {
+    if (
+      !initialZoomSetRef.current &&
+      pdfContainerWidth > 0 &&
+      pdfContainerHeight > 0 &&
+      pdfOriginalSize
+    ) {
+      zoomToFit(pdfContainerWidth, pdfContainerHeight, pdfOriginalSize.width, pdfOriginalSize.height);
+      initialZoomSetRef.current = true;
+    }
+  }, [pdfContainerWidth, pdfContainerHeight, pdfOriginalSize, zoomToFit]);
 
   useEffect(() => {
     const mapped: Record<string, LabelState> = {};
@@ -505,7 +521,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   const isPdf = projectDocument?.labeling_document?.file_type === "pdf";
 
   return (
-    <Stack gap="lg" style={{ height: "100%" }}>
+    <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: "hidden" }}>
       <Group justify="space-between">
         <Group>
           <Button
@@ -540,36 +556,22 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
         </Group>
       </Group>
 
-      <Group align="stretch" gap="lg" style={{ flex: 1 }}>
-        <Paper withBorder style={{ width: 320, minHeight: 0 }}>
-          <Text size="sm" c="dimmed">Field panel:</Text>
-          <FieldPanel
-            fields={schema}
-            values={labelValues}
-            activeFieldKey={activeFieldKey}
-            onSelectField={(fieldKey) => {
-              console.debug("[Labeling] Field selected", { fieldKey });
-              setActiveFieldKey(fieldKey);
-            }}
-            onValueChange={handleValueChange}
-          />
-        </Paper>
-
-        <Paper withBorder style={{ flex: 1, minHeight: 0 }}>
+      <Group align="stretch" gap="md" style={{ flex: 1, minHeight: 0, overflow: "hidden" }} wrap="nowrap">
+        <Paper withBorder style={{ flex: 1, minHeight: 0, minWidth: 0, position: "relative", overflow: "hidden" }}>
           {!documentUrl ? (
-            <Stack align="center" justify="center" h="100%">
+            <Stack align="center" justify="center" style={{ position: "absolute", inset: 0 }}>
               <Text size="sm" c="dimmed">
                 Document preview is unavailable.
               </Text>
             </Stack>
           ) : ocrWords.length === 0 ? (
-            <Stack align="center" justify="center" h="100%">
+            <Stack align="center" justify="center" style={{ position: "absolute", inset: 0 }}>
               <Text size="sm" c="dimmed">
                 OCR results are not available yet.
               </Text>
             </Stack>
           ) : isPdf ? (
-            <Stack gap="xs" style={{ height: "100%" }}>
+            <Stack gap="xs" style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
               <ViewerToolbar
                 currentPage={currentPage}
                 totalPages={numPages || 1}
@@ -581,7 +583,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
               />
               <div
                 ref={pdfContainerRef}
-                style={{ position: "relative", flex: 1, overflow: "auto" }}
+                style={{ position: "relative", flex: 1, minHeight: 0, overflow: "auto" }}
                 onClick={() => {
                   console.debug("[Labeling] PDF container clicked");
                 }}
@@ -603,14 +605,24 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                         pageNumber: currentPage,
                         width: page.width,
                         height: page.height,
+                        zoom,
                       });
+                      setPdfRenderedSize({ width: page.width, height: page.height });
+                      // Store original (unscaled) dimensions for zoom calculation
+                      const originalWidth = page.width / zoom;
+                      const originalHeight = page.height / zoom;
+                      setPdfOriginalSize({ width: originalWidth, height: originalHeight });
                     }}
                   />
                 </Document>
                 <div
                   style={{
                     position: "absolute",
-                    inset: 0,
+                    top: 0,
+                    left: 0,
+                    width: pdfRenderedSize?.width ?? "100%",
+                    height: pdfRenderedSize?.height ?? "100%",
+                    pointerEvents: "none",
                   }}
                 >
                   {(wordsByPage[currentPage] || []).map((element) => {
@@ -625,13 +637,13 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                         (p: any) => p.pageNumber === element.pageNumber,
                       );
                     const scaleX =
-                      ocrPage?.width && pdfWidth
-                        ? pdfWidth / ocrPage.width
-                        : 1;
+                      ocrPage?.width && pdfRenderedSize?.width
+                        ? pdfRenderedSize.width / ocrPage.width
+                        : zoom;
                     const scaleY =
-                      ocrPage?.height && pdfHeight
-                        ? pdfHeight / ocrPage.height
-                        : 1;
+                      ocrPage?.height && pdfRenderedSize?.height
+                        ? pdfRenderedSize.height / ocrPage.height
+                        : zoom;
                     const assignedField = wordAssignments[element.id];
                     const isActive = assignedField === activeFieldKey;
                     const borderColor = assignedField
@@ -687,20 +699,36 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           ) : (
             <div
               ref={canvasRef}
-              style={{ width: "100%", height: "100%", overflow: "auto" }}
+              style={{ position: "absolute", inset: 0, overflow: "hidden" }}
               onClick={() => {
                 console.debug("[Labeling] Canvas container clicked");
               }}
             >
-              <AnnotationCanvas
-                imageUrl={documentUrl}
-                width={canvasWidth || imageSize.width}
-                height={canvasHeight || imageSize.height}
-                boxes={wordBoxes}
-                onBoxSelect={handleWordSelect}
-              />
+              {canvasWidth > 0 && canvasHeight > 0 && (
+                <AnnotationCanvas
+                  imageUrl={documentUrl}
+                  width={canvasWidth}
+                  height={canvasHeight}
+                  boxes={wordBoxes}
+                  onBoxSelect={handleWordSelect}
+                />
+              )}
             </div>
           )}
+        </Paper>
+
+        <Paper withBorder style={{ width: 320, minHeight: 0, overflow: "auto" }} p="md">
+          <Text size="sm" fw={600} mb="md">Fields</Text>
+          <FieldPanel
+            fields={schema}
+            values={labelValues}
+            activeFieldKey={activeFieldKey}
+            onSelectField={(fieldKey) => {
+              console.debug("[Labeling] Field selected", { fieldKey });
+              setActiveFieldKey(fieldKey);
+            }}
+            onValueChange={handleValueChange}
+          />
         </Paper>
       </Group>
     </Stack>

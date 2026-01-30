@@ -1,10 +1,9 @@
-import { FC, useRef, useEffect } from "react";
+import { FC, useRef, useEffect, useState, useMemo } from "react";
 import { Stage, Layer, Image as KonvaImage } from "react-konva";
 import { Box } from "@mantine/core";
 import { BoundingBox, CanvasTool } from "../types";
 import { BoundingBoxLayer } from "./BoundingBoxLayer";
 import { DrawingLayer } from "./DrawingLayer";
-import { useCanvasZoom } from "./hooks/useCanvasZoom";
 import { useCanvasPan } from "./hooks/useCanvasPan";
 import { useCanvasSelection } from "./hooks/useCanvasSelection";
 
@@ -35,8 +34,9 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
 }) => {
   const stageRef = useRef<any>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const [userZoom, setUserZoom] = useState(1); // User's zoom adjustment (1 = fit to container)
 
-  const { zoom, setZoom } = useCanvasZoom();
   const { pan, startPan, updatePan, endPan } = useCanvasPan();
   const {
     selectedBoxId,
@@ -50,13 +50,25 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
     endDrawing,
   } = useCanvasSelection();
 
-  // Load image
+  // Calculate fit scale to make content fit in container
+  const fitScale = useMemo(() => {
+    if (!imageSize || width <= 0 || height <= 0) return 1;
+    const scaleX = width / imageSize.width;
+    const scaleY = height / imageSize.height;
+    return Math.min(scaleX, scaleY) * 0.95; // 95% to leave some padding
+  }, [width, height, imageSize]);
+
+  // Combined scale = fitScale * userZoom
+  const effectiveScale = fitScale * userZoom;
+
+  // Load image and get its natural dimensions
   useEffect(() => {
     if (imageUrl) {
       const img = new window.Image();
       img.src = imageUrl;
       img.onload = () => {
         imageRef.current = img;
+        setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
         stageRef.current?.batchDraw();
       };
     }
@@ -64,12 +76,11 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
 
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
-    const stage = stageRef.current;
-    if (!stage) return;
-
-    const oldScale = zoom;
-    const newScale = e.evt.deltaY < 0 ? oldScale * 1.1 : oldScale / 1.1;
-    setZoom(newScale);
+    const scaleBy = 1.1;
+    const newUserZoom = e.evt.deltaY < 0 ? userZoom * scaleBy : userZoom / scaleBy;
+    // Clamp user zoom between 0.5x and 5x of fit scale
+    const clampedZoom = Math.max(0.5, Math.min(5, newUserZoom));
+    setUserZoom(clampedZoom);
   };
 
   const handleMouseDown = (e: any) => {
@@ -84,8 +95,8 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
       startPan(pos);
     } else if (activeTool === CanvasTool.DRAW_BOX) {
       const relativePos = {
-        x: (pos.x - pan.x) / zoom,
-        y: (pos.y - pan.y) / zoom,
+        x: (pos.x - pan.x) / effectiveScale,
+        y: (pos.y - pan.y) / effectiveScale,
       };
       startDrawing(relativePos);
     } else if (activeTool === CanvasTool.SELECT) {
@@ -104,8 +115,8 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
       updatePan(pos);
     } else if (activeTool === CanvasTool.DRAW_BOX && isDrawing) {
       const relativePos = {
-        x: (pos.x - pan.x) / zoom,
-        y: (pos.y - pan.y) / zoom,
+        x: (pos.x - pan.x) / effectiveScale,
+        y: (pos.y - pan.y) / effectiveScale,
       };
       updateDrawing(relativePos);
     }
@@ -149,8 +160,8 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
         ref={stageRef}
         width={width}
         height={height}
-        scaleX={zoom}
-        scaleY={zoom}
+        scaleX={effectiveScale}
+        scaleY={effectiveScale}
         x={pan.x}
         y={pan.y}
         onWheel={handleWheel}
