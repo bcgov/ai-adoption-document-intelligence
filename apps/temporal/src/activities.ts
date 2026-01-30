@@ -205,7 +205,7 @@ export async function submitToAzureOCR(
     const fileBuffer = Buffer.from(fileData.binaryData, 'base64');
     const response: AxiosResponse = await axios.post(url, fileBuffer, {
       headers: {
-        'Ocp-Apim-Subscription-Key': apiKey,
+        'api-key': apiKey,
         'Content-Type': fileData.contentType
       },
       maxContentLength: Infinity,
@@ -340,7 +340,7 @@ export async function pollOCRResults(
   try {
     const response = await axios.get<OCRResponse>(url, {
       headers: {
-        'Ocp-Apim-Subscription-Key': apiKey
+        'api-key': apiKey
       }
     });
 
