@@ -46,7 +46,12 @@ export class TrainingService {
         'Azure Document Intelligence credentials not configured. Training features will not work.',
       );
     } else {
-      this.adminClient = DocumentIntelligence(endpoint, { key: apiKey });
+      this.adminClient = DocumentIntelligence(endpoint, { key: apiKey },
+        {
+          credentials: {
+            apiKeyHeaderName: "api-key",
+          },
+      });
       this.logger.log('Document Intelligence Admin client initialized');
       this.logger.log(`Document Intelligence endpoint: ${endpoint}`);
     }

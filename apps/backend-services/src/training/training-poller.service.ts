@@ -31,7 +31,12 @@ export class TrainingPollerService {
         'Azure Document Intelligence credentials not configured. Training polling will not work.',
       );
     } else {
-      this.adminClient = DocumentIntelligence(endpoint, { key: apiKey });
+      this.adminClient = DocumentIntelligence(endpoint, { key: apiKey },
+        {
+          credentials: {
+            apiKeyHeaderName: "api-key",
+          },
+      });
     }
 
     this.pollInterval = this.configService.get<number>(
