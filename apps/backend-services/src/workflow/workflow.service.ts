@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { getPrismaPgOptions } from "@/utils/database-url";
 import { WorkflowStepsConfig } from "./workflow-types";
 import { validateWorkflowConfig } from "./workflow-validator";
 
@@ -33,9 +34,9 @@ export class WorkflowService {
   private prisma: PrismaClient;
 
   constructor(private configService: ConfigService) {
-    const databaseUrl = this.configService.get("DATABASE_URL");
+    const dbOptions = getPrismaPgOptions(this.configService.get("DATABASE_URL"));
     this.prisma = new PrismaClient({
-      adapter: new PrismaPg({ connectionString: databaseUrl }),
+      adapter: new PrismaPg(dbOptions),
     });
   }
 

@@ -3,6 +3,11 @@ kind: Kustomization
 namespace: fd34fb-prod
 resources:
 - ../../base
+patches:
+- path: backend-services-configmap.yml
+  target:
+    kind: ConfigMap
+    name: backend-services-config
 images:
 - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services
   newTag: main-latest

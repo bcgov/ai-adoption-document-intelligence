@@ -25,8 +25,8 @@ RUN node -e "\
   s = s.replace(/generator client \\{[^}]*\\}/s, 'generator client {\\n  provider = \"prisma-client-js\"\\n  output   = \"../../src/generated\"\\n}'); \
   fs.writeFileSync(p, s); \
 "
-# DATABASE_URL is required for Prisma generate (format validation)
-ARG DATABASE_URL=
+# DATABASE_URL required for Prisma config load at generate; placeholder is fine (no connection during build)
+ARG DATABASE_URL=postgresql://localhost:5432/dummy
 ENV DATABASE_URL=${DATABASE_URL}
 RUN npx prisma generate --schema=./shared/prisma/schema.prisma
 

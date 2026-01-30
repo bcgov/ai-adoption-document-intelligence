@@ -9,6 +9,7 @@ require('dotenv').config();
 import axios, { AxiosResponse } from 'axios';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@generated/client';
+import { getPrismaPgOptions } from './utils/database-url';
 import type {
   PreparedFileData,
   SubmissionResult,
@@ -27,8 +28,9 @@ function getPrismaClient(): PrismaClient {
     if (!databaseUrl) {
       throw new Error('DATABASE_URL environment variable is not set');
     }
+    const dbOptions = getPrismaPgOptions(databaseUrl);
     prismaClient = new PrismaClient({
-      adapter: new PrismaPg({ connectionString: databaseUrl }),
+      adapter: new PrismaPg(dbOptions),
       log: ['error', 'warn'],
     });
   }

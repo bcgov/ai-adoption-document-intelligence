@@ -9,6 +9,7 @@ import {
   ExtractedFields,
   KeyValuePair,
 } from "@/ocr/azure-types";
+import { getPrismaPgOptions } from "@/utils/database-url";
 
 export type DocumentData = Document;
 
@@ -19,10 +20,11 @@ export class DatabaseService {
   private databaseUrl: string;
 
   constructor(private configService: ConfigService) {
-    this.databaseUrl = this.configService.get("DATABASE_URL");
+    const dbOptions = getPrismaPgOptions(this.configService.get("DATABASE_URL"));
+    this.databaseUrl = dbOptions.connectionString;
     this.prisma = new PrismaClient({
       log: ["query", "info", "warn", "error"],
-      adapter: new PrismaPg({ connectionString: this.databaseUrl }),
+      adapter: new PrismaPg(dbOptions),
     });
     this.logger.log("Database service initialized with Prisma");
   }

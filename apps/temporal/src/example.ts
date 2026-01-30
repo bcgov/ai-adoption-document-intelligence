@@ -9,6 +9,7 @@ require('dotenv').config();
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@generated/client';
 import { executeOCRWorkflow } from './client';
+import { getPrismaPgOptions } from './utils/database-url';
 
 /**
  * Get Prisma client instance
@@ -18,8 +19,9 @@ function getPrismaClient(): PrismaClient {
   if (!databaseUrl) {
     throw new Error('DATABASE_URL environment variable is not set');
   }
+  const dbOptions = getPrismaPgOptions(databaseUrl);
   return new PrismaClient({
-    adapter: new PrismaPg({ connectionString: databaseUrl }),
+    adapter: new PrismaPg(dbOptions),
     log: ['error', 'warn'],
   });
 }

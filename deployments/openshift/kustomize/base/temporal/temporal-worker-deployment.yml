@@ -25,6 +25,11 @@ spec:
                 secretKeyRef:
                   name: postgres-cluster-pguser-admin
                   key: uri
+            # Crunchy Postgres on OpenShift requires SSL; uselibpqcompat allows self-signed certs
+            - name: PGSSLMODE
+              value: "require"
+            - name: PGSSLREJECTUNAUTHORIZED
+              value: "false"
             - name: TEMPORAL_ADDRESS
               valueFrom:
                 configMapKeyRef:

@@ -5,7 +5,7 @@ metadata:
   labels:
     app: backend-services
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: backend-services
@@ -23,7 +23,18 @@ spec:
         # Use the installed Prisma version from node_modules to avoid npx installing latest
         # This ensures we use the version specified in package.json (7.0.1) instead of latest
         # Note: Permissions on public schema are granted via PostgresCluster postInitSQL
-        command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy --schema=/app/shared/prisma/schema.prisma || npx prisma@7.0.1 migrate deploy --schema=/app/shared/prisma/schema.prisma']
+        # Crunchy Postgres on OpenShift requires SSL; use libpq-compat so sslmode=require accepts self-signed certs
+        command:
+          - sh
+          - -c
+          - |
+            u="$DATABASE_URL"
+            if [ -n "$PGSSLMODE" ]; then
+              sep="?"
+              case "$u" in *\?*) sep="&";; esac
+              export DATABASE_URL="${u}${sep}sslmode=${PGSSLMODE}&uselibpqcompat=true"
+            fi
+            node_modules/.bin/prisma migrate deploy --schema=/app/shared/prisma/schema.prisma || npx prisma@7.0.1 migrate deploy --schema=/app/shared/prisma/schema.prisma
         env:
         # DATABASE_URL should be provided via a Secret containing the PostgreSQL connection string
         # Format: postgresql://username:password@postgres-cluster-primary:5432/api
@@ -33,6 +44,14 @@ spec:
             secretKeyRef:
               name: postgres-cluster-pguser-admin
               key: uri
+        - name: PGSSLMODE
+          value: "require"
+        # Crunchy Postgres uses self-signed certs; disable TLS cert verification
+        - name: PGSSLREJECTUNAUTHORIZED
+          value: "false"
+        # Prisma CLI (migrate) uses Node TLS; allow self-signed for init container only
+        - name: NODE_TLS_REJECT_UNAUTHORIZED
+          value: "0"
         - name: NODE_ENV
           value: "production"
         # Optimize Node.js memory usage for migrations
@@ -79,23 +98,13 @@ spec:
             secretKeyRef:
               name: postgres-cluster-pguser-admin
               key: uri
+        - name: PGSSLMODE
+          value: "require"
+        # Crunchy Postgres uses self-signed certs; disable TLS cert verification
+        - name: PGSSLREJECTUNAUTHORIZED
+          value: "false"
         - name: STORAGE_PATH
           value: "/app/storage/documents"
-        - name: RABBITMQ_URL
-          valueFrom:
-            configMapKeyRef:
-              name: backend-services-config
-              key: RABBITMQ_URL
-        - name: RABBITMQ_EXCHANGE
-          valueFrom:
-            configMapKeyRef:
-              name: backend-services-config
-              key: RABBITMQ_EXCHANGE
-        - name: RABBITMQ_ROUTING_KEY
-          valueFrom:
-            configMapKeyRef:
-              name: backend-services-config
-              key: RABBITMQ_ROUTING_KEY
         - name: SSO_AUTH_SERVER_URL
           valueFrom:
             configMapKeyRef:

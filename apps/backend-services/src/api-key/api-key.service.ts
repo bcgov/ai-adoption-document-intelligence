@@ -13,6 +13,7 @@ import {
   ApiKeyInfoDto,
   GeneratedApiKeyDto,
 } from "@/api-key/dto/api-key-info.dto";
+import { getPrismaPgOptions } from "@/utils/database-url";
 
 @Injectable()
 export class ApiKeyService {
@@ -20,9 +21,9 @@ export class ApiKeyService {
   private prisma: PrismaClient;
 
   constructor(private configService: ConfigService) {
-    const databaseUrl = this.configService.get("DATABASE_URL");
+    const dbOptions = getPrismaPgOptions(this.configService.get("DATABASE_URL"));
     this.prisma = new PrismaClient({
-      adapter: new PrismaPg({ connectionString: databaseUrl }),
+      adapter: new PrismaPg(dbOptions),
     });
   }
 
