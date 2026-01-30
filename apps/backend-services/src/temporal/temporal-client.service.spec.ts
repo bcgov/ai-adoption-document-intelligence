@@ -1,6 +1,7 @@
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Client, Connection } from "@temporalio/client";
+import { WorkflowService } from "../workflow/workflow.service";
 import { TemporalClientService } from "./temporal-client.service";
 
 // Mock Temporal client
@@ -35,11 +36,13 @@ jest.mock("@temporalio/client", () => {
 describe("TemporalClientService", () => {
   let service: TemporalClientService;
   let configService: ConfigService;
+  let mockWorkflowService: jest.Mocked<WorkflowService>;
   let mockConnection: any;
   let mockClient: any;
   let mockWorkflowHandle: any;
 
   beforeEach(async () => {
+    mockWorkflowService = {} as jest.Mocked<WorkflowService>;
     // Reset mocks
     jest.clearAllMocks();
 
@@ -60,9 +63,16 @@ describe("TemporalClientService", () => {
       },
     };
 
-    // Setup mock connection
+    // Setup mock connection (Temporal Connection has workflowService and operatorService)
     mockConnection = {
       close: jest.fn(),
+      workflowService: {
+        describeNamespace: jest.fn().mockResolvedValue(undefined),
+        registerNamespace: jest.fn().mockResolvedValue(undefined),
+      },
+      operatorService: {
+        addSearchAttributes: jest.fn().mockResolvedValue(undefined),
+      },
     };
 
     // Mock Connection.connect
@@ -84,6 +94,10 @@ describe("TemporalClientService", () => {
               return config[key];
             }),
           },
+        },
+        {
+          provide: WorkflowService,
+          useValue: mockWorkflowService,
         },
       ],
     }).compile();
@@ -122,6 +136,10 @@ describe("TemporalClientService", () => {
               get: jest.fn().mockReturnValue(undefined),
             },
           },
+          {
+            provide: WorkflowService,
+            useValue: mockWorkflowService,
+          },
         ],
       }).compile();
 
@@ -155,6 +173,10 @@ describe("TemporalClientService", () => {
               get: jest.fn().mockReturnValue(undefined),
             },
           },
+          {
+            provide: WorkflowService,
+            useValue: mockWorkflowService,
+          },
         ],
       }).compile();
 
@@ -175,7 +197,10 @@ describe("TemporalClientService", () => {
     });
 
     it("should not throw if connection is null", async () => {
-      const newService = new TemporalClientService(configService);
+      const newService = new TemporalClientService(
+        configService,
+        mockWorkflowService,
+      );
       await expect(newService.onModuleDestroy()).resolves.not.toThrow();
     });
   });
@@ -211,7 +236,10 @@ describe("TemporalClientService", () => {
     });
 
     it("should throw error if client not initialized", async () => {
-      const newService = new TemporalClientService(configService);
+      const newService = new TemporalClientService(
+        configService,
+        mockWorkflowService,
+      );
 
       await expect(
         newService.startOCRWorkflow("doc-123", {
@@ -266,7 +294,10 @@ describe("TemporalClientService", () => {
     });
 
     it("should throw error if client not initialized", async () => {
-      const newService = new TemporalClientService(configService);
+      const newService = new TemporalClientService(
+        configService,
+        mockWorkflowService,
+      );
 
       await expect(
         newService.getWorkflowStatus("workflow-123"),
@@ -285,7 +316,10 @@ describe("TemporalClientService", () => {
     });
 
     it("should throw error if client not initialized", async () => {
-      const newService = new TemporalClientService(configService);
+      const newService = new TemporalClientService(
+        configService,
+        mockWorkflowService,
+      );
 
       await expect(
         newService.getWorkflowResult("workflow-123"),
@@ -310,7 +344,10 @@ describe("TemporalClientService", () => {
     });
 
     it("should throw error if client not initialized", async () => {
-      const newService = new TemporalClientService(configService);
+      const newService = new TemporalClientService(
+        configService,
+        mockWorkflowService,
+      );
 
       await expect(
         newService.queryWorkflowStatus("workflow-123"),
@@ -335,7 +372,10 @@ describe("TemporalClientService", () => {
     });
 
     it("should throw error if client not initialized", async () => {
-      const newService = new TemporalClientService(configService);
+      const newService = new TemporalClientService(
+        configService,
+        mockWorkflowService,
+      );
 
       await expect(
         newService.queryWorkflowProgress("workflow-123"),
@@ -365,7 +405,10 @@ describe("TemporalClientService", () => {
     });
 
     it("should throw error if client not initialized", async () => {
-      const newService = new TemporalClientService(configService);
+      const newService = new TemporalClientService(
+        configService,
+        mockWorkflowService,
+      );
 
       await expect(newService.cancelWorkflow("workflow-123")).rejects.toThrow(
         "Temporal client not initialized",

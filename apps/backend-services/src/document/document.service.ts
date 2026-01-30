@@ -1,5 +1,4 @@
-import { DocumentStatus } from "@generated/client";
-import { JsonValue } from "@generated/internal/prismaNamespace";
+import { DocumentStatus, Prisma } from "@generated/client";
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { existsSync } from "fs";
@@ -122,7 +121,7 @@ export class DocumentService {
         file_path: relativePath,
         file_type: fileType,
         file_size: fileSize,
-        metadata: (metadata || {}) as JsonValue,
+        metadata: (metadata || {}) as Prisma.JsonValue,
         source: "api",
         status: DocumentStatus.ongoing_ocr,
         apim_request_id: null,

@@ -101,7 +101,8 @@
       "node_modules/(?!uuid)"
     ],
     "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/$1"
+      "^@/(.*)$": "<rootDir>/$1",
+      "^@generated/(.*)$": "<rootDir>/generated/$1"
     },
     "setupFiles": [
       "./testUtils/testSetup.ts"

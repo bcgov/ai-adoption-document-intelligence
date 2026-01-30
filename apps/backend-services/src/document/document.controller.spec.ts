@@ -1,10 +1,12 @@
 import { NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
+import { TemporalClientService } from "../temporal/temporal-client.service";
 import { DocumentController } from "./document.controller";
 
 describe("DocumentController", () => {
   let controller: DocumentController;
   let databaseService: jest.Mocked<DatabaseService>;
+  let temporalClientService: jest.Mocked<TemporalClientService>;
 
   beforeEach(async () => {
     databaseService = {
@@ -12,7 +14,11 @@ describe("DocumentController", () => {
       findDocument: jest.fn(),
       findOcrResult: jest.fn(),
     } as any;
-    controller = new DocumentController(databaseService);
+    temporalClientService = {} as jest.Mocked<TemporalClientService>;
+    controller = new DocumentController(
+      databaseService,
+      temporalClientService,
+    );
   });
 
   describe("getAllDocuments", () => {

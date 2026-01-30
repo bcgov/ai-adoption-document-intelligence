@@ -70,6 +70,7 @@ model Workflow {
   description String?
   user_id     String
   config      Json     // WorkflowStepsConfig stored as JSON
+  version     Int      @default(1)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 

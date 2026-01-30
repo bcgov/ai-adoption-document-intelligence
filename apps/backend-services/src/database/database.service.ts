@@ -2,9 +2,9 @@ import {
   Document,
   DocumentStatus,
   OcrResult,
+  Prisma,
   PrismaClient,
 } from "@generated/client";
-import { JsonValue } from "@generated/internal/prismaNamespace";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -227,7 +227,8 @@ export class DatabaseService {
 
     try {
       const analysisResult = data.analysisResponse.analyzeResult;
-      const asJson = (obj): JsonValue => obj as unknown as JsonValue;
+      const asJson = (obj): Prisma.JsonValue =>
+        obj as unknown as Prisma.JsonValue;
 
       // Determine extracted fields based on model type
       let extractedFields: ExtractedFields | null = null;

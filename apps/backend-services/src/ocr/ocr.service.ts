@@ -145,6 +145,7 @@ export class OcrService {
       return {
         apimRequestId:
           updateResult.workflow_execution_id || workflowExecutionId,
+        workflowId: workflowExecutionId,
         status: updateResult.status,
       };
     } catch (error) {

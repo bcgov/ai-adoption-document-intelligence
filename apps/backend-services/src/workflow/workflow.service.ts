@@ -43,6 +43,28 @@ export class WorkflowService {
   }
 
   /**
+   * Recursively sort object keys for stable JSON stringification.
+   * Ensures two semantically equal configs produce the same string regardless of key order
+   * (e.g. DB vs request, or different insertion order in nested step parameters).
+   */
+  private stableStringify(obj: unknown): string {
+    if (obj === null || typeof obj !== "object") {
+      return JSON.stringify(obj);
+    }
+    if (Array.isArray(obj)) {
+      return "[" + obj.map((item) => this.stableStringify(item)).join(",") + "]";
+    }
+    const sortedKeys = Object.keys(obj as object).sort();
+    const pairs = sortedKeys.map(
+      (k) =>
+        JSON.stringify(k) +
+        ":" +
+        this.stableStringify((obj as Record<string, unknown>)[k]),
+    );
+    return "{" + pairs.join(",") + "}";
+  }
+
+  /**
    * Deep comparison of two workflow configs to detect changes
    * @param oldConfig Old configuration
    * @param newConfig New configuration
@@ -52,10 +74,8 @@ export class WorkflowService {
     oldConfig: WorkflowStepsConfig,
     newConfig: WorkflowStepsConfig,
   ): boolean {
-    // Normalize configs by converting to JSON strings for comparison
-    // This handles nested objects and arrays properly
-    const oldStr = JSON.stringify(oldConfig, Object.keys(oldConfig).sort());
-    const newStr = JSON.stringify(newConfig, Object.keys(newConfig).sort());
+    const oldStr = this.stableStringify(oldConfig);
+    const newStr = this.stableStringify(newConfig);
     return oldStr !== newStr;
   }
 

@@ -18,6 +18,7 @@ CREATE TABLE "workflows" (
     "description" TEXT,
     "user_id" TEXT NOT NULL,
     "config" JSONB NOT NULL,
+    "version" INTEGER NOT NULL DEFAULT 1,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 

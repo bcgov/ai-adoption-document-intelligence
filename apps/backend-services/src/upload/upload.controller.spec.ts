@@ -56,6 +56,7 @@ describe("UploadController", () => {
         baseDto.original_filename,
         baseDto.model_id,
         baseDto.metadata,
+        undefined, // workflow_config_id or workflow_id
       );
       expect(queueService.processOcrForDocument).toHaveBeenCalledWith(
         expect.objectContaining({

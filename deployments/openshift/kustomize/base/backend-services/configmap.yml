@@ -10,6 +10,8 @@ data:
   # Azure Document Intelligence: set endpoint per instance; API key in secret
   AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://your-region.api.cognitive.microsoft.com"
   AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID: "prebuilt-read"
+  # Comma-separated list of model IDs for document intelligence (e.g. prebuilt-layout,sdpr-monthly-report-model)
+  AZURE_DOC_INTELLIGENCE_MODELS: "prebuilt-layout,sdpr-monthly-report-model,prebuilt-document"
   # Temporal in-cluster (same namespace)
   TEMPORAL_ADDRESS: "temporal:7233"
   TEMPORAL_NAMESPACE: "default"
