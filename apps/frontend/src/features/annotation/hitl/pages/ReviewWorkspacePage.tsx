@@ -71,10 +71,13 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   >({});
   const [escalationOpen, setEscalationOpen] = useState(false);
   const [escalationReason, setEscalationReason] = useState("");
+  const isPdf = session?.document?.storage_path?.endsWith(".pdf");
 
   useEffect(() => {
     const loadDocument = async () => {
-      if (!session?.document?.id) return;
+      if (!session?.document?.id) {
+        return;
+      }
       try {
         const token = getAccessToken?.() ?? null;
         const headers: Record<string, string> = {};
@@ -205,8 +208,6 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
     );
   }
 
-  const isPdf = session.document?.storage_path?.endsWith(".pdf");
-
   return (
     <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: "hidden" }}>
       <Group justify="space-between">
@@ -240,29 +241,48 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
 
       <Group align="stretch" gap="md" style={{ flex: 1, minHeight: 0, overflow: "hidden" }} wrap="nowrap">
         <Paper withBorder style={{ flex: 1, minHeight: 0, minWidth: 0, position: "relative", overflow: "hidden" }}>
-          {!documentUrl ? (
-            <Stack align="center" justify="center" style={{ position: "absolute", inset: 0 }}>
-              <Text size="sm" c="dimmed">
-                Document preview is unavailable.
-              </Text>
-            </Stack>
-          ) : isPdf ? (
-            <div style={{ position: "absolute", inset: 0 }}>
-              <DocumentViewer documentUrl={documentUrl} fitToContainer />
-            </div>
+          {isPdf ? (
+            !documentUrl ? (
+              <Stack
+                align="center"
+                justify="center"
+                style={{ position: "absolute", inset: 0 }}
+              >
+                <Text size="sm" c="dimmed">
+                  Document preview is unavailable.
+                </Text>
+              </Stack>
+            ) : (
+              <div style={{ position: "absolute", inset: 0 }}>
+                <DocumentViewer documentUrl={documentUrl} fitToContainer />
+              </div>
+            )
           ) : (
             <div
               ref={canvasRef}
               style={{ position: "absolute", inset: 0, overflow: "hidden" }}
             >
-              {canvasWidth > 0 && canvasHeight > 0 && (
-                <AnnotationCanvas
-                  imageUrl={documentUrl}
-                  width={canvasWidth}
-                  height={canvasHeight}
-                  boxes={boxes}
-                  activeTool={CanvasTool.SELECT}
-                />
+              {!documentUrl ? (
+                <Stack
+                  align="center"
+                  justify="center"
+                  style={{ position: "absolute", inset: 0 }}
+                >
+                  <Text size="sm" c="dimmed">
+                    Document preview is unavailable.
+                  </Text>
+                </Stack>
+              ) : (
+                canvasWidth > 0 &&
+                canvasHeight > 0 && (
+                  <AnnotationCanvas
+                    imageUrl={documentUrl}
+                    width={canvasWidth}
+                    height={canvasHeight}
+                    boxes={boxes}
+                    activeTool={CanvasTool.SELECT}
+                  />
+                )
               )}
             </div>
           )}
