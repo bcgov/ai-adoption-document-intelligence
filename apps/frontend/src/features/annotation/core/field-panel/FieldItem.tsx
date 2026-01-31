@@ -10,6 +10,7 @@ interface FieldItemProps {
   isActive?: boolean;
   onSelect?: () => void;
   onValueChange?: (value: string) => void;
+  readOnly?: boolean;
 }
 
 const getConfidenceColor = (confidence?: number) => {
@@ -26,6 +27,7 @@ export const FieldItem: FC<FieldItemProps> = ({
   isActive,
   onSelect,
   onValueChange,
+  readOnly,
 }) => {
   return (
     <Card
@@ -49,7 +51,7 @@ export const FieldItem: FC<FieldItemProps> = ({
           )}
         </Group>
 
-        <FieldEditor field={field} value={value} onChange={onValueChange} />
+        <FieldEditor field={field} value={value} onChange={onValueChange} readOnly={readOnly} />
       </Stack>
     </Card>
   );

@@ -15,6 +15,7 @@ interface FieldPanelProps {
   activeFieldKey?: string | null;
   onSelectField?: (fieldKey: string) => void;
   onValueChange?: (fieldKey: string, value: string) => void;
+  readOnly?: boolean;
 }
 
 export const FieldPanel: FC<FieldPanelProps> = ({
@@ -23,6 +24,7 @@ export const FieldPanel: FC<FieldPanelProps> = ({
   activeFieldKey,
   onSelectField,
   onValueChange,
+  readOnly,
 }) => {
   if (fields.length === 0) {
     return (
@@ -46,6 +48,7 @@ export const FieldPanel: FC<FieldPanelProps> = ({
           isActive={activeFieldKey === field.fieldKey}
           onSelect={() => onSelectField?.(field.fieldKey)}
           onValueChange={(value) => onValueChange?.(field.fieldKey, value)}
+          readOnly={readOnly}
         />
       ))}
     </Stack>

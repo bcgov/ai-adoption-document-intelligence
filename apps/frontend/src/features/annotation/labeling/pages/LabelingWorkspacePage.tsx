@@ -742,6 +742,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                 setActiveFieldKey(fieldKey);
               }}
               onValueChange={handleValueChange}
+              readOnly={true}
             />
           </ScrollArea>
         </Paper>
