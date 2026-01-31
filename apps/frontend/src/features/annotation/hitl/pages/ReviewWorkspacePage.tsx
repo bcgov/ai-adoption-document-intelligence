@@ -14,6 +14,7 @@ import {
 import { IconArrowLeft } from "@tabler/icons-react";
 import { useElementSize } from "@mantine/hooks";
 import { useAuth } from "@/auth/AuthContext";
+import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { DocumentViewer } from "../../core/document-viewer/DocumentViewer";
 import { CanvasTool } from "../../core/types/canvas";
@@ -72,6 +73,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   >({});
   const [escalationOpen, setEscalationOpen] = useState(false);
   const [escalationReason, setEscalationReason] = useState("");
+  const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const isPdf = session?.document?.storage_path?.endsWith(".pdf");
 
   useEffect(() => {
@@ -150,15 +152,22 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   const boxes = useMemo(() => {
     const result = sortedFields
       .filter((field) => field.boundingBox)
-      .map((field) => ({
-        id: field.fieldKey,
-        box: field.boundingBox!,
-        label: field.fieldKey,
-        color: "#fab005",
-        confidence: field.confidence,
-      }));
+      .map((field) => {
+        // Generate deterministic color based on field key
+        const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
+        const isActive = field.fieldKey === activeFieldKey;
+
+        return {
+          id: field.fieldKey,
+          box: field.boundingBox!,
+          label: field.fieldKey,
+          color: borderCss,
+          confidence: field.confidence,
+          isActive,
+        };
+      });
     return result;
-  }, [sortedFields]);
+  }, [sortedFields, activeFieldKey]);
 
   const handleFieldChange = (field: ReviewField, value: string) => {
     setCorrectionMap((prev) => ({
@@ -254,7 +263,15 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
                 </Text>
               </Stack>
             ) : (
-              <div style={{ position: "absolute", inset: 0 }}>
+              <div
+                style={{ position: "absolute", inset: 0 }}
+                onClick={(e) => {
+                  // Deselect when clicking on PDF background
+                  if (e.target === e.currentTarget) {
+                    setActiveFieldKey(null);
+                  }
+                }}
+              >
                 <DocumentViewer documentUrl={documentUrl} fitToContainer />
               </div>
             )
@@ -282,6 +299,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
                     height={canvasHeight}
                     boxes={boxes}
                     activeTool={CanvasTool.SELECT}
+                    onBoxSelect={(boxId) => setActiveFieldKey(boxId)}
                   />
                 )
               )}
@@ -298,16 +316,44 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
             display: "flex",
             flexDirection: "column",
           }}
+          onClick={(e) => {
+            // Deselect when clicking on panel background
+            if (e.target === e.currentTarget) {
+              setActiveFieldKey(null);
+            }
+          }}
         >
-          <Text size="sm" fw={600} mb="sm">
+          <Text
+            size="sm"
+            fw={600}
+            mb="sm"
+            onClick={() => setActiveFieldKey(null)}
+            style={{ cursor: 'pointer' }}
+          >
             Fields
           </Text>
 
-          <ScrollArea type="auto" style={{ flex: 1, minHeight: 0 }} offsetScrollbars="present" viewportProps={{ style: { paddingRight: 16 } }}>
+          <ScrollArea
+            type="auto"
+            style={{ flex: 1, minHeight: 0 }}
+            offsetScrollbars="present"
+            viewportProps={{
+              style: { paddingRight: 16 },
+              onClick: (e: React.MouseEvent) => {
+                if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('mantine-ScrollArea-viewport')) {
+                  setActiveFieldKey(null);
+                }
+              }
+            }}
+          >
             <Stack gap="md">
               {sortedFields.map((field) => {
                 const correction = correctionMap[field.fieldKey];
                 const isCorrected = correction?.action === CorrectionAction.CORRECTED;
+                const isActive = field.fieldKey === activeFieldKey;
+
+                // Generate deterministic color based on field key
+                const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
 
                 return (
                   <Paper
@@ -315,9 +361,12 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
                     withBorder
                     p="sm"
                     style={{
-                      borderColor: isCorrected ? '#ffd43b' : undefined,
-                      borderWidth: isCorrected ? 2 : 1,
+                      borderColor: isActive ? '#ff0000' : borderCss,
+                      borderStyle: isActive ? 'dashed' : 'solid',
+                      borderWidth: isActive ? '3px' : (isCorrected ? '2px' : '2px'),
+                      cursor: 'pointer',
                     }}
+                    onClick={() => setActiveFieldKey(field.fieldKey)}
                   >
                     <Stack gap="xs">
                       <Group justify="space-between">

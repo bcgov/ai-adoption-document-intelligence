@@ -104,19 +104,57 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   }, [pdfContainerWidth, pdfContainerHeight, pdfOriginalSize, zoomToFit]);
 
   useEffect(() => {
-    const mapped: Record<string, LabelState> = {};
+    // Group labels by field_key since the server returns individual labels for each word
+    const grouped: Record<string, LabelDto[]> = {};
     (labels || []).forEach((label) => {
-      const normalized: LabelState = {
-        field_key: label.field_key ?? (label as any).field_key,
-        label_name: label.label_name ?? (label as any).label_name,
-        value: label.value,
-        page_number: label.page_number ?? (label as any).page_number ?? 1,
-        bounding_box: label.bounding_box ?? (label as any).bounding_box,
-        confidence: label.confidence,
-        is_manual: label.is_manual,
-      };
-      mapped[normalized.field_key] = normalized;
+      const fieldKey = label.field_key ?? (label as any).field_key;
+      if (!grouped[fieldKey]) grouped[fieldKey] = [];
+      grouped[fieldKey].push(label);
     });
+
+    // Combine multiple labels per field into a single LabelState
+    const mapped: Record<string, LabelState> = {};
+    Object.entries(grouped).forEach(([fieldKey, fieldLabels]) => {
+      // Sort labels by their position in the document (using span offset if available)
+      const sorted = fieldLabels.sort((a, b) => {
+        const offsetA = (a.bounding_box as any)?.span?.offset ?? 0;
+        const offsetB = (b.bounding_box as any)?.span?.offset ?? 0;
+        return offsetA - offsetB;
+      });
+
+      // Concatenate values from all labels for this field
+      const combinedValue = sorted
+        .map((label) => label.value)
+        .filter(Boolean)
+        .join(" ");
+
+      // Calculate combined bounding box
+      const allPolygons = sorted
+        .map((label) => label.bounding_box?.polygon)
+        .filter(Boolean) as number[][];
+
+      let combinedBoundingBox;
+      if (allPolygons.length > 0) {
+        const minX = Math.min(...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 0)));
+        const minY = Math.min(...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 1)));
+        const maxX = Math.max(...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 0)));
+        const maxY = Math.max(...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 1)));
+        combinedBoundingBox = {
+          polygon: [minX, minY, maxX, minY, maxX, maxY, minX, maxY],
+        };
+      }
+
+      mapped[fieldKey] = {
+        field_key: fieldKey,
+        label_name: sorted[0].label_name ?? fieldKey,
+        value: combinedValue,
+        page_number: sorted[0].page_number ?? 1,
+        bounding_box: combinedBoundingBox,
+        confidence: undefined, // Don't show confidence for combined labels
+        is_manual: sorted[0].is_manual,
+      };
+    });
+
     setLabelState(mapped);
   }, [labels]);
 
@@ -557,13 +595,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           </Stack>
         </Group>
         <Group>
-          <Button
-            variant="light"
-            leftSection={<IconPencil size={16} />}
-            onClick={() => setActiveFieldKey(null)}
-          >
-            Select field
-          </Button>
           <Button
             leftSection={<IconDeviceFloppy size={16} />}
             onClick={handleSave}
