@@ -5,6 +5,7 @@ import {
   Loader,
   Modal,
   Paper,
+  ScrollArea,
   Stack,
   Text,
   TextInput,
@@ -288,52 +289,66 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
           )}
         </Paper>
 
-        <Paper withBorder style={{ width: 360, minHeight: 0, overflow: "auto" }}>
-          <Stack gap="md" p="md">
-            <Text fw={600}>Fields</Text>
-            {sortedFields.map((field) => {
-              const correction = correctionMap[field.fieldKey];
-              const isCorrected = correction?.action === CorrectionAction.CORRECTED;
+        <Paper
+          withBorder
+          p="sm"
+          style={{
+            width: 360,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <Text size="sm" fw={600} mb="sm">
+            Fields
+          </Text>
 
-              return (
-                <Paper
-                  key={field.fieldKey}
-                  withBorder
-                  p="sm"
-                  style={{
-                    borderColor: isCorrected ? '#ffd43b' : undefined,
-                    borderWidth: isCorrected ? 2 : 1,
-                  }}
-                >
-                  <Stack gap="xs">
-                    <Group justify="space-between">
-                      <Group gap="xs">
-                        <Text fw={600} size="sm">
-                          {field.fieldKey}
-                        </Text>
-                        {isCorrected && (
-                          <Text size="xs" c="yellow" fw={500}>
-                            ✎ Edited
+          <ScrollArea type="auto" style={{ flex: 1, minHeight: 0 }} offsetScrollbars="present" viewportProps={{ style: { paddingRight: 16 } }}>
+            <Stack gap="md">
+              {sortedFields.map((field) => {
+                const correction = correctionMap[field.fieldKey];
+                const isCorrected = correction?.action === CorrectionAction.CORRECTED;
+
+                return (
+                  <Paper
+                    key={field.fieldKey}
+                    withBorder
+                    p="sm"
+                    style={{
+                      borderColor: isCorrected ? '#ffd43b' : undefined,
+                      borderWidth: isCorrected ? 2 : 1,
+                    }}
+                  >
+                    <Stack gap="xs">
+                      <Group justify="space-between">
+                        <Group gap="xs">
+                          <Text fw={600} size="sm">
+                            {field.fieldKey}
                           </Text>
-                        )}
+                          {isCorrected && (
+                            <Text size="xs" c="yellow" fw={500}>
+                              ✎ Edited
+                            </Text>
+                          )}
+                        </Group>
+                        <ConfidenceIndicator confidence={field.confidence} />
                       </Group>
-                      <ConfidenceIndicator confidence={field.confidence} />
-                    </Group>
-                    <TextInput
-                      value={
-                        correctionMap[field.fieldKey]?.corrected_value ??
-                        field.value
-                      }
-                      onChange={(event) =>
-                        handleFieldChange(field, event.currentTarget.value)
-                      }
-                      disabled={readOnly}
-                    />
-                  </Stack>
-                </Paper>
-              );
-            })}
-          </Stack>
+                      <TextInput
+                        value={
+                          correctionMap[field.fieldKey]?.corrected_value ??
+                          field.value
+                        }
+                        onChange={(event) =>
+                          handleFieldChange(field, event.currentTarget.value)
+                        }
+                        disabled={readOnly}
+                      />
+                    </Stack>
+                  </Paper>
+                );
+              })}
+            </Stack>
+          </ScrollArea>
         </Paper>
       </Group>
 
