@@ -52,7 +52,10 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
         fill="rgba(0,0,0,0)"
         strokeEnabled={false}
         listening={true}
-        onClick={() => onClick?.(id)}
+        onClick={(e) => {
+          e.cancelBubble = true; // Prevent stage click handler from firing
+          onClick?.(id);
+        }}
         onMouseEnter={() => onMouseEnter?.(id)}
         onMouseLeave={() => onMouseLeave?.(id)}
       />

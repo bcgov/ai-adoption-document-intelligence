@@ -430,7 +430,14 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       elementId,
       activeFieldKey,
     });
-    if (!elementId) return;
+
+    // If clicking on canvas background (null), deselect active field
+    if (!elementId) {
+      console.debug("[Labeling] Canvas background clicked - deselecting");
+      setActiveFieldKey(null);
+      return;
+    }
+
     if (!activeFieldKey) {
       console.warn("[Labeling] No active field selected for assignment");
       notifications.show({
@@ -595,8 +602,12 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
               <div
                 ref={pdfContainerRef}
                 style={{ position: "relative", flex: 1, minHeight: 0, overflow: "auto" }}
-                onClick={() => {
-                  console.debug("[Labeling] PDF container clicked");
+                onClick={(e) => {
+                  // Deselect active field if clicking on PDF background (not on an overlay box)
+                  if (e.target === e.currentTarget) {
+                    console.debug("[Labeling] PDF background clicked - deselecting");
+                    setActiveFieldKey(null);
+                  }
                 }}
               >
                 <Document
@@ -729,8 +740,12 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
             <div
               ref={canvasRef}
               style={{ position: "absolute", inset: 0, overflow: "hidden" }}
-              onClick={() => {
-                console.debug("[Labeling] Canvas container clicked");
+              onClick={(e) => {
+                // Deselect active field if clicking on canvas background
+                if (e.target === e.currentTarget) {
+                  console.debug("[Labeling] Canvas background clicked - deselecting");
+                  setActiveFieldKey(null);
+                }
               }}
             >
               {canvasWidth > 0 && canvasHeight > 0 && (
@@ -755,12 +770,43 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
             display: "flex",
             flexDirection: "column",
           }}
+          onClick={(e) => {
+            // Deselect active field if clicking on field panel background
+            if (e.target === e.currentTarget) {
+              console.debug("[Labeling] Field panel background clicked - deselecting");
+              setActiveFieldKey(null);
+            }
+          }}
         >
-          <Text size="sm" fw={600} mb="md">
+          <Text
+            size="sm"
+            fw={600}
+            mb="md"
+            onClick={(e) => {
+              // Deselect when clicking on the header text
+              console.debug("[Labeling] Field panel header clicked - deselecting");
+              setActiveFieldKey(null);
+              e.stopPropagation();
+            }}
+          >
             Fields
           </Text>
 
-          <ScrollArea type="auto" style={{ flex: 1, minHeight: 0 }} offsetScrollbars="present" viewportProps={{ style: { paddingRight: 16 } }}>
+          <ScrollArea
+            type="auto"
+            style={{ flex: 1, minHeight: 0 }}
+            offsetScrollbars="present"
+            viewportProps={{
+              style: { paddingRight: 16 },
+              onClick: (e: React.MouseEvent) => {
+                // Deselect when clicking in the scroll area but not on a field
+                if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('mantine-ScrollArea-viewport')) {
+                  console.debug("[Labeling] Field panel scroll area clicked - deselecting");
+                  setActiveFieldKey(null);
+                }
+              }
+            }}
+          >
             <FieldPanel
               fields={schema}
               values={labelValues}

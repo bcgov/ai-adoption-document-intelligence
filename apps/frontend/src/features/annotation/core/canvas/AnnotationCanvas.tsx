@@ -128,17 +128,19 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   const handleMouseDown = (e: any) => {
     const stage = e.target.getStage();
     const pos = stage.getPointerPosition();
-    if (activeTool === CanvasTool.DRAW_BOX) {
-      const relativePos = {
-        x: (pos.x - pan.x) / effectiveScale,
-        y: (pos.y - pan.y) / effectiveScale,
-      };
-      startDrawing(relativePos);
-    } else if (activeTool === CanvasTool.SELECT) {
-      // Click on background deselects
-      if (e.target === stage) {
-        selectBox(null);
-        onBoxSelect?.(null);
+
+    // Click on empty canvas area deselects
+    if (e.target === e.target.getStage()) {
+      selectBox(null);
+      onBoxSelect?.(null);
+
+      // If we're in DRAW_BOX mode, start drawing
+      if (activeTool === CanvasTool.DRAW_BOX) {
+        const relativePos = {
+          x: (pos.x - pan.x) / effectiveScale,
+          y: (pos.y - pan.y) / effectiveScale,
+        };
+        startDrawing(relativePos);
       }
     }
   };
@@ -211,8 +213,8 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
         }}
       >
         {imageRef.current && (
-          <Layer>
-            <KonvaImage image={imageRef.current} />
+          <Layer listening={false}>
+            <KonvaImage image={imageRef.current} listening={false} />
           </Layer>
         )}
 
