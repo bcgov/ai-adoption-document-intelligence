@@ -35,38 +35,44 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
   }
   points.push(box.polygon[0].x, box.polygon[0].y);
 
-  // Use red dashed border for active fields
-  const strokeColor = isActive ? "#ff0000" : color;
-  const strokeWidth = isActive ? 3 : (isSelected ? 2.5 : isHovered ? 2 : 1.2);
-  const dash = isActive ? [10, 5] : undefined;
-  const opacity = isSelected ? 0.9 : isHovered ? 0.8 : 0.6;
+  // Use red dashed border for active fields, thick colored border for labeled fields
   const hasLabel = Boolean(label);
-  const fillOpacity = hasLabel ? (isSelected ? 0.08 : 0.04) : 0;
-  const fillColor = hasLabel ? color : "transparent";
+  const strokeColor = isActive ? "#ff0000" : color;
+  const strokeWidth = isActive ? 4 : (hasLabel ? 3 : (isSelected ? 2.5 : isHovered ? 2 : 1.2));
+  const dash = isActive ? [10, 5] : undefined;
 
   const firstPoint = box.polygon[0];
 
   return (
     <Group>
+      {/* 1) Invisible hit area for click detection across the whole polygon */}
       <Line
         points={points}
+        closed={true}
+        fill="rgba(0,0,0,0)"
+        strokeEnabled={false}
+        listening={true}
+        onClick={() => onClick?.(id)}
+        onMouseEnter={() => onMouseEnter?.(id)}
+        onMouseLeave={() => onMouseLeave?.(id)}
+      />
+
+      {/* 2) Visible border only (doesn't capture events) */}
+      <Line
+        points={points}
+        closed={true}
         stroke={strokeColor}
         strokeWidth={strokeWidth}
         strokeScaleEnabled={false}
         dash={dash}
-        opacity={opacity}
-        closed={true}
-        fill={fillColor}
-        fillOpacity={fillOpacity}
+        fillEnabled={false}
+        listening={false}
         perfectDrawEnabled={false}
-        hitStrokeWidth={0}
-        onClick={() => onClick?.(id)}
-        onMouseEnter={() => onMouseEnter?.(id)}
-        onMouseLeave={() => onMouseLeave?.(id)}
-        listening={true}
       />
+
+      {/* 3) Label text */}
       {(label || confidence !== undefined) && (
-        <Group x={firstPoint.x} y={firstPoint.y - 20}>
+        <Group x={firstPoint.x} y={firstPoint.y - 20} listening={false}>
           <KonvaText
             text={label ? `${label}${confidence !== undefined ? ` (${Math.round(confidence * 100)}%)` : ''}` : `${Math.round((confidence || 0) * 100)}%`}
             fontSize={12}
