@@ -2,6 +2,7 @@ import { FC } from "react";
 import { Badge, Card, Group, Stack, Text } from "@mantine/core";
 import type { FieldDefinition } from "../types/field";
 import { FieldEditor } from "./FieldEditor";
+import { colorForFieldKeyWithBorder } from "@/shared/utils";
 
 interface FieldItemProps {
   field: FieldDefinition;
@@ -29,13 +30,18 @@ export const FieldItem: FC<FieldItemProps> = ({
   onValueChange,
   readOnly,
 }) => {
+  // Generate deterministic color based on field key
+  const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
+
   return (
     <Card
       withBorder
       padding="sm"
       style={{
         cursor: "pointer",
-        borderColor: isActive ? "#228be6" : undefined,
+        borderColor: isActive ? "#ff0000" : borderCss,
+        borderStyle: isActive ? "dashed" : "solid",
+        borderWidth: isActive ? "3px" : "2px",
       }}
       onClick={onSelect}
     >

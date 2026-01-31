@@ -9,6 +9,7 @@ interface BoundingBoxProps {
   color: string;
   isSelected: boolean;
   isHovered: boolean;
+  isActive?: boolean;
   confidence?: number;
   onClick?: (id: string) => void;
   onMouseEnter?: (id: string) => void;
@@ -22,6 +23,7 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
   color,
   isSelected,
   isHovered,
+  isActive,
   confidence,
   onClick,
   onMouseEnter,
@@ -33,7 +35,10 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
   }
   points.push(box.polygon[0].x, box.polygon[0].y);
 
-  const strokeWidth = isSelected ? 2.5 : isHovered ? 2 : 1.2;
+  // Use red dashed border for active fields
+  const strokeColor = isActive ? "#ff0000" : color;
+  const strokeWidth = isActive ? 3 : (isSelected ? 2.5 : isHovered ? 2 : 1.2);
+  const dash = isActive ? [10, 5] : undefined;
   const opacity = isSelected ? 0.9 : isHovered ? 0.8 : 0.6;
   const hasLabel = Boolean(label);
   const fillOpacity = hasLabel ? (isSelected ? 0.08 : 0.04) : 0;
@@ -45,8 +50,10 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
     <Group>
       <Line
         points={points}
-        stroke={color}
+        stroke={strokeColor}
         strokeWidth={strokeWidth}
+        strokeScaleEnabled={false}
+        dash={dash}
         opacity={opacity}
         closed={true}
         fill={fillColor}
@@ -79,6 +86,7 @@ interface BoundingBoxLayerProps {
     label?: string;
     color?: string;
     confidence?: number;
+    isActive?: boolean;
   }>;
   selectedBoxId: string | null;
   hoveredBoxId: string | null;
@@ -106,6 +114,7 @@ export const BoundingBoxLayer: FC<BoundingBoxLayerProps> = ({
           color={item.color || "#228be6"}
           isSelected={item.id === selectedBoxId}
           isHovered={item.id === hoveredBoxId}
+          isActive={item.isActive}
           confidence={item.confidence}
           onClick={onBoxClick}
           onMouseEnter={onBoxMouseEnter}

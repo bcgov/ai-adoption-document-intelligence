@@ -13,6 +13,7 @@ import { notifications } from "@mantine/notifications";
 import { IconArrowLeft, IconDeviceFloppy, IconPencil } from "@tabler/icons-react";
 import { useElementSize } from "@mantine/hooks";
 import { useAuth } from "@/auth/AuthContext";
+import { colorForFieldKeyWithAlpha, colorForFieldKeyWithBorder } from "@/shared/utils";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { Document, Page, pdfjs } from "react-pdf";
 import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
@@ -311,16 +312,25 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       const assignedField = wordAssignments[element.id];
       const isActive = assignedField === activeFieldKey;
       const isCheckbox = element.type === 'selectionMark';
+
+      // Generate deterministic color based on field key
+      let color: string;
+      if (assignedField) {
+        const { borderCss } = colorForFieldKeyWithBorder(assignedField);
+        color = borderCss;
+      } else if (isCheckbox) {
+        color = "#FFA500";
+      } else {
+        color = "#ced4da";
+      }
+
       return {
         id: element.id,
         box: { polygon: points },
         label: assignedField ?? undefined,
-        color: assignedField
-          ? (isActive ? "#228be6" : "#adb5bd")
-          : isCheckbox
-            ? "#FFA500"
-            : "#ced4da",
+        color,
         confidence: undefined,
+        isActive,
       };
     });
   }, [ocrWords, wordAssignments, activeFieldKey]);
@@ -647,12 +657,34 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                         : zoom;
                     const assignedField = wordAssignments[element.id];
                     const isActive = assignedField === activeFieldKey;
-                    const borderColor = assignedField
-                      ? isActive
-                        ? "#228be6"
-                        : "#adb5bd"
-                      : "#ced4da";
                     const isCheckbox = element.type === 'selectionMark';
+
+                    // Generate deterministic colors based on field key
+                    let borderColor: string;
+                    let backgroundColor: string;
+                    let borderStyle: string;
+                    let borderWidth: string;
+
+                    if (assignedField) {
+                      const fillColors = colorForFieldKeyWithAlpha(assignedField, 0.15);
+                      const borderColors = colorForFieldKeyWithBorder(assignedField);
+                      borderColor = borderColors.borderCss;
+                      backgroundColor = fillColors.fillCssAlpha;
+                      borderStyle = isActive ? "dashed" : "solid";
+                      borderWidth = isActive ? "3px" : "2px";
+                      if (isActive) borderColor = "#ff0000";
+                    } else if (isCheckbox) {
+                      borderColor = "#FFA500";
+                      backgroundColor = "rgba(255, 165, 0, 0.1)";
+                      borderStyle = "solid";
+                      borderWidth = "2px";
+                    } else {
+                      borderColor = "#ced4da";
+                      backgroundColor = "rgba(173, 181, 189, 0.08)";
+                      borderStyle = "solid";
+                      borderWidth = "1px";
+                    }
+
                     return (
                       <div
                         key={element.id}
@@ -663,12 +695,8 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                           top: minY * scaleY,
                           width: (maxX - minX) * scaleX,
                           height: (maxY - minY) * scaleY,
-                          border: isCheckbox ? `2px solid ${borderColor}` : `1px solid ${borderColor}`,
-                          backgroundColor: assignedField
-                            ? "rgba(34, 139, 230, 0.15)"
-                            : isCheckbox
-                              ? "rgba(255, 165, 0, 0.1)"
-                              : "rgba(173, 181, 189, 0.08)",
+                          border: `${borderWidth} ${borderStyle} ${borderColor}`,
+                          backgroundColor,
                           pointerEvents: "auto",
                           cursor: "pointer",
                           display: "flex",
