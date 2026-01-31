@@ -1,5 +1,5 @@
 import { FC } from "react";
-import { ScrollArea, Stack, Text } from "@mantine/core";
+import { Stack, Text } from "@mantine/core";
 import type { FieldDefinition } from "../types/field";
 import { FieldItem } from "./FieldItem";
 
@@ -26,7 +26,7 @@ export const FieldPanel: FC<FieldPanelProps> = ({
 }) => {
   if (fields.length === 0) {
     return (
-      <Stack gap="xs" p="md">
+      <Stack gap="xs">
         <Text fw={600}>No fields configured</Text>
         <Text size="sm" c="dimmed">
           Add fields to this project before labeling documents.
@@ -36,20 +36,18 @@ export const FieldPanel: FC<FieldPanelProps> = ({
   }
 
   return (
-    <ScrollArea h="100%">
-      <Stack gap="sm" p="md">
-        {fields.map((field) => (
-          <FieldItem
-            key={field.id}
-            field={field}
-            value={values[field.fieldKey]?.value}
-            confidence={values[field.fieldKey]?.confidence}
-            isActive={activeFieldKey === field.fieldKey}
-            onSelect={() => onSelectField?.(field.fieldKey)}
-            onValueChange={(value) => onValueChange?.(field.fieldKey, value)}
-          />
-        ))}
-      </Stack>
-    </ScrollArea>
+    <Stack gap="sm">
+      {fields.map((field) => (
+        <FieldItem
+          key={field.id}
+          field={field}
+          value={values[field.fieldKey]?.value}
+          confidence={values[field.fieldKey]?.confidence}
+          isActive={activeFieldKey === field.fieldKey}
+          onSelect={() => onSelectField?.(field.fieldKey)}
+          onValueChange={(value) => onValueChange?.(field.fieldKey, value)}
+        />
+      ))}
+    </Stack>
   );
 };

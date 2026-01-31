@@ -4,6 +4,7 @@ import {
   Group,
   Loader,
   Paper,
+  ScrollArea,
   Stack,
   Text,
   Title,
@@ -717,18 +718,32 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           )}
         </Paper>
 
-        <Paper withBorder style={{ width: 320, minHeight: 0, overflow: "auto" }} p="md">
-          <Text size="sm" fw={600} mb="md">Fields</Text>
-          <FieldPanel
-            fields={schema}
-            values={labelValues}
-            activeFieldKey={activeFieldKey}
-            onSelectField={(fieldKey) => {
-              console.debug("[Labeling] Field selected", { fieldKey });
-              setActiveFieldKey(fieldKey);
-            }}
-            onValueChange={handleValueChange}
-          />
+        <Paper
+          withBorder
+          p="md"
+          style={{
+            width: 320,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <Text size="sm" fw={600} mb="md">
+            Fields
+          </Text>
+
+          <ScrollArea type="auto" style={{ flex: 1, minHeight: 0 }} offsetScrollbars="present" viewportProps={{ style: { paddingRight: 16 } }}>
+            <FieldPanel
+              fields={schema}
+              values={labelValues}
+              activeFieldKey={activeFieldKey}
+              onSelectField={(fieldKey) => {
+                console.debug("[Labeling] Field selected", { fieldKey });
+                setActiveFieldKey(fieldKey);
+              }}
+              onValueChange={handleValueChange}
+            />
+          </ScrollArea>
         </Paper>
       </Group>
     </Stack>
