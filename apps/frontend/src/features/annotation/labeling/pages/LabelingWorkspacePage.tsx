@@ -740,13 +740,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
             <div
               ref={canvasRef}
               style={{ position: "absolute", inset: 0, overflow: "hidden" }}
-              onClick={(e) => {
-                // Deselect active field if clicking on canvas background
-                if (e.target === e.currentTarget) {
-                  console.debug("[Labeling] Canvas background clicked - deselecting");
-                  setActiveFieldKey(null);
-                }
-              }}
             >
               {canvasWidth > 0 && canvasHeight > 0 && (
                 <AnnotationCanvas
