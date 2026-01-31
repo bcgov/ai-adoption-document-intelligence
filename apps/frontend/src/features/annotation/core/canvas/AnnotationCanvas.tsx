@@ -1,4 +1,4 @@
-import { FC, useRef, useEffect, useState, useMemo } from "react";
+import { FC, useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { Stage, Layer, Image as KonvaImage } from "react-konva";
 import { Box } from "@mantine/core";
 import { BoundingBox, CanvasTool } from "../types";
@@ -37,7 +37,7 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const [userZoom, setUserZoom] = useState(1); // User's zoom adjustment (1 = fit to container)
 
-  const { pan, startPan, updatePan, endPan } = useCanvasPan();
+  const { pan, setPan } = useCanvasPan();
   const {
     selectedBoxId,
     hoveredBoxId,
@@ -60,6 +60,40 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
 
   // Combined scale = fitScale * userZoom
   const effectiveScale = fitScale * userZoom;
+  const isPanEnabled = useMemo(
+    () => Boolean(imageSize) && effectiveScale > fitScale && activeTool !== CanvasTool.DRAW_BOX,
+    [activeTool, effectiveScale, fitScale, imageSize],
+  );
+
+  const clamp = useCallback((value: number, min: number, max: number) => {
+    return Math.max(min, Math.min(max, value));
+  }, []);
+
+  const clampPan = useCallback(
+    (nextPan: { x: number; y: number }, scale: number) => {
+      if (!imageSize || width <= 0 || height <= 0) return { x: 0, y: 0 };
+
+      const scaledWidth = imageSize.width * scale;
+      const scaledHeight = imageSize.height * scale;
+
+      const minX = Math.min(0, width - scaledWidth);
+      const minY = Math.min(0, height - scaledHeight);
+      const maxX = 0;
+      const maxY = 0;
+
+      const x =
+        scaledWidth < width
+          ? (width - scaledWidth) / 2
+          : clamp(nextPan.x, minX, maxX);
+      const y =
+        scaledHeight < height
+          ? (height - scaledHeight) / 2
+          : clamp(nextPan.y, minY, maxY);
+
+      return { x, y };
+    },
+    [clamp, imageSize, width, height],
+  );
 
   // Load image and get its natural dimensions
   useEffect(() => {
@@ -74,6 +108,14 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
     }
   }, [imageUrl]);
 
+  useEffect(() => {
+    if (!imageSize || width <= 0 || height <= 0) return;
+    const nextPan = clampPan(pan, effectiveScale);
+    if (nextPan.x !== pan.x || nextPan.y !== pan.y) {
+      setPan(nextPan);
+    }
+  }, [clampPan, effectiveScale, imageSize, width, height, pan, setPan]);
+
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
     const scaleBy = 1.1;
@@ -86,14 +128,7 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   const handleMouseDown = (e: any) => {
     const stage = e.target.getStage();
     const pos = stage.getPointerPosition();
-    console.debug("[AnnotationCanvas] Mouse down", {
-      tool: activeTool,
-      pointer: pos,
-    });
-
-    if (activeTool === CanvasTool.PAN) {
-      startPan(pos);
-    } else if (activeTool === CanvasTool.DRAW_BOX) {
+    if (activeTool === CanvasTool.DRAW_BOX) {
       const relativePos = {
         x: (pos.x - pan.x) / effectiveScale,
         y: (pos.y - pan.y) / effectiveScale,
@@ -111,9 +146,7 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   const handleMouseMove = (e: any) => {
     const stage = e.target.getStage();
     const pos = stage.getPointerPosition();
-    if (activeTool === CanvasTool.PAN) {
-      updatePan(pos);
-    } else if (activeTool === CanvasTool.DRAW_BOX && isDrawing) {
+    if (activeTool === CanvasTool.DRAW_BOX && isDrawing) {
       const relativePos = {
         x: (pos.x - pan.x) / effectiveScale,
         y: (pos.y - pan.y) / effectiveScale,
@@ -123,10 +156,7 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   };
 
   const handleMouseUp = () => {
-    console.debug("[AnnotationCanvas] Mouse up", { tool: activeTool });
-    if (activeTool === CanvasTool.PAN) {
-      endPan();
-    } else if (activeTool === CanvasTool.DRAW_BOX && isDrawing) {
+    if (activeTool === CanvasTool.DRAW_BOX && isDrawing) {
       const newBox = endDrawing();
       if (newBox) {
         onBoxCreate?.(newBox);
@@ -135,12 +165,15 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   };
 
   const handleBoxClick = (boxId: string) => {
-    console.debug("[AnnotationCanvas] Box clicked", { boxId, tool: activeTool });
     if (activeTool === CanvasTool.SELECT) {
       selectBox(boxId);
       onBoxSelect?.(boxId);
     }
   };
+
+  const forceDefaultCursor = useCallback((event: any) => {
+    event.target.getStage()?.container().style.setProperty("cursor", "default");
+  }, []);
 
   return (
     <Box
@@ -148,12 +181,7 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
         width: "100%",
         height: "100%",
         overflow: "hidden",
-        cursor:
-          activeTool === CanvasTool.PAN
-            ? "grab"
-            : activeTool === CanvasTool.DRAW_BOX
-              ? "crosshair"
-              : "default",
+        cursor: "default",
       }}
     >
       <Stage
@@ -168,6 +196,19 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        onMouseEnter={forceDefaultCursor}
+        onMouseLeave={forceDefaultCursor}
+        draggable={isPanEnabled}
+        dragBoundFunc={(newPos) => clampPan(newPos, effectiveScale)}
+        onDragMove={(event) =>
+          setPan(clampPan(event.target.position(), effectiveScale))
+        }
+        onDragStart={forceDefaultCursor}
+        onDragEnd={(event) => {
+          forceDefaultCursor(event);
+          const nextPan = clampPan(event.target.position(), effectiveScale);
+          setPan(nextPan);
+        }}
       >
         {imageRef.current && (
           <Layer>
