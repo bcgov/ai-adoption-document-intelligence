@@ -10,18 +10,38 @@ import {
   Put,
   Req,
 } from "@nestjs/common";
-import { Request } from "express";
 import {
-  CreateWorkflowDto,
-  WorkflowInfo,
-  WorkflowService,
-} from "./workflow.service";
+  ApiBadRequestResponse,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from "@nestjs/swagger";
+import { Request } from "express";
+import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
+import { CreateWorkflowDto } from "./dto/create-workflow.dto";
+import {
+  WorkflowListResponseDto,
+  WorkflowResponseDto,
+} from "./dto/workflow-info.dto";
+import { WorkflowInfo, WorkflowService } from "./workflow.service";
 
+@ApiTags("Workflow")
 @Controller("api/workflows")
 export class WorkflowController {
   constructor(private readonly workflowService: WorkflowService) {}
 
   @Get()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "List all workflows for the current user" })
+  @ApiOkResponse({
+    description: "Returns the list of workflows owned by the authenticated user",
+    type: WorkflowListResponseDto,
+  })
   async getWorkflows(
     @Req() req: Request,
   ): Promise<{ workflows: WorkflowInfo[] }> {
@@ -37,6 +57,14 @@ export class WorkflowController {
   }
 
   @Get(":id")
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Get a workflow by ID" })
+  @ApiParam({ name: "id", description: "Workflow ID" })
+  @ApiOkResponse({
+    description: "Returns the workflow",
+    type: WorkflowResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Workflow not found" })
   async getWorkflow(
     @Param("id") id: string,
     @Req() req: Request,
@@ -50,6 +78,20 @@ export class WorkflowController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Create a new workflow" })
+  @ApiBody({
+    type: CreateWorkflowDto,
+    description: "Workflow name, optional description, and steps configuration",
+  })
+  @ApiCreatedResponse({
+    description:
+      "Workflow created successfully. Returns the created workflow with id, version, and timestamps.",
+    type: WorkflowResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: "Invalid request body or workflow config validation failed",
+  })
   async createWorkflow(
     @Body() dto: CreateWorkflowDto,
     @Req() req: Request,
@@ -62,6 +104,22 @@ export class WorkflowController {
   }
 
   @Put(":id")
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Update an existing workflow" })
+  @ApiParam({ name: "id", description: "Workflow ID" })
+  @ApiBody({
+    type: CreateWorkflowDto,
+    description:
+      "Partial workflow data (name, description, and/or config). Only provided fields are updated.",
+  })
+  @ApiOkResponse({
+    description: "Workflow updated successfully. Returns the updated workflow.",
+    type: WorkflowResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: "Invalid request body or workflow config validation failed",
+  })
+  @ApiNotFoundResponse({ description: "Workflow not found" })
   async updateWorkflow(
     @Param("id") id: string,
     @Body() dto: Partial<CreateWorkflowDto>,
@@ -76,6 +134,11 @@ export class WorkflowController {
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Delete a workflow" })
+  @ApiParam({ name: "id", description: "Workflow ID" })
+  @ApiNoContentResponse({ description: "Workflow deleted successfully" })
+  @ApiNotFoundResponse({ description: "Workflow not found" })
   async deleteWorkflow(
     @Param("id") id: string,
     @Req() req: Request,

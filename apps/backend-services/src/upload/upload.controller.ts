@@ -9,8 +9,9 @@ import {
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
-  ApiOkResponse,
+  ApiCreatedResponse,
   ApiOperation,
+  ApiTags,
 } from "@nestjs/swagger";
 import {
   ApiKeyAuth,
@@ -21,6 +22,7 @@ import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
 import { UploadDocumentResponseDto } from "./dto/upload-document-response.dto";
 
+@ApiTags("Upload")
 @Controller("api/upload")
 export class UploadController {
   private readonly logger = new Logger(UploadController.name);
@@ -35,8 +37,9 @@ export class UploadController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Upload a new document and start OCR processing" })
-  @ApiOkResponse({
-    description: "Document uploaded successfully",
+  @ApiCreatedResponse({
+    description:
+      "Document uploaded successfully. Returns document id, title, file info, status, and created_at.",
     type: UploadDocumentResponseDto,
   })
   @ApiBadRequestResponse({ description: "Invalid input or upload failed" })

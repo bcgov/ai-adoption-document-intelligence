@@ -13,9 +13,12 @@ import {
   Res,
 } from "@nestjs/common";
 import {
+  ApiBadRequestResponse,
+  ApiBody,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
 } from "@nestjs/swagger";
 import { Response } from "express";
@@ -28,6 +31,7 @@ import {
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
+import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
 
 @ApiTags("Documents")
@@ -252,16 +256,35 @@ export class DocumentController {
 
   @Post("/:documentId/approve")
   @HttpCode(HttpStatus.OK)
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Approve or reject a document",
+    description:
+      "Sends a human approval signal to the document's workflow. When rejecting, rejectionReason is required.",
+  })
+  @ApiParam({ name: "documentId", description: "Document ID" })
+  @ApiBody({
+    type: ApproveDocumentDto,
+    description: "Approval decision and optional reviewer info, comments, rejection reason, annotations",
+  })
+  @ApiOkResponse({
+    description: "Approval signal sent successfully",
+    schema: {
+      type: "object",
+      properties: {
+        success: { type: "boolean", example: true },
+        message: { type: "string", example: "Document approved successfully" },
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description:
+      "Invalid request (e.g. rejection without rejectionReason, or document has no workflow execution)",
+  })
+  @ApiNotFoundResponse({ description: "Document not found" })
   async approveDocument(
     @Param("documentId") documentId: string,
-    @Body()
-    body: {
-      approved: boolean;
-      reviewer?: string;
-      comments?: string;
-      rejectionReason?: string;
-      annotations?: string;
-    },
+    @Body() body: ApproveDocumentDto,
   ): Promise<{ success: boolean; message: string }> {
     this.logger.debug(`=== DocumentController.approveDocument ===`);
     this.logger.debug(`Document ID: ${documentId}`);
