@@ -1,0 +1,41 @@
+name: Temporal Quality Assurance
+permissions:
+  contents: read
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: [main, develop]
+    paths:
+      - '.github/workflows/temporal-qa.yml'
+      - 'apps/temporal/**'
+  workflow_dispatch:
+
+jobs:
+  test-and-lint:
+    name: Test and Lint
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Get Environment
+        id: env
+        uses: ./.github/actions/get-environment
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install dependencies (root)
+        run: npm ci
+      - name: Install dependencies (temporal)
+        working-directory: apps/temporal
+        run: npm ci
+      - name: Generate Prisma
+        working-directory: apps/temporal
+        run: npm run db:generate
+        env:
+          DATABASE_URL: "postgresql://localhost:5432/dummy"
+      - name: Run tests
+        working-directory: apps/temporal
+        run: npm test

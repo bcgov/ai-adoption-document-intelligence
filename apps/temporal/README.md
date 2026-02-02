@@ -520,6 +520,26 @@ npm run build
 npm run dev
 ```
 
+## Testing
+
+Tests verify **durable execution** (determinism and replay safety) of the OCR workflow.
+
+```bash
+# Run all tests (replay + integration)
+npm test
+```
+
+- **Replay test** (`workflow.replay.test.ts`): Replays a recorded workflow history through the current workflow code. Fails if the workflow is non-deterministic or incompatible with the saved history (e.g. after changing activity order or adding non-deterministic code).
+- **Integration test** (`workflow.integration.test.ts`): Runs the workflow end-to-end with mocked activities and time-skipping (no real Temporal server or DB). Validates that the workflow completes and timers behave correctly.
+
+**Regenerating the history fixture:** After changing the workflow's default path or steps (e.g. adding/removing activities or changing their order), regenerate the fixture so the replay test stays valid:
+
+```bash
+npm run test:generate-history
+```
+
+Then commit the updated `src/__fixtures__/ocr-workflow-history.json`.
+
 ## Project Structure
 
 ```
@@ -530,11 +550,19 @@ temporal/
 ├── README.md
 ├── docker-compose.yaml
 └── src/
-    ├── types.ts          # TypeScript interfaces
-    ├── activities.ts     # Activity implementations
-    ├── workflow.ts       # Workflow definition
-    ├── worker.ts         # Worker setup
-    └── client.ts         # Workflow client
+    ├── types.ts                    # TypeScript interfaces
+    ├── activities.ts               # Activity implementations
+    ├── workflow.ts                 # Workflow definition
+    ├── worker.ts                   # Worker setup
+    ├── client.ts                   # Workflow client
+    ├── __fixtures__/               # Workflow history for replay tests
+    │   └── ocr-workflow-history.json
+    ├── scripts/
+    │   └── generate-history-fixture.ts  # Regenerate replay fixture
+    ├── test/
+    │   └── mock-activities.ts      # Mock activities for tests
+    ├── workflow.replay.test.ts    # Replay (determinism) test
+    └── workflow.integration.test.ts # Integration test with time-skipping
 ```
 
 ## Error Handling
