@@ -128,7 +128,7 @@ export class LabelingOcrService {
       : `${this.azureEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30`;
 
     const headers = {
-      "Ocp-Apim-Subscription-Key": this.azureApiKey,
+      "api-key": this.azureApiKey,
       "Content-Type": "application/json",
     };
 
@@ -157,7 +157,7 @@ export class LabelingOcrService {
       const response = await lastValueFrom(
         this.httpService.get(
           `${this.azureEndpoint}/documentModels/${modelId}/analyzeResults/${apimRequestId}?api-version=2024-11-30`,
-          { headers: { "Ocp-Apim-Subscription-Key": this.azureApiKey } },
+          { headers: { "api-key": this.azureApiKey } },
         ),
       );
 

@@ -8,9 +8,10 @@ interface FieldEditorProps {
   field: FieldDefinition;
   value?: string;
   onChange?: (value: string) => void;
+  readOnly?: boolean;
 }
 
-export const FieldEditor: FC<FieldEditorProps> = ({ field, value, onChange }) => {
+export const FieldEditor: FC<FieldEditorProps> = ({ field, value, onChange, readOnly }) => {
   if (field.fieldType === FieldType.TABLE) {
     return <TableFieldView value={value} />;
   }
@@ -23,6 +24,7 @@ export const FieldEditor: FC<FieldEditorProps> = ({ field, value, onChange }) =>
           onChange?.(event.currentTarget.checked ? "selected" : "unselected")
         }
         label="Selected"
+        readOnly={readOnly}
       />
     );
   }
@@ -34,6 +36,7 @@ export const FieldEditor: FC<FieldEditorProps> = ({ field, value, onChange }) =>
         onChange={(val) => onChange?.(val?.toString() || "")}
         placeholder="Enter value"
         size="xs"
+        readOnly={readOnly}
       />
     );
   }
@@ -44,6 +47,7 @@ export const FieldEditor: FC<FieldEditorProps> = ({ field, value, onChange }) =>
       onChange={(event) => onChange?.(event.currentTarget.value)}
       placeholder="Enter value"
       size="xs"
+      readOnly={readOnly}
     />
   );
 };

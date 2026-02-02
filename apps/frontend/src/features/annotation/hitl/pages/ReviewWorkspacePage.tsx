@@ -5,6 +5,7 @@ import {
   Loader,
   Modal,
   Paper,
+  ScrollArea,
   Stack,
   Text,
   TextInput,
@@ -13,6 +14,7 @@ import {
 import { IconArrowLeft } from "@tabler/icons-react";
 import { useElementSize } from "@mantine/hooks";
 import { useAuth } from "@/auth/AuthContext";
+import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { DocumentViewer } from "../../core/document-viewer/DocumentViewer";
 import { CanvasTool } from "../../core/types/canvas";
@@ -55,9 +57,6 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   } = useReviewSession(sessionId);
   const { getAccessToken } = useAuth();
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
-  const [imageSize, setImageSize] = useState<{ width: number; height: number }>(
-    { width: 1000, height: 1400 },
-  );
   const { ref: canvasRef, width: canvasWidth, height: canvasHeight } =
     useElementSize();
   const [correctionMap, setCorrectionMap] = useState<
@@ -74,10 +73,14 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   >({});
   const [escalationOpen, setEscalationOpen] = useState(false);
   const [escalationReason, setEscalationReason] = useState("");
+  const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
+  const isPdf = session?.document?.storage_path?.endsWith(".pdf");
 
   useEffect(() => {
     const loadDocument = async () => {
-      if (!session?.document?.id) return;
+      if (!session?.document?.id) {
+        return;
+      }
       try {
         const token = getAccessToken?.() ?? null;
         const headers: Record<string, string> = {};
@@ -103,15 +106,6 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
       if (documentUrl) {
         URL.revokeObjectURL(documentUrl);
       }
-    };
-  }, [documentUrl]);
-
-  useEffect(() => {
-    if (!documentUrl) return;
-    const img = new window.Image();
-    img.src = documentUrl;
-    img.onload = () => {
-      setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
     };
   }, [documentUrl]);
 
@@ -158,15 +152,22 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   const boxes = useMemo(() => {
     const result = sortedFields
       .filter((field) => field.boundingBox)
-      .map((field) => ({
-        id: field.fieldKey,
-        box: field.boundingBox!,
-        label: field.fieldKey,
-        color: "#fab005",
-        confidence: field.confidence,
-      }));
+      .map((field) => {
+        // Generate deterministic color based on field key
+        const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
+        const isActive = field.fieldKey === activeFieldKey;
+
+        return {
+          id: field.fieldKey,
+          box: field.boundingBox!,
+          label: field.fieldKey,
+          color: borderCss,
+          confidence: field.confidence,
+          isActive,
+        };
+      });
     return result;
-  }, [sortedFields]);
+  }, [sortedFields, activeFieldKey]);
 
   const handleFieldChange = (field: ReviewField, value: string) => {
     setCorrectionMap((prev) => ({
@@ -217,10 +218,8 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
     );
   }
 
-  const isPdf = session.document?.storage_path?.endsWith(".pdf");
-
   return (
-    <Stack gap="lg" style={{ height: "100%" }}>
+    <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: "hidden" }}>
       <Group justify="space-between">
         <Group>
           <Button
@@ -250,78 +249,155 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
         />
       )}
 
-      <Group align="stretch" gap="lg" style={{ flex: 1 }}>
-        <Paper withBorder style={{ width: 360, minHeight: 0 }}>
-          <Stack gap="md" p="md">
-            <Text fw={600}>Fields</Text>
-            {sortedFields.map((field) => {
-              const correction = correctionMap[field.fieldKey];
-              const isCorrected = correction?.action === CorrectionAction.CORRECTED;
-
-              return (
-                <Paper
-                  key={field.fieldKey}
-                  withBorder
-                  p="sm"
-                  style={{
-                    borderColor: isCorrected ? '#ffd43b' : undefined,
-                    borderWidth: isCorrected ? 2 : 1,
-                  }}
-                >
-                  <Stack gap="xs">
-                    <Group justify="space-between">
-                      <Group gap="xs">
-                        <Text fw={600} size="sm">
-                          {field.fieldKey}
-                        </Text>
-                        {isCorrected && (
-                          <Text size="xs" c="yellow" fw={500}>
-                            ✎ Edited
-                          </Text>
-                        )}
-                      </Group>
-                      <ConfidenceIndicator confidence={field.confidence} />
-                    </Group>
-                    <TextInput
-                      value={
-                        correctionMap[field.fieldKey]?.corrected_value ??
-                        field.value
-                      }
-                      onChange={(event) =>
-                        handleFieldChange(field, event.currentTarget.value)
-                      }
-                      disabled={readOnly}
-                    />
-                  </Stack>
-                </Paper>
-              );
-            })}
-          </Stack>
-        </Paper>
-
-        <Paper withBorder style={{ flex: 1, minHeight: 0 }}>
-          {!documentUrl ? (
-            <Stack align="center" justify="center" h="100%">
-              <Text size="sm" c="dimmed">
-                Document preview is unavailable.
-              </Text>
-            </Stack>
-          ) : isPdf ? (
-            <DocumentViewer documentUrl={documentUrl} />
+      <Group align="stretch" gap="md" style={{ flex: 1, minHeight: 0, overflow: "hidden" }} wrap="nowrap">
+        <Paper withBorder style={{ flex: 1, minHeight: 0, minWidth: 0, position: "relative", overflow: "hidden" }}>
+          {isPdf ? (
+            !documentUrl ? (
+              <Stack
+                align="center"
+                justify="center"
+                style={{ position: "absolute", inset: 0 }}
+              >
+                <Text size="sm" c="dimmed">
+                  Document preview is unavailable.
+                </Text>
+              </Stack>
+            ) : (
+              <div
+                style={{ position: "absolute", inset: 0 }}
+                onClick={(e) => {
+                  // Deselect when clicking on PDF background
+                  if (e.target === e.currentTarget) {
+                    setActiveFieldKey(null);
+                  }
+                }}
+              >
+                <DocumentViewer documentUrl={documentUrl} fitToContainer />
+              </div>
+            )
           ) : (
             <div
               ref={canvasRef}
-              style={{ width: "100%", height: "100%", overflow: "auto" }}
+              style={{ position: "absolute", inset: 0, overflow: "hidden" }}
             >
-              <AnnotationCanvas
-                imageUrl={documentUrl}
-                width={canvasWidth || imageSize.width}
-                height={canvasHeight || imageSize.height}
-                boxes={boxes}
-                activeTool={CanvasTool.SELECT}
-              />
+              {!documentUrl ? (
+                <Stack
+                  align="center"
+                  justify="center"
+                  style={{ position: "absolute", inset: 0 }}
+                >
+                  <Text size="sm" c="dimmed">
+                    Document preview is unavailable.
+                  </Text>
+                </Stack>
+              ) : (
+                canvasWidth > 0 &&
+                canvasHeight > 0 && (
+                  <AnnotationCanvas
+                    imageUrl={documentUrl}
+                    width={canvasWidth}
+                    height={canvasHeight}
+                    boxes={boxes}
+                    activeTool={CanvasTool.SELECT}
+                    onBoxSelect={(boxId) => setActiveFieldKey(boxId)}
+                  />
+                )
+              )}
             </div>
           )}
+        </Paper>
+
+        <Paper
+          withBorder
+          p="sm"
+          style={{
+            width: 360,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+          }}
+          onClick={(e) => {
+            // Deselect when clicking on panel background
+            if (e.target === e.currentTarget) {
+              setActiveFieldKey(null);
+            }
+          }}
+        >
+          <Text
+            size="sm"
+            fw={600}
+            mb="sm"
+            onClick={() => setActiveFieldKey(null)}
+            style={{ cursor: 'pointer' }}
+          >
+            Fields
+          </Text>
+
+          <ScrollArea
+            type="auto"
+            style={{ flex: 1, minHeight: 0 }}
+            offsetScrollbars="present"
+            viewportProps={{
+              style: { paddingRight: 16 },
+              onClick: (e: React.MouseEvent) => {
+                if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('mantine-ScrollArea-viewport')) {
+                  setActiveFieldKey(null);
+                }
+              }
+            }}
+          >
+            <Stack gap="md">
+              {sortedFields.map((field) => {
+                const correction = correctionMap[field.fieldKey];
+                const isCorrected = correction?.action === CorrectionAction.CORRECTED;
+                const isActive = field.fieldKey === activeFieldKey;
+
+                // Generate deterministic color based on field key
+                const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
+
+                return (
+                  <Paper
+                    key={field.fieldKey}
+                    withBorder
+                    p="sm"
+                    style={{
+                      borderColor: isActive ? '#ff0000' : borderCss,
+                      borderStyle: isActive ? 'dashed' : 'solid',
+                      borderWidth: isActive ? '3px' : (isCorrected ? '2px' : '2px'),
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => setActiveFieldKey(field.fieldKey)}
+                  >
+                    <Stack gap="xs">
+                      <Group justify="space-between">
+                        <Group gap="xs">
+                          <Text fw={600} size="sm">
+                            {field.fieldKey}
+                          </Text>
+                          {isCorrected && (
+                            <Text size="xs" c="yellow" fw={500}>
+                              ✎ Edited
+                            </Text>
+                          )}
+                        </Group>
+                        <ConfidenceIndicator confidence={field.confidence} />
+                      </Group>
+                      <TextInput
+                        value={
+                          correctionMap[field.fieldKey]?.corrected_value ??
+                          field.value
+                        }
+                        onChange={(event) =>
+                          handleFieldChange(field, event.currentTarget.value)
+                        }
+                        disabled={readOnly}
+                      />
+                    </Stack>
+                  </Paper>
+                );
+              })}
+            </Stack>
+          </ScrollArea>
         </Paper>
       </Group>
 

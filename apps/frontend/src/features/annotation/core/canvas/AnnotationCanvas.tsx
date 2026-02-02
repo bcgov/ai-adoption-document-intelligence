@@ -1,10 +1,9 @@
-import { FC, useRef, useEffect } from "react";
+import { FC, useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { Stage, Layer, Image as KonvaImage } from "react-konva";
 import { Box } from "@mantine/core";
 import { BoundingBox, CanvasTool } from "../types";
 import { BoundingBoxLayer } from "./BoundingBoxLayer";
 import { DrawingLayer } from "./DrawingLayer";
-import { useCanvasZoom } from "./hooks/useCanvasZoom";
 import { useCanvasPan } from "./hooks/useCanvasPan";
 import { useCanvasSelection } from "./hooks/useCanvasSelection";
 
@@ -35,9 +34,10 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
 }) => {
   const stageRef = useRef<any>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const [userZoom, setUserZoom] = useState(1); // User's zoom adjustment (1 = fit to container)
 
-  const { zoom, setZoom } = useCanvasZoom();
-  const { pan, startPan, updatePan, endPan } = useCanvasPan();
+  const { pan, setPan } = useCanvasPan();
   const {
     selectedBoxId,
     hoveredBoxId,
@@ -50,49 +50,97 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
     endDrawing,
   } = useCanvasSelection();
 
-  // Load image
+  // Calculate fit scale to make content fit in container
+  const fitScale = useMemo(() => {
+    if (!imageSize || width <= 0 || height <= 0) return 1;
+    const scaleX = width / imageSize.width;
+    const scaleY = height / imageSize.height;
+    return Math.min(scaleX, scaleY) * 0.95; // 95% to leave some padding
+  }, [width, height, imageSize]);
+
+  // Combined scale = fitScale * userZoom
+  const effectiveScale = fitScale * userZoom;
+  const isPanEnabled = useMemo(
+    () => Boolean(imageSize) && effectiveScale > fitScale && activeTool !== CanvasTool.DRAW_BOX,
+    [activeTool, effectiveScale, fitScale, imageSize],
+  );
+
+  const clamp = useCallback((value: number, min: number, max: number) => {
+    return Math.max(min, Math.min(max, value));
+  }, []);
+
+  const clampPan = useCallback(
+    (nextPan: { x: number; y: number }, scale: number) => {
+      if (!imageSize || width <= 0 || height <= 0) return { x: 0, y: 0 };
+
+      const scaledWidth = imageSize.width * scale;
+      const scaledHeight = imageSize.height * scale;
+
+      const minX = Math.min(0, width - scaledWidth);
+      const minY = Math.min(0, height - scaledHeight);
+      const maxX = 0;
+      const maxY = 0;
+
+      const x =
+        scaledWidth < width
+          ? (width - scaledWidth) / 2
+          : clamp(nextPan.x, minX, maxX);
+      const y =
+        scaledHeight < height
+          ? (height - scaledHeight) / 2
+          : clamp(nextPan.y, minY, maxY);
+
+      return { x, y };
+    },
+    [clamp, imageSize, width, height],
+  );
+
+  // Load image and get its natural dimensions
   useEffect(() => {
     if (imageUrl) {
       const img = new window.Image();
       img.src = imageUrl;
       img.onload = () => {
         imageRef.current = img;
+        setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
         stageRef.current?.batchDraw();
       };
     }
   }, [imageUrl]);
 
+  useEffect(() => {
+    if (!imageSize || width <= 0 || height <= 0) return;
+    const nextPan = clampPan(pan, effectiveScale);
+    if (nextPan.x !== pan.x || nextPan.y !== pan.y) {
+      setPan(nextPan);
+    }
+  }, [clampPan, effectiveScale, imageSize, width, height, pan, setPan]);
+
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
-    const stage = stageRef.current;
-    if (!stage) return;
-
-    const oldScale = zoom;
-    const newScale = e.evt.deltaY < 0 ? oldScale * 1.1 : oldScale / 1.1;
-    setZoom(newScale);
+    const scaleBy = 1.1;
+    const newUserZoom = e.evt.deltaY < 0 ? userZoom * scaleBy : userZoom / scaleBy;
+    // Clamp user zoom between 0.5x and 5x of fit scale
+    const clampedZoom = Math.max(0.5, Math.min(5, newUserZoom));
+    setUserZoom(clampedZoom);
   };
 
   const handleMouseDown = (e: any) => {
     const stage = e.target.getStage();
     const pos = stage.getPointerPosition();
-    console.debug("[AnnotationCanvas] Mouse down", {
-      tool: activeTool,
-      pointer: pos,
-    });
 
-    if (activeTool === CanvasTool.PAN) {
-      startPan(pos);
-    } else if (activeTool === CanvasTool.DRAW_BOX) {
-      const relativePos = {
-        x: (pos.x - pan.x) / zoom,
-        y: (pos.y - pan.y) / zoom,
-      };
-      startDrawing(relativePos);
-    } else if (activeTool === CanvasTool.SELECT) {
-      // Click on background deselects
-      if (e.target === stage) {
-        selectBox(null);
-        onBoxSelect?.(null);
+    // Click on empty canvas area deselects
+    if (e.target === e.target.getStage()) {
+      selectBox(null);
+      onBoxSelect?.(null);
+
+      // If we're in DRAW_BOX mode, start drawing
+      if (activeTool === CanvasTool.DRAW_BOX) {
+        const relativePos = {
+          x: (pos.x - pan.x) / effectiveScale,
+          y: (pos.y - pan.y) / effectiveScale,
+        };
+        startDrawing(relativePos);
       }
     }
   };
@@ -100,22 +148,17 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   const handleMouseMove = (e: any) => {
     const stage = e.target.getStage();
     const pos = stage.getPointerPosition();
-    if (activeTool === CanvasTool.PAN) {
-      updatePan(pos);
-    } else if (activeTool === CanvasTool.DRAW_BOX && isDrawing) {
+    if (activeTool === CanvasTool.DRAW_BOX && isDrawing) {
       const relativePos = {
-        x: (pos.x - pan.x) / zoom,
-        y: (pos.y - pan.y) / zoom,
+        x: (pos.x - pan.x) / effectiveScale,
+        y: (pos.y - pan.y) / effectiveScale,
       };
       updateDrawing(relativePos);
     }
   };
 
   const handleMouseUp = () => {
-    console.debug("[AnnotationCanvas] Mouse up", { tool: activeTool });
-    if (activeTool === CanvasTool.PAN) {
-      endPan();
-    } else if (activeTool === CanvasTool.DRAW_BOX && isDrawing) {
+    if (activeTool === CanvasTool.DRAW_BOX && isDrawing) {
       const newBox = endDrawing();
       if (newBox) {
         onBoxCreate?.(newBox);
@@ -124,12 +167,15 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   };
 
   const handleBoxClick = (boxId: string) => {
-    console.debug("[AnnotationCanvas] Box clicked", { boxId, tool: activeTool });
     if (activeTool === CanvasTool.SELECT) {
       selectBox(boxId);
       onBoxSelect?.(boxId);
     }
   };
+
+  const forceDefaultCursor = useCallback((event: any) => {
+    event.target.getStage()?.container().style.setProperty("cursor", "default");
+  }, []);
 
   return (
     <Box
@@ -137,30 +183,38 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
         width: "100%",
         height: "100%",
         overflow: "hidden",
-        cursor:
-          activeTool === CanvasTool.PAN
-            ? "grab"
-            : activeTool === CanvasTool.DRAW_BOX
-              ? "crosshair"
-              : "default",
+        cursor: "default",
       }}
     >
       <Stage
         ref={stageRef}
         width={width}
         height={height}
-        scaleX={zoom}
-        scaleY={zoom}
+        scaleX={effectiveScale}
+        scaleY={effectiveScale}
         x={pan.x}
         y={pan.y}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        onMouseEnter={forceDefaultCursor}
+        onMouseLeave={forceDefaultCursor}
+        draggable={isPanEnabled}
+        dragBoundFunc={(newPos) => clampPan(newPos, effectiveScale)}
+        onDragMove={(event) =>
+          setPan(clampPan(event.target.position(), effectiveScale))
+        }
+        onDragStart={forceDefaultCursor}
+        onDragEnd={(event) => {
+          forceDefaultCursor(event);
+          const nextPan = clampPan(event.target.position(), effectiveScale);
+          setPan(nextPan);
+        }}
       >
         {imageRef.current && (
-          <Layer>
-            <KonvaImage image={imageRef.current} />
+          <Layer listening={false}>
+            <KonvaImage image={imageRef.current} listening={false} />
           </Layer>
         )}
 

@@ -21,8 +21,10 @@ export const PageRenderer: FC<PageRendererProps> = ({
 
   const handleLoadSuccess = (page: any) => {
     setIsLoading(false);
-    const { width: pageWidth, height: pageHeight } = page;
-    onPageLoadSuccess?.(pageNumber, pageWidth, pageHeight);
+    // Report original (unscaled) dimensions
+    const originalWidth = page.originalWidth ?? page.width / scale;
+    const originalHeight = page.originalHeight ?? page.height / scale;
+    onPageLoadSuccess?.(pageNumber, originalWidth, originalHeight);
   };
 
   const handleLoadError = (error: Error) => {

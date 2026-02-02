@@ -49,6 +49,15 @@ export interface AnalyzeResult {
   keyValuePairs: KeyValuePair[];
   sections: Section[];
   figures: Figure[];
+  documents?: AzureDocument[]; // Custom models return documents with fields
+}
+
+export interface AzureDocument {
+  docType: string;
+  fields: Record<string, any>; // Custom model fields - already in correct format
+  boundingRegions?: BoundingRegion[];
+  spans?: Span[];
+  confidence?: number;
 }
 
 export interface Page {
@@ -144,6 +153,7 @@ export interface OCRResult {
   apimRequestId: string;
   fileName: string;
   fileType: string;
+  modelId: string;
   extractedText: string;
   pages: Page[];
   tables: Table[];
@@ -151,6 +161,7 @@ export interface OCRResult {
   keyValuePairs: KeyValuePair[];
   sections: Section[];
   figures: Figure[];
+  documents?: AzureDocument[]; // Custom models return documents with fields
   processedAt: string;
 }
 

@@ -1,9 +1,10 @@
-import { FC, useEffect, useMemo, useState } from "react";
+import { FC, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Group,
   Loader,
   Paper,
+  ScrollArea,
   Stack,
   Text,
   Title,
@@ -12,6 +13,7 @@ import { notifications } from "@mantine/notifications";
 import { IconArrowLeft, IconDeviceFloppy, IconPencil } from "@tabler/icons-react";
 import { useElementSize } from "@mantine/hooks";
 import { useAuth } from "@/auth/AuthContext";
+import { colorForFieldKeyWithAlpha, colorForFieldKeyWithBorder } from "@/shared/utils";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { Document, Page, pdfjs } from "react-pdf";
 import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
@@ -79,26 +81,80 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   );
   const { ref: canvasRef, width: canvasWidth, height: canvasHeight } =
     useElementSize();
-  const { zoom, zoomIn, zoomOut, resetZoom } = useCanvasZoom();
+  const { zoom, zoomIn, zoomOut, resetZoom, zoomToFit } = useCanvasZoom();
   const [currentPage, setCurrentPage] = useState(1);
   const [numPages, setNumPages] = useState(0);
-  const { ref: pdfContainerRef, width: pdfWidth, height: pdfHeight } =
+  const { ref: pdfContainerRef, width: pdfContainerWidth, height: pdfContainerHeight } =
     useElementSize();
+  const [pdfRenderedSize, setPdfRenderedSize] = useState<{ width: number; height: number } | null>(null);
+  const [pdfOriginalSize, setPdfOriginalSize] = useState<{ width: number; height: number } | null>(null);
+  const initialZoomSetRef = useRef(false);
+
+  // Auto-fit zoom when container dimensions and PDF size are available
+  useEffect(() => {
+    if (
+      !initialZoomSetRef.current &&
+      pdfContainerWidth > 0 &&
+      pdfContainerHeight > 0 &&
+      pdfOriginalSize
+    ) {
+      zoomToFit(pdfContainerWidth, pdfContainerHeight, pdfOriginalSize.width, pdfOriginalSize.height);
+      initialZoomSetRef.current = true;
+    }
+  }, [pdfContainerWidth, pdfContainerHeight, pdfOriginalSize, zoomToFit]);
 
   useEffect(() => {
-    const mapped: Record<string, LabelState> = {};
+    // Group labels by field_key since the server returns individual labels for each word
+    const grouped: Record<string, LabelDto[]> = {};
     (labels || []).forEach((label) => {
-      const normalized: LabelState = {
-        field_key: label.field_key ?? (label as any).field_key,
-        label_name: label.label_name ?? (label as any).label_name,
-        value: label.value,
-        page_number: label.page_number ?? (label as any).page_number ?? 1,
-        bounding_box: label.bounding_box ?? (label as any).bounding_box,
-        confidence: label.confidence,
-        is_manual: label.is_manual,
-      };
-      mapped[normalized.field_key] = normalized;
+      const fieldKey = label.field_key ?? (label as any).field_key;
+      if (!grouped[fieldKey]) grouped[fieldKey] = [];
+      grouped[fieldKey].push(label);
     });
+
+    // Combine multiple labels per field into a single LabelState
+    const mapped: Record<string, LabelState> = {};
+    Object.entries(grouped).forEach(([fieldKey, fieldLabels]) => {
+      // Sort labels by their position in the document (using span offset if available)
+      const sorted = fieldLabels.sort((a, b) => {
+        const offsetA = (a.bounding_box as any)?.span?.offset ?? 0;
+        const offsetB = (b.bounding_box as any)?.span?.offset ?? 0;
+        return offsetA - offsetB;
+      });
+
+      // Concatenate values from all labels for this field
+      const combinedValue = sorted
+        .map((label) => label.value)
+        .filter(Boolean)
+        .join(" ");
+
+      // Calculate combined bounding box
+      const allPolygons = sorted
+        .map((label) => label.bounding_box?.polygon)
+        .filter(Boolean) as number[][];
+
+      let combinedBoundingBox;
+      if (allPolygons.length > 0) {
+        const minX = Math.min(...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 0)));
+        const minY = Math.min(...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 1)));
+        const maxX = Math.max(...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 0)));
+        const maxY = Math.max(...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 1)));
+        combinedBoundingBox = {
+          polygon: [minX, minY, maxX, minY, maxX, maxY, minX, maxY],
+        };
+      }
+
+      mapped[fieldKey] = {
+        field_key: fieldKey,
+        label_name: sorted[0].label_name ?? fieldKey,
+        value: combinedValue,
+        page_number: sorted[0].page_number ?? 1,
+        bounding_box: combinedBoundingBox,
+        confidence: undefined, // Don't show confidence for combined labels
+        is_manual: sorted[0].is_manual,
+      };
+    });
+
     setLabelState(mapped);
   }, [labels]);
 
@@ -294,16 +350,25 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       const assignedField = wordAssignments[element.id];
       const isActive = assignedField === activeFieldKey;
       const isCheckbox = element.type === 'selectionMark';
+
+      // Generate deterministic color based on field key
+      let color: string;
+      if (assignedField) {
+        const { borderCss } = colorForFieldKeyWithBorder(assignedField);
+        color = borderCss;
+      } else if (isCheckbox) {
+        color = "#FFA500";
+      } else {
+        color = "#ced4da";
+      }
+
       return {
         id: element.id,
         box: { polygon: points },
         label: assignedField ?? undefined,
-        color: assignedField
-          ? (isActive ? "#228be6" : "#adb5bd")
-          : isCheckbox
-            ? "#FFA500"
-            : "#ced4da",
+        color,
         confidence: undefined,
+        isActive,
       };
     });
   }, [ocrWords, wordAssignments, activeFieldKey]);
@@ -403,7 +468,14 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       elementId,
       activeFieldKey,
     });
-    if (!elementId) return;
+
+    // If clicking on canvas background (null), deselect active field
+    if (!elementId) {
+      console.debug("[Labeling] Canvas background clicked - deselecting");
+      setActiveFieldKey(null);
+      return;
+    }
+
     if (!activeFieldKey) {
       console.warn("[Labeling] No active field selected for assignment");
       notifications.show({
@@ -505,7 +577,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   const isPdf = projectDocument?.labeling_document?.file_type === "pdf";
 
   return (
-    <Stack gap="lg" style={{ height: "100%" }}>
+    <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: "hidden" }}>
       <Group justify="space-between">
         <Group>
           <Button
@@ -524,13 +596,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
         </Group>
         <Group>
           <Button
-            variant="light"
-            leftSection={<IconPencil size={16} />}
-            onClick={() => setActiveFieldKey(null)}
-          >
-            Select field
-          </Button>
-          <Button
             leftSection={<IconDeviceFloppy size={16} />}
             onClick={handleSave}
             loading={isSaving}
@@ -540,36 +605,22 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
         </Group>
       </Group>
 
-      <Group align="stretch" gap="lg" style={{ flex: 1 }}>
-        <Paper withBorder style={{ width: 320, minHeight: 0 }}>
-          <Text size="sm" c="dimmed">Field panel:</Text>
-          <FieldPanel
-            fields={schema}
-            values={labelValues}
-            activeFieldKey={activeFieldKey}
-            onSelectField={(fieldKey) => {
-              console.debug("[Labeling] Field selected", { fieldKey });
-              setActiveFieldKey(fieldKey);
-            }}
-            onValueChange={handleValueChange}
-          />
-        </Paper>
-
-        <Paper withBorder style={{ flex: 1, minHeight: 0 }}>
+      <Group align="stretch" gap="md" style={{ flex: 1, minHeight: 0, overflow: "hidden" }} wrap="nowrap">
+        <Paper withBorder style={{ flex: 1, minHeight: 0, minWidth: 0, position: "relative", overflow: "hidden" }}>
           {!documentUrl ? (
-            <Stack align="center" justify="center" h="100%">
+            <Stack align="center" justify="center" style={{ position: "absolute", inset: 0 }}>
               <Text size="sm" c="dimmed">
                 Document preview is unavailable.
               </Text>
             </Stack>
           ) : ocrWords.length === 0 ? (
-            <Stack align="center" justify="center" h="100%">
+            <Stack align="center" justify="center" style={{ position: "absolute", inset: 0 }}>
               <Text size="sm" c="dimmed">
                 OCR results are not available yet.
               </Text>
             </Stack>
           ) : isPdf ? (
-            <Stack gap="xs" style={{ height: "100%" }}>
+            <Stack gap="xs" style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
               <ViewerToolbar
                 currentPage={currentPage}
                 totalPages={numPages || 1}
@@ -581,9 +632,13 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
               />
               <div
                 ref={pdfContainerRef}
-                style={{ position: "relative", flex: 1, overflow: "auto" }}
-                onClick={() => {
-                  console.debug("[Labeling] PDF container clicked");
+                style={{ position: "relative", flex: 1, minHeight: 0, overflow: "auto" }}
+                onClick={(e) => {
+                  // Deselect active field if clicking on PDF background (not on an overlay box)
+                  if (e.target === e.currentTarget) {
+                    console.debug("[Labeling] PDF background clicked - deselecting");
+                    setActiveFieldKey(null);
+                  }
                 }}
               >
                 <Document
@@ -603,14 +658,24 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                         pageNumber: currentPage,
                         width: page.width,
                         height: page.height,
+                        zoom,
                       });
+                      setPdfRenderedSize({ width: page.width, height: page.height });
+                      // Store original (unscaled) dimensions for zoom calculation
+                      const originalWidth = page.width / zoom;
+                      const originalHeight = page.height / zoom;
+                      setPdfOriginalSize({ width: originalWidth, height: originalHeight });
                     }}
                   />
                 </Document>
                 <div
                   style={{
                     position: "absolute",
-                    inset: 0,
+                    top: 0,
+                    left: 0,
+                    width: pdfRenderedSize?.width ?? "100%",
+                    height: pdfRenderedSize?.height ?? "100%",
+                    pointerEvents: "none",
                   }}
                 >
                   {(wordsByPage[currentPage] || []).map((element) => {
@@ -625,21 +690,43 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                         (p: any) => p.pageNumber === element.pageNumber,
                       );
                     const scaleX =
-                      ocrPage?.width && pdfWidth
-                        ? pdfWidth / ocrPage.width
-                        : 1;
+                      ocrPage?.width && pdfRenderedSize?.width
+                        ? pdfRenderedSize.width / ocrPage.width
+                        : zoom;
                     const scaleY =
-                      ocrPage?.height && pdfHeight
-                        ? pdfHeight / ocrPage.height
-                        : 1;
+                      ocrPage?.height && pdfRenderedSize?.height
+                        ? pdfRenderedSize.height / ocrPage.height
+                        : zoom;
                     const assignedField = wordAssignments[element.id];
                     const isActive = assignedField === activeFieldKey;
-                    const borderColor = assignedField
-                      ? isActive
-                        ? "#228be6"
-                        : "#adb5bd"
-                      : "#ced4da";
                     const isCheckbox = element.type === 'selectionMark';
+
+                    // Generate deterministic colors based on field key
+                    let borderColor: string;
+                    let backgroundColor: string;
+                    let borderStyle: string;
+                    let borderWidth: string;
+
+                    if (assignedField) {
+                      const fillColors = colorForFieldKeyWithAlpha(assignedField, 0.15);
+                      const borderColors = colorForFieldKeyWithBorder(assignedField);
+                      borderColor = borderColors.borderCss;
+                      backgroundColor = fillColors.fillCssAlpha;
+                      borderStyle = isActive ? "dashed" : "solid";
+                      borderWidth = isActive ? "3px" : "2px";
+                      if (isActive) borderColor = "#ff0000";
+                    } else if (isCheckbox) {
+                      borderColor = "#FFA500";
+                      backgroundColor = "rgba(255, 165, 0, 0.1)";
+                      borderStyle = "solid";
+                      borderWidth = "2px";
+                    } else {
+                      borderColor = "#ced4da";
+                      backgroundColor = "rgba(173, 181, 189, 0.08)";
+                      borderStyle = "solid";
+                      borderWidth = "1px";
+                    }
+
                     return (
                       <div
                         key={element.id}
@@ -650,12 +737,8 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                           top: minY * scaleY,
                           width: (maxX - minX) * scaleX,
                           height: (maxY - minY) * scaleY,
-                          border: isCheckbox ? `2px solid ${borderColor}` : `1px solid ${borderColor}`,
-                          backgroundColor: assignedField
-                            ? "rgba(34, 139, 230, 0.15)"
-                            : isCheckbox
-                              ? "rgba(255, 165, 0, 0.1)"
-                              : "rgba(173, 181, 189, 0.08)",
+                          border: `${borderWidth} ${borderStyle} ${borderColor}`,
+                          backgroundColor,
                           pointerEvents: "auto",
                           cursor: "pointer",
                           display: "flex",
@@ -687,20 +770,79 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           ) : (
             <div
               ref={canvasRef}
-              style={{ width: "100%", height: "100%", overflow: "auto" }}
-              onClick={() => {
-                console.debug("[Labeling] Canvas container clicked");
-              }}
+              style={{ position: "absolute", inset: 0, overflow: "hidden" }}
             >
-              <AnnotationCanvas
-                imageUrl={documentUrl}
-                width={canvasWidth || imageSize.width}
-                height={canvasHeight || imageSize.height}
-                boxes={wordBoxes}
-                onBoxSelect={handleWordSelect}
-              />
+              {canvasWidth > 0 && canvasHeight > 0 && (
+                <AnnotationCanvas
+                  imageUrl={documentUrl}
+                  width={canvasWidth}
+                  height={canvasHeight}
+                  boxes={wordBoxes}
+                  onBoxSelect={handleWordSelect}
+                />
+              )}
             </div>
           )}
+        </Paper>
+
+        <Paper
+          withBorder
+          p="md"
+          style={{
+            width: 320,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+          }}
+          onClick={(e) => {
+            // Deselect active field if clicking on field panel background
+            if (e.target === e.currentTarget) {
+              console.debug("[Labeling] Field panel background clicked - deselecting");
+              setActiveFieldKey(null);
+            }
+          }}
+        >
+          <Text
+            size="sm"
+            fw={600}
+            mb="md"
+            onClick={(e) => {
+              // Deselect when clicking on the header text
+              console.debug("[Labeling] Field panel header clicked - deselecting");
+              setActiveFieldKey(null);
+              e.stopPropagation();
+            }}
+          >
+            Fields
+          </Text>
+
+          <ScrollArea
+            type="auto"
+            style={{ flex: 1, minHeight: 0 }}
+            offsetScrollbars="present"
+            viewportProps={{
+              style: { paddingRight: 16 },
+              onClick: (e: React.MouseEvent) => {
+                // Deselect when clicking in the scroll area but not on a field
+                if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('mantine-ScrollArea-viewport')) {
+                  console.debug("[Labeling] Field panel scroll area clicked - deselecting");
+                  setActiveFieldKey(null);
+                }
+              }
+            }}
+          >
+            <FieldPanel
+              fields={schema}
+              values={labelValues}
+              activeFieldKey={activeFieldKey}
+              onSelectField={(fieldKey) => {
+                console.debug("[Labeling] Field selected", { fieldKey });
+                setActiveFieldKey(fieldKey);
+              }}
+              onValueChange={handleValueChange}
+              readOnly={true}
+            />
+          </ScrollArea>
         </Paper>
       </Group>
     </Stack>

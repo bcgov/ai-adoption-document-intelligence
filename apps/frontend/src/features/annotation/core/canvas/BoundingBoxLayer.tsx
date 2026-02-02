@@ -9,6 +9,7 @@ interface BoundingBoxProps {
   color: string;
   isSelected: boolean;
   isHovered: boolean;
+  isActive?: boolean;
   confidence?: number;
   onClick?: (id: string) => void;
   onMouseEnter?: (id: string) => void;
@@ -22,6 +23,7 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
   color,
   isSelected,
   isHovered,
+  isActive,
   confidence,
   onClick,
   onMouseEnter,
@@ -33,33 +35,47 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
   }
   points.push(box.polygon[0].x, box.polygon[0].y);
 
-  const strokeWidth = isSelected ? 2.5 : isHovered ? 2 : 1.2;
-  const opacity = isSelected ? 0.9 : isHovered ? 0.8 : 0.6;
+  // Use red dashed border for active fields, thick colored border for labeled fields
   const hasLabel = Boolean(label);
-  const fillOpacity = hasLabel ? (isSelected ? 0.08 : 0.04) : 0;
-  const fillColor = hasLabel ? color : "transparent";
+  const strokeColor = isActive ? "#ff0000" : color;
+  const strokeWidth = isActive ? 4 : (hasLabel ? 3 : (isSelected ? 2.5 : isHovered ? 2 : 1.2));
+  const dash = isActive ? [10, 5] : undefined;
 
   const firstPoint = box.polygon[0];
 
   return (
     <Group>
+      {/* 1) Invisible hit area for click detection across the whole polygon */}
       <Line
         points={points}
-        stroke={color}
-        strokeWidth={strokeWidth}
-        opacity={opacity}
         closed={true}
-        fill={fillColor}
-        fillOpacity={fillOpacity}
-        perfectDrawEnabled={false}
-        hitStrokeWidth={0}
-        onClick={() => onClick?.(id)}
+        fill="rgba(0,0,0,0)"
+        strokeEnabled={false}
+        listening={true}
+        onClick={(e) => {
+          e.cancelBubble = true; // Prevent stage click handler from firing
+          onClick?.(id);
+        }}
         onMouseEnter={() => onMouseEnter?.(id)}
         onMouseLeave={() => onMouseLeave?.(id)}
-        listening={true}
       />
+
+      {/* 2) Visible border only (doesn't capture events) */}
+      <Line
+        points={points}
+        closed={true}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeScaleEnabled={false}
+        dash={dash}
+        fillEnabled={false}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+
+      {/* 3) Label text */}
       {(label || confidence !== undefined) && (
-        <Group x={firstPoint.x} y={firstPoint.y - 20}>
+        <Group x={firstPoint.x} y={firstPoint.y - 20} listening={false}>
           <KonvaText
             text={label ? `${label}${confidence !== undefined ? ` (${Math.round(confidence * 100)}%)` : ''}` : `${Math.round((confidence || 0) * 100)}%`}
             fontSize={12}
@@ -79,6 +95,7 @@ interface BoundingBoxLayerProps {
     label?: string;
     color?: string;
     confidence?: number;
+    isActive?: boolean;
   }>;
   selectedBoxId: string | null;
   hoveredBoxId: string | null;
@@ -106,6 +123,7 @@ export const BoundingBoxLayer: FC<BoundingBoxLayerProps> = ({
           color={item.color || "#228be6"}
           isSelected={item.id === selectedBoxId}
           isHovered={item.id === hoveredBoxId}
+          isActive={item.isActive}
           confidence={item.confidence}
           onClick={onBoxClick}
           onMouseEnter={onBoxMouseEnter}
