@@ -24,6 +24,7 @@ import DocumentIntelligence, { DocumentIntelligenceClient, DocumentIntelligenceE
 export class AzureService {
   private readonly logger = new Logger(OcrService.name);
   private readonly client: DocumentIntelligenceClient;
+  private readonly endpoint: string;
   private readonly apiKey: string;
 
   constructor(
@@ -31,14 +32,14 @@ export class AzureService {
     private databaseService: DatabaseService,
     private temporalClientService: TemporalClientService,
   ) {
-    const endpoint = this.configService.get<string>(
+    this.endpoint = this.configService.get<string>(
       'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT',
     );
     this.apiKey = this.configService.get<string>(
       'AZURE_DOCUMENT_INTELLIGENCE_API_KEY',
     );
 
-    this.client = DocumentIntelligence(endpoint, { key: this.apiKey }, {
+    this.client = DocumentIntelligence(this.endpoint, { key: this.apiKey }, {
       credentials: {
         apiKeyHeaderName: "api-key",
       }
@@ -47,6 +48,10 @@ export class AzureService {
 
   getClient() {
     return this.client;
+  }
+
+  getEndpoint() {
+    return this.endpoint;
   }
 
   // async checkOperationStatus(operationLocation: string): Promise<ListOperations200Response | ListOperationsDefaultResponse> {
