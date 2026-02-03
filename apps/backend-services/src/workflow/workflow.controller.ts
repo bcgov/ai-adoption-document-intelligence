@@ -39,7 +39,8 @@ export class WorkflowController {
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "List all workflows for the current user" })
   @ApiOkResponse({
-    description: "Returns the list of workflows owned by the authenticated user",
+    description:
+      "Returns the list of workflows owned by the authenticated user",
     type: WorkflowListResponseDto,
   })
   async getWorkflows(

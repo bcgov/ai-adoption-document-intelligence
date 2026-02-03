@@ -265,7 +265,8 @@ export class DocumentController {
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiBody({
     type: ApproveDocumentDto,
-    description: "Approval decision and optional reviewer info, comments, rejection reason, annotations",
+    description:
+      "Approval decision and optional reviewer info, comments, rejection reason, annotations",
   })
   @ApiOkResponse({
     description: "Approval signal sent successfully",
