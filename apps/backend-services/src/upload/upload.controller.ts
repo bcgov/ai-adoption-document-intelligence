@@ -21,7 +21,7 @@ import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
 import { UploadDocumentResponseDto } from "./dto/upload-document-response.dto";
-
+// TODO: Use the storage service for saving files
 @ApiTags("Upload")
 @Controller("api/upload")
 export class UploadController {
