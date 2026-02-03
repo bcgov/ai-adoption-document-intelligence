@@ -9,6 +9,7 @@ import { QueueModule } from "./queue/queue.module";
 import { TemporalModule } from "./temporal/temporal.module";
 import { UploadModule } from "./upload/upload.module";
 import { WorkflowModule } from "./workflow/workflow.module";
+import { AzureModule } from "@/azure/azure.module";
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     TemporalModule,
     OcrModule,
     WorkflowModule,
+    AzureModule
   ],
 })
 export class AppModule {}

@@ -26,6 +26,8 @@
     "db:seed": "prisma db seed"
   },
   "dependencies": {
+    "@azure-rest/ai-document-intelligence": "1.1.0",
+    "@azure/storage-blob": "12.30.0",
     "@nestjs/axios": "4.0.1",
     "@nestjs/common": "^11.1.12",
     "@nestjs/config": "^4.0.2",
