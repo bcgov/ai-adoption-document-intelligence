@@ -89,6 +89,28 @@ describe("ApiKeyController", () => {
         "test@example.com",
       );
     });
+
+    it("should use unknown@example.com when user has no email", async () => {
+      const mockGeneratedKey = {
+        id: "key123",
+        key: "fullkeyvalue",
+        keyPrefix: "fullkeyv",
+        userEmail: "unknown@example.com",
+        createdAt: new Date(),
+        lastUsed: null,
+      };
+      mockApiKeyService.generateApiKey.mockResolvedValue(mockGeneratedKey);
+
+      const result = await controller.generateApiKey({
+        user: { sub: "testuser" },
+      } as any);
+
+      expect(result).toEqual({ apiKey: mockGeneratedKey });
+      expect(apiKeyService.generateApiKey).toHaveBeenCalledWith(
+        "testuser",
+        "unknown@example.com",
+      );
+    });
   });
 
   describe("deleteApiKey", () => {
@@ -119,6 +141,27 @@ describe("ApiKeyController", () => {
       expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith(
         "testuser",
         "test@example.com",
+      );
+    });
+
+    it("should use unknown@example.com when user has no email", async () => {
+      const mockRegeneratedKey = {
+        id: "newkey123",
+        key: "newfullkeyvalue",
+        keyPrefix: "newfullk",
+        userEmail: "unknown@example.com",
+        createdAt: new Date(),
+        lastUsed: null,
+      };
+      mockApiKeyService.regenerateApiKey.mockResolvedValue(mockRegeneratedKey);
+
+      const _result = await controller.regenerateApiKey({
+        user: { sub: "testuser" },
+      } as any);
+
+      expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith(
+        "testuser",
+        "unknown@example.com",
       );
     });
   });

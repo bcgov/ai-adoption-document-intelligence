@@ -9,6 +9,7 @@ import {
   Title,
 } from "@mantine/core";
 import {
+  IconFlask,
   IconList,
   IconLogout,
   IconSettings,
@@ -29,13 +30,25 @@ import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/Labe
 import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
 import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWorkspacePage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { WorkflowEditPage } from "./pages/WorkflowEditPage";
+import { WorkflowListPage } from "./pages/WorkflowListPage";
+import { WorkflowPage } from "./pages/WorkflowPage";
 import type { Document } from "./shared/types";
 
+<<<<<<< HEAD
 type MainView = "upload" | "queue" | "labeling" | "review" | "settings";
+=======
+type MainView = "upload" | "queue" | "workflows" | "settings";
+type WorkflowView = "list" | "create" | "edit";
+>>>>>>> develop
 
 function AppContent(): JSX.Element {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
   const [activeView, setActiveView] = useState<MainView>("upload");
+  const [workflowView, setWorkflowView] = useState<WorkflowView>("list");
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
+    null,
+  );
   const [viewerOpened, setViewerOpened] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(
     null,
@@ -66,6 +79,7 @@ function AppContent(): JSX.Element {
         icon: IconList,
       },
       {
+<<<<<<< HEAD
         value: "labeling" as MainView,
         label: "Training Labels",
         description: "Create datasets",
@@ -76,6 +90,12 @@ function AppContent(): JSX.Element {
         label: "HITL Review",
         description: "Validate OCR results",
         icon: IconClipboardCheck,
+=======
+        value: "workflows" as MainView,
+        label: "Workflows",
+        description: "Manage workflows",
+        icon: IconFlask,
+>>>>>>> develop
       },
       {
         value: "settings" as MainView,
@@ -152,7 +172,13 @@ function AppContent(): JSX.Element {
                 color={activeView === item.value ? "blue" : "gray"}
                 justify="space-between"
                 leftSection={<item.icon size={18} />}
-                onClick={() => setActiveView(item.value)}
+                onClick={() => {
+                  setActiveView(item.value);
+                  if (item.value === "workflows") {
+                    setWorkflowView("list");
+                    setSelectedWorkflowId(null);
+                  }
+                }}
               >
                 <Stack gap={0} align="flex-start">
                   <Text size="sm" fw={600}>
@@ -171,6 +197,7 @@ function AppContent(): JSX.Element {
           <Stack gap="lg" style={{ flex: 1, minHeight: 0 }}>
             {activeView === "settings" ? (
               <SettingsPage />
+<<<<<<< HEAD
             ) : activeView === "labeling" ? (
               selectedProjectId ? (
                 selectedProjectDocumentId ? (
@@ -211,6 +238,32 @@ function AppContent(): JSX.Element {
                   }}
                 />
               )
+=======
+            ) : activeView === "workflows" ? (
+              workflowView === "list" ? (
+                <WorkflowListPage
+                  onEdit={(workflowId) => {
+                    setSelectedWorkflowId(workflowId);
+                    setWorkflowView("edit");
+                  }}
+                  onCreate={() => setWorkflowView("create")}
+                />
+              ) : workflowView === "create" ? (
+                <WorkflowPage />
+              ) : workflowView === "edit" && selectedWorkflowId ? (
+                <WorkflowEditPage
+                  workflowId={selectedWorkflowId}
+                  onBack={() => {
+                    setWorkflowView("list");
+                    setSelectedWorkflowId(null);
+                  }}
+                  onSave={() => {
+                    setWorkflowView("list");
+                    setSelectedWorkflowId(null);
+                  }}
+                />
+              ) : null
+>>>>>>> develop
             ) : (
               <>
                 <Group justify="space-between">

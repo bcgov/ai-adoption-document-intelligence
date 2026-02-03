@@ -19,7 +19,7 @@ describe("AuthService", () => {
           SSO_REALM: "test-realm",
           SSO_CLIENT_ID: "client-id",
           SSO_CLIENT_SECRET: "client-secret",
-          SSO_REDIRECT_URI: "http://localhost:3002/auth/callback",
+          SSO_REDIRECT_URI: "http://localhost:3002/api/auth/callback",
           FRONTEND_URL: "http://localhost:3000",
           AUTH_STATE_SECRET: "state-secret",
         };
@@ -69,7 +69,7 @@ describe("AuthService", () => {
       expect(url).toContain("client_id=client-id");
       expect(url).toContain(
         "redirect_uri=" +
-          encodeURIComponent("http://localhost:3002/auth/callback"),
+          encodeURIComponent("http://localhost:3002/api/auth/callback"),
       );
     });
   });

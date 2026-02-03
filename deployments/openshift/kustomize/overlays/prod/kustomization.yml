@@ -3,16 +3,18 @@ kind: Kustomization
 namespace: fd34fb-prod
 resources:
 - ../../base
+patches:
+- path: backend-services-configmap.yml
+  target:
+    kind: ConfigMap
+    name: backend-services-config
 images:
 - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services
   newTag: main-latest
+- name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal
+  newTag: main-latest
+- name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/frontend
+  newTag: main-latest
 commonLabels:
   env: prod
-patches:
-- target:
-    kind: ImageStream
-  patch: |-
-    - op: replace
-      path: /metadata/namespace
-      value: fd34fb-tools
 

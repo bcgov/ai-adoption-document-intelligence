@@ -29,6 +29,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useModels } from "../../data/hooks/useModels";
+import { useWorkflows } from "../../data/hooks/useWorkflows";
 import { apiService } from "../../data/services/api.service";
 import { MAX_FILE_SIZE, SUPPORTED_FILE_TYPES } from "../../shared/constants";
 import type { Document, UploadDocumentPayload } from "../../shared/types";
@@ -88,8 +89,10 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { data: models, isLoading: modelsLoading } = useModels();
+  const { data: workflows, isLoading: workflowsLoading } = useWorkflows();
 
   useEffect(
     () => () => {
@@ -149,6 +152,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
             lastModified: item.file.lastModified,
           },
           model_id: selectedModel!,
+          ...(selectedWorkflow && { workflow_id: selectedWorkflow }),
         };
 
         const response = await apiService.post<{ document: Document }>(
@@ -252,6 +256,19 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
           onChange={setSelectedModel}
           disabled={modelsLoading}
           searchable
+          required
+        />
+        <Select
+          mt="md"
+          label="Workflow (Optional)"
+          placeholder="Select a workflow"
+          description="Choose a custom workflow configuration for processing"
+          data={workflows?.map((w) => ({ value: w.id, label: w.name })) || []}
+          value={selectedWorkflow}
+          onChange={(value) => setSelectedWorkflow(value || null)}
+          disabled={workflowsLoading}
+          searchable
+          clearable
         />
         <Dropzone
           mt="lg"

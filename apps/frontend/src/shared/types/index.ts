@@ -10,7 +10,17 @@ export type DocumentStatus =
   | "pre_ocr"
   | "ongoing_ocr"
   | "completed_ocr"
-  | "failed";
+  | "needs_validation"
+  | "failed"
+  | "rejected_by_human";
+
+export enum RejectionReason {
+  INPUT_QUALITY = "INPUT_QUALITY", // Scan unreadable, cutoff, skew
+  OCR_FAILURE = "OCR_FAILURE", // Missing fields, hallucinations
+  MODEL_MISMATCH = "MODEL_MISMATCH", // Wrong document type/template
+  CONFIDENCE_TOO_LOW = "CONFIDENCE_TOO_LOW", // Confidence too low to trust
+  SYSTEMIC_ERROR = "SYSTEMIC_ERROR", // Pipeline bug
+}
 
 export interface Document {
   id: string;
@@ -34,6 +44,7 @@ export interface Document {
     content?: string;
   };
   model_id?: string;
+  needsReview?: boolean; // Set by backend when workflow is awaiting review
 }
 
 export interface BoundingRegion {
@@ -90,6 +101,7 @@ export interface UploadDocumentPayload {
   original_filename?: string;
   metadata?: Record<string, unknown>;
   model_id: string;
+  workflow_id?: string;
 }
 
 export interface ApiResponse<T> {

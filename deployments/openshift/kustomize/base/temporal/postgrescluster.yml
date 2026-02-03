@@ -1,0 +1,91 @@
+apiVersion: postgres-operator.crunchydata.com/v1beta1
+kind: PostgresCluster
+metadata:
+  name: temporal-postgres-cluster
+spec:
+  # Crunchy Postgres Operator default pg_hba is SSL-only (hostssl). Temporal must use TLS.
+  # Also ensure the Temporal DB user has permission to create schema objects.
+  databaseInitSQL:
+    name: temporal-postgres-init-sql
+    key: init.sql
+  shutdown: false
+  instances:
+    - replicas: 1
+      resources:
+        requests:
+          cpu: '125m'
+          memory: '256Mi'
+      dataVolumeClaimSpec:
+        accessModes:
+          - 'ReadWriteOnce'
+        resources:
+          requests:
+            storage: 1.5Gi
+      sidecars:
+        replicaCertCopy:
+          resources:
+            requests:
+              cpu: '5m'
+              memory: '10Mi'
+  backups:
+    pgbackrest:
+      global:
+        repo1-retention-full: '30'
+        repo1-retention-full-type: time
+      repos:
+        - name: repo1
+          schedules:
+            full: '0 2 * * *'
+            incremental: '*/60 * * * *'
+          volume:
+            volumeClaimSpec:
+              storageClassName: netapp-file-backup
+              accessModes:
+                - 'ReadWriteOnce'
+              resources:
+                requests:
+                  storage: 10Gi
+      repoHost:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+      sidecars:
+        pgbackrest:
+          resources:
+            requests:
+              cpu: '50m'
+              memory: '150Mi'
+        pgbackrestConfig:
+          resources:
+            requests:
+              cpu: '5m'
+              memory: '10Mi'
+  postgresVersion: 16
+  patroni:
+    dynamicConfiguration:
+      postgresql:
+        # Single line like backend cluster; "host" allows both SSL and non-SSL TCP
+        pg_hba: 'host all all 0.0.0.0/0 md5'
+        parameters:
+          effective_cache_size: 256MB
+          shared_buffers: 64MB
+          wal_buffers: '3MB'
+          min_wal_size: 32MB
+          max_wal_size: 64MB
+          max_slot_wal_keep_size: 128MB
+  primary:
+    expose:
+      service:
+        type: ClusterIP
+        ports:
+          - name: postgresql
+            port: 5432
+            protocol: TCP
+            targetPort: 5432
+  users:
+    - name: temporal
+      options: "CREATEDB"
+      databases:
+        - temporal
+        - temporal_visibility

@@ -1,12 +1,3 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PrismaPg } from "@prisma/adapter-pg";
-import {
-  AnalysisResponse,
-  DocumentField,
-  ExtractedFields,
-  KeyValuePair,
-} from "@/ocr/azure-types";
 import {
   Document,
   OcrResult,
@@ -17,7 +8,16 @@ import {
   DocumentLabel,
   ReviewSession,
   FieldCorrection,
-} from "../generated/client";
+} from "@generated/client";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { PrismaPg } from "@prisma/adapter-pg";
+import {
+  AnalysisResponse,
+  DocumentField,
+  ExtractedFields,
+  KeyValuePair,
+} from "@/ocr/azure-types";
 import {
   DocumentStatus,
   ProjectStatus,
@@ -28,6 +28,7 @@ import {
   CorrectionAction,
 } from "../generated/enums";
 import { JsonValue } from "../generated/internal/prismaNamespace";
+import { getPrismaPgOptions } from "@/utils/database-url";
 
 export type DocumentData = Document;
 export type LabelingProjectData = LabelingProject & {
@@ -65,13 +66,14 @@ export type ReviewSessionData = ReviewSession & {
 export class DatabaseService {
   private readonly logger = new Logger(DatabaseService.name);
   private prisma: PrismaClient;
-  private databaseUrl: string;
 
   constructor(private configService: ConfigService) {
-    this.databaseUrl = this.configService.get("DATABASE_URL");
+    const dbOptions = getPrismaPgOptions(
+      this.configService.get("DATABASE_URL"),
+    );
     this.prisma = new PrismaClient({
-      log: ["info", "warn", "error"],
-      adapter: new PrismaPg({ connectionString: this.databaseUrl }),
+      log: ["query", "info", "warn", "error"],
+      adapter: new PrismaPg(dbOptions),
     });
     this.logger.log("Database service initialized with Prisma");
   }
@@ -94,6 +96,9 @@ export class DatabaseService {
           source: data.source,
           status: data.status as DocumentStatus,
           model_id: data.model_id,
+          workflow_id: data.workflow_id || null,
+          workflow_config_id: data.workflow_config_id || null,
+          workflow_execution_id: data.workflow_execution_id || null,
         },
       });
 
@@ -321,7 +326,8 @@ export class DatabaseService {
 
     try {
       const analysisResult = data.analysisResponse.analyzeResult;
-      const asJson = (obj): JsonValue => obj as unknown as JsonValue;
+      const asJson = (obj): Prisma.JsonValue =>
+        obj as unknown as Prisma.JsonValue;
 
       // Determine extracted fields based on model type
       let extractedFields: ExtractedFields | null = null;

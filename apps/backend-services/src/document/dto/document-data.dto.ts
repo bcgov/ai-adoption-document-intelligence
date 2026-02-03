@@ -1,6 +1,6 @@
+import { DocumentStatus } from "@generated/client";
 import { ApiProperty } from "@nestjs/swagger";
 import { JsonValue } from "@prisma/client/runtime/client";
-import { DocumentStatus } from "@/generated/enums";
 
 export class DocumentDataDto {
   @ApiProperty()

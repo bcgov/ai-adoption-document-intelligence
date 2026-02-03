@@ -5,15 +5,14 @@ metadata:
   labels:
     app: backend-services
 data:
-  FRONTEND_URL: "https://your-frontend-url.example.com"
-  BACKEND_URL: "https://your-backend-url.example.com"
+  # In-cluster service URLs (same namespace)
   DATABASE_API_URL: "http://database-api:3001/api/documents"
-  RABBITMQ_URL: "amqp://rabbitmq:5672"
-  RABBITMQ_EXCHANGE: "document_upload"
-  RABBITMQ_ROUTING_KEY: "document.uploaded"
-  SSO_AUTH_SERVER_URL: "https://dev.loginproxy.gov.bc.ca/auth/realms/standard/protocol/openid-connect"
-  SSO_REALM: "standard"
-  SSO_CLIENT_ID: "ai-adoption-document-intelligence-6162"
-  AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://your-azure-endpoint.cognitiveservices.azure.com"
+  # Azure Document Intelligence: set endpoint per instance; API key in secret
+  AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://your-region.api.cognitive.microsoft.com"
   AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID: "prebuilt-read"
-
+  # Comma-separated list of model IDs for document intelligence (e.g. prebuilt-layout,sdpr-monthly-report-model)
+  AZURE_DOC_INTELLIGENCE_MODELS: "prebuilt-layout,sdpr-monthly-report-model,prebuilt-document"
+  # Temporal in-cluster (same namespace)
+  TEMPORAL_ADDRESS: "temporal:7233"
+  TEMPORAL_NAMESPACE: "default"
+  TEMPORAL_TASK_QUEUE: "ocr-processing"

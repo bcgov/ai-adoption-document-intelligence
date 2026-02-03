@@ -1,12 +1,11 @@
+import { DocumentStatus, Prisma } from "@generated/client";
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { existsSync } from "fs";
 import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import { v4 as uuidv4 } from "uuid";
-import { DocumentStatus } from "@/generated/enums";
 import { DatabaseService, DocumentData } from "../database/database.service";
-import { JsonValue } from "../generated/internal/prismaNamespace";
 
 export interface UploadedDocument {
   id: string;
@@ -75,6 +74,7 @@ export class DocumentService {
     originalFilename: string,
     modelId: string,
     metadata?: Record<string, unknown>,
+    workflowId?: string,
   ): Promise<UploadedDocument> {
     this.logger.debug("=== DocumentService.uploadDocument ===");
     this.logger.debug(
@@ -121,11 +121,13 @@ export class DocumentService {
         file_path: relativePath,
         file_type: fileType,
         file_size: fileSize,
-        metadata: (metadata || {}) as JsonValue,
+        metadata: (metadata || {}) as Prisma.JsonValue,
         source: "api",
         status: DocumentStatus.ongoing_ocr,
         apim_request_id: null,
-        workflow_id: null,
+        workflow_id: workflowId || null, // Legacy field, kept for backward compatibility
+        workflow_config_id: workflowId || null, // New field for workflow configuration ID
+        workflow_execution_id: null, // Will be set when workflow starts
         model_id: modelId,
       };
 

@@ -4,12 +4,12 @@ This folder contains the NestJS pieces that implement the confidential OAuth 2.0
 
 ## Flow Summary
 
-1. `GET /auth/login` creates a signed `state` token + nonce and redirects the browser to Keycloak.
-2. Keycloak redirects back to `GET /auth/callback` with `code` and `state`.
+1. `GET /api/auth/login` creates a signed `state` token + nonce and redirects the browser to Keycloak.
+2. Keycloak redirects back to `GET /api/auth/callback` with `code` and `state`.
 3. `AuthService.handleCallback` verifies `state`, exchanges the code for tokens, validates the ID token, and saves the token bundle in `AuthSessionStore`, returning an opaque `resultId`.
 4. The controller redirects the browser to the SPA with `?auth_result=resultId`.
-5. The SPA immediately calls `GET /auth/result?result=resultId` to retrieve the tokens; the entry is deleted after this call.
-6. Refreshes happen via `POST /auth/refresh`, which proxies the refresh token to Keycloak.
+5. The SPA immediately calls `GET /api/auth/result?result=resultId` to retrieve the tokens; the entry is deleted after this call.
+6. Refreshes happen via `POST /api/auth/refresh`, which proxies the refresh token to Keycloak.
 7. Protected routes rely on `BCGovAuthGuard` and (optionally) `RolesGuard` to validate bearer tokens and enforce RBAC.
 
 ## Key Components
@@ -17,7 +17,7 @@ This folder contains the NestJS pieces that implement the confidential OAuth 2.0
 | File | Responsibility |
 | --- | --- |
 | `auth.service.ts` | Builds Keycloak URLs, exchanges codes, validates ID tokens, and manages one-time auth results. |
-| `auth.controller.ts` | Exposes `/auth/login`, `/auth/callback`, `/auth/result`, `/auth/refresh`, and `/auth/logout`. |
+| `auth.controller.ts` | Exposes `/api/auth/login`, `/api/auth/callback`, `/api/auth/result`, `/api/auth/refresh`, and `/api/auth/logout`. |
 | `auth-session.store.ts` | In-memory, short-lived cache used to hand provider tokens to the SPA exactly once. |
 | `bcgov-auth.guard.ts` | Validates incoming bearer tokens via JWKS, enforces issuer+audience, and projects normalized Keycloak roles onto the request. |
 | `roles.guard.ts` | Enforces role metadata from `@Roles` decorators. |
@@ -37,7 +37,7 @@ This folder contains the NestJS pieces that implement the confidential OAuth 2.0
 
 ## Testing Tips
 
-- Ensure the Keycloak client redirect URI points to `/auth/callback` on the backend.
+- Ensure the Keycloak client redirect URI points to `/api/auth/callback` on the backend (e.g. `https://your-backend-host/api/auth/callback`).
 - Watch backend logs during login; failures will emit `callback_failed` redirects.
 - Because `AuthSessionStore` is in-memory, a backend restart invalidates in-flight `auth_result` ids.
 

@@ -28,15 +28,19 @@ const statusOptions: { value: DocumentStatus | "all"; label: string }[] = [
   { value: "all", label: "All statuses" },
   { value: "pre_ocr", label: "Waiting" },
   { value: "ongoing_ocr", label: "Processing" },
+  { value: "needs_validation", label: "Needs Review" },
   { value: "completed_ocr", label: "Completed" },
   { value: "failed", label: "Failed" },
+  { value: "rejected_by_human", label: "Rejected" },
 ];
 
 const statusStyles: Record<string, { color: string; label: string }> = {
   pre_ocr: { color: "gray", label: "Queued" },
   ongoing_ocr: { color: "yellow", label: "Processing" },
+  needs_validation: { color: "orange", label: "Needs Review" },
   completed_ocr: { color: "green", label: "Complete" },
   failed: { color: "red", label: "Failed" },
+  rejected_by_human: { color: "red", label: "Rejected by Human" },
 };
 
 export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
@@ -74,11 +78,13 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
       total: documents?.length ?? 0,
       completed: 0,
       processing: 0,
+      needsValidation: 0,
       failed: 0,
     };
     documents?.forEach((doc) => {
       if (doc.status === "completed_ocr") base.completed += 1;
       if (doc.status === "ongoing_ocr") base.processing += 1;
+      if (doc.status === "needs_validation") base.needsValidation += 1;
       if (doc.status === "failed") base.failed += 1;
     });
     return base;
@@ -105,7 +111,7 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
           </Tooltip>
         </Group>
 
-        <SimpleGrid cols={{ base: 1, sm: 3 }}>
+        <SimpleGrid cols={{ base: 1, sm: 4 }}>
           <Paper radius="md" p="md" withBorder>
             <Text size="xs" c="dimmed">
               Total
@@ -120,6 +126,14 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
             </Text>
             <Text fw={600} size="lg" c="green">
               {stats.completed}
+            </Text>
+          </Paper>
+          <Paper radius="md" p="md" withBorder>
+            <Text size="xs" c="dimmed">
+              Needs Review
+            </Text>
+            <Text fw={600} size="lg" c="orange">
+              {stats.needsValidation}
             </Text>
           </Paper>
           <Paper radius="md" p="md" withBorder>
@@ -190,11 +204,16 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
                   <Table.Tr
                     key={doc.id}
                     onClick={() =>
-                      doc.status === "completed_ocr" && onSelectDocument?.(doc)
+                      (doc.status === "completed_ocr" ||
+                        doc.status === "needs_validation") &&
+                      onSelectDocument?.(doc)
                     }
                     style={{
                       cursor:
-                        doc.status === "completed_ocr" ? "pointer" : "default",
+                        doc.status === "completed_ocr" ||
+                        doc.status === "needs_validation"
+                          ? "pointer"
+                          : "default",
                     }}
                   >
                     <Table.Td>
@@ -218,10 +237,16 @@ export function ProcessingQueue({ onSelectDocument }: ProcessingQueueProps) {
                         <ActionIcon
                           variant="subtle"
                           color="blue"
-                          disabled={doc.status !== "completed_ocr"}
+                          disabled={
+                            doc.status !== "completed_ocr" &&
+                            doc.status !== "needs_validation"
+                          }
                           onClick={(event) => {
                             event.stopPropagation();
-                            if (doc.status === "completed_ocr") {
+                            if (
+                              doc.status === "completed_ocr" ||
+                              doc.status === "needs_validation"
+                            ) {
                               onSelectDocument?.(doc);
                             }
                           }}

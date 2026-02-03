@@ -5,14 +5,12 @@ resources:
 - ../../base
 images:
 - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services
-  newTag: latest
+  newTag: develop-latest
+- name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal
+  newTag: develop-latest
+- name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/frontend
+  newTag: develop-latest
 commonLabels:
   env: dev
-patches:
-- target:
-    kind: ImageStream
-  patch: |-
-    - op: replace
-      path: /metadata/namespace
-      value: fd34fb-tools
+
 
