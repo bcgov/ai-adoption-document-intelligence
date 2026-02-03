@@ -3,7 +3,21 @@ import { defineConfig } from "vite";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Plugin to ensure PDF.js worker is served with correct MIME type
+    {
+      name: "configure-response-headers",
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url?.endsWith(".mjs")) {
+            res.setHeader("Content-Type", "application/javascript");
+          }
+          next();
+        });
+      },
+    },
+  ],
   // Resolve needed to address plugin-react v5 fast refresh issue.
   resolve: {
     dedupe: ["react", "react-dom"],

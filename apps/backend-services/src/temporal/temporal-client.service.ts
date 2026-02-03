@@ -6,6 +6,8 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Client, Connection } from "@temporalio/client";
+import { WorkflowService } from "../workflow/workflow.service";
+import { VALID_WORKFLOW_STEP_IDS } from "./workflow-constants";
 import { WORKFLOW_TYPES } from "./workflow-types";
 
 @Injectable()
@@ -16,6 +18,16 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   private readonly address: string;
   private readonly namespace: string;
   private readonly taskQueue: string;
+
+  // INDEXED_VALUE_TYPE_KEYWORD = 2 (temporal.api.enums.v1.IndexedValueType)
+  private static readonly KEYWORD = 2;
+
+  private static readonly SEARCH_ATTRIBUTES: readonly { name: string }[] = [
+    { name: "DocumentId" },
+    { name: "FileName" },
+    { name: "FileType" },
+    { name: "Status" },
+  ] as const;
 
   /**
    * Ensures the Temporal client is initialized
@@ -62,7 +74,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
     } else if (
       messageLower.includes("no mapping defined for search attribute")
     ) {
-      enhancedMessage += `. Search attributes must be registered in the Temporal namespace. Register them using: tctl search-attribute create --name <AttributeName> --type <Type>`;
+      enhancedMessage += `. The backend registers required search attributes on startup. If this error persists, check backend startup logs and Temporal connectivity.`;
     }
 
     this.logger.error(enhancedMessage);
@@ -77,13 +89,62 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
     return enhancedError;
   }
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private workflowService: WorkflowService,
+  ) {
     this.address =
       this.configService.get<string>("TEMPORAL_ADDRESS") || "localhost:7233";
     this.namespace =
       this.configService.get<string>("TEMPORAL_NAMESPACE") || "default";
     this.taskQueue =
       this.configService.get<string>("TEMPORAL_TASK_QUEUE") || "ocr-processing";
+  }
+
+  private async ensureDefaultNamespace(): Promise<void> {
+    try {
+      await this.connection!.workflowService.describeNamespace({
+        namespace: "default",
+      });
+      this.logger.debug("Default namespace exists.");
+    } catch (e: unknown) {
+      const msg = String((e as Error).message);
+      if (/NOT_FOUND|not found|does not exist/i.test(msg)) {
+        await this.connection!.workflowService.registerNamespace({
+          namespace: "default",
+          workflowExecutionRetentionPeriod: { seconds: 86400 } as never,
+          description: "Default namespace for Temporal Server.",
+        });
+        this.logger.debug("Default namespace created.");
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  private async ensureSearchAttributes(): Promise<void> {
+    for (const { name } of TemporalClientService.SEARCH_ATTRIBUTES) {
+      try {
+        await this.connection!.operatorService.addSearchAttributes({
+          namespace: this.namespace,
+          searchAttributes: { [name]: TemporalClientService.KEYWORD },
+        });
+        this.logger.debug(`${name} registered.`);
+      } catch (e: unknown) {
+        const code = (e as { code?: number; details?: string })?.code;
+        const details = String(
+          (e as { details?: string })?.details ?? (e as Error).message,
+        );
+        if (
+          code === 6 ||
+          /ALREADY_EXISTS|already exists|already registered/i.test(details)
+        ) {
+          this.logger.debug(`${name} already exists, skipping.`);
+        } else {
+          throw e;
+        }
+      }
+    }
   }
 
   async onModuleInit(): Promise<void> {
@@ -94,6 +155,9 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       this.connection = await Connection.connect({
         address: this.address,
       });
+
+      await this.ensureDefaultNamespace();
+      await this.ensureSearchAttributes();
 
       this.client = new Client({
         connection: this.connection,
@@ -121,7 +185,9 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * Start an OCR workflow execution
    * @param documentId Document ID
    * @param fileData File data for OCR processing
-   * @returns Workflow ID
+   * @param steps Optional workflow steps configuration (overridden by workflowConfigId if provided)
+   * @param workflowConfigId Optional workflow configuration ID from Workflow table
+   * @returns Workflow execution ID
    */
   async startOCRWorkflow(
     documentId: string,
@@ -132,12 +198,128 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       contentType: string;
       modelId?: string;
     },
+    steps?: {
+      [key: string]:
+        | {
+            enabled?: boolean;
+            parameters?: Record<string, unknown>;
+          }
+        | undefined;
+    },
+    workflowConfigId?: string,
   ): Promise<string> {
     this.ensureClientInitialized();
 
-    const workflowId = `ocr-${documentId}`;
+    const workflowExecutionId = `ocr-${documentId}`;
 
     try {
+      // If workflowConfigId is provided, look up the workflow configuration from the database
+      let workflowSteps = steps;
+      let workflowVersion: number | undefined;
+      if (workflowConfigId) {
+        try {
+          this.logger.log(
+            `[Temporal] Looking up workflow configuration: ${workflowConfigId}`,
+          );
+          const workflowConfig =
+            await this.workflowService.getWorkflowById(workflowConfigId);
+          if (workflowConfig) {
+            workflowVersion = workflowConfig.version;
+            // Use the workflow configuration from the database
+            // The config field contains WorkflowStepsConfig (direct step config)
+            // Handle backward compatibility: config might be wrapped in a "steps" key
+            const configData = workflowConfig.config as Record<string, unknown>;
+
+            // Check if config is wrapped in "steps" key (backward compatibility)
+            if (
+              configData &&
+              typeof configData === "object" &&
+              "steps" in configData &&
+              configData.steps
+            ) {
+              this.logger.debug(
+                `[Temporal] Workflow config wrapped in "steps" key (legacy format), extracting...`,
+              );
+              const extractedSteps = configData.steps;
+              if (extractedSteps && typeof extractedSteps === "object") {
+                workflowSteps = extractedSteps as {
+                  [key: string]:
+                    | {
+                        enabled?: boolean;
+                        parameters?: Record<string, unknown>;
+                      }
+                    | undefined;
+                };
+              } else {
+                this.logger.warn(
+                  `[Temporal] Config has "steps" key but value is not an object, using config directly`,
+                );
+                workflowSteps = configData as {
+                  [key: string]:
+                    | {
+                        enabled?: boolean;
+                        parameters?: Record<string, unknown>;
+                      }
+                    | undefined;
+                };
+              }
+            } else {
+              // Config is in the correct format (step IDs as keys)
+              // Filter out any invalid keys (for safety)
+              const filteredConfig: Record<string, unknown> = {};
+              for (const [key, value] of Object.entries(configData)) {
+                if (
+                  VALID_WORKFLOW_STEP_IDS.includes(
+                    key as (typeof VALID_WORKFLOW_STEP_IDS)[number],
+                  )
+                ) {
+                  filteredConfig[key] = value;
+                } else {
+                  this.logger.debug(
+                    `[Temporal] Filtering out invalid key "${key}" from workflow config`,
+                  );
+                }
+              }
+
+              workflowSteps = filteredConfig as {
+                [key: string]:
+                  | {
+                      enabled?: boolean;
+                      parameters?: Record<string, unknown>;
+                    }
+                  | undefined;
+              };
+            }
+
+            this.logger.log(
+              `[Temporal] Successfully loaded workflow configuration: "${workflowConfig.name}" (ID: ${workflowConfig.id})`,
+            );
+            this.logger.debug(
+              `[Temporal] Workflow config: ${JSON.stringify(workflowSteps, null, 2)}`,
+            );
+          } else {
+            this.logger.warn(
+              `[Temporal] Workflow configuration ${workflowConfigId} not found in database, using provided steps or defaults`,
+            );
+          }
+        } catch (error) {
+          this.logger.error(
+            `[Temporal] Failed to load workflow configuration ${workflowConfigId}: ${error.message}`,
+          );
+          this.logger.error(
+            `[Temporal] Error stack: ${error instanceof Error ? error.stack : "N/A"}`,
+          );
+          this.logger.warn(
+            `[Temporal] Continuing with provided steps or defaults`,
+          );
+          // Continue with provided steps or defaults if workflow lookup fails
+        }
+      } else {
+        this.logger.log(
+          `[Temporal] No workflow configuration ID provided, using provided steps or defaults`,
+        );
+      }
+
       const workflowType = WORKFLOW_TYPES.OCR_WORKFLOW;
 
       // Search attributes are registered in the Temporal namespace:
@@ -155,10 +337,11 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
             fileType: fileData.fileType as "pdf" | "image",
             contentType: fileData.contentType,
             modelId: fileData.modelId,
+            steps: workflowSteps, // Use workflow configuration from database if available
           },
         ],
         taskQueue: this.taskQueue,
-        workflowId,
+        workflowId: workflowExecutionId,
         workflowExecutionTimeout: "30 minutes",
         searchAttributes: {
           DocumentId: [documentId],
@@ -170,11 +353,13 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
           documentId,
           fileName: fileData.fileName,
           fileType: fileData.fileType,
+          workflowConfigId: workflowConfigId || undefined,
+          workflowVersion: workflowVersion || undefined,
         },
       });
 
       this.logger.log(
-        `Workflow started: ${handle.workflowId} for document ${documentId}`,
+        `Workflow started: ${handle.workflowId} for document ${documentId}${workflowConfigId ? ` using workflow config ${workflowConfigId}${workflowVersion ? ` (version ${workflowVersion})` : ""}` : ""}`,
       );
       return handle.workflowId;
     } catch (error) {
@@ -307,6 +492,37 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       );
     } catch (error) {
       throw this.handleError(error, `cancel workflow ${workflowId}`);
+    }
+  }
+
+  /**
+   * Send human approval signal to a workflow
+   * @param workflowId Workflow execution ID
+   * @param approval Approval data with approved flag, reviewer, comments, rejection reason, and annotations
+   */
+  async sendHumanApproval(
+    workflowId: string,
+    approval: {
+      approved: boolean;
+      reviewer?: string;
+      comments?: string;
+      rejectionReason?: string;
+      annotations?: string;
+    },
+  ): Promise<void> {
+    this.ensureClientInitialized();
+
+    try {
+      const handle = this.client!.workflow.getHandle(workflowId);
+      await handle.signal("humanApproval", approval);
+      this.logger.log(
+        `Human approval signal sent to workflow ${workflowId}: ${approval.approved ? "approved" : "rejected"}`,
+      );
+    } catch (error) {
+      throw this.handleError(
+        error,
+        `send human approval to workflow ${workflowId}`,
+      );
     }
   }
 }

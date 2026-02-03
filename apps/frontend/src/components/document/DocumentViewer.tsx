@@ -63,7 +63,7 @@ export function DocumentViewer({
     }
   }, [zoom, onZoomChange]);
 
-  // Load PDF and render first page to image
+  // Load PDF and render page to image
   useEffect(() => {
     const loadPdfPage = async () => {
       if (!imageUrl || !isPdf) return;
@@ -166,23 +166,23 @@ export function DocumentViewer({
       !imageRef.current ||
       fieldEntries.length === 0
     ) {
-      // Overlays not rendered - removed console for lint compliance
       return null;
     }
 
     const img = imageRef.current;
     const imgRect = img.getBoundingClientRect();
+    const pageToUse = isPdf ? currentPage : pageNumber;
 
     const fieldsForPage = fieldEntries.filter(([, field]) =>
       field.boundingRegions?.some(
-        (br: BoundingRegion) => br.pageNumber === currentPage,
+        (br: BoundingRegion) => br.pageNumber === pageToUse,
       ),
     );
 
     return fieldsForPage.map(([fieldName, field], index) => {
       // Use the bounding region for this page
       const boundingRegion = field.boundingRegions?.find(
-        (br: BoundingRegion) => br.pageNumber === currentPage,
+        (br: BoundingRegion) => br.pageNumber === pageToUse,
       );
       if (!boundingRegion) {
         return null;
@@ -238,15 +238,10 @@ export function DocumentViewer({
         scaleY = imgRect.height / imageDimensions.height;
       }
 
-      const calculatedLeft = minX * scaleX;
-      const calculatedTop = minY * scaleY;
-      const calculatedWidth = (maxX - minX) * scaleX;
-      const calculatedHeight = (maxY - minY) * scaleY;
-
-      const left = calculatedLeft;
-      const top = calculatedTop;
-      const width = calculatedWidth;
-      const height = calculatedHeight;
+      const left = minX * scaleX;
+      const top = minY * scaleY;
+      const width = (maxX - minX) * scaleX;
+      const height = (maxY - minY) * scaleY;
 
       // Color based on confidence
       const confidenceColor =
@@ -424,7 +419,7 @@ export function DocumentViewer({
           style={{
             position: "relative",
             display: "inline-block",
-            transform: `scale(${zoom})`,
+            transform: isPdf ? "none" : `scale(${zoom})`,
             transformOrigin: "center",
           }}
         >
@@ -473,7 +468,9 @@ export function DocumentViewer({
           <span>Page {currentPage}</span>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             <span>
-              Image: {imageDimensions.width} × {imageDimensions.height}
+              {isPdf
+                ? `PDF: ${pdfPageDimensions.width.toFixed(0)} × ${pdfPageDimensions.height.toFixed(0)}`
+                : `Image: ${imageDimensions.width} × ${imageDimensions.height}`}
             </span>
             <span>Green: ≥90% | Yellow: 70-89% | Red: &lt;70%</span>
           </div>

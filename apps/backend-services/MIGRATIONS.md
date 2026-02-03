@@ -130,7 +130,7 @@ Ensure:
 
 - `deployments/openshift/kustomize/base/backend-services/deployment.yml` - Init container configuration
 - `apps/backend-services/Dockerfile` - Includes Prisma CLI and migrations
-- `apps/backend-services/prisma/schema.prisma` - Database schema
-- `apps/backend-services/prisma/migrations/` - Migration files
+- `apps/shared/prisma/schema.prisma` - Database schema (shared between backend-services and temporal)
+- `apps/shared/prisma/migrations/` - Migration files (shared between backend-services and temporal)
 
 

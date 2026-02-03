@@ -1,6 +1,6 @@
+import { DocumentStatus } from "@generated/client";
 import { BadRequestException } from "@nestjs/common";
 import { DocumentService } from "../document/document.service";
-import { DocumentStatus } from "../generated/enums";
 import { QueueService } from "../queue/queue.service";
 import { FileType, UploadDocumentDto } from "./dto/upload-document.dto";
 import { UploadController } from "./upload.controller";
@@ -56,6 +56,7 @@ describe("UploadController", () => {
         baseDto.original_filename,
         baseDto.model_id,
         baseDto.metadata,
+        undefined, // workflow_config_id or workflow_id
       );
       expect(queueService.processOcrForDocument).toHaveBeenCalledWith(
         expect.objectContaining({

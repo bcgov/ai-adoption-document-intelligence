@@ -9,6 +9,7 @@ import {
   Title,
 } from "@mantine/core";
 import {
+  IconFlask,
   IconList,
   IconLogout,
   IconSettings,
@@ -22,13 +23,21 @@ import { DocumentViewerModal } from "./components/document/DocumentViewerModal";
 import { ProcessingQueue } from "./components/queue/ProcessingQueue";
 import { DocumentUploadPanel } from "./components/upload/DocumentUploadPanel";
 import { SettingsPage } from "./pages/SettingsPage";
+import { WorkflowEditPage } from "./pages/WorkflowEditPage";
+import { WorkflowListPage } from "./pages/WorkflowListPage";
+import { WorkflowPage } from "./pages/WorkflowPage";
 import type { Document } from "./shared/types";
 
-type MainView = "upload" | "queue" | "settings";
+type MainView = "upload" | "queue" | "workflows" | "settings";
+type WorkflowView = "list" | "create" | "edit";
 
 function AppContent(): JSX.Element {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
   const [activeView, setActiveView] = useState<MainView>("upload");
+  const [workflowView, setWorkflowView] = useState<WorkflowView>("list");
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
+    null,
+  );
   const [viewerOpened, setViewerOpened] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(
     null,
@@ -47,6 +56,12 @@ function AppContent(): JSX.Element {
         label: "Processing queue",
         description: "Track statuses",
         icon: IconList,
+      },
+      {
+        value: "workflows" as MainView,
+        label: "Workflows",
+        description: "Manage workflows",
+        icon: IconFlask,
       },
       {
         value: "settings" as MainView,
@@ -123,7 +138,13 @@ function AppContent(): JSX.Element {
                 color={activeView === item.value ? "blue" : "gray"}
                 justify="space-between"
                 leftSection={<item.icon size={18} />}
-                onClick={() => setActiveView(item.value)}
+                onClick={() => {
+                  setActiveView(item.value);
+                  if (item.value === "workflows") {
+                    setWorkflowView("list");
+                    setSelectedWorkflowId(null);
+                  }
+                }}
               >
                 <Stack gap={0} align="flex-start">
                   <Text size="sm" fw={600}>
@@ -142,6 +163,30 @@ function AppContent(): JSX.Element {
           <Stack gap="lg">
             {activeView === "settings" ? (
               <SettingsPage />
+            ) : activeView === "workflows" ? (
+              workflowView === "list" ? (
+                <WorkflowListPage
+                  onEdit={(workflowId) => {
+                    setSelectedWorkflowId(workflowId);
+                    setWorkflowView("edit");
+                  }}
+                  onCreate={() => setWorkflowView("create")}
+                />
+              ) : workflowView === "create" ? (
+                <WorkflowPage />
+              ) : workflowView === "edit" && selectedWorkflowId ? (
+                <WorkflowEditPage
+                  workflowId={selectedWorkflowId}
+                  onBack={() => {
+                    setWorkflowView("list");
+                    setSelectedWorkflowId(null);
+                  }}
+                  onSave={() => {
+                    setWorkflowView("list");
+                    setSelectedWorkflowId(null);
+                  }}
+                />
+              ) : null
             ) : (
               <>
                 <Group justify="space-between">

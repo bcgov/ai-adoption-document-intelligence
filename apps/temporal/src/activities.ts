@@ -8,7 +8,8 @@ require('dotenv').config();
 
 import axios, { AxiosResponse } from 'axios';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './generated/client';
+import { PrismaClient } from '@generated/client';
+import { getPrismaPgOptions } from './utils/database-url';
 import type {
   PreparedFileData,
   SubmissionResult,
@@ -27,8 +28,9 @@ function getPrismaClient(): PrismaClient {
     if (!databaseUrl) {
       throw new Error('DATABASE_URL environment variable is not set');
     }
+    const dbOptions = getPrismaPgOptions(databaseUrl);
     prismaClient = new PrismaClient({
-      adapter: new PrismaPg({ connectionString: databaseUrl }),
+      adapter: new PrismaPg(dbOptions),
       log: ['error', 'warn'],
     });
   }
@@ -561,6 +563,71 @@ export async function updateDocumentStatus(
 }
 
 /**
+ * Activity: Store document rejection data
+ * Stores rejection reason, annotations, and reviewer information
+ */
+export async function storeDocumentRejection(
+  documentId: string,
+  reason: string,
+  reviewer?: string,
+  annotations?: string
+): Promise<void> {
+  const activityName = 'storeDocumentRejection';
+  const startTime = Date.now();
+
+  console.log(JSON.stringify({
+    activity: activityName,
+    event: 'start',
+    documentId,
+    reason,
+    reviewer,
+    hasAnnotations: !!annotations,
+    timestamp: new Date().toISOString()
+  }));
+  
+  try {
+    const prisma = getPrismaClient();
+    // documentRejection: add DocumentRejection model to shared prisma schema and run migration when ready
+    await (prisma as any).documentRejection.upsert({
+      where: { document_id: documentId },
+      update: {
+        reason: reason as any,
+        reviewer: reviewer || null,
+        annotations: annotations || null,
+      },
+      create: {
+        document_id: documentId,
+        reason: reason as any,
+        reviewer: reviewer || null,
+        annotations: annotations || null,
+      },
+    });
+
+    console.log(JSON.stringify({
+      activity: activityName,
+      event: 'complete',
+      documentId,
+      reason,
+      timestamp: new Date().toISOString()
+    }));
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(JSON.stringify({
+      activity: activityName,
+      event: 'error',
+      documentId,
+      reason,
+      error: errorMessage,
+      durationMs: duration,
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    }));
+    throw error;
+  }
+}
+
+/**
  * Activity: Upsert OCR result in database
  * Stores only keyValuePairs in the simplified schema format
  * Converts KeyValuePair[] array to ExtractedFields format (Record<string, DocumentField>)
@@ -635,6 +702,7 @@ export async function upsertOcrResult(
     });
     
     // Update document status to completed_ocr
+    // Note: The workflow status "awaiting_review" is used by the frontend to determine if review is needed
     await prisma.document.update({
       where: { id: documentId },
       data: { status: 'completed_ocr' as any },
@@ -661,5 +729,314 @@ export async function upsertOcrResult(
       timestamp: new Date().toISOString()
     }));
     throw error;
+  }
+}
+
+/**
+ * Activity: Post-OCR processing cleanup
+ * Performs text cleanup including unicode/encoding fixes, dehyphenation, and number/date normalization
+ */
+export async function postOcrCleanup(ocrResult: OCRResult): Promise<OCRResult> {
+  const activityName = 'postOcrCleanup';
+
+  console.log(JSON.stringify({
+    activity: activityName,
+    event: 'start',
+    fileName: ocrResult.fileName,
+    extractedTextLength: ocrResult.extractedText.length,
+    timestamp: new Date().toISOString()
+  }));
+
+  try {
+    // Create a deep copy of the OCR result to avoid mutating the original
+    const cleanedResult: OCRResult = {
+      ...ocrResult,
+      extractedText: ocrResult.extractedText,
+      pages: ocrResult.pages.map(page => ({ ...page })),
+      paragraphs: ocrResult.paragraphs.map(para => ({ ...para })),
+      tables: ocrResult.tables.map(table => ({ ...table })),
+      keyValuePairs: ocrResult.keyValuePairs.map(kvp => ({ ...kvp })),
+      sections: ocrResult.sections.map(section => ({ ...section })),
+      figures: ocrResult.figures.map(figure => ({ ...figure }))
+    };
+
+    // Helper function to clean text
+    const cleanText = (text: string): string => {
+      if (!text) return text;
+
+      let cleaned = text;
+
+      // 1. Unicode/encoding fix
+      // Normalize unicode characters (NFD to NFC)
+      cleaned = cleaned.normalize('NFC');
+      
+      // Fix common encoding issues
+      // Replace common encoding artifacts
+      cleaned = cleaned
+        .replace(/\u00A0/g, ' ') // Non-breaking space to regular space
+        .replace(/\u200B/g, '') // Zero-width space
+        .replace(/\u200C/g, '') // Zero-width non-joiner
+        .replace(/\u200D/g, '') // Zero-width joiner
+        .replace(/\uFEFF/g, '') // Zero-width no-break space (BOM)
+        .replace(/\u2028/g, '\n') // Line separator
+        .replace(/\u2029/g, '\n\n') // Paragraph separator
+        .replace(/[\u2000-\u200A]/g, ' ') // Various space characters
+        .replace(/\u2013/g, '-') // En dash to hyphen
+        .replace(/\u2014/g, '--') // Em dash to double hyphen
+        .replace(/\u2018/g, "'") // Left single quotation mark
+        .replace(/\u2019/g, "'") // Right single quotation mark
+        .replace(/\u201C/g, '"') // Left double quotation mark
+        .replace(/\u201D/g, '"') // Right double quotation mark
+        .replace(/\u2026/g, '...') // Ellipsis
+        .replace(/\u00AD/g, '') // Soft hyphen (invisible hyphen)
+        .replace(/[\u00A0-\u00FF]/g, (char) => {
+          // Keep common Latin-1 characters, but normalize some
+          const map: Record<string, string> = {
+            '\u00E9': 'é',
+            '\u00E8': 'è',
+            '\u00E0': 'à',
+            '\u00E1': 'á',
+            '\u00F1': 'ñ',
+            '\u00FC': 'ü',
+            '\u00F6': 'ö',
+            '\u00E4': 'ä',
+          };
+          return map[char] || char;
+        });
+
+      // 2. Dehyphenation + line join
+      // Remove hyphens at end of lines and join words
+      // Pattern: word-hyphen followed by newline/space and continuation
+      cleaned = cleaned
+        // Remove soft hyphens (already removed above, but keep for safety)
+        .replace(/\u00AD/g, '')
+        // Handle hyphenated words split across lines
+        // Pattern: word- followed by whitespace and lowercase letter
+        .replace(/([a-zA-Z])-\s+([a-z])/g, '$1$2')
+        // Handle hyphenated words split across lines with newlines
+        .replace(/([a-zA-Z])-\n\s*([a-z])/g, '$1$2')
+        // Handle hyphenated words with multiple spaces
+        .replace(/([a-zA-Z])-\s{2,}([a-z])/g, '$1$2')
+        // Clean up multiple consecutive spaces
+        .replace(/\s{2,}/g, ' ')
+        // Clean up spaces around newlines
+        .replace(/\s+\n/g, '\n')
+        .replace(/\n\s+/g, '\n');
+
+      // 3. Number/date cleanup
+      // Normalize number formats
+      cleaned = cleaned
+        // Fix common OCR number errors (O vs 0, I vs 1, l vs 1 in number contexts)
+        // This is conservative - only fix obvious cases
+        .replace(/([^a-zA-Z])O(?=\d)/g, '$10') // O before digit -> 0
+        .replace(/(\d)O(?=[^a-zA-Z0-9])/g, '$10') // O after digit -> 0
+        // Normalize date separators
+        .replace(/(\d{1,2})[.\s]+(\d{1,2})[.\s]+(\d{2,4})/g, (_match, d, m, y) => {
+          // Normalize dates - keep format but normalize separators
+          return `${d}/${m}/${y}`;
+        })
+        // Normalize time separators
+        .replace(/(\d{1,2})[.\s]+(\d{2})[.\s]*([ap]m)?/gi, (_match, h, m, ampm) => {
+          return ampm ? `${h}:${m} ${ampm}` : `${h}:${m}`;
+        })
+        // Fix common decimal point issues (comma to period in number contexts)
+        .replace(/(\d),(\d)/g, (match, before, after) => {
+          // Only replace if it looks like a decimal (not thousands separator)
+          // If after has 1-2 digits, likely decimal; if 3+, likely thousands
+          if (after.length <= 2) {
+            return `${before}.${after}`;
+          }
+          return match;
+        })
+        // Normalize currency formats
+        .replace(/([£$€¥])\s*(\d)/g, '$1$2') // Remove space after currency symbol
+        .replace(/(\d)\s*([£$€¥])/g, '$1$2'); // Remove space before currency symbol
+
+      return cleaned;
+    };
+
+    // Clean extracted text
+    cleanedResult.extractedText = cleanText(cleanedResult.extractedText);
+
+    // Clean text in pages (words and lines)
+    cleanedResult.pages = cleanedResult.pages.map(page => ({
+      ...page,
+      words: page.words.map(word => ({
+        ...word,
+        content: cleanText(word.content)
+      })),
+      lines: page.lines.map(line => ({
+        ...line,
+        content: cleanText(line.content)
+      }))
+    }));
+
+    // Clean text in paragraphs
+    cleanedResult.paragraphs = cleanedResult.paragraphs.map(para => ({
+      ...para,
+      content: cleanText(para.content)
+    }));
+
+    // Clean text in table cells
+    cleanedResult.tables = cleanedResult.tables.map(table => ({
+      ...table,
+      cells: table.cells.map(cell => ({
+        ...cell,
+        content: cleanText(cell.content)
+      }))
+    }));
+
+    // Clean text in key-value pairs
+    cleanedResult.keyValuePairs = cleanedResult.keyValuePairs.map(kvp => ({
+      ...kvp,
+      key: {
+        ...kvp.key,
+        content: cleanText(kvp.key.content)
+      },
+      value: kvp.value ? {
+        ...kvp.value,
+        content: cleanText(kvp.value.content)
+      } : undefined
+    }));
+
+    // Clean text in sections
+    cleanedResult.sections = cleanedResult.sections.map(section => ({
+      ...section,
+      content: cleanText(section.content)
+    }));
+
+    // Clean text in figures
+    cleanedResult.figures = cleanedResult.figures.map(figure => ({
+      ...figure,
+      content: cleanText(figure.content)
+    }));
+
+    console.log(JSON.stringify({
+      activity: activityName,
+      event: 'complete',
+      fileName: cleanedResult.fileName,
+      originalTextLength: ocrResult.extractedText.length,
+      cleanedTextLength: cleanedResult.extractedText.length,
+      timestamp: new Date().toISOString()
+    }));
+
+    return cleanedResult;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(JSON.stringify({
+      activity: activityName,
+      event: 'error',
+      fileName: ocrResult.fileName,
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    }));
+    // Return original result if cleanup fails
+    return ocrResult;
+  }
+}
+
+/**
+ * Activity: Calculate OCR confidence and prepare for human review if needed
+ * Returns average confidence and whether human review is required
+ */
+export async function checkOcrConfidence(
+  documentId: string,
+  ocrResult: OCRResult,
+  confidenceThreshold: number = 0.95
+): Promise<{ averageConfidence: number; requiresReview: boolean }> {
+  const activityName = 'checkOcrConfidence';
+
+  console.log(JSON.stringify({
+    activity: activityName,
+    event: 'start',
+    documentId,
+    fileName: ocrResult.fileName,
+    confidenceThreshold,
+    timestamp: new Date().toISOString()
+  }));
+
+  try {
+    // Calculate average confidence from words
+    let totalConfidence = 0;
+    let wordCount = 0;
+
+    for (const page of ocrResult.pages) {
+      for (const word of page.words) {
+        if (word.confidence !== undefined && word.confidence !== null) {
+          totalConfidence += word.confidence;
+          wordCount++;
+        }
+      }
+    }
+
+    // Also consider key-value pair confidence
+    for (const kvp of ocrResult.keyValuePairs) {
+      if (kvp.confidence !== undefined && kvp.confidence !== null) {
+        totalConfidence += kvp.confidence;
+        wordCount++;
+      }
+    }
+
+    // Calculate average (confidence is typically 0-1, but Azure might return 0-100)
+    const averageConfidence = wordCount > 0 ? totalConfidence / wordCount : 1.0;
+    
+    // Normalize to 0-1 range if it appears to be in 0-100 range
+    const normalizedConfidence = averageConfidence > 1 ? averageConfidence / 100 : averageConfidence;
+    
+    const requiresReview = normalizedConfidence < confidenceThreshold;
+
+    console.log(JSON.stringify({
+      activity: activityName,
+      event: 'complete',
+      documentId,
+      fileName: ocrResult.fileName,
+      averageConfidence: normalizedConfidence,
+      requiresReview,
+      wordCount,
+      timestamp: new Date().toISOString()
+    }));
+
+    // Update document status if review is required
+    // Note: We keep status as 'ongoing_ocr' since the workflow is still in progress
+    // The workflow itself tracks the 'awaiting_review' state separately
+    if (requiresReview) {
+      const prisma = getPrismaClient();
+      await prisma.document.update({
+        where: { id: documentId },
+        data: { 
+          status: 'ongoing_ocr',
+        },
+      });
+
+      console.log(JSON.stringify({
+        activity: activityName,
+        event: 'status_updated',
+        documentId,
+        status: 'ongoing_ocr',
+        requiresReview: true,
+        timestamp: new Date().toISOString()
+      }));
+    }
+
+    return {
+      averageConfidence: normalizedConfidence,
+      requiresReview
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(JSON.stringify({
+      activity: activityName,
+      event: 'error',
+      documentId,
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    }));
+    // Default to requiring review if we can't calculate confidence
+    return {
+      averageConfidence: 0,
+      requiresReview: true
+    };
   }
 }

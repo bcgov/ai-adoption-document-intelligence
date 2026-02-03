@@ -1,0 +1,187 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal
+  labels:
+    app: temporal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal
+  template:
+    metadata:
+      labels:
+        app: temporal
+    spec:
+      volumes:
+        # Holds config_template.yaml + generated docker.yaml so main container sees both (entrypoint needs config_template.yaml).
+        - name: temporal-config
+          emptyDir: {}
+      initContainers:
+        # Populate temporal-config with config_template.yaml and env-filled docker.yaml so entrypoint finds both.
+        - name: config-init
+          image: temporalio/server:1.28.1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: BIND_ON_IP
+              value: "0.0.0.0"
+            - name: SQL_TLS_ENABLED
+              value: "true"
+            - name: SQL_TLS
+              value: "true"
+            - name: SQL_TLS_DISABLE_HOST_VERIFICATION
+              value: "true"
+            - name: DB
+              value: "postgres12"
+            - name: DB_PORT
+              value: "5432"
+            - name: DBNAME
+              value: "temporal"
+            - name: VISIBILITY_DBNAME
+              value: "temporal_visibility"
+            - name: POSTGRES_SEEDS
+              value: "temporal-postgres-cluster-primary"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-postgres-cluster-pguser-temporal
+                  key: user
+            - name: POSTGRES_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-postgres-cluster-pguser-temporal
+                  key: password
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              cp -r /etc/temporal/config/. /etc/temporal/config-out/
+              dockerize -template /etc/temporal/config-out/config_template.yaml:/etc/temporal/config-out/docker.yaml echo done
+          volumeMounts:
+            - name: temporal-config
+              mountPath: /etc/temporal/config-out
+        # Schema must exist before temporalio/server starts. temporal_visibility is required for UI/visibility.
+        - name: schema-setup
+          image: temporalio/admin-tools:1.28.1-tctl-1.18.4-cli-1.4.1
+          imagePullPolicy: IfNotPresent
+          env:
+            # Crunchy Postgres Operator enforces SSL-only pg_hba (hostssl). Temporal tools default to sslmode=disable.
+            # Enable TLS and skip host verification (we don't mount the cluster CA here).
+            - name: SQL_TLS
+              value: "true"
+            - name: SQL_TLS_DISABLE_HOST_VERIFICATION
+              value: "true"
+            - name: POSTGRES_SEEDS
+              value: "temporal-postgres-cluster-primary"
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-postgres-cluster-pguser-temporal
+                  key: user
+            - name: SQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-postgres-cluster-pguser-temporal
+                  key: password
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              # Wait for PostgreSQL using temporal-sql-tool. On connection
+              # errors we retry; on schema-related errors (e.g. already initialized) we proceed.
+              run_setup() { temporal-sql-tool --plugin postgres12 --ep "$POSTGRES_SEEDS" -u "$POSTGRES_USER" -p "$DB_PORT" --db temporal setup-schema -v 0.0 2>&1; }
+              is_connection_error() { echo "$1" | grep -qiE 'connection refused|could not connect|dial |timeout|no such host|actively refused'; }
+              set +e
+              i=1
+              while [ "$i" -le 30 ]; do
+                err=$(run_setup); ret=$?
+                if [ $ret -eq 0 ]; then
+                  echo "PostgreSQL is ready, temporal schema version initialized."
+                  break
+                fi
+                if is_connection_error "$err"; then
+                  if [ "$i" -eq 30 ]; then
+                    echo "PostgreSQL did not become ready in time."
+                    exit 1
+                  fi
+                  echo "Attempt $i/30: waiting for PostgreSQL..."
+                  sleep 2
+                  i=$((i + 1))
+                  continue
+                fi
+                echo "PostgreSQL is reachable (setup-schema: non-connection output). Proceeding."
+                break
+              done
+              set -e
+              echo "Applying temporal DB schema migrations..."
+              temporal-sql-tool --plugin postgres12 --ep "$POSTGRES_SEEDS" -u "$POSTGRES_USER" -p "$DB_PORT" --db temporal update-schema -d /etc/temporal/schema/postgresql/v12/temporal/versioned
+              echo "Setting up temporal_visibility schema..."
+              temporal-sql-tool --plugin postgres12 --ep "$POSTGRES_SEEDS" -u "$POSTGRES_USER" -p "$DB_PORT" --db temporal_visibility setup-schema -v 0.0
+              temporal-sql-tool --plugin postgres12 --ep "$POSTGRES_SEEDS" -u "$POSTGRES_USER" -p "$DB_PORT" --db temporal_visibility update-schema -d /etc/temporal/schema/postgresql/v12/visibility/versioned
+              echo "Schema setup complete."
+      containers:
+        - name: temporal
+          image: temporalio/server:1.28.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 7233
+              name: grpc
+              protocol: TCP
+          # Full config dir from config-init (config_template.yaml + docker.yaml).
+          volumeMounts:
+            - name: temporal-config
+              mountPath: /etc/temporal/config
+          env:
+            # Enable TLS for SQL persistence (Crunchy Postgres pg_hba is hostssl-only).
+            - name: SQL_TLS_ENABLED
+              value: "true"
+            - name: SQL_TLS
+              value: "true"
+            - name: SQL_TLS_DISABLE_HOST_VERIFICATION
+              value: "true"
+            - name: DB
+              value: "postgres12"
+            - name: DB_PORT
+              value: "5432"
+            - name: DBNAME
+              value: "temporal"
+            - name: VISIBILITY_DBNAME
+              value: "temporal_visibility"
+            - name: POSTGRES_SEEDS
+              value: "temporal-postgres-cluster-primary"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-postgres-cluster-pguser-temporal
+                  key: user
+            - name: POSTGRES_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-postgres-cluster-pguser-temporal
+                  key: password
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            tcpSocket:
+              port: 7233
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 7233
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3

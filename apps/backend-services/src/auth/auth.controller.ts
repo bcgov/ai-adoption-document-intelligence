@@ -35,7 +35,7 @@ import { Public } from "./public.decorator";
  * All routes are public because authorization happens via bearer tokens on other controllers.
  */
 @ApiTags("Authorization")
-@Controller("auth")
+@Controller("api/auth")
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
   constructor(private readonly authService: AuthService) {}

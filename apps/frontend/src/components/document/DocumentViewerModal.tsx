@@ -1,15 +1,101 @@
-import { Alert, Button, Loader, Modal } from "@mantine/core";
-import { IconAlertCircle, IconFileDownload } from "@tabler/icons-react";
+import {
+  Alert,
+  Badge,
+  Button,
+  Loader,
+  Modal,
+  Table,
+  Tabs,
+  Text,
+} from "@mantine/core";
+import {
+  IconAlertCircle,
+  IconChecklist,
+  IconFileDownload,
+} from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
-import { Document } from "../../shared/types";
+import { Document, DocumentField, ExtractedFields } from "../../shared/types";
+import { DocumentValidation } from "./DocumentValidation";
 import { DocumentViewer } from "./DocumentViewer";
 
 interface DocumentViewerModalProps {
   document: Document | null;
   opened: boolean;
   onClose: () => void;
+}
+
+function getFieldDisplayValue(field: DocumentField): string {
+  if (field.valueSelectionMark !== undefined) {
+    return field.valueSelectionMark === "selected"
+      ? "☑ Selected"
+      : "☐ Unselected";
+  }
+  if (field.valueNumber !== undefined) {
+    return field.valueNumber.toString();
+  }
+  if (field.valueDate !== undefined) {
+    return field.valueDate;
+  }
+  if (field.valueString !== undefined) {
+    return field.valueString;
+  }
+  return field.content || "—";
+}
+
+function ExtractedFieldsTable({ fields }: { fields: ExtractedFields }) {
+  const entries = Object.entries(fields);
+
+  if (entries.length === 0) {
+    return <Text c="dimmed">No fields extracted.</Text>;
+  }
+
+  return (
+    <Table striped highlightOnHover withTableBorder>
+      <Table.Thead>
+        <Table.Tr>
+          <Table.Th>Field</Table.Th>
+          <Table.Th>Value</Table.Th>
+          <Table.Th>Type</Table.Th>
+          <Table.Th>Confidence</Table.Th>
+        </Table.Tr>
+      </Table.Thead>
+      <Table.Tbody>
+        {entries.map(([name, field]) => (
+          <Table.Tr key={name}>
+            <Table.Td>
+              <Text size="sm" fw={500}>
+                {name}
+              </Text>
+            </Table.Td>
+            <Table.Td>
+              <Text size="sm">{getFieldDisplayValue(field)}</Text>
+            </Table.Td>
+            <Table.Td>
+              <Badge size="xs" variant="light">
+                {field.type}
+              </Badge>
+            </Table.Td>
+            <Table.Td>
+              <Text
+                size="sm"
+                c={
+                  field.confidence >= 0.9
+                    ? "green"
+                    : field.confidence >= 0.7
+                      ? "yellow"
+                      : "red"
+                }
+              >
+                {(field.confidence * 100).toFixed(1)}%
+              </Text>
+            </Table.Td>
+          </Table.Tr>
+        ))}
+      </Table.Tbody>
+    </Table>
+  );
 }
 
 export function DocumentViewerModal({
@@ -20,15 +106,15 @@ export function DocumentViewerModal({
   const documentId = document?.id;
   const { data: ocrResult, error: ocrError } = useDocumentOcr(documentId);
   const { getAccessToken } = useAuth();
+  const [imageUrl, setImageUrl] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>("");
+  const [showOverlays, setShowOverlays] = useState(true);
 
   useEffect(() => {
     // OCR result and error are handled by the component state
     // Removed console statements for lint compliance
   }, [ocrResult, ocrError]);
-  const [imageUrl, setImageUrl] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>("");
-  const [showOverlays, setShowOverlays] = useState(true);
 
   useEffect(() => {
     if (opened && document) {
@@ -168,25 +254,98 @@ export function DocumentViewerModal({
               Download
             </Button>
           </div>
-          <div className="flex-1 min-h-0">
-            {imageUrl ? (
-              <DocumentViewer
-                imageUrl={imageUrl}
-                extractedFields={ocrResult?.ocr_result?.keyValuePairs}
-                pageNumber={1}
-                showOverlays={showOverlays}
-                onToggleOverlays={() => setShowOverlays(!showOverlays)}
-                fileType={document.file_type}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
-                  Document file is not available for preview. The backend may
-                  not expose the raw file stream.
-                </Alert>
-              </div>
+          <Tabs
+            defaultValue={
+              document.status === "needs_validation" || document.needsReview
+                ? "review"
+                : "viewer"
+            }
+            className="flex-1 min-h-0 flex flex-col"
+          >
+            <Tabs.List className="flex-shrink-0 px-4 pt-2">
+              <Tabs.Tab
+                value="viewer"
+                leftSection={<IconFileDownload size={16} />}
+              >
+                Document Viewer
+              </Tabs.Tab>
+              {ocrResult?.ocr_result?.keyValuePairs && (
+                <Tabs.Tab
+                  value="ocr-results"
+                  leftSection={<IconChecklist size={16} />}
+                >
+                  OCR Results
+                </Tabs.Tab>
+              )}
+              {document &&
+                (document.status === "needs_validation" ||
+                  document.needsReview) && (
+                  <Tabs.Tab
+                    value="review"
+                    leftSection={<IconChecklist size={16} />}
+                  >
+                    Review & Approve
+                  </Tabs.Tab>
+                )}
+            </Tabs.List>
+
+            <Tabs.Panel value="viewer" className="flex-1 min-h-0">
+              {imageUrl && document ? (
+                <DocumentViewer
+                  imageUrl={imageUrl}
+                  extractedFields={ocrResult?.ocr_result?.keyValuePairs}
+                  pageNumber={1}
+                  showOverlays={showOverlays}
+                  onToggleOverlays={() => setShowOverlays(!showOverlays)}
+                  fileType={document.file_type}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
+                    Document file is not available for preview. The backend may
+                    not expose the raw file stream.
+                  </Alert>
+                </div>
+              )}
+            </Tabs.Panel>
+
+            {ocrResult?.ocr_result?.keyValuePairs && (
+              <Tabs.Panel
+                value="ocr-results"
+                className="flex-1 min-h-0 overflow-auto p-4"
+              >
+                <ExtractedFieldsTable
+                  fields={ocrResult.ocr_result.keyValuePairs}
+                />
+              </Tabs.Panel>
             )}
-          </div>
+            {document &&
+              (document.status === "needs_validation" ||
+                document.needsReview) && (
+                <Tabs.Panel
+                  value="review"
+                  className="flex-1 min-h-0 overflow-auto p-4"
+                >
+                  {ocrResult?.ocr_result ? (
+                    <DocumentValidation
+                      document={document}
+                      ocrResult={ocrResult.ocr_result}
+                      onValidationComplete={() => {
+                        // Refresh the document list and close modal after a short delay
+                        setTimeout(() => {
+                          handleClose();
+                        }, 1000);
+                      }}
+                    />
+                  ) : (
+                    <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
+                      OCR results are not available yet. Please wait for
+                      processing to complete.
+                    </Alert>
+                  )}
+                </Tabs.Panel>
+              )}
+          </Tabs>
         </div>
       )}
     </Modal>

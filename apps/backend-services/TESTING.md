@@ -15,9 +15,6 @@
    FRONTEND_URL=http://localhost:5173
    DATABASE_API_URL=http://localhost:3001/api/documents
    STORAGE_PATH=./storage/documents
-   RABBITMQ_URL=amqp://localhost:5672
-   RABBITMQ_EXCHANGE=document_upload
-   RABBITMQ_ROUTING_KEY=document.uploaded
    ```
 
 ## Starting the Service
@@ -193,7 +190,6 @@ curl -X POST http://localhost:3002/api/upload \
 
 The service logs all stubbed operations. Check the console output for:
 - `DatabaseService.createDocument (STUBBED)` - Database API call logs
-- `QueueService.publishDocumentUploaded (STUBBED)` - RabbitMQ message logs
 
 These show what would be sent to the real services.
 

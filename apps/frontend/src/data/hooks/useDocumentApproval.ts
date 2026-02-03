@@ -1,11 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
+import type { RejectionReason } from "../../shared/types";
 import { apiService } from "../services/api.service";
 
 interface ApprovalPayload {
   approved: boolean;
   reviewer?: string;
   comments?: string;
+  rejectionReason?: RejectionReason;
+  annotations?: string;
 }
 
 interface ApprovalResponse {

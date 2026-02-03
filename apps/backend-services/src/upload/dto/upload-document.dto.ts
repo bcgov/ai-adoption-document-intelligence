@@ -43,4 +43,12 @@ export class UploadDocumentDto {
   @IsNotEmpty()
   @ApiProperty()
   model_id: string;
+
+  @IsString()
+  @IsOptional()
+  workflow_id?: string; // @deprecated Use workflow_config_id instead
+
+  @IsString()
+  @IsOptional()
+  workflow_config_id?: string; // Reference to Workflow.id (workflow configuration)
 }

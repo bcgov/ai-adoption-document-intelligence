@@ -146,7 +146,7 @@ Before you begin, ensure you have the following installed:
 
 ### Database Schema
 
-See `apps/backend-services/prisma/schema.prisma` for the complete schema definition.
+See `apps/shared/prisma/schema.prisma` for the complete schema definition. The schema is shared between `backend-services` and `temporal` apps.
 
 ### Development Workflow
 

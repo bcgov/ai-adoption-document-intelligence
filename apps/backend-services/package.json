@@ -6,8 +6,8 @@
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
-    "build": "nest build",
-    "build:prod": "NODE_ENV=production nest build",
+    "build": "npm run db:generate && nest build",
+    "build:prod": "NODE_ENV=production npm run db:generate && nest build",
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",
     "start:dev": "CHOKIDAR_USEPOLLING=true CHOKIDAR_INTERVAL=1000 nest start --watch --preserveWatchOutput",
@@ -18,7 +18,7 @@
     "test:watch": "jest --watch",
     "test:int": "./integration-tests/run.sh",
     "test:cov": "jest --coverage",
-    "db:generate": "prisma generate",
+    "db:generate": "node ../shared/scripts/generate-prisma.js",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "db:status": "prisma migrate status",
@@ -101,7 +101,8 @@
       "node_modules/(?!uuid)"
     ],
     "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/$1"
+      "^@/(.*)$": "<rootDir>/$1",
+      "^@generated/(.*)$": "<rootDir>/generated/$1"
     },
     "setupFiles": [
       "./testUtils/testSetup.ts"

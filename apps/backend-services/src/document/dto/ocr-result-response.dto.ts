@@ -1,6 +1,6 @@
+import { DocumentStatus } from "@generated/client";
 import { ApiProperty } from "@nestjs/swagger";
 import { OcrResultDto } from "@/document/dto/ocr-result.dto";
-import { DocumentStatus } from "@/generated/enums";
 
 export class OcrResultResponseDto {
   @ApiProperty()

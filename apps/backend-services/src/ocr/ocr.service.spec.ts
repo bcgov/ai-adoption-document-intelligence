@@ -5,6 +5,7 @@ const readFile = jest.fn().mockResolvedValue({
 });
 jest.mock("fs/promises", () => ({ readFile }));
 
+import { DocumentStatus } from "@generated/client";
 import {
   BadRequestException,
   NotFoundException,
@@ -14,7 +15,6 @@ import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as fs from "fs/promises";
 import { DatabaseService, DocumentData } from "../database/database.service";
-import { DocumentStatus } from "../generated/enums";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { AnalysisResponse, AnalysisResult } from "./azure-types";
 import { OcrService } from "./ocr.service";

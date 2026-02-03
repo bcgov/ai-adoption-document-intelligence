@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-worker
+  labels:
+    app: temporal-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal-worker
+  template:
+    metadata:
+      labels:
+        app: temporal-worker
+    spec:
+      containers:
+        - name: temporal-worker
+          image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal:develop-latest
+          imagePullPolicy: Always
+          command: ["node", "dist/worker.js"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-cluster-pguser-admin
+                  key: uri
+            # Crunchy Postgres on OpenShift requires SSL; uselibpqcompat allows self-signed certs
+            - name: PGSSLMODE
+              value: "require"
+            - name: PGSSLREJECTUNAUTHORIZED
+              value: "false"
+            - name: TEMPORAL_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: TEMPORAL_ADDRESS
+            - name: TEMPORAL_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: TEMPORAL_NAMESPACE
+            - name: TEMPORAL_TASK_QUEUE
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: TEMPORAL_TASK_QUEUE
+            - name: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
+            - name: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-worker-secrets
+                  key: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "kill -0 1"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "kill -0 1"]
+            initialDelaySeconds: 10
+            periodSeconds: 10

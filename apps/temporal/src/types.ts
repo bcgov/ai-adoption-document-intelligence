@@ -2,6 +2,61 @@
  * Type definitions for Temporal OCR workflow
  */
 
+// Workflow Step Configuration Types
+export type WorkflowStepId = 
+  | 'updateStatus'
+  | 'prepareFileData'
+  | 'submitToAzureOCR'
+  | 'updateApimRequestId'
+  | 'waitBeforePoll'
+  | 'pollOCRResults'
+  | 'extractOCRResults'
+  | 'postOcrCleanup'
+  | 'checkOcrConfidence'
+  | 'humanReview'
+  | 'storeResults';
+
+// Centralized array of valid step IDs for validation
+export const VALID_WORKFLOW_STEP_IDS: readonly WorkflowStepId[] = [
+  'updateStatus',
+  'prepareFileData',
+  'submitToAzureOCR',
+  'updateApimRequestId',
+  'waitBeforePoll',
+  'pollOCRResults',
+  'extractOCRResults',
+  'postOcrCleanup',
+  'checkOcrConfidence',
+  'humanReview',
+  'storeResults',
+] as const;
+
+// Step configuration
+export interface StepConfig {
+  enabled?: boolean; // Defaults to true if not specified
+  parameters?: Record<string, unknown>;
+}
+
+// Workflow steps configuration (partial - only specify steps you want to customize)
+export interface WorkflowStepsConfig {
+  [key: string]: StepConfig | undefined;
+}
+
+// Step-specific parameter types
+export interface PollStepParams {
+  maxRetries?: number;
+  waitBeforeFirstPoll?: number; // milliseconds
+  waitBetweenPolls?: number; // milliseconds
+}
+
+export interface ConfidenceStepParams {
+  threshold?: number; // 0-1
+}
+
+export interface HumanReviewParams {
+  timeout?: number; // milliseconds (default: 24 hours)
+}
+
 // Workflow Input
 export interface OCRWorkflowInput {
   documentId: string; // Document ID from database
@@ -10,6 +65,7 @@ export interface OCRWorkflowInput {
   fileType?: 'pdf' | 'image';
   contentType?: string;
   modelId?: string; // Azure Document Intelligence model ID (defaults to "prebuilt-layout")
+  steps?: WorkflowStepsConfig; // Optional step configuration
 }
 
 // Workflow State (internal)
@@ -177,11 +233,13 @@ export interface PollResult {
 // Workflow Query Types
 export interface WorkflowStatus {
   currentStep: string;
-  status: 'preparing' | 'submitting' | 'polling' | 'extracting' | 'storing' | 'completed' | 'failed';
+  status: 'preparing' | 'submitting' | 'polling' | 'extracting' | 'awaiting_review' | 'storing' | 'completed' | 'failed';
   apimRequestId?: string;
   retryCount?: number;
   maxRetries?: number;
   error?: string;
+  averageConfidence?: number;
+  requiresReview?: boolean;
 }
 
 export interface WorkflowProgress {
@@ -192,7 +250,25 @@ export interface WorkflowProgress {
   progressPercentage: number;
 }
 
+// Rejection reason enum
+export enum RejectionReason {
+  INPUT_QUALITY = 'INPUT_QUALITY',          // Scan unreadable, cutoff, skew
+  OCR_FAILURE = 'OCR_FAILURE',              // Missing fields, hallucinations
+  MODEL_MISMATCH = 'MODEL_MISMATCH',         // Wrong document type/template
+  CONFIDENCE_TOO_LOW = 'CONFIDENCE_TOO_LOW', // Confidence too low to trust
+  SYSTEMIC_ERROR = 'SYSTEMIC_ERROR',         // Pipeline bug
+}
+
 // Workflow Signal Types
 export interface CancelSignal {
   mode: 'graceful' | 'immediate';
+}
+
+export interface HumanApprovalSignal {
+  approved: boolean;
+  reviewer?: string;
+  comments?: string;
+  // Rejection fields (required when approved is false)
+  rejectionReason?: RejectionReason;
+  annotations?: string; // Optional annotations (what failed, where, why)
 }
