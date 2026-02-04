@@ -14,23 +14,23 @@ datasource db {
 }
 
 model Document {
-  id                   String   @id @default(cuid())
-  title                String
-  original_filename    String
-  file_path            String
-  file_type            String
-  file_size            Int
-  metadata             Json?
-  source               String
-  status               DocumentStatus @default(pre_ocr)
-  created_at           DateTime @default(now())
-  updated_at           DateTime @updatedAt
-  apim_request_id      String?
-  workflow_id          String?  // @deprecated: Use workflow_config_id and workflow_execution_id instead
-  workflow_config_id   String?  // Reference to Workflow.id (workflow configuration)
-  workflow_execution_id String? @unique // Temporal workflow execution ID
-  model_id             String   @default("prebuilt-layout")
-  ocr_result           OcrResult?
+  id                    String         @id @default(cuid())
+  title                 String
+  original_filename     String
+  file_path             String
+  file_type             String
+  file_size             Int
+  metadata              Json?
+  source                String
+  status                DocumentStatus @default(pre_ocr)
+  created_at            DateTime       @default(now())
+  updated_at            DateTime       @updatedAt
+  apim_request_id       String?
+  workflow_id           String? // @deprecated: Use workflow_config_id and workflow_execution_id instead
+  workflow_config_id    String? // Reference to Workflow.id (workflow configuration)
+  workflow_execution_id String?        @unique // Temporal workflow execution ID
+  model_id              String         @default("prebuilt-layout")
+  ocr_result            OcrResult?
 
   @@map("documents")
 }
@@ -53,13 +53,13 @@ enum DocumentStatus {
 }
 
 model ApiKey {
-  id          String    @id @default(cuid())
-  key_hash    String    @unique
-  key_prefix  String
-  user_id     String    @unique
-  user_email  String
-  created_at  DateTime  @default(now())
-  last_used   DateTime?
+  id         String    @id @default(cuid())
+  key_hash   String    @unique
+  key_prefix String
+  user_id    String    @unique
+  user_email String
+  created_at DateTime  @default(now())
+  last_used  DateTime?
 
   @@map("api_keys")
 }
@@ -69,10 +69,45 @@ model Workflow {
   name        String
   description String?
   user_id     String
-  config      Json     // WorkflowStepsConfig stored as JSON
+  config      Json // WorkflowStepsConfig stored as JSON
   version     Int      @default(1)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
   @@map("workflows")
+}
+
+enum ClassifierSource {
+  AZURE
+}
+
+enum ClassifierStatus {
+  PRETRAINING
+  FAILED
+  TRAINING
+  READY
+}
+
+model ClassifierModel {
+  name         String           @id
+  description  String
+  created_by   String
+  updated_by   String
+  group_id     String           
+  group        Group            @relation(fields: [group_id], references: [id])
+  config       Json
+  created_at   DateTime         @default(now())
+  updated_at   DateTime         @updatedAt
+  last_used_at DateTime?
+  version      Int              @default(1)
+  source       ClassifierSource
+  status       ClassifierStatus @default(PRETRAINING)
+
+  @@index([group_id])
+}
+
+model Group {
+  id               String            @id @default(cuid())
+  name             String            @unique
+  classifierModels ClassifierModel[]
 }
