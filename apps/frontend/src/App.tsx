@@ -35,12 +35,8 @@ import { WorkflowListPage } from "./pages/WorkflowListPage";
 import { WorkflowPage } from "./pages/WorkflowPage";
 import type { Document } from "./shared/types";
 
-<<<<<<< HEAD
-type MainView = "upload" | "queue" | "labeling" | "review" | "settings";
-=======
-type MainView = "upload" | "queue" | "workflows" | "settings";
+type MainView = "upload" | "queue" | "workflows" | "labeling" | "review" | "settings";
 type WorkflowView = "list" | "create" | "edit";
->>>>>>> develop
 
 function AppContent(): JSX.Element {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
@@ -79,7 +75,6 @@ function AppContent(): JSX.Element {
         icon: IconList,
       },
       {
-<<<<<<< HEAD
         value: "labeling" as MainView,
         label: "Training Labels",
         description: "Create datasets",
@@ -89,13 +84,13 @@ function AppContent(): JSX.Element {
         value: "review" as MainView,
         label: "HITL Review",
         description: "Validate OCR results",
-        icon: IconClipboardCheck,
-=======
+        icon: IconClipboardCheck
+      },
+      {
         value: "workflows" as MainView,
         label: "Workflows",
         description: "Manage workflows",
         icon: IconFlask,
->>>>>>> develop
       },
       {
         value: "settings" as MainView,
@@ -197,7 +192,6 @@ function AppContent(): JSX.Element {
           <Stack gap="lg" style={{ flex: 1, minHeight: 0 }}>
             {activeView === "settings" ? (
               <SettingsPage />
-<<<<<<< HEAD
             ) : activeView === "labeling" ? (
               selectedProjectId ? (
                 selectedProjectDocumentId ? (
@@ -238,7 +232,6 @@ function AppContent(): JSX.Element {
                   }}
                 />
               )
-=======
             ) : activeView === "workflows" ? (
               workflowView === "list" ? (
                 <WorkflowListPage
@@ -263,7 +256,6 @@ function AppContent(): JSX.Element {
                   }}
                 />
               ) : null
->>>>>>> develop
             ) : (
               <>
                 <Group justify="space-between">
