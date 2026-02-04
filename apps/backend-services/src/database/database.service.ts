@@ -1,5 +1,7 @@
 import {
   CorrectionAction,
+  ClassifierSource,
+  ClassifierStatus,
   Document,
   DocumentLabel,
   DocumentStatus,
@@ -29,6 +31,15 @@ import {
 type JsonValue = Prisma.JsonValue;
 
 import { getPrismaPgOptions } from "@/utils/database-url";
+
+  interface ClassifierUpsertProperties {
+    version: number,
+    config: any,
+    description: string,
+    status: ClassifierStatus,
+    source: ClassifierSource,
+    last_used_at: string
+  }
 
 export type DocumentData = Document;
 export type LabelingProjectData = LabelingProject & {
@@ -897,5 +908,32 @@ export class DatabaseService {
       correctionsByAction,
       averageConfidence: Math.round(averageConfidence * 10000) / 10000, // Round to 4 decimal places
     };
+  }
+
+
+
+  async upsertClassifierModel(classifierName: string, properties: ClassifierUpsertProperties, userId: string) {
+    // TODO: Replace with real user group lookup logic when available
+    const userGroup = '00000000-0000-0000-0000-000000000000'; // Placeholder group ID
+    await this.prisma.classifierModel.upsert({
+      where: {
+        name: classifierName,
+      },
+      update: {
+        ...properties,
+        updated_by: userId,
+      },
+      create: {
+        name: classifierName,
+        ...properties,
+        created_by: userId,
+        updated_by: userId,
+        group_id: userGroup,
+      },
+    });
+  }
+
+  async getClassifierModel(classifierName: string){
+    return await this.prisma.classifierModel.findUnique({where: {name: classifierName}});
   }
 }
