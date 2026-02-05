@@ -73,7 +73,7 @@ export class DatabaseService {
       this.configService.get("DATABASE_URL"),
     );
     this.prisma = new PrismaClient({
-      log: ["query", "info", "warn", "error"],
+      log: ["error", "warn"],
       adapter: new PrismaPg(dbOptions),
     });
     this.logger.log("Database service initialized with Prisma");
