@@ -2,11 +2,37 @@ import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
-import { TrainingStatus } from "@generated/client";
+import { Prisma, TrainingStatus } from "@generated/client";
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { DatabaseService } from "../database/database.service";
+
+interface AzureErrorResponse {
+  error?: {
+    message?: string;
+  };
+}
+
+interface AzureOperationResponse {
+  status: string;
+  result?: {
+    docTypes?: Record<string, DocumentType>;
+    description?: string;
+  };
+  error?: {
+    message?: string;
+  };
+}
+
+interface DocumentType {
+  fieldSchema?: Record<string, unknown>;
+}
+
+interface AzureModelResponse {
+  docTypes?: Record<string, DocumentType>;
+  description?: string;
+}
 
 @Injectable()
 export class TrainingPollerService {
@@ -162,13 +188,13 @@ export class TrainingPollerService {
           }
 
           const errorMessage =
-            (operationResponse.body as any)?.error?.message ||
+            (operationResponse.body as AzureErrorResponse)?.error?.message ||
             `Error retrieving operation ${operationId} (status ${operationResponse.status})`;
           throw new Error(errorMessage);
         }
 
-        const operation = operationResponse.body as any;
-        const status = operation.status as string;
+        const operation = operationResponse.body as AzureOperationResponse;
+        const status = operation.status;
 
         if (status === "notStarted" || status === "running") {
           this.logger.debug(
@@ -198,19 +224,21 @@ export class TrainingPollerService {
 
           if (isUnexpected(modelResponse)) {
             const errorMessage =
-              (modelResponse.body as any)?.error?.message ||
+              (modelResponse.body as AzureErrorResponse)?.error?.message ||
               `Error retrieving model ${modelId} (status ${modelResponse.status})`;
             throw new Error(errorMessage);
           }
 
-          docTypes = modelResponse.body.docTypes || {};
-          description = modelResponse.body.description;
+          const modelBody = modelResponse.body as AzureModelResponse;
+          docTypes = modelBody.docTypes || {};
+          description = modelBody.description;
         }
 
         let fieldCount = 0;
         for (const docType of Object.values(docTypes)) {
-          if ((docType as any).fieldSchema) {
-            fieldCount = Object.keys((docType as any).fieldSchema).length;
+          const typedDocType = docType as DocumentType;
+          if (typedDocType.fieldSchema) {
+            fieldCount = Object.keys(typedDocType.fieldSchema).length;
             break;
           }
         }
@@ -231,7 +259,7 @@ export class TrainingPollerService {
             training_job_id: jobId,
             model_id: modelId,
             description,
-            doc_types: docTypes as any,
+            doc_types: docTypes as Prisma.JsonValue,
             field_count: fieldCount,
           },
         });

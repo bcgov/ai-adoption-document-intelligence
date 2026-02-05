@@ -3,7 +3,12 @@ import DocumentIntelligence, {
   isUnexpected,
   parseResultIdFromResponse,
 } from "@azure-rest/ai-document-intelligence";
-import { LabelingStatus, TrainingStatus } from "@generated/client";
+import {
+  LabelingStatus,
+  TrainedModel,
+  TrainingJob,
+  TrainingStatus,
+} from "@generated/client";
 import {
   BadRequestException,
   Injectable,
@@ -20,6 +25,25 @@ import { LabelingService } from "../labeling/labeling.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainedModelDto } from "./dto/trained-model.dto";
 import { TrainingJobDto, ValidationResultDto } from "./dto/training-job.dto";
+
+interface LabelsFile {
+  filename: string;
+  content: unknown;
+}
+
+interface AzureErrorResponse {
+  error?: {
+    message?: string;
+  };
+}
+
+interface ErrorWithRequest {
+  request?: {
+    url?: string;
+    method?: string;
+  };
+  message: string;
+}
 
 @Injectable()
 export class TrainingService {
@@ -184,7 +208,7 @@ export class TrainingService {
 
       // Add labels JSON
       const labelsFile = labelsFiles.find(
-        (f: any) => f.filename === `${filename}.labels.json`,
+        (f: LabelsFile) => f.filename === `${filename}.labels.json`,
       );
       if (labelsFile) {
         files.push({
@@ -433,7 +457,7 @@ export class TrainingService {
           )}`,
         );
         const errorMessage =
-          (initialResponse.body as any)?.error?.message ||
+          (initialResponse.body as AzureErrorResponse)?.error?.message ||
           `Azure training request failed with status ${initialResponse.status}`;
         throw new Error(errorMessage);
       }
@@ -444,7 +468,7 @@ export class TrainingService {
       let operationId: string | undefined;
       try {
         operationId = parseResultIdFromResponse(initialResponse);
-      } catch (error) {
+      } catch {
         if (operationLocation) {
           operationId = this.extractOperationIdFromLocation(operationLocation);
         }
@@ -478,8 +502,9 @@ export class TrainingService {
         this.logger.log(`Training operation location: ${operationLocation}`);
       }
     } catch (error) {
-      const requestUrl = (error as any)?.request?.url;
-      const requestMethod = (error as any)?.request?.method;
+      const typedError = error as ErrorWithRequest;
+      const requestUrl = typedError?.request?.url;
+      const requestMethod = typedError?.request?.method;
       if (requestUrl) {
         this.logger.error(
           `Azure training request failed: ${requestMethod || "UNKNOWN"} ${requestUrl}`,
@@ -491,7 +516,7 @@ export class TrainingService {
         where: { id: jobId },
         data: {
           status: TrainingStatus.FAILED,
-          error_message: error.message,
+          error_message: typedError.message,
           completed_at: new Date(),
         },
       });
@@ -577,7 +602,7 @@ export class TrainingService {
   /**
    * Map database model to DTO
    */
-  private mapTrainingJobToDto(job: any): TrainingJobDto {
+  private mapTrainingJobToDto(job: TrainingJob): TrainingJobDto {
     return {
       id: job.id,
       projectId: job.project_id,
@@ -622,7 +647,7 @@ export class TrainingService {
         return;
       }
       const errorMessage =
-        (response.body as any)?.error?.message ||
+        (response.body as AzureErrorResponse)?.error?.message ||
         `Failed to delete model ${modelId} (status ${response.status})`;
       throw new Error(errorMessage);
     }
@@ -633,14 +658,14 @@ export class TrainingService {
   /**
    * Map database model to DTO
    */
-  private mapTrainedModelToDto(model: any): TrainedModelDto {
+  private mapTrainedModelToDto(model: TrainedModel): TrainedModelDto {
     return {
       id: model.id,
       projectId: model.project_id,
       trainingJobId: model.training_job_id,
       modelId: model.model_id,
       description: model.description,
-      docTypes: model.doc_types,
+      docTypes: model.doc_types as Record<string, unknown> | undefined,
       fieldCount: model.field_count,
       createdAt: model.created_at,
     };
