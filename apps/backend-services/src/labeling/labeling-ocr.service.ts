@@ -6,10 +6,11 @@ import { join } from "path";
 import { lastValueFrom } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
 import { DatabaseService } from "../database/database.service";
-import { DocumentStatus } from "../generated/enums";
+import { DocumentStatus, Prisma } from "@generated/client";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import type { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
-import { JsonValue } from "../generated/internal/prismaNamespace";
+
+type JsonValue = Prisma.JsonValue;
 
 @Injectable()
 export class LabelingOcrService {
@@ -105,7 +106,7 @@ export class LabelingOcrService {
 
       await this.db.updateLabelingDocument(labelingDocumentId, {
         status: DocumentStatus.completed_ocr,
-        ocr_result: analysisResponse as JsonValue,
+        ocr_result: analysisResponse as unknown as JsonValue,
       });
     } catch (error) {
       this.logger.error(

@@ -14,7 +14,7 @@ import {
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { AddDocumentDto } from "./dto/add-document.dto";
-import { FieldType, LabelingStatus } from "../generated/enums";
+import { FieldType, LabelingStatus } from "@generated/client";
 import { LabelingUploadDto } from "@/labeling/dto/labeling-upload.dto";
 import { LabelingOcrService } from "@/labeling/labeling-ocr.service";
 

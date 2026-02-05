@@ -17,7 +17,7 @@ import {
   SubmitCorrectionsDto,
   EscalateDto,
 } from "./dto/correction.dto";
-import { QueueFilterDto, ReviewStatusFilter } from "./dto/queue-filter.dto";
+import { QueueFilterDto, ReviewStatusFilter, AnalyticsFilterDto } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import { HitlService } from "./hitl.service";
 
@@ -116,7 +116,7 @@ export class HitlController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get HITL analytics" })
-  async getAnalytics(@Query() filters: QueueFilterDto) {
+  async getAnalytics(@Query() filters: AnalyticsFilterDto) {
     return this.hitlService.getAnalytics(filters);
   }
 }

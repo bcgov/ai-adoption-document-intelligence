@@ -1,9 +1,9 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
-import { ReviewStatus, CorrectionAction, DocumentStatus } from "../generated/enums";
+import { ReviewStatus, CorrectionAction, DocumentStatus } from "@generated/client";
 import { AnalyticsService } from "./analytics.service";
 import { SubmitCorrectionsDto, EscalateDto } from "./dto/correction.dto";
-import { QueueFilterDto, DocumentStatusFilter, ReviewStatusFilter } from "./dto/queue-filter.dto";
+import { QueueFilterDto, DocumentStatusFilter, ReviewStatusFilter, AnalyticsFilterDto } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 
 @Injectable()
@@ -302,7 +302,7 @@ export class HitlService {
     };
   }
 
-  async getAnalytics(filters: QueueFilterDto) {
+  async getAnalytics(filters: AnalyticsFilterDto) {
     this.logger.debug("Getting analytics");
     return this.analyticsService.getAnalytics(filters);
   }

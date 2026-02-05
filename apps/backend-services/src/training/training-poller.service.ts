@@ -6,7 +6,7 @@ import DocumentIntelligence, {
   type DocumentIntelligenceClient,
 } from '@azure-rest/ai-document-intelligence';
 import { DatabaseService } from '../database/database.service';
-import { TrainingStatus } from '../generated/enums';
+import { TrainingStatus } from '@generated/client';
 
 @Injectable()
 export class TrainingPollerService {

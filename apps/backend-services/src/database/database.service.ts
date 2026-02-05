@@ -8,6 +8,14 @@ import {
   DocumentLabel,
   ReviewSession,
   FieldCorrection,
+  DocumentStatus,
+  ProjectStatus,
+  FieldType,
+  TableType,
+  LabelingStatus,
+  ReviewStatus,
+  CorrectionAction,
+  Prisma,
 } from "@generated/client";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -18,16 +26,8 @@ import {
   ExtractedFields,
   KeyValuePair,
 } from "@/ocr/azure-types";
-import {
-  DocumentStatus,
-  ProjectStatus,
-  FieldType,
-  TableType,
-  LabelingStatus,
-  ReviewStatus,
-  CorrectionAction,
-} from "../generated/enums";
-import { JsonValue } from "../generated/internal/prismaNamespace";
+
+type JsonValue = Prisma.JsonValue;
 import { getPrismaPgOptions } from "@/utils/database-url";
 
 export type DocumentData = Document;

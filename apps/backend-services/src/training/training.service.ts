@@ -17,7 +17,7 @@ import { ExportFormat } from '../labeling/dto/export.dto';
 import { StartTrainingDto } from './dto/start-training.dto';
 import { ValidationResultDto, TrainingJobDto } from './dto/training-job.dto';
 import { TrainedModelDto } from './dto/trained-model.dto';
-import { TrainingStatus, LabelingStatus } from '../generated/enums';
+import { TrainingStatus, LabelingStatus } from '@generated/client';
 import * as fs from 'fs';
 import * as path from 'path';
 
