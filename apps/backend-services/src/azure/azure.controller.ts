@@ -3,36 +3,28 @@ import {
   Controller,
   Delete,
   ForbiddenException,
-  Get,
   HttpCode,
   InternalServerErrorException,
   Logger,
   NotFoundException,
   Post,
+  Request,
   UploadedFiles,
   UseInterceptors,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import {
   ApiCreatedResponse,
   ApiNoContentResponse,
-  ApiNotFoundResponse,
-  ApiOkResponse,
-  ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { group } from "console";
-import { Public } from "@/auth/public.decorator";
-import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
 import { ClassifierCreationDto } from "@/azure/dto/classifier.dto";
 import { DatabaseService } from "@/database/database.service";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
-import { ClassifierStatus } from "@/generated";
 import { Operation, StorageService } from "@/storage/storage.service";
 
-// @ApiTags("OCR")
+@ApiTags("Azure")
 @Controller("api/azure")
 export class AzureController {
   private readonly logger = new Logger(AzureController.name);
@@ -41,22 +33,22 @@ export class AzureController {
     private readonly classifierService: ClassifierService,
     private readonly storageService: StorageService,
     private readonly databaseService: DatabaseService,
-  ) {}
+  ) { }
 
   @Post("classifier")
-  @Public()
+  @KeycloakSSOAuth()
   @ApiCreatedResponse()
-  async createClassifier(@Body() body: ClassifierCreationDto) {
-    const { classifierName, description, source, status } = body;
-    // TODO: Get group and user id based on requestor
-    const group_id = "00000000-0000-0000-0000-000000000000";
-    const user_id = "00000000-0000-0000-0000-000000000000";
+  async createClassifier(@Request() req, @Body() body: ClassifierCreationDto) {
+    const { classifierName, description, source, status, groupId } = body;
+    const userId = req.user.sub;
+    if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
+      throw new ForbiddenException("User does not belong to requested group.")
+    }
 
     // Does this classifier already exist?
-
     const classifier = await this.databaseService.getClassifierModel(
       classifierName,
-      group_id,
+      groupId,
     );
     if (classifier != null) {
       throw new ForbiddenException("Classifier with this name already exists.");
@@ -68,25 +60,28 @@ export class AzureController {
         source,
         status,
         config: { labels: [] },
-        group_id,
+        group_id: groupId,
       },
-      user_id,
+      userId,
     );
     return creationResult;
   }
 
   // Save Training documents to storage
   @Post("classifier/documents")
-  @Public()
+  @KeycloakSSOAuth()
   @UseInterceptors(FilesInterceptor("files"))
   async uploadClassifierDocuments(
+    @Request() req,
     @UploadedFiles() files: Array<Express.Multer.File>,
     @Body("classifierName") classifierName: string,
     @Body("label") label: string,
+    @Body("groupId") groupId: string,
   ) {
-    // TODO: Determine what group this user is from.
-    // Should only access classifier for their group.
-    const groupId = "00000000-0000-0000-0000-000000000000";
+    const userId = req.user.sub;
+    if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
+      throw new ForbiddenException("User does not belong to requested group.")
+    }
 
     const existingModelData = await this.databaseService.getClassifierModel(
       classifierName,
@@ -112,15 +107,20 @@ export class AzureController {
 
   // Remove training documents from storage
   @Delete("classifier/documents")
-  @Public()
+  @KeycloakSSOAuth()
   @ApiNoContentResponse({ description: "Documents deleted successfully." })
   @HttpCode(204)
   async deleteClassifierDocuments(
+    @Request() req,
     @Body("classifierName") classifierName: string,
+    @Body("groupId") groupId: string,
     @Body("folders") folders?: string[],
   ): Promise<void> {
-    // TODO: Check that requestor is part of group for this classifier.
-    const groupId = "00000000-0000-0000-0000-000000000000";
+    const userId = req.user.sub;
+    if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
+      throw new ForbiddenException("User does not belong to requested group.")
+    }
+
     const existingModelData = await this.databaseService.getClassifierModel(
       classifierName,
       groupId,
@@ -165,15 +165,17 @@ export class AzureController {
 
   // Request Training
   @Post("classifier/train")
-  @Public()
+  @KeycloakSSOAuth()
+  // @KeycloakSSOAuth()
   async requestClassifierTraining(
+    @Request() req,
     @Body("classifierName") classifierName: string,
+    @Body("groupId") groupId: string,
   ) {
-    // TODO: get user id from token
-    const userId = "00000000-0000-0000-0000-000000000000";
-
-    // TODO: get group id from user info
-    const groupId = "00000000-0000-0000-0000-000000000000";
+    const userId = req.user.sub;
+    if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
+      throw new ForbiddenException("User does not belong to requested group.")
+    }
 
     // TODO: Break this into Temporal components
     // Upload the documents required for training
@@ -187,20 +189,10 @@ export class AzureController {
     const filePaths = uploadResults.map((r) => r.blobPath);
     await this.classifierService.createLayoutJson(filePaths);
 
-    // // Start the training process
+    // Start the training process
     await this.classifierService.requestClassifierTraining(
       classifierName,
       groupId,
-      userId,
-    );
-
-    // // Update status of database entry
-    await this.databaseService.updateClassifierModel(
-      classifierName,
-      groupId,
-      {
-        status: ClassifierStatus.TRAINING,
-      },
       userId,
     );
   }
