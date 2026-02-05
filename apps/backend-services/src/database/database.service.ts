@@ -32,14 +32,24 @@ type JsonValue = Prisma.JsonValue;
 
 import { getPrismaPgOptions } from "@/utils/database-url";
 
-  interface ClassifierUpsertProperties {
-    version: number,
-    config: any,
-    description: string,
-    status: ClassifierStatus,
-    source: ClassifierSource,
-    last_used_at: string
-  }
+export type ClassifierConfig = {
+  labels: {
+    label: string;
+    fromFolder: string;
+    blobFolder: string;
+  }[];
+};
+
+interface ClassifierEditableProperties {
+  version?: number;
+  group_id: string;
+  config: ClassifierConfig;
+  description: string;
+  status: ClassifierStatus;
+  source: ClassifierSource;
+  last_used_at?: string;
+  operation_location?: string;
+}
 
 export type DocumentData = Document;
 export type LabelingProjectData = LabelingProject & {
@@ -910,30 +920,51 @@ export class DatabaseService {
     };
   }
 
-
-
-  async upsertClassifierModel(classifierName: string, properties: ClassifierUpsertProperties, userId: string) {
-    // TODO: Replace with real user group lookup logic when available
-    const userGroup = '00000000-0000-0000-0000-000000000000'; // Placeholder group ID
-    await this.prisma.classifierModel.upsert({
-      where: {
-        name: classifierName,
-      },
-      update: {
-        ...properties,
-        updated_by: userId,
-      },
-      create: {
-        name: classifierName,
+  async createClassifierModel(
+    classifierName: string,
+    properties: ClassifierEditableProperties,
+    userId: string,
+  ) {
+    return await this.prisma.classifierModel.create({
+      data: {
         ...properties,
         created_by: userId,
         updated_by: userId,
-        group_id: userGroup,
+        name: classifierName,
       },
     });
   }
 
-  async getClassifierModel(classifierName: string){
-    return await this.prisma.classifierModel.findUnique({where: {name: classifierName}});
+  async updateClassifierModel(
+    classifierName: string,
+    groupId: string,
+    properties: Partial<ClassifierEditableProperties>,
+    userId: string,
+  ) {
+    return await this.prisma.classifierModel.update({
+      where: {
+        name_group_id: {
+          name: classifierName,
+          group_id: groupId,
+        },
+      },
+      data: {
+        ...properties,
+        created_by: userId,
+        updated_by: userId,
+        name: classifierName,
+      },
+    });
+  }
+
+  async getClassifierModel(classifierName: string, groupId: string) {
+    return await this.prisma.classifierModel.findUnique({
+      where: {
+        name_group_id: {
+          name: classifierName,
+          group_id: groupId,
+        },
+      },
+    });
   }
 }

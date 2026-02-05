@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { ScheduleModule } from "@nestjs/schedule";
+import { AzureModule } from "@/azure/azure.module";
 import { ApiKeyModule } from "./api-key/api-key.module";
 import { AuthModule } from "./auth/auth.module";
 import { BlobStorageModule } from "./blob-storage/blob-storage.module";
@@ -14,7 +15,6 @@ import { TemporalModule } from "./temporal/temporal.module";
 import { TrainingModule } from "./training/training.module";
 import { UploadModule } from "./upload/upload.module";
 import { WorkflowModule } from "./workflow/workflow.module";
-import { AzureModule } from "@/azure/azure.module";
 
 @Module({
   imports: [
@@ -37,7 +37,7 @@ import { AzureModule } from "@/azure/azure.module";
     BlobStorageModule,
     TrainingModule,
     WorkflowModule,
-    AzureModule
+    AzureModule,
   ],
 })
 export class AppModule {}

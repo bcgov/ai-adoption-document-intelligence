@@ -1,3 +1,14 @@
+import DocumentIntelligence, {
+  DocumentIntelligenceClient,
+  DocumentIntelligenceErrorResponseOutput,
+  PagedDocumentIntelligenceOperationDetailsOutput,
+} from "@azure-rest/ai-document-intelligence";
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { DatabaseService } from "@/database/database.service";
+import { OcrService } from "@/ocr/ocr.service";
+import { TemporalClientService } from "@/temporal/temporal-client.service";
+
 // Azure Document Intelligence Operation Status interface
 export interface OperationStatus {
   operationId: string;
@@ -6,19 +17,13 @@ export interface OperationStatus {
   lastUpdatedDateTime: string;
   percentCompleted?: number;
   resourceLocation?: string;
-  result?: any;
+  result?: unknown;
   error?: {
     code: string;
     message: string;
-    innererror?: any;
+    innererror?: unknown;
   };
 }
-import { DatabaseService } from "@/database/database.service";
-import { OcrService } from "@/ocr/ocr.service";
-import { TemporalClientService } from "@/temporal/temporal-client.service";
-import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import DocumentIntelligence, { DocumentIntelligenceClient, DocumentIntelligenceErrorResponseOutput, ListOperations200Response, ListOperationsDefaultResponse, PagedDocumentIntelligenceOperationDetailsOutput } from "@azure-rest/ai-document-intelligence";
 
 @Injectable()
 export class AzureService {
@@ -27,23 +32,23 @@ export class AzureService {
   private readonly endpoint: string;
   private readonly apiKey: string;
 
-  constructor(
-    private configService: ConfigService,
-    private databaseService: DatabaseService,
-    private temporalClientService: TemporalClientService,
-  ) {
+  constructor(private configService: ConfigService) {
     this.endpoint = this.configService.get<string>(
-      'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT',
+      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
     );
     this.apiKey = this.configService.get<string>(
-      'AZURE_DOCUMENT_INTELLIGENCE_API_KEY',
+      "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
     );
 
-    this.client = DocumentIntelligence(this.endpoint, { key: this.apiKey }, {
-      credentials: {
-        apiKeyHeaderName: "api-key",
-      }
-    })
+    this.client = DocumentIntelligence(
+      this.endpoint,
+      { key: this.apiKey },
+      {
+        credentials: {
+          apiKeyHeaderName: "api-key",
+        },
+      },
+    );
   }
 
   getClient() {
@@ -70,27 +75,37 @@ export class AzureService {
   }
 
   /**
- * Polls an Azure operation-location endpoint until it succeeds or fails.
- * @param operationLocation The URL to poll.
- * @param onSuccess Callback invoked with the result when status is 'succeeded'.
- * @param onFailure Callback invoked with the result when status is 'failed'.
- * @param options Optional polling options (intervalMs, logger).
- */
+   * Polls an Azure operation-location endpoint until it succeeds or fails.
+   * @param operationLocation The URL to poll.
+   * @param onSuccess Callback invoked with the result when status is 'succeeded'.
+   * @param onFailure Callback invoked with the result when status is 'failed'.
+   * @param options Optional polling options (intervalMs, logger).
+   */
   async pollOperationUntilResolved(
     operationLocation: string,
-    onSuccess: (result: PagedDocumentIntelligenceOperationDetailsOutput) => Promise<void> | void,
-    onFailure?: (result: DocumentIntelligenceErrorResponseOutput) => Promise<void> | void,
+    onSuccess: (
+      result: PagedDocumentIntelligenceOperationDetailsOutput,
+    ) => Promise<void> | void,
+    onFailure?: (
+      result: DocumentIntelligenceErrorResponseOutput,
+    ) => Promise<void> | void,
     options?: {
       intervalMs?: number;
       maxRetries?: number;
-    }
+    },
   ): Promise<void> {
     const maxRetries = options?.maxRetries ?? 5;
     const interval = options?.intervalMs ?? 5000;
-    const getStatus = ((result: any) => result.status || result.analyzeResult?.status || result.modelInfo?.status);
+    const getStatus = (result) =>
+      result &&
+      (result.status ||
+        (result.analyzeResult && result.analyzeResult.status) ||
+        (result.modelInfo && result.modelInfo.status));
 
     let status = "notStarted";
-    let result: any;// PagedDocumentIntelligenceOperationDetailsOutput | DocumentIntelligenceErrorResponseOutput;
+    let result:
+      | PagedDocumentIntelligenceOperationDetailsOutput
+      | DocumentIntelligenceErrorResponseOutput;
 
     // Fetch initial result before entering the loop
     const pollResp = await this.checkOperationStatus(operationLocation);
@@ -98,7 +113,11 @@ export class AzureService {
     status = getStatus(result);
     this.logger.debug(`Operation status: ${status}`);
     let retryCount = 0;
-    while (retryCount < maxRetries && status !== "succeeded" && status !== "failed") {
+    while (
+      retryCount < maxRetries &&
+      status !== "succeeded" &&
+      status !== "failed"
+    ) {
       retryCount++;
       await new Promise((res) => setTimeout(res, interval));
       const pollResp = await this.checkOperationStatus(operationLocation);
@@ -108,7 +127,9 @@ export class AzureService {
       this.logger.debug(result);
     }
     if (status === "succeeded") {
-      await onSuccess(result as PagedDocumentIntelligenceOperationDetailsOutput);
+      await onSuccess(
+        result as PagedDocumentIntelligenceOperationDetailsOutput,
+      );
     } else if (onFailure) {
       await onFailure(result as DocumentIntelligenceErrorResponseOutput);
     } else {

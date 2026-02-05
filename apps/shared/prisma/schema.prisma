@@ -282,25 +282,30 @@ enum ClassifierStatus {
 }
 
 model ClassifierModel {
-  name         String           @id
-  description  String
-  created_by   String
-  updated_by   String
-  group_id     String           
-  group        Group            @relation(fields: [group_id], references: [id])
-  config       Json
-  created_at   DateTime         @default(now())
-  updated_at   DateTime         @updatedAt
-  last_used_at DateTime?
-  version      Int              @default(1)
-  source       ClassifierSource
-  status       ClassifierStatus @default(PRETRAINING)
+  name               String           
+  description        String
+  created_by         String
+  updated_by         String
+  group_id           String
+  group              Group            @relation(fields: [group_id], references: [id])
+  config             Json
+  created_at         DateTime         @default(now())
+  updated_at         DateTime         @updatedAt
+  last_used_at       DateTime?
+  version            Int              @default(1)
+  source             ClassifierSource
+  status             ClassifierStatus @default(PRETRAINING)
+  operation_location String?
 
+  @@id([name, group_id])
   @@index([group_id])
+  @@map("classifier_model")
 }
 
 model Group {
   id               String            @id @default(cuid())
   name             String            @unique
   classifierModels ClassifierModel[]
+
+  @@map("group")
 }
