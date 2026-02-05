@@ -47,9 +47,7 @@ describe("AnalyticsService", () => {
         averageConfidence: 0.85,
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce(
-        mockAnalyticsData,
-      );
+      mockDbService.getReviewAnalytics.mockResolvedValueOnce(mockAnalyticsData);
 
       const result = await service.getAnalytics(filters);
 
@@ -91,9 +89,7 @@ describe("AnalyticsService", () => {
         averageConfidence: 0.9,
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce(
-        mockAnalyticsData,
-      );
+      mockDbService.getReviewAnalytics.mockResolvedValueOnce(mockAnalyticsData);
 
       const result = await service.getAnalytics({});
 
@@ -109,9 +105,7 @@ describe("AnalyticsService", () => {
         averageConfidence: 0.95,
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce(
-        mockAnalyticsData,
-      );
+      mockDbService.getReviewAnalytics.mockResolvedValueOnce(mockAnalyticsData);
 
       const result = await service.getAnalytics({});
 
@@ -134,9 +128,7 @@ describe("AnalyticsService", () => {
         averageConfidence: 0.88,
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce(
-        mockAnalyticsData,
-      );
+      mockDbService.getReviewAnalytics.mockResolvedValueOnce(mockAnalyticsData);
 
       const result = await service.getAnalytics({});
 
@@ -205,9 +197,7 @@ describe("AnalyticsService", () => {
         averageConfidence: 0.9,
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce(
-        mockAnalyticsData,
-      );
+      mockDbService.getReviewAnalytics.mockResolvedValueOnce(mockAnalyticsData);
 
       const result = await service.getAnalytics({});
 
@@ -224,9 +214,7 @@ describe("AnalyticsService", () => {
         averageConfidence: 0.7654,
       };
 
-      mockDbService.getReviewAnalytics.mockResolvedValueOnce(
-        mockAnalyticsData,
-      );
+      mockDbService.getReviewAnalytics.mockResolvedValueOnce(mockAnalyticsData);
 
       const result = await service.getAnalytics({});
 
