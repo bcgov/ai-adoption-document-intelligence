@@ -5,7 +5,7 @@ CREATE TYPE "ClassifierSource" AS ENUM ('AZURE');
 CREATE TYPE "ClassifierStatus" AS ENUM ('PRETRAINING', 'FAILED', 'TRAINING', 'READY');
 
 -- CreateTable
-CREATE TABLE "ClassifierModel" (
+CREATE TABLE "classifier_model" (
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "created_by" TEXT NOT NULL,
@@ -18,23 +18,24 @@ CREATE TABLE "ClassifierModel" (
     "version" INTEGER NOT NULL DEFAULT 1,
     "source" "ClassifierSource" NOT NULL,
     "status" "ClassifierStatus" NOT NULL DEFAULT 'PRETRAINING',
+    "operation_location" TEXT,
 
-    CONSTRAINT "ClassifierModel_pkey" PRIMARY KEY ("name")
+    CONSTRAINT "classifier_model_pkey" PRIMARY KEY ("name","group_id")
 );
 
 -- CreateTable
-CREATE TABLE "Group" (
+CREATE TABLE "group" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
 
-    CONSTRAINT "Group_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "group_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
-CREATE INDEX "ClassifierModel_group_id_idx" ON "ClassifierModel"("group_id");
+CREATE INDEX "classifier_model_group_id_idx" ON "classifier_model"("group_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Group_name_key" ON "Group"("name");
+CREATE UNIQUE INDEX "group_name_key" ON "group"("name");
 
 -- AddForeignKey
-ALTER TABLE "ClassifierModel" ADD CONSTRAINT "ClassifierModel_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "Group"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "classifier_model" ADD CONSTRAINT "classifier_model_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "group"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
