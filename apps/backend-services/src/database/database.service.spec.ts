@@ -691,9 +691,9 @@ describe("DatabaseService", () => {
       mockPrisma.labelingProject.delete.mockImplementationOnce(() => {
         throw new Error("Database error");
       });
-      await expect(
-        service.deleteLabelingProject("project-1"),
-      ).rejects.toThrow("Database error");
+      await expect(service.deleteLabelingProject("project-1")).rejects.toThrow(
+        "Database error",
+      );
     });
   });
 
@@ -830,9 +830,9 @@ describe("DatabaseService", () => {
       mockPrisma.fieldDefinition.delete.mockImplementationOnce(() => {
         throw new Error("Database error");
       });
-      await expect(
-        service.deleteFieldDefinition("field-1"),
-      ).rejects.toThrow("Database error");
+      await expect(service.deleteFieldDefinition("field-1")).rejects.toThrow(
+        "Database error",
+      );
     });
   });
 
@@ -1261,8 +1261,16 @@ describe("DatabaseService", () => {
         { ...defaultReviewSession, status: ReviewStatus.in_progress },
       ];
       const corrections = [
-        { ...defaultFieldCorrection, action: CorrectionAction.corrected },
-        { ...defaultFieldCorrection, action: CorrectionAction.confirmed },
+        {
+          ...defaultFieldCorrection,
+          action: CorrectionAction.corrected,
+          original_conf: 0.85,
+        },
+        {
+          ...defaultFieldCorrection,
+          action: CorrectionAction.confirmed,
+          original_conf: 0.95,
+        },
       ];
       mockPrisma.reviewSession.findMany.mockResolvedValueOnce(sessions);
       mockPrisma.fieldCorrection.findMany.mockResolvedValueOnce(corrections);
@@ -1276,7 +1284,46 @@ describe("DatabaseService", () => {
           [CorrectionAction.corrected]: 1,
           [CorrectionAction.confirmed]: 1,
         },
+        averageConfidence: 0.9,
       });
+    });
+
+    it("should calculate average confidence correctly", async () => {
+      const corrections = [
+        { ...defaultFieldCorrection, original_conf: 0.8 },
+        { ...defaultFieldCorrection, original_conf: 0.9 },
+        { ...defaultFieldCorrection, original_conf: 0.7 },
+      ];
+      mockPrisma.reviewSession.findMany.mockResolvedValueOnce([]);
+      mockPrisma.fieldCorrection.findMany.mockResolvedValueOnce(corrections);
+
+      const result = await service.getReviewAnalytics({});
+      expect(result.averageConfidence).toBeCloseTo(0.8, 4);
+    });
+
+    it("should handle corrections without confidence values", async () => {
+      const corrections = [
+        { ...defaultFieldCorrection, original_conf: 0.9 },
+        { ...defaultFieldCorrection, original_conf: null },
+        { ...defaultFieldCorrection, original_conf: undefined },
+      ];
+      mockPrisma.reviewSession.findMany.mockResolvedValueOnce([]);
+      mockPrisma.fieldCorrection.findMany.mockResolvedValueOnce(corrections);
+
+      const result = await service.getReviewAnalytics({});
+      expect(result.averageConfidence).toBe(0.9);
+    });
+
+    it("should return 0 average confidence when no corrections have confidence", async () => {
+      const corrections = [
+        { ...defaultFieldCorrection, original_conf: null },
+        { ...defaultFieldCorrection, original_conf: undefined },
+      ];
+      mockPrisma.reviewSession.findMany.mockResolvedValueOnce([]);
+      mockPrisma.fieldCorrection.findMany.mockResolvedValueOnce(corrections);
+
+      const result = await service.getReviewAnalytics({});
+      expect(result.averageConfidence).toBe(0);
     });
 
     it("should filter by date range", async () => {

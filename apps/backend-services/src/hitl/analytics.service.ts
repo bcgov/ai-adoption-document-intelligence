@@ -29,7 +29,7 @@ export class AnalyticsService {
     return {
       totalDocuments: analyticsData.totalSessions,
       reviewedDocuments: analyticsData.completedSessions,
-      averageConfidence: 0.85, // Placeholder - would calculate from OCR results
+      averageConfidence: analyticsData.averageConfidence,
       correctionRate: Math.round(correctionRate * 100) / 100,
       correctionsByAction: analyticsData.correctionsByAction,
       summary: {

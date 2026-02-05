@@ -890,6 +890,7 @@ export class DatabaseService {
     completedSessions: number;
     totalCorrections: number;
     correctionsByAction: Record<string, number>;
+    averageConfidence: number;
   }> {
     this.logger.debug("Getting review analytics");
 
@@ -920,6 +921,18 @@ export class DatabaseService {
       {} as Record<string, number>,
     );
 
+    // Calculate average confidence from corrections with original_conf values
+    const correctionsWithConfidence = corrections.filter(
+      (c) => c.original_conf !== null && c.original_conf !== undefined,
+    );
+    const averageConfidence =
+      correctionsWithConfidence.length > 0
+        ? correctionsWithConfidence.reduce(
+            (sum, c) => sum + (c.original_conf ?? 0),
+            0,
+          ) / correctionsWithConfidence.length
+        : 0;
+
     return {
       totalSessions: sessions.length,
       completedSessions: sessions.filter(
@@ -927,6 +940,7 @@ export class DatabaseService {
       ).length,
       totalCorrections: corrections.length,
       correctionsByAction,
+      averageConfidence: Math.round(averageConfidence * 10000) / 10000, // Round to 4 decimal places
     };
   }
 }
