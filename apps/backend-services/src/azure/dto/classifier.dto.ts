@@ -18,4 +18,8 @@ export class ClassifierCreationDto {
   @ApiProperty()
   @IsEnum(ClassifierStatus)
   status: ClassifierStatus;
+
+  @ApiProperty()
+  @IsString()
+  groupId: string;
 }
