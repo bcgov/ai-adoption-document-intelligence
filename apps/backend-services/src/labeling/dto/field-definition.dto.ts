@@ -1,15 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
 import {
+  IsArray,
+  IsBoolean,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
-  IsBoolean,
-  IsInt,
-  IsArray,
-  ValidateNested,
   Min,
+  ValidateNested,
 } from "class-validator";
-import { Type } from "class-transformer";
 
 export enum FieldType {
   STRING = "string",

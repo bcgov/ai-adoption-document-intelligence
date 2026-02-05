@@ -1,3 +1,4 @@
+import { DocumentStatus, Prisma } from "@generated/client";
 import { HttpService } from "@nestjs/axios";
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -6,9 +7,8 @@ import { join } from "path";
 import { lastValueFrom } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
 import { DatabaseService } from "../database/database.service";
-import { DocumentStatus, Prisma } from "@generated/client";
-import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import type { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
+import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 
 type JsonValue = Prisma.JsonValue;
 
@@ -54,7 +54,9 @@ export class LabelingOcrService {
   }
 
   async createLabelingDocument(dto: LabelingUploadDto) {
-    const base64Data = dto.file.includes(",") ? dto.file.split(",")[1] : dto.file;
+    const base64Data = dto.file.includes(",")
+      ? dto.file.split(",")[1]
+      : dto.file;
     const fileBuffer = Buffer.from(base64Data, "base64");
     const originalFilename =
       dto.original_filename || `${dto.title}.${dto.file_type}`;
@@ -82,8 +84,11 @@ export class LabelingOcrService {
     return labelingDocument;
   }
 
-  async processOcrForLabelingDocument(labelingDocumentId: string): Promise<void> {
-    const labelingDocument = await this.db.findLabelingDocument(labelingDocumentId);
+  async processOcrForLabelingDocument(
+    labelingDocumentId: string,
+  ): Promise<void> {
+    const labelingDocument =
+      await this.db.findLabelingDocument(labelingDocumentId);
     if (!labelingDocument) {
       return;
     }

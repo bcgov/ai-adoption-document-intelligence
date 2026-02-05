@@ -1,5 +1,3 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import {
   BlobServiceClient,
   ContainerClient,
@@ -7,7 +5,9 @@ import {
   generateBlobSASQueryParameters,
   SASProtocol,
   StorageSharedKeyCredential,
-} from '@azure/storage-blob';
+} from "@azure/storage-blob";
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 
 export interface UploadFileResult {
   fileName: string;
@@ -42,25 +42,25 @@ export class BlobStorageService {
 
   constructor(private configService: ConfigService) {
     const connectionString = this.configService.get<string>(
-      'AZURE_STORAGE_CONNECTION_STRING',
+      "AZURE_STORAGE_CONNECTION_STRING",
     );
     this.accountName = this.configService.get<string>(
-      'AZURE_STORAGE_ACCOUNT_NAME',
+      "AZURE_STORAGE_ACCOUNT_NAME",
     );
     this.accountKey = this.configService.get<string>(
-      'AZURE_STORAGE_ACCOUNT_KEY',
+      "AZURE_STORAGE_ACCOUNT_KEY",
     );
 
     if (!connectionString) {
       this.logger.warn(
-        'AZURE_STORAGE_CONNECTION_STRING not configured. Blob storage features will not work.',
+        "AZURE_STORAGE_CONNECTION_STRING not configured. Blob storage features will not work.",
       );
       return;
     }
 
     this.blobServiceClient =
       BlobServiceClient.fromConnectionString(connectionString);
-    this.logger.log('Blob Storage client initialized');
+    this.logger.log("Blob Storage client initialized");
   }
 
   /**
@@ -77,16 +77,16 @@ export class BlobStorageService {
         this.logger.log(`Created container: ${containerName}`);
         return true;
       } catch (error) {
-        const message = error.message || '';
+        const message = error.message || "";
         const statusCode = error.statusCode || error.status;
         const isAlreadyExists =
           statusCode === 409 &&
-          (error.code === 'ContainerAlreadyExists' ||
-            message.includes('ContainerAlreadyExists'));
+          (error.code === "ContainerAlreadyExists" ||
+            message.includes("ContainerAlreadyExists"));
         const isBeingDeleted =
           statusCode === 409 &&
-          (error.code === 'ContainerBeingDeleted' ||
-            message.includes('being deleted'));
+          (error.code === "ContainerBeingDeleted" ||
+            message.includes("being deleted"));
 
         if (isAlreadyExists) {
           this.logger.debug(`Container ${containerName} already exists`);
@@ -127,7 +127,8 @@ export class BlobStorageService {
         this.blobServiceClient.getContainerClient(containerName);
       const blockBlobClient = containerClient.getBlockBlobClient(blobName);
 
-      const buffer = typeof content === 'string' ? Buffer.from(content) : content;
+      const buffer =
+        typeof content === "string" ? Buffer.from(content) : content;
 
       await blockBlobClient.uploadData(buffer);
 
@@ -160,7 +161,7 @@ export class BlobStorageService {
           file.content,
         );
         const buffer =
-          typeof file.content === 'string'
+          typeof file.content === "string"
             ? Buffer.from(file.content)
             : file.content;
 
@@ -190,13 +191,10 @@ export class BlobStorageService {
   /**
    * Generate a SAS URL for a container with read and list permissions
    */
-  async generateSasUrl(
-    containerName: string,
-    expiryDays = 7,
-  ): Promise<string> {
+  async generateSasUrl(containerName: string, expiryDays = 7): Promise<string> {
     try {
       if (!this.accountName || !this.accountKey) {
-        throw new Error('Azure Storage account credentials not configured');
+        throw new Error("Azure Storage account credentials not configured");
       }
 
       const containerClient =
@@ -212,7 +210,7 @@ export class BlobStorageService {
       const expiresOn = new Date();
       expiresOn.setDate(expiresOn.getDate() + expiryDays);
 
-      const permissions = ContainerSASPermissions.parse('rl');
+      const permissions = ContainerSASPermissions.parse("rl");
 
       const sasToken = generateBlobSASQueryParameters(
         {
@@ -278,10 +276,7 @@ export class BlobStorageService {
   /**
    * List all blobs in a container
    */
-  async listBlobs(
-    containerName: string,
-    prefix?: string,
-  ): Promise<BlobInfo[]> {
+  async listBlobs(containerName: string, prefix?: string): Promise<BlobInfo[]> {
     try {
       const containerClient =
         this.blobServiceClient.getContainerClient(containerName);

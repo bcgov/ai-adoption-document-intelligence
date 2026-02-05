@@ -3,34 +3,34 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Put,
   Query,
   Req,
   Res,
-  HttpCode,
-  HttpStatus,
 } from "@nestjs/common";
-import { ApiOperation, ApiTags, ApiParam, ApiQuery } from "@nestjs/swagger";
+import { ApiOperation, ApiParam, ApiQuery, ApiTags } from "@nestjs/swagger";
+import { Response } from "express";
+import { readFile } from "fs/promises";
+import { join } from "path";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
+import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
 import { ExportDto } from "./dto/export.dto";
 import {
   CreateFieldDefinitionDto,
-  UpdateFieldDefinitionDto,
   ReorderFieldsDto,
+  UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
-import { AddDocumentDto } from "./dto/add-document.dto";
-import { LabelingService } from "./labeling.service";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
-import { Response } from "express";
-import { readFile } from "fs/promises";
-import { join } from "path";
+import { LabelingService } from "./labeling.service";
 
 @ApiTags("labeling")
 @Controller("api/labeling")
@@ -43,7 +43,11 @@ export class LabelingController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get all labeling projects" })
-  @ApiQuery({ name: "userId", required: false, description: "Filter by creator" })
+  @ApiQuery({
+    name: "userId",
+    required: false,
+    description: "Filter by creator",
+  })
   async getProjects(@Query("userId") userId?: string) {
     return this.labelingService.getProjects(userId);
   }
@@ -216,7 +220,8 @@ export class LabelingController {
     const filePath = join(process.cwd(), labelingDocument.file_path);
     const fileBuffer = await readFile(filePath);
 
-    const fileName = labelingDocument.original_filename || `document-${documentId}`;
+    const fileName =
+      labelingDocument.original_filename || `document-${documentId}`;
     const mimeType =
       labelingDocument.file_type === "pdf"
         ? "application/pdf"
@@ -240,7 +245,10 @@ export class LabelingController {
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
   ) {
-    return this.labelingService.removeDocumentFromProject(projectId, documentId);
+    return this.labelingService.removeDocumentFromProject(
+      projectId,
+      documentId,
+    );
   }
 
   // ========== LABEL ENDPOINTS ==========
@@ -309,7 +317,10 @@ export class LabelingController {
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Export labeled data for training" })
   @ApiParam({ name: "id", description: "Project ID" })
-  async exportProject(@Param("id") projectId: string, @Body() options: ExportDto) {
+  async exportProject(
+    @Param("id") projectId: string,
+    @Body() options: ExportDto,
+  ) {
     return this.labelingService.exportProject(projectId, options);
   }
 }

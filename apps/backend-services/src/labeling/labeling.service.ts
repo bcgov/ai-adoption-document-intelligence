@@ -1,22 +1,22 @@
+import { FieldType, LabelingStatus } from "@generated/client";
 import {
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
-  ConflictException,
 } from "@nestjs/common";
+import { LabelingUploadDto } from "@/labeling/dto/labeling-upload.dto";
+import { LabelingOcrService } from "@/labeling/labeling-ocr.service";
 import { DatabaseService } from "../database/database.service";
+import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
 import { ExportDto, ExportFormat } from "./dto/export.dto";
 import {
   CreateFieldDefinitionDto,
-  UpdateFieldDefinitionDto,
   ReorderFieldsDto,
+  UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
-import { AddDocumentDto } from "./dto/add-document.dto";
-import { FieldType, LabelingStatus } from "@generated/client";
-import { LabelingUploadDto } from "@/labeling/dto/labeling-upload.dto";
-import { LabelingOcrService } from "@/labeling/labeling-ocr.service";
 
 @Injectable()
 export class LabelingService {
@@ -254,7 +254,9 @@ export class LabelingService {
 
     // Update document status
     const newStatus =
-      dto.labels.length > 0 ? LabelingStatus.labeled : LabelingStatus.in_progress;
+      dto.labels.length > 0
+        ? LabelingStatus.labeled
+        : LabelingStatus.in_progress;
     await this.db.updateLabeledDocumentStatus(labeledDoc.id, newStatus);
 
     return this.db.findLabeledDocument(projectId, documentId);
@@ -340,7 +342,7 @@ export class LabelingService {
         };
 
         // Only include fieldFormat for date fields
-        if (field.field_type === 'date' && field.field_format) {
+        if (field.field_type === "date" && field.field_format) {
           exportField.fieldFormat = field.field_format;
         }
 
@@ -360,60 +362,67 @@ export class LabelingService {
       });
 
       // Convert grouped labels to the export format
-      const exportLabels = Object.entries(groupedLabels).map(([fieldKey, labels]) => {
-        // Sort labels by their original OCR order using span offset
-        // This preserves the correct reading order from Azure Document Intelligence
-        const sortedLabels = [...labels].sort((a: any, b: any) => {
-          // First by page
-          if (a.page_number !== b.page_number) {
-            return a.page_number - b.page_number;
-          }
+      const exportLabels = Object.entries(groupedLabels).map(
+        ([fieldKey, labels]) => {
+          // Sort labels by their original OCR order using span offset
+          // This preserves the correct reading order from Azure Document Intelligence
+          const sortedLabels = [...labels].sort((a: any, b: any) => {
+            // First by page
+            if (a.page_number !== b.page_number) {
+              return a.page_number - b.page_number;
+            }
 
-          // Then by span offset (preserves OCR reading order)
-          return (a.bounding_box?.span?.offset ?? 0) - (b.bounding_box?.span?.offset ?? 0);
-        });
-
-        const valueEntries = sortedLabels.map((label: any) => {
-          // Normalize bounding box coordinates if page dimensions are available
-          let normalizedPolygon = label.bounding_box.polygon;
-          const pageWidth =
-            label.bounding_box.pageWidth ??
-            doc.labeling_document.ocr_result?.analyzeResult?.pages?.find(
-              (page: any) => page.pageNumber === label.page_number,
-            )?.width;
-          const pageHeight =
-            label.bounding_box.pageHeight ??
-            doc.labeling_document.ocr_result?.analyzeResult?.pages?.find(
-              (page: any) => page.pageNumber === label.page_number,
-            )?.height;
-          if (pageWidth && pageHeight) {
-            normalizedPolygon = label.bounding_box.polygon.map(
-              (coord: number, idx: number) => {
-                const divisor = idx % 2 === 0 ? pageWidth : pageHeight;
-                return coord / divisor;
-              },
+            // Then by span offset (preserves OCR reading order)
+            return (
+              (a.bounding_box?.span?.offset ?? 0) -
+              (b.bounding_box?.span?.offset ?? 0)
             );
-          }
+          });
 
-          // Format text for checkboxes
-          let text = label.value;
-          const field = project.field_schema.find((f: any) => f.field_key === fieldKey);
-          if (field?.field_type === 'selectionMark') {
-            text = label.value === 'selected' ? ':selected:' : ':unselected:';
-          }
+          const valueEntries = sortedLabels.map((label: any) => {
+            // Normalize bounding box coordinates if page dimensions are available
+            let normalizedPolygon = label.bounding_box.polygon;
+            const pageWidth =
+              label.bounding_box.pageWidth ??
+              doc.labeling_document.ocr_result?.analyzeResult?.pages?.find(
+                (page: any) => page.pageNumber === label.page_number,
+              )?.width;
+            const pageHeight =
+              label.bounding_box.pageHeight ??
+              doc.labeling_document.ocr_result?.analyzeResult?.pages?.find(
+                (page: any) => page.pageNumber === label.page_number,
+              )?.height;
+            if (pageWidth && pageHeight) {
+              normalizedPolygon = label.bounding_box.polygon.map(
+                (coord: number, idx: number) => {
+                  const divisor = idx % 2 === 0 ? pageWidth : pageHeight;
+                  return coord / divisor;
+                },
+              );
+            }
+
+            // Format text for checkboxes
+            let text = label.value;
+            const field = project.field_schema.find(
+              (f: any) => f.field_key === fieldKey,
+            );
+            if (field?.field_type === "selectionMark") {
+              text = label.value === "selected" ? ":selected:" : ":unselected:";
+            }
+
+            return {
+              page: label.page_number,
+              text: text,
+              boundingBoxes: [normalizedPolygon],
+            };
+          });
 
           return {
-            page: label.page_number,
-            text: text,
-            boundingBoxes: [normalizedPolygon],
+            label: fieldKey,
+            value: valueEntries,
           };
-        });
-
-        return {
-          label: fieldKey,
-          value: valueEntries,
-        };
-      });
+        },
+      );
 
       return {
         filename: `${doc.labeling_document.original_filename}.labels.json`,
@@ -429,9 +438,8 @@ export class LabelingService {
       labelsFiles,
       projectName: project.name,
       documentCount: documents.length,
-      labeledCount: documents.filter(
-        (d) => d.status === LabelingStatus.labeled,
-      ).length,
+      labeledCount: documents.filter((d) => d.status === LabelingStatus.labeled)
+        .length,
     };
   }
 
@@ -462,16 +470,17 @@ export class LabelingService {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
 
-    const labelingDocument = await this.labelingOcrService.createLabelingDocument(
-      dto,
-    );
+    const labelingDocument =
+      await this.labelingOcrService.createLabelingDocument(dto);
 
     const labeledDoc = await this.db.addDocumentToProject(
       projectId,
       labelingDocument.id,
     );
 
-    void this.labelingOcrService.processOcrForLabelingDocument(labelingDocument.id);
+    void this.labelingOcrService.processOcrForLabelingDocument(
+      labelingDocument.id,
+    );
 
     return {
       labeledDocument: labeledDoc,

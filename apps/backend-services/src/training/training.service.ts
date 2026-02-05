@@ -1,25 +1,25 @@
+import DocumentIntelligence, {
+  type DocumentIntelligenceClient,
+  isUnexpected,
+  parseResultIdFromResponse,
+} from "@azure-rest/ai-document-intelligence";
+import { LabelingStatus, TrainingStatus } from "@generated/client";
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import DocumentIntelligence, {
-  isUnexpected,
-  parseResultIdFromResponse,
-  type DocumentIntelligenceClient,
-} from '@azure-rest/ai-document-intelligence';
-import { DatabaseService } from '../database/database.service';
-import { BlobStorageService } from '../blob-storage/blob-storage.service';
-import { LabelingService } from '../labeling/labeling.service';
-import { ExportFormat } from '../labeling/dto/export.dto';
-import { StartTrainingDto } from './dto/start-training.dto';
-import { ValidationResultDto, TrainingJobDto } from './dto/training-job.dto';
-import { TrainedModelDto } from './dto/trained-model.dto';
-import { TrainingStatus, LabelingStatus } from '@generated/client';
-import * as fs from 'fs';
-import * as path from 'path';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import * as fs from "fs";
+import * as path from "path";
+import { BlobStorageService } from "../blob-storage/blob-storage.service";
+import { DatabaseService } from "../database/database.service";
+import { ExportFormat } from "../labeling/dto/export.dto";
+import { LabelingService } from "../labeling/labeling.service";
+import { StartTrainingDto } from "./dto/start-training.dto";
+import { TrainedModelDto } from "./dto/trained-model.dto";
+import { TrainingJobDto, ValidationResultDto } from "./dto/training-job.dto";
 
 @Injectable()
 export class TrainingService {
@@ -35,33 +35,36 @@ export class TrainingService {
     private readonly configService: ConfigService,
   ) {
     const endpoint = this.configService.get<string>(
-      'AZURE_DOCUMENT_INTELLIGENCE_TRAIN_ENDPOINT',
+      "AZURE_DOCUMENT_INTELLIGENCE_TRAIN_ENDPOINT",
     );
     const apiKey = this.configService.get<string>(
-      'AZURE_DOCUMENT_INTELLIGENCE_API_KEY',
+      "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
     );
 
     if (!endpoint || !apiKey) {
       this.logger.warn(
-        'Azure Document Intelligence credentials not configured. Training features will not work.',
+        "Azure Document Intelligence credentials not configured. Training features will not work.",
       );
     } else {
-      this.adminClient = DocumentIntelligence(endpoint, { key: apiKey },
+      this.adminClient = DocumentIntelligence(
+        endpoint,
+        { key: apiKey },
         {
           credentials: {
             apiKeyHeaderName: "api-key",
           },
-      });
-      this.logger.log('Document Intelligence Admin client initialized');
+        },
+      );
+      this.logger.log("Document Intelligence Admin client initialized");
       this.logger.log(`Document Intelligence endpoint: ${endpoint}`);
     }
 
     this.minDocuments = this.configService.get<number>(
-      'TRAINING_MIN_DOCUMENTS',
+      "TRAINING_MIN_DOCUMENTS",
       5,
     );
     this.sasExpiryDays = this.configService.get<number>(
-      'TRAINING_SAS_EXPIRY_DAYS',
+      "TRAINING_SAS_EXPIRY_DAYS",
       7,
     );
   }
@@ -70,7 +73,7 @@ export class TrainingService {
    * Get Prisma client from DatabaseService
    */
   private get prisma() {
-    return this.db['prisma'];
+    return this.db["prisma"];
   }
 
   /**
@@ -98,7 +101,7 @@ export class TrainingService {
 
     // Check field schema exists
     if (!project.field_schema || project.field_schema.length === 0) {
-      issues.push('Project has no field schema defined');
+      issues.push("Project has no field schema defined");
     }
 
     // Check each labeled document has labels
@@ -122,9 +125,9 @@ export class TrainingService {
   /**
    * Prepare training files (fields.json and labels.json for each document)
    */
-  async prepareTrainingFiles(projectId: string): Promise<
-    Array<{ name: string; content: string | Buffer }>
-  > {
+  async prepareTrainingFiles(
+    projectId: string,
+  ): Promise<Array<{ name: string; content: string | Buffer }>> {
     this.logger.debug(`Preparing training files for project: ${projectId}`);
 
     // Export in Azure format
@@ -132,8 +135,8 @@ export class TrainingService {
       format: ExportFormat.AZURE,
       labeledOnly: true,
     });
-    if (!('fieldsJson' in exportResult) || !('labelsFiles' in exportResult)) {
-      throw new Error('Azure export did not return training data');
+    if (!("fieldsJson" in exportResult) || !("labelsFiles" in exportResult)) {
+      throw new Error("Azure export did not return training data");
     }
     const { fieldsJson, labelsFiles } = exportResult as {
       fieldsJson: unknown;
@@ -144,7 +147,7 @@ export class TrainingService {
 
     // Add fields.json
     files.push({
-      name: 'fields.json',
+      name: "fields.json",
       content: JSON.stringify(fieldsJson, null, 2),
     });
 
@@ -211,7 +214,7 @@ export class TrainingService {
     const validation = await this.validateTrainingData(projectId);
     if (!validation.valid) {
       throw new BadRequestException({
-        message: 'Project is not ready for training',
+        message: "Project is not ready for training",
         issues: validation.issues,
       });
     }
@@ -228,7 +231,6 @@ export class TrainingService {
         where: { model_id: dto.modelId },
       });
     }
-
 
     // Create training job record
     const containerName = `training-${projectId}`;
@@ -287,7 +289,7 @@ export class TrainingService {
 
       if (uploadResult.failed > 0) {
         throw new Error(
-          `Failed to upload ${uploadResult.failed} files: ${uploadResult.failedFiles.map((f) => f.fileName).join(', ')}`,
+          `Failed to upload ${uploadResult.failed} files: ${uploadResult.failedFiles.map((f) => f.fileName).join(", ")}`,
         );
       }
 
@@ -307,93 +309,98 @@ export class TrainingService {
         },
       });
 
-      const containerUrl = sasUrl.split('?')[0];
-      const sasToken = sasUrl.split('?')[1] || '';
+      const containerUrl = sasUrl.split("?")[0];
+      const sasToken = sasUrl.split("?")[1] || "";
       const hasSasToken = sasToken.length > 0;
       const sasParams = new URLSearchParams(sasToken);
       const sasSummary = {
-        sp: sasParams.get('sp'),
-        sr: sasParams.get('sr'),
-        se: sasParams.get('se'),
-        spr: sasParams.get('spr'),
+        sp: sasParams.get("sp"),
+        sr: sasParams.get("sr"),
+        se: sasParams.get("se"),
+        spr: sasParams.get("spr"),
       };
 
-      if (!sasUrl.startsWith('https://') || !hasSasToken) {
+      if (!sasUrl.startsWith("https://") || !hasSasToken) {
         throw new Error(
-          'Invalid SAS URL for training container. Expected HTTPS URL with SAS token.',
+          "Invalid SAS URL for training container. Expected HTTPS URL with SAS token.",
         );
       }
 
       // Initiate training with Azure
-      this.logger.log(
-        `Initiating Azure training for model: ${dto.modelId}`,
-      );
+      this.logger.log(`Initiating Azure training for model: ${dto.modelId}`);
       this.logger.debug(
-        `Training container URL: ${containerUrl} (sas: ${hasSasToken ? 'present' : 'missing'})`,
+        `Training container URL: ${containerUrl} (sas: ${hasSasToken ? "present" : "missing"})`,
       );
       this.logger.debug(`Training container SAS URL: ${sasUrl}`);
-      this.logger.debug(
-        `Training SAS summary: ${JSON.stringify(sasSummary)}`,
-      );
-      if (!sasSummary.sr || sasSummary.sr !== 'c') {
+      this.logger.debug(`Training SAS summary: ${JSON.stringify(sasSummary)}`);
+      if (!sasSummary.sr || sasSummary.sr !== "c") {
         this.logger.warn(
           `Training SAS 'sr' is not 'c' (container). Current: ${sasSummary.sr}`,
         );
       }
-      if (!sasSummary.sp || !sasSummary.sp.includes('r') || !sasSummary.sp.includes('l')) {
+      if (
+        !sasSummary.sp ||
+        !sasSummary.sp.includes("r") ||
+        !sasSummary.sp.includes("l")
+      ) {
         this.logger.warn(
           `Training SAS permissions should include read/list (sp=rl). Current: ${sasSummary.sp}`,
         );
       }
 
-      const sasValidation = await this.blobStorage.validateContainerSasUrl(sasUrl);
+      const sasValidation =
+        await this.blobStorage.validateContainerSasUrl(sasUrl);
       if (!sasValidation.canList) {
         this.logger.error(
-          `Training SAS validation failed: ${sasValidation.error || 'unknown error'}`,
+          `Training SAS validation failed: ${sasValidation.error || "unknown error"}`,
         );
       } else {
         this.logger.debug(
-          `Training SAS can list ${sasValidation.blobCount} blobs (sample: ${sasValidation.sampleBlobs?.join(', ') || 'none'})`,
+          `Training SAS can list ${sasValidation.blobCount} blobs (sample: ${sasValidation.sampleBlobs?.join(", ") || "none"})`,
         );
       }
 
       const blobs = await this.blobStorage.listBlobs(job.container_name);
       const blobNames = new Set(blobs.map((blob) => blob.name));
-      const labelFiles = blobs.filter((blob) => blob.name.endsWith('.labels.json'));
+      const labelFiles = blobs.filter((blob) =>
+        blob.name.endsWith(".labels.json"),
+      );
       const missingPairs: string[] = [];
 
-      if (!blobNames.has('fields.json')) {
-        missingPairs.push('fields.json (missing)');
+      if (!blobNames.has("fields.json")) {
+        missingPairs.push("fields.json (missing)");
       }
 
       if (labelFiles.length === 0) {
-        missingPairs.push('*.labels.json (none found)');
+        missingPairs.push("*.labels.json (none found)");
       }
 
       for (const labelFile of labelFiles) {
-        const baseName = labelFile.name.replace(/\.labels\.json$/, '');
+        const baseName = labelFile.name.replace(/\.labels\.json$/, "");
         if (!blobNames.has(baseName)) {
-          missingPairs.push(`${baseName} (missing document for ${labelFile.name})`);
+          missingPairs.push(
+            `${baseName} (missing document for ${labelFile.name})`,
+          );
         }
       }
 
       if (missingPairs.length > 0) {
         this.logger.error(
-          `Training data validation failed: ${missingPairs.join('; ')}`,
+          `Training data validation failed: ${missingPairs.join("; ")}`,
         );
         throw new Error(
-          'Training data in blob container is incomplete or invalid. See logs for details.',
+          "Training data in blob container is incomplete or invalid. See logs for details.",
         );
       }
 
       const initialResponse = await this.adminClient
-        .path('/documentModels:build')
+        .path("/documentModels:build")
         .post({
-          contentType: 'application/json',
+          contentType: "application/json",
           body: {
             modelId: dto.modelId,
             description: dto.description,
-            buildMode: 'template',
+            buildMode: "template",
             azureBlobSource: {
               containerUrl: sasUrl,
             },
@@ -405,7 +412,7 @@ export class TrainingService {
         const requestMethod = initialResponse.request?.method;
         if (requestUrl) {
           this.logger.error(
-            `Azure training request failed: ${requestMethod || 'UNKNOWN'} ${requestUrl}`,
+            `Azure training request failed: ${requestMethod || "UNKNOWN"} ${requestUrl}`,
           );
         }
         this.logger.error(
@@ -432,8 +439,8 @@ export class TrainingService {
       }
 
       const operationLocation =
-        initialResponse.headers?.['operation-location'] ||
-        initialResponse.headers?.['Operation-Location'];
+        initialResponse.headers?.["operation-location"] ||
+        initialResponse.headers?.["Operation-Location"];
       let operationId: string | undefined;
       try {
         operationId = parseResultIdFromResponse(initialResponse);
@@ -475,7 +482,7 @@ export class TrainingService {
       const requestMethod = (error as any)?.request?.method;
       if (requestUrl) {
         this.logger.error(
-          `Azure training request failed: ${requestMethod || 'UNKNOWN'} ${requestUrl}`,
+          `Azure training request failed: ${requestMethod || "UNKNOWN"} ${requestUrl}`,
         );
       }
 
@@ -499,7 +506,7 @@ export class TrainingService {
   async getTrainingJobs(projectId: string): Promise<TrainingJobDto[]> {
     const jobs = await this.prisma.trainingJob.findMany({
       where: { project_id: projectId },
-      orderBy: { started_at: 'desc' },
+      orderBy: { started_at: "desc" },
     });
 
     return jobs.map((job) => this.mapTrainingJobToDto(job));
@@ -526,7 +533,7 @@ export class TrainingService {
   async getTrainedModels(projectId: string): Promise<TrainedModelDto[]> {
     const models = await this.prisma.trainedModel.findMany({
       where: { project_id: projectId },
-      orderBy: { created_at: 'desc' },
+      orderBy: { created_at: "desc" },
     });
 
     return models.map((model) => this.mapTrainedModelToDto(model));
@@ -559,7 +566,7 @@ export class TrainingService {
       where: { id: jobId },
       data: {
         status: TrainingStatus.FAILED,
-        error_message: 'Cancelled by user',
+        error_message: "Cancelled by user",
         completed_at: new Date(),
       },
     });
@@ -586,11 +593,12 @@ export class TrainingService {
     };
   }
 
-
-  private extractOperationIdFromLocation(operationLocation: string): string | undefined {
+  private extractOperationIdFromLocation(
+    operationLocation: string,
+  ): string | undefined {
     try {
       const url = new URL(operationLocation);
-      const parts = url.pathname.split('/');
+      const parts = url.pathname.split("/");
       return parts[parts.length - 1] || undefined;
     } catch {
       return undefined;
@@ -606,11 +614,11 @@ export class TrainingService {
     }
 
     const response = await this.adminClient
-      .path('/documentModels/{modelId}', modelId)
+      .path("/documentModels/{modelId}", modelId)
       .delete();
 
     if (isUnexpected(response)) {
-      if (response.status === '404') {
+      if (response.status === "404") {
         return;
       }
       const errorMessage =

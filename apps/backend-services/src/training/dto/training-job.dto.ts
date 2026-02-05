@@ -1,4 +1,4 @@
-import { TrainingStatus } from '@generated/client';
+import { TrainingStatus } from "@generated/client";
 
 export class TrainingJobDto {
   id: string;

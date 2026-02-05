@@ -1,6 +1,13 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { IsEnum, IsNumber, IsOptional, IsString, Max, Min } from "class-validator";
+import {
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from "class-validator";
 
 export enum DocumentStatusFilter {
   COMPLETED_OCR = "completed_ocr",
@@ -8,9 +15,9 @@ export enum DocumentStatusFilter {
 }
 
 export enum ReviewStatusFilter {
-  PENDING = 'pending',
-  REVIEWED = 'reviewed',
-  ALL = 'all',
+  PENDING = "pending",
+  REVIEWED = "reviewed",
+  ALL = "all",
 }
 
 export class QueueFilterDto {

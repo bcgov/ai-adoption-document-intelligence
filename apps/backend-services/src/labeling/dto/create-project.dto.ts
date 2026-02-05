@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsOptional, IsString, IsEnum } from "class-validator";
+import { IsEnum, IsOptional, IsString } from "class-validator";
 
 export enum ProjectStatus {
   ACTIVE = "active",

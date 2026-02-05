@@ -1,21 +1,21 @@
 import {
-  Document,
-  OcrResult,
-  PrismaClient,
-  LabelingProject,
-  FieldDefinition,
-  LabeledDocument,
-  DocumentLabel,
-  ReviewSession,
-  FieldCorrection,
-  DocumentStatus,
-  ProjectStatus,
-  FieldType,
-  TableType,
-  LabelingStatus,
-  ReviewStatus,
   CorrectionAction,
+  Document,
+  DocumentLabel,
+  DocumentStatus,
+  FieldCorrection,
+  FieldDefinition,
+  FieldType,
+  LabeledDocument,
+  LabelingProject,
+  LabelingStatus,
+  OcrResult,
   Prisma,
+  PrismaClient,
+  ProjectStatus,
+  ReviewSession,
+  ReviewStatus,
+  TableType,
 } from "@generated/client";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -28,6 +28,7 @@ import {
 } from "@/ocr/azure-types";
 
 type JsonValue = Prisma.JsonValue;
+
 import { getPrismaPgOptions } from "@/utils/database-url";
 
 export type DocumentData = Document;
@@ -603,7 +604,9 @@ export class DatabaseService {
     return labeledDoc as LabeledDocumentData | null;
   }
 
-  async findLabeledDocuments(projectId: string): Promise<LabeledDocumentData[]> {
+  async findLabeledDocuments(
+    projectId: string,
+  ): Promise<LabeledDocumentData[]> {
     this.logger.debug(`Finding labeled documents for project: ${projectId}`);
     const prisma = this.prisma as unknown as any;
     const docs = await prisma.labeledDocument.findMany({
@@ -656,7 +659,9 @@ export class DatabaseService {
     labeledDocId: string,
     ocrData: unknown,
   ): Promise<void> {
-    this.logger.debug(`Updating OCR data for labeled document: ${labeledDocId}`);
+    this.logger.debug(
+      `Updating OCR data for labeled document: ${labeledDocId}`,
+    );
     await this.prisma.labeledDocument.update({
       where: { id: labeledDocId },
       data: { ocr_data: ocrData as JsonValue },
@@ -677,7 +682,9 @@ export class DatabaseService {
       is_manual?: boolean;
     }>,
   ): Promise<DocumentLabel[]> {
-    this.logger.debug(`Saving ${labels.length} labels for document: ${labeledDocId}`);
+    this.logger.debug(
+      `Saving ${labels.length} labels for document: ${labeledDocId}`,
+    );
 
     // Delete existing labels and create new ones in a transaction
     await this.prisma.$transaction([
@@ -765,7 +772,7 @@ export class DatabaseService {
     maxConfidence?: number;
     limit?: number;
     offset?: number;
-    reviewStatus?: 'pending' | 'reviewed' | 'all';
+    reviewStatus?: "pending" | "reviewed" | "all";
   }): Promise<Document[]> {
     this.logger.debug("Finding review queue");
 
@@ -777,20 +784,26 @@ export class DatabaseService {
       where.model_id = filters.modelId;
     }
 
-    if (filters.reviewStatus === 'pending') {
+    if (filters.reviewStatus === "pending") {
       where.OR = [
         { review_sessions: { none: {} } },
         {
           review_sessions: {
-            every: { status: ReviewStatus.in_progress }
-          }
-        }
+            every: { status: ReviewStatus.in_progress },
+          },
+        },
       ];
-    } else if (filters.reviewStatus === 'reviewed') {
+    } else if (filters.reviewStatus === "reviewed") {
       where.review_sessions = {
         some: {
-          status: { in: [ReviewStatus.approved, ReviewStatus.escalated, ReviewStatus.skipped] }
-        }
+          status: {
+            in: [
+              ReviewStatus.approved,
+              ReviewStatus.escalated,
+              ReviewStatus.skipped,
+            ],
+          },
+        },
       };
     }
 
@@ -803,14 +816,20 @@ export class DatabaseService {
         ocr_result: true,
         review_sessions: {
           where: {
-            status: { in: [ReviewStatus.approved, ReviewStatus.escalated, ReviewStatus.skipped] }
+            status: {
+              in: [
+                ReviewStatus.approved,
+                ReviewStatus.escalated,
+                ReviewStatus.skipped,
+              ],
+            },
           },
           include: {
             corrections: true,
           },
-          orderBy: { completed_at: 'desc' },
-          take: 1
-        }
+          orderBy: { completed_at: "desc" },
+          take: 1,
+        },
       },
     });
   }

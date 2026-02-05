@@ -1,14 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
 import {
   IsArray,
+  IsBoolean,
   IsNumber,
   IsOptional,
   IsString,
-  IsBoolean,
-  ValidateNested,
   Min,
+  ValidateNested,
 } from "class-validator";
-import { Type } from "class-transformer";
 
 export class SpanDto {
   @ApiProperty({ description: "Offset in the document content" })
@@ -21,22 +21,30 @@ export class SpanDto {
 }
 
 export class BoundingBoxDto {
-  @ApiProperty({ description: "Polygon points as array of numbers [x1,y1,x2,y2,...]" })
+  @ApiProperty({
+    description: "Polygon points as array of numbers [x1,y1,x2,y2,...]",
+  })
   @IsArray()
   @IsNumber({}, { each: true })
   polygon: number[];
 
-  @ApiPropertyOptional({ description: "Page width for coordinate normalization" })
+  @ApiPropertyOptional({
+    description: "Page width for coordinate normalization",
+  })
   @IsOptional()
   @IsNumber()
   pageWidth?: number;
 
-  @ApiPropertyOptional({ description: "Page height for coordinate normalization" })
+  @ApiPropertyOptional({
+    description: "Page height for coordinate normalization",
+  })
   @IsOptional()
   @IsNumber()
   pageHeight?: number;
 
-  @ApiPropertyOptional({ description: "Span information from OCR for ordering" })
+  @ApiPropertyOptional({
+    description: "Span information from OCR for ordering",
+  })
   @IsOptional()
   @ValidateNested()
   @Type(() => SpanDto)
@@ -79,13 +87,18 @@ export class CreateLabelDto {
 }
 
 export class SaveLabelsDto {
-  @ApiProperty({ description: "Array of labels to save", type: [CreateLabelDto] })
+  @ApiProperty({
+    description: "Array of labels to save",
+    type: [CreateLabelDto],
+  })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateLabelDto)
   labels: CreateLabelDto[];
 
-  @ApiPropertyOptional({ description: "Whether to replace all existing labels" })
+  @ApiPropertyOptional({
+    description: "Whether to replace all existing labels",
+  })
   @IsOptional()
   @IsBoolean()
   replaceAll?: boolean;
@@ -93,12 +106,16 @@ export class SaveLabelsDto {
 
 // Legacy DTO for backwards compatibility
 export class LabelDto extends CreateLabelDto {
-  @ApiPropertyOptional({ description: "Document ID (deprecated, use URL param)" })
+  @ApiPropertyOptional({
+    description: "Document ID (deprecated, use URL param)",
+  })
   @IsOptional()
   @IsString()
   documentId?: string;
 
-  @ApiPropertyOptional({ description: "Field name (deprecated, use field_key)" })
+  @ApiPropertyOptional({
+    description: "Field name (deprecated, use field_key)",
+  })
   @IsOptional()
   @IsString()
   fieldName?: string;

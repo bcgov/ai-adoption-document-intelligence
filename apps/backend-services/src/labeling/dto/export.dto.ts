@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsEnum, IsOptional, IsBoolean, IsArray, IsString } from "class-validator";
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+} from "class-validator";
 
 export enum ExportFormat {
   JSON = "json",
@@ -26,7 +32,9 @@ export class ExportDto {
   @IsString({ each: true })
   documentIds?: string[];
 
-  @ApiPropertyOptional({ description: "Only export documents with status 'labeled'" })
+  @ApiPropertyOptional({
+    description: "Only export documents with status 'labeled'",
+  })
   @IsOptional()
   @IsBoolean()
   labeledOnly?: boolean;
