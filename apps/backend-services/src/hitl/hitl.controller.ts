@@ -22,6 +22,13 @@ import {
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import { HitlService } from "./hitl.service";
 
+interface AuthenticatedRequest {
+  user?: {
+    sub?: string;
+    id?: string;
+  };
+}
+
 @ApiTags("hitl")
 @Controller("api/hitl")
 export class HitlController {
@@ -49,7 +56,10 @@ export class HitlController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Start a review session" })
-  async startSession(@Body() dto: ReviewSessionDto, @Req() req: any) {
+  async startSession(
+    @Body() dto: ReviewSessionDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
     // Extract user ID from request (set by auth guard)
     const reviewerId = req.user?.sub || req.user?.id || "anonymous";
     return this.hitlService.startSession(dto, reviewerId);

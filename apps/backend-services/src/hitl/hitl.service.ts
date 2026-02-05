@@ -1,9 +1,13 @@
 import {
   CorrectionAction,
+  Document,
   DocumentStatus,
+  OcrResult,
+  ReviewSession,
   ReviewStatus,
 } from "@generated/client";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { DatabaseService } from "../database/database.service";
 import { AnalyticsService } from "./analytics.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
@@ -14,6 +18,21 @@ import {
   ReviewStatusFilter,
 } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
+
+interface DocumentWithOcrResult extends Document {
+  ocr_result: OcrResult | null;
+  review_sessions?: Array<{
+    id: string;
+    reviewer_id: string;
+    status: ReviewStatus;
+    completed_at: Date | null;
+    corrections?: unknown[];
+  }>;
+}
+
+interface ReviewSessionWithDocument extends ReviewSession {
+  document: DocumentWithOcrResult;
+}
 
 @Injectable()
 export class HitlService {
@@ -51,26 +70,29 @@ export class HitlService {
     });
 
     // Filter by confidence if OCR results exist
-    const filtered = documents.filter((doc: any) => {
+    const filtered = documents.filter((doc: DocumentWithOcrResult) => {
       if (!doc.ocr_result) return false;
 
-      const fields = doc.ocr_result.keyValuePairs;
+      const fields = doc.ocr_result
+        .keyValuePairs as unknown as ExtractedFields | null;
       if (!fields) return false;
       if (typeof fields !== "object") return false;
 
       // Check if any field has confidence below threshold
-      const hasLowConfidence = Object.values(fields).some((field: any) => {
-        if (field?.confidence !== undefined) {
-          return field.confidence < maxConfidence;
-        }
-        return false;
-      });
+      const hasLowConfidence = Object.values(fields).some(
+        (field: DocumentField) => {
+          if (field?.confidence !== undefined) {
+            return field.confidence < maxConfidence;
+          }
+          return false;
+        },
+      );
 
       return hasLowConfidence;
     });
 
     return {
-      documents: filtered.map((doc: any) => ({
+      documents: filtered.map((doc: DocumentWithOcrResult) => ({
         id: doc.id,
         original_filename: doc.original_filename,
         status: doc.status,
@@ -111,12 +133,12 @@ export class HitlService {
       reviewStatus: reviewStatusFilter,
     });
 
-    const lowConfidenceDocs = allDocs.filter((doc: any) => {
+    const lowConfidenceDocs = allDocs.filter((doc: DocumentWithOcrResult) => {
       if (!doc.ocr_result?.keyValuePairs) return false;
-      const fields = doc.ocr_result.keyValuePairs as any;
+      const fields = doc.ocr_result.keyValuePairs as unknown as ExtractedFields;
       if (typeof fields !== "object") return false;
 
-      return Object.values(fields).some((field: any) => {
+      return Object.values(fields).some((field: DocumentField) => {
         if (field?.confidence !== undefined) {
           return field.confidence < 0.9;
         }
@@ -162,7 +184,9 @@ export class HitlService {
         original_filename: session.document.original_filename,
         storage_path: session.document.file_path,
         ocr_result: {
-          fields: (session.document as any).ocr_result?.keyValuePairs || {},
+          fields:
+            (session.document as ReviewSessionWithDocument["document"])
+              .ocr_result?.keyValuePairs || {},
         },
       },
     };
@@ -188,7 +212,9 @@ export class HitlService {
         original_filename: session.document.original_filename,
         storage_path: session.document.file_path,
         ocr_result: {
-          fields: (session.document as any).ocr_result?.keyValuePairs || {},
+          fields:
+            (session.document as ReviewSessionWithDocument["document"])
+              .ocr_result?.keyValuePairs || {},
         },
       },
       corrections: session.corrections,

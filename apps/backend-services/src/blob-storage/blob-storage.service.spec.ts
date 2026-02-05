@@ -195,9 +195,7 @@ describe("BlobStorageService", () => {
         buffer,
       );
 
-      expect(url).toBe(
-        "https://storage.blob.core.windows.net/container/blob",
-      );
+      expect(url).toBe("https://storage.blob.core.windows.net/container/blob");
       expect(mockBlobServiceClient.getContainerClient).toHaveBeenCalledWith(
         "test-container",
       );
@@ -215,9 +213,7 @@ describe("BlobStorageService", () => {
         content,
       );
 
-      expect(url).toBe(
-        "https://storage.blob.core.windows.net/container/blob",
-      );
+      expect(url).toBe("https://storage.blob.core.windows.net/container/blob");
       expect(mockBlockBlobClient.uploadData).toHaveBeenCalledWith(
         Buffer.from(content),
       );
@@ -311,9 +307,9 @@ describe("BlobStorageService", () => {
   describe("generateSasUrl", () => {
     it("should generate a SAS URL successfully with default expiry", async () => {
       const mockSasToken = "sv=2021-06-08&sr=c&sig=test";
-      (
-        StorageSharedKeyCredential as unknown as jest.Mock
-      ).mockImplementation(() => ({}));
+      (StorageSharedKeyCredential as unknown as jest.Mock).mockImplementation(
+        () => ({}),
+      );
       (ContainerSASPermissions.parse as jest.Mock).mockReturnValue({});
       (generateBlobSASQueryParameters as jest.Mock).mockReturnValue({
         toString: () => mockSasToken,
@@ -333,9 +329,9 @@ describe("BlobStorageService", () => {
 
     it("should generate a SAS URL with custom expiry days", async () => {
       const mockSasToken = "sv=2021-06-08&sr=c&sig=test";
-      (
-        StorageSharedKeyCredential as unknown as jest.Mock
-      ).mockImplementation(() => ({}));
+      (StorageSharedKeyCredential as unknown as jest.Mock).mockImplementation(
+        () => ({}),
+      );
       (ContainerSASPermissions.parse as jest.Mock).mockReturnValue({});
       (generateBlobSASQueryParameters as jest.Mock).mockReturnValue({
         toString: () => mockSasToken,
@@ -371,15 +367,15 @@ describe("BlobStorageService", () => {
 
       const newService = module.get<BlobStorageService>(BlobStorageService);
 
-      await expect(
-        newService.generateSasUrl("test-container"),
-      ).rejects.toThrow("Azure Storage account credentials not configured");
+      await expect(newService.generateSasUrl("test-container")).rejects.toThrow(
+        "Azure Storage account credentials not configured",
+      );
     });
 
     it("should throw error when SAS generation fails", async () => {
-      (
-        StorageSharedKeyCredential as unknown as jest.Mock
-      ).mockImplementation(() => ({}));
+      (StorageSharedKeyCredential as unknown as jest.Mock).mockImplementation(
+        () => ({}),
+      );
       (generateBlobSASQueryParameters as jest.Mock).mockImplementation(() => {
         throw new Error("SAS generation failed");
       });
@@ -608,9 +604,8 @@ describe("BlobStorageService", () => {
 
       mockContainerClient.listBlobsFlat.mockReturnValue(mockListBlobs);
 
-      const deletedCount = await service.clearContainerContents(
-        "test-container",
-      );
+      const deletedCount =
+        await service.clearContainerContents("test-container");
 
       expect(deletedCount).toBe(2);
       expect(mockContainerClient.deleteBlob).toHaveBeenCalledTimes(2);
@@ -629,9 +624,8 @@ describe("BlobStorageService", () => {
 
       mockContainerClient.listBlobsFlat.mockReturnValue(mockListBlobs);
 
-      const deletedCount = await service.clearContainerContents(
-        "test-container",
-      );
+      const deletedCount =
+        await service.clearContainerContents("test-container");
 
       expect(deletedCount).toBe(0);
       expect(mockContainerClient.deleteBlob).not.toHaveBeenCalled();
