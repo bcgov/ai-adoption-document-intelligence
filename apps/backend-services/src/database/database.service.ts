@@ -146,8 +146,7 @@ export class DatabaseService {
     data: Omit<LabelingDocumentData, "id" | "created_at" | "updated_at">,
   ): Promise<LabelingDocumentData> {
     this.logger.debug("=== DatabaseService.createLabelingDocument ===");
-    const prisma = this.prisma as unknown as any;
-    const labelingDocument = await prisma.labelingDocument.create({
+    const labelingDocument = await this.prisma.labelingDocument.create({
       data: {
         title: data.title,
         original_filename: data.original_filename,
@@ -167,8 +166,7 @@ export class DatabaseService {
 
   async findLabelingDocument(id: string): Promise<LabelingDocumentData | null> {
     this.logger.debug("=== DatabaseService.findLabelingDocument ===");
-    const prisma = this.prisma as unknown as any;
-    const labelingDocument = await prisma.labelingDocument.findUnique({
+    const labelingDocument = await this.prisma.labelingDocument.findUnique({
       where: { id },
     });
     return labelingDocument as LabelingDocumentData | null;
@@ -179,12 +177,16 @@ export class DatabaseService {
     data: Partial<LabelingDocumentData>,
   ): Promise<LabelingDocumentData | null> {
     this.logger.debug("=== DatabaseService.updateLabelingDocument ===");
-    const prisma = this.prisma as unknown as any;
     try {
-      const labelingDocument = await prisma.labelingDocument.update({
+      const { metadata, ocr_result, ...restData } = data;
+      const labelingDocument = await this.prisma.labelingDocument.update({
         where: { id },
         data: {
-          ...data,
+          ...restData,
+          ...(metadata !== undefined && { metadata: metadata as JsonValue }),
+          ...(ocr_result !== undefined && {
+            ocr_result: ocr_result as JsonValue,
+          }),
           updated_at: new Date(),
         },
       });
@@ -402,8 +404,7 @@ export class DatabaseService {
 
   async findLabelingProject(id: string): Promise<LabelingProjectData | null> {
     this.logger.debug(`Finding labeling project: ${id}`);
-    const prisma = this.prisma as unknown as any;
-    const project = await prisma.labelingProject.findUnique({
+    const project = await this.prisma.labelingProject.findUnique({
       where: { id },
       include: {
         field_schema: { orderBy: { display_order: "asc" } },
@@ -566,8 +567,7 @@ export class DatabaseService {
     this.logger.debug(
       `Adding document ${labelingDocumentId} to project ${projectId}`,
     );
-    const prisma = this.prisma as unknown as any;
-    const labeledDoc = await prisma.labeledDocument.create({
+    const labeledDoc = await this.prisma.labeledDocument.create({
       data: {
         project_id: projectId,
         labeling_document_id: labelingDocumentId,
@@ -588,8 +588,7 @@ export class DatabaseService {
     this.logger.debug(
       `Finding labeled document ${labelingDocumentId} in project ${projectId}`,
     );
-    const prisma = this.prisma as unknown as any;
-    const labeledDoc = await prisma.labeledDocument.findUnique({
+    const labeledDoc = await this.prisma.labeledDocument.findUnique({
       where: {
         project_id_labeling_document_id: {
           project_id: projectId,
@@ -608,8 +607,7 @@ export class DatabaseService {
     projectId: string,
   ): Promise<LabeledDocumentData[]> {
     this.logger.debug(`Finding labeled documents for project: ${projectId}`);
-    const prisma = this.prisma as unknown as any;
-    const docs = await prisma.labeledDocument.findMany({
+    const docs = await this.prisma.labeledDocument.findMany({
       where: { project_id: projectId },
       orderBy: { created_at: "desc" },
       include: {
@@ -628,8 +626,7 @@ export class DatabaseService {
       `Removing document ${labelingDocumentId} from project ${projectId}`,
     );
     try {
-      const prisma = this.prisma as unknown as any;
-      await prisma.labeledDocument.delete({
+      await this.prisma.labeledDocument.delete({
         where: {
           project_id_labeling_document_id: {
             project_id: projectId,
@@ -776,7 +773,7 @@ export class DatabaseService {
   }): Promise<Document[]> {
     this.logger.debug("Finding review queue");
 
-    const where: any = {
+    const where: Prisma.DocumentWhereInput = {
       status: filters.status ?? DocumentStatus.completed_ocr,
     };
 
@@ -896,7 +893,7 @@ export class DatabaseService {
   }> {
     this.logger.debug("Getting review analytics");
 
-    const where: any = {};
+    const where: Prisma.ReviewSessionWhereInput = {};
     if (filters.startDate || filters.endDate) {
       where.started_at = {};
       if (filters.startDate) where.started_at.gte = filters.startDate;

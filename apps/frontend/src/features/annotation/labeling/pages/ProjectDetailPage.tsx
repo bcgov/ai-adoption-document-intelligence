@@ -147,7 +147,7 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
     });
   };
 
-  const uploadDocumentsFromFiles = async (itemsToUpload: UploadQueueItem[]) => {
+  const uploadDocumentsFromFiles = async (itemsToUpload: UploadQueueItem<{ labelingDocumentId: string }>[]) => {
     await uploadFiles(async (file) => {
       const base64 = await fileToBase64(file);
       const payload: LabelingUploadPayload = {

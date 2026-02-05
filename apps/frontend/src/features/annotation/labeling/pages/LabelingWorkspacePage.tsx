@@ -10,7 +10,7 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconArrowLeft, IconDeviceFloppy, IconPencil } from "@tabler/icons-react";
+import { IconArrowLeft, IconDeviceFloppy } from "@tabler/icons-react";
 import { useElementSize } from "@mantine/hooks";
 import { useAuth } from "@/auth/AuthContext";
 import { colorForFieldKeyWithAlpha, colorForFieldKeyWithBorder } from "@/shared/utils";

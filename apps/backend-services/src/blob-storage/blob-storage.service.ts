@@ -81,10 +81,13 @@ export class BlobStorageService {
         const statusCode = error.statusCode || error.status;
         const isAlreadyExists =
           statusCode === 409 &&
+          // biome-ignore lint/security/noSecrets: Azure error code string, not a real secret
           (error.code === "ContainerAlreadyExists" ||
+            // biome-ignore lint/security/noSecrets: Azure error code string, not a real secret
             message.includes("ContainerAlreadyExists"));
         const isBeingDeleted =
           statusCode === 409 &&
+          // biome-ignore lint/security/noSecrets: Azure error code string, not a real secret
           (error.code === "ContainerBeingDeleted" ||
             message.includes("being deleted"));
 
