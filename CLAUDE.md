@@ -1,2 +1,3 @@
 - When updating existing code, do not add backwards compatibility features.
 - Avoid using "any" types in both back end and front end code, use proper typing.
+- When creating or updating backend code also create and update related tests.
