@@ -307,48 +307,6 @@ export class BlobStorageService {
   }
 
   /**
-   * Delete a container and all its contents
-   */
-  async deleteContainer(containerName: string): Promise<void> {
-    try {
-      const containerClient =
-        this.blobServiceClient.getContainerClient(containerName);
-      await containerClient.delete();
-      this.logger.log(`Deleted container: ${containerName}`);
-    } catch (error) {
-      this.logger.error(
-        `Failed to delete container: ${containerName}`,
-        error.stack,
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Delete a container if it exists (ignore not found).
-   */
-  async deleteContainerIfExists(containerName: string): Promise<boolean> {
-    try {
-      const containerClient =
-        this.blobServiceClient.getContainerClient(containerName);
-      const result = await containerClient.deleteIfExists();
-      if (result.succeeded) {
-        this.logger.log(`Deleted container: ${containerName}`);
-      } else {
-        this.logger.debug(`Container not found: ${containerName}`);
-        return false;
-      }
-      return true;
-    } catch (error) {
-      this.logger.error(
-        `Failed to delete container: ${containerName}`,
-        error.stack,
-      );
-      throw error;
-    }
-  }
-
-  /**
    * Delete all blobs in a container without removing the container itself.
    */
   async clearContainerContents(containerName: string): Promise<number> {
@@ -378,12 +336,5 @@ export class BlobStorageService {
 
   private async delay(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  /**
-   * Get container client for advanced operations
-   */
-  getContainerClient(containerName: string): ContainerClient {
-    return this.blobServiceClient.getContainerClient(containerName);
   }
 }
