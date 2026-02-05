@@ -14,6 +14,12 @@ import {
 import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainingService } from "./training.service";
 
+interface AuthenticatedRequest {
+  user?: {
+    sub?: string;
+  };
+}
+
 @Controller("api/training")
 export class TrainingController {
   constructor(private readonly trainingService: TrainingService) {}
@@ -37,7 +43,7 @@ export class TrainingController {
   async startTraining(
     @Param("projectId") projectId: string,
     @Body() dto: StartTrainingDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     const userId = req.user?.sub || "unknown";
     return this.trainingService.startTraining(projectId, dto, userId);

@@ -1,12 +1,23 @@
-import { FieldType, LabelingStatus } from "@generated/client";
+import {
+  DocumentLabel,
+  FieldDefinition,
+  FieldType,
+  LabelingStatus,
+  TableType as PrismaTableType,
+} from "@generated/client";
 import {
   ConflictException,
   Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import {
+  LabeledDocumentData,
+  LabelingProjectData,
+} from "@/database/database.service";
 import { LabelingUploadDto } from "@/labeling/dto/labeling-upload.dto";
 import { LabelingOcrService } from "@/labeling/labeling-ocr.service";
+import { Page } from "@/ocr/azure-types";
 import { DatabaseService } from "../database/database.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
@@ -14,6 +25,7 @@ import { ExportDto, ExportFormat } from "./dto/export.dto";
 import {
   CreateFieldDefinitionDto,
   ReorderFieldsDto,
+  TableType,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
@@ -100,6 +112,15 @@ export class LabelingService {
       );
     }
 
+    // Map DTO TableType enum to Prisma TableType enum
+    let prismaTableType: PrismaTableType | undefined;
+    if (dto.table_type) {
+      prismaTableType =
+        dto.table_type === TableType.DYNAMIC
+          ? PrismaTableType.dynamic
+          : PrismaTableType.fixed;
+    }
+
     return this.db.createFieldDefinition(projectId, {
       field_key: dto.field_key,
       field_type: dto.field_type as unknown as FieldType,
@@ -107,7 +128,7 @@ export class LabelingService {
       display_order: dto.display_order,
       is_required: dto.is_required,
       is_table: dto.is_table,
-      table_type: dto.table_type as any,
+      table_type: prismaTableType,
       column_headers: dto.column_headers,
     });
   }
@@ -311,10 +332,8 @@ export class LabelingService {
 
     // Filter by document IDs if provided
     if (options.documentIds?.length) {
-      documents = documents.filter((d) =>
-        options.documentIds!.includes(
-          (d as any).labeling_document_id ?? d.labeling_document.id,
-        ),
+      documents = documents.filter((d: LabeledDocumentData) =>
+        options.documentIds!.includes(d.labeling_document.id),
       );
     }
 
@@ -332,11 +351,18 @@ export class LabelingService {
     }
   }
 
-  private exportAzureFormat(project: any, documents: any[]) {
+  private exportAzureFormat(
+    project: LabelingProjectData,
+    documents: LabeledDocumentData[],
+  ) {
     // Generate fields.json (Azure Document Intelligence format)
     const fieldsJson = {
-      fields: project.field_schema.map((field: any) => {
-        const exportField: any = {
+      fields: project.field_schema.map((field) => {
+        const exportField: {
+          fieldKey: string;
+          fieldType: string;
+          fieldFormat?: string;
+        } = {
           fieldKey: field.field_key,
           fieldType: field.field_type,
         };
@@ -353,8 +379,8 @@ export class LabelingService {
     // Generate labels.json for each document
     const labelsFiles = documents.map((doc) => {
       // Group labels by field_key to handle multi-word fields
-      const groupedLabels: Record<string, any[]> = {};
-      doc.labels.forEach((label: any) => {
+      const groupedLabels: Record<string, DocumentLabel[]> = {};
+      doc.labels.forEach((label: DocumentLabel) => {
         if (!groupedLabels[label.field_key]) {
           groupedLabels[label.field_key] = [];
         }
@@ -366,34 +392,51 @@ export class LabelingService {
         ([fieldKey, labels]) => {
           // Sort labels by their original OCR order using span offset
           // This preserves the correct reading order from Azure Document Intelligence
-          const sortedLabels = [...labels].sort((a: any, b: any) => {
-            // First by page
-            if (a.page_number !== b.page_number) {
-              return a.page_number - b.page_number;
-            }
+          const sortedLabels = [...labels].sort(
+            (a: DocumentLabel, b: DocumentLabel) => {
+              // First by page
+              if (a.page_number !== b.page_number) {
+                return a.page_number - b.page_number;
+              }
 
-            // Then by span offset (preserves OCR reading order)
-            return (
-              (a.bounding_box?.span?.offset ?? 0) -
-              (b.bounding_box?.span?.offset ?? 0)
-            );
-          });
+              // Then by span offset (preserves OCR reading order)
+              const aBoundingBox = a.bounding_box as {
+                span?: { offset?: number };
+              };
+              const bBoundingBox = b.bounding_box as {
+                span?: { offset?: number };
+              };
+              return (
+                (aBoundingBox?.span?.offset ?? 0) -
+                (bBoundingBox?.span?.offset ?? 0)
+              );
+            },
+          );
 
-          const valueEntries = sortedLabels.map((label: any) => {
+          const valueEntries = sortedLabels.map((label: DocumentLabel) => {
+            const boundingBox = label.bounding_box as {
+              polygon: number[];
+              pageWidth?: number;
+              pageHeight?: number;
+            };
+
             // Normalize bounding box coordinates if page dimensions are available
-            let normalizedPolygon = label.bounding_box.polygon;
+            let normalizedPolygon = boundingBox.polygon;
+            const ocrResult = doc.labeling_document.ocr_result as {
+              analyzeResult?: { pages?: Page[] };
+            } | null;
             const pageWidth =
-              label.bounding_box.pageWidth ??
-              doc.labeling_document.ocr_result?.analyzeResult?.pages?.find(
-                (page: any) => page.pageNumber === label.page_number,
+              boundingBox.pageWidth ??
+              ocrResult?.analyzeResult?.pages?.find(
+                (page: Page) => page.pageNumber === label.page_number,
               )?.width;
             const pageHeight =
-              label.bounding_box.pageHeight ??
-              doc.labeling_document.ocr_result?.analyzeResult?.pages?.find(
-                (page: any) => page.pageNumber === label.page_number,
+              boundingBox.pageHeight ??
+              ocrResult?.analyzeResult?.pages?.find(
+                (page: Page) => page.pageNumber === label.page_number,
               )?.height;
             if (pageWidth && pageHeight) {
-              normalizedPolygon = label.bounding_box.polygon.map(
+              normalizedPolygon = boundingBox.polygon.map(
                 (coord: number, idx: number) => {
                   const divisor = idx % 2 === 0 ? pageWidth : pageHeight;
                   return coord / divisor;
@@ -404,7 +447,7 @@ export class LabelingService {
             // Format text for checkboxes
             let text = label.value;
             const field = project.field_schema.find(
-              (f: any) => f.field_key === fieldKey,
+              (f: FieldDefinition) => f.field_key === fieldKey,
             );
             if (field?.field_type === "selectionMark") {
               text = label.value === "selected" ? ":selected:" : ":unselected:";
@@ -443,7 +486,10 @@ export class LabelingService {
     };
   }
 
-  private exportJsonFormat(project: any, documents: any[]) {
+  private exportJsonFormat(
+    project: LabelingProjectData,
+    documents: LabeledDocumentData[],
+  ) {
     return {
       project: {
         id: project.id,
@@ -452,8 +498,8 @@ export class LabelingService {
         created_at: project.created_at,
         fieldSchema: project.field_schema,
       },
-      documents: documents.map((doc) => ({
-        id: (doc as any).labeling_document_id ?? doc.labeling_document.id,
+      documents: documents.map((doc: LabeledDocumentData) => ({
+        id: doc.labeling_document.id,
         filename: doc.labeling_document.original_filename,
         status: doc.status,
         labels: doc.labels,

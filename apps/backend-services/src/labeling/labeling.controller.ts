@@ -32,6 +32,13 @@ import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingService } from "./labeling.service";
 
+interface AuthenticatedRequest {
+  user?: {
+    sub?: string;
+    id?: string;
+  };
+}
+
 @ApiTags("labeling")
 @Controller("api/labeling")
 export class LabelingController {
@@ -56,7 +63,10 @@ export class LabelingController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Create a new labeling project" })
-  async createProject(@Body() dto: CreateProjectDto, @Req() req: any) {
+  async createProject(
+    @Body() dto: CreateProjectDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
     // Extract user ID from request (set by auth guard)
     const userId = req.user?.sub || req.user?.id || "anonymous";
     return this.labelingService.createProject(dto, userId);
