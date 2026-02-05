@@ -1,14 +1,25 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiService } from "@/data/services/api.service";
 
-interface QueueDocument {
+interface OcrField {
+  confidence?: number;
+  value?: string;
+  [key: string]: unknown;
+}
+
+interface OcrResult {
+  fields?: Record<string, OcrField>;
+  [key: string]: unknown;
+}
+
+export interface QueueDocument {
   id: string;
   original_filename: string;
   status: string;
   model_id?: string;
   created_at: string;
   updated_at: string;
-  ocr_result?: any;
+  ocr_result?: OcrResult;
   lastSession?: {
     id: string;
     reviewer_id: string;
@@ -29,7 +40,7 @@ interface QueueFilters {
   maxConfidence?: number;
   limit?: number;
   offset?: number;
-  reviewStatus?: 'pending' | 'reviewed' | 'all';
+  reviewStatus?: "pending" | "reviewed" | "all";
 }
 
 export const useReviewQueue = (filters?: QueueFilters) => {
@@ -45,7 +56,8 @@ export const useReviewQueue = (filters?: QueueFilters) => {
         params.append("maxConfidence", filters.maxConfidence.toString());
       if (filters?.limit) params.append("limit", filters.limit.toString());
       if (filters?.offset) params.append("offset", filters.offset.toString());
-      if (filters?.reviewStatus) params.append("reviewStatus", filters.reviewStatus);
+      if (filters?.reviewStatus)
+        params.append("reviewStatus", filters.reviewStatus);
 
       const endpoint = `/hitl/queue${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await apiService.get<QueueResponse>(endpoint);
@@ -57,7 +69,8 @@ export const useReviewQueue = (filters?: QueueFilters) => {
     queryKey: ["hitl-queue-stats", filters?.reviewStatus],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (filters?.reviewStatus) params.append("reviewStatus", filters.reviewStatus);
+      if (filters?.reviewStatus)
+        params.append("reviewStatus", filters.reviewStatus);
 
       const endpoint = `/hitl/queue/stats${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await apiService.get<{

@@ -1,5 +1,5 @@
-import { FC } from "react";
 import { Badge } from "@mantine/core";
+import { FC } from "react";
 
 interface ConfidenceIndicatorProps {
   confidence?: number;

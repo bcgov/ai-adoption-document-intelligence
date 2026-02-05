@@ -1,5 +1,10 @@
-import { FC } from "react";
 import { Badge, Card, Group, Stack, Text } from "@mantine/core";
+import { FC } from "react";
+
+interface FieldSchema {
+  id: string;
+  [key: string]: unknown;
+}
 
 interface ProjectCardProps {
   project: {
@@ -8,7 +13,7 @@ interface ProjectCardProps {
     description?: string;
     status: string;
     updated_at: string;
-    field_schema?: any[];
+    field_schema?: FieldSchema[];
     _count?: { documents: number };
   };
   onClick?: () => void;

@@ -1,4 +1,3 @@
-import { FC, useEffect, useMemo, useState } from "react";
 import {
   Button,
   Checkbox,
@@ -8,6 +7,7 @@ import {
   Stack,
   TextInput,
 } from "@mantine/core";
+import { FC, useEffect, useMemo, useState } from "react";
 import { FieldDefinition, FieldType, TableType } from "../../core/types/field";
 
 interface FieldSchemaEditorProps {

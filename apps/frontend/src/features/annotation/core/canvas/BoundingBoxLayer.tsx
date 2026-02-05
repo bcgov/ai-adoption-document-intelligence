@@ -1,5 +1,5 @@
 import { FC } from "react";
-import { Layer, Line, Group, Text as KonvaText } from "react-konva";
+import { Group, Text as KonvaText, Layer, Line } from "react-konva";
 import { BoundingBox } from "../types";
 
 interface BoundingBoxProps {
@@ -38,7 +38,15 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
   // Use red dashed border for active fields, thick colored border for labeled fields
   const hasLabel = Boolean(label);
   const strokeColor = isActive ? "#ff0000" : color;
-  const strokeWidth = isActive ? 4 : (hasLabel ? 3 : (isSelected ? 2.5 : isHovered ? 2 : 1.2));
+  const strokeWidth = isActive
+    ? 4
+    : hasLabel
+      ? 3
+      : isSelected
+        ? 2.5
+        : isHovered
+          ? 2
+          : 1.2;
   const dash = isActive ? [10, 5] : undefined;
 
   const firstPoint = box.polygon[0];
@@ -77,7 +85,11 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
       {(label || confidence !== undefined) && (
         <Group x={firstPoint.x} y={firstPoint.y - 20} listening={false}>
           <KonvaText
-            text={label ? `${label}${confidence !== undefined ? ` (${Math.round(confidence * 100)}%)` : ''}` : `${Math.round((confidence || 0) * 100)}%`}
+            text={
+              label
+                ? `${label}${confidence !== undefined ? ` (${Math.round(confidence * 100)}%)` : ""}`
+                : `${Math.round((confidence || 0) * 100)}%`
+            }
             fontSize={12}
             fill={color}
             fontStyle="bold"

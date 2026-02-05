@@ -1,4 +1,3 @@
-import { FC, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Group,
@@ -9,18 +8,22 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { useElementSize } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconArrowLeft, IconDeviceFloppy } from "@tabler/icons-react";
-import { useElementSize } from "@mantine/hooks";
-import { useAuth } from "@/auth/AuthContext";
-import { colorForFieldKeyWithAlpha, colorForFieldKeyWithBorder } from "@/shared/utils";
-import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
+import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
-import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
+import { useAuth } from "@/auth/AuthContext";
+import {
+  colorForFieldKeyWithAlpha,
+  colorForFieldKeyWithBorder,
+} from "@/shared/utils";
+import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { useCanvasZoom } from "../../core/canvas/hooks/useCanvasZoom";
+import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
 import { FieldPanel } from "../../core/field-panel/FieldPanel";
 import { useFieldSchema } from "../hooks/useFieldSchema";
-import { useLabels, type LabelDto } from "../hooks/useLabels";
+import { type LabelDto, useLabels } from "../hooks/useLabels";
 import { useProjectDocument } from "../hooks/useProjects";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -46,14 +49,45 @@ interface LabelState {
 }
 
 interface OcrElement {
-  type: 'word' | 'selectionMark';
+  type: "word" | "selectionMark";
   content: string;
   polygon: number[];
   confidence: number;
   span?: { offset: number; length: number };
   pageNumber: number;
   id: string;
-  state?: 'selected' | 'unselected'; // for selectionMarks
+  state?: "selected" | "unselected"; // for selectionMarks
+}
+
+interface OcrWord {
+  content: string;
+  polygon: number[];
+  confidence?: number;
+  span?: { offset: number; length: number };
+}
+
+interface OcrSelectionMark {
+  state: "selected" | "unselected";
+  polygon: number[];
+  confidence?: number;
+  span?: { offset: number; length: number };
+}
+
+interface OcrPage {
+  pageNumber?: number;
+  page_number?: number;
+  width?: number;
+  height?: number;
+  words?: OcrWord[];
+  selectionMarks?: OcrSelectionMark[];
+}
+
+interface AnalyzeResult {
+  pages?: OcrPage[];
+}
+
+interface AzureOcrResult {
+  analyzeResult?: AnalyzeResult;
 }
 
 export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
@@ -66,28 +100,44 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     projectId,
     documentId,
   );
-  const { labels, isLoading: isLabelsLoading, saveLabelsAsync, isSaving } =
-    useLabels(projectId, documentId);
+  const {
+    labels,
+    isLoading: isLabelsLoading,
+    saveLabelsAsync,
+    isSaving,
+  } = useLabels(projectId, documentId);
   const { getAccessToken } = useAuth();
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [labelState, setLabelState] = useState<Record<string, LabelState>>({});
-  const [wordAssignments, setWordAssignments] = useState<Record<string, string>>(
-    {},
-  );
+  const [wordAssignments, setWordAssignments] = useState<
+    Record<string, string>
+  >({});
   const [assignmentsHydrated, setAssignmentsHydrated] = useState(false);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number }>(
     { width: 1000, height: 1400 },
   );
-  const { ref: canvasRef, width: canvasWidth, height: canvasHeight } =
-    useElementSize();
+  const {
+    ref: canvasRef,
+    width: canvasWidth,
+    height: canvasHeight,
+  } = useElementSize();
   const { zoom, zoomIn, zoomOut, resetZoom, zoomToFit } = useCanvasZoom();
   const [currentPage, setCurrentPage] = useState(1);
   const [numPages, setNumPages] = useState(0);
-  const { ref: pdfContainerRef, width: pdfContainerWidth, height: pdfContainerHeight } =
-    useElementSize();
-  const [pdfRenderedSize, setPdfRenderedSize] = useState<{ width: number; height: number } | null>(null);
-  const [pdfOriginalSize, setPdfOriginalSize] = useState<{ width: number; height: number } | null>(null);
+  const {
+    ref: pdfContainerRef,
+    width: pdfContainerWidth,
+    height: pdfContainerHeight,
+  } = useElementSize();
+  const [pdfRenderedSize, setPdfRenderedSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const [pdfOriginalSize, setPdfOriginalSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const initialZoomSetRef = useRef(false);
 
   // Auto-fit zoom when container dimensions and PDF size are available
@@ -98,7 +148,12 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       pdfContainerHeight > 0 &&
       pdfOriginalSize
     ) {
-      zoomToFit(pdfContainerWidth, pdfContainerHeight, pdfOriginalSize.width, pdfOriginalSize.height);
+      zoomToFit(
+        pdfContainerWidth,
+        pdfContainerHeight,
+        pdfOriginalSize.width,
+        pdfOriginalSize.height,
+      );
       initialZoomSetRef.current = true;
     }
   }, [pdfContainerWidth, pdfContainerHeight, pdfOriginalSize, zoomToFit]);
@@ -107,7 +162,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     // Group labels by field_key since the server returns individual labels for each word
     const grouped: Record<string, LabelDto[]> = {};
     (labels || []).forEach((label) => {
-      const fieldKey = label.field_key ?? (label as any).field_key;
+      const fieldKey = label.field_key;
       if (!grouped[fieldKey]) grouped[fieldKey] = [];
       grouped[fieldKey].push(label);
     });
@@ -117,8 +172,8 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     Object.entries(grouped).forEach(([fieldKey, fieldLabels]) => {
       // Sort labels by their position in the document (using span offset if available)
       const sorted = fieldLabels.sort((a, b) => {
-        const offsetA = (a.bounding_box as any)?.span?.offset ?? 0;
-        const offsetB = (b.bounding_box as any)?.span?.offset ?? 0;
+        const offsetA = a.bounding_box.span?.offset ?? 0;
+        const offsetB = b.bounding_box.span?.offset ?? 0;
         return offsetA - offsetB;
       });
 
@@ -135,10 +190,18 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
 
       let combinedBoundingBox;
       if (allPolygons.length > 0) {
-        const minX = Math.min(...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 0)));
-        const minY = Math.min(...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 1)));
-        const maxX = Math.max(...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 0)));
-        const maxY = Math.max(...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 1)));
+        const minX = Math.min(
+          ...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 0)),
+        );
+        const minY = Math.min(
+          ...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 1)),
+        );
+        const maxX = Math.max(
+          ...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 0)),
+        );
+        const maxY = Math.max(
+          ...allPolygons.flatMap((p) => p.filter((_, idx) => idx % 2 === 1)),
+        );
         combinedBoundingBox = {
           polygon: [minX, minY, maxX, minY, maxX, maxY, minX, maxY],
         };
@@ -162,7 +225,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     setAssignmentsHydrated(false);
     setWordAssignments({});
   }, [documentId]);
-
 
   useEffect(() => {
     console.debug("[Labeling] Active field changed", {
@@ -196,7 +258,12 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     };
 
     void loadDocument();
-  }, [projectDocument?.labeling_document, getAccessToken, projectId, documentId]);
+  }, [
+    projectDocument?.labeling_document,
+    getAccessToken,
+    projectId,
+    documentId,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -226,8 +293,10 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   }, [labelState]);
 
   const ocrWords = useMemo<OcrElement[]>(() => {
-    const ocrResult = (projectDocument?.labeling_document?.ocr_result as any)
-      ?.analyzeResult;
+    const azureOcr = projectDocument?.labeling_document?.ocr_result as
+      | AzureOcrResult
+      | undefined;
+    const ocrResult = azureOcr?.analyzeResult;
     console.debug("[Labeling] OCR result shape", {
       hasOcr: Boolean(ocrResult),
       hasPages: Boolean(ocrResult?.pages),
@@ -236,14 +305,14 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     if (!ocrResult?.pages) return [];
 
     const elements: OcrElement[] = [];
-    ocrResult.pages.forEach((page: any) => {
+    ocrResult.pages.forEach((page) => {
       const pageNumber = page.pageNumber ?? page.page_number ?? 1;
 
       // Extract words
-      (page.words || []).forEach((word: any, index: number) => {
+      (page.words || []).forEach((word, index: number) => {
         if (!word.polygon || word.polygon.length < 8) return;
         elements.push({
-          type: 'word',
+          type: "word",
           content: word.content,
           polygon: word.polygon,
           confidence: word.confidence ?? 0,
@@ -254,11 +323,11 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       });
 
       // Extract selection marks (checkboxes)
-      (page.selectionMarks || []).forEach((mark: any, index: number) => {
+      (page.selectionMarks || []).forEach((mark, index: number) => {
         if (!mark.polygon || mark.polygon.length < 8) return;
         elements.push({
-          type: 'selectionMark',
-          content: mark.state === 'selected' ? '☑' : '☐',
+          type: "selectionMark",
+          content: mark.state === "selected" ? "☑" : "☐",
           polygon: mark.polygon,
           confidence: mark.confidence ?? 0,
           span: mark.span,
@@ -271,8 +340,8 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
 
     console.debug("[Labeling] Extracted OCR elements", {
       total: elements.length,
-      words: elements.filter(e => e.type === 'word').length,
-      selectionMarks: elements.filter(e => e.type === 'selectionMark').length,
+      words: elements.filter((e) => e.type === "word").length,
+      selectionMarks: elements.filter((e) => e.type === "selectionMark").length,
     });
 
     return elements;
@@ -331,8 +400,8 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   useEffect(() => {
     console.debug("[Labeling] OCR elements loaded", {
       totalElements: ocrWords.length,
-      words: ocrWords.filter(e => e.type === 'word').length,
-      selectionMarks: ocrWords.filter(e => e.type === 'selectionMark').length,
+      words: ocrWords.filter((e) => e.type === "word").length,
+      selectionMarks: ocrWords.filter((e) => e.type === "selectionMark").length,
       pages: Object.keys(wordsByPage),
     });
   }, [ocrWords, wordsByPage]);
@@ -349,7 +418,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       }
       const assignedField = wordAssignments[element.id];
       const isActive = assignedField === activeFieldKey;
-      const isCheckbox = element.type === 'selectionMark';
+      const isCheckbox = element.type === "selectionMark";
 
       // Generate deterministic color based on field key
       let color: string;
@@ -397,36 +466,47 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       );
 
       // Check if this is a single selection mark (checkbox)
-      const isSingleCheckbox = ordered.length === 1 && ordered[0].type === 'selectionMark';
+      const isSingleCheckbox =
+        ordered.length === 1 && ordered[0].type === "selectionMark";
 
       let text: string;
       if (isSingleCheckbox) {
         // For checkboxes, use the state value
-        text = ordered[0].state || 'unselected';
+        text = ordered[0].state || "unselected";
       } else {
         // For words (or mixed), concatenate content
         text = ordered
-          .filter(e => e.type === 'word')
+          .filter((e) => e.type === "word")
           .map((element) => element.content)
           .join(" ");
       }
 
-      const minX = Math.min(...ordered.flatMap((element) =>
-        element.polygon.filter((_, idx) => idx % 2 === 0),
-      ));
-      const minY = Math.min(...ordered.flatMap((element) =>
-        element.polygon.filter((_, idx) => idx % 2 === 1),
-      ));
-      const maxX = Math.max(...ordered.flatMap((element) =>
-        element.polygon.filter((_, idx) => idx % 2 === 0),
-      ));
-      const maxY = Math.max(...ordered.flatMap((element) =>
-        element.polygon.filter((_, idx) => idx % 2 === 1),
-      ));
-      const ocrPage = (projectDocument?.labeling_document?.ocr_result as any)
-        ?.analyzeResult?.pages?.find(
-          (p: any) => p.pageNumber === (ordered[0]?.pageNumber ?? 1),
-        );
+      const minX = Math.min(
+        ...ordered.flatMap((element) =>
+          element.polygon.filter((_, idx) => idx % 2 === 0),
+        ),
+      );
+      const minY = Math.min(
+        ...ordered.flatMap((element) =>
+          element.polygon.filter((_, idx) => idx % 2 === 1),
+        ),
+      );
+      const maxX = Math.max(
+        ...ordered.flatMap((element) =>
+          element.polygon.filter((_, idx) => idx % 2 === 0),
+        ),
+      );
+      const maxY = Math.max(
+        ...ordered.flatMap((element) =>
+          element.polygon.filter((_, idx) => idx % 2 === 1),
+        ),
+      );
+      const azureOcr = projectDocument?.labeling_document?.ocr_result as
+        | AzureOcrResult
+        | undefined;
+      const ocrPage = azureOcr?.analyzeResult?.pages?.find(
+        (p) => p.pageNumber === (ordered[0]?.pageNumber ?? 1),
+      );
       updates[fieldKey] = {
         field_key: fieldKey,
         label_name: fieldKey,
@@ -521,16 +601,19 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   };
 
   const handleSave = async () => {
-    const elementLookup = new Map(ocrWords.map((element) => [element.id, element]));
+    const elementLookup = new Map(
+      ocrWords.map((element) => [element.id, element]),
+    );
     const payload = Object.entries(wordAssignments)
       .map(([elementId, fieldKey]) => {
         const element = elementLookup.get(elementId);
         if (!element) return null;
 
         // For selection marks, use the state value; for words, use content
-        const value = element.type === 'selectionMark'
-          ? (element.state || 'unselected')
-          : element.content;
+        const value =
+          element.type === "selectionMark"
+            ? element.state || "unselected"
+            : element.content;
 
         return {
           field_key: fieldKey,
@@ -577,7 +660,10 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   const isPdf = projectDocument?.labeling_document?.file_type === "pdf";
 
   return (
-    <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: "hidden" }}>
+    <Stack
+      gap="md"
+      style={{ flex: 1, height: "100%", minHeight: 0, overflow: "hidden" }}
+    >
       <Group justify="space-between">
         <Group>
           <Button
@@ -605,22 +691,47 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
         </Group>
       </Group>
 
-      <Group align="stretch" gap="md" style={{ flex: 1, minHeight: 0, overflow: "hidden" }} wrap="nowrap">
-        <Paper withBorder style={{ flex: 1, minHeight: 0, minWidth: 0, position: "relative", overflow: "hidden" }}>
+      <Group
+        align="stretch"
+        gap="md"
+        style={{ flex: 1, minHeight: 0, overflow: "hidden" }}
+        wrap="nowrap"
+      >
+        <Paper
+          withBorder
+          style={{
+            flex: 1,
+            minHeight: 0,
+            minWidth: 0,
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
           {!documentUrl ? (
-            <Stack align="center" justify="center" style={{ position: "absolute", inset: 0 }}>
+            <Stack
+              align="center"
+              justify="center"
+              style={{ position: "absolute", inset: 0 }}
+            >
               <Text size="sm" c="dimmed">
                 Document preview is unavailable.
               </Text>
             </Stack>
           ) : ocrWords.length === 0 ? (
-            <Stack align="center" justify="center" style={{ position: "absolute", inset: 0 }}>
+            <Stack
+              align="center"
+              justify="center"
+              style={{ position: "absolute", inset: 0 }}
+            >
               <Text size="sm" c="dimmed">
                 OCR results are not available yet.
               </Text>
             </Stack>
           ) : isPdf ? (
-            <Stack gap="xs" style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+            <Stack
+              gap="xs"
+              style={{ position: "absolute", inset: 0, overflow: "hidden" }}
+            >
               <ViewerToolbar
                 currentPage={currentPage}
                 totalPages={numPages || 1}
@@ -632,11 +743,18 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
               />
               <div
                 ref={pdfContainerRef}
-                style={{ position: "relative", flex: 1, minHeight: 0, overflow: "auto" }}
+                style={{
+                  position: "relative",
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: "auto",
+                }}
                 onClick={(e) => {
                   // Deselect active field if clicking on PDF background (not on an overlay box)
                   if (e.target === e.currentTarget) {
-                    console.debug("[Labeling] PDF background clicked - deselecting");
+                    console.debug(
+                      "[Labeling] PDF background clicked - deselecting",
+                    );
                     setActiveFieldKey(null);
                   }
                 }}
@@ -660,11 +778,17 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                         height: page.height,
                         zoom,
                       });
-                      setPdfRenderedSize({ width: page.width, height: page.height });
+                      setPdfRenderedSize({
+                        width: page.width,
+                        height: page.height,
+                      });
                       // Store original (unscaled) dimensions for zoom calculation
                       const originalWidth = page.width / zoom;
                       const originalHeight = page.height / zoom;
-                      setPdfOriginalSize({ width: originalWidth, height: originalHeight });
+                      setPdfOriginalSize({
+                        width: originalWidth,
+                        height: originalHeight,
+                      });
                     }}
                   />
                 </Document>
@@ -679,16 +803,21 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                   }}
                 >
                   {(wordsByPage[currentPage] || []).map((element) => {
-                    const xs = element.polygon.filter((_, idx) => idx % 2 === 0);
-                    const ys = element.polygon.filter((_, idx) => idx % 2 === 1);
+                    const xs = element.polygon.filter(
+                      (_, idx) => idx % 2 === 0,
+                    );
+                    const ys = element.polygon.filter(
+                      (_, idx) => idx % 2 === 1,
+                    );
                     const minX = Math.min(...xs);
                     const minY = Math.min(...ys);
                     const maxX = Math.max(...xs);
                     const maxY = Math.max(...ys);
-                    const ocrPage = (projectDocument?.labeling_document?.ocr_result as any)
-                      ?.analyzeResult?.pages?.find(
-                        (p: any) => p.pageNumber === element.pageNumber,
-                      );
+                    const azureOcr = projectDocument?.labeling_document
+                      ?.ocr_result as AzureOcrResult | undefined;
+                    const ocrPage = azureOcr?.analyzeResult?.pages?.find(
+                      (p) => p.pageNumber === element.pageNumber,
+                    );
                     const scaleX =
                       ocrPage?.width && pdfRenderedSize?.width
                         ? pdfRenderedSize.width / ocrPage.width
@@ -699,7 +828,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                         : zoom;
                     const assignedField = wordAssignments[element.id];
                     const isActive = assignedField === activeFieldKey;
-                    const isCheckbox = element.type === 'selectionMark';
+                    const isCheckbox = element.type === "selectionMark";
 
                     // Generate deterministic colors based on field key
                     let borderColor: string;
@@ -708,8 +837,12 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                     let borderWidth: string;
 
                     if (assignedField) {
-                      const fillColors = colorForFieldKeyWithAlpha(assignedField, 0.15);
-                      const borderColors = colorForFieldKeyWithBorder(assignedField);
+                      const fillColors = colorForFieldKeyWithAlpha(
+                        assignedField,
+                        0.15,
+                      );
+                      const borderColors =
+                        colorForFieldKeyWithBorder(assignedField);
                       borderColor = borderColors.borderCss;
                       backgroundColor = fillColors.fillCssAlpha;
                       borderStyle = isActive ? "dashed" : "solid";
@@ -744,9 +877,14 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: isCheckbox ? `${Math.min((maxX - minX) * scaleX, (maxY - minY) * scaleY) * 0.8}px` : undefined,
+                          fontSize: isCheckbox
+                            ? `${Math.min((maxX - minX) * scaleX, (maxY - minY) * scaleY) * 0.8}px`
+                            : undefined,
                           fontWeight: "bold",
-                          color: element.state === 'selected' ? "#228be6" : "#adb5bd",
+                          color:
+                            element.state === "selected"
+                              ? "#228be6"
+                              : "#adb5bd",
                         }}
                         onClick={(event) => {
                           console.debug("[Labeling] OCR element clicked", {
@@ -754,11 +892,17 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                             type: element.type,
                             page: element.pageNumber,
                             activeFieldKey,
-                            target: (event.target as HTMLElement)?.dataset?.wordId,
+                            target: (event.target as HTMLElement)?.dataset
+                              ?.wordId,
                           });
                           handleWordSelect(element.id);
                         }}
-                        title={assignedField || (isCheckbox ? `Checkbox (${element.state})` : "Unlabeled")}
+                        title={
+                          assignedField ||
+                          (isCheckbox
+                            ? `Checkbox (${element.state})`
+                            : "Unlabeled")
+                        }
                       >
                         {isCheckbox ? element.content : null}
                       </div>
@@ -797,7 +941,9 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           onClick={(e) => {
             // Deselect active field if clicking on field panel background
             if (e.target === e.currentTarget) {
-              console.debug("[Labeling] Field panel background clicked - deselecting");
+              console.debug(
+                "[Labeling] Field panel background clicked - deselecting",
+              );
               setActiveFieldKey(null);
             }
           }}
@@ -808,7 +954,9 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
             mb="md"
             onClick={(e) => {
               // Deselect when clicking on the header text
-              console.debug("[Labeling] Field panel header clicked - deselecting");
+              console.debug(
+                "[Labeling] Field panel header clicked - deselecting",
+              );
               setActiveFieldKey(null);
               e.stopPropagation();
             }}
@@ -824,11 +972,18 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
               style: { paddingRight: 16 },
               onClick: (e: React.MouseEvent) => {
                 // Deselect when clicking in the scroll area but not on a field
-                if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('mantine-ScrollArea-viewport')) {
-                  console.debug("[Labeling] Field panel scroll area clicked - deselecting");
+                if (
+                  e.target === e.currentTarget ||
+                  (e.target as HTMLElement).classList.contains(
+                    "mantine-ScrollArea-viewport",
+                  )
+                ) {
+                  console.debug(
+                    "[Labeling] Field panel scroll area clicked - deselecting",
+                  );
                   setActiveFieldKey(null);
                 }
-              }
+              },
             }}
           >
             <FieldPanel

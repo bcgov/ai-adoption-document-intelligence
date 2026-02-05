@@ -1,4 +1,3 @@
-import { FC, useEffect, useMemo, useState } from "react";
 import {
   Button,
   Group,
@@ -11,24 +10,37 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { IconArrowLeft } from "@tabler/icons-react";
 import { useElementSize } from "@mantine/hooks";
+import { IconArrowLeft } from "@tabler/icons-react";
+import { FC, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/AuthContext";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { DocumentViewer } from "../../core/document-viewer/DocumentViewer";
-import { CanvasTool } from "../../core/types/canvas";
-import { ConfidenceIndicator } from "../components/ConfidenceIndicator";
-import { ReviewToolbar } from "../components/ReviewToolbar";
-import { CorrectionHistory } from "../components/CorrectionHistory";
-import { useReviewSession } from "../hooks/useReviewSession";
 import { CorrectionAction } from "../../core/types/annotation";
 import type { BoundingBox } from "../../core/types/canvas";
+import { CanvasTool } from "../../core/types/canvas";
+import { ConfidenceIndicator } from "../components/ConfidenceIndicator";
+import { CorrectionHistory } from "../components/CorrectionHistory";
+import { ReviewToolbar } from "../components/ReviewToolbar";
+import { useReviewSession } from "../hooks/useReviewSession";
 
 interface ReviewWorkspacePageProps {
   sessionId: string;
   onBack: () => void;
   readOnly?: boolean;
+}
+
+interface OcrField {
+  valueString?: string;
+  valueNumber?: number;
+  valueDate?: string;
+  content?: string;
+  confidence?: number;
+  boundingRegions?: Array<{
+    polygon: number[];
+  }>;
+  [key: string]: unknown;
 }
 
 interface ReviewField {
@@ -57,8 +69,11 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   } = useReviewSession(sessionId);
   const { getAccessToken } = useAuth();
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
-  const { ref: canvasRef, width: canvasWidth, height: canvasHeight } =
-    useElementSize();
+  const {
+    ref: canvasRef,
+    width: canvasWidth,
+    height: canvasHeight,
+  } = useElementSize();
   const [correctionMap, setCorrectionMap] = useState<
     Record<
       string,
@@ -115,37 +130,36 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
       return [];
     }
 
-    const result = Object.entries(ocrFields).map(([fieldKey, field]: any) => {
-      const value =
-        field.valueString ??
-        field.valueNumber?.toString() ??
-        field.valueDate ??
-        field.content ??
-        "";
-      const boundingRegion = field.boundingRegions?.[0];
-      const polygon = boundingRegion?.polygon || [];
-      const points = [];
-      for (let i = 0; i < polygon.length; i += 2) {
-        points.push({ x: polygon[i], y: polygon[i + 1] });
-      }
-      const boundingBox = points.length ? { polygon: points } : undefined;
+    const result = Object.entries(ocrFields).map(
+      ([fieldKey, field]: [string, OcrField]) => {
+        const value =
+          field.valueString ??
+          field.valueNumber?.toString() ??
+          field.valueDate ??
+          field.content ??
+          "";
+        const boundingRegion = field.boundingRegions?.[0];
+        const polygon = boundingRegion?.polygon || [];
+        const points = [];
+        for (let i = 0; i < polygon.length; i += 2) {
+          points.push({ x: polygon[i], y: polygon[i + 1] });
+        }
+        const boundingBox = points.length ? { polygon: points } : undefined;
 
-      return {
-        fieldKey,
-        value,
-        confidence: field.confidence,
-        boundingBox,
-      };
-    });
+        return {
+          fieldKey,
+          value,
+          confidence: field.confidence,
+          boundingBox,
+        };
+      },
+    );
 
     return result;
   }, [session?.document?.ocr_result]);
 
   const sortedFields = useMemo(
-    () =>
-      [...fields].sort(
-        (a, b) => (a.confidence ?? 1) - (b.confidence ?? 1),
-      ),
+    () => [...fields].sort((a, b) => (a.confidence ?? 1) - (b.confidence ?? 1)),
     [fields],
   );
 
@@ -184,7 +198,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
 
   const handleApprove = async () => {
     const payload = Object.values(correctionMap).filter(
-      correction => correction.action === CorrectionAction.CORRECTED
+      (correction) => correction.action === CorrectionAction.CORRECTED,
     );
     if (payload.length > 0) {
       await submitCorrectionsAsync(payload);
@@ -219,7 +233,10 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   }
 
   return (
-    <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: "hidden" }}>
+    <Stack
+      gap="md"
+      style={{ flex: 1, height: "100%", minHeight: 0, overflow: "hidden" }}
+    >
       <Group justify="space-between">
         <Group>
           <Button
@@ -230,7 +247,9 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
             Back
           </Button>
           <Stack gap={2}>
-            <Title order={2}>{readOnly ? "View Session" : "Review Session"}</Title>
+            <Title order={2}>
+              {readOnly ? "View Session" : "Review Session"}
+            </Title>
             <Text size="sm" c="dimmed">
               {session?.document?.original_filename || "Document review"}
             </Text>
@@ -249,8 +268,22 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
         />
       )}
 
-      <Group align="stretch" gap="md" style={{ flex: 1, minHeight: 0, overflow: "hidden" }} wrap="nowrap">
-        <Paper withBorder style={{ flex: 1, minHeight: 0, minWidth: 0, position: "relative", overflow: "hidden" }}>
+      <Group
+        align="stretch"
+        gap="md"
+        style={{ flex: 1, minHeight: 0, overflow: "hidden" }}
+        wrap="nowrap"
+      >
+        <Paper
+          withBorder
+          style={{
+            flex: 1,
+            minHeight: 0,
+            minWidth: 0,
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
           {isPdf ? (
             !documentUrl ? (
               <Stack
@@ -328,7 +361,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
             fw={600}
             mb="sm"
             onClick={() => setActiveFieldKey(null)}
-            style={{ cursor: 'pointer' }}
+            style={{ cursor: "pointer" }}
           >
             Fields
           </Text>
@@ -340,20 +373,28 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
             viewportProps={{
               style: { paddingRight: 16 },
               onClick: (e: React.MouseEvent) => {
-                if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('mantine-ScrollArea-viewport')) {
+                if (
+                  e.target === e.currentTarget ||
+                  (e.target as HTMLElement).classList.contains(
+                    "mantine-ScrollArea-viewport",
+                  )
+                ) {
                   setActiveFieldKey(null);
                 }
-              }
+              },
             }}
           >
             <Stack gap="md">
               {sortedFields.map((field) => {
                 const correction = correctionMap[field.fieldKey];
-                const isCorrected = correction?.action === CorrectionAction.CORRECTED;
+                const isCorrected =
+                  correction?.action === CorrectionAction.CORRECTED;
                 const isActive = field.fieldKey === activeFieldKey;
 
                 // Generate deterministic color based on field key
-                const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
+                const { borderCss } = colorForFieldKeyWithBorder(
+                  field.fieldKey,
+                );
 
                 return (
                   <Paper
@@ -361,10 +402,14 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
                     withBorder
                     p="sm"
                     style={{
-                      borderColor: isActive ? '#ff0000' : borderCss,
-                      borderStyle: isActive ? 'dashed' : 'solid',
-                      borderWidth: isActive ? '3px' : (isCorrected ? '2px' : '2px'),
-                      cursor: 'pointer',
+                      borderColor: isActive ? "#ff0000" : borderCss,
+                      borderStyle: isActive ? "dashed" : "solid",
+                      borderWidth: isActive
+                        ? "3px"
+                        : isCorrected
+                          ? "2px"
+                          : "2px",
+                      cursor: "pointer",
                     }}
                     onClick={() => setActiveFieldKey(field.fieldKey)}
                   >

@@ -1,12 +1,23 @@
+import { Box, Center, Loader } from "@mantine/core";
 import { FC, useState } from "react";
 import { Page } from "react-pdf";
-import { Box, Loader, Center } from "@mantine/core";
+
+interface PdfPage {
+  width: number;
+  height: number;
+  originalWidth?: number;
+  originalHeight?: number;
+}
 
 interface PageRendererProps {
   pageNumber: number;
   width?: number;
   scale?: number;
-  onPageLoadSuccess?: (pageNumber: number, width: number, height: number) => void;
+  onPageLoadSuccess?: (
+    pageNumber: number,
+    width: number,
+    height: number,
+  ) => void;
   onPageLoadError?: (error: Error) => void;
 }
 
@@ -19,7 +30,7 @@ export const PageRenderer: FC<PageRendererProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(true);
 
-  const handleLoadSuccess = (page: any) => {
+  const handleLoadSuccess = (page: PdfPage) => {
     setIsLoading(false);
     // Report original (unscaled) dimensions
     const originalWidth = page.originalWidth ?? page.width / scale;

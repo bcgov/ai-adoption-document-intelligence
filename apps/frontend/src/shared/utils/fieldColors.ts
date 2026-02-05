@@ -25,14 +25,20 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   s /= 100;
   l /= 100;
   const c = (1 - Math.abs(2 * l - 1)) * s;
-  const hh = ((h % 360) + 360) % 360 / 60;
+  const hh = (((h % 360) + 360) % 360) / 60;
   const x = c * (1 - Math.abs((hh % 2) - 1));
   const [r1, g1, b1] =
-    hh < 1 ? [c, x, 0] :
-    hh < 2 ? [x, c, 0] :
-    hh < 3 ? [0, c, x] :
-    hh < 4 ? [0, x, c] :
-    hh < 5 ? [x, 0, c] : [c, 0, x];
+    hh < 1
+      ? [c, x, 0]
+      : hh < 2
+        ? [x, c, 0]
+        : hh < 3
+          ? [0, c, x]
+          : hh < 4
+            ? [0, x, c]
+            : hh < 5
+              ? [x, 0, c]
+              : [c, 0, x];
   const m = l - c / 2;
   return [
     Math.round((r1 + m) * 255),
@@ -60,7 +66,10 @@ function relLuminance(rgb: [number, number, number]): number {
 /**
  * Calculate WCAG contrast ratio between two colors
  */
-function contrastRatio(a: [number, number, number], b: [number, number, number]): number {
+function contrastRatio(
+  a: [number, number, number],
+  b: [number, number, number],
+): number {
   const L1 = relLuminance(a);
   const L2 = relLuminance(b);
   const lighter = Math.max(L1, L2);
@@ -104,7 +113,7 @@ export function colorForFieldKey(
     saturation?: number;
     /** Lightness percentage (0-100). Default: 55 */
     lightness?: number;
-  } = {}
+  } = {},
 ): FieldColors {
   const { saturation = 70, lightness = 55 } = options;
 
@@ -119,7 +128,10 @@ export function colorForFieldKey(
   const black: [number, number, number] = [0, 0, 0];
   const white: [number, number, number] = [255, 255, 255];
 
-  const fgCss = contrastRatio(fillRgb, black) >= contrastRatio(fillRgb, white) ? "#000" : "#fff";
+  const fgCss =
+    contrastRatio(fillRgb, black) >= contrastRatio(fillRgb, white)
+      ? "#000"
+      : "#fff";
 
   return { fillCss, fgCss, fillRgb, hue };
 }
@@ -144,7 +156,7 @@ export function colorForFieldKeyWithAlpha(
   options: {
     saturation?: number;
     lightness?: number;
-  } = {}
+  } = {},
 ): FieldColors & { fillCssAlpha: string } {
   const colors = colorForFieldKey(key, options);
   const [r, g, b] = colors.fillRgb;
@@ -168,14 +180,21 @@ export function colorForFieldKeyWithBorder(
     saturation?: number;
     lightness?: number;
     borderDarken?: number;
-  } = {}
+  } = {},
 ): FieldColors & { borderCss: string } {
   const { borderDarken = 15, ...colorOptions } = options;
   const colors = colorForFieldKey(key, colorOptions);
 
   // Create a darker border by reducing lightness
-  const borderLightness = Math.max(0, (colorOptions.lightness ?? 55) - borderDarken);
-  const borderRgb = hslToRgb(colors.hue, colorOptions.saturation ?? 70, borderLightness);
+  const borderLightness = Math.max(
+    0,
+    (colorOptions.lightness ?? 55) - borderDarken,
+  );
+  const borderRgb = hslToRgb(
+    colors.hue,
+    colorOptions.saturation ?? 70,
+    borderLightness,
+  );
   const [r, g, b] = borderRgb;
   const borderCss = `rgb(${r}, ${g}, ${b})`;
 

@@ -1,10 +1,10 @@
-import { FC } from "react";
 import { Button, Group } from "@mantine/core";
 import {
   IconAlertTriangle,
   IconCheck,
   IconPlayerSkipForward,
 } from "@tabler/icons-react";
+import { FC } from "react";
 
 interface ReviewToolbarProps {
   onApprove: () => void;

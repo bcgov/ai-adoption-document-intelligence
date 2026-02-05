@@ -50,7 +50,9 @@ export const useUploadQueue = <TResult = unknown>(
     ) => {
       const pending =
         itemsToUpload ??
-        queue.filter((item) => item.status === "queued" || item.status === "error");
+        queue.filter(
+          (item) => item.status === "queued" || item.status === "error",
+        );
 
       if (pending.length === 0) {
         return;
@@ -85,7 +87,8 @@ export const useUploadQueue = <TResult = unknown>(
 
           options.onUploadSuccess?.({ ...item, status: "success" }, result);
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Unknown error";
+          const message =
+            error instanceof Error ? error.message : "Unknown error";
           const err = error instanceof Error ? error : new Error(message);
 
           setQueue((prev) =>

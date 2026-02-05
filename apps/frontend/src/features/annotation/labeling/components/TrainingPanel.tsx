@@ -1,32 +1,32 @@
-import { useState } from 'react';
 import {
-  Stack,
-  Title,
-  Text,
-  Alert,
-  TextInput,
-  Textarea,
-  Button,
-  Table,
-  Badge,
-  Group,
   ActionIcon,
-  Tooltip,
-  Loader,
-  Paper,
+  Alert,
+  Badge,
+  Button,
   Code,
   CopyButton,
-} from '@mantine/core';
+  Group,
+  Loader,
+  Paper,
+  Stack,
+  Table,
+  Text,
+  Textarea,
+  TextInput,
+  Title,
+  Tooltip,
+} from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import {
   IconAlertCircle,
   IconCheck,
-  IconX,
   IconCopy,
   IconPlayerStop,
-} from '@tabler/icons-react';
-import { useTraining } from '../hooks/useTraining';
-import { TrainingStatus } from '../types/training.types';
-import { notifications } from '@mantine/notifications';
+  IconX,
+} from "@tabler/icons-react";
+import { useState } from "react";
+import { useTraining } from "../hooks/useTraining";
+import { TrainingStatus } from "../types/training.types";
 
 interface TrainingPanelProps {
   projectId: string;
@@ -46,15 +46,15 @@ export function TrainingPanel({ projectId }: TrainingPanelProps) {
     isCancelling,
   } = useTraining(projectId);
 
-  const [modelId, setModelId] = useState('');
-  const [description, setDescription] = useState('');
-  const [modelIdError, setModelIdError] = useState('');
+  const [modelId, setModelId] = useState("");
+  const [description, setDescription] = useState("");
+  const [modelIdError, setModelIdError] = useState("");
 
   // Validate model ID format (Azure Document Intelligence modelId)
   const validateModelId = (value: string): boolean => {
     const modelIdRegex = /^[a-zA-Z0-9][a-zA-Z0-9._~-]{1,63}$/;
     if (!value) {
-      setModelIdError('Model ID is required');
+      setModelIdError("Model ID is required");
       return false;
     }
     if (!modelIdRegex.test(value)) {
@@ -63,7 +63,7 @@ export function TrainingPanel({ projectId }: TrainingPanelProps) {
       );
       return false;
     }
-    setModelIdError('');
+    setModelIdError("");
     return true;
   };
 
@@ -75,18 +75,19 @@ export function TrainingPanel({ projectId }: TrainingPanelProps) {
     try {
       await startTraining({ modelId, description: description || undefined });
       notifications.show({
-        title: 'Training Started',
+        title: "Training Started",
         message: `Training initiated for model: ${modelId}`,
-        color: 'green',
+        color: "green",
         icon: <IconCheck />,
       });
-      setModelId('');
-      setDescription('');
-    } catch (error: any) {
+      setModelId("");
+      setDescription("");
+    } catch (error: unknown) {
       notifications.show({
-        title: 'Training Failed',
-        message: error.message || 'Failed to start training',
-        color: 'red',
+        title: "Training Failed",
+        message:
+          error instanceof Error ? error.message : "Failed to start training",
+        color: "red",
         icon: <IconX />,
       });
     }
@@ -96,15 +97,16 @@ export function TrainingPanel({ projectId }: TrainingPanelProps) {
     try {
       await cancelJob(jobId);
       notifications.show({
-        title: 'Job Cancelled',
-        message: 'Training job has been cancelled',
-        color: 'blue',
+        title: "Job Cancelled",
+        message: "Training job has been cancelled",
+        color: "blue",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       notifications.show({
-        title: 'Cancel Failed',
-        message: error.message || 'Failed to cancel job',
-        color: 'red',
+        title: "Cancel Failed",
+        message:
+          error instanceof Error ? error.message : "Failed to cancel job",
+        color: "red",
         icon: <IconX />,
       });
     }
@@ -115,12 +117,12 @@ export function TrainingPanel({ projectId }: TrainingPanelProps) {
       TrainingStatus,
       { color: string; label: string }
     > = {
-      [TrainingStatus.PENDING]: { color: 'gray', label: 'Pending' },
-      [TrainingStatus.UPLOADING]: { color: 'blue', label: 'Uploading' },
-      [TrainingStatus.UPLOADED]: { color: 'cyan', label: 'Uploaded' },
-      [TrainingStatus.TRAINING]: { color: 'yellow', label: 'Training' },
-      [TrainingStatus.SUCCEEDED]: { color: 'green', label: 'Succeeded' },
-      [TrainingStatus.FAILED]: { color: 'red', label: 'Failed' },
+      [TrainingStatus.PENDING]: { color: "gray", label: "Pending" },
+      [TrainingStatus.UPLOADING]: { color: "blue", label: "Uploading" },
+      [TrainingStatus.UPLOADED]: { color: "cyan", label: "Uploaded" },
+      [TrainingStatus.TRAINING]: { color: "yellow", label: "Training" },
+      [TrainingStatus.SUCCEEDED]: { color: "green", label: "Succeeded" },
+      [TrainingStatus.FAILED]: { color: "red", label: "Failed" },
     };
 
     const config = statusConfig[status];
@@ -166,8 +168,8 @@ export function TrainingPanel({ projectId }: TrainingPanelProps) {
                 title="Ready for Training"
                 icon={<IconCheck />}
               >
-                Project has {validation.labeledDocumentsCount} labeled
-                documents (minimum required: {validation.minimumRequired})
+                Project has {validation.labeledDocumentsCount} labeled documents
+                (minimum required: {validation.minimumRequired})
               </Alert>
             ) : (
               <Alert
@@ -177,7 +179,7 @@ export function TrainingPanel({ projectId }: TrainingPanelProps) {
               >
                 <Stack gap="xs">
                   <Text size="sm">
-                    Labeled documents: {validation.labeledDocumentsCount} /{' '}
+                    Labeled documents: {validation.labeledDocumentsCount} /{" "}
                     {validation.minimumRequired}
                   </Text>
                   <Text size="sm" fw={500}>
@@ -232,7 +234,7 @@ export function TrainingPanel({ projectId }: TrainingPanelProps) {
             loading={isStarting}
             leftSection={isStarting ? <Loader size="xs" /> : null}
           >
-            {isStarting ? 'Starting Training...' : 'Start Training'}
+            {isStarting ? "Starting Training..." : "Start Training"}
           </Button>
         </Stack>
       </Paper>
@@ -264,7 +266,7 @@ export function TrainingPanel({ projectId }: TrainingPanelProps) {
                 <Table.Tr key={job.id}>
                   <Table.Td>{getStatusBadge(job.status)}</Table.Td>
                   <Table.Td>
-                    <Code>{job.modelId || 'N/A'}</Code>
+                    <Code>{job.modelId || "N/A"}</Code>
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm">{formatDate(job.startedAt)}</Text>
@@ -289,7 +291,7 @@ export function TrainingPanel({ projectId }: TrainingPanelProps) {
                         </ActionIcon>
                       </Tooltip>
                     ) : job.status === TrainingStatus.FAILED ? (
-                      <Tooltip label={job.errorMessage || 'Training failed'}>
+                      <Tooltip label={job.errorMessage || "Training failed"}>
                         <ActionIcon color="red" variant="subtle">
                           <IconAlertCircle size={18} />
                         </ActionIcon>
@@ -332,11 +334,9 @@ export function TrainingPanel({ projectId }: TrainingPanelProps) {
                       <Code>{model.modelId}</Code>
                       <CopyButton value={model.modelId}>
                         {({ copied, copy }) => (
-                          <Tooltip
-                            label={copied ? 'Copied!' : 'Copy model ID'}
-                          >
+                          <Tooltip label={copied ? "Copied!" : "Copy model ID"}>
                             <ActionIcon
-                              color={copied ? 'green' : 'blue'}
+                              color={copied ? "green" : "blue"}
                               variant="subtle"
                               onClick={copy}
                             >

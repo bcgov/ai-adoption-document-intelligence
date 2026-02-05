@@ -1,5 +1,5 @@
-import { FC } from "react";
 import { Stack, Text } from "@mantine/core";
+import { FC } from "react";
 import type { FieldDefinition } from "../types/field";
 import { FieldItem } from "./FieldItem";
 

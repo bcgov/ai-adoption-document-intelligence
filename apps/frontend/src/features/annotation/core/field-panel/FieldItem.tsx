@@ -1,8 +1,8 @@
-import { FC } from "react";
 import { Badge, Card, Group, Stack, Text } from "@mantine/core";
+import { FC } from "react";
+import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import type { FieldDefinition } from "../types/field";
 import { FieldEditor } from "./FieldEditor";
-import { colorForFieldKeyWithBorder } from "@/shared/utils";
 
 interface FieldItemProps {
   field: FieldDefinition;
@@ -51,13 +51,22 @@ export const FieldItem: FC<FieldItemProps> = ({
             {field.fieldKey}
           </Text>
           {confidence !== undefined && (
-            <Badge size="xs" color={getConfidenceColor(confidence)} variant="light">
+            <Badge
+              size="xs"
+              color={getConfidenceColor(confidence)}
+              variant="light"
+            >
               {Math.round(confidence * 100)}%
             </Badge>
           )}
         </Group>
 
-        <FieldEditor field={field} value={value} onChange={onValueChange} readOnly={readOnly} />
+        <FieldEditor
+          field={field}
+          value={value}
+          onChange={onValueChange}
+          readOnly={readOnly}
+        />
       </Stack>
     </Card>
   );

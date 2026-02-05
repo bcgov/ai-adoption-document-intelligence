@@ -1,4 +1,3 @@
-import { FC, useState } from "react";
 import {
   Button,
   Checkbox,
@@ -8,6 +7,7 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
+import { FC, useState } from "react";
 import { apiService } from "@/data/services/api.service";
 
 interface ExportPanelProps {
@@ -15,12 +15,23 @@ interface ExportPanelProps {
   documents: Array<{ id: string; name: string }>;
 }
 
+interface LabelFile {
+  filename: string;
+  content: unknown;
+}
+
+interface ExportData {
+  fieldsJson?: unknown;
+  labelsFiles?: LabelFile[];
+  [key: string]: unknown;
+}
+
 export const ExportPanel: FC<ExportPanelProps> = ({ projectId, documents }) => {
   const [format, setFormat] = useState<"azure" | "json">("azure");
   const [labeledOnly, setLabeledOnly] = useState(true);
   const [includeOcrData, setIncludeOcrData] = useState(false);
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
-  const [exportData, setExportData] = useState<any>(null);
+  const [exportData, setExportData] = useState<ExportData | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExport = async () => {
@@ -34,7 +45,7 @@ export const ExportPanel: FC<ExportPanelProps> = ({ projectId, documents }) => {
         documentIds: selectedDocs.length ? selectedDocs : undefined,
       },
     );
-    setExportData(response.data);
+    setExportData(response.data as ExportData);
     setIsExporting(false);
   };
 
@@ -108,12 +119,14 @@ export const ExportPanel: FC<ExportPanelProps> = ({ projectId, documents }) => {
             <>
               <Button
                 variant="light"
-                onClick={() => downloadJson(exportData.fieldsJson, "fields.json")}
+                onClick={() =>
+                  downloadJson(exportData.fieldsJson, "fields.json")
+                }
               >
                 Download fields.json
               </Button>
               {Array.isArray(exportData.labelsFiles) &&
-                exportData.labelsFiles.map((file: any) => (
+                exportData.labelsFiles.map((file) => (
                   <Button
                     key={file.filename}
                     variant="light"

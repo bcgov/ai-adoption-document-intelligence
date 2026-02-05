@@ -1,1 +1,2 @@
-When updating existing code, do not add backwards compatibility features.
+- When updating existing code, do not add backwards compatibility features.
+- Avoid using "any" types in both back end and front end code, use proper typing.

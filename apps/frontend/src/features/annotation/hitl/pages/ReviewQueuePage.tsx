@@ -1,21 +1,27 @@
-import { FC, useState } from "react";
 import {
-  Stack,
-  Title,
-  Text,
-  Card,
   Badge,
-  Table,
   Button,
-  Loader,
+  Card,
   Center,
   Grid,
+  Loader,
   Paper,
+  Stack,
+  Table,
   Tabs,
+  Text,
+  Title,
 } from "@mantine/core";
-import { IconEye, IconAlertCircle, IconClock, IconCheck } from "@tabler/icons-react";
-import { useReviewQueue } from "../hooks/useReviewQueue";
+import {
+  IconAlertCircle,
+  IconCheck,
+  IconClock,
+  IconEye,
+} from "@tabler/icons-react";
+import { FC, useState } from "react";
 import { HITL_MAX_CONFIDENCE } from "@/shared/constants";
+import type { QueueDocument } from "../hooks/useReviewQueue";
+import { useReviewQueue } from "../hooks/useReviewQueue";
 
 interface ReviewQueuePageProps {
   onStartSession?: (sessionId: string, readOnly?: boolean) => void;
@@ -24,21 +30,21 @@ interface ReviewQueuePageProps {
 export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
   onStartSession,
 }) => {
-  const [activeTab, setActiveTab] = useState<string | null>('pending');
+  const [activeTab, setActiveTab] = useState<string | null>("pending");
 
   const pendingQueue = useReviewQueue({
     maxConfidence: HITL_MAX_CONFIDENCE,
     limit: 50,
-    reviewStatus: 'pending',
+    reviewStatus: "pending",
   });
 
   const reviewedQueue = useReviewQueue({
     maxConfidence: HITL_MAX_CONFIDENCE,
     limit: 50,
-    reviewStatus: 'reviewed',
+    reviewStatus: "reviewed",
   });
 
-  const activeQueue = activeTab === 'reviewed' ? reviewedQueue : pendingQueue;
+  const activeQueue = activeTab === "reviewed" ? reviewedQueue : pendingQueue;
 
   if (activeQueue.isLoading) {
     return (
@@ -54,15 +60,18 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
     return "red";
   };
 
-  const getAverageConfidence = (doc: any) => {
+  const getAverageConfidence = (doc: QueueDocument) => {
     if (!doc.ocr_result?.fields) return 0;
-    const fields = Object.values(doc.ocr_result.fields) as any[];
+    const fields = Object.values(doc.ocr_result.fields);
     if (fields.length === 0) return 0;
     const sum = fields.reduce((acc, field) => acc + (field.confidence || 0), 0);
     return sum / fields.length;
   };
 
-  const handleStartSession = async (documentId: string, readOnly: boolean = false) => {
+  const handleStartSession = async (
+    documentId: string,
+    readOnly: boolean = false,
+  ) => {
     try {
       if (readOnly) {
         onStartSession?.(documentId, true);
@@ -79,14 +88,14 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'approved':
-        return 'green';
-      case 'escalated':
-        return 'orange';
-      case 'skipped':
-        return 'gray';
+      case "approved":
+        return "green";
+      case "escalated":
+        return "orange";
+      case "skipped":
+        return "gray";
       default:
-        return 'blue';
+        return "blue";
     }
   };
 
@@ -171,7 +180,8 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
                   <Stack gap={4} align="center">
                     <Text fw={600}>No documents pending review</Text>
                     <Text size="sm" c="dimmed">
-                      All documents have been reviewed or have high confidence scores
+                      All documents have been reviewed or have high confidence
+                      scores
                     </Text>
                   </Stack>
                 </Stack>
@@ -191,7 +201,7 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {pendingQueue.queue.map((doc: any) => {
+                  {pendingQueue.queue.map((doc) => {
                     const avgConfidence = getAverageConfidence(doc);
 
                     return (
@@ -274,7 +284,7 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {reviewedQueue.queue.map((doc: any) => {
+                  {reviewedQueue.queue.map((doc) => {
                     return (
                       <Table.Tr key={doc.id}>
                         <Table.Td>
@@ -283,33 +293,46 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
                           </Text>
                         </Table.Td>
                         <Table.Td>
-                          <Text size="sm">{doc.lastSession?.reviewer_id || 'N/A'}</Text>
+                          <Text size="sm">
+                            {doc.lastSession?.reviewer_id || "N/A"}
+                          </Text>
                         </Table.Td>
                         <Table.Td>
                           <Text size="sm" c="dimmed">
                             {doc.lastSession?.completed_at
-                              ? new Date(doc.lastSession.completed_at).toLocaleDateString()
-                              : 'N/A'}
+                              ? new Date(
+                                  doc.lastSession.completed_at,
+                                ).toLocaleDateString()
+                              : "N/A"}
                           </Text>
                         </Table.Td>
                         <Table.Td>
                           <Badge
                             variant="light"
-                            color={getStatusColor(doc.lastSession?.status || '')}
+                            color={getStatusColor(
+                              doc.lastSession?.status || "",
+                            )}
                             size="sm"
                           >
-                            {doc.lastSession?.status || 'N/A'}
+                            {doc.lastSession?.status || "N/A"}
                           </Badge>
                         </Table.Td>
                         <Table.Td>
-                          <Text size="sm">{doc.lastSession?.corrections_count || 0}</Text>
+                          <Text size="sm">
+                            {doc.lastSession?.corrections_count || 0}
+                          </Text>
                         </Table.Td>
                         <Table.Td>
                           <Button
                             size="xs"
                             variant="light"
                             leftSection={<IconEye size={14} />}
-                            onClick={() => handleStartSession(doc.lastSession?.id || doc.id, true)}
+                            onClick={() =>
+                              handleStartSession(
+                                doc.lastSession?.id || doc.id,
+                                true,
+                              )
+                            }
                             disabled={!doc.lastSession?.id}
                           >
                             View

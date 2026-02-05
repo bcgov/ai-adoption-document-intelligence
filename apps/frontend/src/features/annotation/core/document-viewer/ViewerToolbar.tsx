@@ -1,13 +1,13 @@
-import { FC } from "react";
-import { Group, ActionIcon, Text, NumberInput, Divider } from "@mantine/core";
+import { ActionIcon, Divider, Group, NumberInput, Text } from "@mantine/core";
 import {
-  IconZoomIn,
-  IconZoomOut,
-  IconZoomReset,
   IconChevronLeft,
   IconChevronRight,
   IconRotateClockwise,
+  IconZoomIn,
+  IconZoomOut,
+  IconZoomReset,
 } from "@tabler/icons-react";
+import { FC } from "react";
 
 interface ViewerToolbarProps {
   currentPage: number;
@@ -38,7 +38,11 @@ export const ViewerToolbar: FC<ViewerToolbarProps> = ({
   };
 
   return (
-    <Group gap="xs" p="xs" style={{ background: "#f8f9fa", borderBottom: "1px solid #dee2e6" }}>
+    <Group
+      gap="xs"
+      p="xs"
+      style={{ background: "#f8f9fa", borderBottom: "1px solid #dee2e6" }}
+    >
       {/* Page Navigation */}
       <ActionIcon
         variant="subtle"

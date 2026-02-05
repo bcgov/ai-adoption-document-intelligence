@@ -1,44 +1,48 @@
-import { FC, useEffect, useState } from "react";
 import {
+  Avatar,
   Badge,
   Button,
+  Center,
+  Divider,
   Group,
   Loader,
   Modal,
   Paper,
+  Progress,
+  rem,
+  ScrollArea,
   Stack,
   Table,
   Tabs,
   Text,
   Title,
-  Center,
-  Progress,
-  ScrollArea,
   Tooltip,
-  Avatar,
-  Divider,
-  rem,
 } from "@mantine/core";
 import { Dropzone, FileRejection } from "@mantine/dropzone";
 import { notifications } from "@mantine/notifications";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   IconArrowLeft,
+  IconFileDescription,
+  IconPhoto,
   IconPlus,
   IconTrash,
   IconUpload,
-  IconPhoto,
-  IconFileDescription,
   IconX,
 } from "@tabler/icons-react";
-import { useProject, useProjectDocuments } from "../hooks/useProjects";
-import { useFieldSchema } from "../hooks/useFieldSchema";
-import { FieldSchemaEditor } from "../components/FieldSchemaEditor";
-import { ExportPanel } from "../components/ExportPanel";
-import { TrainingPanel } from "../components/TrainingPanel";
-import type { FieldDefinition } from "../../core/types/field";
-import { useUploadQueue, type UploadQueueItem } from "@/data/hooks/useUploadQueue";
+import { useQueryClient } from "@tanstack/react-query";
+import { FC, useEffect, useState } from "react";
+import {
+  type UploadQueueItem,
+  useUploadQueue,
+} from "@/data/hooks/useUploadQueue";
 import { apiService } from "@/data/services/api.service";
+import type { FieldDefinition } from "../../core/types/field";
+import { ExportPanel } from "../components/ExportPanel";
+import { FieldSchemaEditor } from "../components/FieldSchemaEditor";
+import { TrainingPanel } from "../components/TrainingPanel";
+import { useFieldSchema } from "../hooks/useFieldSchema";
+import { useProject, useProjectDocuments } from "../hooks/useProjects";
+
 interface LabelingUploadPayload {
   title: string;
   file: string;
@@ -46,14 +50,20 @@ interface LabelingUploadPayload {
   original_filename?: string;
   metadata?: Record<string, unknown>;
 }
-import {
-  dropzoneAccept,
-  fileToBase64,
-} from "@/shared/utils";
-import {
-  MAX_FILE_SIZE,
-  SUPPORTED_FILE_TYPES,
-} from "@/shared/constants";
+
+import { MAX_FILE_SIZE, SUPPORTED_FILE_TYPES } from "@/shared/constants";
+import { dropzoneAccept, fileToBase64 } from "@/shared/utils";
+
+interface FieldFormData {
+  field_key?: string;
+  field_type?: string;
+  field_format?: string;
+  display_order?: number;
+  is_required?: boolean;
+  is_table?: boolean;
+  table_type?: string;
+  column_headers?: Array<{ name: string; type: string }>;
+}
 
 const formatStatusBadge = (status: UploadQueueItem["status"]) => {
   switch (status) {
@@ -98,7 +108,9 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
   } = useFieldSchema(projectId);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [schemaEditorOpen, setSchemaEditorOpen] = useState(false);
-  const [editingField, setEditingField] = useState<FieldDefinition | null>(null);
+  const [editingField, setEditingField] = useState<FieldDefinition | null>(
+    null,
+  );
   const {
     queue,
     isUploading,
@@ -147,7 +159,9 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
     });
   };
 
-  const uploadDocumentsFromFiles = async (itemsToUpload: UploadQueueItem<{ labelingDocumentId: string }>[]) => {
+  const uploadDocumentsFromFiles = async (
+    itemsToUpload: UploadQueueItem<{ labelingDocumentId: string }>[],
+  ) => {
     await uploadFiles(async (file) => {
       const base64 = await fileToBase64(file);
       const payload: LabelingUploadPayload = {
@@ -161,10 +175,9 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
         },
       };
 
-      const response = await apiService.post<{ labelingDocument: { id: string } }>(
-        `/labeling/projects/${projectId}/upload`,
-        payload,
-      );
+      const response = await apiService.post<{
+        labelingDocument: { id: string };
+      }>(`/labeling/projects/${projectId}/upload`, payload);
 
       if (!response.success || !response.data) {
         throw new Error(response.message || "Upload failed");
@@ -191,7 +204,7 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
     await uploadDocumentsFromFiles(pending);
   };
 
-  const handleSaveField = (data: any) => {
+  const handleSaveField = (data: FieldFormData) => {
     if (editingField) {
       updateField({
         fieldId: editingField.id,
@@ -204,8 +217,14 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
       });
     } else {
       addField({
-        ...data,
+        field_key: data.field_key!,
+        field_type: data.field_type!,
+        field_format: data.field_format,
         display_order: schema.length + 1,
+        is_required: data.is_required,
+        is_table: data.is_table,
+        table_type: data.table_type,
+        column_headers: data.column_headers,
       });
     }
     setSchemaEditorOpen(false);
@@ -285,57 +304,57 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
                       doc.labeling_document.status === "completed_ocr";
 
                     return (
-                    <Table.Tr key={doc.id}>
-                      <Table.Td>
-                        {doc.labeling_document.original_filename}
-                      </Table.Td>
-                      <Table.Td>
-                        <Stack gap={2}>
-                          <Badge size="sm" variant="light">
-                            {doc.labeling_document.status}
-                          </Badge>
-                          {!isReady && (
-                            <Text size="xs" c="dimmed">
-                              OCR running
-                            </Text>
-                          )}
-                        </Stack>
-                      </Table.Td>
-                      <Table.Td>{doc.labels?.length || 0}</Table.Td>
-                      <Table.Td>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="light"
-                            onClick={() =>
-                              onOpenDocument(doc.labeling_document_id)
-                            }
-                            disabled={!isReady}
-                            title={
-                              isReady
-                                ? "Open for labeling"
-                                : "Wait for OCR to finish"
-                            }
-                          >
-                            Open
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            color="red"
-                            leftSection={<IconTrash size={14} />}
-                            onClick={() =>
-                              removeDocument(doc.labeling_document_id)
-                            }
-                            loading={isRemoving}
-                          >
-                            Remove
-                          </Button>
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                  );
-                })}
+                      <Table.Tr key={doc.id}>
+                        <Table.Td>
+                          {doc.labeling_document.original_filename}
+                        </Table.Td>
+                        <Table.Td>
+                          <Stack gap={2}>
+                            <Badge size="sm" variant="light">
+                              {doc.labeling_document.status}
+                            </Badge>
+                            {!isReady && (
+                              <Text size="xs" c="dimmed">
+                                OCR running
+                              </Text>
+                            )}
+                          </Stack>
+                        </Table.Td>
+                        <Table.Td>{doc.labels?.length || 0}</Table.Td>
+                        <Table.Td>
+                          <Group gap="xs">
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={() =>
+                                onOpenDocument(doc.labeling_document_id)
+                              }
+                              disabled={!isReady}
+                              title={
+                                isReady
+                                  ? "Open for labeling"
+                                  : "Wait for OCR to finish"
+                              }
+                            >
+                              Open
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="subtle"
+                              color="red"
+                              leftSection={<IconTrash size={14} />}
+                              onClick={() =>
+                                removeDocument(doc.labeling_document_id)
+                              }
+                              loading={isRemoving}
+                            >
+                              Remove
+                            </Button>
+                          </Group>
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
                 </Table.Tbody>
               </Table>
             )}
@@ -467,7 +486,10 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
                 />
               </Dropzone.Reject>
               <Dropzone.Idle>
-                <IconPhoto style={{ width: rem(40), height: rem(40) }} stroke={1.5} />
+                <IconPhoto
+                  style={{ width: rem(40), height: rem(40) }}
+                  stroke={1.5}
+                />
               </Dropzone.Idle>
 
               <div>

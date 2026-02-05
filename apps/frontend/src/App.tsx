@@ -9,13 +9,13 @@ import {
   Title,
 } from "@mantine/core";
 import {
+  IconClipboardCheck,
   IconFlask,
   IconList,
   IconLogout,
   IconSettings,
-  IconUpload,
   IconTags,
-  IconClipboardCheck,
+  IconUpload,
 } from "@tabler/icons-react";
 import { JSX, useMemo, useState } from "react";
 import { useAuth } from "./auth/AuthContext";
@@ -24,18 +24,24 @@ import { Login } from "./components";
 import { DocumentViewerModal } from "./components/document/DocumentViewerModal";
 import { ProcessingQueue } from "./components/queue/ProcessingQueue";
 import { DocumentUploadPanel } from "./components/upload/DocumentUploadPanel";
-import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
-import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
-import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/LabelingWorkspacePage";
 import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
 import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWorkspacePage";
+import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/LabelingWorkspacePage";
+import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
+import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkflowEditPage } from "./pages/WorkflowEditPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
 import { WorkflowPage } from "./pages/WorkflowPage";
 import type { Document } from "./shared/types";
 
-type MainView = "upload" | "queue" | "workflows" | "labeling" | "review" | "settings";
+type MainView =
+  | "upload"
+  | "queue"
+  | "workflows"
+  | "labeling"
+  | "review"
+  | "settings";
 type WorkflowView = "list" | "create" | "edit";
 
 function AppContent(): JSX.Element {
@@ -84,7 +90,7 @@ function AppContent(): JSX.Element {
         value: "review" as MainView,
         label: "HITL Review",
         description: "Validate OCR results",
-        icon: IconClipboardCheck
+        icon: IconClipboardCheck,
       },
       {
         value: "workflows" as MainView,
@@ -211,7 +217,9 @@ function AppContent(): JSX.Element {
                 )
               ) : (
                 <ProjectListPage
-                  onSelectProject={(projectId) => setSelectedProjectId(projectId)}
+                  onSelectProject={(projectId) =>
+                    setSelectedProjectId(projectId)
+                  }
                 />
               )
             ) : activeView === "review" ? (

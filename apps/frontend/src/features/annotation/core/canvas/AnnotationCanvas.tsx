@@ -1,6 +1,8 @@
-import { FC, useRef, useEffect, useState, useMemo, useCallback } from "react";
-import { Stage, Layer, Image as KonvaImage } from "react-konva";
 import { Box } from "@mantine/core";
+import Konva from "konva";
+import { KonvaEventObject } from "konva/lib/Node";
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Image as KonvaImage, Layer, Stage } from "react-konva";
 import { BoundingBox, CanvasTool } from "../types";
 import { BoundingBoxLayer } from "./BoundingBoxLayer";
 import { DrawingLayer } from "./DrawingLayer";
@@ -32,9 +34,12 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   onBoxSelect,
   onBoxCreate,
 }) => {
-  const stageRef = useRef<any>(null);
+  const stageRef = useRef<Konva.Stage | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
-  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const [imageSize, setImageSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const [userZoom, setUserZoom] = useState(1); // User's zoom adjustment (1 = fit to container)
 
   const { pan, setPan } = useCanvasPan();
@@ -61,7 +66,10 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
   // Combined scale = fitScale * userZoom
   const effectiveScale = fitScale * userZoom;
   const isPanEnabled = useMemo(
-    () => Boolean(imageSize) && effectiveScale > fitScale && activeTool !== CanvasTool.DRAW_BOX,
+    () =>
+      Boolean(imageSize) &&
+      effectiveScale > fitScale &&
+      activeTool !== CanvasTool.DRAW_BOX,
     [activeTool, effectiveScale, fitScale, imageSize],
   );
 
@@ -116,18 +124,22 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
     }
   }, [clampPan, effectiveScale, imageSize, width, height, pan, setPan]);
 
-  const handleWheel = (e: any) => {
+  const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
     const scaleBy = 1.1;
-    const newUserZoom = e.evt.deltaY < 0 ? userZoom * scaleBy : userZoom / scaleBy;
+    const newUserZoom =
+      e.evt.deltaY < 0 ? userZoom * scaleBy : userZoom / scaleBy;
     // Clamp user zoom between 0.5x and 5x of fit scale
     const clampedZoom = Math.max(0.5, Math.min(5, newUserZoom));
     setUserZoom(clampedZoom);
   };
 
-  const handleMouseDown = (e: any) => {
+  const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
+    if (!stage) return;
+
     const pos = stage.getPointerPosition();
+    if (!pos) return;
 
     // Click on empty canvas area deselects
     if (e.target === e.target.getStage()) {
@@ -145,9 +157,13 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
     }
   };
 
-  const handleMouseMove = (e: any) => {
+  const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
+    if (!stage) return;
+
     const pos = stage.getPointerPosition();
+    if (!pos) return;
+
     if (activeTool === CanvasTool.DRAW_BOX && isDrawing) {
       const relativePos = {
         x: (pos.x - pan.x) / effectiveScale,
@@ -173,9 +189,15 @@ export const AnnotationCanvas: FC<AnnotationCanvasProps> = ({
     }
   };
 
-  const forceDefaultCursor = useCallback((event: any) => {
-    event.target.getStage()?.container().style.setProperty("cursor", "default");
-  }, []);
+  const forceDefaultCursor = useCallback(
+    (event: KonvaEventObject<MouseEvent>) => {
+      event.target
+        .getStage()
+        ?.container()
+        .style.setProperty("cursor", "default");
+    },
+    [],
+  );
 
   return (
     <Box

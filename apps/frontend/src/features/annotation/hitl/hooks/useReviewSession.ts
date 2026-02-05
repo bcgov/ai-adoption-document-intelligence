@@ -2,6 +2,34 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiService } from "@/data/services/api.service";
 import type { CorrectionAction } from "../../core/types/annotation";
 
+interface OcrField {
+  confidence?: number;
+  value?: string;
+  valueString?: string;
+  valueNumber?: number;
+  valueDate?: string;
+  content?: string;
+  boundingRegions?: Array<{
+    polygon: number[];
+  }>;
+  [key: string]: unknown;
+}
+
+interface OcrResult {
+  fields?: Record<string, OcrField>;
+  [key: string]: unknown;
+}
+
+interface Correction {
+  id: string;
+  fieldKey: string;
+  originalValue?: string;
+  correctedValue?: string;
+  originalConfidence?: number;
+  action: string;
+  createdAt: string;
+}
+
 interface ReviewSession {
   id: string;
   documentId: string;
@@ -13,10 +41,10 @@ interface ReviewSession {
     id: string;
     original_filename: string;
     storage_path?: string;
-    ocr_result?: any;
+    ocr_result?: OcrResult;
     file_type?: string;
   };
-  corrections?: any[];
+  corrections?: Correction[];
 }
 
 interface CorrectionDto {

@@ -27,7 +27,7 @@ export const useCanvasPan = (initialPan: Point = { x: 0, y: 0 }) => {
         setDragStart(point);
       }
     },
-    [isDragging, dragStart, pan, setPan]
+    [isDragging, dragStart, pan, setPan],
   );
 
   const endPan = useCallback(() => {

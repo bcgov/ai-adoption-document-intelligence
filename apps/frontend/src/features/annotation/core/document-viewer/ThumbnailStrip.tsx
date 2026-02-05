@@ -1,5 +1,5 @@
+import { Box, ScrollArea, Stack, Text } from "@mantine/core";
 import { FC } from "react";
-import { ScrollArea, Stack, Box, Text } from "@mantine/core";
 import { Page } from "react-pdf";
 
 interface ThumbnailStripProps {

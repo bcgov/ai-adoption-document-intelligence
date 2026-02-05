@@ -1,19 +1,19 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../../../../data/services/api.service';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiService } from "../../../../data/services/api.service";
 import {
-  TrainingJob,
-  TrainedModel,
-  ValidationResult,
   StartTrainingRequest,
+  TrainedModel,
+  TrainingJob,
   TrainingStatus,
-} from '../types/training.types';
+  ValidationResult,
+} from "../types/training.types";
 
 export function useTraining(projectId: string) {
   const queryClient = useQueryClient();
 
   // Validate project readiness for training
   const validateQuery = useQuery({
-    queryKey: ['training-validation', projectId],
+    queryKey: ["training-validation", projectId],
     queryFn: async () => {
       const response = await apiService.get<ValidationResult>(
         `/training/projects/${projectId}/validate`,
@@ -25,7 +25,7 @@ export function useTraining(projectId: string) {
 
   // Get training jobs for project
   const jobsQuery = useQuery({
-    queryKey: ['training-jobs', projectId],
+    queryKey: ["training-jobs", projectId],
     queryFn: async () => {
       const response = await apiService.get<TrainingJob[]>(
         `/training/projects/${projectId}/jobs`,
@@ -50,7 +50,7 @@ export function useTraining(projectId: string) {
 
   // Get trained models for project
   const modelsQuery = useQuery({
-    queryKey: ['trained-models', projectId],
+    queryKey: ["trained-models", projectId],
     queryFn: async () => {
       const response = await apiService.get<TrainedModel[]>(
         `/training/projects/${projectId}/models`,
@@ -70,9 +70,9 @@ export function useTraining(projectId: string) {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['training-jobs', projectId] });
+      queryClient.invalidateQueries({ queryKey: ["training-jobs", projectId] });
       queryClient.invalidateQueries({
-        queryKey: ['training-validation', projectId],
+        queryKey: ["training-validation", projectId],
       });
     },
   });
@@ -83,7 +83,7 @@ export function useTraining(projectId: string) {
       await apiService.delete(`/training/jobs/${jobId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['training-jobs', projectId] });
+      queryClient.invalidateQueries({ queryKey: ["training-jobs", projectId] });
     },
   });
 

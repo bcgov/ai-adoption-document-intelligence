@@ -11,6 +11,11 @@ export interface LabelDto {
     polygon: number[];
     pageWidth?: number;
     pageHeight?: number;
+    span?: {
+      offset?: number;
+      length?: number;
+    };
+    [key: string]: unknown;
   };
   confidence?: number;
   is_manual?: boolean;

@@ -1,5 +1,32 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiService } from "@/data/services/api.service";
+
+interface FieldSchema {
+  id: string;
+  [key: string]: unknown;
+}
+
+interface OcrField {
+  confidence?: number;
+  value?: string;
+  [key: string]: unknown;
+}
+
+interface OcrResult {
+  fields?: Record<string, OcrField>;
+  [key: string]: unknown;
+}
+
+interface BoundingBox {
+  polygon: number[];
+  pageWidth?: number;
+  pageHeight?: number;
+  span?: {
+    offset?: number;
+    length?: number;
+  };
+  [key: string]: unknown;
+}
 
 interface Project {
   id: string;
@@ -9,7 +36,7 @@ interface Project {
   created_by: string;
   created_at: string;
   updated_at: string;
-  field_schema: any[];
+  field_schema: FieldSchema[];
   _count?: { documents: number };
 }
 
@@ -31,7 +58,7 @@ interface ProjectDocument {
     updated_at: string;
     model_id?: string;
     file_url?: string | null;
-    ocr_result?: any;
+    ocr_result?: OcrResult;
   };
   labels?: Array<{
     id: string;
@@ -39,10 +66,10 @@ interface ProjectDocument {
     label_name: string;
     value?: string;
     page_number: number;
-    bounding_box: any;
+    bounding_box: BoundingBox;
     confidence?: number;
   }>;
-  ocr_data?: any;
+  ocr_data?: unknown;
 }
 
 interface CreateProjectDto {
@@ -72,7 +99,10 @@ export const useProjects = (userId?: string) => {
 
   const createProjectMutation = useMutation({
     mutationFn: async (data: CreateProjectDto) => {
-      const response = await apiService.post<Project>("/labeling/projects", data);
+      const response = await apiService.post<Project>(
+        "/labeling/projects",
+        data,
+      );
       return response.data;
     },
     onSuccess: () => {
@@ -81,8 +111,17 @@ export const useProjects = (userId?: string) => {
   });
 
   const updateProjectMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: UpdateProjectDto }) => {
-      const response = await apiService.put<Project>(`/labeling/projects/${id}`, data);
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: UpdateProjectDto;
+    }) => {
+      const response = await apiService.put<Project>(
+        `/labeling/projects/${id}`,
+        data,
+      );
       return response.data;
     },
     onSuccess: () => {
@@ -117,7 +156,9 @@ export const useProject = (projectId: string) => {
   const projectQuery = useQuery({
     queryKey: ["labeling-project", projectId],
     queryFn: async () => {
-      const response = await apiService.get<Project>(`/labeling/projects/${projectId}`);
+      const response = await apiService.get<Project>(
+        `/labeling/projects/${projectId}`,
+      );
       return response.data;
     },
     enabled: !!projectId,
@@ -158,7 +199,9 @@ export const useProjectDocuments = (projectId: string) => {
       queryClient.invalidateQueries({
         queryKey: ["labeling-project-documents", projectId],
       });
-      queryClient.invalidateQueries({ queryKey: ["labeling-project", projectId] });
+      queryClient.invalidateQueries({
+        queryKey: ["labeling-project", projectId],
+      });
     },
   });
 
@@ -173,7 +216,9 @@ export const useProjectDocuments = (projectId: string) => {
       queryClient.invalidateQueries({
         queryKey: ["labeling-project-documents", projectId],
       });
-      queryClient.invalidateQueries({ queryKey: ["labeling-project", projectId] });
+      queryClient.invalidateQueries({
+        queryKey: ["labeling-project", projectId],
+      });
     },
   });
 

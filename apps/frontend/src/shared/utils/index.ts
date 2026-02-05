@@ -30,10 +30,10 @@ export const debounce = <T extends (...args: unknown[]) => unknown>(
   };
 };
 
-export { dropzoneAccept, fileToBase64, generateId } from "./upload";
 export {
   colorForFieldKey,
   colorForFieldKeyWithAlpha,
   colorForFieldKeyWithBorder,
   type FieldColors,
 } from "./fieldColors";
+export { dropzoneAccept, fileToBase64, generateId } from "./upload";

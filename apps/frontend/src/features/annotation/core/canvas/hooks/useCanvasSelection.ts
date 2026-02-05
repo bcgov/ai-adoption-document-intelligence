@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Point, BoundingBox } from "../../types";
+import { BoundingBox, Point } from "../../types";
 
 export const useCanvasSelection = () => {
   const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export const useCanvasSelection = () => {
         setDrawingBox({ ...drawingBox, end: point });
       }
     },
-    [isDrawing, drawingBox]
+    [isDrawing, drawingBox],
   );
 
   const endDrawing = useCallback((): BoundingBox | null => {

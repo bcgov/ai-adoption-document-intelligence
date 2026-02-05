@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiService } from "@/data/services/api.service";
-import type { FieldDefinition } from "../../core/types/field";
+import {
+  type FieldDefinition,
+  FieldType,
+  TableType,
+} from "../../core/types/field";
 
 interface CreateFieldDefinitionDto {
   field_key: string;
@@ -20,40 +24,70 @@ interface UpdateFieldDefinitionDto {
   column_headers?: Array<{ name: string; type: string }>;
 }
 
+interface ApiFieldDefinition {
+  id: string;
+  fieldKey?: string;
+  field_key?: string;
+  fieldType?: string;
+  field_type?: string;
+  fieldFormat?: string;
+  field_format?: string;
+  displayOrder?: number;
+  display_order?: number;
+  isRequired?: boolean;
+  is_required?: boolean;
+  isTable?: boolean;
+  is_table?: boolean;
+  tableType?: string;
+  table_type?: string;
+  columnHeaders?: Array<{ name: string; type: string }>;
+  column_headers?: Array<{ name: string; type: string }>;
+}
+
 export const useFieldSchema = (projectId?: string) => {
   const queryClient = useQueryClient();
 
-  const normalizeSchema = (fields: any[]): FieldDefinition[] =>
-    (fields || []).map((field) => ({
-      id: field.id,
-      fieldKey: field.fieldKey ?? field.field_key,
-      fieldType: field.fieldType ?? field.field_type,
-      fieldFormat: field.fieldFormat ?? field.field_format,
-      displayOrder: field.displayOrder ?? field.display_order,
-      isRequired: field.isRequired ?? field.is_required,
-      isTable: field.isTable ?? field.is_table,
-      tableType: field.tableType ?? field.table_type,
-      columnHeaders: field.columnHeaders ?? field.column_headers,
-    }));
+  const normalizeSchema = (fields: ApiFieldDefinition[]): FieldDefinition[] =>
+    (fields || []).map((field) => {
+      const columnHeaders = field.columnHeaders ?? field.column_headers;
+      return {
+        id: field.id,
+        fieldKey: field.fieldKey ?? field.field_key ?? "",
+        fieldType: (field.fieldType ??
+          field.field_type ??
+          FieldType.STRING) as FieldType,
+        fieldFormat: field.fieldFormat ?? field.field_format,
+        displayOrder: field.displayOrder ?? field.display_order ?? 0,
+        isRequired: field.isRequired ?? field.is_required ?? false,
+        isTable: field.isTable ?? field.is_table ?? false,
+        tableType: (field.tableType ?? field.table_type) as
+          | TableType
+          | undefined,
+        columnHeaders: columnHeaders?.map((col) => ({
+          name: col.name,
+          type: col.type as FieldType,
+        })),
+      };
+    });
 
   const schemaQuery = useQuery({
     queryKey: ["labeling-field-schema", projectId],
     queryFn: async () => {
-      const response = await apiService.get<FieldDefinition[]>(
+      const response = await apiService.get<ApiFieldDefinition[]>(
         `/labeling/projects/${projectId}/fields`,
       );
-      return normalizeSchema((response.data || []) as any[]);
+      return normalizeSchema(response.data || []);
     },
     enabled: Boolean(projectId),
   });
 
   const addFieldMutation = useMutation({
     mutationFn: async (data: CreateFieldDefinitionDto) => {
-      const response = await apiService.post<FieldDefinition>(
+      const response = await apiService.post<ApiFieldDefinition>(
         `/labeling/projects/${projectId}/fields`,
         data,
       );
-      return response.data ? normalizeSchema([response.data as any])[0] : null;
+      return response.data ? normalizeSchema([response.data])[0] : null;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -70,11 +104,11 @@ export const useFieldSchema = (projectId?: string) => {
       fieldId: string;
       data: UpdateFieldDefinitionDto;
     }) => {
-      const response = await apiService.put<FieldDefinition>(
+      const response = await apiService.put<ApiFieldDefinition>(
         `/labeling/projects/${projectId}/fields/${fieldId}`,
         data,
       );
-      return response.data ? normalizeSchema([response.data as any])[0] : null;
+      return response.data ? normalizeSchema([response.data])[0] : null;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -99,11 +133,11 @@ export const useFieldSchema = (projectId?: string) => {
 
   const reorderFieldsMutation = useMutation({
     mutationFn: async (fieldIds: string[]) => {
-      const response = await apiService.put<FieldDefinition[]>(
+      const response = await apiService.put<ApiFieldDefinition[]>(
         `/labeling/projects/${projectId}/fields/reorder`,
         { fieldIds },
       );
-      return normalizeSchema((response.data || []) as any[]);
+      return normalizeSchema(response.data || []);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

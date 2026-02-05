@@ -1,15 +1,14 @@
-import { FC, useState, useRef, useEffect } from "react";
-import { Document } from "react-pdf";
-import { Box, Grid, Center, Text, Alert } from "@mantine/core";
+import { Alert, Box, Center, Grid, Text } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { PageRenderer } from "./PageRenderer";
-import { ViewerToolbar } from "./ViewerToolbar";
-import { ThumbnailStrip } from "./ThumbnailStrip";
-import { useCanvasZoom } from "../canvas/hooks/useCanvasZoom";
-
+import { FC, useEffect, useRef, useState } from "react";
 // Configure react-pdf worker
-import { pdfjs } from "react-pdf";
+import { Document, pdfjs } from "react-pdf";
+import { useCanvasZoom } from "../canvas/hooks/useCanvasZoom";
+import { PageRenderer } from "./PageRenderer";
+import { ThumbnailStrip } from "./ThumbnailStrip";
+import { ViewerToolbar } from "./ViewerToolbar";
+
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface DocumentViewerProps {
@@ -31,8 +30,15 @@ export const DocumentViewer: FC<DocumentViewerProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [error, setError] = useState<Error | null>(null);
   const { zoom, zoomIn, zoomOut, resetZoom, zoomToFit } = useCanvasZoom();
-  const { ref: containerRef, width: containerWidth, height: containerHeight } = useElementSize();
-  const [pageOriginalSize, setPageOriginalSize] = useState<{ width: number; height: number } | null>(null);
+  const {
+    ref: containerRef,
+    width: containerWidth,
+    height: containerHeight,
+  } = useElementSize();
+  const [pageOriginalSize, setPageOriginalSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const initialZoomSetRef = useRef(false);
 
   const handleDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
@@ -59,10 +65,21 @@ export const DocumentViewer: FC<DocumentViewerProps> = ({
       containerHeight > 0 &&
       pageOriginalSize
     ) {
-      zoomToFit(containerWidth - 40, containerHeight - 40, pageOriginalSize.width, pageOriginalSize.height);
+      zoomToFit(
+        containerWidth - 40,
+        containerHeight - 40,
+        pageOriginalSize.width,
+        pageOriginalSize.height,
+      );
       initialZoomSetRef.current = true;
     }
-  }, [fitToContainer, containerWidth, containerHeight, pageOriginalSize, zoomToFit]);
+  }, [
+    fitToContainer,
+    containerWidth,
+    containerHeight,
+    pageOriginalSize,
+    zoomToFit,
+  ]);
 
   if (error) {
     return (
@@ -102,7 +119,10 @@ export const DocumentViewer: FC<DocumentViewerProps> = ({
 
       <Grid gutter={0} style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
         {showThumbnails && numPages > 0 && (
-          <Grid.Col span="auto" style={{ maxWidth: 120, minHeight: 0, overflow: "auto" }}>
+          <Grid.Col
+            span="auto"
+            style={{ maxWidth: 120, minHeight: 0, overflow: "auto" }}
+          >
             <Document file={documentUrl}>
               <ThumbnailStrip
                 totalPages={numPages}
@@ -113,8 +133,20 @@ export const DocumentViewer: FC<DocumentViewerProps> = ({
           </Grid.Col>
         )}
 
-        <Grid.Col ref={containerRef} span="auto" style={{ minHeight: 0, overflow: "auto", background: "#f1f3f5" }}>
-          <Box style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100%", padding: fitToContainer ? 8 : 20 }}>
+        <Grid.Col
+          ref={containerRef}
+          span="auto"
+          style={{ minHeight: 0, overflow: "auto", background: "#f1f3f5" }}
+        >
+          <Box
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: "100%",
+              padding: fitToContainer ? 8 : 20,
+            }}
+          >
             <Document
               file={documentUrl}
               onLoadSuccess={handleDocumentLoadSuccess}

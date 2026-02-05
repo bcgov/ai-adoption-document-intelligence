@@ -1,21 +1,21 @@
-import { FC, useState } from "react";
 import {
-  Stack,
-  Title,
-  Text,
   Button,
-  Group,
   Card,
-  Grid,
-  Modal,
-  TextInput,
-  Textarea,
-  Loader,
   Center,
+  Grid,
+  Group,
+  Loader,
+  Modal,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+  Title,
 } from "@mantine/core";
-import { IconPlus, IconFolder } from "@tabler/icons-react";
-import { useProjects } from "../hooks/useProjects";
+import { IconFolder, IconPlus } from "@tabler/icons-react";
+import { FC, useState } from "react";
 import { ProjectCard } from "../components/ProjectCard";
+import { useProjects } from "../hooks/useProjects";
 
 interface ProjectListPageProps {
   onSelectProject?: (projectId: string) => void;
@@ -120,7 +120,10 @@ export const ProjectListPage: FC<ProjectListPageProps> = ({
             rows={3}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={() => setCreateModalOpened(false)}>
+            <Button
+              variant="subtle"
+              onClick={() => setCreateModalOpened(false)}
+            >
               Cancel
             </Button>
             <Button
