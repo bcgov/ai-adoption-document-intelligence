@@ -97,8 +97,6 @@ describe("TrainingService", () => {
         value: "value1",
         page_number: 1,
         bounding_box: { polygon: [0, 0, 1, 0, 1, 1, 0, 1] },
-        confidence: 0.9,
-        is_manual: false,
         created_at: new Date(),
       },
     ],

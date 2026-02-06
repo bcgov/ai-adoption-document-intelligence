@@ -74,16 +74,6 @@ export class CreateLabelDto {
   @ValidateNested()
   @Type(() => BoundingBoxDto)
   bounding_box: BoundingBoxDto;
-
-  @ApiPropertyOptional({ description: "Confidence score (0-1)" })
-  @IsOptional()
-  @IsNumber()
-  confidence?: number;
-
-  @ApiPropertyOptional({ description: "Whether label was manually created" })
-  @IsOptional()
-  @IsBoolean()
-  is_manual?: boolean;
 }
 
 export class SaveLabelsDto {

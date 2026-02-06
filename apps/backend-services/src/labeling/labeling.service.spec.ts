@@ -108,8 +108,6 @@ describe("LabelingService", () => {
           polygon: [0, 0, 1, 0, 1, 1, 0, 1],
           span: { offset: 0, length: 7 },
         },
-        confidence: 0.95,
-        is_manual: false,
         created_at: new Date(),
       },
     ],
@@ -658,8 +656,6 @@ describe("LabelingService", () => {
             bounding_box: {
               polygon: [0, 0, 1, 0, 1, 1, 0, 1],
             },
-            confidence: 0.98,
-            is_manual: true,
           },
         ],
       };
@@ -974,8 +970,6 @@ describe("LabelingService", () => {
               polygon: [0, 0, 1, 0, 1, 1, 0, 1],
               span: { offset: 0, length: 1 },
             },
-            confidence: 0.99,
-            is_manual: false,
             created_at: new Date(),
           },
         ],

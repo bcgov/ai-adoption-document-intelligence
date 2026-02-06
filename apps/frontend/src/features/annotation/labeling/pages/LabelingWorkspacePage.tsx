@@ -213,8 +213,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
         value: combinedValue,
         page_number: sorted[0].page_number ?? 1,
         bounding_box: combinedBoundingBox,
-        confidence: undefined, // Don't show confidence for combined labels
-        is_manual: sorted[0].is_manual,
       };
     });
 
@@ -517,7 +515,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           pageWidth: ocrPage?.width ?? imageSize.width,
           pageHeight: ocrPage?.height ?? imageSize.height,
         },
-        is_manual: false,
       };
     });
 
@@ -594,8 +591,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
         value,
         page_number: prev[fieldKey]?.page_number ?? 1,
         bounding_box: prev[fieldKey]?.bounding_box,
-        confidence: prev[fieldKey]?.confidence,
-        is_manual: true,
       },
     }));
   };
@@ -624,7 +619,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
             polygon: element.polygon,
             span: element.span,
           },
-          is_manual: false,
         };
       })
       .filter(Boolean) as LabelDto[];

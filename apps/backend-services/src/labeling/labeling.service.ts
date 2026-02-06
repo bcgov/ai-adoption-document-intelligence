@@ -268,8 +268,6 @@ export class LabelingService {
         value: label.value,
         page_number: label.page_number,
         bounding_box: label.bounding_box,
-        confidence: label.confidence,
-        is_manual: label.is_manual,
       })),
     );
 

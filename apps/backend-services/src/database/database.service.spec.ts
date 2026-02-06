@@ -241,8 +241,6 @@ const defaultDocumentLabel = {
   value: "INV-12345",
   page_number: 1,
   bounding_box: { x: 0, y: 0, width: 100, height: 20 },
-  confidence: 0.95,
-  is_manual: true,
   created_at: new Date(),
 };
 
@@ -1004,8 +1002,6 @@ describe("DatabaseService", () => {
           value: "INV-12345",
           page_number: 1,
           bounding_box: { x: 0, y: 0, width: 100, height: 20 },
-          confidence: 0.95,
-          is_manual: true,
         },
       ];
       mockPrisma.documentLabel.findMany.mockResolvedValueOnce([

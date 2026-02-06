@@ -17,8 +17,6 @@ export interface LabelDto {
     };
     [key: string]: unknown;
   };
-  confidence?: number;
-  is_manual?: boolean;
 }
 
 export const useLabels = (projectId?: string, documentId?: string) => {
