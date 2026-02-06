@@ -636,7 +636,10 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     } catch (error) {
       notifications.show({
         title: "Failed to save labels",
-        message: error instanceof Error ? error.message : "An error occurred while saving.",
+        message:
+          error instanceof Error
+            ? error.message
+            : "An error occurred while saving.",
         color: "red",
       });
     }
