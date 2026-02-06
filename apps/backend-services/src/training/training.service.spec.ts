@@ -35,6 +35,7 @@ describe("TrainingService", () => {
   let mockDbService: jest.Mocked<DatabaseService>;
   let mockBlobStorage: jest.Mocked<BlobStorageService>;
   let mockLabelingService: jest.Mocked<LabelingService>;
+  let _mockConfigService: jest.Mocked<ConfigService>;
   let mockAdminClient: any;
   let mockPrisma: any;
 
@@ -220,7 +221,7 @@ describe("TrainingService", () => {
     mockDbService = module.get(DatabaseService);
     mockBlobStorage = module.get(BlobStorageService);
     mockLabelingService = module.get(LabelingService);
-    mockConfigService = module.get(ConfigService);
+    _mockConfigService = module.get(ConfigService);
 
     // Mock fs functions
     (fs.existsSync as jest.Mock).mockReturnValue(true);

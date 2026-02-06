@@ -14,6 +14,7 @@ describe("LabelingOcrService", () => {
   let service: LabelingOcrService;
   let mockDbService: jest.Mocked<DatabaseService>;
   let mockHttpService: jest.Mocked<HttpService>;
+  let _mockConfigService: jest.Mocked<ConfigService>;
 
   const mockLabelingDocument = {
     id: "doc-1",
@@ -76,7 +77,7 @@ describe("LabelingOcrService", () => {
     service = module.get<LabelingOcrService>(LabelingOcrService);
     mockDbService = module.get(DatabaseService);
     mockHttpService = module.get(HttpService);
-    mockConfigService = module.get(ConfigService);
+    _mockConfigService = module.get(ConfigService);
 
     (mkdir as jest.Mock).mockResolvedValue(undefined);
     (writeFile as jest.Mock).mockResolvedValue(undefined);

@@ -17,6 +17,7 @@ import DocumentIntelligence, {
 
 describe("TrainingPollerService", () => {
   let service: TrainingPollerService;
+  let _mockDbService: jest.Mocked<DatabaseService>;
   let mockConfigService: jest.Mocked<ConfigService>;
   let mockAdminClient: any;
   let mockPrisma: any;
@@ -103,7 +104,7 @@ describe("TrainingPollerService", () => {
     }).compile();
 
     service = module.get<TrainingPollerService>(TrainingPollerService);
-    mockDbService = module.get(DatabaseService);
+    _mockDbService = module.get(DatabaseService);
     mockConfigService = module.get(ConfigService);
   });
 
