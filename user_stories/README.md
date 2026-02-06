@@ -1,6 +1,6 @@
-# Summary: 31 User Stories Created
+NOTE: The requirements document for this feature is available here: `docs/DAG_WORKFLOW_ENGINE.md`.
 
-All files are located in `/home/alstruk/GitHub/ai-adoption-document-intelligence/user_stories/`.
+All user stories files are located in `/home/alstruk/GitHub/ai-adoption-document-intelligence/user_stories/`.
 
 ## Foundation / Types (US-001 to US-003) -- HIGH priority
 | File | Title |
@@ -67,15 +67,57 @@ All files are located in `/home/alstruk/GitHub/ai-adoption-document-intelligence
 
 ## Suggested Implementation Order (by dependency chain)
 
-1. **US-001** (types) -- everything depends on this
-2. **US-002** (activity registry), **US-003** (expression evaluator), **US-016** (blob storage) -- parallel
-3. **US-004** (backend validator), **US-005** (temporal validator)
-4. **US-006** (core runner), then **US-007 through US-013** (node type handlers, can be partially parallelized)
-5. **US-014** (query/signal handlers), **US-015** (versioning)
-6. **US-017, US-018, US-019** (new activities) -- parallel
-7. **US-020, US-021, US-022** (backend API updates) -- sequential
-8. **US-023** (frontend types), then **US-024, US-025** (editor and visualization -- parallel), then **US-026** (editor page)
-9. **US-027, US-028** (frontend list page and hooks)
-10. **US-029** (upload flow change)
-11. **US-031** (templates)
-12. **US-030** (legacy removal -- last)
+### Phase 1
+- [ ] **US-001** (types) -- everything depends on this
+
+### Phase 2
+- [ ] **US-002** (activity registry)
+- [ ] **US-003** (expression evaluator)
+- [ ] **US-016** (blob storage)
+
+### Phase 3
+- [ ] **US-004** (backend validator)
+- [ ] **US-005** (temporal validator)
+
+### Phase 4
+- [ ] **US-006** (core runner)
+- [ ] **US-007** (activity node)
+- [ ] **US-008** (switch node)
+- [ ] **US-009** (map/join nodes)
+- [ ] **US-010** (pollUntil node)
+- [ ] **US-011** (humanGate node)
+- [ ] **US-012** (childWorkflow node)
+- [ ] **US-013** (error policy)
+
+### Phase 5
+- [ ] **US-014** (query/signal handlers)
+- [ ] **US-015** (versioning)
+
+### Phase 6
+- [ ] **US-017** (document split activity)
+- [ ] **US-018** (document classify activity)
+- [ ] **US-019** (document validate fields activity)
+
+### Phase 7
+- [ ] **US-020** (backend DTO and workflow types)
+- [ ] **US-021** (start graph workflow)
+- [ ] **US-022** (workflow service validation)
+
+### Phase 8
+- [ ] **US-023** (frontend types)
+- [ ] **US-024** (JSON editor panel)
+- [ ] **US-025** (React Flow visualization)
+- [ ] **US-026** (workflow editor page)
+
+### Phase 9
+- [ ] **US-027** (workflow list schema version)
+- [ ] **US-028** (API hooks and routes)
+
+### Phase 10
+- [ ] **US-029** (upload flow blob references)
+
+### Phase 11
+- [ ] **US-031** (workflow templates)
+
+### Phase 12
+- [ ] **US-030** (legacy code removal)
