@@ -3,7 +3,6 @@ import { apiService } from "@/data/services/api.service";
 import {
   type FieldDefinition,
   FieldType,
-  TableType,
 } from "../../core/types/field";
 
 interface CreateFieldDefinitionDto {
@@ -11,17 +10,11 @@ interface CreateFieldDefinitionDto {
   field_type: string;
   field_format?: string;
   display_order?: number;
-  is_required?: boolean;
-  is_table?: boolean;
-  table_type?: string;
-  column_headers?: Array<{ name: string; type: string }>;
 }
 
 interface UpdateFieldDefinitionDto {
   field_format?: string;
   display_order?: number;
-  is_required?: boolean;
-  column_headers?: Array<{ name: string; type: string }>;
 }
 
 interface ApiFieldDefinition {
@@ -34,41 +27,21 @@ interface ApiFieldDefinition {
   field_format?: string;
   displayOrder?: number;
   display_order?: number;
-  isRequired?: boolean;
-  is_required?: boolean;
-  isTable?: boolean;
-  is_table?: boolean;
-  tableType?: string;
-  table_type?: string;
-  columnHeaders?: Array<{ name: string; type: string }>;
-  column_headers?: Array<{ name: string; type: string }>;
 }
 
 export const useFieldSchema = (projectId?: string) => {
   const queryClient = useQueryClient();
 
   const normalizeSchema = (fields: ApiFieldDefinition[]): FieldDefinition[] =>
-    (fields || []).map((field) => {
-      const columnHeaders = field.columnHeaders ?? field.column_headers;
-      return {
-        id: field.id,
-        fieldKey: field.fieldKey ?? field.field_key ?? "",
-        fieldType: (field.fieldType ??
-          field.field_type ??
-          FieldType.STRING) as FieldType,
-        fieldFormat: field.fieldFormat ?? field.field_format,
-        displayOrder: field.displayOrder ?? field.display_order ?? 0,
-        isRequired: field.isRequired ?? field.is_required ?? false,
-        isTable: field.isTable ?? field.is_table ?? false,
-        tableType: (field.tableType ?? field.table_type) as
-          | TableType
-          | undefined,
-        columnHeaders: columnHeaders?.map((col) => ({
-          name: col.name,
-          type: col.type as FieldType,
-        })),
-      };
-    });
+    (fields || []).map((field) => ({
+      id: field.id,
+      fieldKey: field.fieldKey ?? field.field_key ?? "",
+      fieldType: (field.fieldType ??
+        field.field_type ??
+        FieldType.STRING) as FieldType,
+      fieldFormat: field.fieldFormat ?? field.field_format,
+      displayOrder: field.displayOrder ?? field.display_order ?? 0,
+    }));
 
   const schemaQuery = useQuery({
     queryKey: ["labeling-field-schema", projectId],

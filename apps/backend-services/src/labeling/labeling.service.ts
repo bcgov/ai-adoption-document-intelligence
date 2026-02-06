@@ -3,7 +3,6 @@ import {
   FieldDefinition,
   FieldType,
   LabelingStatus,
-  TableType as PrismaTableType,
 } from "@generated/client";
 import {
   ConflictException,
@@ -25,7 +24,6 @@ import { ExportDto, ExportFormat } from "./dto/export.dto";
 import {
   CreateFieldDefinitionDto,
   ReorderFieldsDto,
-  TableType,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
@@ -112,24 +110,11 @@ export class LabelingService {
       );
     }
 
-    // Map DTO TableType enum to Prisma TableType enum
-    let prismaTableType: PrismaTableType | undefined;
-    if (dto.table_type) {
-      prismaTableType =
-        dto.table_type === TableType.DYNAMIC
-          ? PrismaTableType.dynamic
-          : PrismaTableType.fixed;
-    }
-
     return this.db.createFieldDefinition(projectId, {
       field_key: dto.field_key,
       field_type: dto.field_type as unknown as FieldType,
       field_format: dto.field_format,
       display_order: dto.display_order,
-      is_required: dto.is_required,
-      is_table: dto.is_table,
-      table_type: prismaTableType,
-      column_headers: dto.column_headers,
     });
   }
 
@@ -142,8 +127,6 @@ export class LabelingService {
     const field = await this.db.updateFieldDefinition(fieldId, {
       field_format: dto.field_format,
       display_order: dto.display_order,
-      is_required: dto.is_required,
-      column_headers: dto.column_headers,
     });
     if (!field) {
       throw new NotFoundException(`Field with id ${fieldId} not found`);

@@ -58,11 +58,8 @@ model LabelingProject {
 
 model FieldDefinition {
   field_key       String
-  field_type      FieldType         // string | number | date | selectionMark | signature | table
+  field_type      FieldType         // string | number | date | selectionMark | signature
   field_format    String?           // For dates: "MM/DD/YYYY"
-  is_required     Boolean           @default(false)
-  is_table        Boolean           @default(false)
-  column_headers  String[]          // For table fields
 }
 
 model LabeledDocument {
@@ -183,7 +180,7 @@ Define field schema
       ↓
 POST /api/labeling/projects/{id}/fields
   { fields: [
-    { field_key: "invoice_number", field_type: "string", is_required: true },
+    { field_key: "invoice_number", field_type: "string" },
     { field_key: "total_amount", field_type: "number" },
     { field_key: "invoice_date", field_type: "date", field_format: "MM/DD/YYYY" }
   ]}

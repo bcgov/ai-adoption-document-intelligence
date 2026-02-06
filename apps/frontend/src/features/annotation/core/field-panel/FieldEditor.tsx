@@ -2,7 +2,6 @@ import { Checkbox, NumberInput, TextInput } from "@mantine/core";
 import { FC } from "react";
 import type { FieldDefinition } from "../types/field";
 import { FieldType } from "../types/field";
-import { TableFieldView } from "./TableFieldView";
 
 interface FieldEditorProps {
   field: FieldDefinition;
@@ -17,10 +16,6 @@ export const FieldEditor: FC<FieldEditorProps> = ({
   onChange,
   readOnly,
 }) => {
-  if (field.fieldType === FieldType.TABLE) {
-    return <TableFieldView value={value} />;
-  }
-
   if (field.fieldType === FieldType.SELECTION_MARK) {
     return (
       <Checkbox

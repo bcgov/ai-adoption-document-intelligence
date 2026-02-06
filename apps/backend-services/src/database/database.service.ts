@@ -15,7 +15,6 @@ import {
   ProjectStatus,
   ReviewSession,
   ReviewStatus,
-  TableType,
 } from "@generated/client";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -474,10 +473,6 @@ export class DatabaseService {
       field_type: FieldType;
       field_format?: string;
       display_order?: number;
-      is_required?: boolean;
-      is_table?: boolean;
-      table_type?: TableType;
-      column_headers?: unknown;
     },
   ): Promise<FieldDefinition> {
     this.logger.debug(
@@ -500,10 +495,6 @@ export class DatabaseService {
         field_type: data.field_type,
         field_format: data.field_format,
         display_order: data.display_order,
-        is_required: data.is_required ?? false,
-        is_table: data.is_table ?? false,
-        table_type: data.table_type,
-        column_headers: data.column_headers as JsonValue,
       },
     });
   }
@@ -513,18 +504,13 @@ export class DatabaseService {
     data: {
       field_format?: string;
       display_order?: number;
-      is_required?: boolean;
-      column_headers?: unknown;
     },
   ): Promise<FieldDefinition | null> {
     this.logger.debug(`Updating field definition: ${id}`);
     try {
       return await this.prisma.fieldDefinition.update({
         where: { id },
-        data: {
-          ...data,
-          column_headers: data.column_headers as JsonValue,
-        },
+        data,
       });
     } catch (error) {
       if (error.code === "P2025") return null;

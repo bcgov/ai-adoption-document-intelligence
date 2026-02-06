@@ -59,10 +59,6 @@ interface FieldFormData {
   field_type?: string;
   field_format?: string;
   display_order?: number;
-  is_required?: boolean;
-  is_table?: boolean;
-  table_type?: string;
-  column_headers?: Array<{ name: string; type: string }>;
 }
 
 const formatStatusBadge = (status: UploadQueueItem["status"]) => {
@@ -211,8 +207,6 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
         data: {
           field_format: data.field_format,
           display_order: data.display_order,
-          is_required: data.is_required,
-          column_headers: data.column_headers,
         },
       });
     } else {
@@ -221,10 +215,6 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
         field_type: data.field_type!,
         field_format: data.field_format,
         display_order: schema.length + 1,
-        is_required: data.is_required,
-        is_table: data.is_table,
-        table_type: data.table_type,
-        column_headers: data.column_headers,
       });
     }
     setSchemaEditorOpen(false);
@@ -390,7 +380,6 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
                   <Table.Tr>
                     <Table.Th>Key</Table.Th>
                     <Table.Th>Type</Table.Th>
-                    <Table.Th>Required</Table.Th>
                     <Table.Th>Order</Table.Th>
                     <Table.Th>Actions</Table.Th>
                   </Table.Tr>
@@ -400,7 +389,6 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
                     <Table.Tr key={field.id}>
                       <Table.Td>{field.fieldKey}</Table.Td>
                       <Table.Td>{field.fieldType}</Table.Td>
-                      <Table.Td>{field.isRequired ? "Yes" : "No"}</Table.Td>
                       <Table.Td>{field.displayOrder}</Table.Td>
                       <Table.Td>
                         <Group gap="xs">

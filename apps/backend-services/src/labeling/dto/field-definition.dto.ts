@@ -1,14 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { Type } from "class-transformer";
 import {
   IsArray,
-  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
   IsString,
   Min,
-  ValidateNested,
 } from "class-validator";
 
 export enum FieldType {
@@ -17,27 +14,6 @@ export enum FieldType {
   DATE = "date",
   SELECTION_MARK = "selectionMark",
   SIGNATURE = "signature",
-  TABLE = "table",
-}
-
-export enum TableType {
-  DYNAMIC = "dynamic",
-  FIXED = "fixed",
-}
-
-export class TableColumnDto {
-  @ApiProperty({ description: "Column key" })
-  @IsString()
-  key: string;
-
-  @ApiProperty({ description: "Column label" })
-  @IsString()
-  label: string;
-
-  @ApiPropertyOptional({ description: "Column type", enum: FieldType })
-  @IsOptional()
-  @IsEnum(FieldType)
-  type?: FieldType;
 }
 
 export class CreateFieldDefinitionDto {
@@ -59,34 +35,6 @@ export class CreateFieldDefinitionDto {
   @IsInt()
   @Min(0)
   display_order?: number;
-
-  @ApiPropertyOptional({ description: "Whether field is required" })
-  @IsOptional()
-  @IsBoolean()
-  is_required?: boolean;
-
-  @ApiPropertyOptional({ description: "Whether field is a table" })
-  @IsOptional()
-  @IsBoolean()
-  is_table?: boolean;
-
-  @ApiPropertyOptional({
-    description: "Table type (for table fields)",
-    enum: TableType,
-  })
-  @IsOptional()
-  @IsEnum(TableType)
-  table_type?: TableType;
-
-  @ApiPropertyOptional({
-    description: "Column headers (for table fields)",
-    type: [TableColumnDto],
-  })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => TableColumnDto)
-  column_headers?: TableColumnDto[];
 }
 
 export class UpdateFieldDefinitionDto {
@@ -100,21 +48,6 @@ export class UpdateFieldDefinitionDto {
   @IsInt()
   @Min(0)
   display_order?: number;
-
-  @ApiPropertyOptional({ description: "Whether field is required" })
-  @IsOptional()
-  @IsBoolean()
-  is_required?: boolean;
-
-  @ApiPropertyOptional({
-    description: "Column headers (for table fields)",
-    type: [TableColumnDto],
-  })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => TableColumnDto)
-  column_headers?: TableColumnDto[];
 }
 
 export class ReorderFieldsDto {

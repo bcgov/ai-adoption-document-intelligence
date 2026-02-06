@@ -6,17 +6,6 @@ export enum FieldType {
   DATE = "date",
   SELECTION_MARK = "selectionMark",
   SIGNATURE = "signature",
-  TABLE = "table",
-}
-
-export enum TableType {
-  DYNAMIC = "dynamic",
-  FIXED = "fixed",
-}
-
-export interface TableColumn {
-  name: string;
-  type: FieldType;
 }
 
 export interface FieldDefinition {
@@ -25,10 +14,6 @@ export interface FieldDefinition {
   fieldType: FieldType;
   fieldFormat?: string;
   displayOrder: number;
-  isRequired: boolean;
-  isTable: boolean;
-  tableType?: TableType;
-  columnHeaders?: TableColumn[];
 }
 
 export interface FieldValue {

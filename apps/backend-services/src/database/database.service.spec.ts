@@ -115,7 +115,6 @@ import {
   OcrResult,
   ProjectStatus,
   ReviewStatus,
-  TableType,
 } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
@@ -213,10 +212,6 @@ const defaultFieldDefinition = {
   field_type: FieldType.string,
   field_format: null,
   display_order: 0,
-  is_required: true,
-  is_table: false,
-  table_type: null,
-  column_headers: null,
   created_at: new Date(),
   updated_at: new Date(),
 };
@@ -719,10 +714,6 @@ describe("DatabaseService", () => {
           field_type: FieldType.string,
           field_format: undefined,
           display_order: 3,
-          is_required: false,
-          is_table: false,
-          table_type: undefined,
-          column_headers: undefined,
         },
       });
     });
@@ -768,18 +759,17 @@ describe("DatabaseService", () => {
     it("should update a field definition", async () => {
       const updatedField = {
         ...defaultFieldDefinition,
-        is_required: false,
+        field_format: "MM/DD/YYYY",
       };
       mockPrisma.fieldDefinition.update.mockResolvedValueOnce(updatedField);
       const result = await service.updateFieldDefinition("field-1", {
-        is_required: false,
+        field_format: "MM/DD/YYYY",
       });
       expect(result).toEqual(updatedField);
       expect(mockPrisma.fieldDefinition.update).toHaveBeenCalledWith({
         where: { id: "field-1" },
         data: {
-          is_required: false,
-          column_headers: undefined,
+          field_format: "MM/DD/YYYY",
         },
       });
     });
@@ -789,7 +779,7 @@ describe("DatabaseService", () => {
         throw { code: "P2025" };
       });
       const result = await service.updateFieldDefinition("not-found", {
-        is_required: false,
+        field_format: "MM/DD/YYYY",
       });
       expect(result).toBeNull();
     });
@@ -799,7 +789,9 @@ describe("DatabaseService", () => {
         throw new Error("Database error");
       });
       await expect(
-        service.updateFieldDefinition("field-1", { is_required: false }),
+        service.updateFieldDefinition("field-1", {
+          field_format: "MM/DD/YYYY",
+        }),
       ).rejects.toThrow("Database error");
     });
   });

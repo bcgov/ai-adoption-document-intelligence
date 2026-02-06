@@ -123,10 +123,6 @@ model FieldDefinition {
   field_type      FieldType        @default(string)
   field_format    String?
   display_order   Int              @default(0)
-  is_required     Boolean          @default(false)
-  is_table        Boolean          @default(false)
-  table_type      TableType?
-  column_headers  Json?
   @@unique([project_id, field_key])
   @@map("field_definitions")
 }
@@ -246,12 +242,6 @@ enum FieldType {
   date
   selectionMark
   signature
-  table
-}
-
-enum TableType {
-  dynamic
-  fixed
 }
 
 enum LabelingStatus {

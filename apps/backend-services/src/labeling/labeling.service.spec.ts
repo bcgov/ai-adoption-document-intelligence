@@ -2,7 +2,6 @@ import {
   DocumentStatus,
   LabelingStatus,
   FieldType as PrismaFieldType,
-  TableType as PrismaTableType,
 } from "@generated/client";
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
@@ -18,7 +17,6 @@ import {
   CreateFieldDefinitionDto,
   FieldType,
   ReorderFieldsDto,
-  TableType,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
@@ -45,10 +43,6 @@ describe("LabelingService", () => {
         field_type: PrismaFieldType.string,
         field_format: null,
         display_order: 0,
-        is_required: true,
-        is_table: false,
-        table_type: null,
-        column_headers: null,
         project_id: "project-1",
       },
     ],
@@ -303,7 +297,6 @@ describe("LabelingService", () => {
       const dto: CreateFieldDefinitionDto = {
         field_key: "total_amount",
         field_type: FieldType.NUMBER,
-        is_required: true,
       };
 
       const newField = {
@@ -312,10 +305,6 @@ describe("LabelingService", () => {
         field_type: PrismaFieldType.number,
         field_format: null,
         display_order: 1,
-        is_required: true,
-        is_table: false,
-        table_type: null,
-        column_headers: null,
         project_id: "project-1",
       };
 
@@ -332,52 +321,6 @@ describe("LabelingService", () => {
         expect.objectContaining({
           field_key: "total_amount",
           field_type: FieldType.NUMBER,
-          is_required: true,
-        }),
-      );
-      expect(result).toEqual(newField);
-    });
-
-    it("should handle table fields with dynamic table type", async () => {
-      const dto: CreateFieldDefinitionDto = {
-        field_key: "line_items",
-        field_type: FieldType.TABLE,
-        is_table: true,
-        table_type: TableType.DYNAMIC,
-        column_headers: [
-          { key: "description", label: "Description" },
-          { key: "amount", label: "Amount" },
-        ],
-      };
-
-      const newField = {
-        id: "field-2",
-        field_key: "line_items",
-        field_type: PrismaFieldType.table,
-        field_format: null,
-        display_order: 1,
-        is_required: false,
-        is_table: true,
-        table_type: PrismaTableType.dynamic,
-        column_headers: dto.column_headers as any,
-        project_id: "project-1",
-      };
-
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
-      mockDbService.createFieldDefinition.mockResolvedValueOnce(
-        newField as any,
-      );
-
-      const result = await service.addField("project-1", dto);
-
-      expect(mockDbService.createFieldDefinition).toHaveBeenCalledWith(
-        "project-1",
-        expect.objectContaining({
-          field_key: "line_items",
-          field_type: FieldType.TABLE,
-          is_table: true,
-          table_type: PrismaTableType.dynamic,
-          column_headers: dto.column_headers,
         }),
       );
       expect(result).toEqual(newField);
@@ -412,13 +355,11 @@ describe("LabelingService", () => {
     it("should update a field", async () => {
       const dto: UpdateFieldDefinitionDto = {
         field_format: "currency",
-        is_required: false,
       };
 
       const updatedField = {
         ...mockProject.field_schema[0],
         field_format: "currency",
-        is_required: false,
       };
 
       mockDbService.updateFieldDefinition.mockResolvedValueOnce(updatedField);
@@ -903,10 +844,6 @@ describe("LabelingService", () => {
             field_type: PrismaFieldType.date,
             field_format: "dmy",
             display_order: 1,
-            is_required: false,
-            is_table: false,
-            table_type: null,
-            column_headers: null,
             project_id: "project-1",
           },
         ],
@@ -947,10 +884,6 @@ describe("LabelingService", () => {
             field_type: PrismaFieldType.selectionMark,
             field_format: null,
             display_order: 0,
-            is_required: false,
-            is_table: false,
-            table_type: null,
-            column_headers: null,
             project_id: "project-1",
           },
         ],
