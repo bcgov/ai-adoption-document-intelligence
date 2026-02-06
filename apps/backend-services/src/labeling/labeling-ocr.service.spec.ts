@@ -399,6 +399,8 @@ describe("LabelingOcrService", () => {
     });
 
     it("should timeout after max attempts", async () => {
+      jest.useFakeTimers();
+
       mockDbService.findLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
@@ -424,7 +426,14 @@ describe("LabelingOcrService", () => {
         }),
       );
 
-      await service.processOcrForLabelingDocument("doc-1");
+      const processPromise = service.processOcrForLabelingDocument("doc-1");
+
+      // Fast-forward through all the delay timers (30 attempts × 2000ms)
+      for (let i = 0; i < 30; i++) {
+        await jest.advanceTimersByTimeAsync(2000);
+      }
+
+      await processPromise;
 
       expect(mockDbService.updateLabelingDocument).toHaveBeenCalledWith(
         "doc-1",
@@ -432,7 +441,9 @@ describe("LabelingOcrService", () => {
           status: DocumentStatus.failed,
         },
       );
-    }, 65000);
+
+      jest.useRealTimers();
+    });
 
     it("should handle missing analyzeResult", async () => {
       mockDbService.findLabelingDocument.mockResolvedValueOnce(
