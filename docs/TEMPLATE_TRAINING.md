@@ -88,8 +88,6 @@ model DocumentLabel {
   value           String?
   page_number     Int
   bounding_box    Json?            // { x, y, width, height }
-  confidence      Float?
-  is_manual       Boolean          @default(true)
   created_at      DateTime         @default(now())
 
   @@map("document_labels")

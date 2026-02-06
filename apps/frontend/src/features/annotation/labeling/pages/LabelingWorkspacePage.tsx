@@ -44,8 +44,6 @@ interface LabelState {
     pageWidth?: number;
     pageHeight?: number;
   };
-  confidence?: number;
-  is_manual?: boolean;
 }
 
 interface OcrElement {
@@ -280,11 +278,10 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   }, [documentUrl]);
 
   const labelValues = useMemo(() => {
-    const values: Record<string, { value?: string; confidence?: number }> = {};
+    const values: Record<string, { value?: string }> = {};
     Object.values(labelState).forEach((label) => {
       values[label.field_key] = {
         value: label.value,
-        confidence: label.confidence,
       };
     });
     return values;
