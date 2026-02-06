@@ -1,8 +1,8 @@
-# US-019: Implement SDPR Aggregate Report Activity
+# US-019: Implement Document Aggregate Report Activity
 
 **As a** developer,
-**I want to** have an `sdpr.aggregate` Temporal activity that consolidates processed segments into an aggregated SDPR report,
-**So that** the SDPR multi-page workflow can produce a final consolidated report from individually OCR'd and classified document segments.
+**I want to** have a `document.aggregate` Temporal activity that consolidates processed segments into an aggregated report,
+**So that** multi-page workflows can produce a final consolidated report from individually OCR'd and classified document segments.
 
 ## Acceptance Criteria
 - [ ] **Scenario 1**: All processed segments are aggregated
@@ -31,10 +31,10 @@
 - [ ] Low (Nice to Have)
 
 ## Technical Notes / Assumptions
-- File: `apps/temporal/src/activities/sdpr-aggregate.ts` (or added to an existing activities file)
-- Registered in the activity registry as `sdpr.aggregate`
-- The SDPR workflow example in Section 4.5 shows this as the final aggregation step
+- File: `apps/temporal/src/activities/document-aggregate.ts` (or added to an existing activities file)
+- Registered in the activity registry as `document.aggregate`
+- The multi-page workflow example in Section 4.5 shows this as the final aggregation step
 - Input includes `processedSegments` (array) and `documentId` (string)
 - Output includes `report` (object) written to `ctx.aggregatedReport`
-- The specific aggregation logic will depend on SDPR report structure requirements
+- The specific aggregation logic will depend on the report structure requirements
 - Tests should verify segments are correctly ordered and combined

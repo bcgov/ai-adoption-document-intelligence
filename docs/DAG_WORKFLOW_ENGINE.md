@@ -4,7 +4,7 @@
 
 This project transforms the existing linear step-based OCR workflow execution system into a generic DAG (Directed Acyclic Graph) workflow engine. The current system runs a single `ocrWorkflow` function with 11 hardcoded sequential steps controlled by enable/disable flags. The new system replaces this with a data-driven graph runner: a single `graphWorkflow` Temporal function that interprets arbitrary workflow graphs stored as JSON in the database at runtime.
 
-The SDPR (Supplier's Declaration of Provincial Residency) monthly report with supporting documents is the initial test case, but the engine is generic from day one -- any document processing pipeline expressible as a DAG should be runnable without code changes.
+The multi-page report with supporting documents is the initial test case, but the engine is generic from day one -- any document processing pipeline expressible as a DAG should be runnable without code changes.
 
 ### Current State
 
@@ -513,7 +513,7 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
 }
 ```
 
-### 4.5 Worked Example: SDPR Monthly Report with Supporting Documents
+### 4.5 Worked Example: Multi-Page Report with Supporting Documents
 
 This demonstrates multi-page document splitting, parallel OCR, classification, and aggregation:
 
@@ -521,8 +521,8 @@ This demonstrates multi-page document splitting, parallel OCR, classification, a
 {
   "schemaVersion": "1.0",
   "metadata": {
-    "description": "SDPR Monthly Report: split multi-page document, OCR each segment, classify, aggregate",
-    "tags": ["sdpr", "multi-page", "classification"]
+    "description": "Multi-page report: split document, OCR each segment, classify, aggregate",
+    "tags": ["multi-page", "classification"]
   },
   "entryNodeId": "updateStatus",
   "ctx": {
@@ -605,7 +605,7 @@ This demonstrates multi-page document splitting, parallel OCR, classification, a
       "id": "aggregateReport",
       "type": "activity",
       "label": "Aggregate Report",
-      "activityType": "sdpr.aggregate",
+      "activityType": "document.aggregate",
       "inputs": [
         { "port": "processedSegments", "ctxKey": "processedSegments" },
         { "port": "documentId", "ctxKey": "documentId" }
@@ -748,7 +748,7 @@ Initial registry entries (mapping from graph `activityType` to existing/new acti
 | `document.storeRejection` | `storeDocumentRejection` | Store rejection data |
 | `document.split` | NEW: `splitDocument` | Split multi-page PDF |
 | `document.classify` | NEW: `classifyDocument` | Rule-based classification |
-| `sdpr.aggregate` | NEW: `aggregateSdprReport` | SDPR-specific aggregation |
+| `document.aggregate` | NEW: `aggregateDocumentReport` | Aggregate processed report segments |
 
 ### 5.6 Query and Signal Handlers
 
@@ -822,7 +822,7 @@ interface ClassifyDocumentInput {
 }
 
 interface ClassifyDocumentOutput {
-  segmentType: string;          // e.g., "sdpr-monthly-report", "receipt", "invoice"
+  segmentType: string;          // e.g., "multi-page-report", "receipt", "invoice"
   confidence: number;
   matchedRule?: string;
 }
@@ -1145,7 +1145,7 @@ export const ACTIVITY_REGISTRY: Record<string, { description: string }> = {
   "document.storeRejection": { description: "Store document rejection data" },
   "document.split": { description: "Split multi-page PDF into segments" },
   "document.classify": { description: "Classify document type (rule-based)" },
-  "sdpr.aggregate": { description: "Aggregate SDPR report segments" },
+  "document.aggregate": { description: "Aggregate processed report segments" },
 };
 ```
 
@@ -1557,17 +1557,17 @@ The structured DSL and CEL would be interchangeable in switch conditions. The fr
 | ChildWorkflow | Node starts child graphWorkflow, waits for result, maps output to parent ctx |
 | Deterministic ordering | Same graph produces identical execution order across multiple runs |
 
-### 15.3 SDPR End-to-End Test
+### 15.3 Multi-Page Report End-to-End Test
 
 | Step | Description |
 |---|---|
-| 1 | Upload a 50-page SDPR PDF with known structure (3 distinct document types) |
+| 1 | Upload a 50-page multi-page report PDF with known structure (3 distinct document types) |
 | 2 | `document.split` produces correct segments (validates page ranges) |
 | 3 | Map fan-out spawns OCR for each segment |
 | 4 | Each segment OCR runs the standard OCR child workflow |
 | 5 | `document.classify` correctly identifies each segment type |
 | 6 | Join collects all segment results |
-| 7 | `sdpr.aggregate` produces the consolidated report |
+| 7 | `document.aggregate` produces the consolidated report |
 | 8 | Results stored in database with correct associations |
 
 ### 15.4 Multi-Page Stress Test
@@ -1669,7 +1669,7 @@ No automated migration of old workflow configs. This is justified because:
    - Update types and API hooks
    - Remove all old form-based workflow builder code
 
-5. **Provide templates**: Create a "Standard OCR Workflow" template (the graph equivalent of the old 11-step workflow, as shown in Section 4.4) and optionally an "SDPR Multi-Page" template. These can be seeded into the database or provided as importable JSON files.
+5. **Provide templates**: Create a "Standard OCR Workflow" template (the graph equivalent of the old 11-step workflow, as shown in Section 4.4) and optionally a "Multi-Page Report" template. These can be seeded into the database or provided as importable JSON files.
 
 ### 17.3 In-Flight Workflow Handling
 

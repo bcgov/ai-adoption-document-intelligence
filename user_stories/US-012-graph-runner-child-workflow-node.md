@@ -44,6 +44,6 @@
 - This is a node-type handler within the graph runner (US-006)
 - Per Section 3 (Key Architectural Decision 4), library workflows are stored as `Workflow` records in the database
 - The child workflow runs the same `graphWorkflow` function -- this is recursive composition
-- The SDPR example in Section 4.5 shows `segmentOcr` as a childWorkflow node referencing the standard OCR workflow
+- The multi-page example in Section 4.5 shows `segmentOcr` as a childWorkflow node referencing the standard OCR workflow
 - Loading a library workflow by database ID requires an activity call (since workflow functions cannot do I/O)
 - Tests must cover: childWorkflow node starts child, waits for result, maps output to parent ctx (Section 15.2)

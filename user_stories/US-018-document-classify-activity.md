@@ -2,7 +2,7 @@
 
 **As a** developer,
 **I want to** have a `document.classify` Temporal activity that classifies document segments using rule-based heuristics,
-**So that** workflow graphs can automatically identify document types (e.g., invoice, receipt, SDPR report) based on OCR text and layout patterns.
+**So that** workflow graphs can automatically identify document types (e.g., invoice, receipt, multi-page report) based on OCR text and layout patterns.
 
 ## Acceptance Criteria
 - [ ] **Scenario 1**: Rule-based classification matches patterns

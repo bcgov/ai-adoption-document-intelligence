@@ -55,5 +55,5 @@
 - Fan-out/fan-in details in Section 5.4
 - Context scoping rules in Section 7.3
 - The batch size threshold for child workflow batching is configurable (default: 50 items per Section 5.4)
-- The SDPR example in Section 4.5 demonstrates map/join with `processSegments` and `collectResults`
+- The multi-page example in Section 4.5 demonstrates map/join with `processSegments` and `collectResults`
 - Tests must cover: map fan-out fan-in, map with maxConcurrency (Section 15.2)
