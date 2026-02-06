@@ -386,9 +386,9 @@ describe("HitlService", () => {
 
       mockDbService.findDocument.mockResolvedValueOnce(null);
 
-      await expect(
-        service.startSession(dto, "reviewer-1"),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.startSession(dto, "reviewer-1")).rejects.toThrow(
+        NotFoundException,
+      );
 
       expect(mockDbService.createReviewSession).not.toHaveBeenCalled();
     });
