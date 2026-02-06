@@ -16,7 +16,6 @@ import { ExportDto, ExportFormat } from "./dto/export.dto";
 import {
   CreateFieldDefinitionDto,
   FieldType,
-  ReorderFieldsDto,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
@@ -115,7 +114,6 @@ describe("LabelingService", () => {
       createFieldDefinition: jest.fn(),
       updateFieldDefinition: jest.fn(),
       deleteFieldDefinition: jest.fn(),
-      reorderFieldDefinitions: jest.fn(),
       findLabeledDocuments: jest.fn(),
       addDocumentToProject: jest.fn(),
       findLabeledDocument: jest.fn(),
@@ -398,28 +396,6 @@ describe("LabelingService", () => {
       await expect(
         service.deleteField("project-1", "non-existent"),
       ).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  describe("reorderFields", () => {
-    it("should reorder fields", async () => {
-      const dto: ReorderFieldsDto = {
-        fieldIds: ["field-1", "field-2", "field-3"],
-      };
-
-      mockDbService.reorderFieldDefinitions.mockResolvedValueOnce(undefined);
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
-
-      const result = await service.reorderFields("project-1", dto);
-
-      expect(mockDbService.reorderFieldDefinitions).toHaveBeenCalledWith(
-        "project-1",
-        dto.fieldIds,
-      );
-      expect(mockDbService.findLabelingProject).toHaveBeenCalledWith(
-        "project-1",
-      );
-      expect(result).toEqual(mockProject.field_schema);
     });
   });
 

@@ -23,7 +23,6 @@ import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
 import { ExportDto, ExportFormat } from "./dto/export.dto";
 import {
   CreateFieldDefinitionDto,
-  ReorderFieldsDto,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
@@ -141,12 +140,6 @@ export class LabelingService {
       throw new NotFoundException(`Field with id ${fieldId} not found`);
     }
     return { success: true, id: fieldId };
-  }
-
-  async reorderFields(projectId: string, dto: ReorderFieldsDto) {
-    this.logger.debug(`Reordering fields in project: ${projectId}`);
-    await this.db.reorderFieldDefinitions(projectId, dto.fieldIds);
-    return this.getFieldSchema(projectId);
   }
 
   // ========== DOCUMENT OPERATIONS ==========

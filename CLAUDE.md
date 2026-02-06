@@ -2,6 +2,6 @@
 - Avoid using "any" types in both back end and front end code, use proper typing.
 - When creating or updating backend code also create and update related tests. If backend code was updated, run tests to ensure they still pass. Adjust tests if they fail and re-run.
 - Do not create "placeholders" or any other types of partial implementations or stubs for "future use", implement features requested only.
-- Do not create features that are not explicitly described in specifications, if there is a gap, include it summary notes after implementing the task.
+- Do not create features that are not explicitly described in specifications, if there is a gap, include it summary notes after implementing the task. If there is a question regarding the implementation, do not make assumptions, stop and clarify from the user.
 - When creating or modifying features, create/update documentation in /docs folder
 - If you need to run `npx prisma generate`, run `npm run db:generate` from `apps/backend-services` - it's a special script that writes models into apps/temporal/src and apps/backend-services/src. Don't forget to run migrations as normal if necessary.

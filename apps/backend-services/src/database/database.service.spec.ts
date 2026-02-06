@@ -825,16 +825,6 @@ describe("DatabaseService", () => {
     });
   });
 
-  describe("reorderFieldDefinitions", () => {
-    it("should reorder field definitions in a transaction", async () => {
-      const fieldIds = ["field-1", "field-2", "field-3"];
-      await service.reorderFieldDefinitions("project-1", fieldIds);
-      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
-      const transactionArg = mockPrisma.$transaction.mock.calls[0][0];
-      expect(transactionArg).toHaveLength(3);
-    });
-  });
-
   describe("addDocumentToProject", () => {
     it("should add a document to a project", async () => {
       mockPrisma.labeledDocument.create.mockResolvedValueOnce(

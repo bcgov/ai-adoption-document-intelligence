@@ -529,21 +529,6 @@ export class DatabaseService {
     }
   }
 
-  async reorderFieldDefinitions(
-    projectId: string,
-    fieldIds: string[],
-  ): Promise<void> {
-    this.logger.debug(`Reordering fields for project: ${projectId}`);
-    await this.prisma.$transaction(
-      fieldIds.map((id, index) =>
-        this.prisma.fieldDefinition.update({
-          where: { id },
-          data: { display_order: index },
-        }),
-      ),
-    );
-  }
-
   // ========== LABELED DOCUMENT OPERATIONS ==========
 
   async addDocumentToProject(

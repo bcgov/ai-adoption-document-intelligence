@@ -25,7 +25,6 @@ import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
 import { ExportDto } from "./dto/export.dto";
 import {
   CreateFieldDefinitionDto,
-  ReorderFieldsDto,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
@@ -147,18 +146,6 @@ export class LabelingController {
     @Param("fieldId") fieldId: string,
   ) {
     return this.labelingService.deleteField(projectId, fieldId);
-  }
-
-  @Put("projects/:id/fields/reorder")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Reorder fields in schema" })
-  @ApiParam({ name: "id", description: "Project ID" })
-  async reorderFields(
-    @Param("id") projectId: string,
-    @Body() dto: ReorderFieldsDto,
-  ) {
-    return this.labelingService.reorderFields(projectId, dto);
   }
 
   // ========== DOCUMENT ENDPOINTS ==========

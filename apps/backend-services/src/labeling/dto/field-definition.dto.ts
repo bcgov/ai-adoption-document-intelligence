@@ -50,12 +50,5 @@ export class UpdateFieldDefinitionDto {
   display_order?: number;
 }
 
-export class ReorderFieldsDto {
-  @ApiProperty({ description: "Ordered list of field IDs" })
-  @IsArray()
-  @IsString({ each: true })
-  fieldIds: string[];
-}
-
 // Legacy DTO for backwards compatibility
 export class FieldDefinitionDto extends CreateFieldDefinitionDto {}

@@ -101,21 +101,6 @@ export const useFieldSchema = (projectId?: string) => {
     },
   });
 
-  const reorderFieldsMutation = useMutation({
-    mutationFn: async (fieldIds: string[]) => {
-      const response = await apiService.put<ApiFieldDefinition[]>(
-        `/labeling/projects/${projectId}/fields/reorder`,
-        { fieldIds },
-      );
-      return normalizeSchema(response.data || []);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["labeling-field-schema", projectId],
-      });
-    },
-  });
-
   return {
     schema: schemaQuery.data || [],
     isLoading: schemaQuery.isLoading,
@@ -123,10 +108,8 @@ export const useFieldSchema = (projectId?: string) => {
     addField: addFieldMutation.mutate,
     updateField: updateFieldMutation.mutate,
     deleteField: deleteFieldMutation.mutate,
-    reorderFields: reorderFieldsMutation.mutate,
     isAdding: addFieldMutation.isPending,
     isUpdating: updateFieldMutation.isPending,
     isDeleting: deleteFieldMutation.isPending,
-    isReordering: reorderFieldsMutation.isPending,
   };
 };

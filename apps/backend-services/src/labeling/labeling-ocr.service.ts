@@ -94,9 +94,7 @@ export class LabelingOcrService {
     }
 
     try {
-      const apimRequestId = await this.requestOcr(
-        labelingDocument.file_path,
-      );
+      const apimRequestId = await this.requestOcr(labelingDocument.file_path);
 
       await this.db.updateLabelingDocument(labelingDocumentId, {
         apim_request_id: apimRequestId,
