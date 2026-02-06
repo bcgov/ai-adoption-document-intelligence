@@ -625,7 +625,21 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       payloadCount: payload.length,
       existingLabels: labels?.length ?? 0,
     });
-    await saveLabelsAsync(payload);
+
+    try {
+      await saveLabelsAsync(payload);
+      notifications.show({
+        title: "Labels saved",
+        message: "Your labels have been saved successfully.",
+        color: "green",
+      });
+    } catch (error) {
+      notifications.show({
+        title: "Failed to save labels",
+        message: error instanceof Error ? error.message : "An error occurred while saving.",
+        color: "red",
+      });
+    }
   };
 
   if (isLoading || isLabelsLoading) {

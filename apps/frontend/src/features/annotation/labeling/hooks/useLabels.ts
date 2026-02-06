@@ -45,6 +45,12 @@ export const useLabels = (projectId?: string, documentId?: string) => {
       queryClient.invalidateQueries({
         queryKey: ["labeling-labels", projectId, documentId],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["labeling-project-documents", projectId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["training-validation", projectId],
+      });
     },
   });
 
