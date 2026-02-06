@@ -39,7 +39,7 @@ All files are located in `/home/alstruk/GitHub/ai-adoption-document-intelligence
 |---|---|
 | `US-017-document-split-activity.md` | PDF splitting activity using qpdf (per-page, fixed-range, boundary detection) |
 | `US-018-document-classify-activity.md` | Rule-based document classification activity |
-| `US-019-document-aggregate-activity.md` | Report aggregation activity |
+| `US-019-document-validate-fields-activity.md` | Cross-document field validation activity |
 
 ## Backend API (US-020 to US-022) -- HIGH priority
 | File | Title |

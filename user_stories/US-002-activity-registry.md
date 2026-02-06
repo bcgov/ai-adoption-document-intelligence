@@ -8,7 +8,7 @@
 - [ ] **Scenario 1**: Registry maps all existing activity types
     - **Given** the activity registry table in Section 5.5
     - **When** the registry is created
-    - **Then** all 12 activity types are registered: `document.updateStatus`, `file.prepare`, `azureOcr.submit`, `azureOcr.poll`, `azureOcr.extract`, `ocr.cleanup`, `ocr.checkConfidence`, `ocr.storeResults`, `document.storeRejection`, `document.split`, `document.classify`, `document.aggregate`
+    - **Then** all 12 activity types are registered: `document.updateStatus`, `file.prepare`, `azureOcr.submit`, `azureOcr.poll`, `azureOcr.extract`, `ocr.cleanup`, `ocr.checkConfidence`, `ocr.storeResults`, `document.storeRejection`, `document.split`, `document.classify`, `document.validateFields`
 
 - [ ] **Scenario 2**: Each registry entry includes required metadata
     - **Given** the `ActivityRegistryEntry` interface in Section 5.5
@@ -38,6 +38,6 @@
 ## Technical Notes / Assumptions
 - File: `apps/temporal/src/activity-registry.ts`
 - The registry is append-only in patch/minor versions per Section 12.4
-- New activities (`document.split`, `document.classify`, `document.aggregate`) will be implemented in separate stories (US-017, US-018, US-019) and wired into the registry
+- New activities (`document.split`, `document.classify`, `document.validateFields`) will be implemented in separate stories (US-017, US-018, US-019) and wired into the registry
 - The existing activity functions must be refactored to conform to the registry pattern (accepting resolved input objects from port bindings)
 - Tests should verify all registered activity types resolve to valid functions

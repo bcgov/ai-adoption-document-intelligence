@@ -13,7 +13,7 @@
 - [ ] **Scenario 2**: Multi-page report workflow template is available
     - **Given** the multi-page workflow example from Section 4.5
     - **When** a user wants to create a multi-page report workflow
-    - **Then** a template JSON file or seeded database record provides the complete `GraphWorkflowConfig` for the multi-page report pipeline (update status, split document, map segments, OCR child workflows, classify, join, aggregate, store results)
+    - **Then** a template JSON file or seeded database record provides the complete `GraphWorkflowConfig` for the multi-page report pipeline (update status, split document, map segments, OCR child workflows, classify, join, validate fields, store results)
 
 - [ ] **Scenario 3**: Templates are valid against the graph schema
     - **Given** either template

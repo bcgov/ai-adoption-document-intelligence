@@ -515,13 +515,13 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
 
 ### 4.5 Worked Example: Multi-Page Report with Supporting Documents
 
-This demonstrates multi-page document splitting, parallel OCR, classification, and aggregation:
+This demonstrates multi-page document splitting, parallel OCR, classification, and cross-document field validation:
 
 ```json
 {
   "schemaVersion": "1.0",
   "metadata": {
-    "description": "Multi-page report: split document, OCR each segment, classify, aggregate",
+    "description": "Multi-page report: split document, OCR each segment, classify, validate fields across documents",
     "tags": ["multi-page", "classification"]
   },
   "entryNodeId": "updateStatus",
@@ -534,7 +534,7 @@ This demonstrates multi-page document splitting, parallel OCR, classification, a
     "segmentOcrResult": { "type": "object" },
     "segmentType": { "type": "string", "description": "Classified document type for segment" },
     "processedSegments": { "type": "array", "description": "Collected results from all segments" },
-    "aggregatedReport": { "type": "object" }
+    "validationResults": { "type": "object" }
   },
   "nodes": {
     "updateStatus": {
@@ -601,16 +601,16 @@ This demonstrates multi-page document splitting, parallel OCR, classification, a
       "strategy": "all",
       "resultsCtxKey": "processedSegments"
     },
-    "aggregateReport": {
-      "id": "aggregateReport",
+    "validateFields": {
+      "id": "validateFields",
       "type": "activity",
-      "label": "Aggregate Report",
-      "activityType": "document.aggregate",
+      "label": "Validate Fields",
+      "activityType": "document.validateFields",
       "inputs": [
         { "port": "processedSegments", "ctxKey": "processedSegments" },
         { "port": "documentId", "ctxKey": "documentId" }
       ],
-      "outputs": [{ "port": "report", "ctxKey": "aggregatedReport" }]
+      "outputs": [{ "port": "validationResults", "ctxKey": "validationResults" }]
     },
     "storeResults": {
       "id": "storeResults",
@@ -619,7 +619,7 @@ This demonstrates multi-page document splitting, parallel OCR, classification, a
       "activityType": "ocr.storeResults",
       "inputs": [
         { "port": "documentId", "ctxKey": "documentId" },
-        { "port": "ocrResult", "ctxKey": "aggregatedReport" }
+        { "port": "ocrResult", "ctxKey": "validationResults" }
       ]
     }
   },
@@ -627,8 +627,8 @@ This demonstrates multi-page document splitting, parallel OCR, classification, a
     { "id": "e1", "source": "updateStatus", "target": "splitDocument", "type": "normal" },
     { "id": "e2", "source": "splitDocument", "target": "processSegments", "type": "normal" },
     { "id": "e3", "source": "processSegments", "target": "collectResults", "type": "normal" },
-    { "id": "e4", "source": "collectResults", "target": "aggregateReport", "type": "normal" },
-    { "id": "e5", "source": "aggregateReport", "target": "storeResults", "type": "normal" }
+    { "id": "e4", "source": "collectResults", "target": "validateFields", "type": "normal" },
+    { "id": "e5", "source": "validateFields", "target": "storeResults", "type": "normal" }
   ]
 }
 ```
@@ -748,7 +748,7 @@ Initial registry entries (mapping from graph `activityType` to existing/new acti
 | `document.storeRejection` | `storeDocumentRejection` | Store rejection data |
 | `document.split` | NEW: `splitDocument` | Split multi-page PDF |
 | `document.classify` | NEW: `classifyDocument` | Rule-based classification |
-| `document.aggregate` | NEW: `aggregateDocumentReport` | Aggregate processed report segments |
+| `document.validateFields` | NEW: `validateDocumentFields` | Validate fields across related documents |
 
 ### 5.6 Query and Signal Handlers
 
@@ -1145,7 +1145,7 @@ export const ACTIVITY_REGISTRY: Record<string, { description: string }> = {
   "document.storeRejection": { description: "Store document rejection data" },
   "document.split": { description: "Split multi-page PDF into segments" },
   "document.classify": { description: "Classify document type (rule-based)" },
-  "document.aggregate": { description: "Aggregate processed report segments" },
+  "document.validateFields": { description: "Validate fields across related documents" },
 };
 ```
 
@@ -1557,7 +1557,7 @@ The structured DSL and CEL would be interchangeable in switch conditions. The fr
 | ChildWorkflow | Node starts child graphWorkflow, waits for result, maps output to parent ctx |
 | Deterministic ordering | Same graph produces identical execution order across multiple runs |
 
-### 15.3 Multi-Page Report End-to-End Test
+### 15.3 Multi-Page Field Validation End-to-End Test
 
 | Step | Description |
 |---|---|
@@ -1567,7 +1567,7 @@ The structured DSL and CEL would be interchangeable in switch conditions. The fr
 | 4 | Each segment OCR runs the standard OCR child workflow |
 | 5 | `document.classify` correctly identifies each segment type |
 | 6 | Join collects all segment results |
-| 7 | `document.aggregate` produces the consolidated report |
+| 7 | `document.validateFields` produces validation results across documents |
 | 8 | Results stored in database with correct associations |
 
 ### 15.4 Multi-Page Stress Test
