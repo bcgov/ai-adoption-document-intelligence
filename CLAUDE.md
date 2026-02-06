@@ -2,4 +2,5 @@
 - Avoid using "any" types in both back end and front end code, use proper typing.
 - When creating or updating backend code also create and update related tests.
 - Do not create "placeholders" or any other types of partial implementations, implement features fully.
-- Do not create features that are not explicitly described in specifications, if there is a gap, stop and clarify.
+- Do not create features that are not explicitly described in specifications, if there is a gap, include it summary notes after implementing the task.
+- When creating or modifying features, create/update documentation in /docs folder
