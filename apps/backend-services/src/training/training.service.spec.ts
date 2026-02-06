@@ -35,7 +35,6 @@ describe("TrainingService", () => {
   let mockDbService: jest.Mocked<DatabaseService>;
   let mockBlobStorage: jest.Mocked<BlobStorageService>;
   let mockLabelingService: jest.Mocked<LabelingService>;
-  let mockConfigService: jest.Mocked<ConfigService>;
   let mockAdminClient: any;
   let mockPrisma: any;
 
