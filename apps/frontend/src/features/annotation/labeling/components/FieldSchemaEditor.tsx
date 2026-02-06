@@ -1,11 +1,4 @@
-import {
-  Button,
-  Group,
-  Modal,
-  Select,
-  Stack,
-  TextInput,
-} from "@mantine/core";
+import { Button, Group, Modal, Select, Stack, TextInput } from "@mantine/core";
 import { FC, useEffect, useMemo, useState } from "react";
 import { FieldDefinition, FieldType } from "../../core/types/field";
 

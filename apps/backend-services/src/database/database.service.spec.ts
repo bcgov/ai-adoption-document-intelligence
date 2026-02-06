@@ -221,7 +221,6 @@ const defaultLabeledDocument = {
   project_id: "project-1",
   labeling_document_id: "labeling-doc-1",
   status: LabelingStatus.unlabeled,
-  ocr_data: null,
   created_at: new Date(),
   updated_at: new Date(),
   labeling_document: defaultLabelingDocument,
@@ -966,21 +965,6 @@ describe("DatabaseService", () => {
       expect(mockPrisma.labeledDocument.update).toHaveBeenCalledWith({
         where: { id: "labeled-doc-1" },
         data: { status: LabelingStatus.labeled },
-      });
-    });
-  });
-
-  describe("updateLabeledDocumentOcrData", () => {
-    it("should update the OCR data of a labeled document", async () => {
-      const ocrData = { field1: "value1", field2: "value2" };
-      mockPrisma.labeledDocument.update.mockResolvedValueOnce({
-        ...defaultLabeledDocument,
-        ocr_data: ocrData,
-      });
-      await service.updateLabeledDocumentOcrData("labeled-doc-1", ocrData);
-      expect(mockPrisma.labeledDocument.update).toHaveBeenCalledWith({
-        where: { id: "labeled-doc-1" },
-        data: { ocr_data: ocrData },
       });
     });
   });

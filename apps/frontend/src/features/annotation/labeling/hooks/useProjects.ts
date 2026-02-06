@@ -69,7 +69,6 @@ interface ProjectDocument {
     bounding_box: BoundingBox;
     confidence?: number;
   }>;
-  ocr_data?: unknown;
 }
 
 interface CreateProjectDto {

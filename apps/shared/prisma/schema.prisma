@@ -134,9 +134,7 @@ model LabeledDocument {
   labeling_document_id String
   labeling_document    LabelingDocument @relation(fields: [labeling_document_id], references: [id], onDelete: Cascade)
   status          LabelingStatus   @default(unlabeled)
-  assigned_to     String?
   labels          DocumentLabel[]
-  ocr_data        Json?
   created_at      DateTime         @default(now())
   updated_at      DateTime         @updatedAt
   @@unique([project_id, labeling_document_id])
@@ -248,7 +246,6 @@ enum LabelingStatus {
   unlabeled
   in_progress
   labeled
-  reviewed
 }
 
 enum ReviewStatus {

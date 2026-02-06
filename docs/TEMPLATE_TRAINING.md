@@ -68,9 +68,8 @@ model LabeledDocument {
   project                 LabelingProject   @relation(fields: [project_id], references: [id])
   labeling_document_id    String
   labeling_document       Document          @relation(fields: [labeling_document_id], references: [id])
-  status                  LabelStatus       @default(unlabeled)
+  status                  LabelStatus       @default(unlabeled)  // unlabeled | in_progress | labeled
   labels                  DocumentLabel[]
-  ocr_data                Json?
   created_at              DateTime          @default(now())
   updated_at              DateTime          @updatedAt
 
@@ -130,10 +129,9 @@ enum ProjectStatus {
 }
 
 enum LabelStatus {
-  unlabeled
-  in_progress
-  labeled
-  reviewed
+  unlabeled   // Document added to project, not yet labeled
+  in_progress // Labeling started but no labels saved yet
+  labeled     // Document has labels saved
 }
 
 enum TrainingStatus {

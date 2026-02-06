@@ -1,9 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiService } from "@/data/services/api.service";
-import {
-  type FieldDefinition,
-  FieldType,
-} from "../../core/types/field";
+import { type FieldDefinition, FieldType } from "../../core/types/field";
 
 interface CreateFieldDefinitionDto {
   field_key: string;

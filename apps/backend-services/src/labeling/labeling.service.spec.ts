@@ -85,8 +85,6 @@ describe("LabelingService", () => {
     project_id: "project-1",
     labeling_document_id: "labeling-doc-1",
     status: LabelingStatus.in_progress,
-    assigned_to: null,
-    ocr_data: null,
     created_at: new Date(),
     updated_at: new Date(),
     labeling_document: mockLabelingDocument as any,

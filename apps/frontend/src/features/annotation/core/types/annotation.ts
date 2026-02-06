@@ -51,7 +51,6 @@ export enum AnnotationStatus {
   UNLABELED = "unlabeled",
   IN_PROGRESS = "in_progress",
   LABELED = "labeled",
-  REVIEWED = "reviewed",
 }
 
 export interface AnnotationSession {

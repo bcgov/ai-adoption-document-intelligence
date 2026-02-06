@@ -638,19 +638,6 @@ export class DatabaseService {
     });
   }
 
-  async updateLabeledDocumentOcrData(
-    labeledDocId: string,
-    ocrData: unknown,
-  ): Promise<void> {
-    this.logger.debug(
-      `Updating OCR data for labeled document: ${labeledDocId}`,
-    );
-    await this.prisma.labeledDocument.update({
-      where: { id: labeledDocId },
-      data: { ocr_data: ocrData as JsonValue },
-    });
-  }
-
   // ========== DOCUMENT LABEL OPERATIONS ==========
 
   async saveDocumentLabels(
