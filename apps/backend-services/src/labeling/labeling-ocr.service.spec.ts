@@ -278,7 +278,7 @@ describe("LabelingOcrService", () => {
   });
 
   describe("private methods (tested via public methods)", () => {
-    it("should use correct URL for prebuilt models", async () => {
+    it("should use correct URL with keyValuePairs feature", async () => {
       mockDbService.findLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
@@ -309,49 +309,15 @@ describe("LabelingOcrService", () => {
       await service.processOcrForLabelingDocument("doc-1");
 
       expect(mockHttpService.post).toHaveBeenCalledWith(
+        expect.stringContaining("prebuilt-layout"),
+        expect.any(Object),
+        expect.any(Object),
+      );
+      expect(mockHttpService.post).toHaveBeenCalledWith(
         expect.stringContaining("features=keyValuePairs"),
         expect.any(Object),
         expect.any(Object),
       );
-    });
-
-    it("should use correct URL for custom models", async () => {
-      const customModelDoc = {
-        ...mockLabelingDocument,
-        model_id: "custom-model-123",
-      };
-
-      mockDbService.findLabelingDocument.mockResolvedValueOnce(
-        customModelDoc as any,
-      );
-
-      mockHttpService.post.mockReturnValueOnce(
-        of({
-          status: 202,
-          headers: { "apim-request-id": "test-id" },
-          data: null,
-          statusText: "Accepted",
-          config: {} as any,
-        }),
-      );
-
-      mockHttpService.get.mockReturnValueOnce(
-        of({
-          status: 200,
-          data: {
-            status: "succeeded",
-            analyzeResult: { content: "test" },
-          },
-          statusText: "OK",
-          headers: {},
-          config: {} as any,
-        }),
-      );
-
-      await service.processOcrForLabelingDocument("doc-1");
-
-      const postCall = mockHttpService.post.mock.calls[0][0];
-      expect(postCall).not.toContain("features=keyValuePairs");
     });
 
     it("should wait for OCR completion with retries", async () => {

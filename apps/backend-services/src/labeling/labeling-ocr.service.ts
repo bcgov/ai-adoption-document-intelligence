@@ -96,7 +96,6 @@ export class LabelingOcrService {
     try {
       const apimRequestId = await this.requestOcr(
         labelingDocument.file_path,
-        labelingDocument.model_id,
       );
 
       await this.db.updateLabelingDocument(labelingDocumentId, {
@@ -104,10 +103,7 @@ export class LabelingOcrService {
         status: DocumentStatus.ongoing_ocr,
       });
 
-      const analysisResponse = await this.waitForOcrCompletion(
-        labelingDocument.model_id,
-        apimRequestId,
-      );
+      const analysisResponse = await this.waitForOcrCompletion(apimRequestId);
 
       await this.db.updateLabelingDocument(labelingDocumentId, {
         status: DocumentStatus.completed_ocr,
@@ -123,15 +119,11 @@ export class LabelingOcrService {
     }
   }
 
-  private async requestOcr(filePath: string, modelId: string): Promise<string> {
+  private async requestOcr(filePath: string): Promise<string> {
     const fullPath = join(process.cwd(), filePath);
     const fileBuffer = await readFile(fullPath);
 
-    const isPrebuiltModel =
-      modelId.startsWith("prebuilt-") || modelId === "prebuilt-read";
-    const url = isPrebuiltModel
-      ? `${this.azureEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30&features=keyValuePairs`
-      : `${this.azureEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30`;
+    const url = `${this.azureEndpoint}/documentModels/prebuilt-layout:analyze?api-version=2024-11-30&features=keyValuePairs`;
 
     const headers = {
       "api-key": this.azureApiKey,
@@ -154,7 +146,6 @@ export class LabelingOcrService {
   }
 
   private async waitForOcrCompletion(
-    modelId: string,
     apimRequestId: string,
     maxAttempts = 30,
     delayMs = 2000,
@@ -162,7 +153,7 @@ export class LabelingOcrService {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const response = await lastValueFrom(
         this.httpService.get(
-          `${this.azureEndpoint}/documentModels/${modelId}/analyzeResults/${apimRequestId}?api-version=2024-11-30`,
+          `${this.azureEndpoint}/documentModels/prebuilt-layout/analyzeResults/${apimRequestId}?api-version=2024-11-30`,
           { headers: { "api-key": this.azureApiKey } },
         ),
       );
