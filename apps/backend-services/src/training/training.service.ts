@@ -372,51 +372,6 @@ export class TrainingService {
         );
       }
 
-      const sasValidation =
-        await this.blobStorage.validateContainerSasUrl(sasUrl);
-      if (!sasValidation.canList) {
-        this.logger.error(
-          `Training SAS validation failed: ${sasValidation.error || "unknown error"}`,
-        );
-      } else {
-        this.logger.debug(
-          `Training SAS can list ${sasValidation.blobCount} blobs (sample: ${sasValidation.sampleBlobs?.join(", ") || "none"})`,
-        );
-      }
-
-      const blobs = await this.blobStorage.listBlobs(job.container_name);
-      const blobNames = new Set(blobs.map((blob) => blob.name));
-      const labelFiles = blobs.filter((blob) =>
-        blob.name.endsWith(".labels.json"),
-      );
-      const missingPairs: string[] = [];
-
-      if (!blobNames.has("fields.json")) {
-        missingPairs.push("fields.json (missing)");
-      }
-
-      if (labelFiles.length === 0) {
-        missingPairs.push("*.labels.json (none found)");
-      }
-
-      for (const labelFile of labelFiles) {
-        const baseName = labelFile.name.replace(/\.labels\.json$/, "");
-        if (!blobNames.has(baseName)) {
-          missingPairs.push(
-            `${baseName} (missing document for ${labelFile.name})`,
-          );
-        }
-      }
-
-      if (missingPairs.length > 0) {
-        this.logger.error(
-          `Training data validation failed: ${missingPairs.join("; ")}`,
-        );
-        throw new Error(
-          "Training data in blob container is incomplete or invalid. See logs for details.",
-        );
-      }
-
       const initialResponse = await this.adminClient
         .path("/documentModels:build")
         .post({

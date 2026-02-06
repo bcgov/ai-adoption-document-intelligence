@@ -151,8 +151,6 @@ describe("TrainingService", () => {
       uploadFiles: jest.fn(),
       generateSasUrl: jest.fn(),
       clearContainerContents: jest.fn(),
-      validateContainerSasUrl: jest.fn(),
-      listBlobs: jest.fn(),
     };
 
     const mockLabeling = {

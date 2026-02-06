@@ -1,6 +1,5 @@
 import {
   BlobServiceClient,
-  ContainerClient,
   ContainerSASPermissions,
   generateBlobSASQueryParameters,
   SASProtocol,
@@ -236,73 +235,6 @@ export class BlobStorageService {
     } catch (error) {
       this.logger.error(
         `Failed to generate SAS URL for container: ${containerName}`,
-        error.stack,
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Validate a container SAS URL by attempting to list blobs.
-   */
-  async validateContainerSasUrl(sasUrl: string): Promise<{
-    canList: boolean;
-    error?: string;
-    blobCount?: number;
-    sampleBlobs?: string[];
-  }> {
-    try {
-      const containerClient = new ContainerClient(sasUrl);
-      const sampleBlobs: string[] = [];
-      let count = 0;
-
-      for await (const blob of containerClient.listBlobsFlat()) {
-        count += 1;
-        if (sampleBlobs.length < 5) {
-          sampleBlobs.push(blob.name);
-        }
-      }
-
-      return {
-        canList: true,
-        blobCount: count,
-        sampleBlobs,
-      };
-    } catch (error) {
-      return {
-        canList: false,
-        error: error.message,
-      };
-    }
-  }
-
-  /**
-   * List all blobs in a container
-   */
-  async listBlobs(containerName: string, prefix?: string): Promise<BlobInfo[]> {
-    try {
-      const containerClient =
-        this.blobServiceClient.getContainerClient(containerName);
-      const blobs: BlobInfo[] = [];
-
-      for await (const blob of containerClient.listBlobsFlat({
-        prefix,
-      })) {
-        blobs.push({
-          name: blob.name,
-          size: blob.properties.contentLength || 0,
-          lastModified: blob.properties.lastModified,
-          contentType: blob.properties.contentType,
-        });
-      }
-
-      this.logger.debug(
-        `Listed ${blobs.length} blobs in container ${containerName}`,
-      );
-      return blobs;
-    } catch (error) {
-      this.logger.error(
-        `Failed to list blobs in container: ${containerName}`,
         error.stack,
       );
       throw error;
