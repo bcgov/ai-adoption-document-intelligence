@@ -111,7 +111,7 @@ After implementing the user story check it off at the bottom of this file
 - [x] **US-023** (frontend types)
 - [x] **US-024** (JSON editor panel)
 - [x] **US-025** (React Flow visualization)
-- [ ] **US-026** (workflow editor page)
+- [x] **US-026** (workflow editor page)
 
 ### Phase 9
 - [ ] **US-027** (workflow list schema version)

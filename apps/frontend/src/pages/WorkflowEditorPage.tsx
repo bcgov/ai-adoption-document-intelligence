@@ -262,13 +262,38 @@ export function WorkflowEditorPage({
   );
   const [debouncedJson] = useDebouncedValue(jsonValue, 300);
   const initializedRef = useRef(false);
+  const initialSnapshotRef = useRef<{
+    name: string;
+    description: string;
+    json: string;
+  }>({
+    name: "",
+    description: "",
+    json: JSON.stringify(DEFAULT_GRAPH_CONFIG, null, 2),
+  });
 
   useEffect(() => {
     if (mode === "edit" && data && !initializedRef.current) {
       initializedRef.current = true;
+      const initialJson = JSON.stringify(data.config, null, 2);
       setWorkflowName(data.name);
       setWorkflowDescription(data.description ?? "");
-      setJsonValue(JSON.stringify(data.config, null, 2));
+      setJsonValue(initialJson);
+      initialSnapshotRef.current = {
+        name: data.name,
+        description: data.description ?? "",
+        json: initialJson,
+      };
+      return;
+    }
+
+    if (mode === "create" && !initializedRef.current) {
+      initializedRef.current = true;
+      initialSnapshotRef.current = {
+        name: "",
+        description: "",
+        json: JSON.stringify(DEFAULT_GRAPH_CONFIG, null, 2),
+      };
     }
   }, [mode, data]);
 
@@ -313,6 +338,53 @@ export function WorkflowEditorPage({
       return;
     }
     setJsonValue(formatted);
+  };
+
+  const handleValidate = () => {
+    try {
+      const parsed = JSON.parse(jsonValue) as unknown;
+      setJsonError(null);
+      const errors = validateGraphConfig(parsed);
+      setValidationErrors(errors);
+      setShowErrors(true);
+      if (errors.length === 0 && isRecord(parsed)) {
+        setParsedConfig(parsed as unknown as GraphWorkflowConfig);
+        notifications.show({
+          title: "Validation passed",
+          message: "Graph config looks valid.",
+          color: "green",
+        });
+      } else {
+        notifications.show({
+          title: "Validation errors",
+          message: "Fix the highlighted errors before saving.",
+          color: "red",
+        });
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Invalid JSON value.";
+      setJsonError(message);
+      setValidationErrors([]);
+      setParsedConfig(null);
+      setShowErrors(true);
+      notifications.show({
+        title: "Invalid JSON",
+        message: "Fix JSON syntax before validating.",
+        color: "red",
+      });
+    }
+  };
+
+  const handleReset = () => {
+    const snapshot = initialSnapshotRef.current;
+    setWorkflowName(snapshot.name);
+    setWorkflowDescription(snapshot.description);
+    setJsonValue(snapshot.json);
+    setJsonError(null);
+    setValidationErrors([]);
+    setParsedConfig(null);
+    setShowErrors(false);
   };
 
   const handleSave = async () => {
@@ -376,6 +448,11 @@ export function WorkflowEditorPage({
           color: "green",
         });
       }
+      initialSnapshotRef.current = {
+        name: workflowName.trim(),
+        description: workflowDescription.trim(),
+        json: JSON.stringify(configToSave, null, 2),
+      };
       onSave?.();
     } catch (saveError) {
       notifications.show({
@@ -419,34 +496,50 @@ export function WorkflowEditorPage({
               Back
             </Button>
           ) : null}
+          <Button variant="light" onClick={handleValidate}>
+            Validate
+          </Button>
+          <Button variant="light" onClick={handleFormat}>
+            Format JSON
+          </Button>
+          <Button variant="light" onClick={handleReset}>
+            Reset
+          </Button>
           <Button onClick={handleSave} disabled={!canSave}>
-            Save
+            {mode === "create" ? "Create" : "Save"}
           </Button>
         </Group>
       </Group>
 
-      <Group align="flex-start" gap="xl">
-        <Stack style={{ flex: 1 }} gap="md">
-          <Paper withBorder p="md">
-            <Stack gap="sm">
-              <TextInput
-                label="Workflow name"
-                value={workflowName}
-                onChange={(event) => setWorkflowName(event.currentTarget.value)}
-                placeholder="Enter workflow name"
-                required
-              />
-              <TextInput
-                label="Description"
-                value={workflowDescription}
-                onChange={(event) =>
-                  setWorkflowDescription(event.currentTarget.value)
-                }
-                placeholder="Optional description"
-              />
-            </Stack>
-          </Paper>
+      <Paper withBorder p="md">
+        <Group justify="space-between" align="center">
+          <Stack gap={4} style={{ flex: 1 }}>
+            <TextInput
+              label="Workflow name"
+              value={workflowName}
+              onChange={(event) => setWorkflowName(event.currentTarget.value)}
+              placeholder="Enter workflow name"
+              required
+            />
+            <TextInput
+              label="Description"
+              value={workflowDescription}
+              onChange={(event) =>
+                setWorkflowDescription(event.currentTarget.value)
+              }
+              placeholder="Optional description"
+            />
+          </Stack>
+          {mode === "edit" && data ? (
+            <Badge variant="light" color="gray">
+              Version {data.version}
+            </Badge>
+          ) : null}
+        </Group>
+      </Paper>
 
+      <Group align="flex-start" gap="xl">
+        <Stack style={{ flex: "0 0 56%" }} gap="md">
           <Paper withBorder p="md">
             <Group justify="space-between" mb="sm">
               <Group gap="xs">
@@ -461,9 +554,6 @@ export function WorkflowEditorPage({
                   </Badge>
                 )}
               </Group>
-              <Button variant="light" size="xs" onClick={handleFormat}>
-                Format JSON
-              </Button>
             </Group>
 
             <Paper withBorder>
@@ -519,7 +609,7 @@ export function WorkflowEditorPage({
           </Paper>
         </Stack>
 
-        <Paper withBorder p="md" style={{ flex: 1 }}>
+        <Paper withBorder p="md" style={{ flex: "0 0 44%" }}>
           <Stack gap="xs">
             <Text fw={600}>Workflow preview</Text>
             <GraphVisualization
