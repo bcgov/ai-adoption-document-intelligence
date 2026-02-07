@@ -39,7 +39,7 @@ import { evaluateCondition } from './expression-evaluator';
  * Execution state shared between workflow function and runner
  */
 export interface ExecutionState {
-  currentNodeIds: string[];
+  currentNodes: string[];
   completedNodeIds: Set<string>;
   nodeStatuses: Map<string, NodeStatus>;
   cancelled: () => boolean;
@@ -102,7 +102,8 @@ export async function runGraphExecution(
 
     // Sort ready nodes alphabetically for determinism
     const sortedReadyNodeIds = readyNodeIds.sort();
-    state.currentNodeIds = sortedReadyNodeIds;
+    state.currentNodes.length = 0;
+    state.currentNodes.push(...sortedReadyNodeIds);
 
     // Execute ready nodes in parallel
     await Promise.all(
@@ -811,7 +812,7 @@ async function executeBranchSubgraph(
 ): Promise<Record<string, unknown>> {
   // Create isolated state for this branch
   const branchState: ExecutionState = {
-    currentNodeIds: [],
+    currentNodes: [],
     completedNodeIds: new Set<string>(),
     nodeStatuses: new Map<string, NodeStatus>(),
     cancelled: parentState.cancelled,
@@ -883,7 +884,8 @@ async function executeBranchSubgraph(
 
     // Sort ready nodes alphabetically for determinism
     const sortedReadyNodeIds = readyNodeIds.sort();
-    branchState.currentNodeIds = sortedReadyNodeIds;
+    branchState.currentNodes.length = 0;
+    branchState.currentNodes.push(...sortedReadyNodeIds);
 
     // Execute ready nodes in parallel
     await Promise.all(

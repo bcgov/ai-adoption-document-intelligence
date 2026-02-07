@@ -269,7 +269,7 @@ export interface NodeStatus {
 }
 
 export interface GraphWorkflowStatus {
-  currentNodeIds: string[];
+  currentNodes: string[];
   nodeStatuses: Record<string, NodeStatus>;
   overallStatus: "running" | "completed" | "failed" | "cancelled";
   ctx: Record<string, unknown>;
@@ -285,7 +285,7 @@ export interface GraphWorkflowStatus {
 export interface GraphWorkflowProgress {
   completedCount: number;
   totalCount: number;
-  currentNodeIds: string[];
+  currentNodes: string[];
   progressPercentage: number;
 }
 

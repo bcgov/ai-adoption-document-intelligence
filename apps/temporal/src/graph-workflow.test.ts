@@ -11,6 +11,8 @@ import type {
   GraphWorkflowInput,
   GraphWorkflowConfig,
   GraphWorkflowResult,
+  GraphWorkflowStatus,
+  GraphWorkflowProgress,
 } from './graph-workflow-types';
 import { graphWorkflow, GRAPH_WORKFLOW_TYPE } from './graph-workflow';
 
@@ -160,6 +162,32 @@ async function runWorkflow(
       args: [input],
     }),
   );
+}
+
+async function startWorkflowWithWorker(
+  testEnv: TestWorkflowEnvironment,
+  input: GraphWorkflowInput,
+  workflowId: string,
+  activitiesOverride: ActivityMap = {},
+) {
+  const workflowsPath = require.resolve('./graph-workflow');
+  const activities = { ...mockActivities, ...activitiesOverride };
+
+  const worker = await Worker.create({
+    connection: testEnv.nativeConnection,
+    namespace: 'default',
+    taskQueue: TASK_QUEUE,
+    workflowsPath,
+    activities,
+  });
+
+  const handle = await testEnv.client.workflow.start(graphWorkflow, {
+    workflowId,
+    taskQueue: TASK_QUEUE,
+    args: [input],
+  });
+
+  return { worker, handle };
 }
 
 async function runWorkflowWithSignal(
@@ -1420,6 +1448,230 @@ describe('Graph Workflow', () => {
 
       expect(result.status).toBe('completed');
       expect(result.completedNodes).toContain('next');
+    });
+  });
+
+  describe('US-014: Query and Signal Handlers', () => {
+    it('getStatus and getProgress reflect running state', async () => {
+      let activityStartedResolve: (() => void) | undefined;
+      let finishActivityResolve: (() => void) | undefined;
+      const activityStarted = new Promise<void>((resolve) => {
+        activityStartedResolve = resolve;
+      });
+      const finishActivity = new Promise<void>((resolve) => {
+        finishActivityResolve = resolve;
+      });
+
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Query Status Test',
+          description: 'Test getStatus and getProgress',
+          version: '1.0.0',
+        },
+        nodes: {
+          a: {
+            id: 'a',
+            type: 'activity',
+            label: 'Step A',
+            activityType: 'file.prepare',
+            inputs: [{ port: 'blobKey', ctxKey: 'blobKey' }],
+          },
+          b: {
+            id: 'b',
+            type: 'activity',
+            label: 'Step B',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'done' },
+          },
+        },
+        edges: [{ id: 'e1', source: 'a', target: 'b', type: 'normal' }],
+        entryNodeId: 'a',
+        ctx: {
+          blobKey: { type: 'string', defaultValue: 'blobs/query.pdf' },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const activitiesOverride: ActivityMap = {
+        'file.prepare': async () => {
+          activityStartedResolve?.();
+          await finishActivity;
+          return { preparedData: { blobKey: 'blobs/query.pdf' } };
+        },
+      };
+
+      const { worker, handle } = await startWorkflowWithWorker(
+        testEnv,
+        input,
+        'test-query-status',
+        activitiesOverride,
+      );
+
+      const resultPromise = handle.result();
+      const runPromise = worker.runUntil(resultPromise);
+
+      await activityStarted;
+
+      const status = (await handle.query('getStatus')) as GraphWorkflowStatus;
+      expect(status.overallStatus).toBe('running');
+      expect(status.currentNodes).toContain('a');
+      expect(status.nodeStatuses.a.status).toBe('running');
+      expect(status.nodeStatuses.b.status).toBe('pending');
+      expect(status.nodeStatuses.a.startedAt).toBeDefined();
+
+      const progress = (await handle.query('getProgress')) as GraphWorkflowProgress;
+      expect(progress.totalCount).toBe(2);
+      expect(progress.completedCount).toBe(0);
+      expect(progress.currentNodes).toContain('a');
+
+      if (!finishActivityResolve) {
+        throw new Error('finishActivityResolve not set');
+      }
+      finishActivityResolve();
+
+      const result = await runPromise;
+      expect(result.status).toBe('completed');
+    });
+
+    it('cancel signal stops workflow in graceful mode', async () => {
+      let activityStartedResolve: (() => void) | undefined;
+      let finishActivityResolve: (() => void) | undefined;
+      const activityStarted = new Promise<void>((resolve) => {
+        activityStartedResolve = resolve;
+      });
+      const finishActivity = new Promise<void>((resolve) => {
+        finishActivityResolve = resolve;
+      });
+
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Cancel Graceful Test',
+          description: 'Test graceful cancel',
+          version: '1.0.0',
+        },
+        nodes: {
+          a: {
+            id: 'a',
+            type: 'activity',
+            label: 'Step A',
+            activityType: 'file.prepare',
+          },
+          b: {
+            id: 'b',
+            type: 'activity',
+            label: 'Step B',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'done' },
+          },
+        },
+        edges: [{ id: 'e1', source: 'a', target: 'b', type: 'normal' }],
+        entryNodeId: 'a',
+        ctx: {},
+      };
+
+      const input = makeMockInput(graph);
+      const activitiesOverride: ActivityMap = {
+        'file.prepare': async () => {
+          activityStartedResolve?.();
+          await finishActivity;
+          return { preparedData: { blobKey: 'blobs/graceful.pdf' } };
+        },
+      };
+
+      const { worker, handle } = await startWorkflowWithWorker(
+        testEnv,
+        input,
+        'test-cancel-graceful',
+        activitiesOverride,
+      );
+
+      const resultPromise = handle.result();
+      const runPromise = worker.runUntil(resultPromise);
+
+      await activityStarted;
+      await handle.signal('cancel', { mode: 'graceful' });
+
+      if (!finishActivityResolve) {
+        throw new Error('finishActivityResolve not set');
+      }
+      finishActivityResolve();
+
+      const result = await runPromise;
+      expect(result.status).toBe('cancelled');
+      expect(result.completedNodes).toContain('a');
+      expect(result.completedNodes).not.toContain('b');
+    });
+
+    it('cancel signal stops workflow in immediate mode', async () => {
+      let activityStartedResolve: (() => void) | undefined;
+      let finishActivityResolve: (() => void) | undefined;
+      const activityStarted = new Promise<void>((resolve) => {
+        activityStartedResolve = resolve;
+      });
+      const finishActivity = new Promise<void>((resolve) => {
+        finishActivityResolve = resolve;
+      });
+
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Cancel Immediate Test',
+          description: 'Test immediate cancel',
+          version: '1.0.0',
+        },
+        nodes: {
+          a: {
+            id: 'a',
+            type: 'activity',
+            label: 'Step A',
+            activityType: 'file.prepare',
+          },
+          b: {
+            id: 'b',
+            type: 'activity',
+            label: 'Step B',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'done' },
+          },
+        },
+        edges: [{ id: 'e1', source: 'a', target: 'b', type: 'normal' }],
+        entryNodeId: 'a',
+        ctx: {},
+      };
+
+      const input = makeMockInput(graph);
+      const activitiesOverride: ActivityMap = {
+        'file.prepare': async () => {
+          activityStartedResolve?.();
+          await finishActivity;
+          return { preparedData: { blobKey: 'blobs/immediate.pdf' } };
+        },
+      };
+
+      const { worker, handle } = await startWorkflowWithWorker(
+        testEnv,
+        input,
+        'test-cancel-immediate',
+        activitiesOverride,
+      );
+
+      const resultPromise = handle.result();
+      const runPromise = worker.runUntil(resultPromise);
+
+      await activityStarted;
+      await handle.signal('cancel', { mode: 'immediate' });
+
+      if (!finishActivityResolve) {
+        throw new Error('finishActivityResolve not set');
+      }
+      finishActivityResolve();
+
+      const result = await runPromise;
+      expect(result.status).toBe('cancelled');
+      expect(result.completedNodes).toContain('a');
+      expect(result.completedNodes).not.toContain('b');
     });
   });
 });

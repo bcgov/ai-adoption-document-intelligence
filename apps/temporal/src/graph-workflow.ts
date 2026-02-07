@@ -43,7 +43,7 @@ export async function graphWorkflow(
   input: GraphWorkflowInput,
 ): Promise<GraphWorkflowResult> {
   // State variables for queries and signals
-  let currentNodeIds: string[] = [];
+  let currentNodes: string[] = [];
   const completedNodeIds = new Set<string>();
   const nodeStatuses = new Map<string, NodeStatus>();
   let overallStatus: 'running' | 'completed' | 'failed' | 'cancelled' =
@@ -75,7 +75,7 @@ export async function graphWorkflow(
     );
 
     return {
-      currentNodeIds,
+      currentNodes,
       nodeStatuses: Object.fromEntries(nodeStatuses),
       overallStatus,
       ctx: redactedCtx,
@@ -93,7 +93,7 @@ export async function graphWorkflow(
     return {
       completedCount,
       totalCount,
-      currentNodeIds,
+      currentNodes,
       progressPercentage,
     };
   });
@@ -124,8 +124,12 @@ export async function graphWorkflow(
     }
 
     // Step 2: Run graph execution
+    for (const nodeId of Object.keys(input.graph.nodes)) {
+      nodeStatuses.set(nodeId, { status: 'pending' });
+    }
+
     const result = await runGraphExecution(input, {
-      currentNodeIds,
+      currentNodes,
       completedNodeIds,
       nodeStatuses,
       cancelled: () => cancelled,

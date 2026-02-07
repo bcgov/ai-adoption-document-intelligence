@@ -94,7 +94,7 @@ After implementing the user story check it off at the bottom of this file
 - [x] **US-013** (error policy)
 
 ### Phase 5
-- [ ] **US-014** (query/signal handlers)
+- [x] **US-014** (query/signal handlers)
 - [ ] **US-015** (versioning)
 
 ### Phase 6
