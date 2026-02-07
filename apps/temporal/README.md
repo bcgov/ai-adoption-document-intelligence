@@ -162,61 +162,14 @@ graph TB
 
 ### Starting a Workflow
 
-Use the client to trigger a workflow execution:
-
-```typescript
-import { startOCRWorkflow } from './src/client';
-
-const result = await startOCRWorkflow({
-  documentId: 'document-uuid',  // Required: Document ID from database
-  blobKey: 'documents/document-uuid/original.pdf',
-  fileName: 'document.pdf',
-  fileType: 'pdf',
-  contentType: 'application/pdf'
-});
-```
-
-Or from the NestJS backend service:
-
-```typescript
-const workflowId = await temporalClientService.startGraphWorkflow(
-  documentId,
-  {
-    blobKey: document.file_path,
-    fileName: document.original_filename,
-    fileType: document.file_type,
-    contentType: document.content_type
-  }
-);
-```
-
-### Quick Start Example
-
-Run the example script to trigger a sample workflow:
-
-```bash
-npm run example
-```
-
-This will:
-1. Start an OCR workflow with sample PDF data
-2. Wait for the workflow to complete
-3. Display the results
-4. Show you the workflow ID to view in the Web UI
-
-After running this, you should see the workflow appear in the Temporal Web UI at http://localhost:8088
+Workflows are started by the backend service via `TemporalClientService.startGraphWorkflow`,
+which passes a `GraphWorkflowConfig` and initial context (`documentId`, `blobKey`, etc.)
+to the `graphWorkflow` Temporal workflow.
 
 ### Workflow Input
 
-```typescript
-interface OCRWorkflowInput {
-  documentId: string;        // Document ID from database (required)
-  blobKey: string;           // Blob storage key
-  fileName?: string;         // Optional file name
-  fileType?: 'pdf' | 'image'; // Optional file type
-  contentType?: string;      // Optional content type
-}
-```
+The `graphWorkflow` input includes the graph definition, initial context, and runner metadata.
+See `docs/DAG_WORKFLOW_ENGINE.md` for the full `GraphWorkflowInput` specification.
 
 ### Workflow Output
 
@@ -583,7 +536,10 @@ The workflow is integrated with the NestJS backend service through `TemporalClie
 
 ```typescript
 // Start a workflow
-const workflowId = await temporalClientService.startOCRWorkflow(documentId, fileData);
+const workflowId = await temporalClientService.startGraphWorkflow(
+  documentId,
+  workflowConfigId
+);
 
 // Query workflow status
 const status = await temporalClientService.queryWorkflowStatus(workflowId);

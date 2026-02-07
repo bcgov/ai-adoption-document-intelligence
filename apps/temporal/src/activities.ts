@@ -18,7 +18,6 @@ import type {
   PollResult,
   OCRResponse,
   OCRResult,
-  OCRWorkflowInput,
 } from './types';
 import type { GraphWorkflowConfig } from './graph-workflow-types';
 
@@ -43,6 +42,15 @@ function getPrismaClient(): PrismaClient {
 const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
 const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
 const DEFAULT_BLOB_BASE_PATH = './data/blobs';
+
+interface PrepareFileDataInput {
+  documentId: string;
+  blobKey: string;
+  fileName?: string;
+  fileType?: 'pdf' | 'image';
+  contentType?: string;
+  modelId?: string;
+}
 
 /**
  * Normalize endpoint URL by removing trailing slash
@@ -74,7 +82,9 @@ async function readBlobData(blobKey: string): Promise<Buffer> {
  * Activity: Prepare file data for Azure OCR
  * Validates blob key and extracts metadata
  */
-export async function prepareFileData(input: OCRWorkflowInput): Promise<PreparedFileData> {
+export async function prepareFileData(
+  input: PrepareFileDataInput,
+): Promise<PreparedFileData> {
   const activityName = 'prepareFileData';
   const blobKey = input.blobKey;
 

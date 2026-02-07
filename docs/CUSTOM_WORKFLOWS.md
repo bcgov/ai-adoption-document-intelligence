@@ -66,7 +66,7 @@ Template JSON files live in `docs/templates`:
                              +----------------+----------------+
                              |       Temporal Worker            |
                              |                                 |
-                             |  ocrWorkflow() orchestration    |
+                             |  graphWorkflow() orchestration  |
                              |  10 activity implementations    |
                              |  Config validation + merging    |
                              +----------------+----------------+
@@ -120,7 +120,7 @@ model Workflow {
   name        String
   description String?
   user_id     String
-  config      Json     // WorkflowStepsConfig stored as JSONB
+  config      Json     // GraphWorkflowConfig stored as JSONB
   version     Int      @default(1)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
@@ -129,7 +129,7 @@ model Workflow {
 }
 ```
 
-- **`config`** - JSONB column storing a `WorkflowStepsConfig` object (step IDs as keys, `StepConfig` as values)
+- **`config`** - JSONB column storing a `GraphWorkflowConfig` object (graph schema JSON)
 - **`version`** - Auto-incremented only when the `config` field semantically changes (metadata-only updates like name/description do not increment the version)
 - **`user_id`** - Keycloak user ID for ownership scoping
 
@@ -148,7 +148,7 @@ model Document {
 ```
 
 - **`workflow_config_id`** - references the `Workflow` table; stores which workflow configuration was used for processing
-- **`workflow_execution_id`** - the Temporal workflow execution ID (format: `ocr-{documentId}`), used to query live workflow status
+- **`workflow_execution_id`** - the Temporal workflow execution ID (format: `graph-{documentId}`), used to query live workflow status
 - **`workflow_id`** - deprecated legacy field, kept for backward compatibility
 
 ### Migration
@@ -161,38 +161,9 @@ apps/shared/prisma/migrations/20260124001822_workflow_composition/migration.sql
 
 ## Type System
 
-The `WorkflowStepsConfig` type is shared across all three layers (frontend, backend, temporal worker). Each layer has its own copy of the interface to avoid cross-package imports:
-
-```typescript
-interface StepConfig {
-  enabled?: boolean;             // Defaults to true if not specified
-  parameters?: Record<string, unknown>;
-}
-
-interface WorkflowStepsConfig {
-  [key: string]: StepConfig | undefined;
-}
-```
-
-Step-specific parameter types (defined in the Temporal package):
-
-```typescript
-interface PollStepParams {
-  maxRetries?: number;           // 1-100
-  waitBeforeFirstPoll?: number;  // milliseconds
-  waitBetweenPolls?: number;     // milliseconds
-}
-
-interface ConfidenceStepParams {
-  threshold?: number;            // 0-1
-}
-
-interface HumanReviewParams {
-  timeout?: number;              // milliseconds
-}
-```
-
-The canonical list of valid step IDs is defined as `WorkflowStepId` union type and `VALID_WORKFLOW_STEP_IDS` constant array.
+The `GraphWorkflowConfig` type is shared across the frontend, backend, and Temporal worker.
+Each layer maintains its own copy of the graph schema interfaces to avoid cross-package imports.
+See `docs/GRAPH_TYPES.md` for the canonical structure.
 
 ## Backend Services
 
@@ -259,28 +230,21 @@ The canonical list of valid step IDs is defined as `WorkflowStepId` union type a
 Business logic layer that:
 
 - Performs CRUD operations on the `workflows` table via Prisma
-- Validates config using `validateWorkflowConfig()` before create/update
+- Validates config using `validateGraphConfig()` before create/update
 - Implements **smart version management**: uses stable JSON stringification (`stableStringify`) to compare old and new configs, only incrementing `version` when the config actually changes semantically (ignoring key order differences)
 - Enforces user ownership on get/update/delete operations
 - Provides `getWorkflowById()` for internal use by `TemporalClientService` (no user ownership check)
 
 ### Workflow Validator
 
-**Backend:** `apps/backend-services/src/workflow/workflow-validator.ts`
-**Temporal:** `apps/temporal/src/workflow-config-validator.ts`
+**Backend:** `apps/backend-services/src/workflow/graph-schema-validator.ts`  
+**Temporal:** `apps/temporal/src/graph-schema-validator.ts`
 
 Validation is performed in two places (mirrored logic):
 1. **Backend** - when saving a workflow configuration via the API
 2. **Temporal worker** - at workflow execution time, before processing begins
 
-Validation rules:
-- Step IDs must be in the `VALID_WORKFLOW_STEP_IDS` list
-- `enabled` must be a boolean (if provided)
-- `pollOCRResults.maxRetries` must be 1-100
-- `pollOCRResults.waitBeforeFirstPoll` must be >= 0
-- `pollOCRResults.waitBetweenPolls` must be >= 0
-- `checkOcrConfidence.threshold` must be 0-1
-- `humanReview.timeout` must be >= 0
+Validation covers graph integrity, node/edge correctness, and port bindings.
 
 ### Document Upload with Workflow Selection
 
@@ -316,7 +280,7 @@ The `requestOcr()` method:
 2. Reads the file from disk and converts to base64
 3. Determines file type and content type
 4. Reads `workflow_config_id` from the document (falls back to legacy `workflow_id`)
-5. Calls `TemporalClientService.startOCRWorkflow()` with the file data and config ID
+5. Calls `TemporalClientService.startGraphWorkflow()` with the config ID
 6. Updates the document with the Temporal `workflow_execution_id`
 
 ### Temporal Client Service
@@ -334,7 +298,7 @@ NestJS injectable service that bridges the backend to Temporal:
 
 | Method | Description |
 |--------|-------------|
-| `startOCRWorkflow()` | Looks up workflow config from DB if `workflowConfigId` is provided, filters invalid keys, starts Temporal workflow with search attributes and memo |
+| `startGraphWorkflow()` | Looks up workflow config from DB and starts graphWorkflow with search attributes and memo |
 | `getWorkflowStatus()` | Returns workflow execution status and result if completed |
 | `queryWorkflowStatus()` | Queries the live workflow's `getStatus` query handler |
 | `queryWorkflowProgress()` | Queries the live workflow's `getProgress` query handler |
@@ -378,7 +342,7 @@ AppModule
 
 Standalone Node.js process that:
 - Connects to Temporal server via `NativeConnection`
-- Registers the `ocrWorkflow` function via `workflowsPath`
+- Registers the `graphWorkflow` function via `workflowsPath`
 - Registers all activity implementations
 - Listens on the `ocr-processing` task queue
 
@@ -389,19 +353,14 @@ Configuration via environment variables:
 
 ### Workflow Orchestration
 
-**File:** `apps/temporal/src/workflow.ts`
+**File:** `apps/temporal/src/graph-workflow.ts`
 
-The `ocrWorkflow()` function is the main orchestration entry point. It:
+The `graphWorkflow()` function is the orchestration entry point. It:
 
-1. **Validates** the provided step configuration using `validateWorkflowConfig()`
-2. **Merges** user config with defaults using `mergeWorkflowConfig()` - any step not specified by the user gets the default configuration
-3. **Executes steps** sequentially, checking `isStepEnabled()` before each step
-4. **Exposes query handlers** for real-time status monitoring:
-   - `getStatus` - returns current step, workflow status, confidence, retry count
-   - `getProgress` - returns progress percentage based on poll retry count
-5. **Handles signals:**
-   - `cancel` - supports `graceful` (finish current activity) and `immediate` (abort now) modes
-   - `humanApproval` - receives approval/rejection decisions from the HITL system
+1. **Validates** the provided graph configuration
+2. **Executes nodes** based on graph structure (activity, switch, map/join, child workflow, pollUntil, humanGate)
+3. **Exposes query handlers** for real-time status and progress
+4. **Handles signals:** `cancel` (graceful/immediate)
 
 **Activity retry configuration** (per-activity):
 
@@ -419,9 +378,7 @@ The `ocrWorkflow()` function is the main orchestration entry point. It:
 
 ### Default Configuration
 
-**File:** `apps/temporal/src/workflow-config.ts`
-
-The `DEFAULT_WORKFLOW_STEPS` constant defines the out-of-the-box configuration (all 11 steps enabled with sensible defaults). The `mergeWorkflowConfig()` function performs a shallow merge with deep parameter merging - user-specified steps override defaults while unspecified steps keep their default configuration.
+Graph workflows are defined via `GraphWorkflowConfig` records stored in the database or imported from JSON templates. There is no legacy step-based default configuration.
 
 ### Activities
 
@@ -431,8 +388,8 @@ Ten activity implementations that perform the actual work:
 
 | Activity | What it does |
 |----------|-------------|
-| `prepareFileData` | Validates input, determines content type, resolves Azure model ID |
-| `submitToAzureOCR` | Sends base64 document to Azure Document Intelligence API, returns `apimRequestId` |
+| `prepareFileData` | Reads blob data, determines content type, resolves Azure model ID |
+| `submitToAzureOCR` | Sends document bytes to Azure Document Intelligence API, returns `apimRequestId` |
 | `pollOCRResults` | Polls Azure API using the `apimRequestId`, returns status and response |
 | `extractOCRResults` | Parses Azure response into structured `OCRResult` with pages, tables, paragraphs, key-value pairs |
 | `updateDocumentStatus` | Updates document status in the database (e.g., `ongoing_ocr`, `failed`, `completed_ocr`) |
@@ -527,14 +484,14 @@ Mutations automatically invalidate relevant queries on success.
 
 **File:** `apps/frontend/src/types/workflow.ts`
 
-Frontend copy of `StepConfig` and `WorkflowStepsConfig` interfaces.
+Frontend re-exports `GraphWorkflowConfig` and related graph schema types.
 
 ### Navigation
 
 The app uses state-based routing (not file-based). Workflow views:
 - `"workflows"` + `"list"` renders `WorkflowListPage`
-- `"workflows"` + `"create"` renders `WorkflowPage`
-- `"workflows"` + `"edit"` renders `WorkflowEditPage` (requires `selectedWorkflowId`)
+- `"workflows"` + `"create"` renders `WorkflowEditorPage`
+- `"workflows"` + `"edit"` renders `WorkflowEditorPage` (requires `selectedWorkflowId`)
 
 ### Document Upload Integration
 
@@ -564,12 +521,11 @@ User uploads document with workflow_config_id
     → DocumentService.uploadDocument() (saves file, creates document record with workflow_config_id)
     → QueueService.processOcrForDocument() (fire-and-forget)
       → OcrService.requestOcr(documentId)
-        → Reads file from disk, converts to base64
+        → Reads blobKey from document record
         → Reads workflow_config_id from document record
-        → TemporalClientService.startOCRWorkflow(documentId, fileData, steps, workflowConfigId)
+        → TemporalClientService.startGraphWorkflow(documentId, workflowConfigId)
           → WorkflowService.getWorkflowById(workflowConfigId)
-          → Extracts and filters config from database record
-          → client.workflow.start("ocrWorkflow", { args: [input], taskQueue, ... })
+          → client.workflow.start("graphWorkflow", { args: [input], taskQueue, ... })
         → Updates document with workflow_execution_id
   → Returns { success, document }
 ```
@@ -578,16 +534,11 @@ User uploads document with workflow_config_id
 
 ```
 Temporal server dispatches task to worker
-  → ocrWorkflow(input) executes
-    → validateWorkflowConfig(input.steps)
-    → mergeWorkflowConfig(input.steps) (fills in defaults)
-    → For each enabled step:
-        → Call activity (e.g., submitToAzureOCR, pollOCRResults)
-        → Check for cancellation signals
-    → If confidence < threshold and humanReview enabled:
-        → Store results first
-        → Wait for humanApproval signal (up to timeout)
-    → Return OCRResult
+  → graphWorkflow(input) executes
+    → validateGraphConfig(input.graph)
+    → Execute graph nodes (activities, switches, maps, joins, pollUntil, humanGate)
+    → Check for cancellation signals
+    → Return GraphWorkflowResult
 ```
 
 ### 4. Monitoring Workflow Status
@@ -617,13 +568,12 @@ Frontend polls document status
 | `workflow/workflow.module.ts` | NestJS module registration |
 | `workflow/workflow.controller.ts` | REST API endpoints (CRUD) |
 | `workflow/workflow.service.ts` | Business logic, Prisma operations, version management |
-| `workflow/workflow-validator.ts` | Configuration validation rules |
-| `workflow/workflow-types.ts` | `StepConfig` and `WorkflowStepsConfig` interfaces |
+| `workflow/graph-schema-validator.ts` | Graph schema validation rules |
+| `workflow/graph-workflow-types.ts` | Graph workflow config types |
 | `workflow/dto/create-workflow.dto.ts` | Request DTO with class-validator decorators |
 | `workflow/dto/workflow-info.dto.ts` | Response DTOs with Swagger decorators |
 | `temporal/temporal-client.service.ts` | Temporal client: starts workflows, sends signals, queries status |
 | `temporal/temporal.module.ts` | NestJS module importing WorkflowModule |
-| `temporal/workflow-constants.ts` | `VALID_WORKFLOW_STEP_IDS` array |
 | `temporal/workflow-types.ts` | `WORKFLOW_TYPES` constant |
 | `ocr/ocr.service.ts` | Reads document, starts Temporal workflow |
 | `queue/queue.service.ts` | Delegates OCR processing to OcrService |
@@ -637,41 +587,36 @@ Frontend polls document status
 
 | File | Purpose |
 |------|---------|
-| `workflow/workflow.controller.spec.ts` | Controller unit tests (all 5 CRUD endpoints) |
+| `workflow/workflow.controller.spec.ts` | Controller unit tests (all CRUD endpoints) |
 | `workflow/workflow.service.spec.ts` | Service unit tests (config comparison, versioning, validation) |
-| `workflow/workflow-validator.spec.ts` | Validator unit tests (parameter ranges, step ID validation) |
+| `workflow/graph-schema-validator.spec.ts` | Graph schema validator unit tests |
 
 ### Temporal Worker (`apps/temporal/src/`)
 
 | File | Purpose |
 |------|---------|
 | `worker.ts` | Worker process entry point, registers workflows and activities |
-| `workflow.ts` | `ocrWorkflow()` orchestration function (11 steps, queries, signals) |
+| `graph-workflow.ts` | `graphWorkflow()` orchestration function |
+| `graph-runner.ts` | Graph execution engine |
 | `activities.ts` | 10 activity implementations (Azure API calls, database operations) |
-| `types.ts` | All type definitions: `WorkflowStepId`, `OCRWorkflowInput`, `OCRResult`, signals, etc. |
-| `workflow-config.ts` | `DEFAULT_WORKFLOW_STEPS` and `mergeWorkflowConfig()` |
-| `workflow-config-validator.ts` | Configuration validator (mirrored from backend) |
-| `client.ts` | Standalone client functions for starting workflows |
-| `example.ts` | Example script demonstrating workflow execution |
+| `graph-workflow-types.ts` | Graph workflow types, status/progress, signals |
+| `types.ts` | OCR activity data types (OCRResult, OCRResponse, etc.) |
 
 ### Temporal Worker Tests
 
 | File | Purpose |
 |------|---------|
-| `workflow.integration.test.ts` | Integration tests with TestWorkflowEnvironment |
-| `workflow.replay.test.ts` | Replay/determinism tests from recorded history |
-| `test/mock-activities.ts` | Mock activity implementations for testing |
+| `graph-workflow.test.ts` | Graph workflow execution tests |
 
 ### Frontend (`apps/frontend/src/`)
 
 | File | Purpose |
 |------|---------|
 | `pages/WorkflowListPage.tsx` | Workflow list with table, delete, edit, create actions |
-| `pages/WorkflowPage.tsx` | Create workflow form with step toggles and parameters |
-| `pages/WorkflowEditPage.tsx` | Edit workflow form with pre-populated values |
-| `components/workflow/WorkflowVisualization.tsx` | SVG visualization of workflow pipeline |
+| `pages/WorkflowEditorPage.tsx` | Combined create/edit workflow editor |
+| `components/workflow/GraphVisualization.tsx` | React Flow visualization of workflow graphs |
 | `data/hooks/useWorkflows.ts` | React Query hooks for workflow CRUD operations |
-| `types/workflow.ts` | `StepConfig` and `WorkflowStepsConfig` interfaces |
+| `types/workflow.ts` | Re-exports graph workflow types |
 | `components/upload/DocumentUploadPanel.tsx` | Document upload with optional workflow selection |
 | `App.tsx` | Route definitions including workflow views |
 

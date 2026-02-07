@@ -34,7 +34,7 @@ async function run() {
   const worker = await Worker.create({
     connection,
     namespace,
-    workflowsPath: require.resolve('./workflow'),
+    workflowsPath: require.resolve('./graph-workflow'),
     activities,
     taskQueue,
   });

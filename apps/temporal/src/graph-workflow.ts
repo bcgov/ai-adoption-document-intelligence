@@ -1,7 +1,7 @@
 /**
  * Graph Workflow - Generic DAG Workflow Execution
  *
- * This workflow function replaces the hardcoded ocrWorkflow with a generic
+ * This workflow function replaces the legacy hardcoded workflow with a generic
  * data-driven interpreter that can execute any workflow graph definition.
  *
  * See docs/DAG_WORKFLOW_ENGINE.md Section 5
