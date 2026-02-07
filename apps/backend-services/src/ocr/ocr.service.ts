@@ -1,14 +1,11 @@
-import { DocumentStatus, OcrResult } from "@generated/client";
+import { DocumentStatus } from "@generated/client";
 import {
   BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
-  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { readFile } from "fs/promises";
-import { join } from "path";
 import { DatabaseService } from "@/database/database.service";
 import {
   AnalysisResponse,
@@ -16,6 +13,7 @@ import {
   KeyValuePair,
 } from "@/ocr/azure-types";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
+import { LocalBlobStorageService } from "@/blob-storage/local-blob-storage.service";
 
 export interface OcrRequestResponse {
   status: DocumentStatus;
@@ -32,6 +30,7 @@ export class OcrService {
     _configService: ConfigService,
     private databaseService: DatabaseService,
     private temporalClientService: TemporalClientService,
+    private blobStorage: LocalBlobStorageService,
   ) {}
 
   /**
@@ -52,10 +51,8 @@ export class OcrService {
       );
     }
     try {
-      // Resolve stored relative path to absolute (we only store relative paths)
-      const filePath = join(process.cwd(), document.file_path);
-
-      const fileBuffer = await readFile(filePath);
+      // Read file from blob storage using the blob key stored in file_path
+      const fileBuffer = await this.blobStorage.read(document.file_path);
       if (fileBuffer == null) throw Error("File not found.");
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);
 

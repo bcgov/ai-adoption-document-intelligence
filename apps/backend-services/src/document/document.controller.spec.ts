@@ -1,12 +1,14 @@
 import { NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DocumentController } from "./document.controller";
 
 describe("DocumentController", () => {
   let controller: DocumentController;
   let databaseService: jest.Mocked<DatabaseService>;
   let temporalClientService: jest.Mocked<TemporalClientService>;
+  let blobStorage: jest.Mocked<LocalBlobStorageService>;
 
   beforeEach(async () => {
     databaseService = {
@@ -15,7 +17,13 @@ describe("DocumentController", () => {
       findOcrResult: jest.fn(),
     } as any;
     temporalClientService = {} as jest.Mocked<TemporalClientService>;
-    controller = new DocumentController(databaseService, temporalClientService);
+    blobStorage = {
+      read: jest.fn(),
+      write: jest.fn(),
+      exists: jest.fn(),
+      delete: jest.fn(),
+    } as any;
+    controller = new DocumentController(databaseService, temporalClientService, blobStorage);
   });
 
   describe("getAllDocuments", () => {
@@ -139,12 +147,7 @@ describe("DocumentController", () => {
         original_filename: "file.pdf",
         file_type: "pdf",
       } as any);
-      const readFile = await import("fs/promises");
-      jest.spyOn(readFile, "readFile").mockResolvedValue(Buffer.from("data"));
-      const path = await import("path");
-      jest
-        .spyOn(path, "join")
-        .mockImplementation((_cwd: string, fp: string) => fp);
+      blobStorage.read.mockResolvedValue(Buffer.from("data"));
       const res: any = {
         setHeader: jest.fn(),
         send: jest.fn(),
@@ -169,12 +172,7 @@ describe("DocumentController", () => {
         original_filename: "file.jpg",
         file_type: "image",
       } as any);
-      const readFile = await import("fs/promises");
-      jest.spyOn(readFile, "readFile").mockResolvedValue(Buffer.from("data"));
-      const path = await import("path");
-      jest
-        .spyOn(path, "join")
-        .mockImplementation((_cwd: string, fp: string) => fp);
+      blobStorage.read.mockResolvedValue(Buffer.from("data"));
       const res: any = {
         setHeader: jest.fn(),
         send: jest.fn(),
@@ -191,12 +189,7 @@ describe("DocumentController", () => {
         original_filename: "file.unknown",
         file_type: "unknown",
       } as any);
-      const readFile = await import("fs/promises");
-      jest.spyOn(readFile, "readFile").mockResolvedValue(Buffer.from("data"));
-      const path = await import("path");
-      jest
-        .spyOn(path, "join")
-        .mockImplementation((_cwd: string, fp: string) => fp);
+      blobStorage.read.mockResolvedValue(Buffer.from("data"));
       const res: any = {
         setHeader: jest.fn(),
         send: jest.fn(),
@@ -216,12 +209,7 @@ describe("DocumentController", () => {
         original_filename: null,
         file_type: "pdf",
       } as any);
-      const readFile = await import("fs/promises");
-      jest.spyOn(readFile, "readFile").mockResolvedValue(Buffer.from("data"));
-      const path = await import("path");
-      jest
-        .spyOn(path, "join")
-        .mockImplementation((_cwd: string, fp: string) => fp);
+      blobStorage.read.mockResolvedValue(Buffer.from("data"));
       const res: any = {
         setHeader: jest.fn(),
         send: jest.fn(),

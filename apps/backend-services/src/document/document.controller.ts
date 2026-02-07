@@ -22,14 +22,13 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Response } from "express";
-import { readFile } from "fs/promises";
-import { join } from "path";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import { DatabaseService, DocumentData } from "../database/database.service";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
@@ -42,6 +41,7 @@ export class DocumentController {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly temporalClientService: TemporalClientService,
+    private readonly blobStorage: LocalBlobStorageService,
   ) {}
 
   @Get()
@@ -213,11 +213,8 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      // Resolve stored relative path to absolute (we only store relative paths)
-      const filePath = join(process.cwd(), document.file_path);
-
-      // Read file
-      const fileBuffer = await readFile(filePath);
+      // Read file from blob storage using the blob key
+      const fileBuffer = await this.blobStorage.read(document.file_path);
 
       // Set appropriate headers
       const fileName = document.original_filename || `document-${documentId}`;
@@ -233,7 +230,7 @@ export class DocumentController {
       res.setHeader("Content-Length", fileBuffer.length);
 
       this.logger.debug(
-        `Serving file: ${filePath} (${fileBuffer.length} bytes)`,
+        `Serving file: ${document.file_path} (${fileBuffer.length} bytes)`,
       );
       this.logger.debug(
         "=== DocumentController.downloadDocument completed ===",
