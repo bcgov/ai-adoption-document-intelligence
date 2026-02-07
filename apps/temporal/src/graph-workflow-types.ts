@@ -20,7 +20,9 @@ export interface GraphWorkflowConfig {
 }
 
 export interface GraphMetadata {
+  name?: string;
   description?: string;
+  version?: string;
   tags?: string[];
 }
 
@@ -267,20 +269,20 @@ export interface NodeStatus {
 }
 
 export interface GraphWorkflowStatus {
-  overallStatus: "running" | "completed" | "failed" | "cancelled";
-  currentNodes: string[];
+  currentNodeIds: string[];
   nodeStatuses: Record<string, NodeStatus>;
-  lastError?: {
-    nodeId: string;
-    message: string;
-    type: string;
-    retryable: boolean;
-  };
+  overallStatus: "running" | "completed" | "failed" | "cancelled";
+  ctx: Record<string, unknown>;
+  error?: string;
 }
 
 export interface GraphWorkflowProgress {
   completedCount: number;
   totalCount: number;
-  currentNodes: string[];
+  currentNodeIds: string[];
   progressPercentage: number;
+}
+
+export interface CancelSignal {
+  mode: "graceful" | "immediate";
 }

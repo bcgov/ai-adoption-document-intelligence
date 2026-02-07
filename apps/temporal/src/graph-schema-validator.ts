@@ -21,7 +21,7 @@ import type {
   PollUntilNode,
   ValueRef,
 } from "./graph-workflow-types";
-import type { ActivityRegistryEntry } from "./activity-registry";
+import { isRegisteredActivityType } from "./activity-types";
 
 const SUPPORTED_SCHEMA_VERSIONS = ["1.0"];
 
@@ -59,7 +59,6 @@ const ALL_VALID_OPERATORS = [
  */
 export function validateGraphConfigForExecution(
   config: GraphWorkflowConfig,
-  registry: ReadonlyMap<string, ActivityRegistryEntry>,
 ): {
   valid: boolean;
   errors: GraphValidationError[];
@@ -85,7 +84,7 @@ export function validateGraphConfigForExecution(
   validateNodeIds(config, errors);
   validateEntryNode(config, errors);
   validateEdges(config, errors);
-  validateActivityTypesAgainstRegistry(config, registry, errors);
+  validateActivityTypesAgainstRegistry(config, errors);
   validateSwitchNodes(config, errors);
   validateMapJoinNodes(config, errors);
   validatePortBindings(config, errors);
@@ -227,22 +226,19 @@ function validateEdges(
 }
 
 /**
- * Validates activity types against the runtime registry.
- * This is stronger than the backend constant-based check because it verifies
- * the worker can actually execute the referenced activities.
+ * Validates activity types against the registered activity types.
  */
 function validateActivityTypesAgainstRegistry(
   config: GraphWorkflowConfig,
-  registry: ReadonlyMap<string, ActivityRegistryEntry>,
   errors: GraphValidationError[],
 ): void {
   for (const [nodeId, node] of Object.entries(config.nodes)) {
     if (node.type === "activity") {
       const activityNode = node as ActivityNode;
-      if (!registry.has(activityNode.activityType)) {
+      if (!isRegisteredActivityType(activityNode.activityType)) {
         errors.push({
           path: `nodes.${nodeId}.activityType`,
-          message: `Activity type "${activityNode.activityType}" is not registered in the runtime activity registry`,
+          message: `Activity type "${activityNode.activityType}" is not registered`,
           severity: "error",
         });
       }
@@ -250,7 +246,7 @@ function validateActivityTypesAgainstRegistry(
 
     if (node.type === "pollUntil") {
       const pollNode = node as PollUntilNode;
-      if (!registry.has(pollNode.activityType)) {
+      if (!isRegisteredActivityType(pollNode.activityType)) {
         errors.push({
           path: `nodes.${nodeId}.activityType`,
           message: `Activity type "${pollNode.activityType}" is not registered in the runtime activity registry`,

@@ -80,8 +80,8 @@ All user stories files are located in `/home/alstruk/GitHub/ai-adoption-document
 - [x] **US-005** (temporal validator)
 
 ### Phase 4
-- [ ] **US-006** (core runner)
-- [ ] **US-007** (activity node)
+- [x] **US-006** (core runner)
+- [x] **US-007** (activity node)
 - [ ] **US-008** (switch node)
 - [ ] **US-009** (map/join nodes)
 - [ ] **US-010** (pollUntil node)
