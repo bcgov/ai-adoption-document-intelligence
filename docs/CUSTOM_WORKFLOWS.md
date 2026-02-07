@@ -14,6 +14,12 @@ The system follows a clear separation of concerns:
 2. **Backend API** - CRUD endpoints for workflow management + document upload with workflow selection
 3. **Temporal Worker** - executes the actual OCR pipeline according to the workflow configuration
 
+## Workflow Templates
+
+Template JSON files live in `docs/templates`:
+- `docs/templates/standard-ocr-workflow.json`
+- `docs/templates/multi-page-report-workflow.json`
+
 ## Architecture Diagram
 
 ```

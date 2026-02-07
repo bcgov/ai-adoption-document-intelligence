@@ -1,0 +1,113 @@
+{
+  "schemaVersion": "1.0",
+  "metadata": {
+    "name": "Multi-Page Report Workflow",
+    "description": "Multi-page report: split document, OCR each segment, classify, validate fields across documents",
+    "tags": ["multi-page", "classification"]
+  },
+  "entryNodeId": "updateStatus",
+  "ctx": {
+    "documentId": { "type": "string" },
+    "blobKey": { "type": "string" },
+    "fileName": { "type": "string" },
+    "segments": { "type": "array", "description": "Array of { pageRange, blobKey, segmentIndex }" },
+    "currentSegment": { "type": "object", "description": "Current segment in map iteration" },
+    "segmentOcrResult": { "type": "object" },
+    "segmentType": { "type": "string", "description": "Classified document type for segment" },
+    "processedSegments": { "type": "array", "description": "Collected results from all segments" },
+    "validationResults": { "type": "object" }
+  },
+  "nodes": {
+    "updateStatus": {
+      "id": "updateStatus",
+      "type": "activity",
+      "label": "Update Status",
+      "activityType": "document.updateStatus",
+      "inputs": [{ "port": "documentId", "ctxKey": "documentId" }],
+      "parameters": { "status": "ongoing_ocr" }
+    },
+    "splitDocument": {
+      "id": "splitDocument",
+      "type": "activity",
+      "label": "Split Document",
+      "activityType": "document.split",
+      "inputs": [{ "port": "blobKey", "ctxKey": "blobKey" }],
+      "outputs": [{ "port": "segments", "ctxKey": "segments" }],
+      "parameters": { "strategy": "boundary-detection" },
+      "timeout": { "startToClose": "5m" }
+    },
+    "processSegments": {
+      "id": "processSegments",
+      "type": "map",
+      "label": "Process Each Segment",
+      "collectionCtxKey": "segments",
+      "itemCtxKey": "currentSegment",
+      "maxConcurrency": 10,
+      "bodyEntryNodeId": "segmentOcr",
+      "bodyExitNodeId": "classifySegment"
+    },
+    "segmentOcr": {
+      "id": "segmentOcr",
+      "type": "childWorkflow",
+      "label": "OCR Segment",
+      "workflowRef": {
+        "type": "library",
+        "workflowId": "standard-ocr-workflow-id"
+      },
+      "inputMappings": [
+        { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
+        { "port": "documentId", "ctxKey": "documentId" }
+      ],
+      "outputMappings": [{ "port": "ocrResult", "ctxKey": "segmentOcrResult" }]
+    },
+    "classifySegment": {
+      "id": "classifySegment",
+      "type": "activity",
+      "label": "Classify Segment",
+      "activityType": "document.classify",
+      "inputs": [
+        { "port": "ocrResult", "ctxKey": "segmentOcrResult" },
+        { "port": "segment", "ctxKey": "currentSegment" }
+      ],
+      "outputs": [{ "port": "segmentType", "ctxKey": "segmentType" }],
+      "parameters": { "classifierType": "rule-based" }
+    },
+    "collectResults": {
+      "id": "collectResults",
+      "type": "join",
+      "label": "Collect Segment Results",
+      "sourceMapNodeId": "processSegments",
+      "strategy": "all",
+      "resultsCtxKey": "processedSegments"
+    },
+    "validateFields": {
+      "id": "validateFields",
+      "type": "activity",
+      "label": "Validate Fields",
+      "activityType": "document.validateFields",
+      "inputs": [
+        { "port": "processedSegments", "ctxKey": "processedSegments" },
+        { "port": "documentId", "ctxKey": "documentId" }
+      ],
+      "outputs": [{ "port": "validationResults", "ctxKey": "validationResults" }]
+    },
+    "storeResults": {
+      "id": "storeResults",
+      "type": "activity",
+      "label": "Store Results",
+      "activityType": "ocr.storeResults",
+      "inputs": [
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "ocrResult", "ctxKey": "validationResults" }
+      ]
+    }
+  },
+  "edges": [
+    { "id": "e1", "source": "updateStatus", "target": "splitDocument", "type": "normal" },
+    { "id": "e2", "source": "splitDocument", "target": "processSegments", "type": "normal" },
+    { "id": "e-segment-ocr", "source": "segmentOcr", "target": "classifySegment", "type": "normal" },
+    { "id": "e3", "source": "processSegments", "target": "collectResults", "type": "normal" },
+    { "id": "e4", "source": "collectResults", "target": "validateFields", "type": "normal" },
+    { "id": "e5", "source": "validateFields", "target": "storeResults", "type": "normal" }
+  ]
+}

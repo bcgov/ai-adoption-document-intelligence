@@ -650,6 +650,7 @@ This demonstrates multi-page document splitting, parallel OCR, classification, a
   "edges": [
     { "id": "e1", "source": "updateStatus", "target": "splitDocument", "type": "normal" },
     { "id": "e2", "source": "splitDocument", "target": "processSegments", "type": "normal" },
+    { "id": "e-segment-ocr", "source": "segmentOcr", "target": "classifySegment", "type": "normal" },
     { "id": "e3", "source": "processSegments", "target": "collectResults", "type": "normal" },
     { "id": "e4", "source": "collectResults", "target": "validateFields", "type": "normal" },
     { "id": "e5", "source": "validateFields", "target": "storeResults", "type": "normal" }

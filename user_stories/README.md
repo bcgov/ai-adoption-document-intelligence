@@ -121,7 +121,7 @@ After implementing the user story check it off at the bottom of this file
 - [x] **US-029** (upload flow blob references)
 
 ### Phase 11
-- [ ] **US-031** (workflow templates)
+- [x] **US-031** (workflow templates)
 
 ### Phase 12
 - [ ] **US-030** (legacy code removal)

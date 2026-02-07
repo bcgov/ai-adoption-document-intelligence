@@ -1,3 +1,5 @@
+import { readFileSync } from "fs";
+import { join } from "path";
 import { validateGraphConfig } from "./graph-schema-validator";
 import type {
   GraphWorkflowConfig,
@@ -1025,6 +1027,44 @@ describe("graph-schema-validator", () => {
       };
 
       const result = validateGraphConfig(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
+
+  describe("template validation", () => {
+    it("validates the standard OCR template", () => {
+      const templatePath = join(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "..",
+        "docs",
+        "templates",
+        "standard-ocr-workflow.json",
+      );
+      const templateJson = readFileSync(templatePath, "utf8");
+      const template = JSON.parse(templateJson) as unknown as GraphWorkflowConfig;
+      const result = validateGraphConfig(template);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("validates the multi-page report template", () => {
+      const templatePath = join(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "..",
+        "docs",
+        "templates",
+        "multi-page-report-workflow.json",
+      );
+      const templateJson = readFileSync(templatePath, "utf8");
+      const template = JSON.parse(templateJson) as unknown as GraphWorkflowConfig;
+      const result = validateGraphConfig(template);
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
