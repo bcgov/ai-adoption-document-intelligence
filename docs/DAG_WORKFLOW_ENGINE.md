@@ -271,6 +271,13 @@ interface PollUntilNode extends GraphNodeBase {
 
 **Execution strategy**: The graph runner compiles this into an activity call + durable sleep loop within the workflow function. For polls expected to take a long time or return large payloads, the runner may instead launch a child workflow to keep the parent history bounded. This is an implementation detail transparent to the graph author.
 
+**Implementation details**:
+- `initialDelay` is applied before the first poll attempt.
+- `interval` uses Temporal `sleep` between attempts.
+- `maxAttempts` defaults to 100 when omitted.
+- `timeout` is an overall cap (including initial delay and sleeps). Exceeding `maxAttempts` or `timeout` raises a non-retryable `POLL_TIMEOUT`.
+- Outputs are written to ctx after each poll attempt so conditions can evaluate against the latest response.
+
 #### 4.2.7 HumanGate Node
 
 Pauses execution and waits for a human signal.

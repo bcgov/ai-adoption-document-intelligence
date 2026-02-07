@@ -19,22 +19,21 @@ const TASK_QUEUE = 'graph-workflow-test';
 /**
  * Test helper: Create mock activity implementations
  */
-const mockActivities = {
-  'document.updateStatus': async (_params: {
-    documentId: string;
-    status: string;
-  }) => {
+type ActivityMap = Record<
+  string,
+  (params: Record<string, unknown>) => Promise<Record<string, unknown>>
+>;
+
+const mockActivities: ActivityMap = {
+  'document.updateStatus': async (_params: Record<string, unknown>) => {
     return { success: true };
   },
 
-  'file.prepare': async (params: {
-    blobKey: string;
-    fileName?: string;
-  }) => {
-    return { preparedData: { blobKey: params.blobKey } };
+  'file.prepare': async (params: Record<string, unknown>) => {
+    return { preparedData: { blobKey: params.blobKey as string } };
   },
 
-  'azureOcr.submit': async (_params: { fileData: unknown }) => {
+  'azureOcr.submit': async (_params: Record<string, unknown>) => {
     return { apimRequestId: 'test-request-123' };
   },
 };
@@ -141,15 +140,17 @@ async function runWorkflow(
   testEnv: TestWorkflowEnvironment,
   input: GraphWorkflowInput,
   workflowId: string,
+  activitiesOverride: ActivityMap = {},
 ): Promise<GraphWorkflowResult> {
   const workflowsPath = require.resolve('./graph-workflow');
+  const activities = { ...mockActivities, ...activitiesOverride };
 
   const worker = await Worker.create({
     connection: testEnv.nativeConnection,
     namespace: 'default',
     taskQueue: TASK_QUEUE,
     workflowsPath,
-    activities: mockActivities,
+    activities,
   });
 
   return worker.runUntil(
@@ -651,6 +652,182 @@ describe('Graph Workflow', () => {
 
       expect(result.status).toBe('completed');
       expect((result.ctx.allResults as unknown[]).length).toBe(5);
+    });
+  });
+
+  describe('US-010: PollUntil Node Handler', () => {
+    it('polls until condition is met and writes outputs', async () => {
+      let pollCount = 0;
+      let receivedRequestId: string | undefined;
+
+      const pollActivities: ActivityMap = {
+        'azureOcr.poll': async (params: Record<string, unknown>) => {
+          receivedRequestId = params.apimRequestId as string;
+          const status = pollCount < 2 ? 'running' : 'succeeded';
+          pollCount += 1;
+          return { response: { status } };
+        },
+      };
+
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'PollUntil Success Test',
+          description: 'Test pollUntil success path',
+          version: '1.0.0',
+        },
+        nodes: {
+          pollOcr: {
+            id: 'pollOcr',
+            type: 'pollUntil',
+            label: 'Poll OCR',
+            activityType: 'azureOcr.poll',
+            inputs: [{ port: 'apimRequestId', ctxKey: 'apimRequestId' }],
+            outputs: [{ port: 'response', ctxKey: 'ocrResponse' }],
+            condition: {
+              operator: 'not-equals',
+              left: { ref: 'ctx.ocrResponse.status' },
+              right: { literal: 'running' },
+            },
+            interval: '1s',
+            initialDelay: '1s',
+            maxAttempts: 5,
+          },
+        },
+        edges: [],
+        entryNodeId: 'pollOcr',
+        ctx: {
+          apimRequestId: { type: 'string', defaultValue: 'req-123' },
+          ocrResponse: { type: 'object' },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const result = await runWorkflow(
+        testEnv,
+        input,
+        'test-polluntil-success',
+        pollActivities,
+      );
+
+      expect(result.status).toBe('completed');
+      expect(result.ctx.ocrResponse).toBeDefined();
+      expect((result.ctx.ocrResponse as { status: string }).status).toBe(
+        'succeeded',
+      );
+      expect(pollCount).toBe(3);
+      expect(receivedRequestId).toBe('req-123');
+    });
+
+    it('fails with POLL_TIMEOUT when maxAttempts exceeded', async () => {
+      const pollActivities: ActivityMap = {
+        'azureOcr.poll': async () => {
+          return { response: { status: 'running' } };
+        },
+      };
+
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'PollUntil Timeout Test',
+          description: 'Test pollUntil maxAttempts timeout',
+          version: '1.0.0',
+        },
+        nodes: {
+          pollOcr: {
+            id: 'pollOcr',
+            type: 'pollUntil',
+            label: 'Poll OCR',
+            activityType: 'azureOcr.poll',
+            outputs: [{ port: 'response', ctxKey: 'ocrResponse' }],
+            condition: {
+              operator: 'not-equals',
+              left: { ref: 'ctx.ocrResponse.status' },
+              right: { literal: 'running' },
+            },
+            interval: '1s',
+            maxAttempts: 3,
+          },
+        },
+        edges: [],
+        entryNodeId: 'pollOcr',
+        ctx: {
+          ocrResponse: { type: 'object' },
+        },
+      };
+
+      const input = makeMockInput(graph);
+
+      try {
+        await runWorkflow(
+          testEnv,
+          input,
+          'test-polluntil-timeout',
+          pollActivities,
+        );
+        throw new Error('Expected pollUntil to timeout');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const causeMessage =
+          (error as { cause?: { message?: string } }).cause?.message ?? '';
+        expect(`${errorMessage} ${causeMessage}`).toMatch(/POLL_TIMEOUT/);
+      }
+    });
+
+    it('fails with POLL_TIMEOUT when overall timeout elapses', async () => {
+      const pollActivities: ActivityMap = {
+        'azureOcr.poll': async () => {
+          return { response: { status: 'running' } };
+        },
+      };
+
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'PollUntil Overall Timeout Test',
+          description: 'Test pollUntil overall timeout',
+          version: '1.0.0',
+        },
+        nodes: {
+          pollOcr: {
+            id: 'pollOcr',
+            type: 'pollUntil',
+            label: 'Poll OCR',
+            activityType: 'azureOcr.poll',
+            outputs: [{ port: 'response', ctxKey: 'ocrResponse' }],
+            condition: {
+              operator: 'not-equals',
+              left: { ref: 'ctx.ocrResponse.status' },
+              right: { literal: 'running' },
+            },
+            interval: '5s',
+            timeout: '3s',
+            maxAttempts: 50,
+          },
+        },
+        edges: [],
+        entryNodeId: 'pollOcr',
+        ctx: {
+          ocrResponse: { type: 'object' },
+        },
+      };
+
+      const input = makeMockInput(graph);
+
+      try {
+        await runWorkflow(
+          testEnv,
+          input,
+          'test-polluntil-overall-timeout',
+          pollActivities,
+        );
+        throw new Error('Expected pollUntil to timeout');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const causeMessage =
+          (error as { cause?: { message?: string } }).cause?.message ?? '';
+        expect(`${errorMessage} ${causeMessage}`).toMatch(/POLL_TIMEOUT/);
+      }
     });
   });
 });

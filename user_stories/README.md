@@ -88,7 +88,7 @@ After implementing the user story check it off at the bottom of this file
 - [x] **US-007** (activity node)
 - [x] **US-008** (switch node)
 - [x] **US-009** (map/join nodes)
-- [ ] **US-010** (pollUntil node)
+- [x] **US-010** (pollUntil node)
 - [ ] **US-011** (humanGate node)
 - [ ] **US-012** (childWorkflow node)
 - [ ] **US-013** (error policy)

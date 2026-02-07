@@ -7,7 +7,11 @@
  * See docs/DAG_WORKFLOW_ENGINE.md Section 5.2
  */
 
-import { proxyActivities, ApplicationFailure } from '@temporalio/workflow';
+import {
+  proxyActivities,
+  ApplicationFailure,
+  sleep,
+} from '@temporalio/workflow';
 import type { Duration, RetryPolicy } from '@temporalio/common';
 import type {
   GraphWorkflowInput,
@@ -18,6 +22,7 @@ import type {
   SwitchNode,
   MapNode,
   JoinNode,
+  PollUntilNode,
   NodeStatus,
 } from './graph-workflow-types';
 import { isRegisteredActivityType } from './activity-types';
@@ -344,8 +349,8 @@ async function executeNode(
       break;
 
     case 'pollUntil':
-      // TODO: Implement in US-010
-      throw new Error('PollUntil nodes not yet implemented');
+      await executePollUntilNode(node as PollUntilNode, state);
+      break;
 
     case 'humanGate':
       // TODO: Implement in US-011
@@ -551,6 +556,90 @@ async function executeJoinNode(
 
   // Step 3: Write results to context
   writeToCtx(node.resultsCtxKey, results, state.ctx);
+}
+
+/**
+ * Execute a pollUntil node
+ *
+ * US-010: PollUntil node handler
+ *
+ * Polls an activity until a condition evaluates to true, or until
+ * maxAttempts / timeout is exceeded.
+ */
+async function executePollUntilNode(
+  node: PollUntilNode,
+  state: ExecutionState,
+): Promise<void> {
+  if (!isRegisteredActivityType(node.activityType)) {
+    throw ApplicationFailure.create({
+      type: 'ACTIVITY_NOT_FOUND',
+      message: `Activity type not found: ${node.activityType}`,
+      nonRetryable: true,
+    });
+  }
+
+  const maxAttempts = node.maxAttempts ?? 100;
+  const timeoutMs = node.timeout ? parseDurationToMs(node.timeout) : undefined;
+  const startTimeMs = Date.now();
+
+  const timeout = '2m' as Duration;
+  const retry = { maximumAttempts: 3 } as RetryPolicy;
+
+  const activityProxy = proxyActivities({
+    startToCloseTimeout: timeout,
+    retry,
+  });
+
+  const activityFn = activityProxy[node.activityType] as (
+    ...args: unknown[]
+  ) => Promise<unknown>;
+
+  if (node.initialDelay) {
+    await sleep(node.initialDelay as Duration);
+  }
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (timeoutMs !== undefined && Date.now() - startTimeMs >= timeoutMs) {
+      throwPollTimeout(node.id, attempt, 'timeout');
+    }
+
+    const inputs: Record<string, unknown> = {};
+    if (node.inputs) {
+      for (const binding of node.inputs) {
+        inputs[binding.port] = resolvePortBinding(binding.ctxKey, state.ctx);
+      }
+    }
+
+    const activityParams = {
+      ...inputs,
+      ...node.parameters,
+    };
+
+    const result = (await activityFn(activityParams)) as Record<string, unknown>;
+
+    if (node.outputs) {
+      for (const binding of node.outputs) {
+        const value = result[binding.port];
+        writeToCtx(binding.ctxKey, value, state.ctx);
+      }
+    }
+
+    if (evaluateCondition(node.condition, state.ctx)) {
+      return;
+    }
+
+    if (attempt >= maxAttempts) {
+      break;
+    }
+
+    if (timeoutMs !== undefined && Date.now() - startTimeMs >= timeoutMs) {
+      throwPollTimeout(node.id, attempt, 'timeout');
+    }
+
+    await sleep(node.interval as Duration);
+  }
+
+  throwPollTimeout(node.id, maxAttempts, 'maxAttempts');
 }
 
 // ---------------------------------------------------------------------------
@@ -888,4 +977,40 @@ function writeToCtx(
   // Set the final key
   const finalKey = keys[keys.length - 1];
   current[finalKey] = value;
+}
+
+function parseDurationToMs(duration: string): number {
+  const trimmed = duration.trim().toLowerCase();
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)(ms|s|m|h|d)$/);
+  if (!match) {
+    throw ApplicationFailure.create({
+      type: 'GRAPH_EXECUTION_ERROR',
+      message: `Invalid duration string: ${duration}`,
+      nonRetryable: true,
+    });
+  }
+
+  const value = Number(match[1]);
+  const unit = match[2];
+  const multiplier: Record<string, number> = {
+    ms: 1,
+    s: 1000,
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000,
+  };
+
+  return Math.round(value * (multiplier[unit] ?? 1));
+}
+
+function throwPollTimeout(
+  nodeId: string,
+  attempt: number,
+  reason: 'maxAttempts' | 'timeout',
+): never {
+  throw ApplicationFailure.create({
+    type: 'POLL_TIMEOUT',
+    message: `POLL_TIMEOUT: PollUntil node ${nodeId} exceeded ${reason} after ${attempt} attempts`,
+    nonRetryable: true,
+  });
 }
