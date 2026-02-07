@@ -72,28 +72,62 @@ export class DocumentController {
             try {
               // Use workflow_execution_id directly (it's the Temporal workflow execution ID)
               const workflowId = doc.workflow_execution_id;
-              const workflowQueryStatus =
-                await this.temporalClientService.queryWorkflowStatus(
-                  workflowId,
-                );
 
-              // If workflow is awaiting review, mark document as needing review
-              if (workflowQueryStatus.status === "awaiting_review") {
-                this.logger.debug(
-                  `Document ${doc.id} workflow is awaiting review`,
+              // First check the actual workflow execution status
+              const workflowStatus =
+                await this.temporalClientService.getWorkflowStatus(workflowId);
+
+              // If workflow has failed, terminated, timed out, or cancelled, update database status
+              if (
+                workflowStatus.status === "FAILED" ||
+                workflowStatus.status === "TERMINATED" ||
+                workflowStatus.status === "TIMED_OUT" ||
+                workflowStatus.status === "CANCELLED"
+              ) {
+                this.logger.warn(
+                  `Document ${doc.id} workflow ended with status ${workflowStatus.status}, updating database`,
                 );
+                await this.databaseService.updateDocument(doc.id, {
+                  status: DocumentStatus.failed,
+                });
                 return {
                   ...doc,
-                  // Override status for UI - needs_validation is not a valid DocumentStatus enum value but used for UI display
-                  status: "needs_validation" as DocumentStatus,
-                  needsReview: true,
+                  status: DocumentStatus.failed,
                 };
               }
+
+              // If workflow is still running, try to query its internal status
+              if (workflowStatus.status === "RUNNING") {
+                try {
+                  const workflowQueryStatus =
+                    await this.temporalClientService.queryWorkflowStatus(
+                      workflowId,
+                    );
+
+                  // If workflow is awaiting review, mark document as needing review
+                  if (workflowQueryStatus.status === "awaiting_review") {
+                    this.logger.debug(
+                      `Document ${doc.id} workflow is awaiting review`,
+                    );
+                    return {
+                      ...doc,
+                      // Override status for UI - needs_validation is not a valid DocumentStatus enum value but used for UI display
+                      status: "needs_validation" as DocumentStatus,
+                      needsReview: true,
+                    };
+                  }
+                } catch (queryError) {
+                  // Query failed but workflow is running - this is OK, just return current status
+                  this.logger.debug(
+                    `Could not query running workflow for document ${doc.id}: ${queryError.message}`,
+                  );
+                }
+              }
             } catch (error) {
-              // If workflow query fails, log but don't fail the entire request
-              // This can happen if workflow is not found, completed, or Temporal is unavailable
+              // If workflow status check fails, log but don't fail the entire request
+              // This can happen if Temporal is unavailable
               this.logger.debug(
-                `Could not query workflow status for document ${doc.id}: ${error.message}`,
+                `Could not get workflow status for document ${doc.id}: ${error.message}`,
               );
             }
           }

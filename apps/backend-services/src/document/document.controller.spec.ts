@@ -39,6 +39,61 @@ describe("DocumentController", () => {
         NotFoundException,
       );
     });
+
+    it("should update document status to failed when workflow has failed", async () => {
+      const mockDocument = {
+        id: "1",
+        status: "ongoing_ocr",
+        workflow_execution_id: "workflow-123",
+      };
+      databaseService.findAllDocuments.mockResolvedValue([mockDocument as any]);
+      databaseService.updateDocument = jest.fn().mockResolvedValue({
+        ...mockDocument,
+        status: "failed",
+      });
+      temporalClientService.getWorkflowStatus = jest.fn().mockResolvedValue({
+        status: "FAILED",
+      });
+
+      const result = await controller.getAllDocuments();
+
+      expect(temporalClientService.getWorkflowStatus).toHaveBeenCalledWith(
+        "workflow-123",
+      );
+      expect(databaseService.updateDocument).toHaveBeenCalledWith("1", {
+        status: "failed",
+      });
+      expect(result).toEqual([{ ...mockDocument, status: "failed" }]);
+    });
+
+    it("should check for awaiting review when workflow is running", async () => {
+      const mockDocument = {
+        id: "1",
+        status: "ongoing_ocr",
+        workflow_execution_id: "workflow-123",
+      };
+      databaseService.findAllDocuments.mockResolvedValue([mockDocument as any]);
+      temporalClientService.getWorkflowStatus = jest.fn().mockResolvedValue({
+        status: "RUNNING",
+      });
+      temporalClientService.queryWorkflowStatus = jest
+        .fn()
+        .mockResolvedValue({
+          status: "awaiting_review",
+        });
+
+      const result = await controller.getAllDocuments();
+
+      expect(temporalClientService.getWorkflowStatus).toHaveBeenCalledWith(
+        "workflow-123",
+      );
+      expect(temporalClientService.queryWorkflowStatus).toHaveBeenCalledWith(
+        "workflow-123",
+      );
+      expect(result).toEqual([
+        { ...mockDocument, status: "needs_validation", needsReview: true },
+      ]);
+    });
   });
 
   describe("getOcrResult", () => {
