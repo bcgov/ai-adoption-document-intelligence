@@ -274,6 +274,12 @@ export interface GraphWorkflowStatus {
   overallStatus: "running" | "completed" | "failed" | "cancelled";
   ctx: Record<string, unknown>;
   error?: string;
+  lastError?: {
+    nodeId: string;
+    message: string;
+    type?: string;
+    retryable?: boolean;
+  };
 }
 
 export interface GraphWorkflowProgress {

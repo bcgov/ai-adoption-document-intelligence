@@ -75,6 +75,7 @@ export function validateGraphConfig(config: GraphWorkflowConfig): {
   validateNodeIds(config, errors);
   validateEntryNode(config, errors);
   validateEdges(config, errors);
+  validateErrorPolicies(config, errors);
   validateActivityTypes(config, errors);
   validateSwitchNodes(config, errors);
   validateMapJoinNodes(config, errors);
@@ -214,6 +215,55 @@ function validateEdges(
       errors.push({
         path: `edges[${i}].target`,
         message: `Edge "${edge.id}" references non-existent target node: "${edge.target}"`,
+        severity: "error",
+      });
+    }
+  }
+}
+
+function validateErrorPolicies(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+): void {
+  const edgesById = new Map((config.edges || []).map((edge) => [edge.id, edge]));
+
+  for (const [nodeId, node] of Object.entries(config.nodes)) {
+    if (node.errorPolicy?.onError !== "fallback") {
+      continue;
+    }
+
+    const fallbackEdgeId = node.errorPolicy.fallbackEdgeId;
+    if (!fallbackEdgeId) {
+      errors.push({
+        path: `nodes.${nodeId}.errorPolicy.fallbackEdgeId`,
+        message: `Node "${nodeId}" requires fallbackEdgeId when onError is "fallback"`,
+        severity: "error",
+      });
+      continue;
+    }
+
+    const fallbackEdge = edgesById.get(fallbackEdgeId);
+    if (!fallbackEdge) {
+      errors.push({
+        path: `nodes.${nodeId}.errorPolicy.fallbackEdgeId`,
+        message: `Fallback edge "${fallbackEdgeId}" does not exist`,
+        severity: "error",
+      });
+      continue;
+    }
+
+    if (fallbackEdge.type !== "error") {
+      errors.push({
+        path: `edges.${fallbackEdgeId}`,
+        message: `Fallback edge "${fallbackEdgeId}" must have type "error"`,
+        severity: "error",
+      });
+    }
+
+    if (fallbackEdge.source !== nodeId) {
+      errors.push({
+        path: `edges.${fallbackEdgeId}.source`,
+        message: `Fallback edge "${fallbackEdgeId}" must originate from node "${nodeId}"`,
         severity: "error",
       });
     }

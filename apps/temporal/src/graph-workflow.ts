@@ -52,6 +52,14 @@ export async function graphWorkflow(
   let cancelMode: 'graceful' | 'immediate' = 'graceful';
   let ctx: Record<string, unknown> = {};
   let workflowError: string | undefined = undefined;
+  const lastError: {
+    current?: {
+      nodeId: string;
+      message: string;
+      type?: string;
+      retryable?: boolean;
+    };
+  } = {};
 
   // Set up query handlers
   setHandler(getStatus, (): GraphWorkflowStatus => {
@@ -72,6 +80,7 @@ export async function graphWorkflow(
       overallStatus,
       ctx: redactedCtx,
       error: workflowError,
+      lastError: lastError.current,
     };
   });
 
@@ -126,6 +135,7 @@ export async function graphWorkflow(
       mapBranchResults: new Map(),
     configHash: input.configHash,
     runnerVersion: input.runnerVersion,
+      lastError,
     });
 
     // Update final state

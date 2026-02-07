@@ -49,6 +49,14 @@ export interface ExecutionState {
   mapBranchResults: Map<string, unknown[]>; // mapNodeId -> array of branch results
   configHash: string;
   runnerVersion: string;
+  lastError: {
+    current?: {
+      nodeId: string;
+      message: string;
+      type?: string;
+      retryable?: boolean;
+    };
+  };
 }
 
 /**
@@ -130,12 +138,7 @@ export async function runGraphExecution(
             completedAt: new Date().toISOString(),
           });
         } catch (error) {
-          // Mark node as failed
-          state.nodeStatuses.set(nodeId, {
-            status: 'failed',
-            error: error instanceof Error ? error.message : String(error),
-          });
-          throw error; // Propagate error to workflow
+          handleNodeError(nodeId, node, error, state, config);
         }
       }),
     );
@@ -818,6 +821,7 @@ async function executeBranchSubgraph(
     mapBranchResults: new Map<string, unknown[]>(),
     configHash: parentState.configHash,
     runnerVersion: parentState.runnerVersion,
+    lastError: parentState.lastError,
   };
 
   // Find all nodes in the subgraph using BFS
@@ -918,12 +922,7 @@ async function executeBranchSubgraph(
             completedAt: new Date().toISOString(),
           });
         } catch (error) {
-          // Mark node as failed
-          branchState.nodeStatuses.set(nodeId, {
-            status: 'failed',
-            error: error instanceof Error ? error.message : String(error),
-          });
-          throw error;
+          handleNodeError(nodeId, node, error, branchState, config);
         }
       }),
     );
@@ -1169,4 +1168,96 @@ function throwPollTimeout(
     message: `POLL_TIMEOUT: PollUntil node ${nodeId} exceeded ${reason} after ${attempt} attempts`,
     nonRetryable: true,
   });
+}
+
+function handleNodeError(
+  nodeId: string,
+  node: GraphNode,
+  error: unknown,
+  state: ExecutionState,
+  config: GraphWorkflowConfig,
+): void {
+  const details = extractErrorDetails(error, nodeId);
+  state.lastError.current = details;
+
+  const policy = node.errorPolicy?.onError ?? 'fail';
+
+  if (policy === 'skip') {
+    state.nodeStatuses.set(nodeId, {
+      status: 'skipped',
+      error: details.message,
+      completedAt: new Date().toISOString(),
+    });
+    state.completedNodeIds.add(nodeId);
+    return;
+  }
+
+  if (policy === 'fallback') {
+    const fallbackEdgeId = node.errorPolicy?.fallbackEdgeId;
+    if (!fallbackEdgeId) {
+      throw ApplicationFailure.create({
+        type: 'GRAPH_EXECUTION_ERROR',
+        message: `Node ${nodeId} missing fallbackEdgeId for fallback policy`,
+        nonRetryable: true,
+      });
+    }
+
+    const fallbackEdge = config.edges.find((edge) => edge.id === fallbackEdgeId);
+    if (!fallbackEdge || fallbackEdge.type !== 'error' || fallbackEdge.source !== nodeId) {
+      throw ApplicationFailure.create({
+        type: 'GRAPH_EXECUTION_ERROR',
+        message: `Fallback edge ${fallbackEdgeId} for node ${nodeId} must exist, be type "error", and reference the node as source`,
+        nonRetryable: true,
+      });
+    }
+
+    state.selectedEdges.set(nodeId, fallbackEdgeId);
+    state.nodeStatuses.set(nodeId, {
+      status: 'failed',
+      error: details.message,
+      completedAt: new Date().toISOString(),
+    });
+    state.completedNodeIds.add(nodeId);
+    return;
+  }
+
+  state.nodeStatuses.set(nodeId, {
+    status: 'failed',
+    error: details.message,
+  });
+
+  if (node.errorPolicy?.retryable === false) {
+    throw ApplicationFailure.create({
+      type: details.type ?? 'GRAPH_EXECUTION_ERROR',
+      message: details.message,
+      nonRetryable: true,
+    });
+  }
+
+  throw error;
+}
+
+function extractErrorDetails(
+  error: unknown,
+  nodeId: string,
+): {
+  nodeId: string;
+  message: string;
+  type?: string;
+  retryable?: boolean;
+} {
+  const message = error instanceof Error ? error.message : String(error);
+  const type =
+    error && typeof error === 'object' && 'type' in error
+      ? String((error as { type?: string }).type)
+      : undefined;
+  const retryable =
+    error instanceof ApplicationFailure ? !error.nonRetryable : undefined;
+
+  return {
+    nodeId,
+    message,
+    type,
+    retryable,
+  };
 }

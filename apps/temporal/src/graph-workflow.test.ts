@@ -1261,4 +1261,165 @@ describe('Graph Workflow', () => {
       );
     });
   });
+
+  describe('US-013: Error Policy Handling', () => {
+    it('fails the workflow when no error policy is defined', async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Error Policy Fail Test',
+          description: 'Fail on node error',
+          version: '1.0.0',
+        },
+        nodes: {
+          failing: {
+            id: 'failing',
+            type: 'activity',
+            label: 'Failing Activity',
+            activityType: 'file.prepare',
+            inputs: [{ port: 'blobKey', ctxKey: 'blobKey' }],
+          },
+        },
+        edges: [],
+        entryNodeId: 'failing',
+        ctx: {
+          blobKey: { type: 'string', defaultValue: 'blobs/fail.pdf' },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const activitiesOverride: ActivityMap = {
+        'file.prepare': async () => {
+          throw new Error('boom');
+        },
+      };
+
+      try {
+        await runWorkflow(
+          testEnv,
+          input,
+          'test-error-policy-fail',
+          activitiesOverride,
+        );
+        throw new Error('Expected workflow to fail');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        expect(errorMessage).toMatch(/Workflow execution failed/);
+      }
+    });
+
+    it('routes to fallback edge when onError is fallback', async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Error Policy Fallback Test',
+          description: 'Fallback on node error',
+          version: '1.0.0',
+        },
+        nodes: {
+          failing: {
+            id: 'failing',
+            type: 'activity',
+            label: 'Failing Activity',
+            activityType: 'file.prepare',
+            inputs: [{ port: 'blobKey', ctxKey: 'blobKey' }],
+            errorPolicy: {
+              onError: 'fallback',
+              fallbackEdgeId: 'edge-fallback',
+              retryable: false,
+            },
+          },
+          fallback: {
+            id: 'fallback',
+            type: 'activity',
+            label: 'Fallback Activity',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'fallback' },
+          },
+        },
+        edges: [
+          {
+            id: 'edge-fallback',
+            source: 'failing',
+            target: 'fallback',
+            type: 'error',
+          },
+        ],
+        entryNodeId: 'failing',
+        ctx: {
+          blobKey: { type: 'string', defaultValue: 'blobs/fallback.pdf' },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const activitiesOverride: ActivityMap = {
+        'file.prepare': async () => {
+          throw new Error('boom');
+        },
+      };
+
+      const result = await runWorkflow(
+        testEnv,
+        input,
+        'test-error-policy-fallback',
+        activitiesOverride,
+      );
+
+      expect(result.status).toBe('completed');
+      expect(result.completedNodes).toContain('fallback');
+    });
+
+    it('skips a failed node when onError is skip', async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Error Policy Skip Test',
+          description: 'Skip on node error',
+          version: '1.0.0',
+        },
+        nodes: {
+          failing: {
+            id: 'failing',
+            type: 'activity',
+            label: 'Failing Activity',
+            activityType: 'file.prepare',
+            inputs: [{ port: 'blobKey', ctxKey: 'blobKey' }],
+            errorPolicy: {
+              onError: 'skip',
+              retryable: false,
+            },
+          },
+          next: {
+            id: 'next',
+            type: 'activity',
+            label: 'Next Activity',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'skipped' },
+          },
+        },
+        edges: [{ id: 'edge-next', source: 'failing', target: 'next', type: 'normal' }],
+        entryNodeId: 'failing',
+        ctx: {
+          blobKey: { type: 'string', defaultValue: 'blobs/skip.pdf' },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const activitiesOverride: ActivityMap = {
+        'file.prepare': async () => {
+          throw new Error('boom');
+        },
+      };
+
+      const result = await runWorkflow(
+        testEnv,
+        input,
+        'test-error-policy-skip',
+        activitiesOverride,
+      );
+
+      expect(result.status).toBe('completed');
+      expect(result.completedNodes).toContain('next');
+    });
+  });
 });

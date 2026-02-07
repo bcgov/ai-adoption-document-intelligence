@@ -91,7 +91,7 @@ After implementing the user story check it off at the bottom of this file
 - [x] **US-010** (pollUntil node)
 - [x] **US-011** (humanGate node)
 - [x] **US-012** (childWorkflow node)
-- [ ] **US-013** (error policy)
+- [x] **US-013** (error policy)
 
 ### Phase 5
 - [ ] **US-014** (query/signal handlers)

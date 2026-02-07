@@ -195,6 +195,72 @@ describe("graph-schema-validator", () => {
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
+
+    it("valid fallback edge policy passes when edge type is error", () => {
+      const config = makeMinimalGraph({
+        nodes: {
+          start: {
+            id: "start",
+            type: "activity",
+            label: "Start",
+            activityType: "document.updateStatus",
+            inputs: [{ port: "documentId", ctxKey: "documentId" }],
+            errorPolicy: {
+              onError: "fallback",
+              fallbackEdgeId: "e-fallback",
+              retryable: false,
+            },
+          } as ActivityNode,
+          fallback: {
+            id: "fallback",
+            type: "activity",
+            label: "Fallback",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
+        },
+        edges: [
+          { id: "e-fallback", source: "start", target: "fallback", type: "error" },
+        ],
+      });
+
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
+
+  describe("error policy validation", () => {
+    it("fails when fallback edge is not type error", () => {
+      const config = makeMinimalGraph({
+        nodes: {
+          start: {
+            id: "start",
+            type: "activity",
+            label: "Start",
+            activityType: "document.updateStatus",
+            inputs: [{ port: "documentId", ctxKey: "documentId" }],
+            errorPolicy: {
+              onError: "fallback",
+              fallbackEdgeId: "e-fallback",
+              retryable: false,
+            },
+          } as ActivityNode,
+          fallback: {
+            id: "fallback",
+            type: "activity",
+            label: "Fallback",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
+        },
+        edges: [
+          { id: "e-fallback", source: "start", target: "fallback", type: "normal" },
+        ],
+      });
+
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((error) => error.message.includes("type \"error\""))).toBe(true);
+    });
   });
 
   // -----------------------------------------------------------------------
