@@ -68,16 +68,16 @@ All user stories files are located in `/home/alstruk/GitHub/ai-adoption-document
 ## Suggested Implementation Order (by dependency chain)
 
 ### Phase 1
-- [ ] **US-001** (types) -- everything depends on this
+- [x] **US-001** (types) -- everything depends on this
 
 ### Phase 2
-- [ ] **US-002** (activity registry)
-- [ ] **US-003** (expression evaluator)
-- [ ] **US-016** (blob storage)
+- [x] **US-002** (activity registry)
+- [x] **US-003** (expression evaluator)
+- [x] **US-016** (blob storage)
 
 ### Phase 3
-- [ ] **US-004** (backend validator)
-- [ ] **US-005** (temporal validator)
+- [x] **US-004** (backend validator)
+- [x] **US-005** (temporal validator)
 
 ### Phase 4
 - [ ] **US-006** (core runner)
