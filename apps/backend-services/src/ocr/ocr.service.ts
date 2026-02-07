@@ -16,7 +16,6 @@ import {
   KeyValuePair,
 } from "@/ocr/azure-types";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
-import { WorkflowStepsConfig } from "@/workflow/workflow-types";
 
 export interface OcrRequestResponse {
   status: DocumentStatus;
@@ -43,7 +42,6 @@ export class OcrService {
    */
   async requestOcr(
     documentId: string,
-    steps?: WorkflowStepsConfig,
   ): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
     // Find filepath of document
@@ -65,9 +63,6 @@ export class OcrService {
       const modelId = document.model_id;
       this.logger.debug(`Document model_id: ${modelId}`);
 
-      // Convert file buffer to base64
-      const base64Data = fileBuffer.toString("base64");
-
       // Determine file type and content type
       const fileType = document.file_type === "pdf" ? "pdf" : "image";
       let contentType = "application/pdf";
@@ -85,31 +80,32 @@ export class OcrService {
       // Get workflow_config_id from document if available
       // This references the Workflow table and contains the workflow configuration
       // Fallback to legacy workflow_id for backward compatibility during migration
-      const workflowConfigId =
-        document.workflow_config_id || document.workflow_id || undefined;
+      const workflowConfigId = document.workflow_config_id || undefined;
       if (workflowConfigId) {
         this.logger.log(
           `Document ${documentId} has workflow configuration ID: ${workflowConfigId}`,
         );
       } else {
-        this.logger.log(
-          `Document ${documentId} has no workflow configuration ID, using default workflow`,
+        throw new BadRequestException(
+          `Document ${documentId} missing workflow configuration ID`,
         );
       }
 
-      // Start Temporal workflow with modelId
+      const initialCtx: Record<string, unknown> = {
+        documentId,
+        blobKey: document.file_path,
+        fileName: document.original_filename,
+        fileType,
+        contentType,
+        modelId,
+      };
+
+      // Start Temporal graph workflow
       const workflowExecutionId =
-        await this.temporalClientService.startOCRWorkflow(
+        await this.temporalClientService.startGraphWorkflow(
           documentId,
-          {
-            binaryData: base64Data,
-            fileName: document.original_filename,
-            fileType: fileType,
-            contentType: contentType,
-            modelId: modelId,
-          },
-          steps, // Pass optional steps configuration (overridden by workflowConfigId if provided)
-          workflowConfigId, // Pass workflow configuration ID from document
+          workflowConfigId,
+          initialCtx,
         );
 
       // Update document with workflow configuration ID and Temporal workflow execution ID

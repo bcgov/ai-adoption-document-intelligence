@@ -26,6 +26,7 @@ const defaultDocument = {
   created_at: new Date(),
   apim_request_id: "uuidHere",
   model_id: "prebuilt-layout",
+  workflow_config_id: "workflow-config-123",
 } as DocumentData;
 
 describe("OcrService", () => {
@@ -69,7 +70,7 @@ describe("OcrService", () => {
         {
           provide: TemporalClientService,
           useValue: {
-            startOCRWorkflow: jest.fn().mockResolvedValue("workflow-123"),
+            startGraphWorkflow: jest.fn().mockResolvedValue("workflow-123"),
             getWorkflowStatus: jest.fn(),
             queryWorkflowStatus: jest.fn(),
           },
@@ -105,7 +106,7 @@ describe("OcrService", () => {
       const result = await service.requestOcr("0000");
       expect(result.status).toEqual(DocumentStatus.ongoing_ocr);
       expect(result.workflowId).toEqual("workflow-123");
-      expect(temporalClientService.startOCRWorkflow).toHaveBeenCalled();
+      expect(temporalClientService.startGraphWorkflow).toHaveBeenCalled();
     });
 
     it("should throw a NotFoundException if no document matches that id", async () => {
@@ -125,7 +126,7 @@ describe("OcrService", () => {
 
     it("should return a failed status with error if Temporal workflow fails to start", async () => {
       (
-        temporalClientService.startOCRWorkflow as jest.Mock
+        temporalClientService.startGraphWorkflow as jest.Mock
       ).mockRejectedValueOnce(new Error("Temporal connection failed"));
       await expect(service.requestOcr("123")).resolves.toEqual({
         status: DocumentStatus.failed,

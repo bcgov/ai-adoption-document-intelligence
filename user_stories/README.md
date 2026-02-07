@@ -104,7 +104,7 @@ After implementing the user story check it off at the bottom of this file
 
 ### Phase 7
 - [x] **US-020** (backend DTO and workflow types)
-- [ ] **US-021** (start graph workflow)
+- [x] **US-021** (start graph workflow)
 - [ ] **US-022** (workflow service validation)
 
 ### Phase 8

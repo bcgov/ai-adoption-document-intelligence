@@ -7,6 +7,9 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { Client, Connection } from "@temporalio/client";
 import { WorkflowService } from "../workflow/workflow.service";
+import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
+import { computeConfigHash } from "../workflow/config-hash";
+import { WORKFLOW_TYPES } from "./workflow-types";
 
 @Injectable()
 export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
@@ -180,96 +183,41 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Start an OCR workflow execution
-   * @param documentId Document ID
-   * @param fileData File data for OCR processing
-   * @param steps Optional workflow steps configuration (overridden by workflowConfigId if provided)
-   * @param workflowConfigId Optional workflow configuration ID from Workflow table
-   * @returns Workflow execution ID
+   * Start a graph workflow execution
    */
-  async startOCRWorkflow(
+  async startGraphWorkflow(
     documentId: string,
-    fileData: {
-      binaryData: string;
-      fileName: string;
-      fileType: string;
-      contentType: string;
-      modelId?: string;
-    },
-    steps?: {
-      [key: string]:
-        | {
-            enabled?: boolean;
-            parameters?: Record<string, unknown>;
-          }
-        | undefined;
-    },
-    workflowConfigId?: string,
+    workflowConfigId: string,
+    initialCtx: Record<string, unknown>,
   ): Promise<string> {
     this.ensureClientInitialized();
 
-    const workflowExecutionId = `ocr-${documentId}`;
+    const workflowExecutionId = `graph-${documentId}`;
 
     try {
-      // If workflowConfigId is provided, look up the workflow configuration from the database
-      let workflowSteps = steps;
-      let workflowVersion: number | undefined;
-      if (workflowConfigId) {
-        try {
-          this.logger.log(
-            `[Temporal] Looking up workflow configuration: ${workflowConfigId}`,
-          );
-          const workflowConfig =
-            await this.workflowService.getWorkflowById(workflowConfigId);
-          if (workflowConfig) {
-            workflowVersion = workflowConfig.version;
-            const configData = workflowConfig.config as Record<string, unknown>;
-            if (configData && typeof configData === "object" && "schemaVersion" in configData) {
-              this.logger.warn(
-                `[Temporal] Workflow config ${workflowConfigId} is a graph config. startOCRWorkflow ignores graph configs; use graphWorkflow instead.`,
-              );
-            }
-          } else {
-            this.logger.warn(
-              `[Temporal] Workflow configuration ${workflowConfigId} not found in database, using provided steps or defaults`,
-            );
-          }
-        } catch (error) {
-          this.logger.error(
-            `[Temporal] Failed to load workflow configuration ${workflowConfigId}: ${error.message}`,
-          );
-          this.logger.error(
-            `[Temporal] Error stack: ${error instanceof Error ? error.stack : "N/A"}`,
-          );
-          this.logger.warn(
-            `[Temporal] Continuing with provided steps or defaults`,
-          );
-          // Continue with provided steps or defaults if workflow lookup fails
-        }
-      } else {
-        this.logger.log(
-          `[Temporal] No workflow configuration ID provided, using provided steps or defaults`,
-        );
+      this.logger.log(
+        `[Temporal] Looking up graph workflow configuration: ${workflowConfigId}`,
+      );
+      const workflowConfig = await this.workflowService.getWorkflowById(
+        workflowConfigId,
+      );
+      if (!workflowConfig) {
+        throw new Error(`Workflow configuration not found: ${workflowConfigId}`);
       }
 
-      const workflowType = "ocrWorkflow";
+      const graph = workflowConfig.config as GraphWorkflowConfig;
+      const configHash = computeConfigHash(graph);
+      const runnerVersion = "1.0.0";
 
-      // Search attributes are registered in the Temporal namespace:
-      // - DocumentId (Keyword)
-      // - FileName (Keyword)
-      // - FileType (Keyword)
-      // - Status (Keyword)
-      // These allow filtering workflows in the Temporal UI
+      const workflowType = WORKFLOW_TYPES.GRAPH_WORKFLOW;
+
       const handle = await this.client!.workflow.start(workflowType, {
         args: [
           {
-            documentId,
-            binaryData: fileData.binaryData,
-            fileName: fileData.fileName,
-            fileType: fileData.fileType as "pdf" | "image",
-            contentType: fileData.contentType,
-            modelId: fileData.modelId,
-            steps: workflowSteps, // Use workflow configuration from database if available
+            graph,
+            initialCtx,
+            configHash,
+            runnerVersion,
           },
         ],
         taskQueue: this.taskQueue,
@@ -277,25 +225,25 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
         workflowExecutionTimeout: "30 minutes",
         searchAttributes: {
           DocumentId: [documentId],
-          FileName: [fileData.fileName],
-          FileType: [fileData.fileType],
+          FileName: [String(initialCtx.fileName ?? "")],
+          FileType: [String(initialCtx.fileType ?? "")],
           Status: ["ongoing_ocr"],
         },
         memo: {
           documentId,
-          fileName: fileData.fileName,
-          fileType: fileData.fileType,
-          workflowConfigId: workflowConfigId || undefined,
-          workflowVersion: workflowVersion || undefined,
+          workflowConfigId,
+          workflowVersion: workflowConfig.version,
+          configHash,
+          runnerVersion,
         },
       });
 
       this.logger.log(
-        `Workflow started: ${handle.workflowId} for document ${documentId}${workflowConfigId ? ` using workflow config ${workflowConfigId}${workflowVersion ? ` (version ${workflowVersion})` : ""}` : ""}`,
+        `Graph workflow started: ${handle.workflowId} for document ${documentId} (config ${workflowConfigId}, version ${workflowConfig.version})`,
       );
       return handle.workflowId;
     } catch (error) {
-      throw this.handleError(error, "start OCR workflow");
+      throw this.handleError(error, "start graph workflow");
     }
   }
 
