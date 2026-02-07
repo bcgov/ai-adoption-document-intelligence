@@ -105,10 +105,10 @@ After implementing the user story check it off at the bottom of this file
 ### Phase 7
 - [x] **US-020** (backend DTO and workflow types)
 - [x] **US-021** (start graph workflow)
-- [ ] **US-022** (workflow service validation)
+- [x] **US-022** (workflow service validation)
 
 ### Phase 8
-- [ ] **US-023** (frontend types)
+- [x] **US-023** (frontend types)
 - [ ] **US-024** (JSON editor panel)
 - [ ] **US-025** (React Flow visualization)
 - [ ] **US-026** (workflow editor page)

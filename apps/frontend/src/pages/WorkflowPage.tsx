@@ -16,7 +16,6 @@ import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
 import { WorkflowVisualization } from "../components/workflow/WorkflowVisualization";
 import { useCreateWorkflow } from "../data/hooks/useWorkflows";
-import type { WorkflowStepsConfig } from "../types/workflow";
 
 interface WorkflowStepConfig {
   enabled: boolean;
@@ -40,6 +39,11 @@ interface WorkflowConfig {
     storeResults?: WorkflowStepConfig;
   };
 }
+
+type LegacyStepsConfig = Record<
+  string,
+  { enabled?: boolean; parameters?: Record<string, unknown> } | undefined
+>;
 
 export function WorkflowPage() {
   const createWorkflowMutation = useCreateWorkflow();
@@ -133,7 +137,7 @@ export function WorkflowPage() {
 
     // Build the workflow configuration directly from config state
     // Ensure we only send step IDs as keys, not wrapped in a "steps" object
-    const workflowStepsConfig: WorkflowStepsConfig = {};
+    const workflowStepsConfig: LegacyStepsConfig = {};
 
     // Copy only valid step configurations
     const validStepIds = [

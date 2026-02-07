@@ -17,7 +17,6 @@ import { IconArrowLeft, IconCheck } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { WorkflowVisualization } from "../components/workflow/WorkflowVisualization";
 import { useUpdateWorkflow, useWorkflow } from "../data/hooks/useWorkflows";
-import type { WorkflowStepsConfig } from "../types/workflow";
 
 interface WorkflowStepConfig {
   enabled: boolean;
@@ -41,6 +40,11 @@ interface WorkflowConfig {
     storeResults?: WorkflowStepConfig;
   };
 }
+
+type LegacyStepsConfig = Record<
+  string,
+  { enabled?: boolean; parameters?: Record<string, unknown> } | undefined
+>;
 
 interface WorkflowEditPageProps {
   workflowId: string;
@@ -87,12 +91,12 @@ export function WorkflowEditPage({
       setWorkflowName(workflow.name);
       setWorkflowDescription(workflow.description || "");
 
-      // Convert WorkflowStepsConfig to our local config format
+      // Convert legacy steps config to our local config format
       // Handle backward compatibility: config might be wrapped in a "steps" key
       const configData = workflow.config as
-        | WorkflowStepsConfig
-        | { steps?: WorkflowStepsConfig };
-      let stepsConfig: WorkflowStepsConfig;
+        | LegacyStepsConfig
+        | { steps?: LegacyStepsConfig };
+      let stepsConfig: LegacyStepsConfig;
 
       // Check if config is wrapped in "steps" key (backward compatibility)
       if (
@@ -101,9 +105,9 @@ export function WorkflowEditPage({
         "steps" in configData &&
         configData.steps
       ) {
-        stepsConfig = configData.steps as WorkflowStepsConfig;
+        stepsConfig = configData.steps as LegacyStepsConfig;
       } else {
-        stepsConfig = configData as WorkflowStepsConfig;
+        stepsConfig = configData as LegacyStepsConfig;
       }
 
       const localConfig: WorkflowConfig["steps"] = {};
@@ -213,7 +217,7 @@ export function WorkflowEditPage({
 
     // Build the workflow configuration directly from config state
     // Ensure we only send step IDs as keys, not wrapped in a "steps" object
-    const workflowStepsConfig: WorkflowStepsConfig = {};
+    const workflowStepsConfig: LegacyStepsConfig = {};
 
     // Copy only valid step configurations, filtering out any invalid keys
     const validStepIds = [
