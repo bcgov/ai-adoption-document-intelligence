@@ -115,10 +115,10 @@ After implementing the user story check it off at the bottom of this file
 
 ### Phase 9
 - [x] **US-027** (workflow list schema version)
-- [ ] **US-028** (API hooks and routes)
+- [x] **US-028** (API hooks and routes)
 
 ### Phase 10
-- [ ] **US-029** (upload flow blob references)
+- [x] **US-029** (upload flow blob references)
 
 ### Phase 11
 - [ ] **US-031** (workflow templates)

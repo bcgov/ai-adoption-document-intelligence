@@ -60,7 +60,7 @@ export interface HumanReviewParams {
 // Workflow Input
 export interface OCRWorkflowInput {
   documentId: string; // Document ID from database
-  binaryData: string; // Base64-encoded file data
+  blobKey: string; // Blob storage key for the source file
   fileName?: string;
   fileType?: 'pdf' | 'image';
   contentType?: string;
@@ -226,7 +226,7 @@ export interface PreparedFileData {
   fileName: string;
   fileType: 'pdf' | 'image';
   contentType: string;
-  binaryData: string;
+  blobKey: string;
   modelId: string; // Azure Document Intelligence model ID
 }
 

@@ -87,7 +87,7 @@ export async function example() {
   // Example: Start workflow with file data
   const result = await executeOCRWorkflow({
     documentId: 'example-document-id',
-    binaryData: 'base64-encoded-file-data-here',
+    blobKey: 'documents/example-document-id/original.pdf',
     fileName: 'example.pdf',
     fileType: 'pdf',
     contentType: 'application/pdf',

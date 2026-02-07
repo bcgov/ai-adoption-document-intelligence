@@ -169,7 +169,7 @@ import { startOCRWorkflow } from './src/client';
 
 const result = await startOCRWorkflow({
   documentId: 'document-uuid',  // Required: Document ID from database
-  binaryData: 'base64-encoded-file-data',
+  blobKey: 'documents/document-uuid/original.pdf',
   fileName: 'document.pdf',
   fileType: 'pdf',
   contentType: 'application/pdf'
@@ -179,13 +179,13 @@ const result = await startOCRWorkflow({
 Or from the NestJS backend service:
 
 ```typescript
-const workflowId = await temporalClientService.startOCRWorkflow(
+const workflowId = await temporalClientService.startGraphWorkflow(
   documentId,
   {
-    binaryData: fileData.binaryData,
-    fileName: fileData.fileName,
-    fileType: fileData.fileType,
-    contentType: fileData.contentType
+    blobKey: document.file_path,
+    fileName: document.original_filename,
+    fileType: document.file_type,
+    contentType: document.content_type
   }
 );
 ```
@@ -211,7 +211,7 @@ After running this, you should see the workflow appear in the Temporal Web UI at
 ```typescript
 interface OCRWorkflowInput {
   documentId: string;        // Document ID from database (required)
-  binaryData: string;        // Base64-encoded file data
+  blobKey: string;           // Blob storage key
   fileName?: string;         // Optional file name
   fileType?: 'pdf' | 'image'; // Optional file type
   contentType?: string;      // Optional content type

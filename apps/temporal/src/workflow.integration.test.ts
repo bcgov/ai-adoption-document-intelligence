@@ -14,7 +14,7 @@ const TASK_QUEUE = 'test';
 
 const baseInput: OCRWorkflowInput = {
   documentId: 'integration-test-doc',
-  binaryData: Buffer.from('%PDF-1.4 minimal').toString('base64'),
+  blobKey: 'documents/integration-test-doc/original.pdf',
   fileName: 'integration.pdf',
   fileType: 'pdf',
   contentType: 'application/pdf',

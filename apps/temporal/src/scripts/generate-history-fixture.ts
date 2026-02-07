@@ -34,7 +34,7 @@ async function main(): Promise<void> {
 
     const input: OCRWorkflowInput = {
       documentId: 'fixture-document-id',
-      binaryData: Buffer.from('%PDF-1.4 minimal').toString('base64'),
+      blobKey: 'documents/fixture-doc/original.pdf',
       fileName: 'fixture.pdf',
       fileType: 'pdf',
       contentType: 'application/pdf',

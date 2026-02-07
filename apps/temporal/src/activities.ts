@@ -10,6 +10,8 @@ import axios, { AxiosResponse } from 'axios';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@generated/client';
 import { getPrismaPgOptions } from './utils/database-url';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import type {
   PreparedFileData,
   SubmissionResult,
@@ -40,6 +42,7 @@ function getPrismaClient(): PrismaClient {
 
 const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
 const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
+const DEFAULT_BLOB_BASE_PATH = './data/blobs';
 
 /**
  * Normalize endpoint URL by removing trailing slash
@@ -49,12 +52,31 @@ function normalizeEndpoint(url: string | undefined): string {
   return url.endsWith('/') ? url.slice(0, -1) : url;
 }
 
+function resolveBlobKeyToPath(blobKey: string): string {
+  const basePath = process.env.LOCAL_BLOB_STORAGE_PATH ?? DEFAULT_BLOB_BASE_PATH;
+  const normalized = path.normalize(blobKey);
+  if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
+    throw new Error(`Invalid blob key: "${blobKey}"`);
+  }
+  return path.join(basePath, normalized);
+}
+
+async function readBlobData(blobKey: string): Promise<Buffer> {
+  const filePath = resolveBlobKeyToPath(blobKey);
+  try {
+    return await fs.readFile(filePath);
+  } catch (error) {
+    throw new Error(`Blob not found: "${blobKey}"`);
+  }
+}
+
 /**
  * Activity: Prepare file data for Azure OCR
- * Validates binary data and extracts metadata
+ * Validates blob key and extracts metadata
  */
 export async function prepareFileData(input: OCRWorkflowInput): Promise<PreparedFileData> {
   const activityName = 'prepareFileData';
+  const blobKey = input.blobKey;
 
   console.log(JSON.stringify({
     activity: activityName,
@@ -63,25 +85,20 @@ export async function prepareFileData(input: OCRWorkflowInput): Promise<Prepared
     fileName: input.fileName || 'not provided',
     fileType: input.fileType || 'not provided',
     contentType: input.contentType || 'not provided',
-    binaryDataLength: input.binaryData?.length || 0,
+    blobKey,
     timestamp: new Date().toISOString()
   }));
 
-  let fileName = input.fileName || 'document';
+  if (!blobKey || typeof blobKey !== 'string') {
+    throw new Error('No blobKey provided. blobKey is required to read file data.');
+  }
+
+  const fileBuffer = await readBlobData(blobKey);
+  const fileSize = fileBuffer.length;
+
+  let fileName = input.fileName || path.basename(blobKey) || 'document';
   let fileType: 'pdf' | 'image' = input.fileType || 'pdf';
   let contentType = input.contentType || 'application/pdf';
-  const binaryData = input.binaryData;
-
-  if (!binaryData || typeof binaryData !== 'string') {
-    throw new Error('No binary data provided. Binary data must be a base64-encoded string.');
-  }
-
-  // Validate base64 format
-  try {
-    Buffer.from(binaryData, 'base64');
-  } catch (error) {
-    throw new Error('Invalid base64-encoded binary data');
-  }
 
   // Determine file type from filename or content type
   const lowerFileName = fileName.toLowerCase();
@@ -108,28 +125,15 @@ export async function prepareFileData(input: OCRWorkflowInput): Promise<Prepared
 
   // Validate PDF signature if it's supposed to be a PDF
   if (fileType === 'pdf' || contentType.includes('pdf')) {
-    try {
-      const buffer = Buffer.from(binaryData, 'base64');
-      const pdfSignature = buffer.slice(0, 4).toString();
-      if (pdfSignature !== '%PDF' && buffer.length > 4) {
-        console.warn(JSON.stringify({
-          activity: activityName,
-          event: 'warn',
-          documentId: input.documentId,
-          fileName,
-          warning: 'File does not have valid PDF signature',
-          pdfSignature,
-          timestamp: new Date().toISOString()
-        }));
-      }
-    } catch (e) {
+    const pdfSignature = fileBuffer.slice(0, 4).toString();
+    if (pdfSignature !== '%PDF' && fileBuffer.length > 4) {
       console.warn(JSON.stringify({
         activity: activityName,
         event: 'warn',
         documentId: input.documentId,
         fileName,
-        warning: 'Could not validate PDF signature',
-        error: e instanceof Error ? e.message : 'Unknown error',
+        warning: 'File does not have valid PDF signature',
+        pdfSignature,
         timestamp: new Date().toISOString()
       }));
     }
@@ -146,7 +150,7 @@ export async function prepareFileData(input: OCRWorkflowInput): Promise<Prepared
     fileType,
     contentType,
     modelId,
-    binaryDataLength: binaryData.length,
+    fileSize,
     timestamp: new Date().toISOString()
   }));
 
@@ -154,7 +158,7 @@ export async function prepareFileData(input: OCRWorkflowInput): Promise<Prepared
     fileName,
     fileType,
     contentType,
-    binaryData,
+    blobKey,
     modelId
   };
 }
@@ -176,7 +180,7 @@ export async function submitToAzureOCR(
     fileType: fileData.fileType,
     contentType: fileData.contentType,
     modelId: fileData.modelId,
-    dataSize: fileData.binaryData.length,
+    blobKey: fileData.blobKey,
     timestamp: new Date().toISOString()
   }));
   
@@ -205,7 +209,7 @@ export async function submitToAzureOCR(
     : `${normalizedEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30`;
 
   try {
-    const fileBuffer = Buffer.from(fileData.binaryData, 'base64');
+    const fileBuffer = await readBlobData(fileData.blobKey);
     const response: AxiosResponse = await axios.post(url, fileBuffer, {
       headers: {
         'api-key': apiKey,

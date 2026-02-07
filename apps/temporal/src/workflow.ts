@@ -261,7 +261,7 @@ export async function ocrWorkflow(input: OCRWorkflowInput): Promise<OCRResult> {
       console.log('[OCRWorkflow] Step 2: Prepare File Data');
       console.log('[OCRWorkflow] ========================================');
       console.log(`[OCRWorkflow] Parameters: fileName=${input.fileName}, fileType=${input.fileType}, contentType=${input.contentType}`);
-      console.log(`[OCRWorkflow] Binary data size: ${input.binaryData ? input.binaryData.length : 0} characters`);
+      console.log(`[OCRWorkflow] Blob key: ${input.blobKey}`);
       currentStep = 'Preparing file data';
       fileData = await prepareFileData(input);
       console.log(`[OCRWorkflow] ✓ File data prepared: modelId=${fileData.modelId}, fileName=${fileData.fileName}, fileType=${fileData.fileType}`);

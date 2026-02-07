@@ -64,7 +64,7 @@ export const mockActivities = {
       fileName: input.fileName || 'document.pdf',
       fileType: input.fileType || 'pdf',
       contentType: input.contentType || 'application/pdf',
-      binaryData: input.binaryData || '',
+      blobKey: input.blobKey,
       modelId: input.modelId || 'prebuilt-layout',
     };
   },

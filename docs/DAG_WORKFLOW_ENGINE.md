@@ -1357,7 +1357,7 @@ The activity registry is versioned alongside the runner. When new activity types
 
 ### 13.1 Problem
 
-The current system passes base64-encoded file data directly in the Temporal workflow input (`OCRWorkflowInput.binaryData`). This is problematic for:
+The legacy system passed base64-encoded file data directly in the Temporal workflow input. The graph workflow now uses blob keys instead to avoid:
 
 - Large files (Temporal has a 2MB payload limit per event by default, though configurable)
 - Multi-page documents (2,000 pages could easily exceed limits)

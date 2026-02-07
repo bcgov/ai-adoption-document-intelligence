@@ -10,6 +10,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@generated/client';
 import { executeOCRWorkflow } from './client';
 import { getPrismaPgOptions } from './utils/database-url';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 /**
  * Get Prisma client instance
@@ -33,7 +35,8 @@ async function ensureDocumentExists(
   documentId: string,
   fileName: string,
   fileType: string,
-  binaryData: string
+  blobKey: string,
+  fileBuffer: Buffer
 ): Promise<void> {
   const prisma = getPrismaClient();
   
@@ -49,8 +52,11 @@ async function ensureDocumentExists(
       return;
     }
 
-    // Calculate file size from base64 data
-    const fileSize = Buffer.from(binaryData, 'base64').length;
+    const fileSize = fileBuffer.length;
+    const basePath = process.env.LOCAL_BLOB_STORAGE_PATH ?? './data/blobs';
+    const blobPath = path.join(basePath, blobKey);
+    await fs.mkdir(path.dirname(blobPath), { recursive: true });
+    await fs.writeFile(blobPath, fileBuffer);
 
     // Create document with required fields
     await prisma.document.create({
@@ -58,7 +64,7 @@ async function ensureDocumentExists(
         id: documentId,
         title: fileName.replace(/\.[^/.]+$/, ''), // Remove extension for title
         original_filename: fileName,
-        file_path: `storage/documents/${documentId}.${fileType}`,
+        file_path: blobKey,
         file_type: fileType,
         file_size: fileSize,
         source: 'example_script',
@@ -80,23 +86,30 @@ async function main() {
 
   // Example 1: Using a sample base64-encoded PDF (minimal valid PDF)
   // In a real scenario, you would read a file and encode it
-  const minimalPdfBase64 = Buffer.from(
+  const minimalPdfBuffer = Buffer.from(
     '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Contents 4 0 R>>endobj\n4 0 obj<</Length 44>>stream\nBT\n/F1 12 Tf\n100 700 Td\n(Hello World) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\n0000000115 00000 n\n0000000206 00000 n\ntrailer<</Size 5/Root 1 0 R>>\nstartxref\n300\n%%EOF'
-  ).toString('base64');
+  );
 
   const documentId = 'example-document-id';
   const fileName = 'example.pdf';
   const fileType = 'pdf';
+  const blobKey = `documents/${documentId}/original.pdf`;
 
   try {
     // Ensure document exists in database before starting workflow
     console.log('[Example] Ensuring document exists in database...');
-    await ensureDocumentExists(documentId, fileName, fileType, minimalPdfBase64);
+    await ensureDocumentExists(
+      documentId,
+      fileName,
+      fileType,
+      blobKey,
+      minimalPdfBuffer
+    );
 
     console.log('[Example] Starting workflow with sample PDF data...');
     const result = await executeOCRWorkflow({
       documentId,
-      binaryData: minimalPdfBase64,
+      blobKey,
       fileName,
       fileType: 'pdf',
       contentType: 'application/pdf',
