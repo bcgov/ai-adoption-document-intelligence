@@ -95,7 +95,7 @@ After implementing the user story check it off at the bottom of this file
 
 ### Phase 5
 - [x] **US-014** (query/signal handlers)
-- [ ] **US-015** (versioning)
+- [x] **US-015** (versioning)
 
 ### Phase 6
 - [ ] **US-017** (document split activity)

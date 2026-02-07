@@ -1327,6 +1327,8 @@ function computeConfigHash(config: GraphWorkflowConfig): string {
 }
 ```
 
+**Implementation note**: `computeConfigHash` is implemented in both backend and temporal codepaths (duplicated for now) so that the same canonicalization and hashing logic is available before execution and for validation/replay checks.
+
 This hash is included in `GraphWorkflowInput.configHash`. It serves two purposes:
 
 1. **Integrity check**: On replay, the runner can verify the config matches the original execution

@@ -15,6 +15,7 @@ import type {
   GraphWorkflowProgress,
 } from './graph-workflow-types';
 import { graphWorkflow, GRAPH_WORKFLOW_TYPE } from './graph-workflow';
+import { computeConfigHash } from './config-hash';
 
 const TASK_QUEUE = 'graph-workflow-test';
 
@@ -130,8 +131,8 @@ function makeMockInput(
   return {
     graph,
     initialCtx,
-    configHash: 'test-hash',
-    runnerVersion: '1.0',
+    configHash: computeConfigHash(graph),
+    runnerVersion: '1.0.0',
   };
 }
 
@@ -1672,6 +1673,63 @@ describe('Graph Workflow', () => {
       expect(result.status).toBe('cancelled');
       expect(result.completedNodes).toContain('a');
       expect(result.completedNodes).not.toContain('b');
+    });
+  });
+
+  describe('US-015: Config Hash and Versioning', () => {
+    it('computes the same hash for semantically identical configs', () => {
+      const baseConfig: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Hash Test',
+          description: 'Test hash defaults',
+          version: '1.0.0',
+        },
+        nodes: {
+          activity: {
+            id: 'activity',
+            type: 'activity',
+            label: 'Activity',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'test' },
+          },
+        },
+        edges: [],
+        entryNodeId: 'activity',
+        ctx: {},
+      };
+
+      const configWithDefaults: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          description: 'Test hash defaults',
+          name: 'Hash Test',
+          tags: [],
+          version: '1.0.0',
+        },
+        nodes: {
+          activity: {
+            id: 'activity',
+            type: 'activity',
+            label: 'Activity',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'test' },
+            inputs: [],
+            outputs: [],
+            retry: { maximumAttempts: 3 },
+            timeout: { startToClose: '2m' },
+          },
+        },
+        edges: [],
+        entryNodeId: 'activity',
+        ctx: {},
+      };
+
+      const hashA = computeConfigHash(baseConfig);
+      const hashB = computeConfigHash(configWithDefaults);
+
+      expect(hashA).toBe(hashB);
+      expect(hashA).toHaveLength(64);
     });
   });
 });

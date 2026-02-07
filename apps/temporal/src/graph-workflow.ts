@@ -12,6 +12,7 @@ import {
   defineSignal,
   setHandler,
   ApplicationFailure,
+  workflowInfo,
 } from '@temporalio/workflow';
 import type {
   GraphWorkflowInput,
@@ -26,6 +27,7 @@ import { runGraphExecution } from './graph-runner';
 
 // Workflow type constant
 export const GRAPH_WORKFLOW_TYPE = 'graphWorkflow';
+const GRAPH_RUNNER_VERSION = '1.0.0';
 
 // Query definitions
 export const getStatus = defineQuery<GraphWorkflowStatus>('getStatus');
@@ -108,6 +110,8 @@ export async function graphWorkflow(
   });
 
   try {
+    enforceRunnerVersion(input.runnerVersion);
+
     // Step 1: Validate graph config
     const validation = validateGraphConfigForExecution(input.graph);
 
@@ -154,4 +158,39 @@ export async function graphWorkflow(
     }
     throw error;
   }
+}
+
+function enforceRunnerVersion(inputVersion: string): void {
+  if (inputVersion === GRAPH_RUNNER_VERSION) {
+    return;
+  }
+
+  const inputMajor = getMajorVersion(inputVersion);
+  const currentMajor = getMajorVersion(GRAPH_RUNNER_VERSION);
+
+  if (
+    inputMajor !== null &&
+    currentMajor !== null &&
+    inputMajor !== currentMajor
+  ) {
+    throw ApplicationFailure.create({
+      type: 'RUNNER_VERSION_MISMATCH',
+      message: `Graph runner version mismatch: input=${inputVersion}, current=${GRAPH_RUNNER_VERSION}`,
+      nonRetryable: true,
+    });
+  }
+
+  if (workflowInfo().unsafe.isReplaying) {
+    console.warn(
+      `[GraphWorkflow] Runner version mismatch: input=${inputVersion}, current=${GRAPH_RUNNER_VERSION}`,
+    );
+  }
+}
+
+function getMajorVersion(version: string): number | null {
+  const match = version.match(/^(\d+)\./);
+  if (!match) {
+    return null;
+  }
+  return Number(match[1]);
 }
