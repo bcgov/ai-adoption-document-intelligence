@@ -1058,6 +1058,8 @@ The REST API structure remains the same (`/api/workflows` CRUD). Changes are in 
 | `PUT /api/workflows/:id` | Request body: `config` is now `GraphWorkflowConfig`; validation uses `GraphSchemaValidator` |
 | `DELETE /api/workflows/:id` | No change |
 
+API responses include `schemaVersion` derived from the stored config to support client compatibility checks.
+
 ### 9.2 Validation
 
 Replace `workflow-validator.ts` with `graph-schema-validator.ts`:

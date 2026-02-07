@@ -83,7 +83,7 @@ export class WorkflowController {
   @ApiOperation({ summary: "Create a new workflow" })
   @ApiBody({
     type: CreateWorkflowDto,
-    description: "Workflow name, optional description, and steps configuration",
+    description: "Workflow name, optional description, and graph configuration",
   })
   @ApiCreatedResponse({
     description:

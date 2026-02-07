@@ -7,8 +7,6 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { Client, Connection } from "@temporalio/client";
 import { WorkflowService } from "../workflow/workflow.service";
-import { VALID_WORKFLOW_STEP_IDS } from "./workflow-constants";
-import { WORKFLOW_TYPES } from "./workflow-types";
 
 @Injectable()
 export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
@@ -225,78 +223,12 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
             await this.workflowService.getWorkflowById(workflowConfigId);
           if (workflowConfig) {
             workflowVersion = workflowConfig.version;
-            // Use the workflow configuration from the database
-            // The config field contains WorkflowStepsConfig (direct step config)
-            // Handle backward compatibility: config might be wrapped in a "steps" key
             const configData = workflowConfig.config as Record<string, unknown>;
-
-            // Check if config is wrapped in "steps" key (backward compatibility)
-            if (
-              configData &&
-              typeof configData === "object" &&
-              "steps" in configData &&
-              configData.steps
-            ) {
-              this.logger.debug(
-                `[Temporal] Workflow config wrapped in "steps" key (legacy format), extracting...`,
+            if (configData && typeof configData === "object" && "schemaVersion" in configData) {
+              this.logger.warn(
+                `[Temporal] Workflow config ${workflowConfigId} is a graph config. startOCRWorkflow ignores graph configs; use graphWorkflow instead.`,
               );
-              const extractedSteps = configData.steps;
-              if (extractedSteps && typeof extractedSteps === "object") {
-                workflowSteps = extractedSteps as {
-                  [key: string]:
-                    | {
-                        enabled?: boolean;
-                        parameters?: Record<string, unknown>;
-                      }
-                    | undefined;
-                };
-              } else {
-                this.logger.warn(
-                  `[Temporal] Config has "steps" key but value is not an object, using config directly`,
-                );
-                workflowSteps = configData as {
-                  [key: string]:
-                    | {
-                        enabled?: boolean;
-                        parameters?: Record<string, unknown>;
-                      }
-                    | undefined;
-                };
-              }
-            } else {
-              // Config is in the correct format (step IDs as keys)
-              // Filter out any invalid keys (for safety)
-              const filteredConfig: Record<string, unknown> = {};
-              for (const [key, value] of Object.entries(configData)) {
-                if (
-                  VALID_WORKFLOW_STEP_IDS.includes(
-                    key as (typeof VALID_WORKFLOW_STEP_IDS)[number],
-                  )
-                ) {
-                  filteredConfig[key] = value;
-                } else {
-                  this.logger.debug(
-                    `[Temporal] Filtering out invalid key "${key}" from workflow config`,
-                  );
-                }
-              }
-
-              workflowSteps = filteredConfig as {
-                [key: string]:
-                  | {
-                      enabled?: boolean;
-                      parameters?: Record<string, unknown>;
-                    }
-                  | undefined;
-              };
             }
-
-            this.logger.log(
-              `[Temporal] Successfully loaded workflow configuration: "${workflowConfig.name}" (ID: ${workflowConfig.id})`,
-            );
-            this.logger.debug(
-              `[Temporal] Workflow config: ${JSON.stringify(workflowSteps, null, 2)}`,
-            );
           } else {
             this.logger.warn(
               `[Temporal] Workflow configuration ${workflowConfigId} not found in database, using provided steps or defaults`,
@@ -320,7 +252,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
         );
       }
 
-      const workflowType = WORKFLOW_TYPES.OCR_WORKFLOW;
+      const workflowType = "ocrWorkflow";
 
       // Search attributes are registered in the Temporal namespace:
       // - DocumentId (Keyword)
