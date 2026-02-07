@@ -9,7 +9,7 @@ import {
   type Edge,
   type Node,
 } from "@xyflow/react";
-import dagre from "@dagrejs/dagre";
+import dagre from "dagre-esm";
 import {
   IconBolt,
   IconFolder,

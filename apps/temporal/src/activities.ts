@@ -1102,7 +1102,7 @@ export async function getWorkflowGraphConfig(input: {
     throw new Error(`Workflow not found: ${input.workflowId}`);
   }
 
-  return { graph: workflow.config as GraphWorkflowConfig };
+  return { graph: workflow.config as unknown as GraphWorkflowConfig };
 }
 
 export { splitDocument } from "./activities/split-document";

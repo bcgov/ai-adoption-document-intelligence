@@ -24,6 +24,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "vite-env.d.ts"],
+  "include": ["src", "vite-env.d.ts", "dagre-esm.d.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
