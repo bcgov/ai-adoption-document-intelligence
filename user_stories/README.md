@@ -100,7 +100,7 @@ After implementing the user story check it off at the bottom of this file
 ### Phase 6
 - [x] **US-017** (document split activity)
 - [x] **US-018** (document classify activity)
-- [ ] **US-019** (document validate fields activity)
+- [x] **US-019** (document validate fields activity)
 
 ### Phase 7
 - [ ] **US-020** (backend DTO and workflow types)

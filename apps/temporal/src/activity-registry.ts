@@ -23,6 +23,7 @@ import {
 } from "./activities";
 import { splitDocument } from "./activities/split-document";
 import { classifyDocument } from "./activities/classify-document";
+import { validateDocumentFields } from "./activities/document-validate-fields";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -140,9 +141,7 @@ register({
 
 register({
   activityType: "document.validateFields",
-  activityFn: async () => {
-    throw new Error("document.validateFields activity not yet implemented (see US-019)");
-  },
+  activityFn: validateDocumentFields as (...args: unknown[]) => Promise<unknown>,
   defaultTimeout: "2m",
   defaultRetry: { maximumAttempts: 3 },
   description: "Validate fields across related documents",

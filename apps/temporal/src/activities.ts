@@ -1093,3 +1093,4 @@ export async function getWorkflowGraphConfig(input: {
 
 export { splitDocument } from "./activities/split-document";
 export { classifyDocument } from "./activities/classify-document";
+export { validateDocumentFields } from "./activities/document-validate-fields";
