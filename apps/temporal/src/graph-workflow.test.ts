@@ -312,4 +312,345 @@ describe('Graph Workflow', () => {
       ).rejects.toThrow();
     });
   });
+
+  describe('US-008: Switch Node Handler', () => {
+    it('follows the true case when condition matches', async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Switch True Test',
+          description: 'Test switch routing with true condition',
+          version: '1.0.0',
+        },
+        nodes: {
+          start: {
+            id: 'start',
+            type: 'activity',
+            label: 'Start',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'test' },
+          },
+          switch: {
+            id: 'switch',
+            type: 'switch',
+            label: 'Check Review',
+            cases: [
+              {
+                condition: {
+                  operator: 'equals',
+                  left: { ref: 'ctx.requiresReview' },
+                  right: { literal: true },
+                },
+                edgeId: 'edge-switch-to-review',
+              },
+            ],
+            defaultEdge: 'edge-switch-to-skip',
+          },
+          review: {
+            id: 'review',
+            type: 'activity',
+            label: 'Review Activity',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'reviewed' },
+          },
+          skip: {
+            id: 'skip',
+            type: 'activity',
+            label: 'Skip Activity',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'skipped' },
+          },
+        },
+        edges: [
+          { id: 'e1', source: 'start', target: 'switch', type: 'normal' },
+          {
+            id: 'edge-switch-to-review',
+            source: 'switch',
+            target: 'review',
+            type: 'conditional',
+          },
+          {
+            id: 'edge-switch-to-skip',
+            source: 'switch',
+            target: 'skip',
+            type: 'conditional',
+          },
+        ],
+        entryNodeId: 'start',
+        ctx: {
+          requiresReview: { type: 'boolean', defaultValue: true },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const result = await runWorkflow(testEnv, input, 'test-switch-true');
+
+      expect(result.status).toBe('completed');
+      expect(result.completedNodes).toContain('review');
+      expect(result.completedNodes).not.toContain('skip');
+    });
+
+    it('follows the default edge when no case matches', async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Switch Default Test',
+          description: 'Test switch routing with default edge',
+          version: '1.0.0',
+        },
+        nodes: {
+          start: {
+            id: 'start',
+            type: 'activity',
+            label: 'Start',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'test' },
+          },
+          switch: {
+            id: 'switch',
+            type: 'switch',
+            label: 'Check Review',
+            cases: [
+              {
+                condition: {
+                  operator: 'equals',
+                  left: { ref: 'ctx.requiresReview' },
+                  right: { literal: true },
+                },
+                edgeId: 'edge-switch-to-review',
+              },
+            ],
+            defaultEdge: 'edge-switch-to-skip',
+          },
+          review: {
+            id: 'review',
+            type: 'activity',
+            label: 'Review Activity',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'reviewed' },
+          },
+          skip: {
+            id: 'skip',
+            type: 'activity',
+            label: 'Skip Activity',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'skipped' },
+          },
+        },
+        edges: [
+          { id: 'e1', source: 'start', target: 'switch', type: 'normal' },
+          {
+            id: 'edge-switch-to-review',
+            source: 'switch',
+            target: 'review',
+            type: 'conditional',
+          },
+          {
+            id: 'edge-switch-to-skip',
+            source: 'switch',
+            target: 'skip',
+            type: 'conditional',
+          },
+        ],
+        entryNodeId: 'start',
+        ctx: {
+          requiresReview: { type: 'boolean', defaultValue: false },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const result = await runWorkflow(testEnv, input, 'test-switch-default');
+
+      expect(result.status).toBe('completed');
+      expect(result.completedNodes).toContain('skip');
+      expect(result.completedNodes).not.toContain('review');
+    });
+  });
+
+  describe('US-009: Map/Join Node Handlers', () => {
+    it('executes map node over a collection', async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Map Test',
+          description: 'Test map over collection',
+          version: '1.0.0',
+        },
+        nodes: {
+          start: {
+            id: 'start',
+            type: 'activity',
+            label: 'Start',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'started' },
+          },
+          mapNode: {
+            id: 'mapNode',
+            type: 'map',
+            label: 'Map Over Items',
+            collectionCtxKey: 'items',
+            itemCtxKey: 'currentItem',
+            indexCtxKey: 'currentIndex',
+            bodyEntryNodeId: 'processItem',
+            bodyExitNodeId: 'processItem',
+          },
+          processItem: {
+            id: 'processItem',
+            type: 'activity',
+            label: 'Process Item',
+            activityType: 'file.prepare',
+            inputs: [{ port: 'blobKey', ctxKey: 'currentItem' }],
+            outputs: [{ port: 'preparedData', ctxKey: 'itemResult' }],
+          },
+          joinNode: {
+            id: 'joinNode',
+            type: 'join',
+            label: 'Join Results',
+            sourceMapNodeId: 'mapNode',
+            strategy: 'all',
+            resultsCtxKey: 'allResults',
+          },
+        },
+        edges: [
+          { id: 'e1', source: 'start', target: 'mapNode', type: 'normal' },
+          { id: 'e2', source: 'mapNode', target: 'joinNode', type: 'normal' },
+        ],
+        entryNodeId: 'start',
+        ctx: {
+          items: {
+            type: 'array',
+            defaultValue: ['item1', 'item2', 'item3'],
+          },
+          currentItem: { type: 'string' },
+          currentIndex: { type: 'number' },
+          itemResult: { type: 'object' },
+          allResults: { type: 'array' },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const result = await runWorkflow(testEnv, input, 'test-map-execution');
+
+      expect(result.status).toBe('completed');
+      expect(result.completedNodes).toContain('mapNode');
+      expect(result.completedNodes).toContain('joinNode');
+      expect(result.ctx.allResults).toBeDefined();
+      expect(Array.isArray(result.ctx.allResults)).toBe(true);
+      expect((result.ctx.allResults as unknown[]).length).toBe(3);
+    });
+
+    it('handles empty collection in map node', async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Empty Map Test',
+          description: 'Test map with empty collection',
+          version: '1.0.0',
+        },
+        nodes: {
+          mapNode: {
+            id: 'mapNode',
+            type: 'map',
+            label: 'Map Over Items',
+            collectionCtxKey: 'items',
+            itemCtxKey: 'currentItem',
+            bodyEntryNodeId: 'processItem',
+            bodyExitNodeId: 'processItem',
+          },
+          processItem: {
+            id: 'processItem',
+            type: 'activity',
+            label: 'Process Item',
+            activityType: 'file.prepare',
+            inputs: [{ port: 'blobKey', ctxKey: 'currentItem' }],
+          },
+          joinNode: {
+            id: 'joinNode',
+            type: 'join',
+            label: 'Join Results',
+            sourceMapNodeId: 'mapNode',
+            strategy: 'all',
+            resultsCtxKey: 'allResults',
+          },
+        },
+        edges: [
+          { id: 'e1', source: 'mapNode', target: 'joinNode', type: 'normal' },
+        ],
+        entryNodeId: 'mapNode',
+        ctx: {
+          items: { type: 'array', defaultValue: [] },
+          currentItem: { type: 'string' },
+          allResults: { type: 'array' },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const result = await runWorkflow(testEnv, input, 'test-map-empty');
+
+      expect(result.status).toBe('completed');
+      expect(result.ctx.allResults).toBeDefined();
+      expect(Array.isArray(result.ctx.allResults)).toBe(true);
+      expect((result.ctx.allResults as unknown[]).length).toBe(0);
+    });
+
+    it('map node respects maxConcurrency', async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Map Concurrency Test',
+          description: 'Test map concurrency limiting',
+          version: '1.0.0',
+        },
+        nodes: {
+          mapNode: {
+            id: 'mapNode',
+            type: 'map',
+            label: 'Map Over Items',
+            collectionCtxKey: 'items',
+            itemCtxKey: 'currentItem',
+            maxConcurrency: 2,
+            bodyEntryNodeId: 'processItem',
+            bodyExitNodeId: 'processItem',
+          },
+          processItem: {
+            id: 'processItem',
+            type: 'activity',
+            label: 'Process Item',
+            activityType: 'file.prepare',
+            inputs: [{ port: 'blobKey', ctxKey: 'currentItem' }],
+          },
+          joinNode: {
+            id: 'joinNode',
+            type: 'join',
+            label: 'Join Results',
+            sourceMapNodeId: 'mapNode',
+            strategy: 'all',
+            resultsCtxKey: 'allResults',
+          },
+        },
+        edges: [
+          { id: 'e1', source: 'mapNode', target: 'joinNode', type: 'normal' },
+        ],
+        entryNodeId: 'mapNode',
+        ctx: {
+          items: {
+            type: 'array',
+            defaultValue: ['item1', 'item2', 'item3', 'item4', 'item5'],
+          },
+          currentItem: { type: 'string' },
+          allResults: { type: 'array' },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const result = await runWorkflow(
+        testEnv,
+        input,
+        'test-map-concurrency',
+      );
+
+      expect(result.status).toBe('completed');
+      expect((result.ctx.allResults as unknown[]).length).toBe(5);
+    });
+  });
 });

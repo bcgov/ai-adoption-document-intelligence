@@ -40,6 +40,7 @@ function createMinimalOCRResult(apimRequestId: string, fileName: string, fileTyp
     apimRequestId,
     fileName,
     fileType,
+    modelId: 'prebuilt-read',
     extractedText: 'test',
     pages: [MINIMAL_PAGE],
     tables: [],

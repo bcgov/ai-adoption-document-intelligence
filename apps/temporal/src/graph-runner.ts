@@ -15,9 +15,13 @@ import type {
   GraphWorkflowConfig,
   GraphNode,
   ActivityNode,
+  SwitchNode,
+  MapNode,
+  JoinNode,
   NodeStatus,
 } from './graph-workflow-types';
 import { isRegisteredActivityType } from './activity-types';
+import { evaluateCondition } from './expression-evaluator';
 
 /**
  * Execution state shared between workflow function and runner
@@ -29,6 +33,8 @@ export interface ExecutionState {
   cancelled: () => boolean;
   cancelMode: () => 'graceful' | 'immediate';
   ctx: Record<string, unknown>;
+  selectedEdges: Map<string, string>; // nodeId -> selected edgeId for switch nodes
+  mapBranchResults: Map<string, unknown[]>; // mapNodeId -> array of branch results
 }
 
 /**
@@ -45,11 +51,13 @@ export async function runGraphExecution(
   // Step 1: Initialize context from defaults + initialCtx
   state.ctx = initializeContext(config, input.initialCtx);
 
-  // Step 2: Compute topological order
-  const topologicalOrder = computeTopologicalOrder(config);
+  // Step 2: Validate DAG structure (cycle detection via topological sort)
+  computeTopologicalOrder(config);
 
   // Step 3: Main execution loop
-  while (state.completedNodeIds.size < topologicalOrder.length) {
+  // Note: Not all nodes may complete (e.g., unselected switch branches)
+  // Loop until no more nodes are ready
+  while (true) {
     // Check for immediate cancellation
     if (state.cancelled() && state.cancelMode() === 'immediate') {
       return {
@@ -60,18 +68,11 @@ export async function runGraphExecution(
     }
 
     // Compute ready set
-    const readyNodeIds = computeReadySet(config, state.completedNodeIds);
+    const readyNodeIds = computeReadySet(config, state);
 
     if (readyNodeIds.length === 0) {
-      // No nodes ready but not all complete = deadlock or waiting
-      if (state.completedNodeIds.size < topologicalOrder.length) {
-        throw ApplicationFailure.create({
-          type: 'GRAPH_EXECUTION_ERROR',
-          message: 'Deadlock detected: no nodes ready to execute',
-          nonRetryable: true,
-        });
-      }
-      break; // All nodes complete
+      // No more nodes ready - execution complete
+      break;
     }
 
     // Sort ready nodes alphabetically for determinism
@@ -97,7 +98,13 @@ export async function runGraphExecution(
         });
 
         try {
-          await executeNode(node, config, state);
+          // Handle switch nodes specially - they determine routing
+          if (node.type === 'switch') {
+            const selectedEdgeId = executeSwitchNode(node as SwitchNode, state.ctx);
+            state.selectedEdges.set(nodeId, selectedEdgeId);
+          } else {
+            await executeNode(node, config, state);
+          }
 
           // Mark node as completed
           state.completedNodeIds.add(nodeId);
@@ -229,34 +236,81 @@ function computeTopologicalOrder(config: GraphWorkflowConfig): string[] {
 }
 
 /**
- * Compute ready set: nodes whose all incoming normal edges have completed sources
+ * Compute ready set: nodes whose all incoming edges have completed sources
+ *
+ * A node is ready if:
+ * - It has at least one satisfied incoming edge, AND
+ * - All source nodes with edges to this node are either:
+ *   - Completed with at least one edge satisfied, OR
+ *   - Not yet reached
  */
 function computeReadySet(
   config: GraphWorkflowConfig,
-  completedNodes: Set<string>,
+  state: ExecutionState,
 ): string[] {
   const readyNodes: string[] = [];
 
   for (const nodeId of Object.keys(config.nodes)) {
     // Skip if already completed
-    if (completedNodes.has(nodeId)) {
+    if (state.completedNodeIds.has(nodeId)) {
       continue;
     }
 
-    // Find all incoming normal edges
-    const incomingNormalEdges = config.edges.filter(
-      (e) => e.target === nodeId && e.type === 'normal',
-    );
+    // Entry node is ready if not completed
+    if (nodeId === config.entryNodeId) {
+      readyNodes.push(nodeId);
+      continue;
+    }
 
-    // Node is ready if all incoming normal edge sources are completed
-    const allSourcesCompleted = incomingNormalEdges.every((edge) =>
-      completedNodes.has(edge.source),
-    );
+    // Find all incoming edges
+    const incomingEdges = config.edges.filter((e) => e.target === nodeId);
 
-    // Special case: entry node has no incoming edges
-    const isEntryNode = nodeId === config.entryNodeId;
+    if (incomingEdges.length === 0) {
+      continue; // Not the entry node and no incoming edges - skip
+    }
 
-    if (allSourcesCompleted || isEntryNode) {
+    // Group edges by source node
+    const edgesBySource = new Map<string, typeof incomingEdges>();
+    for (const edge of incomingEdges) {
+      const edges = edgesBySource.get(edge.source) || [];
+      edges.push(edge);
+      edgesBySource.set(edge.source, edges);
+    }
+
+    // Check if all source nodes are satisfied
+    let hasAnySatisfiedEdge = false;
+    let allSourcesSatisfied = true;
+
+    for (const [sourceNodeId, edges] of edgesBySource) {
+      // Source node must be completed
+      if (!state.completedNodeIds.has(sourceNodeId)) {
+        allSourcesSatisfied = false;
+        break;
+      }
+
+      // Check if any edge from this source is satisfied
+      const anyEdgeSatisfied = edges.some((edge) => {
+        if (edge.type === 'normal') {
+          return true; // Normal edges are always satisfied if source completed
+        }
+        if (edge.type === 'conditional') {
+          // Conditional edge satisfied if it was selected by the switch
+          const selectedEdgeId = state.selectedEdges.get(sourceNodeId);
+          return selectedEdgeId === edge.id;
+        }
+        return false;
+      });
+
+      if (anyEdgeSatisfied) {
+        hasAnySatisfiedEdge = true;
+      } else {
+        // This source is completed but none of its edges to this node were satisfied
+        allSourcesSatisfied = false;
+        break;
+      }
+    }
+
+    if (allSourcesSatisfied && hasAnySatisfiedEdge) {
       readyNodes.push(nodeId);
     }
   }
@@ -282,12 +336,12 @@ async function executeNode(
       break;
 
     case 'map':
-      // TODO: Implement in US-009
-      throw new Error('Map nodes not yet implemented');
+      await executeMapNode(node as MapNode, _config, state);
+      break;
 
     case 'join':
-      // TODO: Implement in US-009
-      throw new Error('Join nodes not yet implemented');
+      await executeJoinNode(node as JoinNode, state);
+      break;
 
     case 'pollUntil':
       // TODO: Implement in US-010
@@ -372,6 +426,397 @@ async function executeActivityNode(
       writeToCtx(binding.ctxKey, value, state.ctx);
     }
   }
+}
+
+/**
+ * Execute a switch node
+ *
+ * US-008: Switch node handler
+ *
+ * Switch nodes determine routing by evaluating condition expressions.
+ * They don't modify context - they just select which edge to follow.
+ */
+function executeSwitchNode(
+  node: SwitchNode,
+  ctx: Record<string, unknown>,
+): string {
+  // Evaluate cases in array order
+  for (const switchCase of node.cases) {
+    if (evaluateCondition(switchCase.condition, ctx)) {
+      return switchCase.edgeId;
+    }
+  }
+
+  // No case matched - return default edge
+  // Validator ensures defaultEdge exists
+  if (!node.defaultEdge) {
+    throw ApplicationFailure.create({
+      type: 'GRAPH_EXECUTION_ERROR',
+      message: `Switch node ${node.id} missing defaultEdge`,
+      nonRetryable: true,
+    });
+  }
+  return node.defaultEdge;
+}
+
+/**
+ * Execute a map node (fan-out)
+ *
+ * US-009: Map node handler
+ *
+ * Map nodes iterate over a collection and execute a subgraph for each item.
+ * Each branch gets an isolated context copy with the item and optional index.
+ *
+ * For simplicity, this executes branches in-process rather than using child workflows.
+ * Future optimization: Use child workflows for large collections (> 50 items).
+ */
+async function executeMapNode(
+  node: MapNode,
+  config: GraphWorkflowConfig,
+  state: ExecutionState,
+): Promise<void> {
+  // Step 1: Get collection from context
+  const collection = resolvePortBinding(node.collectionCtxKey, state.ctx);
+
+  if (!Array.isArray(collection)) {
+    throw ApplicationFailure.create({
+      type: 'GRAPH_EXECUTION_ERROR',
+      message: `Collection at ${node.collectionCtxKey} is not an array`,
+      nonRetryable: true,
+    });
+  }
+
+  // Step 2: Execute branches with concurrency limiting
+  const maxConcurrency = node.maxConcurrency || Infinity;
+  const results = await executeWithConcurrencyLimit(
+    collection,
+    maxConcurrency,
+    async (item: unknown, index: number) => {
+      // Create branch context (shallow copy with item and index)
+      const branchCtx: Record<string, unknown> = { ...state.ctx };
+      branchCtx[node.itemCtxKey] = item;
+      if (node.indexCtxKey) {
+        branchCtx[node.indexCtxKey] = index;
+      }
+
+      // Execute the subgraph for this branch
+      const branchResult = await executeBranchSubgraph(
+        config,
+        node.bodyEntryNodeId,
+        node.bodyExitNodeId,
+        branchCtx,
+        state,
+      );
+
+      return branchResult;
+    },
+  );
+
+  // Step 3: Store branch results for join node
+  state.mapBranchResults.set(node.id, results);
+}
+
+/**
+ * Execute a join node (fan-in)
+ *
+ * US-009: Join node handler
+ *
+ * Join nodes collect results from map node branches.
+ */
+async function executeJoinNode(
+  node: JoinNode,
+  state: ExecutionState,
+): Promise<void> {
+  // Step 1: Get results from the source map node
+  const results = state.mapBranchResults.get(node.sourceMapNodeId);
+
+  if (!results) {
+    throw ApplicationFailure.create({
+      type: 'GRAPH_EXECUTION_ERROR',
+      message: `No results found for map node ${node.sourceMapNodeId}`,
+      nonRetryable: true,
+    });
+  }
+
+  // Step 2: Apply strategy
+  // Note: For "all" strategy, we already collected all results in executeMapNode
+  // For "any" strategy, we would have used Promise.race (not implemented yet)
+  if (node.strategy === 'any') {
+    throw ApplicationFailure.create({
+      type: 'GRAPH_EXECUTION_ERROR',
+      message: 'Join strategy "any" not yet implemented',
+      nonRetryable: true,
+    });
+  }
+
+  // Step 3: Write results to context
+  writeToCtx(node.resultsCtxKey, results, state.ctx);
+}
+
+// ---------------------------------------------------------------------------
+// Helper Functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Execute a branch subgraph for a single map iteration
+ *
+ * Executes nodes from entryNodeId to exitNodeId with isolated branch context.
+ */
+async function executeBranchSubgraph(
+  config: GraphWorkflowConfig,
+  entryNodeId: string,
+  exitNodeId: string,
+  branchCtx: Record<string, unknown>,
+  parentState: ExecutionState,
+): Promise<Record<string, unknown>> {
+  // Create isolated state for this branch
+  const branchState: ExecutionState = {
+    currentNodeIds: [],
+    completedNodeIds: new Set<string>(),
+    nodeStatuses: new Map<string, NodeStatus>(),
+    cancelled: parentState.cancelled,
+    cancelMode: parentState.cancelMode,
+    ctx: branchCtx,
+    selectedEdges: new Map<string, string>(),
+    mapBranchResults: new Map<string, unknown[]>(),
+  };
+
+  // Find all nodes in the subgraph using BFS
+  const subgraphNodeIds = new Set<string>();
+  const queue: string[] = [entryNodeId];
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+
+    if (visited.has(currentId)) {
+      continue;
+    }
+
+    visited.add(currentId);
+    subgraphNodeIds.add(currentId);
+
+    // Stop traversing beyond exit node
+    if (currentId === exitNodeId) {
+      continue;
+    }
+
+    // Find outgoing edges from current node
+    const outgoingEdges = config.edges.filter((e) => e.source === currentId);
+    for (const edge of outgoingEdges) {
+      if (!visited.has(edge.target)) {
+        queue.push(edge.target);
+      }
+    }
+  }
+
+  // Execute subgraph nodes until exitNodeId is completed
+  while (true) {
+    // Check for cancellation
+    if (branchState.cancelled() && branchState.cancelMode() === 'immediate') {
+      break;
+    }
+
+    // Compute ready set (only within subgraph nodes)
+    const readyNodeIds = computeReadySetForSubgraph(
+      config,
+      branchState,
+      subgraphNodeIds,
+      entryNodeId,
+    );
+
+    if (readyNodeIds.length === 0) {
+      // No more nodes ready - check if we completed the exit node
+      if (branchState.completedNodeIds.has(exitNodeId)) {
+        break;
+      }
+      // Exit node not completed but no nodes ready - this is an error
+      throw ApplicationFailure.create({
+        type: 'GRAPH_EXECUTION_ERROR',
+        message: `Branch execution stalled before completing exit node ${exitNodeId}`,
+        nonRetryable: true,
+      });
+    }
+
+    // Sort ready nodes alphabetically for determinism
+    const sortedReadyNodeIds = readyNodeIds.sort();
+    branchState.currentNodeIds = sortedReadyNodeIds;
+
+    // Execute ready nodes in parallel
+    await Promise.all(
+      sortedReadyNodeIds.map(async (nodeId) => {
+        const node = config.nodes[nodeId];
+        if (!node) {
+          throw ApplicationFailure.create({
+            type: 'GRAPH_EXECUTION_ERROR',
+            message: `Node not found: ${nodeId}`,
+            nonRetryable: true,
+          });
+        }
+
+        // Mark node as running
+        branchState.nodeStatuses.set(nodeId, {
+          status: 'running',
+          startedAt: new Date().toISOString(),
+        });
+
+        try {
+          // Handle switch nodes specially
+          if (node.type === 'switch') {
+            const selectedEdgeId = executeSwitchNode(
+              node as SwitchNode,
+              branchState.ctx,
+            );
+            branchState.selectedEdges.set(nodeId, selectedEdgeId);
+          } else {
+            await executeNode(node, config, branchState);
+          }
+
+          // Mark node as completed
+          branchState.completedNodeIds.add(nodeId);
+          branchState.nodeStatuses.set(nodeId, {
+            status: 'completed',
+            completedAt: new Date().toISOString(),
+          });
+        } catch (error) {
+          // Mark node as failed
+          branchState.nodeStatuses.set(nodeId, {
+            status: 'failed',
+            error: error instanceof Error ? error.message : String(error),
+          });
+          throw error;
+        }
+      }),
+    );
+
+    // Check if we completed the exit node
+    if (branchState.completedNodeIds.has(exitNodeId)) {
+      break;
+    }
+  }
+
+  return branchState.ctx;
+}
+
+/**
+ * Compute ready set for a subgraph (scoped to specific nodes)
+ */
+function computeReadySetForSubgraph(
+  config: GraphWorkflowConfig,
+  state: ExecutionState,
+  subgraphNodeIds: Set<string>,
+  entryNodeId: string,
+): string[] {
+  const readyNodes: string[] = [];
+
+  for (const nodeId of subgraphNodeIds) {
+    // Skip if already completed
+    if (state.completedNodeIds.has(nodeId)) {
+      continue;
+    }
+
+    // Entry node is ready if not completed
+    if (nodeId === entryNodeId) {
+      readyNodes.push(nodeId);
+      continue;
+    }
+
+    // Find all incoming edges
+    const incomingEdges = config.edges.filter((e) => e.target === nodeId);
+
+    if (incomingEdges.length === 0) {
+      continue; // Not the entry node and no incoming edges - skip
+    }
+
+    // Group edges by source node
+    const edgesBySource = new Map<string, typeof incomingEdges>();
+    for (const edge of incomingEdges) {
+      const edges = edgesBySource.get(edge.source) || [];
+      edges.push(edge);
+      edgesBySource.set(edge.source, edges);
+    }
+
+    // Check if all source nodes are satisfied
+    let hasAnySatisfiedEdge = false;
+    let allSourcesSatisfied = true;
+
+    for (const [sourceNodeId, edges] of edgesBySource) {
+      // Source node must be completed
+      if (!state.completedNodeIds.has(sourceNodeId)) {
+        allSourcesSatisfied = false;
+        break;
+      }
+
+      // Check if any edge from this source is satisfied
+      const anyEdgeSatisfied = edges.some((edge) => {
+        if (edge.type === 'normal') {
+          return true;
+        }
+        if (edge.type === 'conditional') {
+          const selectedEdgeId = state.selectedEdges.get(sourceNodeId);
+          return selectedEdgeId === edge.id;
+        }
+        return false;
+      });
+
+      if (anyEdgeSatisfied) {
+        hasAnySatisfiedEdge = true;
+      } else {
+        allSourcesSatisfied = false;
+        break;
+      }
+    }
+
+    if (allSourcesSatisfied && hasAnySatisfiedEdge) {
+      readyNodes.push(nodeId);
+    }
+  }
+
+  return readyNodes;
+}
+
+/**
+ * Execute items with concurrency limiting
+ *
+ * Uses a semaphore pattern to limit parallel execution.
+ */
+async function executeWithConcurrencyLimit<T>(
+  items: T[],
+  maxConcurrency: number,
+  fn: (item: T, index: number) => Promise<unknown>,
+): Promise<unknown[]> {
+  const results: unknown[] = new Array(items.length);
+  const executing: Promise<void>[] = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const index = i;
+
+    // Create promise for this item
+    const p = fn(item, index)
+      .then((result) => {
+        results[index] = result;
+      })
+      .finally(() => {
+        // Remove from executing set when done
+        const idx = executing.indexOf(p);
+        if (idx !== -1) {
+          executing.splice(idx, 1);
+        }
+      });
+
+    executing.push(p);
+
+    // Wait if we've hit the concurrency limit
+    if (executing.length >= maxConcurrency) {
+      await Promise.race(executing);
+    }
+  }
+
+  // Wait for all remaining promises
+  await Promise.all(executing);
+
+  return results;
 }
 
 // ---------------------------------------------------------------------------

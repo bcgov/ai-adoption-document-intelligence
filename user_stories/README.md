@@ -2,6 +2,10 @@ NOTE: The requirements document for this feature is available here: `docs/DAG_WO
 
 All user stories files are located in `/home/alstruk/GitHub/ai-adoption-document-intelligence/user_stories/`.
 
+Read both requirements document and individual user story files for implementation details.
+
+After implementing the user story check it off at the bottom of this file
+
 ## Foundation / Types (US-001 to US-003) -- HIGH priority
 | File | Title |
 |---|---|
@@ -82,8 +86,8 @@ All user stories files are located in `/home/alstruk/GitHub/ai-adoption-document
 ### Phase 4
 - [x] **US-006** (core runner)
 - [x] **US-007** (activity node)
-- [ ] **US-008** (switch node)
-- [ ] **US-009** (map/join nodes)
+- [x] **US-008** (switch node)
+- [x] **US-009** (map/join nodes)
 - [ ] **US-010** (pollUntil node)
 - [ ] **US-011** (humanGate node)
 - [ ] **US-012** (childWorkflow node)

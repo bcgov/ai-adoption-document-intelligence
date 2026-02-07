@@ -1,44 +1,9 @@
 import { validateGraphConfigForExecution } from "./graph-schema-validator";
-import type { ActivityRegistryEntry } from "./activity-registry";
 import type {
   GraphWorkflowConfig,
   ActivityNode,
   SwitchNode,
-  RetryPolicy,
 } from "./graph-workflow-types";
-
-// ---------------------------------------------------------------------------
-// Mock registry
-// ---------------------------------------------------------------------------
-
-function makeMockRegistry(
-  types: string[] = [
-    "document.updateStatus",
-    "file.prepare",
-    "azureOcr.submit",
-    "azureOcr.poll",
-    "azureOcr.extract",
-    "ocr.cleanup",
-    "ocr.checkConfidence",
-    "ocr.storeResults",
-    "document.storeRejection",
-    "document.split",
-    "document.classify",
-    "document.validateFields",
-  ],
-): ReadonlyMap<string, ActivityRegistryEntry> {
-  const map = new Map<string, ActivityRegistryEntry>();
-  for (const t of types) {
-    map.set(t, {
-      activityType: t,
-      activityFn: async () => ({}),
-      defaultTimeout: "1m",
-      defaultRetry: { maximumAttempts: 3 } as RetryPolicy,
-      description: `Mock ${t}`,
-    });
-  }
-  return map;
-}
 
 // ---------------------------------------------------------------------------
 // Helper: minimal valid graph
@@ -71,11 +36,9 @@ function makeMinimalGraph(
 // ---------------------------------------------------------------------------
 
 describe("graph-schema-validator (temporal)", () => {
-  const registry = makeMockRegistry();
-
   describe("valid configs", () => {
     it("valid single-node graph passes", () => {
-      const result = validateGraphConfigForExecution(makeMinimalGraph(), registry);
+      const result = validateGraphConfigForExecution(makeMinimalGraph());
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
@@ -92,7 +55,7 @@ describe("graph-schema-validator (temporal)", () => {
         },
         edges: [{ id: "e1", source: "a", target: "b", type: "normal" }],
       };
-      const result = validateGraphConfigForExecution(config, registry);
+      const result = validateGraphConfigForExecution(config);
       expect(result.valid).toBe(true);
     });
   });
@@ -100,7 +63,7 @@ describe("graph-schema-validator (temporal)", () => {
   describe("invalid configs", () => {
     it("fails on unknown schema version", () => {
       const config = makeMinimalGraph({ schemaVersion: "2.0" as "1.0" });
-      const result = validateGraphConfigForExecution(config, registry);
+      const result = validateGraphConfigForExecution(config);
       expect(result.valid).toBe(false);
       expect(result.errors).toEqual(
         expect.arrayContaining([
@@ -124,7 +87,7 @@ describe("graph-schema-validator (temporal)", () => {
           { id: "e2", source: "b", target: "a", type: "normal" },
         ],
       };
-      const result = validateGraphConfigForExecution(config, registry);
+      const result = validateGraphConfigForExecution(config);
       expect(result.valid).toBe(false);
       expect(result.errors).toEqual(
         expect.arrayContaining([
@@ -135,16 +98,14 @@ describe("graph-schema-validator (temporal)", () => {
 
     it("fails on empty nodes", () => {
       const config = makeMinimalGraph({ nodes: {} });
-      const result = validateGraphConfigForExecution(config, registry);
+      const result = validateGraphConfigForExecution(config);
       expect(result.valid).toBe(false);
     });
   });
 
   describe("runtime activity registry validation", () => {
     it("fails when activity type not in runtime registry", () => {
-      // Registry missing "file.prepare"
-      const limitedRegistry = makeMockRegistry(["document.updateStatus"]);
-
+      // Using an activity type that's not in REGISTERED_ACTIVITY_TYPES
       const config: GraphWorkflowConfig = {
         schemaVersion: "1.0",
         metadata: {},
@@ -152,12 +113,12 @@ describe("graph-schema-validator (temporal)", () => {
         ctx: {},
         nodes: {
           a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
-          b: { id: "b", type: "activity", label: "B", activityType: "file.prepare" } as ActivityNode,
+          b: { id: "b", type: "activity", label: "B", activityType: "unknown.activity" } as ActivityNode,
         },
         edges: [{ id: "e1", source: "a", target: "b", type: "normal" }],
       };
 
-      const result = validateGraphConfigForExecution(config, limitedRegistry);
+      const result = validateGraphConfigForExecution(config);
       expect(result.valid).toBe(false);
       expect(result.errors).toEqual(
         expect.arrayContaining([
@@ -171,13 +132,11 @@ describe("graph-schema-validator (temporal)", () => {
 
     it("passes when all activity types are in registry", () => {
       const config = makeMinimalGraph();
-      const result = validateGraphConfigForExecution(config, registry);
+      const result = validateGraphConfigForExecution(config);
       expect(result.valid).toBe(true);
     });
 
     it("validates pollUntil activityType against registry", () => {
-      const limitedRegistry = makeMockRegistry(["document.updateStatus"]);
-
       const config: GraphWorkflowConfig = {
         schemaVersion: "1.0",
         metadata: {},
@@ -188,7 +147,7 @@ describe("graph-schema-validator (temporal)", () => {
             id: "a",
             type: "pollUntil",
             label: "Poll",
-            activityType: "azureOcr.poll",
+            activityType: "unknown.pollActivity",
             condition: {
               operator: "not-equals",
               left: { ref: "ctx.status" },
@@ -200,13 +159,13 @@ describe("graph-schema-validator (temporal)", () => {
         edges: [],
       };
 
-      const result = validateGraphConfigForExecution(config, limitedRegistry);
+      const result = validateGraphConfigForExecution(config);
       expect(result.valid).toBe(false);
       expect(result.errors).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             path: "nodes.a.activityType",
-            message: expect.stringContaining("azureOcr.poll"),
+            message: expect.stringContaining("unknown.pollActivity"),
           }),
         ]),
       );
@@ -216,7 +175,7 @@ describe("graph-schema-validator (temporal)", () => {
   describe("GRAPH_VALIDATION_ERROR type usage", () => {
     it("returns structured errors suitable for ApplicationFailure", () => {
       const config = makeMinimalGraph({ schemaVersion: "99.0" as "1.0" });
-      const result = validateGraphConfigForExecution(config, registry);
+      const result = validateGraphConfigForExecution(config);
 
       expect(result.valid).toBe(false);
       for (const error of result.errors) {
@@ -248,7 +207,7 @@ describe("graph-schema-validator (temporal)", () => {
         },
         edges: [{ id: "e1", source: "sw", target: "a", type: "normal" }],
       };
-      const result = validateGraphConfigForExecution(config, registry);
+      const result = validateGraphConfigForExecution(config);
       expect(result.valid).toBe(false);
       expect(result.errors).toEqual(
         expect.arrayContaining([
@@ -288,7 +247,7 @@ describe("graph-schema-validator (temporal)", () => {
         },
         edges: [{ id: "e1", source: "sw", target: "a", type: "conditional" }],
       };
-      const result = validateGraphConfigForExecution(config, registry);
+      const result = validateGraphConfigForExecution(config);
       expect(result.valid).toBe(false);
       expect(result.errors).toEqual(
         expect.arrayContaining([

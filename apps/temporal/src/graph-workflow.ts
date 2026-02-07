@@ -122,6 +122,8 @@ export async function graphWorkflow(
       cancelled: () => cancelled,
       cancelMode: () => cancelMode,
       ctx,
+      selectedEdges: new Map(),
+      mapBranchResults: new Map(),
     });
 
     // Update final state
