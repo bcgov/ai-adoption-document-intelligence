@@ -30,9 +30,8 @@ import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/Labe
 import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
 import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
 import { SettingsPage } from "./pages/SettingsPage";
-import { WorkflowEditPage } from "./pages/WorkflowEditPage";
+import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
-import { WorkflowPage } from "./pages/WorkflowPage";
 import type { Document } from "./shared/types";
 
 type MainView =
@@ -250,9 +249,14 @@ function AppContent(): JSX.Element {
                   onCreate={() => setWorkflowView("create")}
                 />
               ) : workflowView === "create" ? (
-                <WorkflowPage />
+                <WorkflowEditorPage
+                  mode="create"
+                  onBack={() => setWorkflowView("list")}
+                  onSave={() => setWorkflowView("list")}
+                />
               ) : workflowView === "edit" && selectedWorkflowId ? (
-                <WorkflowEditPage
+                <WorkflowEditorPage
+                  mode="edit"
                   workflowId={selectedWorkflowId}
                   onBack={() => {
                     setWorkflowView("list");

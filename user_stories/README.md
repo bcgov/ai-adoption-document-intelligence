@@ -109,7 +109,7 @@ After implementing the user story check it off at the bottom of this file
 
 ### Phase 8
 - [x] **US-023** (frontend types)
-- [ ] **US-024** (JSON editor panel)
+- [x] **US-024** (JSON editor panel)
 - [ ] **US-025** (React Flow visualization)
 - [ ] **US-026** (workflow editor page)
 

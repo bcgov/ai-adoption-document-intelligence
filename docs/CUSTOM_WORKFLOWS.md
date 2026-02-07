@@ -7,6 +7,8 @@ Custom workflows allow users to define configurable OCR document processing pipe
 The system follows a clear separation of concerns:
 
 1. **Frontend** - workflow builder UI for creating/editing workflow configurations
+   - The workflow editor includes a JSON panel (CodeMirror 6) for authoring
+     `GraphWorkflowConfig` with inline validation feedback.
 2. **Backend API** - CRUD endpoints for workflow management + document upload with workflow selection
 3. **Temporal Worker** - executes the actual OCR pipeline according to the workflow configuration
 
