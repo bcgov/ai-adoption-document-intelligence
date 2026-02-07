@@ -4,7 +4,6 @@ import {
   Collapse,
   Group,
   Paper,
-  ScrollArea,
   Stack,
   Text,
   TextInput,
@@ -24,6 +23,7 @@ import {
   useWorkflow,
 } from "../data/hooks/useWorkflows";
 import { GraphWorkflowConfig } from "../types/workflow";
+import { GraphVisualization } from "../components/workflow/GraphVisualization";
 
 interface GraphValidationError {
   path: string;
@@ -279,7 +279,7 @@ export function WorkflowEditorPage({
       const errors = validateGraphConfig(parsed);
       setValidationErrors(errors);
       if (errors.length === 0 && isRecord(parsed)) {
-        setParsedConfig(parsed as GraphWorkflowConfig);
+        setParsedConfig(parsed as unknown as GraphWorkflowConfig);
       } else {
         setParsedConfig(null);
       }
@@ -495,7 +495,12 @@ export function WorkflowEditorPage({
               )}
             </Group>
 
-            <Collapse in={showErrors && (jsonError || validationErrors.length > 0)}>
+            <Collapse
+              in={
+                showErrors &&
+                Boolean(jsonError || validationErrors.length > 0)
+              }
+            >
               <Paper withBorder p="sm" mt="sm">
                 <Stack gap="xs">
                   {jsonError ? (
@@ -517,7 +522,10 @@ export function WorkflowEditorPage({
         <Paper withBorder p="md" style={{ flex: 1 }}>
           <Stack gap="xs">
             <Text fw={600}>Workflow preview</Text>
-            <ScrollArea h={620} />
+            <GraphVisualization
+              config={parsedConfig}
+              validationErrors={validationErrors}
+            />
           </Stack>
         </Paper>
       </Group>

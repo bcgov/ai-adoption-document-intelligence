@@ -14,7 +14,6 @@ import {
 import { notifications } from "@mantine/notifications";
 import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
-import { WorkflowVisualization } from "../components/workflow/WorkflowVisualization";
 import { useCreateWorkflow } from "../data/hooks/useWorkflows";
 
 interface WorkflowStepConfig {
@@ -538,11 +537,6 @@ export function WorkflowPage() {
               </Button>
             </Group>
           </Stack>
-        </Grid.Col>
-        <Grid.Col span={{ base: 24, md: 16, lg: 8, xl: 4 }}>
-          <div style={{ position: "sticky", top: "20px" }}>
-            <WorkflowVisualization config={config} />
-          </div>
         </Grid.Col>
       </Grid>
     </Stack>
