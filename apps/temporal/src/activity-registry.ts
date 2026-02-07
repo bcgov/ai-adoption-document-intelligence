@@ -21,6 +21,7 @@ import {
   upsertOcrResult,
   storeDocumentRejection,
 } from "./activities";
+import { splitDocument } from "./activities/split-document";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -122,9 +123,7 @@ register({
 
 register({
   activityType: "document.split",
-  activityFn: async () => {
-    throw new Error("document.split activity not yet implemented (see US-017)");
-  },
+  activityFn: splitDocument as (...args: unknown[]) => Promise<unknown>,
   defaultTimeout: "5m",
   defaultRetry: { maximumAttempts: 2 },
   description: "Split multi-page PDF into segments",

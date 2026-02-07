@@ -1090,3 +1090,5 @@ export async function getWorkflowGraphConfig(input: {
 
   return { graph: workflow.config as GraphWorkflowConfig };
 }
+
+export { splitDocument } from "./activities/split-document";

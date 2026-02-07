@@ -98,7 +98,7 @@ After implementing the user story check it off at the bottom of this file
 - [x] **US-015** (versioning)
 
 ### Phase 6
-- [ ] **US-017** (document split activity)
+- [x] **US-017** (document split activity)
 - [ ] **US-018** (document classify activity)
 - [ ] **US-019** (document validate fields activity)
 

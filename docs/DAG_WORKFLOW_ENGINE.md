@@ -820,6 +820,8 @@ interface DocumentSegment {
 3. Uses `qpdf` CLI to extract page ranges into separate files
 4. Returns segment metadata with blob keys for each split file
 
+**Boundary detection note**: The two-pass boundary detection uses `pdftotext` to extract per-page text for heuristics (page 1 indicators, blank pages, layout changes). Ensure `pdftotext` is available alongside `qpdf` in the worker runtime.
+
 **Engineering upper bound**: Must handle documents with at least 2,000 pages.
 
 ### 6.2 Boundary Detection (Rule-Based)
