@@ -114,7 +114,7 @@ After implementing the user story check it off at the bottom of this file
 - [x] **US-026** (workflow editor page)
 
 ### Phase 9
-- [ ] **US-027** (workflow list schema version)
+- [x] **US-027** (workflow list schema version)
 - [ ] **US-028** (API hooks and routes)
 
 ### Phase 10
