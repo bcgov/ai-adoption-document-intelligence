@@ -11,6 +11,9 @@ import {
   proxyActivities,
   ApplicationFailure,
   sleep,
+  condition,
+  defineSignal,
+  setHandler,
 } from '@temporalio/workflow';
 import type { Duration, RetryPolicy } from '@temporalio/common';
 import type {
@@ -23,6 +26,7 @@ import type {
   MapNode,
   JoinNode,
   PollUntilNode,
+  HumanGateNode,
   NodeStatus,
 } from './graph-workflow-types';
 import { isRegisteredActivityType } from './activity-types';
@@ -294,13 +298,19 @@ function computeReadySet(
       }
 
       // Check if any edge from this source is satisfied
+      const selectedEdgeId = state.selectedEdges.get(sourceNodeId);
       const anyEdgeSatisfied = edges.some((edge) => {
+        if (selectedEdgeId) {
+          return selectedEdgeId === edge.id;
+        }
         if (edge.type === 'normal') {
           return true; // Normal edges are always satisfied if source completed
         }
         if (edge.type === 'conditional') {
           // Conditional edge satisfied if it was selected by the switch
-          const selectedEdgeId = state.selectedEdges.get(sourceNodeId);
+          return selectedEdgeId === edge.id;
+        }
+        if (edge.type === 'error') {
           return selectedEdgeId === edge.id;
         }
         return false;
@@ -353,8 +363,8 @@ async function executeNode(
       break;
 
     case 'humanGate':
-      // TODO: Implement in US-011
-      throw new Error('HumanGate nodes not yet implemented');
+      await executeHumanGateNode(node as HumanGateNode, state);
+      break;
 
     case 'childWorkflow':
       // TODO: Implement in US-012
@@ -642,6 +652,75 @@ async function executePollUntilNode(
   throwPollTimeout(node.id, maxAttempts, 'maxAttempts');
 }
 
+/**
+ * Execute a humanGate node
+ *
+ * US-011: HumanGate node handler
+ *
+ * Waits for a human signal (approved/rejected) or times out.
+ */
+async function executeHumanGateNode(
+  node: HumanGateNode,
+  state: ExecutionState,
+): Promise<void> {
+  let payload: Record<string, unknown> | null = null;
+
+  const signalDefinition = defineSignal<[Record<string, unknown>]>(
+    node.signal.name,
+  );
+
+  setHandler(signalDefinition, (signalPayload: Record<string, unknown>) => {
+    payload = signalPayload;
+  });
+
+  const received = await condition(
+    () => payload !== null,
+    node.timeout as Duration,
+  );
+
+  if (!received) {
+    if (node.onTimeout === 'continue') {
+      return;
+    }
+
+    if (node.onTimeout === 'fallback') {
+      if (!node.fallbackEdgeId) {
+        throw ApplicationFailure.create({
+          type: 'GRAPH_EXECUTION_ERROR',
+          message: `HumanGate node ${node.id} missing fallbackEdgeId`,
+          nonRetryable: true,
+        });
+      }
+      state.selectedEdges.set(node.id, node.fallbackEdgeId);
+      return;
+    }
+
+    throw ApplicationFailure.create({
+      type: 'HUMAN_GATE_TIMEOUT',
+      message: `HumanGate node ${node.id} timed out waiting for signal ${node.signal.name}`,
+      nonRetryable: true,
+    });
+  }
+
+  const payloadValue: Record<string, unknown> = payload ?? {};
+  if (node.outputs && node.outputs.length > 0) {
+    for (const binding of node.outputs) {
+      const value = payloadValue[binding.port];
+      writeToCtx(binding.ctxKey, value, state.ctx);
+    }
+  } else {
+    writeToCtx(`${node.id}Payload`, payloadValue, state.ctx);
+  }
+
+  if (payloadValue['approved'] === false) {
+    throw ApplicationFailure.create({
+      type: 'HUMAN_GATE_REJECTED',
+      message: `HumanGate node ${node.id} rejected by signal ${node.signal.name}`,
+      nonRetryable: true,
+    });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Helper Functions
 // ---------------------------------------------------------------------------
@@ -837,12 +916,18 @@ function computeReadySetForSubgraph(
       }
 
       // Check if any edge from this source is satisfied
+      const selectedEdgeId = state.selectedEdges.get(sourceNodeId);
       const anyEdgeSatisfied = edges.some((edge) => {
+        if (selectedEdgeId) {
+          return selectedEdgeId === edge.id;
+        }
         if (edge.type === 'normal') {
           return true;
         }
         if (edge.type === 'conditional') {
-          const selectedEdgeId = state.selectedEdges.get(sourceNodeId);
+          return selectedEdgeId === edge.id;
+        }
+        if (edge.type === 'error') {
           return selectedEdgeId === edge.id;
         }
         return false;

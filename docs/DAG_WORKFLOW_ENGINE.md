@@ -297,6 +297,16 @@ interface HumanGateNode extends GraphNodeBase {
 
 **Execution strategy**: Maps to Temporal `condition()` + timer pattern. The signal name is registered on the workflow, and the workflow blocks until the signal is received or the timeout expires.
 
+**Implementation details**:
+- Signal handlers are registered at runtime using the node's `signal.name`.
+- If the signal payload contains `{ approved: false }`, the node fails with `HUMAN_GATE_REJECTED`.
+- When the signal is received, payload fields are written to ctx via `outputs` (port name -> payload field).
+- If `outputs` is not provided, the full payload is written to `ctx["<nodeId>Payload"]`.
+- On timeout:
+  - `fail` throws a non-retryable `HUMAN_GATE_TIMEOUT`.
+  - `continue` proceeds as if approved.
+  - `fallback` routes to `fallbackEdgeId`.
+
 ### 4.3 Edges
 
 ```typescript

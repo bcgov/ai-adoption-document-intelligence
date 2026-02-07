@@ -162,6 +162,66 @@ async function runWorkflow(
   );
 }
 
+async function runWorkflowWithSignal(
+  testEnv: TestWorkflowEnvironment,
+  input: GraphWorkflowInput,
+  workflowId: string,
+  signalName: string,
+  payload: Record<string, unknown>,
+  activitiesOverride: ActivityMap = {},
+): Promise<GraphWorkflowResult> {
+  const workflowsPath = require.resolve('./graph-workflow');
+  const activities = { ...mockActivities, ...activitiesOverride };
+
+  const worker = await Worker.create({
+    connection: testEnv.nativeConnection,
+    namespace: 'default',
+    taskQueue: TASK_QUEUE,
+    workflowsPath,
+    activities,
+  });
+
+  const handle = await testEnv.client.workflow.start(graphWorkflow, {
+    workflowId,
+    taskQueue: TASK_QUEUE,
+    args: [input],
+  });
+
+  const resultPromise = handle.result();
+  const runPromise = worker.runUntil(resultPromise);
+
+  await handle.signal(signalName, payload);
+
+  return runPromise;
+}
+
+async function runWorkflowWithoutSignal(
+  testEnv: TestWorkflowEnvironment,
+  input: GraphWorkflowInput,
+  workflowId: string,
+  activitiesOverride: ActivityMap = {},
+): Promise<GraphWorkflowResult> {
+  const workflowsPath = require.resolve('./graph-workflow');
+  const activities = { ...mockActivities, ...activitiesOverride };
+
+  const worker = await Worker.create({
+    connection: testEnv.nativeConnection,
+    namespace: 'default',
+    taskQueue: TASK_QUEUE,
+    workflowsPath,
+    activities,
+  });
+
+  const handle = await testEnv.client.workflow.start(graphWorkflow, {
+    workflowId,
+    taskQueue: TASK_QUEUE,
+    args: [input],
+  });
+
+  const resultPromise = handle.result();
+  return worker.runUntil(resultPromise);
+}
+
 describe('Graph Workflow', () => {
   let testEnv: TestWorkflowEnvironment;
 
@@ -828,6 +888,238 @@ describe('Graph Workflow', () => {
           (error as { cause?: { message?: string } }).cause?.message ?? '';
         expect(`${errorMessage} ${causeMessage}`).toMatch(/POLL_TIMEOUT/);
       }
+    });
+  });
+
+  describe('US-011: HumanGate Node Handler', () => {
+    it('continues on approval and writes payload to ctx', async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'HumanGate Approval Test',
+          description: 'Test humanGate approval path',
+          version: '1.0.0',
+        },
+        nodes: {
+          gate: {
+            id: 'gate',
+            type: 'humanGate',
+            label: 'Human Review',
+            signal: { name: 'humanApproval' },
+            timeout: '1m',
+            onTimeout: 'fail',
+            outputs: [
+              { port: 'approved', ctxKey: 'approved' },
+              { port: 'reviewer', ctxKey: 'reviewer' },
+            ],
+          },
+          next: {
+            id: 'next',
+            type: 'activity',
+            label: 'Next Step',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'approved' },
+          },
+        },
+        edges: [{ id: 'e1', source: 'gate', target: 'next', type: 'normal' }],
+        entryNodeId: 'gate',
+        ctx: {
+          approved: { type: 'boolean' },
+          reviewer: { type: 'string' },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const result = await runWorkflowWithSignal(
+        testEnv,
+        input,
+        'test-humangate-approval',
+        'humanApproval',
+        { approved: true, reviewer: 'alice' },
+      );
+
+      expect(result.status).toBe('completed');
+      expect(result.completedNodes).toContain('next');
+      expect(result.ctx.approved).toBe(true);
+      expect(result.ctx.reviewer).toBe('alice');
+    });
+
+    it('fails with HUMAN_GATE_REJECTED on rejection signal', async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'HumanGate Rejection Test',
+          description: 'Test humanGate rejection path',
+          version: '1.0.0',
+        },
+        nodes: {
+          gate: {
+            id: 'gate',
+            type: 'humanGate',
+            label: 'Human Review',
+            signal: { name: 'humanApproval' },
+            timeout: '1m',
+            onTimeout: 'fail',
+          },
+        },
+        edges: [],
+        entryNodeId: 'gate',
+        ctx: {},
+      };
+
+      const input = makeMockInput(graph);
+
+      try {
+        await runWorkflowWithSignal(
+          testEnv,
+          input,
+          'test-humangate-rejection',
+          'humanApproval',
+          { approved: false, reviewer: 'bob' },
+        );
+        throw new Error('Expected humanGate to reject');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const cause = (error as { cause?: { message?: string; type?: string } })
+          .cause;
+        const combined = `${errorMessage} ${cause?.message ?? ''}`;
+        expect(cause?.type ?? combined).toMatch(/HUMAN_GATE_REJECTED/);
+      }
+    });
+
+    it('fails with HUMAN_GATE_TIMEOUT on timeout when onTimeout is fail', async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'HumanGate Timeout Test',
+          description: 'Test humanGate timeout failure',
+          version: '1.0.0',
+        },
+        nodes: {
+          gate: {
+            id: 'gate',
+            type: 'humanGate',
+            label: 'Human Review',
+            signal: { name: 'humanApproval' },
+            timeout: '1s',
+            onTimeout: 'fail',
+          },
+        },
+        edges: [],
+        entryNodeId: 'gate',
+        ctx: {},
+      };
+
+      const input = makeMockInput(graph);
+
+      try {
+        await runWorkflowWithoutSignal(
+          testEnv,
+          input,
+          'test-humangate-timeout',
+        );
+        throw new Error('Expected humanGate to timeout');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const cause = (error as { cause?: { message?: string; type?: string } })
+          .cause;
+        const combined = `${errorMessage} ${cause?.message ?? ''}`;
+        expect(cause?.type ?? combined).toMatch(/HUMAN_GATE_TIMEOUT/);
+      }
+    });
+
+    it('continues on timeout when onTimeout is continue', async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'HumanGate Continue Timeout Test',
+          description: 'Test humanGate continue on timeout',
+          version: '1.0.0',
+        },
+        nodes: {
+          gate: {
+            id: 'gate',
+            type: 'humanGate',
+            label: 'Human Review',
+            signal: { name: 'humanApproval' },
+            timeout: '1s',
+            onTimeout: 'continue',
+          },
+          next: {
+            id: 'next',
+            type: 'activity',
+            label: 'Next Step',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'continued' },
+          },
+        },
+        edges: [{ id: 'e1', source: 'gate', target: 'next', type: 'normal' }],
+        entryNodeId: 'gate',
+        ctx: {},
+      };
+
+      const input = makeMockInput(graph);
+      const result = await runWorkflowWithoutSignal(
+        testEnv,
+        input,
+        'test-humangate-timeout-continue',
+      );
+
+      expect(result.status).toBe('completed');
+      expect(result.completedNodes).toContain('next');
+    });
+
+    it('routes to fallback edge on timeout when onTimeout is fallback', async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'HumanGate Fallback Timeout Test',
+          description: 'Test humanGate fallback on timeout',
+          version: '1.0.0',
+        },
+        nodes: {
+          gate: {
+            id: 'gate',
+            type: 'humanGate',
+            label: 'Human Review',
+            signal: { name: 'humanApproval' },
+            timeout: '1s',
+            onTimeout: 'fallback',
+            fallbackEdgeId: 'edge-fallback',
+          },
+          approved: {
+            id: 'approved',
+            type: 'activity',
+            label: 'Approved Path',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'approved' },
+          },
+          fallback: {
+            id: 'fallback',
+            type: 'activity',
+            label: 'Fallback Path',
+            activityType: 'document.updateStatus',
+            parameters: { status: 'fallback' },
+          },
+        },
+        edges: [
+          { id: 'edge-approved', source: 'gate', target: 'approved', type: 'normal' },
+          { id: 'edge-fallback', source: 'gate', target: 'fallback', type: 'error' },
+        ],
+        entryNodeId: 'gate',
+        ctx: {},
+      };
+
+      const input = makeMockInput(graph);
+      const result = await runWorkflowWithoutSignal(
+        testEnv,
+        input,
+        'test-humangate-timeout-fallback',
+      );
+
+      expect(result.status).toBe('completed');
+      expect(result.completedNodes).toContain('fallback');
+      expect(result.completedNodes).not.toContain('approved');
     });
   });
 });
