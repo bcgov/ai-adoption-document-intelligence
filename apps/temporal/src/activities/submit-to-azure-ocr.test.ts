@@ -126,7 +126,7 @@ describe('submitToAzureOCR activity', () => {
       modelId: 'prebuilt-layout',
     };
 
-    await expect(submitToAzureOCR(fileData)).rejects.toThrow(
+    await expect(submitToAzureOCR({ fileData })).rejects.toThrow(
       'Azure Document Intelligence credentials not configured'
     );
   });
@@ -147,7 +147,7 @@ describe('submitToAzureOCR activity', () => {
       modelId: 'prebuilt-layout',
     };
 
-    await expect(submitToAzureOCR(fileData)).rejects.toThrow(
+    await expect(submitToAzureOCR({ fileData })).rejects.toThrow(
       'Failed to submit document to Azure OCR. Expected status code 202, got 400'
     );
   });
@@ -168,7 +168,7 @@ describe('submitToAzureOCR activity', () => {
       modelId: 'prebuilt-layout',
     };
 
-    await expect(submitToAzureOCR(fileData)).rejects.toThrow(
+    await expect(submitToAzureOCR({ fileData })).rejects.toThrow(
       'APIM Request ID not found in response headers'
     );
   });
@@ -198,7 +198,7 @@ describe('submitToAzureOCR activity', () => {
       modelId: 'prebuilt-layout',
     };
 
-    await expect(submitToAzureOCR(fileData)).rejects.toThrow('Request failed');
+    await expect(submitToAzureOCR({ fileData })).rejects.toThrow('Request failed');
   });
 
   it('normalizes endpoint URL by removing trailing slash', async () => {
@@ -221,7 +221,7 @@ describe('submitToAzureOCR activity', () => {
       modelId: 'prebuilt-layout',
     };
 
-    await submitToAzureOCR(fileData);
+    await submitToAzureOCR({ fileData });
 
     const calledUrl = axiosMock.post.mock.calls[0][0] as string;
     expect(calledUrl).not.toContain('//documentModels');

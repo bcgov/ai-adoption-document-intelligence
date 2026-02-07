@@ -111,7 +111,6 @@ describe('postOcrCleanup activity', () => {
       pages: [
         {
           pageNumber: 1,
-          angle: 0,
           width: 8.5,
           height: 11,
           unit: 'inch',
@@ -125,15 +124,16 @@ describe('postOcrCleanup activity', () => {
         },
       ],
       paragraphs: [
-        { content: 'Para\u2013graph', role: 'text', spans: [{ offset: 0, length: 9 }] },
+        { content: 'Para\u2013graph', role: 'text', boundingRegions: [], spans: [{ offset: 0, length: 9 }] },
       ],
       tables: [
         {
           rowCount: 1,
           columnCount: 1,
           cells: [
-            { rowIndex: 0, columnIndex: 0, content: '1O5', spans: [{ offset: 0, length: 3 }] },
+            { rowIndex: 0, columnIndex: 0, content: '1O5', boundingRegions: [], spans: [{ offset: 0, length: 3 }] },
           ],
+          boundingRegions: [],
           spans: [{ offset: 0, length: 3 }],
         },
       ],
@@ -166,8 +166,8 @@ describe('postOcrCleanup activity', () => {
       tables: [],
       keyValuePairs: [
         {
-          key: { content: 'Name\u00A0Key', spans: [{ offset: 0, length: 8 }] },
-          value: { content: 'Value\u2013Text', spans: [{ offset: 9, length: 10 }] },
+          key: { content: 'Name\u00A0Key', boundingRegions: [], spans: [{ offset: 0, length: 8 }] },
+          value: { content: 'Value\u2013Text', boundingRegions: [], spans: [{ offset: 9, length: 10 }] },
           confidence: 0.95,
         },
       ],

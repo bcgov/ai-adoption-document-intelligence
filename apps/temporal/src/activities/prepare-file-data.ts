@@ -61,19 +61,18 @@ export async function prepareFileData(
 
   let fileName = input.fileName || path.basename(blobKey) || 'document';
   let fileType: 'pdf' | 'image' = input.fileType || 'pdf';
-  let contentType = input.contentType || 'application/pdf';
+  let contentType = input.contentType;
 
   // Determine file type from filename or content type
   const lowerFileName = fileName.toLowerCase();
-  if (contentType.includes('pdf') || lowerFileName.endsWith('.pdf')) {
-    fileType = 'pdf';
-    contentType = 'application/pdf';
-  } else if (
-    contentType.includes('image') ||
+
+  // Check for image files first by extension
+  if (
+    (contentType && contentType.includes('image')) ||
     lowerFileName.match(/\.(jpg|jpeg|png|gif|bmp|tiff|webp)$/i)
   ) {
     fileType = 'image';
-    if (!contentType || contentType === 'application/pdf') {
+    if (!contentType) {
       if (lowerFileName.endsWith('.png')) {
         contentType = 'image/png';
       } else if (lowerFileName.match(/\.(jpg|jpeg)$/i)) {
@@ -81,9 +80,16 @@ export async function prepareFileData(
       } else if (lowerFileName.endsWith('.gif')) {
         contentType = 'image/gif';
       } else {
-        contentType = contentType || 'image/jpeg';
+        contentType = 'image/jpeg';
       }
     }
+  } else if ((contentType && contentType.includes('pdf')) || lowerFileName.endsWith('.pdf')) {
+    fileType = 'pdf';
+    contentType = 'application/pdf';
+  } else {
+    // Default to PDF if no specific type detected
+    fileType = 'pdf';
+    contentType = 'application/pdf';
   }
 
   // Validate PDF signature if it's supposed to be a PDF

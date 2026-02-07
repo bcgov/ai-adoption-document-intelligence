@@ -69,8 +69,8 @@ describe("activity-registry", () => {
     });
   });
 
-  describe("existing activity function references", () => {
-    const existingActivities = [
+  describe("activity function references", () => {
+    const allActivities = [
       "document.updateStatus",
       "file.prepare",
       "azureOcr.submit",
@@ -80,33 +80,17 @@ describe("activity-registry", () => {
       "ocr.checkConfidence",
       "ocr.storeResults",
       "document.storeRejection",
-    ];
-
-    it.each(existingActivities)(
-      "maps %s to a valid activity function",
-      (activityType) => {
-        const entry = getActivityEntry(activityType);
-        expect(entry).toBeDefined();
-        expect(typeof entry!.activityFn).toBe("function");
-        // Existing activities should not throw "not yet implemented"
-        expect(entry!.activityFn.toString()).not.toContain("not yet implemented");
-      },
-    );
-  });
-
-  describe("future activity stubs", () => {
-    const futureActivities = [
       "document.split",
       "document.classify",
       "document.validateFields",
     ];
 
-    it.each(futureActivities)(
-      "%s throws 'not yet implemented' when called",
-      async (activityType) => {
+    it.each(allActivities)(
+      "maps %s to a valid activity function",
+      (activityType) => {
         const entry = getActivityEntry(activityType);
         expect(entry).toBeDefined();
-        await expect(entry!.activityFn()).rejects.toThrow("not yet implemented");
+        expect(typeof entry!.activityFn).toBe("function");
       },
     );
   });

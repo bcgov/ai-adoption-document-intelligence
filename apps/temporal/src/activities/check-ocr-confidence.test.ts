@@ -40,7 +40,6 @@ describe('checkOcrConfidence activity', () => {
       pages: [
         {
           pageNumber: 1,
-          angle: 0,
           width: 8.5,
           height: 11,
           unit: 'inch',
@@ -80,7 +79,6 @@ describe('checkOcrConfidence activity', () => {
       pages: [
         {
           pageNumber: 1,
-          angle: 0,
           width: 8.5,
           height: 11,
           unit: 'inch',
@@ -125,7 +123,6 @@ describe('checkOcrConfidence activity', () => {
       pages: [
         {
           pageNumber: 1,
-          angle: 0,
           width: 8.5,
           height: 11,
           unit: 'inch',
@@ -140,8 +137,8 @@ describe('checkOcrConfidence activity', () => {
       tables: [],
       keyValuePairs: [
         {
-          key: { content: 'Name', spans: [] },
-          value: { content: 'John', spans: [] },
+          key: { content: 'Name', boundingRegions: [], spans: [] },
+          value: { content: 'John', boundingRegions: [], spans: [] },
           confidence: 0.96,
         },
       ],
@@ -169,7 +166,6 @@ describe('checkOcrConfidence activity', () => {
       pages: [
         {
           pageNumber: 1,
-          angle: 0,
           width: 8.5,
           height: 11,
           unit: 'inch',
@@ -208,7 +204,6 @@ describe('checkOcrConfidence activity', () => {
       pages: [
         {
           pageNumber: 1,
-          angle: 0,
           width: 8.5,
           height: 11,
           unit: 'inch',
@@ -269,7 +264,6 @@ describe('checkOcrConfidence activity', () => {
       pages: [
         {
           pageNumber: 1,
-          angle: 0,
           width: 8.5,
           height: 11,
           unit: 'inch',

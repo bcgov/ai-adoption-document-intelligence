@@ -1,5 +1,6 @@
 import { upsertOcrResult } from './upsert-ocr-result';
 import { getPrismaClient } from './database-client';
+import { Prisma } from '@generated/client';
 import type { OCRResult } from '../types';
 
 jest.mock('./database-client', () => ({
@@ -218,12 +219,12 @@ describe('upsertOcrResult activity', () => {
       where: { document_id: 'doc-4' },
       update: {
         processed_at: expect.any(Date),
-        keyValuePairs: null,
+        keyValuePairs: Prisma.JsonNull,
       },
       create: {
         document_id: 'doc-4',
         processed_at: expect.any(Date),
-        keyValuePairs: null,
+        keyValuePairs: Prisma.JsonNull,
       },
     });
   });

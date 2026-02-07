@@ -50,8 +50,10 @@ describe('getWorkflowGraphConfig activity', () => {
       },
       edges: [
         {
-          fromNodeId: 'node1',
-          toNodeId: 'node2',
+          id: 'edge1',
+          source: 'node1',
+          target: 'node2',
+          type: 'normal' as const,
         },
       ],
       entryNodeId: 'node1',
@@ -116,7 +118,11 @@ describe('getWorkflowGraphConfig activity', () => {
           label: 'Check Result',
           cases: [
             {
-              condition: { type: 'expression', expression: 'ctx.result === true' },
+              condition: {
+                operator: 'equals' as const,
+                left: { ref: 'ctx.result' },
+                right: { literal: true },
+              },
               edgeId: 'to-end',
             },
           ],
@@ -129,9 +135,9 @@ describe('getWorkflowGraphConfig activity', () => {
         },
       },
       edges: [
-        { fromNodeId: 'start', toNodeId: 'activity1' },
-        { fromNodeId: 'activity1', toNodeId: 'condition1' },
-        { id: 'to-end', fromNodeId: 'condition1', toNodeId: 'end' },
+        { id: 'edge1', source: 'start', target: 'activity1', type: 'normal' as const },
+        { id: 'edge2', source: 'activity1', target: 'condition1', type: 'normal' as const },
+        { id: 'to-end', source: 'condition1', target: 'end', type: 'normal' as const },
       ],
       entryNodeId: 'start',
       ctx: {},

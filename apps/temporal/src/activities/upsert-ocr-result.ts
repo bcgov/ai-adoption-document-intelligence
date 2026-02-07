@@ -1,4 +1,5 @@
 import { getPrismaClient } from './database-client';
+import { Prisma } from '@generated/client';
 import type { OCRResult } from '../types';
 
 /**
@@ -31,7 +32,12 @@ export async function upsertOcrResult(params: {
     const prisma = getPrismaClient();
 
     // Convert to JSON format for database
-    const asJson = (obj: unknown) => obj as Record<string, unknown> | null;
+    const asJson = (obj: unknown): Prisma.InputJsonValue | Prisma.NullTypes.JsonNull => {
+      if (obj === null) {
+        return Prisma.JsonNull;
+      }
+      return obj as Prisma.InputJsonValue;
+    };
 
     // Determine extracted fields based on model type (matches database.service.ts logic)
     let extractedFields: Record<string, unknown> | null = null;

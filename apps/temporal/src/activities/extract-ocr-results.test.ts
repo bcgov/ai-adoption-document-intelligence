@@ -34,7 +34,6 @@ describe('extractOCRResults activity', () => {
         pages: [
           {
             pageNumber: 1,
-            angle: 0,
             width: 8.5,
             height: 11,
             unit: 'inch',
@@ -43,7 +42,7 @@ describe('extractOCRResults activity', () => {
             spans: [{ offset: 0, length: 4 }],
           },
         ],
-        paragraphs: [{ content: 'Test', role: 'text', spans: [{ offset: 0, length: 4 }] }],
+        paragraphs: [{ content: 'Test', role: 'text', boundingRegions: [], spans: [{ offset: 0, length: 4 }] }],
         tables: [],
         keyValuePairs: [],
         sections: [],
@@ -193,6 +192,7 @@ describe('extractOCRResults activity', () => {
               { rowIndex: 0, columnIndex: 0, content: 'Header1', spans: [{ offset: 0, length: 7 }], boundingRegions: [] },
               { rowIndex: 0, columnIndex: 1, content: 'Header2', spans: [{ offset: 8, length: 7 }], boundingRegions: [] },
             ],
+            boundingRegions: [],
             spans: [{ offset: 0, length: 15 }],
           },
         ],

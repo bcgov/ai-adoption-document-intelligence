@@ -100,14 +100,16 @@ export async function postOcrCleanup(params: {
         // Fix common OCR number errors (O vs 0, I vs 1, l vs 1 in number contexts)
         // This is conservative - only fix obvious cases
         .replace(/([^a-zA-Z])O(?=\d)/g, '$10') // O before digit -> 0
+        .replace(/(\d)O(?=\d)/g, '$10') // O between digits -> 0
         .replace(/(\d)O(?=[^a-zA-Z0-9])/g, '$10') // O after digit -> 0
         // Normalize date separators
         .replace(/(\d{1,2})[.\s]+(\d{1,2})[.\s]+(\d{2,4})/g, (_match, d, m, y) => {
           // Normalize dates - keep format but normalize separators
           return `${d}/${m}/${y}`;
         })
-        // Normalize time separators
-        .replace(/(\d{1,2})[.\s]+(\d{2})[.\s]*([ap]m)?/gi, (_match, h, m, ampm) => {
+        // Normalize time separators (but not decimal numbers)
+        // Only match if not preceded by a digit (to avoid matching 105.00)
+        .replace(/(?<!\d)(\d{1,2})[.\s]+(\d{2})[.\s]*([ap]m)?/gi, (_match, h, m, ampm) => {
           return ampm ? `${h}:${m} ${ampm}` : `${h}:${m}`;
         })
         // Fix common decimal point issues (comma to period in number contexts)
