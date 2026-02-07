@@ -35,10 +35,11 @@ async function readBlobData(blobKey: string): Promise<Buffer> {
  * Activity: Submit document to Azure Document Intelligence OCR API
  * Returns serializable response data with headers including apim-request-id
  */
-export async function submitToAzureOCR(
-  fileData: PreparedFileData
-): Promise<SubmissionResult> {
+export async function submitToAzureOCR(params: {
+  fileData: PreparedFileData;
+}): Promise<SubmissionResult> {
   const activityName = 'submitToAzureOCR';
+  const { fileData } = params;
   const startTime = Date.now();
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;

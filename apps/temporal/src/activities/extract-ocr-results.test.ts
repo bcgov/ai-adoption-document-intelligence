@@ -52,13 +52,13 @@ describe('extractOCRResults activity', () => {
       },
     };
 
-    const result = await extractOCRResults(
-      'test-request-id',
-      'test.pdf',
-      'pdf',
-      'prebuilt-layout',
-      mockOCRResponse
-    );
+    const result = await extractOCRResults({
+      apimRequestId: 'test-request-id',
+      fileName: 'test.pdf',
+      fileType: 'pdf',
+      modelId: 'prebuilt-layout',
+      ocrResponse: mockOCRResponse
+    });
 
     expect(result.success).toBe(true);
     expect(result.status).toBe('succeeded');
@@ -92,12 +92,12 @@ describe('extractOCRResults activity', () => {
 
     axiosMock.get.mockResolvedValue({ data: mockOCRResponse });
 
-    const result = await extractOCRResults(
-      'test-request-id',
-      'test.pdf',
-      'pdf',
-      'prebuilt-layout'
-    );
+    const result = await extractOCRResults({
+      apimRequestId: 'test-request-id',
+      fileName: 'test.pdf',
+      fileType: 'pdf',
+      modelId: 'prebuilt-layout'
+    });
 
     expect(result.extractedText).toBe('Fetched content');
     expect(axiosMock.get).toHaveBeenCalledWith(
@@ -115,13 +115,13 @@ describe('extractOCRResults activity', () => {
       lastUpdatedDateTime: '2024-01-01T00:01:00Z',
     };
 
-    const result = await extractOCRResults(
-      'test-request-id',
-      'test.pdf',
-      'pdf',
-      'prebuilt-layout',
-      mockOCRResponse
-    );
+    const result = await extractOCRResults({
+      apimRequestId: 'test-request-id',
+      fileName: 'test.pdf',
+      fileType: 'pdf',
+      modelId: 'prebuilt-layout',
+      ocrResponse: mockOCRResponse
+    });
 
     expect(result.success).toBe(true);
     expect(result.extractedText).toBe('');
@@ -136,13 +136,13 @@ describe('extractOCRResults activity', () => {
       lastUpdatedDateTime: '2024-01-01T00:01:00Z',
     };
 
-    const result = await extractOCRResults(
-      'test-request-id',
-      'test.pdf',
-      'pdf',
-      'prebuilt-layout',
-      mockOCRResponse
-    );
+    const result = await extractOCRResults({
+      apimRequestId: 'test-request-id',
+      fileName: 'test.pdf',
+      fileType: 'pdf',
+      modelId: 'prebuilt-layout',
+      ocrResponse: mockOCRResponse
+    });
 
     expect(result.success).toBe(false);
     expect(result.status).toBe('failed');
@@ -153,13 +153,24 @@ describe('extractOCRResults activity', () => {
     delete process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
 
     await expect(
-      extractOCRResults('test-request-id', 'test.pdf', 'pdf', 'prebuilt-layout')
+      extractOCRResults({
+        apimRequestId: 'test-request-id',
+        fileName: 'test.pdf',
+        fileType: 'pdf',
+        modelId: 'prebuilt-layout'
+      })
     ).rejects.toThrow('Azure Document Intelligence credentials not configured');
   });
 
   it('throws error when OCR response is null', async () => {
     await expect(
-      extractOCRResults('test-request-id', 'test.pdf', 'pdf', 'prebuilt-layout', undefined)
+      extractOCRResults({
+        apimRequestId: 'test-request-id',
+        fileName: 'test.pdf',
+        fileType: 'pdf',
+        modelId: 'prebuilt-layout',
+        ocrResponse: undefined
+      })
     ).rejects.toThrow();
   });
 
@@ -198,13 +209,13 @@ describe('extractOCRResults activity', () => {
       },
     };
 
-    const result = await extractOCRResults(
-      'test-request-id',
-      'test.pdf',
-      'pdf',
-      'prebuilt-layout',
-      mockOCRResponse
-    );
+    const result = await extractOCRResults({
+      apimRequestId: 'test-request-id',
+      fileName: 'test.pdf',
+      fileType: 'pdf',
+      modelId: 'prebuilt-layout',
+      ocrResponse: mockOCRResponse
+    });
 
     expect(result.tables).toHaveLength(1);
     expect(result.tables[0].rowCount).toBe(2);

@@ -7,11 +7,12 @@ import type { OCRResult } from '../types';
  * - Custom models: use fields directly from documents[0].fields
  * - Prebuilt models: convert keyValuePairs to fields format
  */
-export async function upsertOcrResult(
-  documentId: string,
-  ocrResult: OCRResult
-): Promise<void> {
+export async function upsertOcrResult(params: {
+  documentId: string;
+  ocrResult: OCRResult;
+}): Promise<void> {
   const activityName = 'upsertOcrResult';
+  const { documentId, ocrResult } = params;
   const startTime = Date.now();
 
   console.log(JSON.stringify({

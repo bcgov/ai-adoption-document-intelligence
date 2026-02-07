@@ -36,12 +36,12 @@ describe('storeDocumentRejection activity', () => {
       annotations: 'Image too blurry',
     });
 
-    await storeDocumentRejection(
-      'doc-1',
-      'poor_quality',
-      'user@example.com',
-      'Image too blurry'
-    );
+    await storeDocumentRejection({
+      documentId: 'doc-1',
+      reason: 'poor_quality',
+      reviewer: 'user@example.com',
+      annotations: 'Image too blurry',
+    });
 
     expect(prismaMock.documentRejection.upsert).toHaveBeenCalledWith({
       where: { document_id: 'doc-1' },
@@ -68,7 +68,10 @@ describe('storeDocumentRejection activity', () => {
       annotations: null,
     });
 
-    await storeDocumentRejection('doc-2', 'invalid_format');
+    await storeDocumentRejection({
+      documentId: 'doc-2',
+      reason: 'invalid_format',
+    });
 
     expect(prismaMock.documentRejection.upsert).toHaveBeenCalledWith({
       where: { document_id: 'doc-2' },
@@ -95,12 +98,12 @@ describe('storeDocumentRejection activity', () => {
       annotations: 'Updated annotations',
     });
 
-    await storeDocumentRejection(
-      'doc-3',
-      'incorrect_data',
-      'reviewer@example.com',
-      'Updated annotations'
-    );
+    await storeDocumentRejection({
+      documentId: 'doc-3',
+      reason: 'incorrect_data',
+      reviewer: 'reviewer@example.com',
+      annotations: 'Updated annotations',
+    });
 
     expect(prismaMock.documentRejection.upsert).toHaveBeenCalled();
   });
@@ -110,7 +113,10 @@ describe('storeDocumentRejection activity', () => {
     prismaMock.documentRejection.upsert.mockRejectedValue(dbError);
 
     await expect(
-      storeDocumentRejection('doc-4', 'poor_quality')
+      storeDocumentRejection({
+        documentId: 'doc-4',
+        reason: 'poor_quality',
+      })
     ).rejects.toThrow('Database connection failed');
   });
 });

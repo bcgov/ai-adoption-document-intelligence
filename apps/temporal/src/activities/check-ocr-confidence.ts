@@ -5,12 +5,14 @@ import type { OCRResult } from '../types';
  * Activity: Calculate OCR confidence and prepare for human review if needed
  * Returns average confidence and whether human review is required
  */
-export async function checkOcrConfidence(
-  documentId: string,
-  ocrResult: OCRResult,
-  confidenceThreshold: number = 0.95
-): Promise<{ averageConfidence: number; requiresReview: boolean }> {
+export async function checkOcrConfidence(params: {
+  documentId: string;
+  ocrResult: OCRResult;
+  threshold?: number;
+}): Promise<{ averageConfidence: number; requiresReview: boolean }> {
   const activityName = 'checkOcrConfidence';
+  const { documentId, ocrResult, threshold = 0.95 } = params;
+  const confidenceThreshold = threshold;
 
   console.log(JSON.stringify({
     activity: activityName,

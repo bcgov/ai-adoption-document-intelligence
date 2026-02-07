@@ -47,7 +47,7 @@ describe('submitToAzureOCR activity', () => {
       modelId: 'prebuilt-layout',
     };
 
-    const result = await submitToAzureOCR(fileData);
+    const result = await submitToAzureOCR({ fileData });
 
     expect(result.statusCode).toBe(202);
     expect(result.apimRequestId).toBe('test-request-id-123');
@@ -83,7 +83,7 @@ describe('submitToAzureOCR activity', () => {
       modelId: 'custom-invoice-model',
     };
 
-    const result = await submitToAzureOCR(fileData);
+    const result = await submitToAzureOCR({ fileData });
 
     expect(result.statusCode).toBe(202);
     expect(result.apimRequestId).toBe('test-request-id-456');
@@ -109,7 +109,7 @@ describe('submitToAzureOCR activity', () => {
       modelId: 'prebuilt-layout',
     };
 
-    const result = await submitToAzureOCR(fileData);
+    const result = await submitToAzureOCR({ fileData });
 
     expect(result.apimRequestId).toBe('test-request-id-789');
   });

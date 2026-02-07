@@ -62,7 +62,7 @@ describe('checkOcrConfidence activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    const result = await checkOcrConfidence('doc-1', ocrResult, 0.95);
+    const result = await checkOcrConfidence({ documentId: 'doc-1', ocrResult, threshold: 0.95 });
 
     expect(result.averageConfidence).toBeCloseTo(0.97, 2);
     expect(result.requiresReview).toBe(false);
@@ -103,7 +103,7 @@ describe('checkOcrConfidence activity', () => {
 
     prismaMock.document.update.mockResolvedValue({ id: 'doc-2', status: 'ongoing_ocr' });
 
-    const result = await checkOcrConfidence('doc-2', ocrResult, 0.95);
+    const result = await checkOcrConfidence({ documentId: 'doc-2', ocrResult, threshold: 0.95 });
 
     expect(result.averageConfidence).toBeCloseTo(0.875, 3);
     expect(result.requiresReview).toBe(true);
@@ -151,7 +151,7 @@ describe('checkOcrConfidence activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    const result = await checkOcrConfidence('doc-3', ocrResult, 0.95);
+    const result = await checkOcrConfidence({ documentId: 'doc-3', ocrResult, threshold: 0.95 });
 
     expect(result.averageConfidence).toBeCloseTo(0.97, 2);
     expect(result.requiresReview).toBe(false);
@@ -190,7 +190,7 @@ describe('checkOcrConfidence activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    const result = await checkOcrConfidence('doc-4', ocrResult, 0.95);
+    const result = await checkOcrConfidence({ documentId: 'doc-4', ocrResult, threshold: 0.95 });
 
     expect(result.averageConfidence).toBeCloseTo(0.97, 2);
     expect(result.requiresReview).toBe(false);
@@ -226,7 +226,7 @@ describe('checkOcrConfidence activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    const result = await checkOcrConfidence('doc-5', ocrResult, 0.95);
+    const result = await checkOcrConfidence({ documentId: 'doc-5', ocrResult, threshold: 0.95 });
 
     expect(result.averageConfidence).toBe(1.0);
     expect(result.requiresReview).toBe(false);
@@ -251,7 +251,7 @@ describe('checkOcrConfidence activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    const result = await checkOcrConfidence('doc-6', ocrResult, 0.95);
+    const result = await checkOcrConfidence({ documentId: 'doc-6', ocrResult, threshold: 0.95 });
 
     expect(result.averageConfidence).toBe(0);
     expect(result.requiresReview).toBe(true);
@@ -289,7 +289,7 @@ describe('checkOcrConfidence activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    const result = await checkOcrConfidence('doc-7', ocrResult, 0.85);
+    const result = await checkOcrConfidence({ documentId: 'doc-7', ocrResult, threshold: 0.85 });
 
     expect(result.averageConfidence).toBeCloseTo(0.88, 2);
     expect(result.requiresReview).toBe(false);

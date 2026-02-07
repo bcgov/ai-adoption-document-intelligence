@@ -43,7 +43,7 @@ describe('pollOCRResults activity', () => {
 
     axiosMock.get.mockResolvedValue({ data: mockOCRResponse });
 
-    const result = await pollOCRResults('test-request-id', 'prebuilt-layout');
+    const result = await pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'prebuilt-layout' });
 
     expect(result.status).toBe('succeeded');
     expect(result.response).toEqual(mockOCRResponse);
@@ -64,7 +64,7 @@ describe('pollOCRResults activity', () => {
 
     axiosMock.get.mockResolvedValue({ data: mockOCRResponse });
 
-    const result = await pollOCRResults('test-request-id', 'prebuilt-layout');
+    const result = await pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'prebuilt-layout' });
 
     expect(result.status).toBe('running');
     expect(result.response).toEqual(mockOCRResponse);
@@ -79,7 +79,7 @@ describe('pollOCRResults activity', () => {
 
     axiosMock.get.mockResolvedValue({ data: mockOCRResponse });
 
-    const result = await pollOCRResults('test-request-id', 'prebuilt-layout');
+    const result = await pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'prebuilt-layout' });
 
     expect(result.status).toBe('failed');
     expect(result.response).toEqual(mockOCRResponse);
@@ -89,13 +89,13 @@ describe('pollOCRResults activity', () => {
     delete process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
     delete process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
 
-    await expect(pollOCRResults('test-request-id', 'prebuilt-layout')).rejects.toThrow(
+    await expect(pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'prebuilt-layout' })).rejects.toThrow(
       'Azure Document Intelligence credentials not configured'
     );
   });
 
   it('throws error when apimRequestId is missing', async () => {
-    await expect(pollOCRResults('', 'prebuilt-layout')).rejects.toThrow(
+    await expect(pollOCRResults({ apimRequestId: '', modelId: 'prebuilt-layout' })).rejects.toThrow(
       'APIM Request ID not available for polling'
     );
   });
@@ -103,7 +103,7 @@ describe('pollOCRResults activity', () => {
   it('throws error when response body is empty', async () => {
     axiosMock.get.mockResolvedValue({ data: null });
 
-    await expect(pollOCRResults('test-request-id', 'prebuilt-layout')).rejects.toThrow(
+    await expect(pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'prebuilt-layout' })).rejects.toThrow(
       'Empty response from Azure OCR polling endpoint'
     );
   });
@@ -124,7 +124,7 @@ describe('pollOCRResults activity', () => {
     axiosMock.get.mockRejectedValue(axiosError);
     (axiosMock.isAxiosError as unknown as jest.Mock) = jest.fn().mockReturnValue(true);
 
-    await expect(pollOCRResults('test-request-id', 'prebuilt-layout')).rejects.toThrow(
+    await expect(pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'prebuilt-layout' })).rejects.toThrow(
       'Request failed'
     );
   });
@@ -140,7 +140,7 @@ describe('pollOCRResults activity', () => {
 
     axiosMock.get.mockResolvedValue({ data: mockOCRResponse });
 
-    await pollOCRResults('test-request-id', 'prebuilt-layout');
+    await pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'prebuilt-layout' });
 
     const calledUrl = axiosMock.get.mock.calls[0][0] as string;
     expect(calledUrl).not.toContain('//documentModels');

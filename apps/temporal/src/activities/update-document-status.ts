@@ -4,13 +4,14 @@ import { getPrismaClient } from './database-client';
  * Activity: Update document status in database
  * Updates document status and optionally apim_request_id
  */
-export async function updateDocumentStatus(
-  documentId: string,
-  status: string,
-  apimRequestId?: string
-): Promise<void> {
+export async function updateDocumentStatus(params: {
+  documentId: string;
+  status: string;
+  apimRequestId?: string;
+}): Promise<void> {
   const activityName = 'updateDocumentStatus';
   const startTime = Date.now();
+  const { documentId, status, apimRequestId } = params;
 
   console.log(JSON.stringify({
     activity: activityName,

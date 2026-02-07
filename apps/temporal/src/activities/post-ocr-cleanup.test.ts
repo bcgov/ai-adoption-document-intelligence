@@ -21,7 +21,7 @@ describe('postOcrCleanup activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    const result = await postOcrCleanup(ocrResult);
+    const result = await postOcrCleanup({ ocrResult });
 
     expect(result.extractedText).toBe('Hello World-test"Hello"');
   });
@@ -45,7 +45,7 @@ describe('postOcrCleanup activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    const result = await postOcrCleanup(ocrResult);
+    const result = await postOcrCleanup({ ocrResult });
 
     expect(result.extractedText).toContain('document');
     expect(result.extractedText).toContain('hyphenation');
@@ -70,7 +70,7 @@ describe('postOcrCleanup activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    const result = await postOcrCleanup(ocrResult);
+    const result = await postOcrCleanup({ ocrResult });
 
     expect(result.extractedText).toContain('12/31/2024');
   });
@@ -94,7 +94,7 @@ describe('postOcrCleanup activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    const result = await postOcrCleanup(ocrResult);
+    const result = await postOcrCleanup({ ocrResult });
 
     expect(result.extractedText).toContain('105.00');
   });
@@ -144,7 +144,7 @@ describe('postOcrCleanup activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    const result = await postOcrCleanup(ocrResult);
+    const result = await postOcrCleanup({ ocrResult });
 
     expect(result.pages[0].words[0].content).toBe('Hello World');
     expect(result.pages[0].lines[0].content).toBe('Hello World');
@@ -177,7 +177,7 @@ describe('postOcrCleanup activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    const result = await postOcrCleanup(ocrResult);
+    const result = await postOcrCleanup({ ocrResult });
 
     expect(result.keyValuePairs[0].key.content).toBe('Name Key');
     expect(result.keyValuePairs[0].value?.content).toBe('Value-Text');
@@ -208,7 +208,7 @@ describe('postOcrCleanup activity', () => {
       pages: null as unknown as typeof ocrResult.pages,
     };
 
-    const result = await postOcrCleanup(brokenResult);
+    const result = await postOcrCleanup({ ocrResult: brokenResult });
 
     expect(result).toBe(brokenResult);
   });
@@ -233,7 +233,7 @@ describe('postOcrCleanup activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    await postOcrCleanup(ocrResult);
+    await postOcrCleanup({ ocrResult });
 
     expect(ocrResult.extractedText).toBe(originalText);
   });

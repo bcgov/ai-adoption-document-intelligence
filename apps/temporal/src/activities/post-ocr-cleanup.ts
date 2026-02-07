@@ -4,8 +4,11 @@ import type { OCRResult } from '../types';
  * Activity: Post-OCR processing cleanup
  * Performs text cleanup including unicode/encoding fixes, dehyphenation, and number/date normalization
  */
-export async function postOcrCleanup(ocrResult: OCRResult): Promise<OCRResult> {
+export async function postOcrCleanup(params: {
+  ocrResult: OCRResult;
+}): Promise<OCRResult> {
   const activityName = 'postOcrCleanup';
+  const { ocrResult } = params;
 
   console.log(JSON.stringify({
     activity: activityName,

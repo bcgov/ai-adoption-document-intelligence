@@ -66,7 +66,7 @@ describe('upsertOcrResult activity', () => {
     prismaMock.ocrResult.upsert.mockResolvedValue({ id: 1, document_id: 'doc-1' });
     prismaMock.document.update.mockResolvedValue({ id: 'doc-1', status: 'completed_ocr' });
 
-    await upsertOcrResult('doc-1', ocrResult);
+    await upsertOcrResult({ documentId: 'doc-1', ocrResult });
 
     expect(prismaMock.ocrResult.upsert).toHaveBeenCalledWith({
       where: { document_id: 'doc-1' },
@@ -126,7 +126,7 @@ describe('upsertOcrResult activity', () => {
     prismaMock.ocrResult.upsert.mockResolvedValue({ id: 2, document_id: 'doc-2' });
     prismaMock.document.update.mockResolvedValue({ id: 'doc-2', status: 'completed_ocr' });
 
-    await upsertOcrResult('doc-2', ocrResult);
+    await upsertOcrResult({ documentId: 'doc-2', ocrResult });
 
     expect(prismaMock.ocrResult.upsert).toHaveBeenCalledWith({
       where: { document_id: 'doc-2' },
@@ -181,7 +181,7 @@ describe('upsertOcrResult activity', () => {
     prismaMock.ocrResult.upsert.mockResolvedValue({ id: 3, document_id: 'doc-3' });
     prismaMock.document.update.mockResolvedValue({ id: 'doc-3', status: 'completed_ocr' });
 
-    await upsertOcrResult('doc-3', ocrResult);
+    await upsertOcrResult({ documentId: 'doc-3', ocrResult });
 
     const upsertCall = prismaMock.ocrResult.upsert.mock.calls[0][0];
     const keyValuePairs = upsertCall.update.keyValuePairs;
@@ -212,7 +212,7 @@ describe('upsertOcrResult activity', () => {
     prismaMock.ocrResult.upsert.mockResolvedValue({ id: 4, document_id: 'doc-4' });
     prismaMock.document.update.mockResolvedValue({ id: 'doc-4', status: 'completed_ocr' });
 
-    await upsertOcrResult('doc-4', ocrResult);
+    await upsertOcrResult({ documentId: 'doc-4', ocrResult });
 
     expect(prismaMock.ocrResult.upsert).toHaveBeenCalledWith({
       where: { document_id: 'doc-4' },
@@ -250,7 +250,7 @@ describe('upsertOcrResult activity', () => {
     const dbError = new Error('Database connection failed');
     prismaMock.ocrResult.upsert.mockRejectedValue(dbError);
 
-    await expect(upsertOcrResult('doc-5', ocrResult)).rejects.toThrow(
+    await expect(upsertOcrResult({ documentId: 'doc-5', ocrResult })).rejects.toThrow(
       'Database connection failed'
     );
   });

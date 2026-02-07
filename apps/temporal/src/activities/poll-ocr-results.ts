@@ -13,11 +13,12 @@ function normalizeEndpoint(url: string | undefined): string {
  * Activity: Poll Azure Document Intelligence for OCR results
  * Returns status and full response if available
  */
-export async function pollOCRResults(
-  apimRequestId: string,
-  modelId: string
-): Promise<PollResult> {
+export async function pollOCRResults(params: {
+  apimRequestId: string;
+  modelId: string;
+}): Promise<PollResult> {
   const activityName = 'pollOCRResults';
+  const { apimRequestId, modelId } = params;
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
 

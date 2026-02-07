@@ -13,14 +13,15 @@ function normalizeEndpoint(url: string | undefined): string {
  * Activity: Extract OCR results from Azure response
  * Parses and structures the OCR data
  */
-export async function extractOCRResults(
-  apimRequestId: string,
-  fileName: string,
-  fileType: string,
-  modelId: string,
-  ocrResponse?: OCRResponse
-): Promise<OCRResult> {
+export async function extractOCRResults(params: {
+  apimRequestId: string;
+  fileName: string;
+  fileType: string;
+  modelId: string;
+  ocrResponse?: OCRResponse;
+}): Promise<OCRResult> {
   const activityName = 'extractOCRResults';
+  const { apimRequestId, fileName, fileType, modelId, ocrResponse } = params;
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
 

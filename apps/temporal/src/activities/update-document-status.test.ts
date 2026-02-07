@@ -30,7 +30,7 @@ describe('updateDocumentStatus activity', () => {
   it('updates document status without apimRequestId', async () => {
     prismaMock.document.update.mockResolvedValue({ id: 'doc-1', status: 'ongoing_ocr' });
 
-    await updateDocumentStatus('doc-1', 'ongoing_ocr');
+    await updateDocumentStatus({ documentId: 'doc-1', status: 'ongoing_ocr' });
 
     expect(prismaMock.document.update).toHaveBeenCalledWith({
       where: { id: 'doc-1' },
@@ -45,7 +45,7 @@ describe('updateDocumentStatus activity', () => {
       apim_request_id: 'test-apim-id',
     });
 
-    await updateDocumentStatus('doc-2', 'ongoing_ocr', 'test-apim-id');
+    await updateDocumentStatus({ documentId: 'doc-2', status: 'ongoing_ocr', apimRequestId: 'test-apim-id' });
 
     expect(prismaMock.document.update).toHaveBeenCalledWith({
       where: { id: 'doc-2' },
@@ -59,7 +59,7 @@ describe('updateDocumentStatus activity', () => {
   it('updates to completed_ocr status', async () => {
     prismaMock.document.update.mockResolvedValue({ id: 'doc-3', status: 'completed_ocr' });
 
-    await updateDocumentStatus('doc-3', 'completed_ocr');
+    await updateDocumentStatus({ documentId: 'doc-3', status: 'completed_ocr' });
 
     expect(prismaMock.document.update).toHaveBeenCalledWith({
       where: { id: 'doc-3' },
@@ -71,7 +71,7 @@ describe('updateDocumentStatus activity', () => {
     const dbError = new Error('Database connection failed');
     prismaMock.document.update.mockRejectedValue(dbError);
 
-    await expect(updateDocumentStatus('doc-4', 'ongoing_ocr')).rejects.toThrow(
+    await expect(updateDocumentStatus({ documentId: 'doc-4', status: 'ongoing_ocr' })).rejects.toThrow(
       'Database connection failed'
     );
   });
@@ -80,7 +80,7 @@ describe('updateDocumentStatus activity', () => {
     const notFoundError = new Error('Record to update not found');
     prismaMock.document.update.mockRejectedValue(notFoundError);
 
-    await expect(updateDocumentStatus('non-existent', 'ongoing_ocr')).rejects.toThrow(
+    await expect(updateDocumentStatus({ documentId: 'non-existent', status: 'ongoing_ocr' })).rejects.toThrow(
       'Record to update not found'
     );
   });
