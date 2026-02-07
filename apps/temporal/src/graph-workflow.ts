@@ -23,7 +23,7 @@ import type {
   CancelSignal,
 } from './graph-workflow-types';
 import { validateGraphConfigForExecution } from './graph-schema-validator';
-import { runGraphExecution } from './graph-runner';
+import { runGraphExecution } from './graph-engine';
 
 // Workflow type constant
 export const GRAPH_WORKFLOW_TYPE = 'graphWorkflow';
