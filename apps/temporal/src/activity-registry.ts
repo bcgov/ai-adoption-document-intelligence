@@ -22,6 +22,7 @@ import {
   storeDocumentRejection,
 } from "./activities";
 import { splitDocument } from "./activities/split-document";
+import { classifyDocument } from "./activities/classify-document";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -131,9 +132,7 @@ register({
 
 register({
   activityType: "document.classify",
-  activityFn: async () => {
-    throw new Error("document.classify activity not yet implemented (see US-018)");
-  },
+  activityFn: classifyDocument as (...args: unknown[]) => Promise<unknown>,
   defaultTimeout: "2m",
   defaultRetry: { maximumAttempts: 3 },
   description: "Classify document type (rule-based)",
