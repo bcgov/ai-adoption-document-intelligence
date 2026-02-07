@@ -124,6 +124,8 @@ export async function graphWorkflow(
       ctx,
       selectedEdges: new Map(),
       mapBranchResults: new Map(),
+    configHash: input.configHash,
+    runnerVersion: input.runnerVersion,
     });
 
     // Update final state

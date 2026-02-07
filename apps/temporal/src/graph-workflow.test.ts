@@ -1122,4 +1122,143 @@ describe('Graph Workflow', () => {
       expect(result.completedNodes).not.toContain('approved');
     });
   });
+
+  describe('US-012: ChildWorkflow Node Handler', () => {
+    it('runs an inline child workflow and maps outputs to parent ctx', async () => {
+      const childGraph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Child Inline Graph',
+          description: 'Inline child graph',
+          version: '1.0.0',
+        },
+        nodes: {
+          prepare: {
+            id: 'prepare',
+            type: 'activity',
+            label: 'Prepare',
+            activityType: 'file.prepare',
+            inputs: [{ port: 'blobKey', ctxKey: 'blobKey' }],
+            outputs: [{ port: 'preparedData', ctxKey: 'ocrResult' }],
+          },
+        },
+        edges: [],
+        entryNodeId: 'prepare',
+        ctx: {
+          blobKey: { type: 'string' },
+          ocrResult: { type: 'object' },
+        },
+      };
+
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Parent Inline Child Test',
+          description: 'Parent graph with inline child',
+          version: '1.0.0',
+        },
+        nodes: {
+          child: {
+            id: 'child',
+            type: 'childWorkflow',
+            label: 'Child Inline',
+            workflowRef: { type: 'inline', graph: childGraph },
+            inputMappings: [{ port: 'blobKey', ctxKey: 'blobKey' }],
+            outputMappings: [{ port: 'ocrResult', ctxKey: 'segmentOcrResult' }],
+          },
+        },
+        edges: [],
+        entryNodeId: 'child',
+        ctx: {
+          blobKey: { type: 'string', defaultValue: 'blobs/segment.pdf' },
+          segmentOcrResult: { type: 'object' },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const result = await runWorkflow(
+        testEnv,
+        input,
+        'test-child-inline',
+      );
+
+      expect(result.status).toBe('completed');
+      expect(result.ctx.segmentOcrResult).toBeDefined();
+      expect(result.ctx.segmentOcrResult).toHaveProperty(
+        'blobKey',
+        'blobs/segment.pdf',
+      );
+    });
+
+    it('runs a library child workflow via activity lookup', async () => {
+      const libraryGraph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Library Graph',
+          description: 'Library child graph',
+          version: '1.0.0',
+        },
+        nodes: {
+          prepare: {
+            id: 'prepare',
+            type: 'activity',
+            label: 'Prepare',
+            activityType: 'file.prepare',
+            inputs: [{ port: 'blobKey', ctxKey: 'blobKey' }],
+            outputs: [{ port: 'preparedData', ctxKey: 'ocrResult' }],
+          },
+        },
+        edges: [],
+        entryNodeId: 'prepare',
+        ctx: {
+          blobKey: { type: 'string' },
+          ocrResult: { type: 'object' },
+        },
+      };
+
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: '1.0',
+        metadata: {
+          name: 'Parent Library Child Test',
+          description: 'Parent graph with library child',
+          version: '1.0.0',
+        },
+        nodes: {
+          child: {
+            id: 'child',
+            type: 'childWorkflow',
+            label: 'Child Library',
+            workflowRef: { type: 'library', workflowId: 'workflow-123' },
+            inputMappings: [{ port: 'blobKey', ctxKey: 'blobKey' }],
+            outputMappings: [{ port: 'ocrResult', ctxKey: 'segmentOcrResult' }],
+          },
+        },
+        edges: [],
+        entryNodeId: 'child',
+        ctx: {
+          blobKey: { type: 'string', defaultValue: 'blobs/library.pdf' },
+          segmentOcrResult: { type: 'object' },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const activitiesOverride: ActivityMap = {
+        getWorkflowGraphConfig: async () => ({ graph: libraryGraph }),
+      };
+
+      const result = await runWorkflow(
+        testEnv,
+        input,
+        'test-child-library',
+        activitiesOverride,
+      );
+
+      expect(result.status).toBe('completed');
+      expect(result.ctx.segmentOcrResult).toBeDefined();
+      expect(result.ctx.segmentOcrResult).toHaveProperty(
+        'blobKey',
+        'blobs/library.pdf',
+      );
+    });
+  });
 });

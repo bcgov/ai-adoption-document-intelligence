@@ -252,6 +252,13 @@ interface ChildWorkflowNode extends GraphNodeBase {
 }
 ```
 
+**Implementation details**:
+- Library refs load the graph config via an activity (`getWorkflowGraphConfig`) since workflow code cannot access the database directly.
+- Inline refs use the embedded graph as-is.
+- `inputMappings` populate the child workflow `initialCtx` (mapping port -> parent ctx value).
+- `outputMappings` read from the child workflow `ctx` and write to the parent ctx.
+- The child input includes `parentWorkflowId` set to the parent workflow ID.
+
 #### 4.2.6 PollUntil Node
 
 Repeatedly executes an activity until a condition is met.

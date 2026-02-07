@@ -90,7 +90,7 @@ After implementing the user story check it off at the bottom of this file
 - [x] **US-009** (map/join nodes)
 - [x] **US-010** (pollUntil node)
 - [x] **US-011** (humanGate node)
-- [ ] **US-012** (childWorkflow node)
+- [x] **US-012** (childWorkflow node)
 - [ ] **US-013** (error policy)
 
 ### Phase 5

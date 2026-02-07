@@ -14,6 +14,8 @@ import {
   condition,
   defineSignal,
   setHandler,
+  executeChild,
+  workflowInfo,
 } from '@temporalio/workflow';
 import type { Duration, RetryPolicy } from '@temporalio/common';
 import type {
@@ -27,6 +29,7 @@ import type {
   JoinNode,
   PollUntilNode,
   HumanGateNode,
+  ChildWorkflowNode,
   NodeStatus,
 } from './graph-workflow-types';
 import { isRegisteredActivityType } from './activity-types';
@@ -44,6 +47,8 @@ export interface ExecutionState {
   ctx: Record<string, unknown>;
   selectedEdges: Map<string, string>; // nodeId -> selected edgeId for switch nodes
   mapBranchResults: Map<string, unknown[]>; // mapNodeId -> array of branch results
+  configHash: string;
+  runnerVersion: string;
 }
 
 /**
@@ -56,6 +61,9 @@ export async function runGraphExecution(
   state: ExecutionState,
 ): Promise<GraphWorkflowResult> {
   const config = input.graph;
+
+  state.configHash = input.configHash;
+  state.runnerVersion = input.runnerVersion;
 
   // Step 1: Initialize context from defaults + initialCtx
   state.ctx = initializeContext(config, input.initialCtx);
@@ -367,8 +375,8 @@ async function executeNode(
       break;
 
     case 'childWorkflow':
-      // TODO: Implement in US-012
-      throw new Error('ChildWorkflow nodes not yet implemented');
+      await executeChildWorkflowNode(node as ChildWorkflowNode, state);
+      break;
 
     default:
       throw ApplicationFailure.create({
@@ -721,6 +729,67 @@ async function executeHumanGateNode(
   }
 }
 
+/**
+ * Execute a childWorkflow node
+ *
+ * US-012: ChildWorkflow node handler
+ *
+ * Starts a child graphWorkflow using an inline graph or a library reference.
+ */
+async function executeChildWorkflowNode(
+  node: ChildWorkflowNode,
+  state: ExecutionState,
+): Promise<void> {
+  const activityProxy = proxyActivities({
+    startToCloseTimeout: '30s' as Duration,
+    retry: { maximumAttempts: 3 } as RetryPolicy,
+  });
+
+  let childGraph: GraphWorkflowConfig;
+
+  if (node.workflowRef.type === 'inline') {
+    childGraph = node.workflowRef.graph;
+  } else {
+    const result = (await (
+      activityProxy.getWorkflowGraphConfig as (
+        params: Record<string, unknown>,
+      ) => Promise<Record<string, unknown>>
+    )({ workflowId: node.workflowRef.workflowId })) as {
+      graph: GraphWorkflowConfig;
+    };
+    childGraph = result.graph;
+  }
+
+  const initialCtx: Record<string, unknown> = {};
+  if (node.inputMappings) {
+    for (const mapping of node.inputMappings) {
+      initialCtx[mapping.port] = resolvePortBinding(
+        mapping.ctxKey,
+        state.ctx,
+      );
+    }
+  }
+
+  const childResult = await executeChild('graphWorkflow', {
+    args: [
+      {
+        graph: childGraph,
+        initialCtx,
+        configHash: state.configHash,
+        runnerVersion: state.runnerVersion,
+        parentWorkflowId: workflowInfo().workflowId,
+      },
+    ],
+  });
+
+  if (node.outputMappings) {
+    for (const mapping of node.outputMappings) {
+      const value = resolvePortBinding(mapping.port, childResult.ctx);
+      writeToCtx(mapping.ctxKey, value, state.ctx);
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Helper Functions
 // ---------------------------------------------------------------------------
@@ -747,6 +816,8 @@ async function executeBranchSubgraph(
     ctx: branchCtx,
     selectedEdges: new Map<string, string>(),
     mapBranchResults: new Map<string, unknown[]>(),
+    configHash: parentState.configHash,
+    runnerVersion: parentState.runnerVersion,
   };
 
   // Find all nodes in the subgraph using BFS
