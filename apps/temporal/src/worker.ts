@@ -4,7 +4,7 @@
  */
 
 import { NativeConnection, Worker } from '@temporalio/worker';
-import * as activities from './activities';
+import { getActivityRegistry } from './activity-registry';
 // Workflows are automatically discovered via workflowsPath in Worker.create()
 
 async function run() {
@@ -30,12 +30,19 @@ async function run() {
     // TLS configuration can be added here if needed
   });
 
+  // Build activities object from registry with namespaced type strings as keys
+  const registry = getActivityRegistry();
+  const activitiesMap: Record<string, (...args: unknown[]) => Promise<unknown>> = {};
+  for (const [activityType, entry] of registry) {
+    activitiesMap[activityType] = entry.activityFn;
+  }
+
   // Create worker
   const worker = await Worker.create({
     connection,
     namespace,
     workflowsPath: require.resolve('./graph-workflow'),
-    activities,
+    activities: activitiesMap,
     taskQueue,
   });
 
