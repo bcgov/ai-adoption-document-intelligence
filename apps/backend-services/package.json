@@ -17,6 +17,7 @@
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "test:int": "./integration-tests/run.sh",
+    "test:int:workflow": "ts-node -r tsconfig-paths/register integration-tests/test-graph-workflow.ts",
     "test:cov": "jest --coverage",
     "db:generate": "node ../shared/scripts/generate-prisma.js",
     "db:migrate": "prisma migrate dev",
