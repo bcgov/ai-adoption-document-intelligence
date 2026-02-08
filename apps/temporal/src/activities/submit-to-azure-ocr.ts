@@ -1,4 +1,7 @@
-import axios, { AxiosResponse } from 'axios';
+import DocumentIntelligence, {
+  type DocumentIntelligenceClient,
+  isUnexpected,
+} from '@azure-rest/ai-document-intelligence';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { PreparedFileData, SubmissionResult } from '../types';
@@ -98,28 +101,54 @@ export async function submitToAzureOCR(params: {
   const normalizedEndpoint = normalizeEndpoint(endpoint);
   const modelId = fileData.modelId || 'prebuilt-layout';
 
-  // Build URL - only include features param for prebuilt models
-  const isPrebuiltModel = modelId.startsWith('prebuilt-') || modelId === 'prebuilt-read';
-  const url = isPrebuiltModel
-    ? `${normalizedEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30&features=keyValuePairs`
-    : `${normalizedEndpoint}/documentModels/${modelId}:analyze?api-version=2024-11-30`;
-
   try {
+    // Initialize Azure Document Intelligence client with APIM-compatible configuration
+    const client: DocumentIntelligenceClient = DocumentIntelligence(
+      normalizedEndpoint,
+      { key: apiKey },
+      {
+        credentials: {
+          apiKeyHeaderName: 'api-key',
+        },
+      }
+    );
+
     const fileBuffer = await readBlobData(fileData.blobKey);
-    const response: AxiosResponse = await axios.post(url, fileBuffer, {
-      headers: {
-        'api-key': apiKey,
-        'Content-Type': fileData.contentType
+
+    // Build analyze options - only include features for prebuilt models
+    const isPrebuiltModel = modelId.startsWith('prebuilt-') || modelId === 'prebuilt-read';
+    const features = isPrebuiltModel ? ['keyValuePairs'] : undefined;
+
+    // Submit document for analysis using base64 encoding (APIM compatible)
+    const initialResponse = await client.path('/documentModels/{modelId}:analyze', modelId).post({
+      contentType: 'application/json',
+      queryParameters: {
+        features: features as any,
       },
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity
+      body: {
+        base64Source: fileBuffer.toString('base64'),
+      },
     });
 
-    const statusCode = response.status;
+    if (isUnexpected(initialResponse)) {
+      console.error(JSON.stringify({
+        activity: activityName,
+        event: 'error',
+        error: 'azure_api_error',
+        status: initialResponse.status,
+        body: initialResponse.body,
+        timestamp: new Date().toISOString()
+      }));
+      throw new Error(
+        `Failed to submit document to Azure OCR. Status: ${initialResponse.status}`
+      );
+    }
+
+    const statusCode = Number(initialResponse.status);
     const apimRequestId =
-      response.headers['apim-request-id'] ||
-      response.headers['Apim-Request-Id'] ||
-      response.headers['APIM-Request-Id'] ||
+      initialResponse.headers['apim-request-id'] ||
+      initialResponse.headers['Apim-Request-Id'] ||
+      initialResponse.headers['APIM-Request-Id'] ||
       null;
 
     // Validate status code
@@ -130,7 +159,7 @@ export async function submitToAzureOCR(params: {
         error: 'unexpected_status_code',
         statusCode,
         expectedStatusCode: 202,
-        responseData: response.data,
+        responseBody: initialResponse.body,
         timestamp: new Date().toISOString()
       }));
       throw new Error(
@@ -143,7 +172,7 @@ export async function submitToAzureOCR(params: {
         activity: activityName,
         event: 'error',
         error: 'missing_apim_request_id',
-        availableHeaders: Object.keys(response.headers),
+        availableHeaders: Object.keys(initialResponse.headers),
         timestamp: new Date().toISOString()
       }));
       throw new Error('APIM Request ID not found in response headers');
@@ -161,7 +190,7 @@ export async function submitToAzureOCR(params: {
     return {
       statusCode,
       apimRequestId: apimRequestId as string,
-      headers: response.headers as Record<string, string | string[]>
+      headers: initialResponse.headers as Record<string, string | string[]>
     };
   } catch (error) {
     const errorDetails: Record<string, unknown> = {
@@ -170,16 +199,6 @@ export async function submitToAzureOCR(params: {
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
     };
-
-    if (axios.isAxiosError(error)) {
-      errorDetails.axiosError = {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        url: error.config?.url,
-        method: error.config?.method,
-        responseData: error.response?.data
-      };
-    }
 
     if (error instanceof Error && error.stack) {
       errorDetails.stack = error.stack;

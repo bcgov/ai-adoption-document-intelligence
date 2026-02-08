@@ -1,4 +1,7 @@
-import axios from 'axios';
+import DocumentIntelligence, {
+  type DocumentIntelligenceClient,
+  isUnexpected,
+} from '@azure-rest/ai-document-intelligence';
 import type { OCRResponse, PollResult } from '../types';
 
 /**
@@ -103,16 +106,40 @@ export async function pollOCRResults(params: {
 
   const normalizedEndpoint = normalizeEndpoint(endpoint);
   const normalizedModelId = modelId || 'prebuilt-layout';
-  const url = `${normalizedEndpoint}/documentModels/${normalizedModelId}/analyzeResults/${apimRequestId}?api-version=2024-11-30`;
 
   try {
-    const response = await axios.get<OCRResponse>(url, {
-      headers: {
-        'api-key': apiKey
+    // Initialize Azure Document Intelligence client with APIM-compatible configuration
+    const client: DocumentIntelligenceClient = DocumentIntelligence(
+      normalizedEndpoint,
+      { key: apiKey },
+      {
+        credentials: {
+          apiKeyHeaderName: 'api-key',
+        },
       }
-    });
+    );
 
-    const responseBody = response.data;
+    // Poll for results
+    const response = await client
+      .path('/documentModels/{modelId}/analyzeResults/{resultId}', normalizedModelId, apimRequestId)
+      .get();
+
+    if (isUnexpected(response)) {
+      console.error(JSON.stringify({
+        activity: activityName,
+        event: 'error',
+        apimRequestId,
+        error: 'azure_api_error',
+        status: response.status,
+        body: response.body,
+        timestamp: new Date().toISOString()
+      }));
+      throw new Error(
+        `Failed to poll OCR results. Status: ${response.status}`
+      );
+    }
+
+    const responseBody = response.body as OCRResponse;
 
     if (!responseBody) {
       console.error(JSON.stringify({
@@ -147,15 +174,6 @@ export async function pollOCRResults(params: {
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
     };
-
-    if (axios.isAxiosError(error)) {
-      errorDetails.axiosError = {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        url: error.config?.url,
-        responseData: error.response?.data
-      };
-    }
 
     if (error instanceof Error && error.stack) {
       errorDetails.stack = error.stack;

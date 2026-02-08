@@ -37,7 +37,7 @@ async function readBlobData(blobKey: string): Promise<Buffer> {
  */
 export async function prepareFileData(
   input: PrepareFileDataInput,
-): Promise<PreparedFileData> {
+): Promise<{ preparedData: PreparedFileData }> {
   const activityName = 'prepareFileData';
   const blobKey = input.blobKey;
 
