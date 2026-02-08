@@ -258,4 +258,91 @@ describe("graph-schema-validator (temporal)", () => {
       );
     });
   });
+
+  // -----------------------------------------------------------------------
+  // Node Groups Validation
+  // -----------------------------------------------------------------------
+  describe("nodeGroups validation", () => {
+    it("valid nodeGroups pass validation", () => {
+      const config = makeMinimalGraph();
+      config.nodes["b"] = {
+        id: "b",
+        type: "activity",
+        label: "Step B",
+        activityType: "file.prepare",
+      } as ActivityNode;
+      config.edges = [{ id: "e1", source: "start", target: "b", type: "normal" }];
+      config.nodeGroups = {
+        group1: {
+          label: "Group 1",
+          nodeIds: ["start", "b"],
+        },
+      };
+      const result = validateGraphConfigForExecution(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("nodeGroups with empty nodeIds fails", () => {
+      const config = makeMinimalGraph();
+      config.nodeGroups = {
+        emptyGroup: {
+          label: "Empty",
+          nodeIds: [],
+        },
+      };
+      const result = validateGraphConfigForExecution(config);
+      expect(result.valid).toBe(false);
+      const error = result.errors.find((e) => e.path.includes("emptyGroup"));
+      expect(error).toBeDefined();
+      expect(error?.message).toContain("must have at least one nodeId");
+    });
+
+    it("nodeGroups referencing non-existent nodes fails", () => {
+      const config = makeMinimalGraph();
+      config.nodeGroups = {
+        badGroup: {
+          label: "Bad Group",
+          nodeIds: ["start", "nonExistent"],
+        },
+      };
+      const result = validateGraphConfigForExecution(config);
+      expect(result.valid).toBe(false);
+      const error = result.errors.find((e) => e.message.includes("nonExistent"));
+      expect(error).toBeDefined();
+    });
+
+    it("nodes in multiple groups produce warnings", () => {
+      const config = makeMinimalGraph();
+      config.nodes["b"] = {
+        id: "b",
+        type: "activity",
+        label: "Step B",
+        activityType: "file.prepare",
+      } as ActivityNode;
+      config.nodeGroups = {
+        group1: {
+          label: "Group 1",
+          nodeIds: ["start"],
+        },
+        group2: {
+          label: "Group 2",
+          nodeIds: ["start", "b"],
+        },
+      };
+      const result = validateGraphConfigForExecution(config);
+      expect(result.valid).toBe(true); // warnings don't fail validation
+      const warning = result.errors.find(
+        (e) => e.severity === "warning" && e.message.includes("multiple groups"),
+      );
+      expect(warning).toBeDefined();
+    });
+
+    it("config without nodeGroups passes validation", () => {
+      const config = makeMinimalGraph();
+      const result = validateGraphConfigForExecution(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
 });

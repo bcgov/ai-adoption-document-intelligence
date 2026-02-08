@@ -109,5 +109,52 @@
     { "id": "e3", "source": "processSegments", "target": "collectResults", "type": "normal" },
     { "id": "e4", "source": "collectResults", "target": "validateFields", "type": "normal" },
     { "id": "e5", "source": "validateFields", "target": "storeResults", "type": "normal" }
-  ]
+  ],
+  "nodeGroups": {
+    "prepare": {
+      "label": "Preparation",
+      "description": "Update status and split document into segments",
+      "icon": "prepare",
+      "color": "#3b82f6",
+      "nodeIds": ["updateStatus", "splitDocument"],
+      "exposedParams": [
+        {
+          "label": "Split Strategy",
+          "path": "nodes.splitDocument.parameters.strategy",
+          "type": "select",
+          "options": ["per-page", "fixed-range", "boundary-detection"],
+          "default": "boundary-detection"
+        }
+      ]
+    },
+    "segment-processing": {
+      "label": "Segment Processing",
+      "description": "Process each segment in parallel: OCR and classify",
+      "icon": "process",
+      "color": "#22c55e",
+      "nodeIds": ["processSegments", "segmentOcr", "classifySegment"],
+      "exposedParams": [
+        {
+          "label": "Max Concurrency",
+          "path": "nodes.processSegments.maxConcurrency",
+          "type": "number",
+          "default": 10
+        }
+      ]
+    },
+    "validation": {
+      "label": "Validation",
+      "description": "Collect results and validate fields across segments",
+      "icon": "validate",
+      "color": "#fb923c",
+      "nodeIds": ["collectResults", "validateFields"]
+    },
+    "store": {
+      "label": "Store Results",
+      "description": "Save processed results to database",
+      "icon": "save",
+      "color": "#8b5cf6",
+      "nodeIds": ["storeResults"]
+    }
+  }
 }

@@ -193,5 +193,67 @@
     { "id": "edge-switch-to-humanGate", "source": "reviewSwitch", "target": "humanReview", "type": "conditional", "condition": "requiresReview" },
     { "id": "edge-switch-to-store", "source": "reviewSwitch", "target": "storeResults", "type": "conditional", "condition": "default" },
     { "id": "e11", "source": "humanReview", "target": "storeResults", "type": "normal" }
-  ]
+  ],
+  "nodeGroups": {
+    "ocr-extraction": {
+      "label": "OCR Extraction",
+      "description": "Submit document to Azure Document Intelligence and retrieve results",
+      "icon": "scan",
+      "color": "#3b82f6",
+      "nodeIds": ["updateStatus", "prepareFileData", "submitOcr", "updateApimRequestId", "pollOcrResults", "extractResults"],
+      "exposedParams": [
+        {
+          "label": "OCR Model",
+          "path": "ctx.modelId.defaultValue",
+          "type": "select",
+          "options": ["prebuilt-layout", "prebuilt-read", "prebuilt-document"],
+          "default": "prebuilt-layout"
+        }
+      ]
+    },
+    "cleanup": {
+      "label": "Post-Processing",
+      "description": "Clean and normalize OCR results",
+      "icon": "cleanup",
+      "color": "#22c55e",
+      "nodeIds": ["postOcrCleanup"]
+    },
+    "quality-gate": {
+      "label": "Quality Gate",
+      "description": "Check OCR confidence and decide if human review is needed",
+      "icon": "quality",
+      "color": "#fb923c",
+      "nodeIds": ["checkConfidence", "reviewSwitch"],
+      "exposedParams": [
+        {
+          "label": "Confidence Threshold",
+          "path": "nodes.checkConfidence.parameters.threshold",
+          "type": "number",
+          "default": 0.95
+        }
+      ]
+    },
+    "human-review": {
+      "label": "Human Review",
+      "description": "Wait for human approval when confidence is low",
+      "icon": "human",
+      "color": "#ef4444",
+      "nodeIds": ["humanReview"],
+      "exposedParams": [
+        {
+          "label": "Review Timeout",
+          "path": "nodes.humanReview.timeout",
+          "type": "duration",
+          "default": "24h"
+        }
+      ]
+    },
+    "store": {
+      "label": "Store Results",
+      "description": "Save processed results to database",
+      "icon": "save",
+      "color": "#8b5cf6",
+      "nodeIds": ["storeResults"]
+    }
+  }
 }

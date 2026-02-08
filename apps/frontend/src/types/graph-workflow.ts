@@ -15,6 +15,7 @@ export interface GraphWorkflowConfig {
   edges: GraphEdge[];
   entryNodeId: string;
   ctx: Record<string, CtxDeclaration>;
+  nodeGroups?: Record<string, NodeGroup>;
 }
 
 export interface GraphMetadata {
@@ -28,6 +29,23 @@ export interface CtxDeclaration {
   type: "string" | "number" | "boolean" | "object" | "array";
   description?: string;
   defaultValue?: unknown;
+}
+
+export interface NodeGroup {
+  label: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  nodeIds: string[];
+  exposedParams?: ExposedParam[];
+}
+
+export interface ExposedParam {
+  label: string;
+  path: string;
+  type: "string" | "number" | "boolean" | "select" | "duration";
+  options?: string[];
+  default?: unknown;
 }
 
 // ---------------------------------------------------------------------------

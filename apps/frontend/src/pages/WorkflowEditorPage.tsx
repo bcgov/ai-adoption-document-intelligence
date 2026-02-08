@@ -4,6 +4,7 @@ import {
   Collapse,
   Group,
   Paper,
+  SegmentedControl,
   Stack,
   Text,
   TextInput,
@@ -261,6 +262,7 @@ export function WorkflowEditorPage({
     DEFAULT_GRAPH_CONFIG,
   );
   const [debouncedJson] = useDebouncedValue(jsonValue, 300);
+  const [viewMode, setViewMode] = useState<"detailed" | "simplified">("detailed");
   const initializedRef = useRef(false);
   const initialSnapshotRef = useRef<{
     name: string;
@@ -611,10 +613,24 @@ export function WorkflowEditorPage({
 
         <Paper withBorder p="md" style={{ flex: "0 0 44%" }}>
           <Stack gap="xs">
-            <Text fw={600}>Workflow preview</Text>
+            <Group justify="space-between" align="center">
+              <Text fw={600}>Workflow preview</Text>
+              {parsedConfig?.nodeGroups && Object.keys(parsedConfig.nodeGroups).length > 0 && (
+                <SegmentedControl
+                  size="xs"
+                  value={viewMode}
+                  onChange={(value) => setViewMode(value as "detailed" | "simplified")}
+                  data={[
+                    { label: "Simplified", value: "simplified" },
+                    { label: "Detailed", value: "detailed" },
+                  ]}
+                />
+              )}
+            </Group>
             <GraphVisualization
               config={parsedConfig}
               validationErrors={validationErrors}
+              viewMode={viewMode}
             />
           </Stack>
         </Paper>

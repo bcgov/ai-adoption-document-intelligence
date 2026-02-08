@@ -1069,4 +1069,132 @@ describe("graph-schema-validator", () => {
       expect(result.errors).toHaveLength(0);
     });
   });
+
+  // -----------------------------------------------------------------------
+  // Node Groups Validation
+  // -----------------------------------------------------------------------
+  describe("nodeGroups validation", () => {
+    it("valid nodeGroups pass validation", () => {
+      const config = makeLinearGraph();
+      config.nodeGroups = {
+        group1: {
+          label: "Group 1",
+          description: "First group",
+          icon: "test",
+          color: "#000000",
+          nodeIds: ["a", "b"],
+        },
+        group2: {
+          label: "Group 2",
+          nodeIds: ["c"],
+        },
+      };
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("nodeGroups with empty nodeIds fails", () => {
+      const config = makeLinearGraph();
+      config.nodeGroups = {
+        emptyGroup: {
+          label: "Empty",
+          nodeIds: [],
+        },
+      };
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(false);
+      const error = result.errors.find((e) => e.path.includes("emptyGroup"));
+      expect(error).toBeDefined();
+      expect(error?.message).toContain("must have at least one nodeId");
+    });
+
+    it("nodeGroups referencing non-existent nodes fails", () => {
+      const config = makeLinearGraph();
+      config.nodeGroups = {
+        badGroup: {
+          label: "Bad Group",
+          nodeIds: ["a", "nonExistent"],
+        },
+      };
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(false);
+      const error = result.errors.find((e) => e.message.includes("nonExistent"));
+      expect(error).toBeDefined();
+      expect(error?.severity).toBe("error");
+    });
+
+    it("nodes in multiple groups produce warnings", () => {
+      const config = makeLinearGraph();
+      config.nodeGroups = {
+        group1: {
+          label: "Group 1",
+          nodeIds: ["a", "b"],
+        },
+        group2: {
+          label: "Group 2",
+          nodeIds: ["b", "c"],
+        },
+      };
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(true); // warnings don't fail validation
+      const warning = result.errors.find(
+        (e) => e.severity === "warning" && e.message.includes("multiple groups"),
+      );
+      expect(warning).toBeDefined();
+      expect(warning?.message).toContain("group1, group2");
+    });
+
+    it("exposedParams with valid node paths pass", () => {
+      const config = makeLinearGraph();
+      config.nodeGroups = {
+        group1: {
+          label: "Group 1",
+          nodeIds: ["a"],
+          exposedParams: [
+            {
+              label: "Test Param",
+              path: "nodes.a.parameters.testParam",
+              type: "string",
+              default: "test",
+            },
+          ],
+        },
+      };
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("exposedParams referencing non-existent nodes fails", () => {
+      const config = makeLinearGraph();
+      config.nodeGroups = {
+        group1: {
+          label: "Group 1",
+          nodeIds: ["a"],
+          exposedParams: [
+            {
+              label: "Bad Param",
+              path: "nodes.nonExistent.parameters.test",
+              type: "string",
+            },
+          ],
+        },
+      };
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(false);
+      const error = result.errors.find((e) =>
+        e.message.includes("non-existent node"),
+      );
+      expect(error).toBeDefined();
+    });
+
+    it("config without nodeGroups passes validation", () => {
+      const config = makeLinearGraph();
+      // No nodeGroups field
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
 });

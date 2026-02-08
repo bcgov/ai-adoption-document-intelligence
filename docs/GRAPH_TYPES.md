@@ -95,3 +95,66 @@ interface BlobStorageInterface {
 ```
 
 Segment naming convention: `documents/{documentId}/segments/segment-{NNN}-pages-{start}-{end}.pdf`
+
+---
+
+## Node Groups (UI-Only Metadata)
+
+**Purpose**: `nodeGroups` is an optional field on `GraphWorkflowConfig` that provides UI-friendly grouping and parameter exposure for workflow visualization. It does **not** affect execution—the Temporal graph runner ignores it entirely.
+
+### Schema
+
+```typescript
+interface GraphWorkflowConfig {
+  // ... existing fields ...
+  nodeGroups?: Record<string, NodeGroup>;
+}
+
+interface NodeGroup {
+  label: string;              // Display name for the group
+  description?: string;        // Brief description of what this group does
+  icon?: string;              // Icon identifier (e.g., "scan", "cleanup", "human")
+  color?: string;             // Hex color for the group block (e.g., "#3b82f6")
+  nodeIds: string[];          // Array of node IDs that belong to this group
+  exposedParams?: ExposedParam[];
+}
+
+interface ExposedParam {
+  label: string;              // User-friendly parameter label
+  path: string;               // Dot-path into config (e.g., "nodes.checkConfidence.parameters.threshold")
+  type: "string" | "number" | "boolean" | "select" | "duration";
+  options?: string[];         // For type "select"
+  default?: unknown;          // Default value
+}
+```
+
+### Usage
+
+**Simplified View**: The frontend workflow editor supports a "Simplified" vs "Detailed" toggle. In simplified mode:
+- Nodes listed in `nodeGroups[].nodeIds` are collapsed into composite blocks
+- Ungrouped nodes appear individually
+- Edges between groups are aggregated (if multiple nodes in group A connect to group B, only one edge is shown)
+- Internal edges (both source and target in the same group) are hidden
+
+**Exposed Parameters**: `exposedParams` defines which configuration values should be editable in a simplified template-based UI (future feature). The `path` field uses dot notation to reference any field in the config.
+
+### Config Hash Behavior
+
+**Important**: The `nodeGroups` field is **excluded** from the config hash computation. Adding, removing, or modifying node groups does not change the config hash, does not bump the workflow version, and does not cause Temporal replay issues. This is because `applyDefaults()` in `config-hash.ts` explicitly constructs the output with only execution-relevant fields.
+
+### Validation
+
+The backend and temporal validators perform lightweight checks on `nodeGroups`:
+- Each group's `nodeIds` must be non-empty
+- All referenced `nodeIds` must exist in `config.nodes`
+- `exposedParams` paths starting with `nodes.` must reference existing nodes
+- A node appearing in multiple groups produces a **warning** (not an error)
+
+### Example
+
+See [`docs/templates/standard-ocr-workflow.json`](./templates/standard-ocr-workflow.json) for a complete example with 5 node groups:
+- `ocr-extraction`: 6 nodes (status updates, file prep, OCR submission, polling, extraction)
+- `cleanup`: 1 node (post-OCR cleanup)
+- `quality-gate`: 2 nodes (confidence check, switch)
+- `human-review`: 1 node (human gate)
+- `store`: 1 node (store results)

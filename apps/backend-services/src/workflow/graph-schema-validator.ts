@@ -83,6 +83,7 @@ export function validateGraphConfig(config: GraphWorkflowConfig): {
   validateExpressions(config, errors);
   validateDagStructure(config, errors);
   validateReachability(config, errors);
+  validateNodeGroups(config, errors);
 
   return {
     valid: errors.filter((e) => e.severity === "error").length === 0,
@@ -716,6 +717,84 @@ function markBodyNodesReachable(
           config,
         );
       }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Node Groups Validation
+// ---------------------------------------------------------------------------
+
+function validateNodeGroups(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+): void {
+  if (!config.nodeGroups) return;
+
+  const nodeIds = new Set(Object.keys(config.nodes));
+  const nodeToGroupMap = new Map<string, string[]>();
+
+  for (const [groupId, group] of Object.entries(config.nodeGroups)) {
+    // Check that nodeIds is non-empty
+    if (!group.nodeIds || group.nodeIds.length === 0) {
+      errors.push({
+        path: `nodeGroups.${groupId}.nodeIds`,
+        message: `Node group "${groupId}" must have at least one nodeId`,
+        severity: "error",
+      });
+      continue;
+    }
+
+    // Check that all referenced nodes exist
+    for (let i = 0; i < group.nodeIds.length; i++) {
+      const nodeId = group.nodeIds[i];
+      if (!nodeIds.has(nodeId)) {
+        errors.push({
+          path: `nodeGroups.${groupId}.nodeIds[${i}]`,
+          message: `Node group "${groupId}" references non-existent node: "${nodeId}"`,
+          severity: "error",
+        });
+      }
+
+      // Track which groups each node belongs to
+      if (!nodeToGroupMap.has(nodeId)) {
+        nodeToGroupMap.set(nodeId, []);
+      }
+      nodeToGroupMap.get(nodeId)!.push(groupId);
+    }
+
+    // Validate exposedParams paths
+    if (group.exposedParams) {
+      for (let i = 0; i < group.exposedParams.length; i++) {
+        const param = group.exposedParams[i];
+        const path = param.path;
+
+        // Check if path starts with "nodes." and references an existing node
+        if (path.startsWith("nodes.")) {
+          const parts = path.split(".");
+          if (parts.length >= 2) {
+            const referencedNodeId = parts[1];
+            if (!nodeIds.has(referencedNodeId)) {
+              errors.push({
+                path: `nodeGroups.${groupId}.exposedParams[${i}].path`,
+                message: `Exposed parameter path "${path}" references non-existent node: "${referencedNodeId}"`,
+                severity: "error",
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Check for nodes in multiple groups (warning, not error)
+  for (const [nodeId, groupIds] of nodeToGroupMap.entries()) {
+    if (groupIds.length > 1) {
+      errors.push({
+        path: `nodes.${nodeId}`,
+        message: `Node "${nodeId}" appears in multiple groups: ${groupIds.join(", ")}`,
+        severity: "warning",
+      });
     }
   }
 }
