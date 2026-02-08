@@ -6,7 +6,7 @@ import type { OCRResult } from '../types';
  */
 export async function postOcrCleanup(params: {
   ocrResult: OCRResult;
-}): Promise<OCRResult> {
+}): Promise<{ cleanedResult: OCRResult }> {
   const activityName = 'postOcrCleanup';
   const { ocrResult } = params;
 
@@ -193,7 +193,8 @@ export async function postOcrCleanup(params: {
       timestamp: new Date().toISOString()
     }));
 
-    return cleanedResult;
+    // Return with port name as key for output binding
+    return { cleanedResult };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(JSON.stringify({
@@ -205,6 +206,6 @@ export async function postOcrCleanup(params: {
       timestamp: new Date().toISOString()
     }));
     // Return original result if cleanup fails
-    return ocrResult;
+    return { cleanedResult: ocrResult };
   }
 }

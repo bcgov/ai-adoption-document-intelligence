@@ -19,7 +19,7 @@ export async function extractOCRResults(params: {
   fileType: string;
   modelId: string;
   ocrResponse?: OCRResponse;
-}): Promise<OCRResult> {
+}): Promise<{ ocrResult: OCRResult }> {
   const activityName = 'extractOCRResults';
   const { apimRequestId, fileName, fileType, modelId, ocrResponse } = params;
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
@@ -100,7 +100,8 @@ export async function extractOCRResults(params: {
       timestamp: new Date().toISOString()
     }));
 
-    return result;
+    // Return with port name as key for output binding
+    return { ocrResult: result };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(JSON.stringify({

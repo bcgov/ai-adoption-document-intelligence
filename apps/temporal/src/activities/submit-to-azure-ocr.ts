@@ -43,6 +43,7 @@ export async function submitToAzureOCR(params: {
   const startTime = Date.now();
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
+  const useMock = process.env.MOCK_AZURE_OCR === 'true';
 
   console.log(JSON.stringify({
     activity: activityName,
@@ -52,8 +53,32 @@ export async function submitToAzureOCR(params: {
     contentType: fileData.contentType,
     modelId: fileData.modelId,
     blobKey: fileData.blobKey,
+    useMock,
     timestamp: new Date().toISOString()
   }));
+
+  // Mock mode for testing
+  if (useMock) {
+    const mockRequestId = `mock-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const duration = Date.now() - startTime;
+
+    console.log(JSON.stringify({
+      activity: activityName,
+      event: 'complete_mock',
+      apimRequestId: mockRequestId,
+      durationMs: duration,
+      timestamp: new Date().toISOString()
+    }));
+
+    return {
+      statusCode: 202,
+      apimRequestId: mockRequestId,
+      headers: {
+        'apim-request-id': mockRequestId,
+        'operation-location': `https://mock.azure.com/results/${mockRequestId}`,
+      },
+    };
+  }
 
   if (!endpoint || !apiKey) {
     const duration = Date.now() - startTime;

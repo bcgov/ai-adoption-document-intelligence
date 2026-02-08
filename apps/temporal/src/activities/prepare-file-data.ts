@@ -111,6 +111,14 @@ export async function prepareFileData(
   // Get modelId from input, default to "prebuilt-layout"
   const modelId = input.modelId || 'prebuilt-layout';
 
+  const preparedData: PreparedFileData = {
+    fileName,
+    fileType,
+    contentType,
+    blobKey,
+    modelId
+  };
+
   console.log(JSON.stringify({
     activity: activityName,
     event: 'complete',
@@ -123,11 +131,8 @@ export async function prepareFileData(
     timestamp: new Date().toISOString()
   }));
 
+  // Return with port name as key for output binding
   return {
-    fileName,
-    fileType,
-    contentType,
-    blobKey,
-    modelId
+    preparedData
   };
 }

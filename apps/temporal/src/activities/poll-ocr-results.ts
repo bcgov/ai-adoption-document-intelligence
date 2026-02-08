@@ -21,14 +21,57 @@ export async function pollOCRResults(params: {
   const { apimRequestId, modelId } = params;
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
+  const useMock = process.env.MOCK_AZURE_OCR === 'true';
 
   console.log(JSON.stringify({
     activity: activityName,
     event: 'start',
     apimRequestId,
     modelId,
+    useMock,
     timestamp: new Date().toISOString()
   }));
+
+  // Mock mode for testing
+  if (useMock) {
+    const mockResponse: OCRResponse = {
+      status: 'succeeded',
+      createdDateTime: new Date().toISOString(),
+      lastUpdatedDateTime: new Date().toISOString(),
+      analyzeResult: {
+        apiVersion: '2024-11-30',
+        modelId: modelId || 'prebuilt-layout',
+        content: 'Mock OCR content for testing\nLine 2\nLine 3',
+        pages: [{
+          pageNumber: 1,
+          width: 8.5,
+          height: 11,
+          unit: 'inch',
+          words: [],
+          lines: [],
+          spans: [{ offset: 0, length: 50 }]
+        }],
+        paragraphs: [],
+        tables: [],
+        keyValuePairs: [],
+        sections: [],
+        figures: []
+      }
+    };
+
+    console.log(JSON.stringify({
+      activity: activityName,
+      event: 'complete_mock',
+      apimRequestId,
+      status: 'succeeded',
+      timestamp: new Date().toISOString()
+    }));
+
+    return {
+      status: 'succeeded',
+      response: mockResponse
+    };
+  }
 
   if (!endpoint || !apiKey) {
     console.error(JSON.stringify({
