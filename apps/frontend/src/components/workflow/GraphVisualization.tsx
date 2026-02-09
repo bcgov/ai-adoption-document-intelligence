@@ -299,12 +299,17 @@ const GroupNodeRenderer = memo(function GroupNodeRenderer({
   );
 });
 
-const LABEL_BASE_DISTANCE = 22;   // how close the first label is to the source node
-const LABEL_DISTANCE_STEP = 16;   // how far each additional parallel label moves down
+// Stagger labels by alternating: base position and higher (closer to source) to avoid overlap
+const LABEL_BASE_FRACTION = 0.75;       // main position halfway down the edge
+const LABEL_ALTERNATE_OFFSET = 0.28;   // odd-indexed labels this much higher (e.g. 50% vs 38%)
 
-function applyStaggeredLabelDistances(edges: Edge[]): Edge[] {
+function applyStaggeredLabelDistances(edges: Edge[], nodes: Node[]): Edge[] {
   const labeled = edges.filter((e) => !!e.label);
-  console.log("[applyStaggeredLabelDistances] edges in:", edges.length, "labeled:", labeled.length, "sample labels:", labeled.slice(0, 5).map((e) => ({ id: e.id, label: e.label, source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle })));
+
+  const nodePosition = new Map<string, { x: number; y: number }>();
+  for (const n of nodes) {
+    nodePosition.set(n.id, n.position ?? { x: 0, y: 0 });
+  }
 
   // Group by source + sourceHandle only so all edges leaving the same node (e.g. switch) get staggered
   const groups = new Map<string, Edge[]>();
@@ -316,32 +321,42 @@ function applyStaggeredLabelDistances(edges: Edge[]): Edge[] {
     groups.set(key, arr);
   }
 
-  console.log("[applyStaggeredLabelDistances] groups:", groups.size, "keys:", [...groups.keys()], "counts per group:", [...groups.values()].map((arr) => arr.length));
-
   const out = edges.map((e) => ({ ...e }));
   const byId = new Map(out.map((e) => [e.id, e] as const));
 
   for (const arr of groups.values()) {
-    const sorted = [...arr].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    // Sort by target node position (x then y) so stagger order matches visual left-to-right, top-to-bottom
+    const sorted = [...arr].sort((a, b) => {
+      const posA = nodePosition.get(a.target) ?? { x: 0, y: 0 };
+      const posB = nodePosition.get(b.target) ?? { x: 0, y: 0 };
+      if (posA.x !== posB.x) return posA.x - posB.x;
+      return posA.y - posB.y;
+    });
 
     sorted.forEach((edge, index) => {
       const e = byId.get(edge.id);
       if (!e) return;
 
+      // Alternate: even index = base (50%), odd index = higher (closer to source)
+      const fraction =
+        index % 2 === 0
+          ? LABEL_BASE_FRACTION
+          : Math.max(0.15, LABEL_BASE_FRACTION - LABEL_ALTERNATE_OFFSET);
       e.type = "staggerLabel";
       e.data = {
         ...(e.data as Record<string, unknown>),
-        labelDistance: LABEL_BASE_DISTANCE + index * LABEL_DISTANCE_STEP,
+        labelFraction: fraction,
       };
-      console.log("[applyStaggeredLabelDistances] edge", e.id, "type:", e.type, "label:", e.label, "labelDistance:", (e.data as Record<string, unknown>).labelDistance, "index:", index);
     });
   }
 
-  console.log("[applyStaggeredLabelDistances] out edges with type staggerLabel:", out.filter((e) => e.type === "staggerLabel").length, "sample:", out.filter((e) => e.type === "staggerLabel").slice(0, 5).map((e) => ({ id: e.id, type: e.type, label: e.label, labelDistance: (e.data as Record<string, unknown>)?.labelDistance })));
   return out;
 }
 
 interface StaggerLabelEdgeData {
+  /** Fraction along edge (0–1); labels start at 50% then stagger. */
+  labelFraction?: number;
+  /** Legacy: pixels from source (used if labelFraction not set). */
   labelDistance?: number;
   [key: string]: unknown;
 }
@@ -369,22 +384,28 @@ const StaggerLabelEdge = memo(function StaggerLabelEdge(props: EdgeProps) {
     targetY,
   });
 
-  const dist = (data as StaggerLabelEdgeData | undefined)?.labelDistance;
+  const edgeData = data as StaggerLabelEdgeData | undefined;
+  const fraction = edgeData?.labelFraction;
+  const distPx = edgeData?.labelDistance;
 
   let x = defaultLabelX;
   let y = defaultLabelY;
 
-  if (typeof dist === "number") {
-    const dx = targetX - sourceX;
-    const dy = targetY - sourceY;
-    const len = Math.hypot(dx, dy) || 1;
-    const t = Math.max(0, Math.min(1, dist / len));
+  const dx = targetX - sourceX;
+  const dy = targetY - sourceY;
+  const len = Math.hypot(dx, dy) || 1;
 
+  if (typeof fraction === "number") {
+    const t = Math.max(0, Math.min(1, fraction));
+    x = sourceX + dx * t;
+    y = sourceY + dy * t;
+  } else if (typeof distPx === "number") {
+    const t = Math.max(0, Math.min(1, distPx / len));
     x = sourceX + dx * t;
     y = sourceY + dy * t;
   }
 
-  console.log("[StaggerLabelEdge] label position", { id, dist, x, y, defaultLabelX, defaultLabelY, renderingLabel: !!label });
+  console.log("[StaggerLabelEdge] label position", { id, fraction, distPx, x, y, defaultLabelX, defaultLabelY, renderingLabel: !!label });
 
   const labelStyleObj = labelStyle as { fill?: string; fontSize?: number; fontWeight?: number } | undefined;
   const styleObj = style as { stroke?: string } | undefined;
@@ -1346,7 +1367,7 @@ export function GraphVisualization({
   const { nodes, edges } = useMemo(() => {
     const finalize = (result: { nodes: Node[]; edges: Edge[] }) => ({
       nodes: result.nodes,
-      edges: applyStaggeredLabelDistances(result.edges),
+      edges: applyStaggeredLabelDistances(result.edges, result.nodes),
     });
 
     if (!config) {
