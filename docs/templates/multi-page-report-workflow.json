@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "metadata": {
     "name": "Multi-Page Report Workflow (Keyword-Based Split)",
-    "description": "Multi-page report: initial OCR, keyword-based split/classify, type-specific child workflows, field validation",
+    "description": "Multi-page report: initial OCR, keyword-based split/classify (uses OCR page positions for markers), type-specific child workflows, field validation",
     "tags": ["multi-page", "classification", "keyword-split"]
   },
   "entryNodeId": "prepareFileData",
@@ -281,8 +281,8 @@
             "type": "arithmetic",
             "expression": {
               "operation": "difference",
-              "fields": ["grossPay", "totalDeductions"],
-              "equals": "netPay"
+              "fields": ["page2.grossPay", "page2.totalDeductions"],
+              "equals": "page2.netPay"
             },
             "operator": "approximately",
             "tolerance": { "amount": 0.05 },
@@ -309,8 +309,8 @@
           {
             "name": "deposits-match",
             "type": "array-match",
-            "primaryFields": ["page1.netPay", "page1.otherIncome"],
-            "attachmentFields": ["page3.deposits"],
+            "primaryFields": ["page1.netPay", "page1.totalOtherIncome"],
+            "attachmentFields": ["page3.amount"],
             "matchType": "all",
             "operator": "approximately",
             "tolerance": { "amount": 0.05 },

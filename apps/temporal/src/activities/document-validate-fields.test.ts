@@ -42,6 +42,110 @@ describe("validateDocumentFields activity", () => {
       expect(result.validationResults.summary.matched).toBe(2);
     });
 
+    it("extracts key-value pairs from combined segments for validation", async () => {
+      const input: DocumentValidateFieldsInput = {
+        documentId: "doc-12",
+        processedSegments: [
+          {
+            combinedSegment: {
+              segmentIndex: 1,
+              ocrResult: {
+                keyValuePairs: [
+                  {
+                    key: { content: "Gross pay:" },
+                    value: { content: "1,260.00" },
+                  },
+                  {
+                    key: { content: "Net pay (deposit):" },
+                    value: { content: "1,003.42" },
+                  },
+                  {
+                    key: { content: "Total other income:" },
+                    value: { content: "250.00" },
+                  },
+                ],
+              },
+            },
+          },
+          {
+            combinedSegment: {
+              segmentIndex: 2,
+              ocrResult: {
+                keyValuePairs: [
+                  {
+                    key: { content: "Gross pay:" },
+                    value: { content: "1,260.00" },
+                  },
+                  {
+                    key: { content: "Total deductions:" },
+                    value: { content: "256.58" },
+                  },
+                  {
+                    key: { content: "Net pay (direct deposit):" },
+                    value: { content: "1,003.42" },
+                  },
+                ],
+              },
+            },
+          },
+          {
+            combinedSegment: {
+              segmentIndex: 3,
+              ocrResult: {
+                keyValuePairs: [
+                  {
+                    key: { content: "Amount" },
+                    value: { content: "+250.00\n+1,003.42" },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+        rules: [
+          {
+            name: "gross-pay-match",
+            type: "field-match",
+            primaryField: "page1.grossPay",
+            attachmentField: "page2.grossPay",
+            operator: "approximately",
+            tolerance: { amount: 0.05 },
+            fieldType: "currency",
+          },
+          {
+            name: "deposits-match",
+            type: "array-match",
+            primaryFields: ["page1.netPay", "page1.totalOtherIncome"],
+            attachmentFields: ["page3.amount"],
+            matchType: "all",
+            operator: "approximately",
+            tolerance: { amount: 0.05 },
+            fieldType: "currency",
+          },
+          {
+            name: "pay-stub-arithmetic",
+            type: "arithmetic",
+            expression: {
+              operation: "difference",
+              fields: ["page2.grossPay", "page2.totalDeductions"],
+              equals: "page2.netPay",
+            },
+            operator: "approximately",
+            tolerance: { amount: 0.05 },
+            fieldType: "currency",
+          },
+        ],
+      };
+
+      const result = await validateDocumentFields(input);
+      const [grossPayMatch, depositsMatch, arithmeticMatch] =
+        result.validationResults.entries;
+
+      expect(grossPayMatch.matched).toBe(true);
+      expect(depositsMatch.matched).toBe(true);
+      expect(arithmeticMatch.matched).toBe(true);
+    });
+
     it("validates currency fields with tolerance", async () => {
       const input: DocumentValidateFieldsInput = {
         documentId: "doc-2",

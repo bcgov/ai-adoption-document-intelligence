@@ -19,7 +19,11 @@ describe('splitAndClassifyDocument', () => {
     jest.clearAllMocks();
   });
 
-function createMockOcrResult(text: string, pageCount: number): OCRResult {
+function createMockOcrResult(
+  text: string,
+  pageCount: number,
+  pageLines: string[][] = [],
+): OCRResult {
   return {
     success: true,
     status: 'succeeded',
@@ -35,7 +39,11 @@ function createMockOcrResult(text: string, pageCount: number): OCRResult {
       unit: 'inch',
       spans: [],
       words: [],
-      lines: [],
+      lines: (pageLines[i] ?? []).map((content) => ({
+        content,
+        polygon: [],
+        spans: [],
+      })),
       selectionMarks: [],
     })),
     paragraphs: [],
@@ -71,7 +79,13 @@ Pay stub content
 Page 5 — Supporting Document #2 (Bank Deposit Record)
 Bank record content`;
 
-      const ocrResult = createMockOcrResult(ocrText, 5);
+      const ocrResult = createMockOcrResult(ocrText, 5, [
+        ['Page 1 — Monthly Report (Financial Assistance Request)'],
+        [],
+        [],
+        ['Page 4 — Supporting Document #1 (Pay Stub)'],
+        ['Page 5 — Supporting Document #2 (Bank Deposit Record)'],
+      ]);
 
       mockSplitDocument.mockResolvedValue({
         segments: [
@@ -143,6 +157,70 @@ Bank record content`;
         confidence: 0.9,
       });
       expect(result.segments[2].keywordMatch).toContain('Page 5 — Supporting Document #2');
+    });
+
+    it('should use OCR page positions when page numbers are internal', async () => {
+      const ocrText = `Page 1 — Monthly Report (Financial Assistance Request)
+Some content here
+Page 2 — Supporting Document #1 (Pay Stub)
+Pay stub content
+Page 3 — Supporting Document #2 (Bank Deposit Record)
+Bank record content`;
+
+      const ocrResult = createMockOcrResult(ocrText, 5, [
+        ['Page 1 — Monthly Report (Financial Assistance Request)'],
+        [],
+        [],
+        ['Page 2 — Supporting Document #1 (Pay Stub)'],
+        ['Page 3 — Supporting Document #2 (Bank Deposit Record)'],
+      ]);
+
+      mockSplitDocument.mockResolvedValue({
+        segments: [
+          {
+            segmentIndex: 1,
+            pageRange: { start: 1, end: 3 },
+            blobKey: 'documents/doc1/segments/segment-001-pages-1-3.pdf',
+            pageCount: 3,
+          },
+          {
+            segmentIndex: 2,
+            pageRange: { start: 4, end: 4 },
+            blobKey: 'documents/doc1/segments/segment-002-pages-4-4.pdf',
+            pageCount: 1,
+          },
+          {
+            segmentIndex: 3,
+            pageRange: { start: 5, end: 5 },
+            blobKey: 'documents/doc1/segments/segment-003-pages-5-5.pdf',
+            pageCount: 1,
+          },
+        ],
+      });
+
+      const input: SplitAndClassifyInput = {
+        blobKey: 'documents/doc1/original.pdf',
+        ocrResult,
+        documentId: 'doc1',
+        keywordPatterns: defaultKeywordPatterns,
+      };
+
+      const result = await splitAndClassifyDocument(input);
+
+      expect(mockSplitDocument).toHaveBeenCalledWith({
+        blobKey: 'documents/doc1/original.pdf',
+        strategy: 'custom-ranges',
+        customRanges: [
+          { start: 1, end: 3 },
+          { start: 4, end: 4 },
+          { start: 5, end: 5 },
+        ],
+        documentId: 'doc1',
+      });
+
+      expect(result.segments[0].pageRange).toEqual({ start: 1, end: 3 });
+      expect(result.segments[1].pageRange).toEqual({ start: 4, end: 4 });
+      expect(result.segments[2].pageRange).toEqual({ start: 5, end: 5 });
     });
 
     it('should handle single-page document with one marker', async () => {

@@ -805,6 +805,12 @@ Initial registry entries (mapping from graph `activityType` to existing/new acti
 | `document.classify` | NEW: `classifyDocument` | Rule-based classification |
 | `document.validateFields` | NEW: `validateDocumentFields` | Validate fields across related documents |
 
+`document.validateFields` can consume map/join outputs that include
+`combinedSegment` objects with `ocrResult.keyValuePairs`. When present, the
+activity extracts key-value pairs into normalized fields (camelCase) and
+exposes them under `page{segmentIndex}` (e.g., `page2.grossPay`) while also
+making them available at the segment root for direct field paths.
+
 ### 5.6 Query and Signal Handlers
 
 The `graphWorkflow` exposes:

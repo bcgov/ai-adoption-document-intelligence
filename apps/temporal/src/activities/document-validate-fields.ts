@@ -63,12 +63,24 @@ export interface DocumentValidateFieldsOutput {
 // This keeps the system generic and prevents document-specific logic in the backend.
 const DEFAULT_RULES: ValidationRule[] = [];
 
+interface KeyValuePair {
+  key?: {
+    content?: string;
+    boundingRegions?: Array<{ pageNumber?: number }>;
+  };
+  value?: {
+    content?: string;
+    boundingRegions?: Array<{ pageNumber?: number }>;
+  };
+}
+
 export async function validateDocumentFields(
   input: DocumentValidateFieldsInput,
 ): Promise<DocumentValidateFieldsOutput> {
   const rules = input.rules && input.rules.length > 0 ? input.rules : DEFAULT_RULES;
-  const primary = input.processedSegments[0] ?? {};
-  const attachments = input.processedSegments.slice(1);
+  const normalizedSegments = normalizeProcessedSegments(input.processedSegments);
+  const primary = enrichPrimaryWithSegmentPages(normalizedSegments[0], normalizedSegments);
+  const attachments = normalizedSegments.slice(1);
 
   const entries: ValidationResultEntry[] = rules.map((rule) => {
     // Route to appropriate validator based on rule type
@@ -148,11 +160,22 @@ function parseCurrency(value: unknown): number | undefined {
     str = String(value);
   }
 
-  // Remove currency symbols, commas, and whitespace
-  const cleaned = str.replace(/[$,\s]/g, '').trim();
+  // Remove currency symbols, commas, whitespace, and leading plus sign
+  let cleaned = str.replace(/[$,\s]/g, '').trim();
+  let isNegative = false;
+  if (cleaned.startsWith('(') && cleaned.endsWith(')')) {
+    isNegative = true;
+    cleaned = cleaned.slice(1, -1);
+  }
+  cleaned = cleaned.replace(/^\+/, '');
+  cleaned = cleaned.replace(/[^0-9.-]/g, '');
   const num = Number(cleaned);
 
-  return Number.isFinite(num) ? num : undefined;
+  if (!Number.isFinite(num)) {
+    return undefined;
+  }
+
+  return isNegative ? -num : num;
 }
 
 function matchesWithTolerance(
@@ -197,6 +220,154 @@ function normalizeValue(value: unknown, fieldType?: string): string | number | u
     return value;
   }
   return String(value);
+}
+
+function normalizeProcessedSegments(
+  processedSegments: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  return processedSegments.map((segment) => {
+    const baseSegment = unwrapCombinedSegment(segment);
+    const derivedSegment: Record<string, unknown> = { ...baseSegment };
+    const extractedFields = extractKeyValueFields(baseSegment);
+
+    if (Object.keys(extractedFields).length > 0) {
+      const segmentIndex = getSegmentIndex(baseSegment);
+      if (segmentIndex !== undefined) {
+        const pageKey = `page${segmentIndex}`;
+        derivedSegment[pageKey] = mergeFieldValues(
+          derivedSegment[pageKey],
+          extractedFields,
+        );
+      }
+
+      for (const [key, value] of Object.entries(extractedFields)) {
+        derivedSegment[key] = mergeFieldValues(derivedSegment[key], value);
+      }
+    }
+
+    return derivedSegment;
+  });
+}
+
+function unwrapCombinedSegment(segment: Record<string, unknown>): Record<string, unknown> {
+  const combinedSegment = segment.combinedSegment;
+  if (combinedSegment && typeof combinedSegment === 'object') {
+    return combinedSegment as Record<string, unknown>;
+  }
+  return segment;
+}
+
+function getSegmentIndex(segment: Record<string, unknown>): number | undefined {
+  const value = segment.segmentIndex;
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function extractKeyValueFields(segment: Record<string, unknown>): Record<string, unknown> {
+  const ocrResult = segment.ocrResult;
+  if (!ocrResult || typeof ocrResult !== 'object') {
+    return {};
+  }
+
+  const keyValuePairs = (ocrResult as Record<string, unknown>).keyValuePairs;
+  if (!Array.isArray(keyValuePairs)) {
+    return {};
+  }
+
+  const extracted: Record<string, unknown> = {};
+
+  for (const pair of keyValuePairs as KeyValuePair[]) {
+    const rawKey = pair.key?.content ?? '';
+    const rawValue = pair.value?.content ?? '';
+    const normalizedKey = normalizeKey(rawKey);
+
+    if (!normalizedKey || !rawValue.trim()) {
+      continue;
+    }
+
+    const normalizedValue = normalizeKeyValue(rawValue);
+    extracted[normalizedKey] = mergeFieldValues(
+      extracted[normalizedKey],
+      normalizedValue,
+    );
+  }
+
+  return extracted;
+}
+
+function normalizeKey(label: string): string {
+  let cleaned = label.replace(/^[^a-zA-Z0-9]+/, '');
+  cleaned = cleaned.replace(/^[oO]\s+(?=[a-zA-Z])/, '');
+  cleaned = cleaned.replace(/\([^)]*\)/g, ' ');
+  cleaned = cleaned.replace(/[:;]+/g, ' ');
+  cleaned = cleaned.replace(/(?:^|\s)[+-]?\d[\d,.\s]*$/g, ' ');
+  cleaned = cleaned.replace(/[^a-zA-Z0-9]+/g, ' ').trim().toLowerCase();
+
+  if (!cleaned) {
+    return '';
+  }
+
+  const parts = cleaned.split(/\s+/);
+  return parts[0] + parts.slice(1).map(capitalize).join('');
+}
+
+function capitalize(value: string): string {
+  return value.length > 0 ? value[0].toUpperCase() + value.slice(1) : value;
+}
+
+function normalizeKeyValue(value: string): string | string[] {
+  const cleaned = value.replace(/\[\d+]/g, '').trim();
+  const lines = cleaned.split('\n').map((line) => line.trim()).filter(Boolean);
+  if (lines.length <= 1) {
+    return lines[0] ?? '';
+  }
+  return lines;
+}
+
+function mergeFieldValues(
+  existing: unknown,
+  incoming: unknown,
+): unknown {
+  if (existing === undefined) {
+    return incoming;
+  }
+
+  if (isRecord(existing) && isRecord(incoming)) {
+    return { ...existing, ...incoming };
+  }
+
+  const existingArray = Array.isArray(existing) ? existing : [existing];
+  const incomingArray = Array.isArray(incoming) ? incoming : [incoming];
+
+  return [...existingArray, ...incomingArray];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function enrichPrimaryWithSegmentPages(
+  primary: Record<string, unknown> | undefined,
+  segments: Array<Record<string, unknown>>,
+): Record<string, unknown> {
+  if (!primary) {
+    return {};
+  }
+
+  const enriched: Record<string, unknown> = { ...primary };
+
+  for (const segment of segments) {
+    const segmentIndex = getSegmentIndex(segment);
+    if (segmentIndex === undefined) {
+      continue;
+    }
+
+    const pageKey = `page${segmentIndex}`;
+    if (segment[pageKey] !== undefined) {
+      enriched[pageKey] = segment[pageKey];
+    }
+  }
+
+  return enriched;
 }
 
 // ============================================================================

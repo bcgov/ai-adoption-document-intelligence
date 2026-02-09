@@ -2,7 +2,7 @@ import type { OCRResult } from '../types';
 import { splitDocument, type DocumentSegment } from './split-document';
 
 export interface KeywordPattern {
-  pattern: string; // Regex pattern to match (must include capture group for page number)
+  pattern: string; // Regex pattern to match keyword text (capture group optional)
   segmentType: string; // Document type to assign when pattern matches
 }
 
@@ -61,10 +61,7 @@ export async function splitAndClassifyDocument(
   }
 
   // Step 1: Extract keyword markers from OCR text
-  const markers = extractKeywordMarkers(
-    ocrResult.extractedText,
-    keywordPatterns,
-  );
+  const markers = extractKeywordMarkers(ocrResult, keywordPatterns);
 
   // Step 2: Determine page ranges for each segment
   const totalPages = ocrResult.pages?.length ?? 0;
@@ -99,54 +96,99 @@ export async function splitAndClassifyDocument(
 }
 
 /**
- * Extract keyword markers from OCR text using regex patterns.
+ * Extract keyword markers from OCR output using regex patterns.
  *
  * Searches for patterns like "Page 1 — Monthly Report" and extracts:
- * - Page number (from capture group in regex)
+ * - Page number (from OCR page position when available)
  * - Segment type (from pattern configuration)
  * - Matched text (for debugging/logging)
  *
- * @param text - Extracted text from OCR
+ * @param ocrResult - OCR result with per-page content
  * @param patterns - Array of keyword patterns to match
  * @returns Array of markers sorted by page number
  */
 function extractKeywordMarkers(
-  text: string,
+  ocrResult: OCRResult,
   patterns: KeywordPattern[],
 ): KeywordMarker[] {
   const markers: KeywordMarker[] = [];
+  const compiledPatterns = patterns.map((pattern) => {
+    try {
+      return { ...pattern, regex: new RegExp(pattern.pattern, 'i') };
+    } catch (error) {
+      throw new Error(
+        `Invalid regex pattern "${pattern.pattern}": ${(error as Error).message}`,
+      );
+    }
+  });
+
+  const pageMarkers = extractMarkersFromPages(ocrResult, compiledPatterns);
+  if (pageMarkers.length > 0) {
+    pageMarkers.sort((a, b) => a.pageNumber - b.pageNumber);
+    return pageMarkers;
+  }
+
+  const text = ocrResult.extractedText ?? '';
   const lines = text.split('\n');
 
   for (const line of lines) {
-    for (const pattern of patterns) {
-      try {
-        const regex = new RegExp(pattern.pattern, 'i');
-        const match = regex.exec(line);
+    for (const pattern of compiledPatterns) {
+      const match = pattern.regex.exec(line);
 
-        if (match && match[1]) {
-          const pageNum = parseInt(match[1], 10);
-          if (!isNaN(pageNum) && pageNum > 0) {
-            // Check if we already have a marker for this page
-            const existing = markers.find((m) => m.pageNumber === pageNum);
-            if (!existing) {
-              markers.push({
-                pageNumber: pageNum,
-                segmentType: pattern.segmentType,
-                matchedText: line.trim(),
-              });
-            }
+      if (match && match[1]) {
+        const pageNum = parseInt(match[1], 10);
+        if (!isNaN(pageNum) && pageNum > 0) {
+          // Check if we already have a marker for this page
+          const existing = markers.find((m) => m.pageNumber === pageNum);
+          if (!existing) {
+            markers.push({
+              pageNumber: pageNum,
+              segmentType: pattern.segmentType,
+              matchedText: line.trim(),
+            });
           }
         }
-      } catch (error) {
-        throw new Error(
-          `Invalid regex pattern "${pattern.pattern}": ${(error as Error).message}`,
-        );
       }
     }
   }
 
   // Sort by page number
   markers.sort((a, b) => a.pageNumber - b.pageNumber);
+
+  return markers;
+}
+
+function extractMarkersFromPages(
+  ocrResult: OCRResult,
+  patterns: Array<KeywordPattern & { regex: RegExp }>,
+): KeywordMarker[] {
+  const markers: KeywordMarker[] = [];
+  const pages = ocrResult.pages ?? [];
+
+  for (const page of pages) {
+    const lines = page.lines ?? [];
+    if (lines.length === 0) {
+      continue;
+    }
+
+    for (const line of lines) {
+      for (const pattern of patterns) {
+        const match = pattern.regex.exec(line.content);
+        if (match) {
+          const existing = markers.find(
+            (marker) => marker.pageNumber === page.pageNumber,
+          );
+          if (!existing) {
+            markers.push({
+              pageNumber: page.pageNumber,
+              segmentType: pattern.segmentType,
+              matchedText: line.content.trim(),
+            });
+          }
+        }
+      }
+    }
+  }
 
   return markers;
 }
