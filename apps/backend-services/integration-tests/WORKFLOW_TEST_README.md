@@ -46,10 +46,13 @@ All of the following services must be running:
 
 The test uses the following environment variables (with defaults):
 
-- `BACKEND_URL` (default: `http://localhost:3001`)
+- `BACKEND_URL` (default: `http://localhost:3002`)
 - `TEMPORAL_ADDRESS` (default: `localhost:7233`)
 - `TEMPORAL_NAMESPACE` (default: `default`)
+- `TEST_API_KEY` (required for authentication)
 - `TEST_TIMEOUT` (default: `300000` ms / 5 minutes)
+- `WORKFLOW_TEMPLATE` (default: `standard-ocr-workflow`)
+- `TEST_FILE` (default: `test-document.jpg`)
 
 These are typically already configured in your `.env` file.
 
@@ -78,6 +81,21 @@ cd apps/backend-services
 ts-node -r tsconfig-paths/register integration-tests/test-graph-workflow.ts
 ```
 
+### Testing Different Workflows
+
+You can test different workflow templates by setting the `WORKFLOW_TEMPLATE` environment variable:
+
+```bash
+# Test standard OCR workflow (default)
+npm run test:int:workflow
+
+# Test multi-page report workflow
+WORKFLOW_TEMPLATE=multi-page-report-workflow npm run test:int:workflow
+
+# Test with a different file
+TEST_FILE=my-test-file.pdf WORKFLOW_TEMPLATE=multi-page-report-workflow npm run test:int:workflow
+```
+
 ## Test Flow
 
 ```
@@ -86,8 +104,8 @@ ts-node -r tsconfig-paths/register integration-tests/test-graph-workflow.ts
    └─ Check Backend API health endpoint
 
 2. Test Setup
-   ├─ Load workflow config from docs/templates/standard-ocr-workflow.json
-   ├─ Load test file (test-document.jpg)
+   ├─ Load workflow config from docs/templates/{WORKFLOW_TEMPLATE}.json
+   ├─ Load test file (from integration-tests/{TEST_FILE})
    ├─ Create workflow configuration in database
    └─ Upload document via /api/upload
 
@@ -171,8 +189,12 @@ When running successfully, you'll see output like:
 
 ## Test Data
 
-- **Workflow Template**: `docs/templates/standard-ocr-workflow.json`
-- **Test Document**: `apps/backend-services/integration-tests/test-document.jpg`
+- **Workflow Templates**:
+  - `docs/templates/standard-ocr-workflow.json` (default)
+  - `docs/templates/multi-page-report-workflow.json`
+- **Test Documents**:
+  - `apps/backend-services/integration-tests/test-document.jpg` (default)
+  - You can add your own test files and reference them via `TEST_FILE` env var
 
 ## Cleanup
 

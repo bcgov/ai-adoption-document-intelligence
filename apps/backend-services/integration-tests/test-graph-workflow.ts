@@ -23,6 +23,8 @@ const CONFIG = {
   TEST_API_KEY: process.env.TEST_API_KEY || '',
   TEST_TIMEOUT: parseInt(process.env.TEST_TIMEOUT || '300000', 10), // 5 minutes
   POLL_INTERVAL: 2000, // 2 seconds
+  WORKFLOW_TEMPLATE: process.env.WORKFLOW_TEMPLATE || 'standard-ocr-workflow',
+  TEST_FILE: process.env.TEST_FILE || 'test-document.jpg',
 };
 
 // --- Types ---
@@ -168,7 +170,7 @@ async function runPreflightChecks(): Promise<boolean> {
 // --- Test Data Preparation ---
 async function loadWorkflowConfig(): Promise<GraphWorkflowConfig> {
   log('Loading workflow configuration from template...');
-  const templatePath = path.join(__dirname, '../../../docs/templates/standard-ocr-workflow.json');
+  const templatePath = path.join(__dirname, `../../../docs/templates/${CONFIG.WORKFLOW_TEMPLATE}.json`);
 
   if (!fs.existsSync(templatePath)) {
     throw new Error(`Workflow template not found at ${templatePath}`);
@@ -178,12 +180,13 @@ async function loadWorkflowConfig(): Promise<GraphWorkflowConfig> {
   const config = JSON.parse(configData) as GraphWorkflowConfig;
 
   log(`Loaded workflow config: ${config.metadata.name || 'Unnamed'}`, 'success');
+  log(`Template: ${CONFIG.WORKFLOW_TEMPLATE}`, 'info');
   return config;
 }
 
 async function loadTestFile(): Promise<string> {
   log('Loading test document...');
-  const testFilePath = path.join(__dirname, 'test-document.jpg');
+  const testFilePath = path.join(__dirname, CONFIG.TEST_FILE);
 
   if (!fs.existsSync(testFilePath)) {
     throw new Error(`Test file not found at ${testFilePath}`);
@@ -193,6 +196,7 @@ async function loadTestFile(): Promise<string> {
   const base64 = fileBuffer.toString('base64');
 
   log(`Test file loaded: ${(fileBuffer.length / 1024).toFixed(2)} KB`, 'success');
+  log(`File: ${CONFIG.TEST_FILE}`, 'info');
   return base64;
 }
 
