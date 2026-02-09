@@ -21,14 +21,21 @@ export async function postOcrCleanup(params: {
   try {
     // Create a deep copy of the OCR result to avoid mutating the original
     const cleanedResult: OCRResult = {
-      ...ocrResult,
+      success: ocrResult.success,
+      status: ocrResult.status,
+      apimRequestId: ocrResult.apimRequestId,
+      fileName: ocrResult.fileName,
+      fileType: ocrResult.fileType,
+      modelId: ocrResult.modelId,
+      processedAt: ocrResult.processedAt,
       extractedText: ocrResult.extractedText,
       pages: ocrResult.pages.map(page => ({ ...page })),
       paragraphs: ocrResult.paragraphs.map(para => ({ ...para })),
       tables: ocrResult.tables.map(table => ({ ...table })),
       keyValuePairs: ocrResult.keyValuePairs.map(kvp => ({ ...kvp })),
       sections: ocrResult.sections.map(section => ({ ...section })),
-      figures: ocrResult.figures.map(figure => ({ ...figure }))
+      figures: ocrResult.figures.map(figure => ({ ...figure })),
+      documents: ocrResult.documents
     };
 
     // Helper function to clean text

@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Connection, Client, WorkflowExecutionStatusName } from '@temporalio/client';
 import * as dotenv from 'dotenv';
+import { spawn, ChildProcess } from 'child_process';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -25,6 +26,8 @@ const CONFIG = {
   POLL_INTERVAL: 2000, // 2 seconds
   WORKFLOW_TEMPLATE: process.env.WORKFLOW_TEMPLATE || 'standard-ocr-workflow',
   TEST_FILE: process.env.TEST_FILE || 'test-document.jpg',
+  MANAGE_WORKER: process.env.MANAGE_WORKER === 'true', // Set to 'true' to auto-start/stop worker
+  WORKER_STARTUP_DELAY: parseInt(process.env.WORKER_STARTUP_DELAY || '5000', 10), // 5 seconds
 };
 
 // --- Types ---
@@ -76,6 +79,7 @@ let workflowExecutionId: string | null = null;
 let api: AxiosInstance;
 let temporalClient: Client | null = null;
 let temporalConnection: Connection | null = null;
+let workerProcess: ChildProcess | null = null;
 
 // --- Utilities ---
 function log(message: string, type: 'info' | 'success' | 'error' | 'warn' = 'info'): void {
@@ -99,6 +103,89 @@ function section(title: string): void {
 
 async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// --- Worker Management ---
+async function startWorker(): Promise<void> {
+  if (!CONFIG.MANAGE_WORKER) {
+    log('Worker management disabled. Assuming worker is already running.', 'info');
+    return;
+  }
+
+  log('Starting Temporal worker process...', 'info');
+
+  const workerDir = path.join(__dirname, '../../../temporal');
+
+  workerProcess = spawn('npm', ['run', 'dev'], {
+    cwd: workerDir,
+    env: { ...process.env },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  // Pipe worker stdout with prefix
+  workerProcess.stdout?.on('data', (data: Buffer) => {
+    const lines = data.toString().split('\n').filter(line => line.trim());
+    lines.forEach(line => {
+      console.log(`\x1b[90m[WORKER]\x1b[0m ${line}`);
+    });
+  });
+
+  // Pipe worker stderr with prefix
+  workerProcess.stderr?.on('data', (data: Buffer) => {
+    const lines = data.toString().split('\n').filter(line => line.trim());
+    lines.forEach(line => {
+      console.log(`\x1b[90m[WORKER]\x1b[0m ${line}`);
+    });
+  });
+
+  workerProcess.on('error', (error) => {
+    log(`Worker process error: ${error.message}`, 'error');
+  });
+
+  workerProcess.on('exit', (code, signal) => {
+    if (code !== null && code !== 0) {
+      log(`Worker process exited with code ${code}`, 'warn');
+    } else if (signal) {
+      log(`Worker process killed with signal ${signal}`, 'warn');
+    }
+  });
+
+  log(`Worker process started (PID: ${workerProcess.pid})`, 'success');
+  log(`Waiting ${CONFIG.WORKER_STARTUP_DELAY}ms for worker to initialize...`, 'info');
+  await sleep(CONFIG.WORKER_STARTUP_DELAY);
+  log('Worker should be ready', 'success');
+}
+
+async function stopWorker(): Promise<void> {
+  if (!workerProcess) {
+    return;
+  }
+
+  log('Stopping worker process...', 'info');
+
+  return new Promise((resolve) => {
+    if (!workerProcess) {
+      resolve();
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      if (workerProcess && !workerProcess.killed) {
+        log('Worker did not stop gracefully, force killing...', 'warn');
+        workerProcess.kill('SIGKILL');
+      }
+      resolve();
+    }, 5000);
+
+    workerProcess.on('exit', () => {
+      clearTimeout(timeout);
+      log('Worker process stopped', 'success');
+      workerProcess = null;
+      resolve();
+    });
+
+    workerProcess.kill('SIGTERM');
+  });
 }
 
 // --- Pre-flight Checks ---
@@ -200,21 +287,20 @@ async function loadTestFile(): Promise<string> {
   return base64;
 }
 
-async function createWorkflowConfig(config: GraphWorkflowConfig): Promise<string> {
-  log('Creating workflow configuration in database...');
-
+async function findWorkflowConfig(workflowName: string): Promise<string> {
   try {
-    const response = await api.post('/api/workflows', {
-      name: config.metadata.name || 'Integration Test Workflow',
-      description: config.metadata.description || 'Workflow for integration testing',
-      config: config,
-    });
+    log(`Looking up existing workflow: ${workflowName}...`);
+    const listResponse = await api.get('/api/workflows');
+    const existingWorkflow = listResponse.data.workflows?.find((w: WorkflowInfo) => w.name === workflowName);
 
-    const workflowInfo = response.data.workflow as WorkflowInfo;
-    log(`Workflow config created with ID: ${workflowInfo.id}`, 'success');
-    return workflowInfo.id;
-  } catch (error) {
-    log(`Failed to create workflow config: ${error.message}`, 'error');
+    if (!existingWorkflow) {
+      throw new Error(`Workflow not found: ${workflowName}. Please ensure it exists in the database before running the test.`);
+    }
+
+    log(`Found workflow: ${existingWorkflow.id}`, 'success');
+    return existingWorkflow.id;
+  } catch (error: any) {
+    log(`Failed to find workflow: ${error.message}`, 'error');
     if (error.response) {
       log(`Response: ${JSON.stringify(error.response.data)}`, 'error');
     }
@@ -264,7 +350,8 @@ async function setupTestData(): Promise<void> {
   const workflowConfig = await loadWorkflowConfig();
   const fileBase64 = await loadTestFile();
 
-  testWorkflowConfigId = await createWorkflowConfig(workflowConfig);
+  testWorkflowConfigId = await findWorkflowConfig('multi-page-report-workflow');
+
   const uploadResponse = await uploadDocument(fileBase64, testWorkflowConfigId);
   testDocumentId = uploadResponse.id;
 
@@ -311,6 +398,64 @@ async function queryWorkflowProgress(): Promise<WorkflowProgress | null> {
   } catch (error) {
     // Query might not be available yet or workflow might not support it
     return null;
+  }
+}
+
+async function displayWorkflowHistory(): Promise<void> {
+  if (!temporalClient || !workflowExecutionId) {
+    return;
+  }
+
+  try {
+    log('\n📜 Workflow Execution History:', 'info');
+
+    const handle = temporalClient.workflow.getHandle(workflowExecutionId);
+
+    // Fetch workflow history events
+    const history = await handle.fetchHistory();
+    const events: any[] = history.events || [];
+
+    // Display failed workflow task events which contain worker errors
+    const failedEvents = events.filter(e =>
+      e.workflowTaskFailedEventAttributes ||
+      e.activityTaskFailedEventAttributes
+    );
+
+    if (failedEvents.length > 0) {
+      log(`\n🔍 Found ${failedEvents.length} failed events:`, 'warn');
+
+      failedEvents.forEach((event, idx) => {
+        if (event.workflowTaskFailedEventAttributes) {
+          const attrs = event.workflowTaskFailedEventAttributes;
+          log(`\n  [${idx + 1}] Workflow Task Failed:`, 'error');
+          log(`      Cause: ${attrs.cause}`, 'error');
+          if (attrs.failure) {
+            log(`      Message: ${attrs.failure.message}`, 'error');
+            if (attrs.failure.stackTrace) {
+              log(`      Stack Trace:`, 'error');
+              const lines = attrs.failure.stackTrace.split('\n').slice(0, 15);
+              lines.forEach((line: string) => log(`        ${line}`, 'error'));
+            }
+          }
+        }
+
+        if (event.activityTaskFailedEventAttributes) {
+          const attrs = event.activityTaskFailedEventAttributes;
+          log(`\n  [${idx + 1}] Activity Task Failed:`, 'error');
+          log(`      Activity Type: ${attrs.activityType?.name}`, 'error');
+          if (attrs.failure) {
+            log(`      Message: ${attrs.failure.message}`, 'error');
+            if (attrs.failure.stackTrace) {
+              log(`      Stack Trace:`, 'error');
+              const lines = attrs.failure.stackTrace.split('\n').slice(0, 15);
+              lines.forEach((line: string) => log(`        ${line}`, 'error'));
+            }
+          }
+        }
+      });
+    }
+  } catch (error: any) {
+    log(`Could not fetch workflow history: ${error.message}`, 'warn');
   }
 }
 
@@ -448,6 +593,7 @@ async function monitorWorkflow(): Promise<void> {
         }
 
         // Fetch detailed error information from workflow history
+        await displayWorkflowHistory();
         await displayDetailedErrorInfo();
         break;
       } else if (status.status === 'RUNNING') {
@@ -485,14 +631,13 @@ async function cleanup(): Promise<void> {
       }
     }
 
+    // Workflows are assumed to exist and are not deleted by the test
     if (testWorkflowConfigId) {
-      try {
-        await api.delete(`/api/workflows/${testWorkflowConfigId}`);
-        log(`Test workflow config deleted: ${testWorkflowConfigId}`, 'success');
-      } catch (error) {
-        log(`Could not delete workflow config: ${error.message}`, 'warn');
-      }
+      log(`Using workflow: ${testWorkflowConfigId} (not deleted)`, 'info');
     }
+
+    // Stop worker if we started it
+    await stopWorker();
   } catch (error) {
     log(`Cleanup error: ${error.message}`, 'warn');
   }
@@ -502,6 +647,16 @@ async function cleanup(): Promise<void> {
 async function runIntegrationTest(): Promise<void> {
   console.log('\n');
   section('🔍 Integration Test: Graph Workflow Execution');
+
+  // Setup signal handlers for graceful shutdown
+  const handleExit = async (signal: string) => {
+    log(`\nReceived ${signal}, cleaning up...`, 'warn');
+    await cleanup();
+    process.exit(1);
+  };
+
+  process.on('SIGINT', () => handleExit('SIGINT'));
+  process.on('SIGTERM', () => handleExit('SIGTERM'));
 
   try {
     // Initialize API client with API key authentication
@@ -520,14 +675,22 @@ async function runIntegrationTest(): Promise<void> {
       },
     });
 
+    // Start worker if configured to do so
+    if (CONFIG.MANAGE_WORKER) {
+      await startWorker();
+    }
+
     // Run pre-flight checks
     const checksOk = await runPreflightChecks();
     if (!checksOk) {
       log('Pre-flight checks failed. Please ensure all services are running.', 'error');
+      if (!CONFIG.MANAGE_WORKER) {
+        log('  - Temporal Worker: cd apps/temporal && npm run dev', 'info');
+      }
       log('  - Temporal Server: cd apps/temporal && docker-compose up -d', 'info');
-      log('  - Temporal Worker: cd apps/temporal && npm run dev', 'info');
       log('  - Backend Database: cd apps/backend-services && docker-compose up -d', 'info');
       log('  - Backend Services: cd apps/backend-services && npm run start:dev', 'info');
+      await cleanup();
       process.exit(1);
     }
 

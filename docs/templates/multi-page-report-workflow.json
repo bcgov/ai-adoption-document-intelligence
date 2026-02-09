@@ -10,6 +10,7 @@
     "documentId": { "type": "string" },
     "blobKey": { "type": "string" },
     "fileName": { "type": "string" },
+    "ocrConfidenceThreshold": { "type": "number", "defaultValue": 0.0, "description": "Confidence threshold for OCR segments (0.0 = no review required)" },
     "segments": { "type": "array", "description": "Array of { pageRange, blobKey, segmentIndex }" },
     "currentSegment": { "type": "object", "description": "Current segment in map iteration" },
     "segmentOcrResult": { "type": "object" },
@@ -59,11 +60,12 @@
       "label": "OCR Segment",
       "workflowRef": {
         "type": "library",
-        "workflowId": "standard-ocr-workflow-id"
+        "workflowId": "standard-ocr-workflow"
       },
       "inputMappings": [
         { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
-        { "port": "documentId", "ctxKey": "documentId" }
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "confidenceThreshold", "ctxKey": "ocrConfidenceThreshold" }
       ],
       "outputMappings": [{ "port": "ocrResult", "ctxKey": "segmentOcrResult" }]
     },

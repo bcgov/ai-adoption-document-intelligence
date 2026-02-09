@@ -88,8 +88,12 @@ export async function upsertOcrResult(params: {
       }));
     }
 
+    // Ensure processedAt is a valid date, fallback to current time if invalid
+    const processedDate = new Date(ocrResult.processedAt);
+    const validProcessedDate = isNaN(processedDate.getTime()) ? new Date() : processedDate;
+
     const updateObject = {
-      processed_at: new Date(ocrResult.processedAt),
+      processed_at: validProcessedDate,
       keyValuePairs: asJson(extractedFields),
     };
 

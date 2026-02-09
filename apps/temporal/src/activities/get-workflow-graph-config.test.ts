@@ -12,6 +12,7 @@ describe('getWorkflowGraphConfig activity', () => {
   let prismaMock: {
     workflow: {
       findUnique: jest.Mock;
+      findFirst: jest.Mock;
     };
   };
 
@@ -19,6 +20,7 @@ describe('getWorkflowGraphConfig activity', () => {
     prismaMock = {
       workflow: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
       },
     };
     getPrismaClientMock.mockReturnValue(prismaMock);
@@ -74,12 +76,51 @@ describe('getWorkflowGraphConfig activity', () => {
     });
   });
 
-  it('throws error when workflow not found', async () => {
+  it('loads workflow graph config by name when ID not found', async () => {
+    const mockConfig: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {
+        name: 'Standard OCR Workflow',
+      },
+      nodes: {
+        node1: {
+          id: 'node1',
+          type: 'activity',
+          label: 'Start',
+          activityType: 'testActivity',
+        },
+      },
+      edges: [],
+      entryNodeId: 'node1',
+      ctx: {},
+    };
+
     prismaMock.workflow.findUnique.mockResolvedValue(null);
+    prismaMock.workflow.findFirst.mockResolvedValue({
+      id: 'generated-id',
+      config: mockConfig,
+    });
+
+    const result = await getWorkflowGraphConfig({ workflowId: 'standard-ocr-workflow' });
+
+    expect(result.graph).toEqual(mockConfig);
+    expect(prismaMock.workflow.findUnique).toHaveBeenCalledWith({
+      where: { id: 'standard-ocr-workflow' },
+      select: { config: true },
+    });
+    expect(prismaMock.workflow.findFirst).toHaveBeenCalledWith({
+      where: { name: 'standard-ocr-workflow' },
+      select: { config: true },
+    });
+  });
+
+  it('throws error when workflow not found by ID or name', async () => {
+    prismaMock.workflow.findUnique.mockResolvedValue(null);
+    prismaMock.workflow.findFirst.mockResolvedValue(null);
 
     await expect(
       getWorkflowGraphConfig({ workflowId: 'non-existent' })
-    ).rejects.toThrow('Workflow not found: non-existent');
+    ).rejects.toThrow('Workflow not found by ID or name: non-existent');
   });
 
   it('throws error when workflow has no config', async () => {
@@ -90,7 +131,7 @@ describe('getWorkflowGraphConfig activity', () => {
 
     await expect(
       getWorkflowGraphConfig({ workflowId: 'workflow-2' })
-    ).rejects.toThrow('Workflow not found: workflow-2');
+    ).rejects.toThrow('Workflow not found by ID or name: workflow-2');
   });
 
   it('loads complex workflow graph with multiple nodes', async () => {

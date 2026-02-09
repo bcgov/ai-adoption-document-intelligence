@@ -20,6 +20,7 @@ import {
   checkOcrConfidence,
   upsertOcrResult,
   storeDocumentRejection,
+  getWorkflowGraphConfig,
 } from "./activities";
 import { splitDocument } from "./activities/split-document";
 import { classifyDocument } from "./activities/classify-document";
@@ -119,6 +120,14 @@ register({
   defaultTimeout: "30s",
   defaultRetry: { maximumAttempts: 5 },
   description: "Store document rejection data",
+});
+
+register({
+  activityType: "getWorkflowGraphConfig",
+  activityFn: getWorkflowGraphConfig as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 3 },
+  description: "Load workflow configuration from database",
 });
 
 // -- New activities (implementations in US-017, US-018, US-019) -------------

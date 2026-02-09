@@ -13,6 +13,7 @@
     "fileType": { "type": "string" },
     "contentType": { "type": "string" },
     "modelId": { "type": "string", "defaultValue": "prebuilt-layout" },
+    "confidenceThreshold": { "type": "number", "defaultValue": 0.95, "description": "OCR confidence threshold for human review" },
     "preparedFileData": { "type": "object" },
     "apimRequestId": { "type": "string" },
     "ocrResponse": { "type": "object" },
@@ -124,13 +125,13 @@
       "activityType": "ocr.checkConfidence",
       "inputs": [
         { "port": "documentId", "ctxKey": "documentId" },
-        { "port": "ocrResult", "ctxKey": "cleanedResult" }
+        { "port": "ocrResult", "ctxKey": "cleanedResult" },
+        { "port": "threshold", "ctxKey": "confidenceThreshold" }
       ],
       "outputs": [
         { "port": "averageConfidence", "ctxKey": "averageConfidence" },
         { "port": "requiresReview", "ctxKey": "requiresReview" }
       ],
-      "parameters": { "threshold": 0.95 },
       "timeout": { "startToClose": "30s" },
       "retry": { "maximumAttempts": 3 }
     },
