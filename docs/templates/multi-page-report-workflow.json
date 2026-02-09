@@ -369,42 +369,6 @@
       "color": "#22c55e",
       "nodeIds": ["splitAndClassify"]
     },
-    "segment-processing": {
-      "label": "Segment Processing",
-      "description": "Process each segment with type-specific OCR workflow",
-      "icon": "process",
-      "color": "#f59e0b",
-      "nodeIds": ["processSegments", "segmentRouter", "monthlyReportOcr", "payStubOcr", "bankRecordOcr", "unknownDocOcr", "passthrough"],
-      "exposedParams": [
-        {
-          "label": "Monthly Report Model ID",
-          "path": "ctx.monthlyReportModelId.defaultValue",
-          "type": "select",
-          "options": ["prebuilt-layout", "prebuilt-read", "prebuilt-document"],
-          "default": "prebuilt-layout"
-        },
-        {
-          "label": "Pay Stub Model ID",
-          "path": "ctx.payStubModelId.defaultValue",
-          "type": "select",
-          "options": ["prebuilt-layout", "prebuilt-read", "prebuilt-document"],
-          "default": "prebuilt-layout"
-        },
-        {
-          "label": "Bank Record Model ID",
-          "path": "ctx.bankRecordModelId.defaultValue",
-          "type": "select",
-          "options": ["prebuilt-layout", "prebuilt-read", "prebuilt-document"],
-          "default": "prebuilt-layout"
-        },
-        {
-          "label": "Max Concurrency",
-          "path": "nodes.processSegments.maxConcurrency",
-          "type": "number",
-          "default": 10
-        }
-      ]
-    },
     "validation": {
       "label": "Validation",
       "description": "Collect results and validate fields across segments",

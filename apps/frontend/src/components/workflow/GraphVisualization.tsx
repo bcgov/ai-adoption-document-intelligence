@@ -27,7 +27,8 @@ import {
   IconCornerDownRight,
 } from "@tabler/icons-react";
 import { Badge } from "@mantine/core";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useEffect, useRef } from "react";
+import type { ReactFlowInstance } from "@xyflow/react";
 import type { GraphNode, GraphWorkflowConfig, GraphEdge, MapNode, ChildWorkflowNode } from "../../types/workflow";
 
 export interface GraphVisualizationError {
@@ -831,6 +832,244 @@ function layoutGraphWithMapContainers(
   return { nodes: finalNodes, edges };
 }
 
+function buildHybridView(
+  config: GraphWorkflowConfig,
+  errorNodeIds: Set<string>,
+): { nodes: Node[]; edges: Edge[] } {
+  // Hybrid view: simplified groups for regular nodes + detailed map containers
+  const nodeGroups = config.nodeGroups!;
+  const mappedNodes: Node[] = [];
+  const mappedEdges: Edge[] = [];
+
+  // Identify map body nodes
+  const bodyNodeToMapNode = identifyMapBodyNodes(config);
+  const mapNodeToBodyNodes = new Map<string, string[]>();
+  for (const [bodyNodeId, mapNodeId] of bodyNodeToMapNode.entries()) {
+    if (!mapNodeToBodyNodes.has(mapNodeId)) {
+      mapNodeToBodyNodes.set(mapNodeId, []);
+    }
+    mapNodeToBodyNodes.get(mapNodeId)!.push(bodyNodeId);
+  }
+
+  // Build a map of nodeId -> groupId for fast lookup
+  const nodeToGroupMap = new Map<string, string>();
+  for (const [groupId, group] of Object.entries(nodeGroups)) {
+    for (const nodeId of group.nodeIds) {
+      // Don't group map containers or their body nodes
+      const node = config.nodes[nodeId];
+      if (node && node.type !== "map" && !bodyNodeToMapNode.has(nodeId)) {
+        nodeToGroupMap.set(nodeId, groupId);
+      }
+    }
+  }
+
+  // Build group nodes (for non-map nodes only)
+  for (const [groupId, group] of Object.entries(nodeGroups)) {
+    // Check if this group contains any non-map nodes
+    const nonMapNodeIds = group.nodeIds.filter(nodeId => {
+      const node = config.nodes[nodeId];
+      return node && node.type !== "map";
+    });
+
+    if (nonMapNodeIds.length > 0) {
+      mappedNodes.push({
+        id: groupId,
+        type: "groupNode",
+        position: { x: 0, y: 0 },
+        width: 220,
+        height: 90,
+        data: {
+          label: group.label,
+          description: group.description,
+          icon: group.icon,
+          color: group.color || "#3b82f6",
+          nodeCount: nonMapNodeIds.length,
+        } as unknown as Record<string, unknown>,
+      });
+    }
+  }
+
+  // Build ungrouped regular nodes AND all map containers with their body nodes
+  const ungroupedNodeIds = Object.keys(config.nodes).filter(
+    (nodeId) => !nodeToGroupMap.has(nodeId) && !bodyNodeToMapNode.has(nodeId),
+  );
+
+  for (const nodeId of ungroupedNodeIds) {
+    const node = config.nodes[nodeId];
+
+    if (node.type === "map") {
+      // Render map container with full detail (copied from buildDetailedViewWithMapContainers)
+      const mapNode = node as MapNode;
+      const bodyNodeIds = mapNodeToBodyNodes.get(node.id) || [];
+
+      // Calculate container size based on layers
+      const PADDING = 24;
+      const HEADER_HEIGHT = 50;
+      const NODE_GAP = 40;
+      const TOP_PADDING = 40;
+      const BOTTOM_PADDING = 25;
+
+      const layersMap = computeBodyNodeLayers(bodyNodeIds, config.edges, mapNode.bodyEntryNodeId);
+      const numLayers = layersMap.size;
+
+      const maxLayerWidth = Math.max(...Array.from(layersMap.values()).map(layerNodes => {
+        const nodesWidth = layerNodes.reduce((sum, nodeId) => {
+          return sum + NODE_DIMENSIONS[config.nodes[nodeId].type].width;
+        }, 0);
+        const gaps = Math.max(0, layerNodes.length - 1) * NODE_GAP;
+        return nodesWidth + gaps;
+      }));
+
+      const containerWidth = Math.max(250, maxLayerWidth + PADDING * 2);
+
+      const layerHeights = Array.from(layersMap.values()).map(layerNodeIds => {
+        return Math.max(...layerNodeIds.map(nodeId =>
+          NODE_DIMENSIONS[config.nodes[nodeId].type].height
+        ));
+      });
+      const totalLayersHeight = layerHeights.reduce((sum, h) => sum + h, 0);
+      const containerHeight = HEADER_HEIGHT + TOP_PADDING +
+        totalLayersHeight +
+        (Math.max(0, numLayers - 1) * LAYER_GAP) +
+        BOTTOM_PADDING;
+
+      // Add map container node
+      mappedNodes.push({
+        id: node.id,
+        type: "mapContainer",
+        position: { x: 0, y: 0 },
+        width: containerWidth,
+        height: containerHeight,
+        data: {
+          label: node.label,
+          type: node.type,
+          hasError: errorNodeIds.has(node.id),
+        } as unknown as Record<string, unknown>,
+      });
+
+      // Add body nodes as children
+      for (const bodyNodeId of bodyNodeIds) {
+        const bodyNode = config.nodes[bodyNodeId];
+        const dimensions = NODE_DIMENSIONS[bodyNode.type];
+        const workflowRef = bodyNode.type === "childWorkflow"
+          ? (bodyNode as ChildWorkflowNode).workflowRef
+          : undefined;
+
+        mappedNodes.push({
+          id: bodyNode.id,
+          type: "graphNode",
+          position: { x: 0, y: 0 },
+          parentId: node.id,
+          width: dimensions.width,
+          height: dimensions.height,
+          data: {
+            label: bodyNode.label,
+            type: bodyNode.type,
+            hasError: errorNodeIds.has(bodyNode.id),
+            workflowRef,
+          } as unknown as Record<string, unknown>,
+        });
+      }
+    } else {
+      // Regular ungrouped node
+      const dimensions = NODE_DIMENSIONS[node.type];
+      mappedNodes.push({
+        id: node.id,
+        type: "graphNode",
+        position: { x: 0, y: 0 },
+        width: dimensions.width,
+        height: dimensions.height,
+        data: {
+          label: node.label,
+          type: node.type,
+          hasError: errorNodeIds.has(node.id),
+        } as unknown as Record<string, unknown>,
+      });
+    }
+  }
+
+  // Build edges between groups, map containers, and ungrouped nodes
+  const edgeSet = new Set<string>();
+  for (const edge of config.edges) {
+    const sourceMapParent = bodyNodeToMapNode.get(edge.source);
+    const targetMapParent = bodyNodeToMapNode.get(edge.target);
+    const isInternalEdge = sourceMapParent && targetMapParent && sourceMapParent === targetMapParent;
+
+    if (isInternalEdge) {
+      // Internal edge within map body - use vertical connections
+      const label = buildEdgeLabel(edge);
+      const isConditional = edge.type === "conditional";
+      const isError = edge.type === "error";
+      const color = isError ? "#ef4444" : "#4b5563";
+
+      mappedEdges.push({
+        id: edge.id,
+        source: edge.source,
+        sourceHandle: "bottom",
+        target: edge.target,
+        targetHandle: "top",
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color,
+        },
+        animated: false,
+        style: {
+          stroke: color,
+          strokeWidth: 2,
+          strokeDasharray: isConditional || isError ? "6 4" : "0",
+        },
+        label,
+        labelStyle: {
+          fill: color,
+          fontSize: 11,
+          fontWeight: 500,
+        },
+      });
+    } else {
+      // External edge - check for groups
+      const sourceGroup = nodeToGroupMap.get(edge.source);
+      const targetGroup = nodeToGroupMap.get(edge.target);
+
+      // Skip internal group edges
+      if (sourceGroup && targetGroup && sourceGroup === targetGroup) {
+        continue;
+      }
+
+      const effectiveSource = sourceGroup || edge.source;
+      const effectiveTarget = targetGroup || edge.target;
+      const edgeKey = `${effectiveSource}->${effectiveTarget}`;
+
+      if (edgeSet.has(edgeKey)) {
+        continue;
+      }
+      edgeSet.add(edgeKey);
+
+      const isConditional = edge.type === "conditional";
+      const isError = edge.type === "error";
+      const color = isError ? "#ef4444" : "#4b5563";
+
+      mappedEdges.push({
+        id: `hybrid-${edge.id}`,
+        source: effectiveSource,
+        target: effectiveTarget,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color,
+        },
+        animated: false,
+        style: {
+          stroke: color,
+          strokeWidth: 2,
+          strokeDasharray: isConditional || isError ? "6 4" : "0",
+        },
+      });
+    }
+  }
+
+  // Use layoutGraphWithMapContainers to position everything including map body nodes
+  return layoutGraphWithMapContainers(mappedNodes, mappedEdges, mapNodeToBodyNodes, config);
+}
+
 function buildSimplifiedView(
   config: GraphWorkflowConfig,
   errorNodeIds: Set<string>,
@@ -936,6 +1175,8 @@ export function GraphVisualization({
   validationErrors,
   viewMode = "detailed",
 }: GraphVisualizationProps) {
+  const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
+
   const errorNodeIds = useMemo(
     () => extractNodeIdsWithErrors(validationErrors),
     [validationErrors],
@@ -946,16 +1187,29 @@ export function GraphVisualization({
       return { nodes: [], edges: [] };
     }
 
-    // Simplified view: build group nodes
-    if (viewMode === "simplified" && config.nodeGroups && Object.keys(config.nodeGroups).length > 0) {
+    const hasMapNodes = Object.values(config.nodes).some(node => node.type === "map");
+    const hasNodeGroups = config.nodeGroups && Object.keys(config.nodeGroups).length > 0;
+
+    console.log('[GraphVisualization] Render decision:', {
+      viewMode,
+      hasMapNodes,
+      hasNodeGroups,
+      nodeCount: Object.keys(config.nodes).length,
+    });
+
+    // Priority 1: Hybrid view - simplified groups + detailed map containers
+    if (viewMode === "simplified" && hasNodeGroups) {
+      console.log('[GraphVisualization] Using hybrid view: simplified groups + detailed map containers');
+      if (hasMapNodes) {
+        return buildHybridView(config, errorNodeIds);
+      }
+      console.log('[GraphVisualization] Using simplified view with groups (no map containers)');
       return buildSimplifiedView(config, errorNodeIds);
     }
 
-    // Detailed view: check if there are map nodes
-    const hasMapNodes = Object.values(config.nodes).some(node => node.type === "map");
-
+    // Priority 2: Detailed view with map containers
     if (hasMapNodes) {
-      // Use new map container rendering
+      console.log('[GraphVisualization] Using detailed view with map containers');
       return buildDetailedViewWithMapContainers(config, errorNodeIds);
     }
 
@@ -1013,6 +1267,19 @@ export function GraphVisualization({
     return layoutGraph(mappedNodes, mappedEdges);
   }, [config, errorNodeIds, viewMode]);
 
+  // Fit view whenever nodes change
+  useEffect(() => {
+    if (reactFlowInstance.current && nodes.length > 0) {
+      // Use setTimeout to ensure nodes are fully rendered before fitting
+      setTimeout(() => {
+        reactFlowInstance.current?.fitView({
+          padding: 0.2,
+          duration: 200,
+        });
+      }, 0);
+    }
+  }, [nodes, edges]);
+
   if (!config) {
     return (
       <div
@@ -1048,6 +1315,9 @@ export function GraphVisualization({
         panOnDrag
         zoomOnScroll
         fitView
+        onInit={(instance) => {
+          reactFlowInstance.current = instance;
+        }}
       >
         <Background gap={18} size={1} />
       </ReactFlow>
