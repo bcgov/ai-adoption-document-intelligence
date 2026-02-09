@@ -555,12 +555,6 @@ function buildDetailedViewWithMapContainers(
       const layersMap = computeBodyNodeLayers(bodyNodeIds, config.edges, mapNode.bodyEntryNodeId);
       const numLayers = layersMap.size;
 
-      console.log(`[Map ${node.id}] Layers computed:`, Array.from(layersMap.entries()).map(([layer, nodes]) => ({
-        layer,
-        nodes,
-        count: nodes.length
-      })));
-
       // Calculate width based on widest layer
       const maxLayerWidth = Math.max(...Array.from(layersMap.values()).map(layerNodes => {
         const nodesWidth = layerNodes.reduce((sum, nodeId) => {
@@ -583,16 +577,6 @@ function buildDetailedViewWithMapContainers(
         totalLayersHeight +
         (Math.max(0, numLayers - 1) * LAYER_GAP) +
         BOTTOM_PADDING;
-
-      console.log(`[Map ${node.id}] Container dimensions:`, {
-        width: containerWidth,
-        height: containerHeight,
-        numLayers,
-        maxLayerWidth,
-        layerHeights,
-        totalLayersHeight,
-        calculation: `${HEADER_HEIGHT}(header) + ${TOP_PADDING}(top padding) + ${totalLayersHeight}(layers: ${layerHeights.join('+')}) + ${Math.max(0, numLayers - 1) * LAYER_GAP}(gaps) + ${BOTTOM_PADDING}(bottom padding) = ${containerHeight}`
-      });
 
       mappedNodes.push({
         id: node.id,
@@ -778,11 +762,6 @@ function layoutGraphWithMapContainers(
       // Compute layers for body nodes
       const layersMap = computeBodyNodeLayers(bodyNodeIds, config.edges, mapNodeConfig.bodyEntryNodeId);
 
-      console.log(`[Positioning ${node.id}] Starting layer-based positioning`, {
-        containerWidth: node.width,
-        containerHeight: node.height
-      });
-
       // Calculate actual max height per layer for precise positioning
       const layerHeights = Array.from(layersMap.values()).map(layerNodeIds => {
         return Math.max(...layerNodeIds.map(nodeId => {
@@ -816,15 +795,6 @@ function layoutGraphWithMapContainers(
         // Use cumulative Y position for this layer
         const currentY = cumulativeY;
 
-        console.log(`[Layer ${layerNumber}]`, {
-          nodeCount: layerNodeIds.length,
-          totalLayerWidth,
-          startX: currentX,
-          y: currentY,
-          layerHeight: layerHeights[layerNumber],
-          nodes: layerNodeIds
-        });
-
         // Position each node in the layer
         layerNodesWithDims.forEach(({ node: bodyNode }) => {
           positionedBodyNodes.push({
@@ -834,7 +804,6 @@ function layoutGraphWithMapContainers(
               y: currentY
             }
           });
-          console.log(`  Node ${bodyNode.id}: (${currentX}, ${currentY})`);
           currentX += bodyNode.width! + NODE_GAP;
         });
 
