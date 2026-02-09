@@ -2,11 +2,15 @@ import "@xyflow/react/dist/style.css";
 
 import {
   Background,
+  BaseEdge,
+  EdgeText,
+  getBezierPath,
   Handle,
   MarkerType,
   Position,
   ReactFlow,
   type Edge,
+  type EdgeProps,
   type Node,
 } from "@xyflow/react";
 import dagre from "dagre-esm";
@@ -292,6 +296,116 @@ const GroupNodeRenderer = memo(function GroupNodeRenderer({
         style={{ background: data.color }}
       />
     </div>
+  );
+});
+
+const LABEL_BASE_DISTANCE = 22;   // how close the first label is to the source node
+const LABEL_DISTANCE_STEP = 16;   // how far each additional parallel label moves down
+
+function applyStaggeredLabelDistances(edges: Edge[]): Edge[] {
+  const labeled = edges.filter((e) => !!e.label);
+  console.log("[applyStaggeredLabelDistances] edges in:", edges.length, "labeled:", labeled.length, "sample labels:", labeled.slice(0, 5).map((e) => ({ id: e.id, label: e.label, source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle })));
+
+  // Group by source + sourceHandle only so all edges leaving the same node (e.g. switch) get staggered
+  const groups = new Map<string, Edge[]>();
+  for (const e of labeled) {
+    const key = [e.source, e.sourceHandle ?? ""].join("|");
+
+    const arr = groups.get(key) ?? [];
+    arr.push(e);
+    groups.set(key, arr);
+  }
+
+  console.log("[applyStaggeredLabelDistances] groups:", groups.size, "keys:", [...groups.keys()], "counts per group:", [...groups.values()].map((arr) => arr.length));
+
+  const out = edges.map((e) => ({ ...e }));
+  const byId = new Map(out.map((e) => [e.id, e] as const));
+
+  for (const arr of groups.values()) {
+    const sorted = [...arr].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
+    sorted.forEach((edge, index) => {
+      const e = byId.get(edge.id);
+      if (!e) return;
+
+      e.type = "staggerLabel";
+      e.data = {
+        ...(e.data as Record<string, unknown>),
+        labelDistance: LABEL_BASE_DISTANCE + index * LABEL_DISTANCE_STEP,
+      };
+      console.log("[applyStaggeredLabelDistances] edge", e.id, "type:", e.type, "label:", e.label, "labelDistance:", (e.data as Record<string, unknown>).labelDistance, "index:", index);
+    });
+  }
+
+  console.log("[applyStaggeredLabelDistances] out edges with type staggerLabel:", out.filter((e) => e.type === "staggerLabel").length, "sample:", out.filter((e) => e.type === "staggerLabel").slice(0, 5).map((e) => ({ id: e.id, type: e.type, label: e.label, labelDistance: (e.data as Record<string, unknown>)?.labelDistance })));
+  return out;
+}
+
+interface StaggerLabelEdgeData {
+  labelDistance?: number;
+  [key: string]: unknown;
+}
+
+const StaggerLabelEdge = memo(function StaggerLabelEdge(props: EdgeProps) {
+  const {
+    id,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    markerEnd,
+    style,
+    label,
+    labelStyle,
+    data,
+  } = props;
+
+  console.log("[StaggerLabelEdge] render", { id, label, hasLabel: !!label, data, sourceX, sourceY, targetX, targetY });
+
+  const [edgePath, defaultLabelX, defaultLabelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+  });
+
+  const dist = (data as StaggerLabelEdgeData | undefined)?.labelDistance;
+
+  let x = defaultLabelX;
+  let y = defaultLabelY;
+
+  if (typeof dist === "number") {
+    const dx = targetX - sourceX;
+    const dy = targetY - sourceY;
+    const len = Math.hypot(dx, dy) || 1;
+    const t = Math.max(0, Math.min(1, dist / len));
+
+    x = sourceX + dx * t;
+    y = sourceY + dy * t;
+  }
+
+  console.log("[StaggerLabelEdge] label position", { id, dist, x, y, defaultLabelX, defaultLabelY, renderingLabel: !!label });
+
+  const labelStyleObj = labelStyle as { fill?: string; fontSize?: number; fontWeight?: number } | undefined;
+  const styleObj = style as { stroke?: string } | undefined;
+  const fill = labelStyleObj?.fill ?? styleObj?.stroke ?? "#111827";
+
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+      {label ? (
+        <EdgeText
+          x={x}
+          y={y}
+          label={label}
+          labelStyle={{ fill, fontSize: labelStyleObj?.fontSize ?? 11, fontWeight: labelStyleObj?.fontWeight ?? 500 }}
+          labelShowBg
+          labelBgStyle={{ fill: "#fff", stroke: fill }}
+          labelBgPadding={[4, 6]}
+          labelBgBorderRadius={4}
+        />
+      ) : null}
+    </>
   );
 });
 
@@ -1230,8 +1344,13 @@ export function GraphVisualization({
   );
 
   const { nodes, edges } = useMemo(() => {
+    const finalize = (result: { nodes: Node[]; edges: Edge[] }) => ({
+      nodes: result.nodes,
+      edges: applyStaggeredLabelDistances(result.edges),
+    });
+
     if (!config) {
-      return { nodes: [], edges: [] };
+      return finalize({ nodes: [], edges: [] });
     }
 
     const hasMapNodes = Object.values(config.nodes).some(node => node.type === "map");
@@ -1248,16 +1367,16 @@ export function GraphVisualization({
     if (viewMode === "simplified" && hasNodeGroups) {
       console.log('[GraphVisualization] Using hybrid view: simplified groups + detailed map containers');
       if (hasMapNodes) {
-        return buildHybridView(config, errorNodeIds);
+        return finalize(buildHybridView(config, errorNodeIds));
       }
       console.log('[GraphVisualization] Using simplified view with groups (no map containers)');
-      return buildSimplifiedView(config, errorNodeIds);
+      return finalize(buildSimplifiedView(config, errorNodeIds));
     }
 
     // Priority 2: Detailed view with map containers
     if (hasMapNodes) {
       console.log('[GraphVisualization] Using detailed view with map containers');
-      return buildDetailedViewWithMapContainers(config, errorNodeIds);
+      return finalize(buildDetailedViewWithMapContainers(config, errorNodeIds));
     }
 
     // Fallback: original flat rendering for workflows without map nodes
@@ -1311,7 +1430,7 @@ export function GraphVisualization({
       };
     });
 
-    return layoutGraph(mappedNodes, mappedEdges);
+    return finalize(layoutGraph(mappedNodes, mappedEdges));
   }, [config, errorNodeIds, viewMode]);
 
   // Fit view whenever nodes change
@@ -1355,6 +1474,9 @@ export function GraphVisualization({
           graphNode: GraphNodeRenderer,
           groupNode: GroupNodeRenderer,
           mapContainer: MapContainerRenderer,
+        }}
+        edgeTypes={{
+          staggerLabel: StaggerLabelEdge,
         }}
         nodesDraggable={false}
         nodesConnectable={false}
