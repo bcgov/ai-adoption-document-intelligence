@@ -114,11 +114,6 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
       style={{
         width: "100%",
         height: "100%",
-        borderRadius: isDiamond ? 0 : 12,
-        border: data.hasError ? "2px solid #ef4444" : `2px solid ${color}`,
-        background: "#ffffff",
-        boxShadow: "0 6px 12px rgba(0,0,0,0.08)",
-        transform: isDiamond ? "rotate(45deg)" : "none",
         position: "relative",
         display: "flex",
         alignItems: "center",
@@ -126,9 +121,25 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
         padding: 12,
       }}
     >
+      {/* Visual layer only - rotated for diamond */}
       <div
         style={{
-          transform: isDiamond ? "rotate(-45deg)" : "none",
+          position: "absolute",
+          inset: 0,
+          borderRadius: isDiamond ? 0 : 12,
+          border: data.hasError ? "2px solid #ef4444" : `2px solid ${color}`,
+          background: "#ffffff",
+          boxShadow: "0 6px 12px rgba(0,0,0,0.08)",
+          transform: isDiamond ? "rotate(45deg) scale(0.7071)" : "none",
+          transformOrigin: "50% 50%",
+        }}
+      />
+
+      {/* Content layer (upright) */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
           display: "flex",
           flexDirection: "column",
           gap: 4,
@@ -166,6 +177,7 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
         )}
       </div>
 
+      {/* Handles on the unrotated wrapper - these stay at vertices for diamond */}
       <Handle
         id="top"
         type="target"
