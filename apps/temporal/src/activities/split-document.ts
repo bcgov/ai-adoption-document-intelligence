@@ -8,8 +8,9 @@ const execFileAsync = promisify(execFile);
 
 export interface SplitDocumentInput {
   blobKey: string;
-  strategy: 'per-page' | 'fixed-range' | 'boundary-detection';
+  strategy: 'per-page' | 'fixed-range' | 'boundary-detection' | 'custom-ranges';
   fixedRangeSize?: number;
+  customRanges?: Array<{ start: number; end: number }>;
   documentId?: string;
 }
 
@@ -117,7 +118,53 @@ async function buildRanges(
     return ranges;
   }
 
+  if (input.strategy === 'custom-ranges') {
+    if (!input.customRanges || input.customRanges.length === 0) {
+      throw new Error('customRanges is required for custom-ranges strategy');
+    }
+    validateCustomRanges(input.customRanges, totalPages);
+    return input.customRanges;
+  }
+
   return detectBoundaries(sourcePath, totalPages);
+}
+
+function validateCustomRanges(
+  ranges: Array<{ start: number; end: number }>,
+  totalPages: number,
+): void {
+  for (let i = 0; i < ranges.length; i += 1) {
+    const range = ranges[i];
+
+    // Validate range is valid (start <= end)
+    if (range.start > range.end) {
+      throw new Error(
+        `Invalid range [${range.start}-${range.end}]: start must be <= end`,
+      );
+    }
+
+    // Validate range is within document bounds
+    if (range.start < 1 || range.end > totalPages) {
+      throw new Error(
+        `Range [${range.start}-${range.end}] is out of bounds (document has ${totalPages} pages)`,
+      );
+    }
+
+    // Check for overlaps with previous ranges
+    for (let j = 0; j < i; j += 1) {
+      const other = ranges[j];
+      const overlaps =
+        (range.start >= other.start && range.start <= other.end) ||
+        (range.end >= other.start && range.end <= other.end) ||
+        (range.start <= other.start && range.end >= other.end);
+
+      if (overlaps) {
+        throw new Error(
+          `Range [${range.start}-${range.end}] overlaps with range [${other.start}-${other.end}]`,
+        );
+      }
+    }
+  }
 }
 
 async function detectBoundaries(

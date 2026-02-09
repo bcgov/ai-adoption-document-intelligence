@@ -24,23 +24,9 @@ export interface ClassifyDocumentOutput {
   matchedRule?: string;
 }
 
-const DEFAULT_RULES: ClassificationRule[] = [
-  {
-    name: 'invoice-keyword',
-    patterns: [{ field: 'text', operator: 'contains', value: 'INVOICE' }],
-    resultType: 'invoice',
-  },
-  {
-    name: 'receipt-keyword',
-    patterns: [{ field: 'text', operator: 'contains', value: 'RECEIPT' }],
-    resultType: 'receipt',
-  },
-  {
-    name: 'report-keyword',
-    patterns: [{ field: 'text', operator: 'contains', value: 'REPORT' }],
-    resultType: 'multi-page-report',
-  },
-];
+// No default rules - all classification rules must be provided via input.rules parameter.
+// This keeps the system generic and prevents document-specific logic in the backend.
+const DEFAULT_RULES: ClassificationRule[] = [];
 
 export async function classifyDocument(
   input: ClassifyDocumentInput,

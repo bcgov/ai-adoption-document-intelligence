@@ -33,7 +33,14 @@
       "activityType": "document.split",
       "inputs": [{ "port": "blobKey", "ctxKey": "blobKey" }],
       "outputs": [{ "port": "segments", "ctxKey": "segments" }],
-      "parameters": { "strategy": "boundary-detection" },
+      "parameters": {
+        "strategy": "custom-ranges",
+        "customRanges": [
+          { "start": 1, "end": 3 },
+          { "start": 4, "end": 4 },
+          { "start": 5, "end": 5 }
+        ]
+      },
       "timeout": { "startToClose": "5m" }
     },
     "processSegments": {
@@ -70,7 +77,35 @@
         { "port": "segment", "ctxKey": "currentSegment" }
       ],
       "outputs": [{ "port": "segmentType", "ctxKey": "segmentType" }],
-      "parameters": { "classifierType": "rule-based" }
+      "parameters": {
+        "classifierType": "rule-based",
+        "rules": [
+          {
+            "name": "monthly-report",
+            "patterns": [
+              { "field": "text", "operator": "contains", "value": "MONTHLY REPORT" },
+              { "field": "text", "operator": "contains", "value": "FINANCIAL ASSISTANCE" }
+            ],
+            "resultType": "monthly-report"
+          },
+          {
+            "name": "pay-stub",
+            "patterns": [
+              { "field": "text", "operator": "contains", "value": "PAY STUB" },
+              { "field": "keyValuePair.key", "operator": "contains", "value": "GROSS PAY" }
+            ],
+            "resultType": "pay-stub"
+          },
+          {
+            "name": "bank-record",
+            "patterns": [
+              { "field": "text", "operator": "contains", "value": "DEPOSIT" },
+              { "field": "text", "operator": "contains", "value": "BANK" }
+            ],
+            "resultType": "bank-record"
+          }
+        ]
+      }
     },
     "collectResults": {
       "id": "collectResults",
@@ -89,7 +124,51 @@
         { "port": "processedSegments", "ctxKey": "processedSegments" },
         { "port": "documentId", "ctxKey": "documentId" }
       ],
-      "outputs": [{ "port": "validationResults", "ctxKey": "validationResults" }]
+      "outputs": [{ "port": "validationResults", "ctxKey": "validationResults" }],
+      "parameters": {
+        "rules": [
+          {
+            "name": "pay-stub-arithmetic",
+            "type": "arithmetic",
+            "expression": {
+              "operation": "difference",
+              "fields": ["grossPay", "totalDeductions"],
+              "equals": "netPay"
+            },
+            "operator": "approximately",
+            "tolerance": { "amount": 0.05 },
+            "fieldType": "currency"
+          },
+          {
+            "name": "gross-pay-match",
+            "type": "field-match",
+            "primaryField": "page1.grossPay",
+            "attachmentField": "page2.grossPay",
+            "operator": "approximately",
+            "tolerance": { "amount": 0.05 },
+            "fieldType": "currency"
+          },
+          {
+            "name": "net-pay-match",
+            "type": "field-match",
+            "primaryField": "page1.netPay",
+            "attachmentField": "page2.netPay",
+            "operator": "approximately",
+            "tolerance": { "amount": 0.05 },
+            "fieldType": "currency"
+          },
+          {
+            "name": "deposits-match",
+            "type": "array-match",
+            "primaryFields": ["page1.netPay", "page1.otherIncome"],
+            "attachmentFields": ["page3.deposits"],
+            "matchType": "all",
+            "operator": "approximately",
+            "tolerance": { "amount": 0.05 },
+            "fieldType": "currency"
+          }
+        ]
+      }
     },
     "storeResults": {
       "id": "storeResults",
@@ -122,8 +201,8 @@
           "label": "Split Strategy",
           "path": "nodes.splitDocument.parameters.strategy",
           "type": "select",
-          "options": ["per-page", "fixed-range", "boundary-detection"],
-          "default": "boundary-detection"
+          "options": ["per-page", "fixed-range", "boundary-detection", "custom-ranges"],
+          "default": "custom-ranges"
         }
       ]
     },

@@ -138,4 +138,127 @@ describe('splitDocument activity', () => {
     expect(result.segments[0].pageRange).toEqual({ start: 1, end: 1 });
     expect(result.segments[1999].pageRange).toEqual({ start: 2000, end: 2000 });
   });
+
+  it('splits using custom ranges', async () => {
+    execFileMock.mockImplementation((cmd, args, cb) => {
+      if (cmd === 'qpdf' && args[0] === '--show-npages') {
+        cb(null, { stdout: '5\n', stderr: '' });
+        return;
+      }
+      cb(null, { stdout: '', stderr: '' });
+    });
+
+    const input: SplitDocumentInput = {
+      blobKey: 'documents/doc-5/original.pdf',
+      documentId: 'doc-5',
+      strategy: 'custom-ranges',
+      customRanges: [
+        { start: 1, end: 3 },
+        { start: 4, end: 4 },
+        { start: 5, end: 5 },
+      ],
+    };
+
+    const result = await splitDocument(input);
+    expect(result.segments).toHaveLength(3);
+    expect(result.segments[0].pageRange).toEqual({ start: 1, end: 3 });
+    expect(result.segments[0].pageCount).toBe(3);
+    expect(result.segments[1].pageRange).toEqual({ start: 4, end: 4 });
+    expect(result.segments[1].pageCount).toBe(1);
+    expect(result.segments[2].pageRange).toEqual({ start: 5, end: 5 });
+    expect(result.segments[2].pageCount).toBe(1);
+    expect(result.segments[0].blobKey).toContain(
+      'documents/doc-5/segments/segment-001-pages-1-3.pdf',
+    );
+  });
+
+  it('validates custom ranges - rejects overlapping ranges', async () => {
+    execFileMock.mockImplementation((cmd, args, cb) => {
+      if (cmd === 'qpdf' && args[0] === '--show-npages') {
+        cb(null, { stdout: '10\n', stderr: '' });
+        return;
+      }
+      cb(null, { stdout: '', stderr: '' });
+    });
+
+    const input: SplitDocumentInput = {
+      blobKey: 'documents/doc-6/original.pdf',
+      documentId: 'doc-6',
+      strategy: 'custom-ranges',
+      customRanges: [
+        { start: 1, end: 5 },
+        { start: 4, end: 8 }, // Overlaps with first range
+      ],
+    };
+
+    await expect(splitDocument(input)).rejects.toThrow(
+      'Range [4-8] overlaps with range [1-5]',
+    );
+  });
+
+  it('validates custom ranges - rejects out of bounds ranges', async () => {
+    execFileMock.mockImplementation((cmd, args, cb) => {
+      if (cmd === 'qpdf' && args[0] === '--show-npages') {
+        cb(null, { stdout: '5\n', stderr: '' });
+        return;
+      }
+      cb(null, { stdout: '', stderr: '' });
+    });
+
+    const input: SplitDocumentInput = {
+      blobKey: 'documents/doc-7/original.pdf',
+      documentId: 'doc-7',
+      strategy: 'custom-ranges',
+      customRanges: [
+        { start: 1, end: 3 },
+        { start: 4, end: 10 }, // Page 10 doesn't exist
+      ],
+    };
+
+    await expect(splitDocument(input)).rejects.toThrow(
+      'Range [4-10] is out of bounds (document has 5 pages)',
+    );
+  });
+
+  it('validates custom ranges - rejects invalid ranges (start > end)', async () => {
+    execFileMock.mockImplementation((cmd, args, cb) => {
+      if (cmd === 'qpdf' && args[0] === '--show-npages') {
+        cb(null, { stdout: '10\n', stderr: '' });
+        return;
+      }
+      cb(null, { stdout: '', stderr: '' });
+    });
+
+    const input: SplitDocumentInput = {
+      blobKey: 'documents/doc-8/original.pdf',
+      documentId: 'doc-8',
+      strategy: 'custom-ranges',
+      customRanges: [{ start: 5, end: 3 }], // Invalid: start > end
+    };
+
+    await expect(splitDocument(input)).rejects.toThrow(
+      'Invalid range [5-3]: start must be <= end',
+    );
+  });
+
+  it('validates custom ranges - requires customRanges parameter', async () => {
+    execFileMock.mockImplementation((cmd, args, cb) => {
+      if (cmd === 'qpdf' && args[0] === '--show-npages') {
+        cb(null, { stdout: '10\n', stderr: '' });
+        return;
+      }
+      cb(null, { stdout: '', stderr: '' });
+    });
+
+    const input: SplitDocumentInput = {
+      blobKey: 'documents/doc-9/original.pdf',
+      documentId: 'doc-9',
+      strategy: 'custom-ranges',
+      // customRanges not provided
+    };
+
+    await expect(splitDocument(input)).rejects.toThrow(
+      'customRanges is required for custom-ranges strategy',
+    );
+  });
 });
