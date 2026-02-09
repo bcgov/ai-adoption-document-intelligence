@@ -1,14 +1,20 @@
 import {
+  ActionIcon,
   AppShell,
   Avatar,
   Badge,
   Button,
+  Burger,
   Group,
   Stack,
   Text,
   Title,
+  Tooltip,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import {
+  IconChevronLeft,
+  IconChevronRight,
   IconClipboardCheck,
   IconFlask,
   IconList,
@@ -50,6 +56,7 @@ function AppContent(): JSX.Element {
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
     null,
   );
+  const [navbarOpened, { toggle: toggleNavbar }] = useDisclosure(true);
   const [viewerOpened, setViewerOpened] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(
     null,
@@ -129,13 +136,18 @@ function AppContent(): JSX.Element {
     <>
       <AppShell
         header={{ height: 64 }}
-        navbar={{ width: 240, breakpoint: "sm" }}
+        navbar={{ width: 240, breakpoint: "sm", collapsed: { mobile: !navbarOpened, desktop: !navbarOpened } }}
         padding="md"
         withBorder
       >
         <AppShell.Header>
           <Group h="100%" px="md" justify="space-between">
             <Group>
+              <Tooltip label={navbarOpened ? "Collapse sidebar" : "Expand sidebar"} position="right">
+                <ActionIcon variant="subtle" size="lg" onClick={toggleNavbar}>
+                  {navbarOpened ? <IconChevronLeft size={20} /> : <IconChevronRight size={20} />}
+                </ActionIcon>
+              </Tooltip>
               <Title order={3}>Document intelligence</Title>
               <Badge variant="light" color="blue">
                 Live OCR

@@ -2,6 +2,7 @@ import {
   Badge,
   Button,
   Collapse,
+  Flex,
   Group,
   Paper,
   SegmentedControl,
@@ -545,8 +546,8 @@ export function WorkflowEditorPage({
         </Group>
       </Paper>
 
-      <Group align="flex-start" gap="xl">
-        <Stack style={{ flex: "0 0 56%" }} gap="md">
+      <Flex align="flex-start" gap="xl" wrap="nowrap" style={{ minWidth: 0 }}>
+        <Stack style={{ flex: "1 1 50%", minWidth: 0 }} gap="md">
           <Paper withBorder p="md">
             <Group justify="space-between" mb="sm">
               <Group gap="xs">
@@ -616,7 +617,7 @@ export function WorkflowEditorPage({
           </Paper>
         </Stack>
 
-        <Paper withBorder p="md" style={{ flex: "0 0 44%" }}>
+        <Paper withBorder p="md" style={{ flex: "1 1 50%", minWidth: 0 }}>
           <Stack gap="xs">
             <Group justify="space-between" align="center">
               <Text fw={600}>Workflow preview</Text>
@@ -639,7 +640,7 @@ export function WorkflowEditorPage({
             />
           </Stack>
         </Paper>
-      </Group>
+      </Flex>
     </Stack>
   );
 }
