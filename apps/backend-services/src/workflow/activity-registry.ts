@@ -32,6 +32,7 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
   "document.classify": { description: "Classify document type (rule-based)" },
   "document.splitAndClassify": { description: "Split PDF and classify segments based on OCR keyword markers" },
   "document.validateFields": { description: "Validate fields across related documents" },
+  "segment.combineResult": { description: "Combine segment metadata with OCR result for join collection" },
 } as const;
 
 /**

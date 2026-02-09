@@ -26,6 +26,7 @@ import { splitDocument } from "./activities/split-document";
 import { classifyDocument } from "./activities/classify-document";
 import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
 import { validateDocumentFields } from "./activities/document-validate-fields";
+import { combineSegmentResult } from "./activities/combine-segment-result";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -163,6 +164,14 @@ register({
   defaultTimeout: "2m",
   defaultRetry: { maximumAttempts: 3 },
   description: "Validate fields across related documents",
+});
+
+register({
+  activityType: "segment.combineResult",
+  activityFn: combineSegmentResult as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "10s",
+  defaultRetry: { maximumAttempts: 1 },
+  description: "Combine segment metadata with OCR result for join collection",
 });
 
 // ---------------------------------------------------------------------------

@@ -19,6 +19,7 @@
     "segmentsWithTypes": { "type": "array", "description": "Array of segments with embedded segmentType from split-and-classify" },
     "currentSegment": { "type": "object", "description": "Current segment in map iteration (includes segmentType)" },
     "segmentOcrResult": { "type": "object", "description": "OCR result from child workflow for current segment" },
+    "combinedSegment": { "type": "object", "description": "Combined segment metadata and OCR result from passthrough node" },
 
     "monthlyReportModelId": { "type": "string", "defaultValue": "prebuilt-layout", "description": "OCR model for monthly report segments" },
     "payStubModelId": { "type": "string", "defaultValue": "prebuilt-layout", "description": "OCR model for pay stub segments" },
@@ -244,10 +245,15 @@
     "passthrough": {
       "id": "passthrough",
       "type": "activity",
-      "label": "Segment Processed",
-      "activityType": "document.updateStatus",
-      "inputs": [{ "port": "documentId", "ctxKey": "documentId" }],
-      "parameters": { "status": "ongoing_ocr" },
+      "label": "Combine Segment Result",
+      "activityType": "segment.combineResult",
+      "inputs": [
+        { "port": "currentSegment", "ctxKey": "currentSegment" },
+        { "port": "segmentOcrResult", "ctxKey": "segmentOcrResult" }
+      ],
+      "outputs": [
+        { "port": "combinedSegment", "ctxKey": "combinedSegment" }
+      ],
       "timeout": { "startToClose": "10s" }
     },
     "collectResults": {

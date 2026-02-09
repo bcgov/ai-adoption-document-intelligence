@@ -19,6 +19,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   'document.classify',
   'document.splitAndClassify',
   'document.validateFields',
+  'segment.combineResult',
 ] as const;
 
 export type RegisteredActivityType = typeof REGISTERED_ACTIVITY_TYPES[number];
