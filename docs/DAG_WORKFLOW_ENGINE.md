@@ -809,7 +809,9 @@ Initial registry entries (mapping from graph `activityType` to existing/new acti
 `combinedSegment` objects with `ocrResult.keyValuePairs`. When present, the
 activity extracts key-value pairs into normalized fields (camelCase) and
 exposes them under `page{segmentIndex}` (e.g., `page2.grossPay`) while also
-making them available at the segment root for direct field paths.
+making them available at the segment root for direct field paths. Checkbox-style
+labels that start with `o ` are ignored only when a non-checkbox version of the
+same key exists; values like `:unselected:` are always ignored.
 
 ### 5.6 Query and Signal Handlers
 

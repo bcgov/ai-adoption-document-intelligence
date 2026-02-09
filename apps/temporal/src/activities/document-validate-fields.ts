@@ -274,17 +274,47 @@ function extractKeyValueFields(segment: Record<string, unknown>): Record<string,
   }
 
   const extracted: Record<string, unknown> = {};
+  const checkboxKeyFlags: Record<string, boolean> = {};
 
   for (const pair of keyValuePairs as KeyValuePair[]) {
     const rawKey = pair.key?.content ?? '';
     const rawValue = pair.value?.content ?? '';
+    const trimmedKey = rawKey.trim();
+    const trimmedValue = rawValue.trim();
+    const isCheckboxKey = /^o\s+/i.test(trimmedKey);
+
+    if (!trimmedValue || /^:unselected:$/i.test(trimmedValue)) {
+      continue;
+    }
     const normalizedKey = normalizeKey(rawKey);
 
-    if (!normalizedKey || !rawValue.trim()) {
+    if (!normalizedKey) {
       continue;
     }
 
     const normalizedValue = normalizeKeyValue(rawValue);
+    const hasExisting = Object.prototype.hasOwnProperty.call(
+      extracted,
+      normalizedKey,
+    );
+    const existingIsCheckbox = checkboxKeyFlags[normalizedKey] ?? false;
+
+    if (!hasExisting) {
+      extracted[normalizedKey] = normalizedValue;
+      checkboxKeyFlags[normalizedKey] = isCheckboxKey;
+      continue;
+    }
+
+    if (existingIsCheckbox && !isCheckboxKey) {
+      extracted[normalizedKey] = normalizedValue;
+      checkboxKeyFlags[normalizedKey] = false;
+      continue;
+    }
+
+    if (!existingIsCheckbox && isCheckboxKey) {
+      continue;
+    }
+
     extracted[normalizedKey] = mergeFieldValues(
       extracted[normalizedKey],
       normalizedValue,

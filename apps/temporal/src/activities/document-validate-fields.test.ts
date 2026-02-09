@@ -56,8 +56,16 @@ describe("validateDocumentFields activity", () => {
                     value: { content: "1,260.00" },
                   },
                   {
+                    key: { content: "o Gross pay:" },
+                    value: { content: "1,344.00" },
+                  },
+                  {
                     key: { content: "Net pay (deposit):" },
                     value: { content: "1,003.42" },
+                  },
+                  {
+                    key: { content: "o Net pay (deposit):" },
+                    value: { content: "999.99" },
                   },
                   {
                     key: { content: "Total other income:" },
@@ -144,6 +152,57 @@ describe("validateDocumentFields activity", () => {
       expect(grossPayMatch.matched).toBe(true);
       expect(depositsMatch.matched).toBe(true);
       expect(arithmeticMatch.matched).toBe(true);
+    });
+
+    it("keeps checkbox key when no non-checkbox value exists", async () => {
+      const input: DocumentValidateFieldsInput = {
+        documentId: "doc-13",
+        processedSegments: [
+          {
+            combinedSegment: {
+              segmentIndex: 1,
+              ocrResult: {
+                keyValuePairs: [
+                  {
+                    key: { content: "o Net pay (deposit):" },
+                    value: { content: "1,003.42" },
+                  },
+                ],
+              },
+            },
+          },
+          {
+            combinedSegment: {
+              segmentIndex: 2,
+              ocrResult: {
+                keyValuePairs: [
+                  {
+                    key: { content: "o Net pay (deposit):" },
+                    value: { content: "1,003.42" },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+        rules: [
+          {
+            name: "net-pay-match",
+            type: "field-match",
+            primaryField: "page1.netPay",
+            attachmentField: "page2.netPay",
+            operator: "approximately",
+            tolerance: { amount: 0.05 },
+            fieldType: "currency",
+          },
+        ],
+      };
+
+      const result = await validateDocumentFields(input);
+      const entry = result.validationResults.entries[0];
+
+      expect(entry.matched).toBe(true);
+      expect(entry.primaryValue).toBe(1003.42);
     });
 
     it("validates currency fields with tolerance", async () => {
