@@ -30,6 +30,7 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
   "document.storeRejection": { description: "Store document rejection data" },
   "document.split": { description: "Split multi-page PDF into segments" },
   "document.classify": { description: "Classify document type (rule-based)" },
+  "document.splitAndClassify": { description: "Split PDF and classify segments based on OCR keyword markers" },
   "document.validateFields": { description: "Validate fields across related documents" },
 } as const;
 

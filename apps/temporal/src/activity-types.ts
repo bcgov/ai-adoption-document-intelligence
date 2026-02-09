@@ -17,6 +17,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   'document.storeRejection',
   'document.split',
   'document.classify',
+  'document.splitAndClassify',
   'document.validateFields',
 ] as const;
 

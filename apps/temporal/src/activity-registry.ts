@@ -24,6 +24,7 @@ import {
 } from "./activities";
 import { splitDocument } from "./activities/split-document";
 import { classifyDocument } from "./activities/classify-document";
+import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
 import { validateDocumentFields } from "./activities/document-validate-fields";
 
 // ---------------------------------------------------------------------------
@@ -146,6 +147,14 @@ register({
   defaultTimeout: "2m",
   defaultRetry: { maximumAttempts: 3 },
   description: "Classify document type (rule-based)",
+});
+
+register({
+  activityType: "document.splitAndClassify",
+  activityFn: splitAndClassifyDocument as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "5m",
+  defaultRetry: { maximumAttempts: 2 },
+  description: "Split PDF and classify segments based on OCR keyword markers",
 });
 
 register({
