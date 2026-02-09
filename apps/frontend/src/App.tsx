@@ -49,6 +49,9 @@ type MainView =
   | "settings";
 type WorkflowView = "list" | "create" | "edit";
 
+const NAV_EXPANDED = 240;
+const NAV_COLLAPSED = 72;
+
 function AppContent(): JSX.Element {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
   const [activeView, setActiveView] = useState<MainView>("upload");
@@ -136,18 +139,19 @@ function AppContent(): JSX.Element {
     <>
       <AppShell
         header={{ height: 64 }}
-        navbar={{ width: 240, breakpoint: "sm", collapsed: { mobile: !navbarOpened, desktop: !navbarOpened } }}
+        navbar={{
+          width: navbarOpened ? NAV_EXPANDED : NAV_COLLAPSED,
+          breakpoint: "sm",
+          collapsed: { mobile: !navbarOpened }
+        }}
         padding="md"
         withBorder
+        transitionDuration={200}
+        transitionTimingFunction="ease"
       >
         <AppShell.Header>
           <Group h="100%" px="md" justify="space-between">
             <Group>
-              <Tooltip label={navbarOpened ? "Collapse sidebar" : "Expand sidebar"} position="right">
-                <ActionIcon variant="subtle" size="lg" onClick={toggleNavbar}>
-                  {navbarOpened ? <IconChevronLeft size={20} /> : <IconChevronRight size={20} />}
-                </ActionIcon>
-              </Tooltip>
               <Title order={3}>Document intelligence</Title>
               <Badge variant="light" color="blue">
                 Live OCR
@@ -175,32 +179,58 @@ function AppContent(): JSX.Element {
           </Group>
         </AppShell.Header>
 
-        <AppShell.Navbar p="md">
+        <AppShell.Navbar p="md" style={{ overflow: "visible" }}>
+          {/* Edge handle button */}
+          <ActionIcon
+            variant="default"
+            size="sm"
+            aria-label={navbarOpened ? "Collapse sidebar" : "Expand sidebar"}
+            onClick={toggleNavbar}
+            style={{
+              position: "absolute",
+              top: "50%",
+              right: -14,
+              transform: "translateY(-50%)",
+              zIndex: 300,
+              background: "var(--mantine-color-body)",
+            }}
+          >
+            {navbarOpened ? <IconChevronLeft size={18} /> : <IconChevronRight size={18} />}
+          </ActionIcon>
+
           <Stack gap="xs">
             {navItems.map((item) => (
-              <Button
+              <Tooltip
                 key={item.value}
-                variant={activeView === item.value ? "light" : "subtle"}
-                color={activeView === item.value ? "blue" : "gray"}
-                justify="space-between"
-                leftSection={<item.icon size={18} />}
-                onClick={() => {
-                  setActiveView(item.value);
-                  if (item.value === "workflows") {
-                    setWorkflowView("list");
-                    setSelectedWorkflowId(null);
-                  }
-                }}
+                label={item.label}
+                disabled={navbarOpened}
+                position="right"
               >
-                <Stack gap={0} align="flex-start">
-                  <Text size="sm" fw={600}>
-                    {item.label}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {item.description}
-                  </Text>
-                </Stack>
-              </Button>
+                <Button
+                  variant={activeView === item.value ? "light" : "subtle"}
+                  color={activeView === item.value ? "blue" : "gray"}
+                  justify={navbarOpened ? "space-between" : "center"}
+                  leftSection={<item.icon size={18} />}
+                  onClick={() => {
+                    setActiveView(item.value);
+                    if (item.value === "workflows") {
+                      setWorkflowView("list");
+                      setSelectedWorkflowId(null);
+                    }
+                  }}
+                >
+                  {navbarOpened && (
+                    <Stack gap={0} align="flex-start">
+                      <Text size="sm" fw={600}>
+                        {item.label}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {item.description}
+                      </Text>
+                    </Stack>
+                  )}
+                </Button>
+              </Tooltip>
             ))}
           </Stack>
         </AppShell.Navbar>
