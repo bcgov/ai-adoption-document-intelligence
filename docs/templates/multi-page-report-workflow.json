@@ -369,12 +369,19 @@
       "color": "#22c55e",
       "nodeIds": ["splitAndClassify"]
     },
-    "validation": {
-      "label": "Validation",
-      "description": "Collect results and validate fields across segments",
-      "icon": "validate",
+    "collect-results": {
+      "label": "Collect All Results",
+      "description": "Collect results from all segment processing (N→1)",
+      "icon": "layers",
       "color": "#fb923c",
-      "nodeIds": ["collectResults", "validateFields"]
+      "nodeIds": ["collectResults"]
+    },
+    "validate-fields": {
+      "label": "Validate Fields",
+      "description": "Validate fields across segments",
+      "icon": "validate",
+      "color": "#eab308",
+      "nodeIds": ["validateFields"]
     },
     "store": {
       "label": "Store Results",
