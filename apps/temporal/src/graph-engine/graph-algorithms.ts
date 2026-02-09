@@ -5,7 +5,7 @@
  */
 
 import { ApplicationFailure } from '@temporalio/workflow';
-import type { GraphWorkflowConfig, GraphEdge } from '../graph-workflow-types';
+import type { GraphWorkflowConfig } from '../graph-workflow-types';
 import type { ExecutionState } from './execution-state';
 
 /**
@@ -120,30 +120,62 @@ export function computeReadySet(
       edgesBySource.set(edge.source, edges);
     }
 
-    // Check if all source nodes are satisfied
+    // Check if all reachable source nodes with relevant edges are completed
     let hasAnySatisfiedEdge = false;
-    let allSourcesSatisfied = true;
+    let allRelevantSourcesSatisfied = true;
 
     for (const [sourceNodeId, edges] of edgesBySource) {
-      // Source node must be completed
-      if (!state.completedNodeIds.has(sourceNodeId)) {
-        allSourcesSatisfied = false;
-        break;
+      const isSourceCompleted = state.completedNodeIds.has(sourceNodeId);
+      const selectedEdgeFromSource = state.selectedEdges.get(sourceNodeId);
+
+      // Check if any outgoing edges from this source to our target node are relevant
+      const hasRelevantEdges = edges.some((edge) => {
+        if (selectedEdgeFromSource === undefined) {
+          // No explicit edge selection - normal edges are implicitly selected
+          return edge.type === 'normal';
+        } else {
+          // Explicit edge selection - only the selected edge is relevant
+          return selectedEdgeFromSource === edge.id;
+        }
+      });
+
+      if (!hasRelevantEdges) {
+        // No relevant edges from this source - skip it (source chose different branch)
+        continue;
       }
 
-      // Check if any edge from this source is satisfied
-      const anyEdgeSatisfied = isAnyEdgeSatisfied(edges, state.selectedEdges.get(sourceNodeId));
+      if (!isSourceCompleted) {
+        // Source has relevant edges but hasn't completed - check if it's reachable
+        const incomingEdges = config.edges.filter((e) => e.target === sourceNodeId);
+        const isReachable =
+          incomingEdges.length === 0 || // Entry node - always reachable
+          incomingEdges.some((e) => {
+            if (e.type === 'normal') {
+              // Has normal incoming edge - check if source of that edge completed
+              return state.completedNodeIds.has(e.source);
+            }
+            if (e.type === 'conditional' || e.type === 'error') {
+              // Incoming conditional was selected
+              return state.selectedEdges.get(e.source) === e.id;
+            }
+            return false;
+          });
 
-      if (anyEdgeSatisfied) {
-        hasAnySatisfiedEdge = true;
-      } else {
-        // This source is completed but none of its edges to this node were satisfied
-        allSourcesSatisfied = false;
-        break;
+        if (isReachable) {
+          // Source is reachable but not completed - need to wait for it
+          allRelevantSourcesSatisfied = false;
+          break;
+        } else {
+          // Source is unreachable - skip it (will never execute)
+          continue;
+        }
       }
+
+      // Source completed and has relevant edges
+      hasAnySatisfiedEdge = true;
     }
 
-    if (allSourcesSatisfied && hasAnySatisfiedEdge) {
+    if (allRelevantSourcesSatisfied && hasAnySatisfiedEdge) {
       readyNodes.push(nodeId);
     }
   }
@@ -189,29 +221,62 @@ export function computeReadySetForSubgraph(
       edgesBySource.set(edge.source, edges);
     }
 
-    // Check if all source nodes are satisfied
+    // Check if all reachable source nodes with relevant edges are completed
     let hasAnySatisfiedEdge = false;
-    let allSourcesSatisfied = true;
+    let allRelevantSourcesSatisfied = true;
 
     for (const [sourceNodeId, edges] of edgesBySource) {
-      // Source node must be completed
-      if (!state.completedNodeIds.has(sourceNodeId)) {
-        allSourcesSatisfied = false;
-        break;
+      const isSourceCompleted = state.completedNodeIds.has(sourceNodeId);
+      const selectedEdgeFromSource = state.selectedEdges.get(sourceNodeId);
+
+      // Check if any outgoing edges from this source to our target node are relevant
+      const hasRelevantEdges = edges.some((edge) => {
+        if (selectedEdgeFromSource === undefined) {
+          // No explicit edge selection - normal edges are implicitly selected
+          return edge.type === 'normal';
+        } else {
+          // Explicit edge selection - only the selected edge is relevant
+          return selectedEdgeFromSource === edge.id;
+        }
+      });
+
+      if (!hasRelevantEdges) {
+        // No relevant edges from this source - skip it (source chose different branch)
+        continue;
       }
 
-      // Check if any edge from this source is satisfied
-      const anyEdgeSatisfied = isAnyEdgeSatisfied(edges, state.selectedEdges.get(sourceNodeId));
+      if (!isSourceCompleted) {
+        // Source has relevant edges but hasn't completed - check if it's reachable
+        const incomingEdges = config.edges.filter((e) => e.target === sourceNodeId);
+        const isReachable =
+          incomingEdges.length === 0 || // Entry node - always reachable
+          incomingEdges.some((e) => {
+            if (e.type === 'normal') {
+              // Has normal incoming edge - check if source of that edge completed
+              return state.completedNodeIds.has(e.source);
+            }
+            if (e.type === 'conditional' || e.type === 'error') {
+              // Incoming conditional was selected
+              return state.selectedEdges.get(e.source) === e.id;
+            }
+            return false;
+          });
 
-      if (anyEdgeSatisfied) {
-        hasAnySatisfiedEdge = true;
-      } else {
-        allSourcesSatisfied = false;
-        break;
+        if (isReachable) {
+          // Source is reachable but not completed - need to wait for it
+          allRelevantSourcesSatisfied = false;
+          break;
+        } else {
+          // Source is unreachable - skip it (will never execute)
+          continue;
+        }
       }
+
+      // Source completed and has relevant edges
+      hasAnySatisfiedEdge = true;
     }
 
-    if (allSourcesSatisfied && hasAnySatisfiedEdge) {
+    if (allRelevantSourcesSatisfied && hasAnySatisfiedEdge) {
       readyNodes.push(nodeId);
     }
   }
@@ -219,26 +284,3 @@ export function computeReadySetForSubgraph(
   return readyNodes;
 }
 
-/**
- * Helper: Check if any edge from a set is satisfied
- *
- * Shared logic between computeReadySet and computeReadySetForSubgraph
- */
-function isAnyEdgeSatisfied(edges: GraphEdge[], selectedEdgeId?: string): boolean {
-  return edges.some((edge) => {
-    if (selectedEdgeId) {
-      return selectedEdgeId === edge.id;
-    }
-    if (edge.type === 'normal') {
-      return true; // Normal edges are always satisfied if source completed
-    }
-    if (edge.type === 'conditional') {
-      // Conditional edge satisfied if it was selected by the switch
-      return selectedEdgeId === edge.id;
-    }
-    if (edge.type === 'error') {
-      return selectedEdgeId === edge.id;
-    }
-    return false;
-  });
-}

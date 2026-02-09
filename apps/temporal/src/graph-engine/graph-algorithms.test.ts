@@ -212,6 +212,38 @@ describe('computeReadySet', () => {
     expect(result).toEqual(['B']);
     expect(result).not.toContain('C');
   });
+
+  it('should handle switch-merge pattern where branches converge to single node', () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: '1.0',
+      metadata: {},
+      entryNodeId: 'switch',
+      nodes: {
+        switch: { id: 'switch', type: 'switch', cases: [], defaultEdge: 'e1', label: 'Switch' },
+        branchA: { id: 'branchA', type: 'activity', activityType: 'test', label: 'Branch A' },
+        branchB: { id: 'branchB', type: 'activity', activityType: 'test', label: 'Branch B' },
+        merge: { id: 'merge', type: 'activity', activityType: 'test', label: 'Merge' },
+      },
+      edges: [
+        { id: 'e1', source: 'switch', target: 'branchA', type: 'conditional' },
+        { id: 'e2', source: 'switch', target: 'branchB', type: 'conditional' },
+        { id: 'e3', source: 'branchA', target: 'merge', type: 'normal' },
+        { id: 'e4', source: 'branchB', target: 'merge', type: 'normal' },
+      ],
+      ctx: {},
+    };
+
+    // Switch selected branch A (e1)
+    const stateAfterSwitch = createState(['switch'], { switch: 'e1' });
+    let result = computeReadySet(config, stateAfterSwitch);
+    expect(result).toEqual(['branchA']);
+    expect(result).not.toContain('branchB');
+
+    // After branchA completes, merge should be ready even though branchB didn't execute
+    const stateAfterBranchA = createState(['switch', 'branchA'], { switch: 'e1' });
+    result = computeReadySet(config, stateAfterBranchA);
+    expect(result).toEqual(['merge']);
+  });
 });
 
 describe('computeReadySetForSubgraph', () => {
