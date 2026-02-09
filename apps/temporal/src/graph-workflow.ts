@@ -13,6 +13,7 @@ import {
   setHandler,
   ApplicationFailure,
   workflowInfo,
+  proxyActivities,
 } from '@temporalio/workflow';
 import type {
   GraphWorkflowInput,
@@ -24,6 +25,7 @@ import type {
 } from './graph-workflow-types';
 import { validateGraphConfigForExecution } from './graph-schema-validator';
 import { runGraphExecution } from './graph-engine';
+import type * as activities from './activities';
 
 // Workflow type constant
 export const GRAPH_WORKFLOW_TYPE = 'graphWorkflow';
@@ -127,7 +129,33 @@ export async function graphWorkflow(
       });
     }
 
-    // Step 2: Run graph execution
+    // Step 2: Pre-execution hook - automatically update document status
+    // This ensures status is set before workflow processing begins
+    if (
+      input.initialCtx.documentId &&
+      typeof input.initialCtx.documentId === 'string'
+    ) {
+      const activityProxy = proxyActivities<typeof activities>({
+        startToCloseTimeout: '30s',
+        retry: { maximumAttempts: 5 },
+      });
+
+      // Access activity by its registered type name (not function name)
+      const updateStatusActivity = activityProxy['document.updateStatus'] as (
+        params: { documentId: string; status: string; apimRequestId?: string }
+      ) => Promise<void>;
+
+      await updateStatusActivity({
+        documentId: input.initialCtx.documentId,
+        status: 'ongoing_ocr',
+      });
+
+      console.log(
+        `[GraphWorkflow] Pre-execution: Updated document ${input.initialCtx.documentId} status to ongoing_ocr`,
+      );
+    }
+
+    // Step 3: Run graph execution
     for (const nodeId of Object.keys(input.graph.nodes)) {
       nodeStatuses.set(nodeId, { status: 'pending' });
     }

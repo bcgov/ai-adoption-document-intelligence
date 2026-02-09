@@ -5,7 +5,7 @@
     "description": "Multi-page report: split document, OCR each segment, classify, validate fields across documents",
     "tags": ["multi-page", "classification"]
   },
-  "entryNodeId": "updateStatus",
+  "entryNodeId": "splitDocument",
   "ctx": {
     "documentId": { "type": "string" },
     "blobKey": { "type": "string" },
@@ -19,14 +19,6 @@
     "validationResults": { "type": "object" }
   },
   "nodes": {
-    "updateStatus": {
-      "id": "updateStatus",
-      "type": "activity",
-      "label": "Update Status",
-      "activityType": "document.updateStatus",
-      "inputs": [{ "port": "documentId", "ctxKey": "documentId" }],
-      "parameters": { "status": "ongoing_ocr" }
-    },
     "splitDocument": {
       "id": "splitDocument",
       "type": "activity",
@@ -184,7 +176,6 @@
     }
   },
   "edges": [
-    { "id": "e1", "source": "updateStatus", "target": "splitDocument", "type": "normal" },
     { "id": "e2", "source": "splitDocument", "target": "processSegments", "type": "normal" },
     { "id": "e-segment-ocr", "source": "segmentOcr", "target": "classifySegment", "type": "normal" },
     { "id": "e3", "source": "processSegments", "target": "collectResults", "type": "normal" },
@@ -194,10 +185,10 @@
   "nodeGroups": {
     "prepare": {
       "label": "Preparation",
-      "description": "Update status and split document into segments",
+      "description": "Split document into segments",
       "icon": "prepare",
       "color": "#3b82f6",
-      "nodeIds": ["updateStatus", "splitDocument"],
+      "nodeIds": ["splitDocument"],
       "exposedParams": [
         {
           "label": "Split Strategy",

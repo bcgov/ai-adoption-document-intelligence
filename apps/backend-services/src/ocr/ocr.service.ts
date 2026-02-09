@@ -106,12 +106,12 @@ export class OcrService {
         );
 
       // Update document with workflow configuration ID and Temporal workflow execution ID
+      // Note: Status is set automatically by workflow pre-execution hook
       const updateResult = await this.databaseService.updateDocument(
         documentId,
         {
           workflow_config_id: workflowConfigId || undefined,
           workflow_execution_id: workflowExecutionId,
-          status: DocumentStatus.ongoing_ocr,
         },
       );
 
@@ -120,11 +120,12 @@ export class OcrService {
       );
 
       // Return the workflow execution ID
+      // Status is set by workflow pre-execution hook
       return {
         apimRequestId:
           updateResult.workflow_execution_id || workflowExecutionId,
         workflowId: workflowExecutionId,
-        status: updateResult.status,
+        status: DocumentStatus.ongoing_ocr,
       };
     } catch (error) {
       this.logger.error(`Error processing document: ${error.message}`);

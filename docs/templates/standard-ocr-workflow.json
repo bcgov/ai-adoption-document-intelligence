@@ -5,7 +5,7 @@
     "description": "Standard OCR processing workflow (equivalent to legacy ocrWorkflow)",
     "tags": ["ocr", "azure", "standard"]
   },
-  "entryNodeId": "updateStatus",
+  "entryNodeId": "prepareFileData",
   "ctx": {
     "documentId": { "type": "string", "description": "Document ID from database" },
     "blobKey": { "type": "string", "description": "File reference on local storage" },
@@ -23,16 +23,6 @@
     "requiresReview": { "type": "boolean", "defaultValue": false }
   },
   "nodes": {
-    "updateStatus": {
-      "id": "updateStatus",
-      "type": "activity",
-      "label": "Update Status",
-      "activityType": "document.updateStatus",
-      "inputs": [{ "port": "documentId", "ctxKey": "documentId" }],
-      "parameters": { "status": "ongoing_ocr" },
-      "timeout": { "startToClose": "30s" },
-      "retry": { "maximumAttempts": 5 }
-    },
     "prepareFileData": {
       "id": "prepareFileData",
       "type": "activity",
@@ -183,7 +173,6 @@
     }
   },
   "edges": [
-    { "id": "e1", "source": "updateStatus", "target": "prepareFileData", "type": "normal" },
     { "id": "e2", "source": "prepareFileData", "target": "submitOcr", "type": "normal" },
     { "id": "e3", "source": "submitOcr", "target": "updateApimRequestId", "type": "normal" },
     { "id": "e4", "source": "updateApimRequestId", "target": "pollOcrResults", "type": "normal" },
@@ -201,7 +190,7 @@
       "description": "Submit document to Azure Document Intelligence and retrieve results",
       "icon": "scan",
       "color": "#3b82f6",
-      "nodeIds": ["updateStatus", "prepareFileData", "submitOcr", "updateApimRequestId", "pollOcrResults", "extractResults"],
+      "nodeIds": ["prepareFileData", "submitOcr", "updateApimRequestId", "pollOcrResults", "extractResults"],
       "exposedParams": [
         {
           "label": "OCR Model",

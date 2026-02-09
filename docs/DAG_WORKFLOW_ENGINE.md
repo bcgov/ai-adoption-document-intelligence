@@ -694,6 +694,36 @@ interface GraphWorkflowResult {
 }
 ```
 
+### 5.1.1 Pre-Execution Hook: Automatic Status Update
+
+Before executing the workflow graph, the `graphWorkflow` function automatically updates the document status to `ongoing_ocr` if `documentId` is present in the initial context. This ensures that the document status is properly tracked without requiring an explicit `document.updateStatus` node at the beginning of every workflow.
+
+**Behavior**:
+
+```typescript
+// In graphWorkflow(), after validation but before graph execution:
+if (input.initialCtx.documentId && typeof input.initialCtx.documentId === 'string') {
+  const { updateDocumentStatus } = proxyActivities<typeof activities>({
+    startToCloseTimeout: '30s',
+    retry: { maximumAttempts: 5 },
+  });
+
+  await updateDocumentStatus({
+    documentId: input.initialCtx.documentId,
+    status: 'ongoing_ocr',
+  });
+}
+```
+
+**Benefits**:
+
+1. **Eliminates boilerplate**: No need for explicit `updateStatus` node at workflow start
+2. **Guaranteed execution**: Status update happens before any graph nodes execute
+3. **Temporal reliability**: Status update is part of workflow history with built-in retries
+4. **Cleaner workflows**: Workflow definitions focus on business logic, not infrastructure
+
+**Note**: The `document.updateStatus` activity remains available for mid-workflow status updates (e.g., updating `apimRequestId` after OCR submission).
+
 ### 5.2 Execution Algorithm
 
 The graph runner follows this algorithm:

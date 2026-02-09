@@ -46,15 +46,20 @@ const DEFAULT_GRAPH_CONFIG: GraphWorkflowConfig = {
   },
   ctx: {
     documentId: { type: "string" },
+    blobKey: { type: "string" },
+    fileName: { type: "string" },
   },
   nodes: {
     start: {
       id: "start",
       type: "activity",
-      label: "Start",
-      activityType: "document.updateStatus",
-      inputs: [{ port: "documentId", ctxKey: "documentId" }],
-      outputs: [{ port: "status", ctxKey: "status" }],
+      label: "Prepare File",
+      activityType: "file.prepare",
+      inputs: [
+        { port: "blobKey", ctxKey: "blobKey" },
+        { port: "fileName", ctxKey: "fileName" },
+      ],
+      outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
     },
   },
   edges: [],
