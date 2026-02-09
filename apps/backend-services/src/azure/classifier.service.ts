@@ -1,12 +1,10 @@
-import {
-  DocumentIntelligenceClient,
-} from "@azure-rest/ai-document-intelligence";
+import { DocumentIntelligenceClient } from "@azure-rest/ai-document-intelligence";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import * as path from "path";
 import { AzureService } from "@/azure/azure.service";
 import { BlobService } from "@/azure/blob.service";
+import { ClassifierStatus } from "@/azure/dto/classifier.dto";
 import { DatabaseService } from "@/database/database.service";
-import { ClassifierStatus } from "@/generated";
 import { OcrService } from "@/ocr/ocr.service";
 import { Operation, StorageService } from "@/storage/storage.service";
 
@@ -56,6 +54,7 @@ export class ClassifierService {
           body: {
             urlSource: url,
           },
+          contentType: "application/json",
           queryParameters: { "api-version": "2024-11-30" },
         });
 
@@ -133,6 +132,7 @@ export class ClassifierService {
       } else {
         this.logger.error(
           `Failed to analyze blob ${filePath}:`,
+          `url: ${url}`,
           analyzeResponse.status,
           analyzeResponse.body,
         );
@@ -223,7 +223,7 @@ export class ClassifierService {
     // NOTE: baseClassifierId cannot be the same one you are overwriting.
     // It will not find the original. Possibly clears beforehand.
     return {
-      classifierId: classifierName,
+      classifierId: this.getConstructedClassifierName(groupId, classifierName),
       description,
       docTypes,
       allowOverwrite: true, // Default is false,
@@ -272,12 +272,12 @@ export class ClassifierService {
       // Must replace with our actual Doc Intelligence endpoint (not training one)
       const docIntelligenceEndpoint = this.azureService.getEndpoint();
       operationLocation = operationLocation.replace(
-        /https:\/\/[^/]+\/documentintelligence/,
+        /https:\/\/[^/]+/,
         docIntelligenceEndpoint,
       );
 
       // Update classifier record
-      await this.databaseService.updateClassifierModel(
+      return await this.databaseService.updateClassifierModel(
         classifierName,
         groupId,
         {
@@ -293,5 +293,73 @@ export class ClassifierService {
       this.logger.error(response.body);
       throw new Error(message);
     }
+  };
+
+  requestClassification = async (
+    filePath: string,
+    classiferName: string,
+    groupId: string,
+  ) => {
+    const constructedClassifierName = this.getConstructedClassifierName(
+      groupId,
+      classiferName,
+    );
+    // Read file and encode to base64
+    const fileData = await this.storageService.readFile(filePath);
+    const base64String = Buffer.from(fileData).toString("base64");
+
+    const response = await this.client
+      .path(`/documentClassifiers/${constructedClassifierName}:analyze`)
+      .post({
+        body: {
+          base64Source: base64String,
+        },
+        queryParameters: {
+          "api-version": "2024-11-30",
+          _overload: "classifyDocument",
+        },
+      });
+    if (response.status == "202") {
+      const operationLocation =
+        response.headers["operation-location"] ||
+        response.headers["Operation-Location"];
+      return { status: "202", content: operationLocation };
+    }
+    return { status: response.status, content: "", error: response.body };
+  };
+
+  requestClassificationFromFile = async (
+    file: Express.Multer.File,
+    classiferName: string,
+    groupId: string,
+  ) => {
+    const constructedClassifierName = this.getConstructedClassifierName(
+      groupId,
+      classiferName,
+    );
+    // Read file and encode to base64
+    const base64String = Buffer.from(file.buffer).toString("base64");
+    const response = await this.client
+      .path(`/documentClassifiers/${constructedClassifierName}:analyze`)
+      .post({
+        body: {
+          base64Source: base64String,
+        },
+        queryParameters: {
+          "api-version": "2024-11-30",
+          _overload: "classifyDocument",
+        },
+      });
+    if (response.status == "202") {
+      const operationLocation =
+        response.headers["operation-location"] ||
+        response.headers["Operation-Location"];
+      return { status: "202", content: operationLocation };
+    }
+    return { status: response.status, content: "", error: response.body };
+  };
+
+  getConstructedClassifierName = (groupId: string, classifierName: string) => {
+    return `${groupId}__${classifierName}`;
   };
 }

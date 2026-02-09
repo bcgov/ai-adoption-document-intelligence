@@ -350,20 +350,20 @@ export class DatabaseService {
   async getUsersGroups(userId: string) {
     return await this.prisma.userGroup.findMany({
       where: {
-        user_id: userId
-      }
-    })
+        user_id: userId,
+      },
+    });
   }
 
   async isUserInGroup(userId: string, groupId: string) {
     const entry = await this.prisma.userGroup.findUnique({
       where: {
         user_id_group_id: {
-          user_id: userId, 
-          group_id: groupId
-        }
-      }
-    })
+          user_id: userId,
+          group_id: groupId,
+        },
+      },
+    });
     return entry != null;
   }
 }

@@ -5,9 +5,7 @@ import DocumentIntelligence, {
 } from "@azure-rest/ai-document-intelligence";
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { DatabaseService } from "@/database/database.service";
 import { OcrService } from "@/ocr/ocr.service";
-import { TemporalClientService } from "@/temporal/temporal-client.service";
 
 // Azure Document Intelligence Operation Status interface
 export interface OperationStatus {
@@ -58,14 +56,6 @@ export class AzureService {
   getEndpoint() {
     return this.endpoint;
   }
-
-  // async checkOperationStatus(operationLocation: string): Promise<ListOperations200Response | ListOperationsDefaultResponse> {
-  //   // Remove query params if present
-  //   const cleanLocation = operationLocation.split('?')[0];
-  //   const operationId = cleanLocation.split('/').pop();
-  //   const response = await this.client.path(`/operations/${operationId}`).get();
-  //   return response;
-  // }
 
   async checkOperationStatus(operationLocation: string) {
     const pollResp = await fetch(operationLocation, {

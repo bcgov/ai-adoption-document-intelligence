@@ -418,7 +418,6 @@ export class BlobService {
         containerName,
         blobName,
         permissions: ContainerSASPermissions.parse("r"),
-        startsOn: now,
         expiresOn: expires,
         protocol: SASProtocol.Https,
       },
