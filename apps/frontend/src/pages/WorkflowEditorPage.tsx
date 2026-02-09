@@ -268,7 +268,7 @@ export function WorkflowEditorPage({
     DEFAULT_GRAPH_CONFIG,
   );
   const [debouncedJson] = useDebouncedValue(jsonValue, 300);
-  const [viewMode, setViewMode] = useState<"detailed" | "simplified">("detailed");
+  const [viewMode, setViewMode] = useState<"detailed" | "simplified">("simplified");
   const initializedRef = useRef(false);
   const initialSnapshotRef = useRef<{
     name: string;
@@ -567,6 +567,7 @@ export function WorkflowEditorPage({
             <Paper withBorder>
               <CodeMirror
                 value={jsonValue}
+                theme="dark"
                 height="520px"
                 extensions={[
                   json(),
@@ -627,8 +628,8 @@ export function WorkflowEditorPage({
                   value={viewMode}
                   onChange={(value) => setViewMode(value as "detailed" | "simplified")}
                   data={[
-                    { label: "Simplified", value: "simplified" },
                     { label: "Detailed", value: "detailed" },
+                    { label: "Simplified", value: "simplified" },
                   ]}
                 />
               )}

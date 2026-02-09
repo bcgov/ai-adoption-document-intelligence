@@ -1355,7 +1355,7 @@ function buildSimplifiedView(
 export function GraphVisualization({
   config,
   validationErrors,
-  viewMode = "detailed",
+  viewMode = "simplified",
 }: GraphVisualizationProps) {
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
 
