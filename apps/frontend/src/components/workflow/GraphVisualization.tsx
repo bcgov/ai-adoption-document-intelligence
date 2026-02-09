@@ -298,7 +298,7 @@ const MapContainerRenderer = memo(function MapContainerRenderer({
         border: data.hasError ? "2px solid #ef4444" : `2px dashed ${color}`,
         background: "#f9fafb",
         boxShadow: "0 6px 12px rgba(0,0,0,0.08)",
-        padding: "12px 12px 40px 12px",
+        padding: "12px 12px 12px 12px",
         display: "flex",
         flexDirection: "column",
         gap: 8,
@@ -548,10 +548,18 @@ function buildDetailedViewWithMapContainers(
       const PADDING = 24;
       const HEADER_HEIGHT = 50;
       const NODE_GAP = 40;
+      const TOP_PADDING = 40; // Increased for more visible spacing
+      const BOTTOM_PADDING = 25;
 
       // Compute layers for body nodes
       const layersMap = computeBodyNodeLayers(bodyNodeIds, config.edges, mapNode.bodyEntryNodeId);
       const numLayers = layersMap.size;
+
+      console.log(`[Map ${node.id}] Layers computed:`, Array.from(layersMap.entries()).map(([layer, nodes]) => ({
+        layer,
+        nodes,
+        count: nodes.length
+      })));
 
       // Calculate width based on widest layer
       const maxLayerWidth = Math.max(...Array.from(layersMap.values()).map(layerNodes => {
@@ -564,13 +572,27 @@ function buildDetailedViewWithMapContainers(
 
       const containerWidth = Math.max(250, maxLayerWidth + PADDING * 2);
 
-      // Calculate height based on number of layers
-      const maxNodeHeightInBody = Math.max(...bodyNodeIds.map(nodeId =>
-        NODE_DIMENSIONS[config.nodes[nodeId].type].height
-      ));
-      const containerHeight = HEADER_HEIGHT + PADDING +
-        (numLayers * maxNodeHeightInBody) +
-        (Math.max(0, numLayers - 1) * LAYER_GAP);
+      // Calculate height based on actual max height per layer for tight fit
+      const layerHeights = Array.from(layersMap.values()).map(layerNodeIds => {
+        return Math.max(...layerNodeIds.map(nodeId =>
+          NODE_DIMENSIONS[config.nodes[nodeId].type].height
+        ));
+      });
+      const totalLayersHeight = layerHeights.reduce((sum, h) => sum + h, 0);
+      const containerHeight = HEADER_HEIGHT + TOP_PADDING +
+        totalLayersHeight +
+        (Math.max(0, numLayers - 1) * LAYER_GAP) +
+        BOTTOM_PADDING;
+
+      console.log(`[Map ${node.id}] Container dimensions:`, {
+        width: containerWidth,
+        height: containerHeight,
+        numLayers,
+        maxLayerWidth,
+        layerHeights,
+        totalLayersHeight,
+        calculation: `${HEADER_HEIGHT}(header) + ${TOP_PADDING}(top padding) + ${totalLayersHeight}(layers: ${layerHeights.join('+')}) + ${Math.max(0, numLayers - 1) * LAYER_GAP}(gaps) + ${BOTTOM_PADDING}(bottom padding) = ${containerHeight}`
+      });
 
       mappedNodes.push({
         id: node.id,
@@ -730,6 +752,7 @@ function layoutGraphWithMapContainers(
       const PADDING = 24;
       const HEADER_HEIGHT = 50;
       const NODE_GAP = 40;
+      const TOP_PADDING = 40; // Increased for more visible spacing
 
       // Find the map node from config
       const mapNodeConfig = Object.values(config.nodes).find(n => n.id === node.id && n.type === "map") as MapNode | undefined;
@@ -743,7 +766,7 @@ function layoutGraphWithMapContainers(
             ...bodyNode,
             position: {
               x: currentX,
-              y: HEADER_HEIGHT + PADDING,
+              y: HEADER_HEIGHT + TOP_PADDING,
             },
           };
           currentX += (bodyNode.width ?? 0) + NODE_GAP;
@@ -755,14 +778,22 @@ function layoutGraphWithMapContainers(
       // Compute layers for body nodes
       const layersMap = computeBodyNodeLayers(bodyNodeIds, config.edges, mapNodeConfig.bodyEntryNodeId);
 
-      // Calculate max node height for vertical spacing
-      const maxNodeHeightInBody = Math.max(...bodyNodeIds.map(nodeId => {
-        const bodyNode = nodes.find(n => n.id === nodeId)!;
-        return bodyNode.height ?? 80;
-      }));
+      console.log(`[Positioning ${node.id}] Starting layer-based positioning`, {
+        containerWidth: node.width,
+        containerHeight: node.height
+      });
+
+      // Calculate actual max height per layer for precise positioning
+      const layerHeights = Array.from(layersMap.values()).map(layerNodeIds => {
+        return Math.max(...layerNodeIds.map(nodeId => {
+          const bodyNode = nodes.find(n => n.id === nodeId)!;
+          return bodyNode.height ?? 80;
+        }));
+      });
 
       // Position nodes layer by layer
       const positionedBodyNodes: Node[] = [];
+      let cumulativeY = HEADER_HEIGHT + TOP_PADDING;
 
       layersMap.forEach((layerNodeIds, layerNumber) => {
         // Calculate layer dimensions
@@ -782,8 +813,17 @@ function layoutGraphWithMapContainers(
         // Center the layer horizontally
         let currentX = (node.width! - totalLayerWidth) / 2;
 
-        // Calculate Y position for this layer
-        const currentY = HEADER_HEIGHT + PADDING + (layerNumber * (maxNodeHeightInBody + LAYER_GAP));
+        // Use cumulative Y position for this layer
+        const currentY = cumulativeY;
+
+        console.log(`[Layer ${layerNumber}]`, {
+          nodeCount: layerNodeIds.length,
+          totalLayerWidth,
+          startX: currentX,
+          y: currentY,
+          layerHeight: layerHeights[layerNumber],
+          nodes: layerNodeIds
+        });
 
         // Position each node in the layer
         layerNodesWithDims.forEach(({ node: bodyNode }) => {
@@ -794,8 +834,12 @@ function layoutGraphWithMapContainers(
               y: currentY
             }
           });
+          console.log(`  Node ${bodyNode.id}: (${currentX}, ${currentY})`);
           currentX += bodyNode.width! + NODE_GAP;
         });
+
+        // Update cumulative Y for next layer
+        cumulativeY += layerHeights[layerNumber] + LAYER_GAP;
       });
 
       return [node, ...positionedBodyNodes];
