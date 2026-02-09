@@ -245,7 +245,7 @@
     "passthrough": {
       "id": "passthrough",
       "type": "activity",
-      "label": "Combine Segment Result",
+      "label": "Combine Result (per segment)",
       "activityType": "segment.combineResult",
       "inputs": [
         { "port": "currentSegment", "ctxKey": "currentSegment" },
@@ -259,7 +259,7 @@
     "collectResults": {
       "id": "collectResults",
       "type": "join",
-      "label": "Collect Segment Results",
+      "label": "Collect All Results (N→1)",
       "sourceMapNodeId": "processSegments",
       "strategy": "all",
       "resultsCtxKey": "processedSegments"

@@ -29,7 +29,7 @@ import {
 import { Badge } from "@mantine/core";
 import { memo, useMemo, useEffect, useRef } from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
-import type { GraphNode, GraphWorkflowConfig, GraphEdge, MapNode, ChildWorkflowNode } from "../../types/workflow";
+import type { GraphNode, GraphWorkflowConfig, GraphEdge, MapNode, ChildWorkflowNode, SwitchNode } from "../../types/workflow";
 
 export interface GraphVisualizationError {
   path: string;
@@ -364,8 +364,55 @@ const MapContainerRenderer = memo(function MapContainerRenderer({
   );
 });
 
-function buildEdgeLabel(edge: GraphEdge): string | undefined {
+function extractSwitchEdgeLabel(edge: GraphEdge, config: GraphWorkflowConfig): string | undefined {
+  // Check if source node is a switch node
+  const sourceNode = config.nodes[edge.source];
+  if (!sourceNode || sourceNode.type !== "switch") {
+    return undefined;
+  }
+
+  const switchNode = sourceNode as SwitchNode;
+
+  // Check if this edge is the default edge
+  if (switchNode.defaultEdge === edge.id) {
+    return "default";
+  }
+
+  // Find the case that matches this edge
+  const matchingCase = switchNode.cases.find(c => c.edgeId === edge.id);
+  if (!matchingCase) {
+    return undefined;
+  }
+
+  // Format the condition - only handle ComparisonExpression for now
+  const cond = matchingCase.condition;
+
+  // Check if it's a comparison expression (has left, right, operator)
+  if (!('left' in cond) || !('right' in cond) || !('operator' in cond)) {
+    return "conditional"; // Fallback for complex expressions
+  }
+
+  const leftPart = cond.left.ref ? cond.left.ref.replace("ctx.", "").replace("currentSegment.", "") : "?";
+  const rightPart = typeof cond.right.literal === "string"
+    ? cond.right.literal
+    : JSON.stringify(cond.right.literal ?? cond.right.ref ?? "?");
+
+  const op = cond.operator === "equals" ? "=" :
+             cond.operator === "not-equals" ? "!=" :
+             cond.operator;
+
+  return `${leftPart} ${op} ${rightPart}`;
+}
+
+function buildEdgeLabel(edge: GraphEdge, config: GraphWorkflowConfig): string | undefined {
   const labelParts: string[] = [];
+
+  // Check for switch node condition first
+  const switchLabel = extractSwitchEdgeLabel(edge, config);
+  if (switchLabel) {
+    labelParts.push(switchLabel);
+  }
+
   if (edge.sourcePort || edge.targetPort) {
     if (edge.sourcePort && edge.targetPort) {
       labelParts.push(`${edge.sourcePort} → ${edge.targetPort}`);
@@ -659,7 +706,7 @@ function buildDetailedViewWithMapContainers(
 
     if (isInternalEdge) {
       // Internal edge within map body - use vertical connections (bottom → top) for layer-based layout
-      const label = buildEdgeLabel(edge);
+      const label = buildEdgeLabel(edge, config);
       const isConditional = edge.type === "conditional";
       const isError = edge.type === "error";
       const color = isError ? "#ef4444" : "#4b5563";
@@ -692,7 +739,7 @@ function buildDetailedViewWithMapContainers(
       const effectiveSource = sourceMapParent || edge.source;
       const effectiveTarget = targetMapParent || edge.target;
 
-      const label = buildEdgeLabel(edge);
+      const label = buildEdgeLabel(edge, config);
       const isConditional = edge.type === "conditional";
       const isError = edge.type === "error";
       const color = isError ? "#ef4444" : "#4b5563";
@@ -997,7 +1044,7 @@ function buildHybridView(
 
     if (isInternalEdge) {
       // Internal edge within map body - use vertical connections
-      const label = buildEdgeLabel(edge);
+      const label = buildEdgeLabel(edge, config);
       const isConditional = edge.type === "conditional";
       const isError = edge.type === "error";
       const color = isError ? "#ef4444" : "#4b5563";
@@ -1237,7 +1284,7 @@ export function GraphVisualization({
     );
 
     const mappedEdges: Edge[] = config.edges.map((edge) => {
-      const label = buildEdgeLabel(edge);
+      const label = buildEdgeLabel(edge, config);
       const isConditional = edge.type === "conditional";
       const isError = edge.type === "error";
       const color = isError ? "#ef4444" : "#4b5563";
