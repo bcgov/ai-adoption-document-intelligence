@@ -75,6 +75,8 @@ const NODE_DIMENSIONS: Record<GraphNode["type"], { width: number; height: number
     humanGate: { width: 190, height: 80 },
   };
 
+const LAYER_GAP = 120; // Vertical spacing between layers in map containers
+
 const NODE_COLORS: Record<GraphNode["type"], string> = {
   activity: "#3b82f6",
   switch: "#facc15",
@@ -430,6 +432,58 @@ function identifyMapBodyNodes(config: GraphWorkflowConfig): Map<string, string> 
   return bodyNodeToMapNode;
 }
 
+function computeBodyNodeLayers(
+  bodyNodeIds: string[],
+  edges: GraphEdge[],
+  entryNodeId: string
+): Map<number, string[]> {
+  // Build adjacency list for body nodes only
+  const bodyNodeSet = new Set(bodyNodeIds);
+  const adjacencyList = new Map<string, string[]>();
+
+  for (const nodeId of bodyNodeIds) {
+    adjacencyList.set(nodeId, []);
+  }
+
+  for (const edge of edges) {
+    if (bodyNodeSet.has(edge.source) && bodyNodeSet.has(edge.target)) {
+      adjacencyList.get(edge.source)!.push(edge.target);
+    }
+  }
+
+  // BFS to compute layers
+  const nodeLayer = new Map<string, number>();
+  const queue: Array<{ nodeId: string; layer: number }> = [];
+
+  // Start from entry node
+  nodeLayer.set(entryNodeId, 0);
+  queue.push({ nodeId: entryNodeId, layer: 0 });
+
+  while (queue.length > 0) {
+    const { nodeId, layer } = queue.shift()!;
+    const neighbors = adjacencyList.get(nodeId) || [];
+
+    for (const neighbor of neighbors) {
+      if (!nodeLayer.has(neighbor)) {
+        nodeLayer.set(neighbor, layer + 1);
+        queue.push({ nodeId: neighbor, layer: layer + 1 });
+      }
+    }
+  }
+
+  // Group nodes by layer
+  const layersMap = new Map<number, string[]>();
+
+  for (const [nodeId, layer] of nodeLayer.entries()) {
+    if (!layersMap.has(layer)) {
+      layersMap.set(layer, []);
+    }
+    layersMap.get(layer)!.push(nodeId);
+  }
+
+  return layersMap;
+}
+
 function layoutGraph(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: Edge[] } {
   const graph = new dagre.graphlib.Graph();
   graph.setDefaultEdgeLabel(() => ({}));
@@ -490,22 +544,33 @@ function buildDetailedViewWithMapContainers(
       const bodyNodeIds = mapNodeToBodyNodes.get(node.id) || [];
       const bodyNodeCount = bodyNodeIds.length;
 
-      // Calculate container size based on body nodes
+      // Calculate container size based on layers
       const PADDING = 24;
       const HEADER_HEIGHT = 50;
       const NODE_GAP = 40;
-      const bodyWidth = bodyNodeIds.reduce((sum, bodyId) => {
-        const bodyNode = config.nodes[bodyId];
-        const dim = NODE_DIMENSIONS[bodyNode.type];
-        return sum + dim.width;
-      }, 0) + (Math.max(0, bodyNodeCount - 1) * NODE_GAP);
-      const bodyHeight = Math.max(...bodyNodeIds.map(bodyId => {
-        const bodyNode = config.nodes[bodyId];
-        return NODE_DIMENSIONS[bodyNode.type].height;
+
+      // Compute layers for body nodes
+      const layersMap = computeBodyNodeLayers(bodyNodeIds, config.edges, mapNode.bodyEntryNodeId);
+      const numLayers = layersMap.size;
+
+      // Calculate width based on widest layer
+      const maxLayerWidth = Math.max(...Array.from(layersMap.values()).map(layerNodes => {
+        const nodesWidth = layerNodes.reduce((sum, nodeId) => {
+          return sum + NODE_DIMENSIONS[config.nodes[nodeId].type].width;
+        }, 0);
+        const gaps = Math.max(0, layerNodes.length - 1) * NODE_GAP;
+        return nodesWidth + gaps;
       }));
 
-      const containerWidth = Math.max(250, bodyWidth + PADDING * 2);
-      const containerHeight = HEADER_HEIGHT + bodyHeight + PADDING * 2;
+      const containerWidth = Math.max(250, maxLayerWidth + PADDING * 2);
+
+      // Calculate height based on number of layers
+      const maxNodeHeightInBody = Math.max(...bodyNodeIds.map(nodeId =>
+        NODE_DIMENSIONS[config.nodes[nodeId].type].height
+      ));
+      const containerHeight = HEADER_HEIGHT + PADDING +
+        (numLayers * maxNodeHeightInBody) +
+        (Math.max(0, numLayers - 1) * LAYER_GAP);
 
       mappedNodes.push({
         id: node.id,
@@ -574,7 +639,7 @@ function buildDetailedViewWithMapContainers(
     const isInternalEdge = sourceMapParent && targetMapParent && sourceMapParent === targetMapParent;
 
     if (isInternalEdge) {
-      // Internal edge within map body - use horizontal connections (right → left)
+      // Internal edge within map body - use vertical connections (bottom → top) for layer-based layout
       const label = buildEdgeLabel(edge);
       const isConditional = edge.type === "conditional";
       const isError = edge.type === "error";
@@ -583,9 +648,9 @@ function buildDetailedViewWithMapContainers(
       mappedEdges.push({
         id: edge.id,
         source: edge.source,
-        sourceHandle: "right",
+        sourceHandle: "bottom",
         target: edge.target,
-        targetHandle: "left",
+        targetHandle: "top",
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color,
@@ -638,13 +703,14 @@ function buildDetailedViewWithMapContainers(
   }
 
   // Two-pass layout: Dagre for top-level, manual for body nodes
-  return layoutGraphWithMapContainers(mappedNodes, mappedEdges, mapNodeToBodyNodes);
+  return layoutGraphWithMapContainers(mappedNodes, mappedEdges, mapNodeToBodyNodes, config);
 }
 
 function layoutGraphWithMapContainers(
   nodes: Node[],
   edges: Edge[],
   mapNodeToBodyNodes: Map<string, string[]>,
+  config: GraphWorkflowConfig,
 ): { nodes: Node[]; edges: Edge[] } {
   // Pass 1: Layout top-level nodes only (exclude body nodes)
   const topLevelNodes = nodes.filter(node => !node.parentId);
@@ -656,28 +722,80 @@ function layoutGraphWithMapContainers(
 
   const { nodes: layoutedTopLevel } = layoutGraph(topLevelNodes, topLevelEdges);
 
-  // Pass 2: Position body nodes inside their parent containers
+  // Pass 2: Position body nodes inside their parent containers using layers
   const finalNodes = layoutedTopLevel.map(node => {
     if (node.type === "mapContainer") {
-      // Position body nodes inside this container
+      // Position body nodes inside this container based on layers
       const bodyNodeIds = mapNodeToBodyNodes.get(node.id) || [];
       const PADDING = 24;
       const HEADER_HEIGHT = 50;
       const NODE_GAP = 40;
 
-      let currentX = PADDING;
+      // Find the map node from config
+      const mapNodeConfig = Object.values(config.nodes).find(n => n.id === node.id && n.type === "map") as MapNode | undefined;
 
-      const positionedBodyNodes = bodyNodeIds.map(bodyNodeId => {
-        const bodyNode = nodes.find(n => n.id === bodyNodeId)!;
-        const positionedBody = {
-          ...bodyNode,
-          position: {
-            x: currentX,
-            y: HEADER_HEIGHT + PADDING,
-          },
-        };
-        currentX += (bodyNode.width ?? 0) + NODE_GAP;
-        return positionedBody;
+      if (!mapNodeConfig) {
+        // Fallback to old horizontal layout if map node not found
+        let currentX = PADDING;
+        const positionedBodyNodes = bodyNodeIds.map(bodyNodeId => {
+          const bodyNode = nodes.find(n => n.id === bodyNodeId)!;
+          const positionedBody = {
+            ...bodyNode,
+            position: {
+              x: currentX,
+              y: HEADER_HEIGHT + PADDING,
+            },
+          };
+          currentX += (bodyNode.width ?? 0) + NODE_GAP;
+          return positionedBody;
+        });
+        return [node, ...positionedBodyNodes];
+      }
+
+      // Compute layers for body nodes
+      const layersMap = computeBodyNodeLayers(bodyNodeIds, config.edges, mapNodeConfig.bodyEntryNodeId);
+
+      // Calculate max node height for vertical spacing
+      const maxNodeHeightInBody = Math.max(...bodyNodeIds.map(nodeId => {
+        const bodyNode = nodes.find(n => n.id === nodeId)!;
+        return bodyNode.height ?? 80;
+      }));
+
+      // Position nodes layer by layer
+      const positionedBodyNodes: Node[] = [];
+
+      layersMap.forEach((layerNodeIds, layerNumber) => {
+        // Calculate layer dimensions
+        const layerNodesWithDims = layerNodeIds.map(nodeId => {
+          const bodyNode = nodes.find(n => n.id === nodeId)!;
+          return {
+            nodeId,
+            node: bodyNode,
+            width: bodyNode.width ?? 180,
+            height: bodyNode.height ?? 80
+          };
+        });
+
+        const totalLayerWidth = layerNodesWithDims.reduce((sum, n) => sum + n.width, 0) +
+          Math.max(0, layerNodeIds.length - 1) * NODE_GAP;
+
+        // Center the layer horizontally
+        let currentX = (node.width! - totalLayerWidth) / 2;
+
+        // Calculate Y position for this layer
+        const currentY = HEADER_HEIGHT + PADDING + (layerNumber * (maxNodeHeightInBody + LAYER_GAP));
+
+        // Position each node in the layer
+        layerNodesWithDims.forEach(({ node: bodyNode }) => {
+          positionedBodyNodes.push({
+            ...bodyNode,
+            position: {
+              x: currentX,
+              y: currentY
+            }
+          });
+          currentX += bodyNode.width! + NODE_GAP;
+        });
       });
 
       return [node, ...positionedBodyNodes];
