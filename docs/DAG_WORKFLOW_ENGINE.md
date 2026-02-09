@@ -252,6 +252,13 @@ interface ChildWorkflowNode extends GraphNodeBase {
 }
 ```
 
+**Implementation details**:
+- Library refs load the graph config via an activity (`getWorkflowGraphConfig`) since workflow code cannot access the database directly.
+- Inline refs use the embedded graph as-is.
+- `inputMappings` populate the child workflow `initialCtx` (mapping port -> parent ctx value).
+- `outputMappings` read from the child workflow `ctx` and write to the parent ctx.
+- The child input includes `parentWorkflowId` set to the parent workflow ID.
+
 #### 4.2.6 PollUntil Node
 
 Repeatedly executes an activity until a condition is met.
@@ -271,6 +278,13 @@ interface PollUntilNode extends GraphNodeBase {
 
 **Execution strategy**: The graph runner compiles this into an activity call + durable sleep loop within the workflow function. For polls expected to take a long time or return large payloads, the runner may instead launch a child workflow to keep the parent history bounded. This is an implementation detail transparent to the graph author.
 
+**Implementation details**:
+- `initialDelay` is applied before the first poll attempt.
+- `interval` uses Temporal `sleep` between attempts.
+- `maxAttempts` defaults to 100 when omitted.
+- `timeout` is an overall cap (including initial delay and sleeps). Exceeding `maxAttempts` or `timeout` raises a non-retryable `POLL_TIMEOUT`.
+- Outputs are written to ctx after each poll attempt so conditions can evaluate against the latest response.
+
 #### 4.2.7 HumanGate Node
 
 Pauses execution and waits for a human signal.
@@ -289,6 +303,16 @@ interface HumanGateNode extends GraphNodeBase {
 ```
 
 **Execution strategy**: Maps to Temporal `condition()` + timer pattern. The signal name is registered on the workflow, and the workflow blocks until the signal is received or the timeout expires.
+
+**Implementation details**:
+- Signal handlers are registered at runtime using the node's `signal.name`.
+- If the signal payload contains `{ approved: false }`, the node fails with `HUMAN_GATE_REJECTED`.
+- When the signal is received, payload fields are written to ctx via `outputs` (port name -> payload field).
+- If `outputs` is not provided, the full payload is written to `ctx["<nodeId>Payload"]`.
+- On timeout:
+  - `fail` throws a non-retryable `HUMAN_GATE_TIMEOUT`.
+  - `continue` proceeds as if approved.
+  - `fallback` routes to `fallbackEdgeId`.
 
 ### 4.3 Edges
 
@@ -626,6 +650,7 @@ This demonstrates multi-page document splitting, parallel OCR, classification, a
   "edges": [
     { "id": "e1", "source": "updateStatus", "target": "splitDocument", "type": "normal" },
     { "id": "e2", "source": "splitDocument", "target": "processSegments", "type": "normal" },
+    { "id": "e-segment-ocr", "source": "segmentOcr", "target": "classifySegment", "type": "normal" },
     { "id": "e3", "source": "processSegments", "target": "collectResults", "type": "normal" },
     { "id": "e4", "source": "collectResults", "target": "validateFields", "type": "normal" },
     { "id": "e5", "source": "validateFields", "target": "storeResults", "type": "normal" }
@@ -668,6 +693,36 @@ interface GraphWorkflowResult {
   status: "completed" | "failed" | "cancelled";
 }
 ```
+
+### 5.1.1 Pre-Execution Hook: Automatic Status Update
+
+Before executing the workflow graph, the `graphWorkflow` function automatically updates the document status to `ongoing_ocr` if `documentId` is present in the initial context. This ensures that the document status is properly tracked without requiring an explicit `document.updateStatus` node at the beginning of every workflow.
+
+**Behavior**:
+
+```typescript
+// In graphWorkflow(), after validation but before graph execution:
+if (input.initialCtx.documentId && typeof input.initialCtx.documentId === 'string') {
+  const { updateDocumentStatus } = proxyActivities<typeof activities>({
+    startToCloseTimeout: '30s',
+    retry: { maximumAttempts: 5 },
+  });
+
+  await updateDocumentStatus({
+    documentId: input.initialCtx.documentId,
+    status: 'ongoing_ocr',
+  });
+}
+```
+
+**Benefits**:
+
+1. **Eliminates boilerplate**: No need for explicit `updateStatus` node at workflow start
+2. **Guaranteed execution**: Status update happens before any graph nodes execute
+3. **Temporal reliability**: Status update is part of workflow history with built-in retries
+4. **Cleaner workflows**: Workflow definitions focus on business logic, not infrastructure
+
+**Note**: The `document.updateStatus` activity remains available for mid-workflow status updates (e.g., updating `apimRequestId` after OCR submission).
 
 ### 5.2 Execution Algorithm
 
@@ -795,6 +850,8 @@ interface DocumentSegment {
 2. Determines split points based on the strategy
 3. Uses `qpdf` CLI to extract page ranges into separate files
 4. Returns segment metadata with blob keys for each split file
+
+**Boundary detection note**: The two-pass boundary detection uses `pdftotext` to extract per-page text for heuristics (page 1 indicators, blank pages, layout changes). Ensure `pdftotext` is available alongside `qpdf` in the worker runtime.
 
 **Engineering upper bound**: Must handle documents with at least 2,000 pages.
 
@@ -1031,6 +1088,8 @@ The REST API structure remains the same (`/api/workflows` CRUD). Changes are in 
 | `POST /api/workflows` | Request body: `config` is now `GraphWorkflowConfig`; validation uses `GraphSchemaValidator` |
 | `PUT /api/workflows/:id` | Request body: `config` is now `GraphWorkflowConfig`; validation uses `GraphSchemaValidator` |
 | `DELETE /api/workflows/:id` | No change |
+
+API responses include `schemaVersion` derived from the stored config to support client compatibility checks.
 
 ### 9.2 Validation
 
@@ -1303,6 +1362,8 @@ function computeConfigHash(config: GraphWorkflowConfig): string {
 }
 ```
 
+**Implementation note**: `computeConfigHash` is implemented in both backend and temporal codepaths (duplicated for now) so that the same canonicalization and hashing logic is available before execution and for validation/replay checks.
+
 This hash is included in `GraphWorkflowInput.configHash`. It serves two purposes:
 
 1. **Integrity check**: On replay, the runner can verify the config matches the original execution
@@ -1327,7 +1388,7 @@ The activity registry is versioned alongside the runner. When new activity types
 
 ### 13.1 Problem
 
-The current system passes base64-encoded file data directly in the Temporal workflow input (`OCRWorkflowInput.binaryData`). This is problematic for:
+The legacy system passed base64-encoded file data directly in the Temporal workflow input. The graph workflow now uses blob keys instead to avoid:
 
 - Large files (Temporal has a 2MB payload limit per event by default, though configurable)
 - Multi-page documents (2,000 pages could easily exceed limits)

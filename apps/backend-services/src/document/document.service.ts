@@ -1,9 +1,6 @@
 import { DocumentStatus, Prisma } from "@generated/client";
 import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { existsSync } from "fs";
-import { mkdir, writeFile } from "fs/promises";
-import { join } from "path";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { v4 as uuidv4 } from "uuid";
 import { DatabaseService, DocumentData } from "../database/database.service";
 
@@ -25,28 +22,11 @@ export interface UploadedDocument {
 @Injectable()
 export class DocumentService {
   private readonly logger = new Logger(DocumentService.name);
-  private readonly storagePath: string;
 
   constructor(
     private databaseService: DatabaseService,
-    private configService: ConfigService,
+    private readonly blobStorage: LocalBlobStorageService,
   ) {
-    this.storagePath =
-      this.configService.get<string>("STORAGE_PATH") ||
-      join(process.cwd(), "storage", "documents");
-    this.ensureStorageDirectory();
-  }
-
-  private async ensureStorageDirectory(): Promise<void> {
-    try {
-      if (!existsSync(this.storagePath)) {
-        await mkdir(this.storagePath, { recursive: true });
-        this.logger.log(`Created storage directory: ${this.storagePath}`);
-      }
-    } catch (error) {
-      this.logger.error(`Failed to create storage directory: ${error.message}`);
-      throw error;
-    }
   }
 
   private getFileExtension(fileType: string): string {
@@ -56,15 +36,6 @@ export class DocumentService {
       scan: "pdf",
     };
     return typeMap[fileType.toLowerCase()] || "bin";
-  }
-
-  private generateFileName(originalFilename: string, fileType: string): string {
-    const extension = this.getFileExtension(fileType);
-    const uuid = uuidv4();
-    const sanitizedOriginal = originalFilename
-      .replace(/[^a-zA-Z0-9.-]/g, "_")
-      .substring(0, 50);
-    return `${uuid}_${sanitizedOriginal}.${extension}`;
   }
 
   async uploadDocument(
@@ -98,27 +69,19 @@ export class DocumentService {
       const fileSize = fileBuffer.length;
       this.logger.debug(`Decoded file size: ${fileSize} bytes`);
 
-      // Generate unique filename and path
-      const fileName = this.generateFileName(originalFilename, fileType);
-      const fullFilePath = join(this.storagePath, fileName);
-      // Store relative path in database (relative to storage root)
-      const relativePath = `storage/documents/${fileName}`;
+      const documentId = uuidv4();
+      const extension = this.getFileExtension(fileType);
+      const blobKey = `documents/${documentId}/original.${extension}`;
 
-      // Ensure storage directory exists
-      await this.ensureStorageDirectory();
-
-      // Save file to filesystem
-      await writeFile(fullFilePath, fileBuffer);
-      this.logger.debug(`File saved to: ${fullFilePath}`);
+      await this.blobStorage.write(blobKey, fileBuffer);
+      this.logger.debug(`File saved to blob storage: ${blobKey}`);
 
       // Store metadata in database via API
-      const documentData: Omit<
-        DocumentData,
-        "id" | "created_at" | "updated_at"
-      > = {
+      const documentData: Omit<DocumentData, "created_at" | "updated_at"> = {
+        id: documentId,
         title,
         original_filename: originalFilename,
-        file_path: relativePath,
+        file_path: blobKey,
         file_type: fileType,
         file_size: fileSize,
         metadata: (metadata || {}) as Prisma.JsonValue,
@@ -131,8 +94,9 @@ export class DocumentService {
         model_id: modelId,
       };
 
-      const savedDocument =
-        await this.databaseService.createDocument(documentData);
+      const savedDocument = await this.databaseService.createDocument(
+        documentData,
+      );
       this.logger.debug(`Document saved to database: ${savedDocument.id}`);
 
       const result: UploadedDocument = {

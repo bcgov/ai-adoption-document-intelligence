@@ -41,6 +41,7 @@ lerna-debug.log*
 
 # Storage
 /storage
+/data
 
 # Build info
 *.tsbuildinfo

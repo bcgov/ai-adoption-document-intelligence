@@ -1,0 +1,249 @@
+{
+  "schemaVersion": "1.0",
+  "metadata": {
+    "name": "Standard OCR Workflow",
+    "description": "Standard OCR processing workflow (equivalent to legacy ocrWorkflow)",
+    "tags": ["ocr", "azure", "standard"]
+  },
+  "entryNodeId": "prepareFileData",
+  "ctx": {
+    "documentId": { "type": "string", "description": "Document ID from database" },
+    "blobKey": { "type": "string", "description": "File reference on local storage" },
+    "fileName": { "type": "string" },
+    "fileType": { "type": "string" },
+    "contentType": { "type": "string" },
+    "modelId": { "type": "string", "defaultValue": "prebuilt-layout" },
+    "confidenceThreshold": { "type": "number", "defaultValue": 0.95, "description": "OCR confidence threshold for human review" },
+    "preparedFileData": { "type": "object" },
+    "apimRequestId": { "type": "string" },
+    "ocrResponse": { "type": "object" },
+    "ocrResult": { "type": "object" },
+    "cleanedResult": { "type": "object" },
+    "averageConfidence": { "type": "number" },
+    "requiresReview": { "type": "boolean", "defaultValue": false }
+  },
+  "nodes": {
+    "prepareFileData": {
+      "id": "prepareFileData",
+      "type": "activity",
+      "label": "Prepare File Data",
+      "activityType": "file.prepare",
+      "inputs": [
+        { "port": "blobKey", "ctxKey": "blobKey" },
+        { "port": "fileName", "ctxKey": "fileName" },
+        { "port": "fileType", "ctxKey": "fileType" },
+        { "port": "contentType", "ctxKey": "contentType" },
+        { "port": "modelId", "ctxKey": "modelId" }
+      ],
+      "outputs": [{ "port": "preparedData", "ctxKey": "preparedFileData" }],
+      "timeout": { "startToClose": "1m" },
+      "retry": { "maximumAttempts": 3 }
+    },
+    "submitOcr": {
+      "id": "submitOcr",
+      "type": "activity",
+      "label": "Submit to Azure OCR",
+      "activityType": "azureOcr.submit",
+      "inputs": [{ "port": "fileData", "ctxKey": "preparedFileData" }],
+      "outputs": [{ "port": "apimRequestId", "ctxKey": "apimRequestId" }],
+      "timeout": { "startToClose": "2m" },
+      "retry": { "maximumAttempts": 3 }
+    },
+    "updateApimRequestId": {
+      "id": "updateApimRequestId",
+      "type": "activity",
+      "label": "Update APIM Request ID",
+      "activityType": "document.updateStatus",
+      "inputs": [
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "apimRequestId", "ctxKey": "apimRequestId" }
+      ],
+      "parameters": { "status": "ongoing_ocr" },
+      "timeout": { "startToClose": "30s" },
+      "retry": { "maximumAttempts": 5 }
+    },
+    "pollOcrResults": {
+      "id": "pollOcrResults",
+      "type": "pollUntil",
+      "label": "Poll OCR Results",
+      "activityType": "azureOcr.poll",
+      "inputs": [
+        { "port": "apimRequestId", "ctxKey": "apimRequestId" },
+        { "port": "modelId", "ctxKey": "modelId" }
+      ],
+      "outputs": [{ "port": "response", "ctxKey": "ocrResponse" }],
+      "condition": {
+        "operator": "not-equals",
+        "left": { "ref": "ctx.ocrResponse.status" },
+        "right": { "literal": "running" }
+      },
+      "interval": "10s",
+      "initialDelay": "5s",
+      "maxAttempts": 20,
+      "timeout": "10m"
+    },
+    "extractResults": {
+      "id": "extractResults",
+      "type": "activity",
+      "label": "Extract OCR Results",
+      "activityType": "azureOcr.extract",
+      "inputs": [
+        { "port": "apimRequestId", "ctxKey": "apimRequestId" },
+        { "port": "ocrResponse", "ctxKey": "ocrResponse" },
+        { "port": "fileName", "ctxKey": "fileName" },
+        { "port": "fileType", "ctxKey": "fileType" },
+        { "port": "modelId", "ctxKey": "modelId" }
+      ],
+      "outputs": [{ "port": "ocrResult", "ctxKey": "ocrResult" }],
+      "timeout": { "startToClose": "1m" },
+      "retry": { "maximumAttempts": 3 }
+    },
+    "postOcrCleanup": {
+      "id": "postOcrCleanup",
+      "type": "activity",
+      "label": "Post-OCR Cleanup",
+      "activityType": "ocr.cleanup",
+      "inputs": [{ "port": "ocrResult", "ctxKey": "ocrResult" }],
+      "outputs": [{ "port": "cleanedResult", "ctxKey": "cleanedResult" }],
+      "timeout": { "startToClose": "2m" },
+      "retry": { "maximumAttempts": 3 }
+    },
+    "checkConfidence": {
+      "id": "checkConfidence",
+      "type": "activity",
+      "label": "Check OCR Confidence",
+      "activityType": "ocr.checkConfidence",
+      "inputs": [
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "ocrResult", "ctxKey": "cleanedResult" },
+        { "port": "threshold", "ctxKey": "confidenceThreshold" }
+      ],
+      "outputs": [
+        { "port": "averageConfidence", "ctxKey": "averageConfidence" },
+        { "port": "requiresReview", "ctxKey": "requiresReview" }
+      ],
+      "timeout": { "startToClose": "30s" },
+      "retry": { "maximumAttempts": 3 }
+    },
+    "reviewSwitch": {
+      "id": "reviewSwitch",
+      "type": "switch",
+      "label": "Needs Review?",
+      "inputs": [{ "port": "requiresReview", "ctxKey": "requiresReview" }],
+      "cases": [
+        {
+          "condition": {
+            "operator": "equals",
+            "left": { "ref": "ctx.requiresReview" },
+            "right": { "literal": true }
+          },
+          "edgeId": "edge-switch-to-humanGate"
+        }
+      ],
+      "defaultEdge": "edge-switch-to-store"
+    },
+    "humanReview": {
+      "id": "humanReview",
+      "type": "humanGate",
+      "label": "Human Review",
+      "signal": {
+        "name": "humanApproval",
+        "payloadSchema": {
+          "approved": "boolean",
+          "reviewer": "string",
+          "comments": "string",
+          "rejectionReason": "string",
+          "annotations": "string"
+        }
+      },
+      "timeout": "24h",
+      "onTimeout": "fail"
+    },
+    "storeResults": {
+      "id": "storeResults",
+      "type": "activity",
+      "label": "Store Results",
+      "activityType": "ocr.storeResults",
+      "inputs": [
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "ocrResult", "ctxKey": "cleanedResult" }
+      ],
+      "timeout": { "startToClose": "2m" },
+      "retry": { "maximumAttempts": 5 }
+    }
+  },
+  "edges": [
+    { "id": "e2", "source": "prepareFileData", "target": "submitOcr", "type": "normal" },
+    { "id": "e3", "source": "submitOcr", "target": "updateApimRequestId", "type": "normal" },
+    { "id": "e4", "source": "updateApimRequestId", "target": "pollOcrResults", "type": "normal" },
+    { "id": "e5", "source": "pollOcrResults", "target": "extractResults", "type": "normal" },
+    { "id": "e6", "source": "extractResults", "target": "postOcrCleanup", "type": "normal" },
+    { "id": "e7", "source": "postOcrCleanup", "target": "checkConfidence", "type": "normal" },
+    { "id": "e8", "source": "checkConfidence", "target": "reviewSwitch", "type": "normal" },
+    { "id": "edge-switch-to-humanGate", "source": "reviewSwitch", "target": "humanReview", "type": "conditional", "condition": "requiresReview" },
+    { "id": "edge-switch-to-store", "source": "reviewSwitch", "target": "storeResults", "type": "conditional", "condition": "default" },
+    { "id": "e11", "source": "humanReview", "target": "storeResults", "type": "normal" }
+  ],
+  "nodeGroups": {
+    "ocr-extraction": {
+      "label": "OCR Extraction",
+      "description": "Submit document to Azure Document Intelligence and retrieve results",
+      "icon": "scan",
+      "color": "#3b82f6",
+      "nodeIds": ["prepareFileData", "submitOcr", "updateApimRequestId", "pollOcrResults", "extractResults"],
+      "exposedParams": [
+        {
+          "label": "OCR Model",
+          "path": "ctx.modelId.defaultValue",
+          "type": "select",
+          "options": ["prebuilt-layout", "prebuilt-read", "prebuilt-document"],
+          "default": "prebuilt-layout"
+        }
+      ]
+    },
+    "cleanup": {
+      "label": "Post-Processing",
+      "description": "Clean and normalize OCR results",
+      "icon": "cleanup",
+      "color": "#22c55e",
+      "nodeIds": ["postOcrCleanup"]
+    },
+    "quality-gate": {
+      "label": "Quality Gate",
+      "description": "Check OCR confidence and decide if human review is needed",
+      "icon": "quality",
+      "color": "#fb923c",
+      "nodeIds": ["checkConfidence", "reviewSwitch"],
+      "exposedParams": [
+        {
+          "label": "Confidence Threshold",
+          "path": "nodes.checkConfidence.parameters.threshold",
+          "type": "number",
+          "default": 0.95
+        }
+      ]
+    },
+    "human-review": {
+      "label": "Human Review",
+      "description": "Wait for human approval when confidence is low",
+      "icon": "human",
+      "color": "#ef4444",
+      "nodeIds": ["humanReview"],
+      "exposedParams": [
+        {
+          "label": "Review Timeout",
+          "path": "nodes.humanReview.timeout",
+          "type": "duration",
+          "default": "24h"
+        }
+      ]
+    },
+    "store": {
+      "label": "Store Results",
+      "description": "Save processed results to database",
+      "icon": "save",
+      "color": "#8b5cf6",
+      "nodeIds": ["storeResults"]
+    }
+  }
+}

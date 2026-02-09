@@ -1,6 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { IsObject, IsOptional, IsString } from "class-validator";
-import { WorkflowStepsConfig } from "../workflow-types";
+import { GraphWorkflowConfig } from "../graph-workflow-types";
 
 export class CreateWorkflowDto {
   @ApiProperty({
@@ -21,12 +21,8 @@ export class CreateWorkflowDto {
 
   @ApiProperty({
     description:
-      "Workflow steps configuration. Keys are step names (e.g. prepareFileData, ocr); values are step configs with optional enabled and parameters.",
-    example: {
-      prepareFileData: { enabled: true },
-      ocr: { enabled: true, parameters: { model_id: "prebuilt-layout" } },
-    },
+      "Graph workflow configuration (GraphWorkflowConfig JSON).",
   })
   @IsObject()
-  config: WorkflowStepsConfig;
+  config: GraphWorkflowConfig;
 }

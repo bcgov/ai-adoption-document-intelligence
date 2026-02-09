@@ -2,6 +2,10 @@ NOTE: The requirements document for this feature is available here: `docs/DAG_WO
 
 All user stories files are located in `/home/alstruk/GitHub/ai-adoption-document-intelligence/user_stories/`.
 
+Read both requirements document and individual user story files for implementation details.
+
+After implementing the user story check it off at the bottom of this file
+
 ## Foundation / Types (US-001 to US-003) -- HIGH priority
 | File | Title |
 |---|---|
@@ -68,56 +72,56 @@ All user stories files are located in `/home/alstruk/GitHub/ai-adoption-document
 ## Suggested Implementation Order (by dependency chain)
 
 ### Phase 1
-- [ ] **US-001** (types) -- everything depends on this
+- [x] **US-001** (types) -- everything depends on this
 
 ### Phase 2
-- [ ] **US-002** (activity registry)
-- [ ] **US-003** (expression evaluator)
-- [ ] **US-016** (blob storage)
+- [x] **US-002** (activity registry)
+- [x] **US-003** (expression evaluator)
+- [x] **US-016** (blob storage)
 
 ### Phase 3
-- [ ] **US-004** (backend validator)
-- [ ] **US-005** (temporal validator)
+- [x] **US-004** (backend validator)
+- [x] **US-005** (temporal validator)
 
 ### Phase 4
-- [ ] **US-006** (core runner)
-- [ ] **US-007** (activity node)
-- [ ] **US-008** (switch node)
-- [ ] **US-009** (map/join nodes)
-- [ ] **US-010** (pollUntil node)
-- [ ] **US-011** (humanGate node)
-- [ ] **US-012** (childWorkflow node)
-- [ ] **US-013** (error policy)
+- [x] **US-006** (core runner)
+- [x] **US-007** (activity node)
+- [x] **US-008** (switch node)
+- [x] **US-009** (map/join nodes)
+- [x] **US-010** (pollUntil node)
+- [x] **US-011** (humanGate node)
+- [x] **US-012** (childWorkflow node)
+- [x] **US-013** (error policy)
 
 ### Phase 5
-- [ ] **US-014** (query/signal handlers)
-- [ ] **US-015** (versioning)
+- [x] **US-014** (query/signal handlers)
+- [x] **US-015** (versioning)
 
 ### Phase 6
-- [ ] **US-017** (document split activity)
-- [ ] **US-018** (document classify activity)
-- [ ] **US-019** (document validate fields activity)
+- [x] **US-017** (document split activity)
+- [x] **US-018** (document classify activity)
+- [x] **US-019** (document validate fields activity)
 
 ### Phase 7
-- [ ] **US-020** (backend DTO and workflow types)
-- [ ] **US-021** (start graph workflow)
-- [ ] **US-022** (workflow service validation)
+- [x] **US-020** (backend DTO and workflow types)
+- [x] **US-021** (start graph workflow)
+- [x] **US-022** (workflow service validation)
 
 ### Phase 8
-- [ ] **US-023** (frontend types)
-- [ ] **US-024** (JSON editor panel)
-- [ ] **US-025** (React Flow visualization)
-- [ ] **US-026** (workflow editor page)
+- [x] **US-023** (frontend types)
+- [x] **US-024** (JSON editor panel)
+- [x] **US-025** (React Flow visualization)
+- [x] **US-026** (workflow editor page)
 
 ### Phase 9
-- [ ] **US-027** (workflow list schema version)
-- [ ] **US-028** (API hooks and routes)
+- [x] **US-027** (workflow list schema version)
+- [x] **US-028** (API hooks and routes)
 
 ### Phase 10
-- [ ] **US-029** (upload flow blob references)
+- [x] **US-029** (upload flow blob references)
 
 ### Phase 11
-- [ ] **US-031** (workflow templates)
+- [x] **US-031** (workflow templates)
 
 ### Phase 12
-- [ ] **US-030** (legacy code removal)
+- [x] **US-030** (legacy code removal)

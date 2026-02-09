@@ -14,7 +14,6 @@
    NODE_ENV=development
    FRONTEND_URL=http://localhost:5173
    DATABASE_API_URL=http://localhost:3001/api/documents
-   STORAGE_PATH=./storage/documents
    ```
 
 ## Starting the Service
@@ -122,7 +121,7 @@ See `test-upload.js` for a Node.js test script.
    - Queue message publish logs (stubbed)
    - File storage confirmation
 
-2. **File System**: Check the `storage/documents` directory (or path specified in `STORAGE_PATH`) for the uploaded file.
+2. **File System**: Check the `data/` directory.
 
 3. **Response**: Verify the response contains a document ID and correct metadata.
 
