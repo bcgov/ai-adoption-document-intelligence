@@ -14,7 +14,6 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
-  Param,
   Post,
   Query,
   Request,
@@ -33,7 +32,6 @@ import {
 } from "@nestjs/swagger";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
-import { ClassifierCreationDto } from "@/azure/dto/classifier.dto";
 import {
   UploadClassifierDocumentsResponseDto,
   DeleteClassifierDocumentsResponseDto,
@@ -49,6 +47,7 @@ import {
   RequestClassificationDto,
   GetClassificationResultQueryDto,
   GetTrainingResultQueryDto,
+  ClassifierCreationDto,
 } from "@/azure/dto/classifier-requests.dto";
 import { DatabaseService } from "@/database/database.service";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
@@ -85,7 +84,6 @@ export class AzureController {
   @ApiOperation({ summary: 'Create a new classifier', description: 'Creates a new classifier for a group.' })
   @ApiCreatedResponse({ description: 'Classifier created successfully', type: ClassifierCreationDto })
   @ApiBody({ type: ClassifierCreationDto, description: 'Classifier creation payload' })
-  @ApiTags('Classifier')
   async createClassifier(@Request() req, @Body() body: ClassifierCreationDto) {
     const { classifierName, description, source, status, groupId } = body;
     const userId = req.user.sub;
@@ -141,7 +139,6 @@ export class AzureController {
     description: 'Upload training documents for a classifier',
   })
   @ApiCreatedResponse({ description: 'Files uploaded successfully', type: UploadClassifierDocumentsResponseDto })
-  @ApiTags('Classifier')
   async uploadClassifierDocuments(
     @Request() req,
     @UploadedFiles() files: Array<Express.Multer.File>,
@@ -181,7 +178,6 @@ export class AzureController {
   @ApiOperation({ summary: 'Delete training documents', description: 'Delete training documents for a classifier.' })
   @ApiNoContentResponse({ description: "Documents deleted successfully.", type: DeleteClassifierDocumentsResponseDto })
   @ApiBody({ type: DeleteClassifierDocumentsDto, description: 'Delete classifier documents payload' })
-  @ApiTags('Classifier')
   @HttpCode(204)
   async deleteClassifierDocuments(
     @Request() req,
@@ -237,7 +233,6 @@ export class AzureController {
   @ApiOperation({ summary: 'Request classifier training', description: 'Request training for a classifier.' })
   @ApiCreatedResponse({ description: 'Training requested successfully', type: RequestClassifierTrainingResponseDto })
   @ApiBody({ type: RequestClassifierTrainingDto, description: 'Request classifier training payload' })
-  @ApiTags('Classifier')
   async requestClassifierTraining(
     @Request() req,
     @Body() body: RequestClassifierTrainingDto,
@@ -301,7 +296,6 @@ export class AzureController {
     description: 'Request classification for a document',
   })
   @ApiCreatedResponse({ description: 'Classification requested successfully', type: RequestClassificationResponseDto })
-  @ApiTags('Classifier')
   async requestClassification(
     @Request() req,
     @Body() body: RequestClassificationDto,
@@ -332,7 +326,6 @@ export class AzureController {
   @Get("classifier/classify")
   @KeycloakSSOAuth()
   @ApiOperation({ summary: 'Get classification result', description: 'Get the result of a classification operation.' })
-  @ApiTags('Classifier')
   @ApiCreatedResponse({ description: 'Classification result retrieved', type: GetClassificationResultResponseDto })
   async getClassificationResult(
     @Query() query: GetClassificationResultQueryDto,
@@ -357,7 +350,6 @@ export class AzureController {
   @Get("classifier/train")
   @KeycloakSSOAuth()
   @ApiOperation({ summary: 'Get training result', description: 'Get the result of a classifier training operation.' })
-  @ApiTags('Classifier')
   @ApiCreatedResponse({ description: 'Training result retrieved', type: GetTrainingResultResponseDto })
   async getTrainingResult(
     @Request() req,
