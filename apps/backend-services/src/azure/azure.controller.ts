@@ -24,6 +24,8 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
 import {
+  ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiTags,
@@ -31,6 +33,14 @@ import {
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
 import { ClassifierCreationDto } from "@/azure/dto/classifier.dto";
+import {
+  UploadClassifierDocumentsDto,
+  DeleteClassifierDocumentsDto,
+  RequestClassifierTrainingDto,
+  RequestClassificationDto,
+  GetClassificationResultQueryDto,
+  GetTrainingResultQueryDto,
+} from "@/azure/dto/classifier-requests.dto";
 import { DatabaseService } from "@/database/database.service";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { ClassifierStatus } from "@/generated";
@@ -40,13 +50,13 @@ export interface OperationRequestResponse {
   status: string;
   content: string;
   error?:
-    | DocumentIntelligenceErrorResponseOutput
-    | (DocumentIntelligenceErrorResponseOutput &
-        ModelCopyAuthorizationOutput &
-        ClassifierCopyAuthorizationOutput)
-    | (DocumentIntelligenceErrorResponseOutput & ModelCopyAuthorizationOutput)
-    | (DocumentIntelligenceErrorResponseOutput &
-        ClassifierCopyAuthorizationOutput);
+  | DocumentIntelligenceErrorResponseOutput
+  | (DocumentIntelligenceErrorResponseOutput &
+    ModelCopyAuthorizationOutput &
+    ClassifierCopyAuthorizationOutput)
+  | (DocumentIntelligenceErrorResponseOutput & ModelCopyAuthorizationOutput)
+  | (DocumentIntelligenceErrorResponseOutput &
+    ClassifierCopyAuthorizationOutput);
 }
 
 @ApiTags("Azure")
@@ -59,7 +69,7 @@ export class AzureController {
     private readonly storageService: StorageService,
     private readonly databaseService: DatabaseService,
     private readonly azureService: AzureService,
-  ) {}
+  ) { }
 
   @Post("classifier")
   @KeycloakSSOAuth()
@@ -97,13 +107,31 @@ export class AzureController {
   @Post("classifier/documents")
   @KeycloakSSOAuth()
   @UseInterceptors(FilesInterceptor("files"))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+        classifierName: { type: 'string' },
+        label: { type: 'string' },
+        groupId: { type: 'string' },
+      },
+      required: ['files', 'classifierName', 'label', 'groupId'],
+    },
+  })
   async uploadClassifierDocuments(
     @Request() req,
     @UploadedFiles() files: Array<Express.Multer.File>,
-    @Body("classifierName") classifierName: string,
-    @Body("label") label: string,
-    @Body("groupId") groupId: string,
+    @Body() body: UploadClassifierDocumentsDto,
   ) {
+    const { classifierName, label, groupId } = body;
     const userId = req.user.sub;
     if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
       throw new ForbiddenException("User does not belong to requested group.");
@@ -138,10 +166,9 @@ export class AzureController {
   @HttpCode(204)
   async deleteClassifierDocuments(
     @Request() req,
-    @Body("classifierName") classifierName: string,
-    @Body("groupId") groupId: string,
-    @Body("folders") folders?: string[],
+    @Body() body: DeleteClassifierDocumentsDto,
   ): Promise<void> {
+    const { classifierName, groupId, folders } = body;
     const userId = req.user.sub;
     if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
       throw new ForbiddenException("User does not belong to requested group.");
@@ -169,16 +196,12 @@ export class AzureController {
         );
       } else {
         // Delete all document folders for this classifier.
-        await Promise.all(
-          folders.map((f) => {
-            const path = this.storageService.getStoragePath(
-              groupId,
-              Operation.CLASSIFICATION,
-              classifierName,
-            );
-            this.storageService.deleteFolderRecursive(path);
-          }),
+        const path = this.storageService.getStoragePath(
+          groupId,
+          Operation.CLASSIFICATION,
+          classifierName,
         );
+        this.storageService.deleteFolderRecursive(path);
       }
       // No return value: 204 No Content
     } catch {
@@ -194,9 +217,9 @@ export class AzureController {
   @KeycloakSSOAuth()
   async requestClassifierTraining(
     @Request() req,
-    @Body("classifierName") classifierName: string,
-    @Body("groupId") groupId: string,
+    @Body() body: RequestClassifierTrainingDto,
   ) {
+    const { classifierName, groupId } = body;
     const userId = req.user.sub;
     if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
       throw new ForbiddenException("User does not belong to requested group.");
@@ -236,12 +259,27 @@ export class AzureController {
   @Post("classifier/classify")
   @KeycloakSSOAuth()
   @UseInterceptors(FileInterceptor("file"))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+        classifierName: { type: 'string' },
+        groupId: { type: 'string' },
+      },
+      required: ['file', 'classifierName', 'groupId'],
+    },
+  })
   async requestClassification(
     @Request() req,
-    @Body("classifierName") classifierName: string,
-    @Body("groupId") groupId: string,
+    @Body() body: RequestClassificationDto,
     @UploadedFile() file: Express.Multer.File,
   ): Promise<OperationRequestResponse> {
+    const { classifierName, groupId } = body;
     const userId = req.user.sub;
     if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
       throw new ForbiddenException("User does not belong to requested group.");
@@ -266,8 +304,9 @@ export class AzureController {
   @Get("classifier/classify")
   @KeycloakSSOAuth()
   async getClassificationResult(
-    @Query("operationLocation") operationLocation: string,
+    @Query() query: GetClassificationResultQueryDto,
   ) {
+    const { operationLocation } = query;
     let returnValue;
     await this.azureService.pollOperationUntilResolved(
       operationLocation,
@@ -288,9 +327,9 @@ export class AzureController {
   @KeycloakSSOAuth()
   async getTrainingResult(
     @Request() req,
-    @Query("classifierName") classifierName: string,
-    @Query("groupId") groupId: string,
+    @Query() query: GetTrainingResultQueryDto,
   ) {
+    const { classifierName, groupId } = query;
     if (classifierName == null || groupId == null) {
       throw new BadRequestException(
         "Must provide both classifierName and groupId query parameters.",
