@@ -3,10 +3,10 @@ import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import * as path from "path";
 import { AzureService } from "@/azure/azure.service";
 import { BlobService } from "@/azure/blob.service";
-import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { DatabaseService } from "@/database/database.service";
 import { OcrService } from "@/ocr/ocr.service";
 import { Operation, StorageService } from "@/storage/storage.service";
+import { ClassifierStatus } from "@/generated";
 
 interface DocType {
   azureBlobSource: {
@@ -30,139 +30,152 @@ export class ClassifierService {
     this.client = azureService.getClient();
   }
 
-  // Each file in a training folder needs accompanying layout json.
-  // The file must be named just like its corresponding image + .ocr.json
-  // e.g. If image is file.jpg, layout json must be file.jpg.ocr.json.
+  /**
+   * Creates json files of the results produced by the prebuilt-layout model in Azure DI.
+   * Saves them to blob storage beside the original files.
+   * @param filePaths A list of relative file paths in blob storage for analysis. They should match the files exactly, not folders.
+   */
   createLayoutJson = async (filePaths: string[]) => {
+    // Each file in a training folder needs accompanying layout json.
+    // The file must be named just like its corresponding image + .ocr.json
+    // e.g. If image is file.jpg, layout json must be file.jpg.ocr.json.
     const containerClient = this.blobService.getContainerClient(
       this.classifierContainer,
     );
 
-    // Looping through each folder of training data
-    for (const filePath of filePaths) {
-      // Analyze each file
-      if (!filePath.match(/\.(jpg|jpeg|png|bmp|tif|tiff)$/i)) continue; // Only process images
-      const url = this.blobService.getBlobSasUrl(
-        this.classifierContainer,
-        filePath,
-      );
+    // Looping through each folder of training
+    await Promise.all(
+      filePaths.map(async (filePath) => {
+        // Analyze each file
+        if (!filePath.match(/\.(jpg|jpeg|png|bmp|tif|tiff)$/i)) return; // Only process images
+        const url = this.blobService.getBlobSasUrl(
+          this.classifierContainer,
+          filePath,
+        );
 
-      // Run general layout model
-      const analyzeResponse = await this.client
-        .path("/documentModels/prebuilt-layout:analyze")
-        .post({
-          body: {
-            urlSource: url,
-          },
-          contentType: "application/json",
-          queryParameters: { "api-version": "2024-11-30" },
-        });
+        // Run general layout model
+        const analyzeResponse = await this.client
+          .path("/documentModels/prebuilt-layout:analyze")
+          .post({
+            body: {
+              urlSource: url,
+            },
+            contentType: "application/json",
+            queryParameters: { "api-version": "2024-11-30" },
+          });
 
-      if (analyzeResponse.status == "202") {
-        // Poll operation-location until succeeded or failed
-        const operationLocation =
-          analyzeResponse.headers["operation-location"] ||
-          analyzeResponse.headers["Operation-Location"];
-        if (!operationLocation) {
-          this.logger.error(
-            "No operation-location header returned for 202 response",
+        if (analyzeResponse.status == "202") {
+          // Poll operation-location until succeeded or failed
+          const operationLocation =
+            analyzeResponse.headers["operation-location"] ||
+            analyzeResponse.headers["Operation-Location"];
+          if (!operationLocation) {
+            this.logger.error(
+              "No operation-location header returned for 202 response",
+            );
+            return;
+          }
+          await this.azureService.pollOperationUntilResolved(
+            operationLocation,
+            async (result) => {
+              // Save JSON result to blob storage with same base name but .ocr.json extension
+              const jsonBlobName = filePath + ".ocr.json";
+              const blockBlobClient =
+                containerClient.getBlockBlobClient(jsonBlobName);
+              await blockBlobClient.upload(
+                Buffer.from(JSON.stringify(result, null, 2)),
+                Buffer.byteLength(JSON.stringify(result, null, 2)),
+              );
+              this.logger.debug(
+                `Uploaded layout JSON to blob: ${jsonBlobName}`,
+              );
+            },
+            (result) => {
+              this.logger.error("Analyze operation failed:", result);
+            },
           );
-          continue;
-        }
-        await this.azureService.pollOperationUntilResolved(
-          operationLocation,
-          async (result) => {
-            // Save JSON result to blob storage with same base name but .ocr.json extension
+        } else if (analyzeResponse.status == "404") {
+          // Possible fallback if the url doesn't work. Download and analyze via upload.
+          // I haven't had to rely on this so far.
+          this.logger.warn(
+            `404 from analyze API for ${filePath}, falling back to download/upload method.`,
+          );
+          this.logger.warn(`Original error:`, analyzeResponse.body);
+          // Download the blob
+          const blobResp = await fetch(url);
+          if (!blobResp.ok) {
+            this.logger.error(
+              `Failed to download blob for fallback: ${filePath}`,
+            );
+            return;
+          }
+          const fileBuffer = Buffer.from(await blobResp.arrayBuffer());
+          // Fallback: Send as base64Source in JSON body
+          const uploadResponse = await this.client
+            .path("/documentModels/{modelId}:analyze")
+            .post({
+              body: { base64Source: fileBuffer.toString("base64") },
+              queryParameters: { "api-version": "2024-11-30" },
+              pathParameters: { modelId: "prebuilt-layout" },
+              headers: { "Content-Type": "application/json" },
+            });
+          if (uploadResponse.status == "200") {
             const jsonBlobName = filePath + ".ocr.json";
             const blockBlobClient =
               containerClient.getBlockBlobClient(jsonBlobName);
             await blockBlobClient.upload(
-              Buffer.from(JSON.stringify(result, null, 2)),
-              Buffer.byteLength(JSON.stringify(result, null, 2)),
+              Buffer.from(JSON.stringify(uploadResponse.body, null, 2)),
+              Buffer.byteLength(JSON.stringify(uploadResponse.body, null, 2)),
             );
-            this.logger.debug(`Uploaded layout JSON to blob: ${jsonBlobName}`);
-          },
-          (result) => {
-            this.logger.error("Analyze operation failed:", result);
-          },
-        );
-      } else if (analyzeResponse.status == "404") {
-        // Possible fallback if the url doesn't work. Download and analyze via upload.
-        // I haven't had to rely on this so far.
-        this.logger.warn(
-          `404 from analyze API for ${filePath}, falling back to download/upload method.`,
-        );
-        this.logger.warn(`Original error:`, analyzeResponse.body);
-        // Download the blob
-        const blobResp = await fetch(url);
-        if (!blobResp.ok) {
-          this.logger.error(
-            `Failed to download blob for fallback: ${filePath}`,
-          );
-          continue;
-        }
-        const fileBuffer = Buffer.from(await blobResp.arrayBuffer());
-        // Fallback: Send as base64Source in JSON body
-        const uploadResponse = await this.client
-          .path("/documentModels/{modelId}:analyze")
-          .post({
-            body: { base64Source: fileBuffer.toString("base64") },
-            queryParameters: { "api-version": "2024-11-30" },
-            pathParameters: { modelId: "prebuilt-layout" },
-            headers: { "Content-Type": "application/json" },
-          });
-        if (uploadResponse.status == "200") {
-          const jsonBlobName = filePath + ".ocr.json";
-          const blockBlobClient =
-            containerClient.getBlockBlobClient(jsonBlobName);
-          await blockBlobClient.upload(
-            Buffer.from(JSON.stringify(uploadResponse.body, null, 2)),
-            Buffer.byteLength(JSON.stringify(uploadResponse.body, null, 2)),
-          );
-          this.logger.debug(
-            `Uploaded layout JSON to blob (fallback): ${jsonBlobName}`,
-          );
+            this.logger.debug(
+              `Uploaded layout JSON to blob (fallback): ${jsonBlobName}`,
+            );
+          } else {
+            this.logger.error(
+              `Fallback analyze failed for ${filePath}:`,
+              uploadResponse.status,
+              uploadResponse.body,
+            );
+          }
         } else {
           this.logger.error(
-            `Fallback analyze failed for ${filePath}:`,
-            uploadResponse.status,
-            uploadResponse.body,
+            `Failed to analyze blob ${filePath}:`,
+            `url: ${url}`,
+            analyzeResponse.status,
+            analyzeResponse.body,
           );
         }
-      } else {
-        this.logger.error(
-          `Failed to analyze blob ${filePath}:`,
-          `url: ${url}`,
-          analyzeResponse.status,
-          analyzeResponse.body,
-        );
-      }
-    }
+      }),
+    );
   };
 
+  /**
+   * Uploads local documents into Azure blob storage for classifier training.
+   * @param groupId The ID of the group that owns this classifier.
+   * @param classifierName The name given to the classifier.
+   * @returns A list of objects specifying the original path and new blob path.
+   */
   async uploadDocumentsForTraining(groupId: string, classifierName: string) {
     await this.blobService.ensureContainerExists(this.classifierContainer);
-    // Get the relative storage path for this classifier
+
     const relativeStoragePath = this.storageService.getStoragePath(
       groupId,
       Operation.CLASSIFICATION,
       classifierName,
     );
-    // Get the absolute storage root
+
     const storageRoot = this.storageService["storagePath"];
     // Recursively get all files (with relative paths)
     const allFiles = await this.storageService.getAllFileNamesAndPaths(
       relativeStoragePath,
       true,
     );
-    // Compute the absolute path for each file
 
     const uploadResults = await Promise.all(
       allFiles.map(async (fileObj) => {
         // fileObj.path is the absolute path, fileObj.name is the file name
         // We want the relative path from relativeStoragePath to preserve folder structure
         const relativePath = path.relative(storageRoot, fileObj.path);
-        // Always use posix separators for blob storage
         const blobName = path.posix.join(
           groupId,
           classifierName,
@@ -170,7 +183,7 @@ export class ClassifierService {
         );
         // slice(3) removes groupId/classification/classifierName from the relative path
         const fileBuffer = await this.storageService.readFile(fileObj.path);
-        // Use blobService.uploadFile to upload the file
+
         await this.blobService.uploadFile(
           this.classifierContainer,
           blobName,
@@ -186,14 +199,20 @@ export class ClassifierService {
     return uploadResults;
   }
 
+  /**
+   * Generates a classifier model training config.
+   * @param groupId ID of group that owns classifier.
+   * @param classifierName Name of classifier.
+   * @param description Description of classifier.
+   * @param containerUrl Blob container URL.
+   * @returns
+   */
   async generateTrainingConfig(
     groupId: string,
     classifierName: string,
     description: string,
     containerUrl: string,
   ) {
-    // Get list of folders in this classifier's
-
     // Get a list of folder paths in the groupId/classifierName folder in blob storage
     const prefix = path.posix.join(groupId, classifierName) + "/";
     const containerClient = this.blobService.getContainerClient(
@@ -210,7 +229,7 @@ export class ClassifierService {
 
     const docTypes: Record<string, DocType> = {};
     for (const folderPath of folderPaths) {
-      // folderPath: 'groupId/classifierName/label/'
+      // folderPath = 'groupId/classifierName/label/'
       const parts = folderPath.split("/").filter(Boolean);
       const label = parts[parts.length - 1];
       docTypes[label] = {
@@ -231,6 +250,14 @@ export class ClassifierService {
     };
   }
 
+  /**
+   * Initiates the training of a classifier model in Azure DI.
+   * The files must have been uploaded and had their layout json created before this point.
+   * @param classifierName Name of the classifier model.
+   * @param groupId ID of the group that owns the classifier.
+   * @param userId ID of the user making the request.
+   * @returns The updated record of classifier model from the database.
+   */
   requestClassifierTraining = async (
     classifierName: string,
     groupId: string,
@@ -269,7 +296,7 @@ export class ClassifierService {
       response.headers["Operation-Location"];
     if (response.status == "202" && operationLocation) {
       // Returned operation-location header uses wrong domain.
-      // Must replace with our actual Doc Intelligence endpoint (not training one)
+      // Must replace with our actual Azure endpoint
       const docIntelligenceEndpoint = this.azureService.getEndpoint();
       operationLocation = operationLocation.replace(
         /https:\/\/[^/]+/,
@@ -295,6 +322,13 @@ export class ClassifierService {
     }
   };
 
+  /**
+   * Sends a file to Azure for classification from local application storage.
+   * @param filePath Path to file in application storage.
+   * @param classiferName Name of classifier.
+   * @param groupId ID of group that owns classifier.
+   * @returns Response from Azure containing the operation location to retrieve results.
+   */
   requestClassification = async (
     filePath: string,
     classiferName: string,
@@ -328,6 +362,13 @@ export class ClassifierService {
     return { status: response.status, content: "", error: response.body };
   };
 
+  /**
+   * Sends a file to Azure for classification.
+   * @param file Multer file to send.
+   * @param classiferName Name of classifier.
+   * @param groupId ID of group that owns classifier.
+   * @returns Response from Azure containing the operation location to retrieve results.
+   */
   requestClassificationFromFile = async (
     file: Express.Multer.File,
     classiferName: string,

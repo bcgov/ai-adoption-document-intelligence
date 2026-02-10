@@ -1,3 +1,4 @@
+import { ClassifierSource, ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { ApiProperty } from "@nestjs/swagger";
 
 export class UploadClassifierDocumentsResponseDto {
@@ -7,19 +8,13 @@ export class UploadClassifierDocumentsResponseDto {
   @ApiProperty({ example: 2 })
   fileCount: number;
 
-  @ApiProperty({ type: [Object], example: [] })
-  results: any[];
+  @ApiProperty({ example: ["groupId/classifierName/file.jpg"] })
+  results: string[];
 }
 
 export class DeleteClassifierDocumentsResponseDto {}
 
-export class RequestClassifierTrainingResponseDto {
-  @ApiProperty({ example: "Training started" })
-  message?: string;
-  // Add more fields as needed based on actual return
-}
-
-export class RequestClassificationResponseDto {
+export class ClassifierResponseDto {
   @ApiProperty({ example: "Classification complete" })
   status: string;
 
@@ -27,24 +22,46 @@ export class RequestClassificationResponseDto {
   content: string;
 
   @ApiProperty({ required: false })
-  error?: any;
+  error?: unknown;
 }
 
-export class GetClassificationResultResponseDto {
-  @ApiProperty({ example: "result content" })
-  content: string;
+export class ClassifierModelResponseDto {
+  @ApiProperty({ example: "Classifier description" })
+  description: string;
 
-  @ApiProperty({ example: "succeeded" })
-  status: string;
+  @ApiProperty({ enum: ClassifierStatus, example: ClassifierStatus.READY })
+  status: ClassifierStatus;
 
-  @ApiProperty({ required: false })
-  error?: any;
-}
+  @ApiProperty({ example: "classifier-name" })
+  name: string;
 
-export class GetTrainingResultResponseDto {
-  @ApiProperty({ example: "READY" })
-  status: string;
+  @ApiProperty({ example: "user-id" })
+  created_by: string;
 
-  @ApiProperty({ required: false })
-  error?: any;
+  @ApiProperty({ example: "user-id" })
+  updated_by: string;
+
+  @ApiProperty({ example: "group-id" })
+  group_id: string;
+
+  @ApiProperty({ type: Object, example: { labels: [] } })
+  config: unknown;
+
+  @ApiProperty({ type: Date })
+  created_at: Date;
+
+  @ApiProperty({ type: Date })
+  updated_at: Date;
+
+  @ApiProperty({ type: Date, nullable: true })
+  last_used_at: Date | null;
+
+  @ApiProperty({ example: 1 })
+  version: number;
+
+  @ApiProperty({ enum: ClassifierSource, example: ClassifierSource.AZURE })
+  source: ClassifierSource;
+
+  @ApiProperty({ type: String, nullable: true })
+  operation_location: string | null;
 }
