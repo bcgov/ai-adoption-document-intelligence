@@ -7,7 +7,7 @@ import {
   Prisma,
   PrismaClient,
 } from "@generated/client";
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {

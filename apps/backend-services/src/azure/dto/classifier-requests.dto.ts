@@ -1,4 +1,4 @@
-import { ClassifierSource, ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
+import { ClassifierSource, ClassifierStatus } from "@/generated";
 import { ApiProperty } from "@nestjs/swagger";
 import { IsArray, IsEnum, IsOptional, IsString } from "class-validator";
 
