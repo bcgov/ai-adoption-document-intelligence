@@ -7,22 +7,6 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { OcrService } from "@/ocr/ocr.service";
 
-// Azure Document Intelligence Operation Status interface
-export interface OperationStatus {
-  operationId: string;
-  status: "notStarted" | "running" | "succeeded" | "failed" | "canceled";
-  createdDateTime: string;
-  lastUpdatedDateTime: string;
-  percentCompleted?: number;
-  resourceLocation?: string;
-  result?: unknown;
-  error?: {
-    code: string;
-    message: string;
-    innererror?: unknown;
-  };
-}
-
 @Injectable()
 export class AzureService {
   private readonly logger = new Logger(OcrService.name);
