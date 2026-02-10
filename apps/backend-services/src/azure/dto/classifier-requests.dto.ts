@@ -1,6 +1,6 @@
 import { ClassifierSource, ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { ApiProperty } from "@nestjs/swagger";
-import { IsString, IsOptional, IsArray, IsEnum } from "class-validator";
+import { IsArray, IsEnum, IsOptional, IsString } from "class-validator";
 
 export class ClassifierCreationDto {
   @ApiProperty()
