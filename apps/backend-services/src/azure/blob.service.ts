@@ -413,6 +413,8 @@ export class BlobService {
     const blobClient = containerClient.getBlobClient(blobName);
     const now = new Date();
     const expires = new Date(now.getTime() + expiresInMinutes * 60 * 1000);
+    // Note: Do not use the now time as the start time of this SAS url.
+    // It somehow gets called before the start time somehow.
     const sas = generateBlobSASQueryParameters(
       {
         containerName,

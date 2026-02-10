@@ -41,6 +41,11 @@ export class AzureService {
     return this.endpoint;
   }
 
+  /**
+   * Retrieves current operation information.
+   * @param operationLocation The url of the operation to check.
+   * @returns A respnose from Azure on your operation.
+   */
   async checkOperationStatus(operationLocation: string) {
     const pollResp = await fetch(operationLocation, {
       headers: { "api-key": this.apiKey },

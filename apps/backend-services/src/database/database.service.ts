@@ -47,7 +47,7 @@ interface ClassifierEditableProperties {
   description: string;
   status: ClassifierStatus;
   source: ClassifierSource;
-  last_used_at?: string;
+  last_used_at?: Date;
   operation_location?: string;
 }
 
