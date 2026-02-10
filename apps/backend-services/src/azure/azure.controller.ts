@@ -28,11 +28,20 @@ import {
   ApiConsumes,
   ApiCreatedResponse,
   ApiNoContentResponse,
+  ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
 import { ClassifierCreationDto } from "@/azure/dto/classifier.dto";
+import {
+  UploadClassifierDocumentsResponseDto,
+  DeleteClassifierDocumentsResponseDto,
+  RequestClassifierTrainingResponseDto,
+  RequestClassificationResponseDto,
+  GetClassificationResultResponseDto,
+  GetTrainingResultResponseDto,
+} from "@/azure/dto/classifier-responses.dto";
 import {
   UploadClassifierDocumentsDto,
   DeleteClassifierDocumentsDto,
@@ -73,7 +82,10 @@ export class AzureController {
 
   @Post("classifier")
   @KeycloakSSOAuth()
-  @ApiCreatedResponse()
+  @ApiOperation({ summary: 'Create a new classifier', description: 'Creates a new classifier for a group.' })
+  @ApiCreatedResponse({ description: 'Classifier created successfully', type: ClassifierCreationDto })
+  @ApiBody({ type: ClassifierCreationDto, description: 'Classifier creation payload' })
+  @ApiTags('Classifier')
   async createClassifier(@Request() req, @Body() body: ClassifierCreationDto) {
     const { classifierName, description, source, status, groupId } = body;
     const userId = req.user.sub;
@@ -106,6 +118,7 @@ export class AzureController {
   // Save Training documents to storage
   @Post("classifier/documents")
   @KeycloakSSOAuth()
+  @ApiOperation({ summary: 'Upload training documents', description: 'Upload training documents for a classifier.' })
   @UseInterceptors(FilesInterceptor("files"))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -125,12 +138,15 @@ export class AzureController {
       },
       required: ['files', 'classifierName', 'label', 'groupId'],
     },
+    description: 'Upload training documents for a classifier',
   })
+  @ApiCreatedResponse({ description: 'Files uploaded successfully', type: UploadClassifierDocumentsResponseDto })
+  @ApiTags('Classifier')
   async uploadClassifierDocuments(
     @Request() req,
     @UploadedFiles() files: Array<Express.Multer.File>,
     @Body() body: UploadClassifierDocumentsDto,
-  ) {
+  ): Promise<UploadClassifierDocumentsResponseDto> {
     const { classifierName, label, groupId } = body;
     const userId = req.user.sub;
     if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
@@ -162,7 +178,10 @@ export class AzureController {
   // Remove training documents from storage
   @Delete("classifier/documents")
   @KeycloakSSOAuth()
-  @ApiNoContentResponse({ description: "Documents deleted successfully." })
+  @ApiOperation({ summary: 'Delete training documents', description: 'Delete training documents for a classifier.' })
+  @ApiNoContentResponse({ description: "Documents deleted successfully.", type: DeleteClassifierDocumentsResponseDto })
+  @ApiBody({ type: DeleteClassifierDocumentsDto, description: 'Delete classifier documents payload' })
+  @ApiTags('Classifier')
   @HttpCode(204)
   async deleteClassifierDocuments(
     @Request() req,
@@ -215,10 +234,14 @@ export class AzureController {
   // Request Training
   @Post("classifier/train")
   @KeycloakSSOAuth()
+  @ApiOperation({ summary: 'Request classifier training', description: 'Request training for a classifier.' })
+  @ApiCreatedResponse({ description: 'Training requested successfully', type: RequestClassifierTrainingResponseDto })
+  @ApiBody({ type: RequestClassifierTrainingDto, description: 'Request classifier training payload' })
+  @ApiTags('Classifier')
   async requestClassifierTraining(
     @Request() req,
     @Body() body: RequestClassifierTrainingDto,
-  ) {
+  ): Promise<RequestClassifierTrainingResponseDto> {
     const { classifierName, groupId } = body;
     const userId = req.user.sub;
     if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
@@ -243,7 +266,8 @@ export class AzureController {
         groupId,
         userId,
       );
-      return result;
+      // Map to response DTO
+      return { message: 'Training started' };
     } catch (e) {
       await this.databaseService.updateClassifierModel(
         classifierName,
@@ -251,13 +275,14 @@ export class AzureController {
         { status: ClassifierStatus.FAILED },
         userId,
       );
-      return new InternalServerErrorException(e);
+      return { message: 'Training failed' };
     }
   }
 
   // Request Classification
   @Post("classifier/classify")
   @KeycloakSSOAuth()
+  @ApiOperation({ summary: 'Request document classification', description: 'Request classification for a document using a classifier.' })
   @UseInterceptors(FileInterceptor("file"))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -273,12 +298,15 @@ export class AzureController {
       },
       required: ['file', 'classifierName', 'groupId'],
     },
+    description: 'Request classification for a document',
   })
+  @ApiCreatedResponse({ description: 'Classification requested successfully', type: RequestClassificationResponseDto })
+  @ApiTags('Classifier')
   async requestClassification(
     @Request() req,
     @Body() body: RequestClassificationDto,
     @UploadedFile() file: Express.Multer.File,
-  ): Promise<OperationRequestResponse> {
+  ): Promise<RequestClassificationResponseDto> {
     const { classifierName, groupId } = body;
     const userId = req.user.sub;
     if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
@@ -303,9 +331,12 @@ export class AzureController {
   // Check Classification status
   @Get("classifier/classify")
   @KeycloakSSOAuth()
+  @ApiOperation({ summary: 'Get classification result', description: 'Get the result of a classification operation.' })
+  @ApiTags('Classifier')
+  @ApiCreatedResponse({ description: 'Classification result retrieved', type: GetClassificationResultResponseDto })
   async getClassificationResult(
     @Query() query: GetClassificationResultQueryDto,
-  ) {
+  ): Promise<GetClassificationResultResponseDto> {
     const { operationLocation } = query;
     let returnValue;
     await this.azureService.pollOperationUntilResolved(
@@ -325,10 +356,13 @@ export class AzureController {
   // Check Training status
   @Get("classifier/train")
   @KeycloakSSOAuth()
+  @ApiOperation({ summary: 'Get training result', description: 'Get the result of a classifier training operation.' })
+  @ApiTags('Classifier')
+  @ApiCreatedResponse({ description: 'Training result retrieved', type: GetTrainingResultResponseDto })
   async getTrainingResult(
     @Request() req,
     @Query() query: GetTrainingResultQueryDto,
-  ) {
+  ): Promise<GetTrainingResultResponseDto> {
     const { classifierName, groupId } = query;
     if (classifierName == null || groupId == null) {
       throw new BadRequestException(
