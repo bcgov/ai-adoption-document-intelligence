@@ -54,19 +54,6 @@ import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { ClassifierStatus } from "@/generated";
 import { Operation, StorageService } from "@/storage/storage.service";
 
-export interface OperationRequestResponse {
-  status: string;
-  content: string;
-  error?:
-  | DocumentIntelligenceErrorResponseOutput
-  | (DocumentIntelligenceErrorResponseOutput &
-    ModelCopyAuthorizationOutput &
-    ClassifierCopyAuthorizationOutput)
-  | (DocumentIntelligenceErrorResponseOutput & ModelCopyAuthorizationOutput)
-  | (DocumentIntelligenceErrorResponseOutput &
-    ClassifierCopyAuthorizationOutput);
-}
-
 @ApiTags("Azure")
 @Controller("api/azure")
 export class AzureController {
