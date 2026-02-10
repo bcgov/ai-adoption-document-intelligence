@@ -3,7 +3,7 @@ import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import * as path from "path";
 import { AzureService } from "@/azure/azure.service";
 import { BlobService } from "@/azure/blob.service";
-import { ClassifierStatus } from "@/azure/dto/classifier.dto";
+import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { DatabaseService } from "@/database/database.service";
 import { OcrService } from "@/ocr/ocr.service";
 import { Operation, StorageService } from "@/storage/storage.service";

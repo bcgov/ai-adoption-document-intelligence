@@ -1,5 +1,28 @@
+import { ClassifierSource, ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { ApiProperty } from "@nestjs/swagger";
-import { IsString, IsOptional, IsArray } from "class-validator";
+import { IsString, IsOptional, IsArray, IsEnum } from "class-validator";
+
+export class ClassifierCreationDto {
+  @ApiProperty()
+  @IsString()
+  classifierName: string;
+
+  @ApiProperty()
+  @IsString()
+  description: string;
+
+  @ApiProperty()
+  @IsEnum(ClassifierSource)
+  source: ClassifierSource;
+
+  @ApiProperty()
+  @IsEnum(ClassifierStatus)
+  status: ClassifierStatus;
+
+  @ApiProperty()
+  @IsString()
+  groupId: string;
+}
 
 export class UploadClassifierDocumentsDto {
   @ApiProperty()

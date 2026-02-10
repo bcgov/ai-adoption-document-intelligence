@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { existsSync, promises as fs } from "fs";
-import { mkdir, readdir, stat, writeFile } from "fs/promises";
+import { mkdir, readdir } from "fs/promises";
 import * as path from "path";
 
 export enum Operation {
