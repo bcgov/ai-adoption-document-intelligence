@@ -1,6 +1,9 @@
-import { ClassifierSource, ClassifierStatus } from "@/generated";
 import { ApiProperty } from "@nestjs/swagger";
 import { IsArray, IsEnum, IsOptional, IsString } from "class-validator";
+import {
+  ClassifierSource,
+  ClassifierStatus,
+} from "@/azure/dto/classifier-constants.dto";
 
 export class ClassifierCreationDto {
   @ApiProperty()
@@ -11,12 +14,10 @@ export class ClassifierCreationDto {
   @IsString()
   description: string;
 
-  @ApiProperty()
-  @IsEnum(ClassifierSource)
+  @ApiProperty({ enum: ClassifierSource })
   source: ClassifierSource;
 
-  @ApiProperty()
-  @IsEnum(ClassifierStatus)
+  @ApiProperty({ enum: ClassifierStatus })
   status: ClassifierStatus;
 
   @ApiProperty()
@@ -47,7 +48,7 @@ export class DeleteClassifierDocumentsDto {
   @IsString()
   groupId: string;
 
-  @ApiProperty({ required: false, type: [String] })
+  @ApiProperty({ required: false })
   @IsOptional()
   @IsArray()
   folders?: string[];

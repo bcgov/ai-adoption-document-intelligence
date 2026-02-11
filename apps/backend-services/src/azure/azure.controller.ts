@@ -28,6 +28,10 @@ import {
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
 import {
+  ClassifierSource,
+  ClassifierStatus,
+} from "@/azure/dto/classifier-constants.dto";
+import {
   ClassifierCreationDto,
   DeleteClassifierDocumentsDto,
   GetClassificationResultQueryDto,
@@ -45,7 +49,6 @@ import {
 import { DatabaseService } from "@/database/database.service";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { Operation, StorageService } from "@/storage/storage.service";
-import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 
 @ApiTags("Azure")
 @Controller("api/azure")
@@ -266,22 +269,32 @@ export class AzureController {
       await this.classifierService.createLayoutJson(filePaths);
 
       // Start the training process
-      return await this.classifierService.requestClassifierTraining(
+      const model = await this.classifierService.requestClassifierTraining(
         classifierName,
         groupId,
         userId,
       );
+      return {
+        ...model,
+        status: ClassifierStatus[model.status as keyof typeof ClassifierStatus],
+        source: ClassifierSource[model.source as keyof typeof ClassifierSource],
+      };
     } catch (e) {
       this.logger.error(
         `Classification request failed for classifier ${classifierName} in group ${groupId}.`,
         e,
       );
-      return await this.databaseService.updateClassifierModel(
+      const model = await this.databaseService.updateClassifierModel(
         classifierName,
         groupId,
         { status: ClassifierStatus.FAILED },
         userId,
       );
+      return {
+        ...model,
+        status: ClassifierStatus[model.status as keyof typeof ClassifierStatus],
+        source: ClassifierSource[model.source as keyof typeof ClassifierSource],
+      };
     }
   }
 

@@ -22,6 +22,10 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
+  ClassifierSource,
+  ClassifierStatus,
+} from "@/azure/dto/classifier-constants.dto";
+import {
   AnalysisResponse,
   DocumentField,
   ExtractedFields,
