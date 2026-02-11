@@ -59,16 +59,14 @@ describe("AuthController", () => {
 
   describe("getLoginUrl", () => {
     it("should redirect to login url", async () => {
-      authService.getLoginUrl.mockReturnValue("http://login");
+      authService.getLoginUrl.mockResolvedValue("http://login");
       await controller.getLoginUrl(res);
       expect(authService.getLoginUrl).toHaveBeenCalled();
       expect(res.redirect).toHaveBeenCalledWith("http://login");
     });
 
     it("should return 500 if error", async () => {
-      authService.getLoginUrl.mockImplementation(() => {
-        throw new Error();
-      });
+      authService.getLoginUrl.mockRejectedValue(new Error());
       await controller.getLoginUrl(res);
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: expect.any(String) });

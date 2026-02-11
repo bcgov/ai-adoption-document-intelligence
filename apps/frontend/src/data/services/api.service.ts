@@ -9,6 +9,9 @@ import type { ApiResponse } from "../../shared/types";
 class ApiService {
   private axiosInstance: AxiosInstance;
   private authToken: string | null = null;
+  private refreshCallback: (() => Promise<void>) | null = null;
+  private refreshPromise: Promise<void> | null = null;
+  private logoutCallback: (() => void) | null = null;
 
   constructor(baseURL: string = API_BASE_URL) {
     this.axiosInstance = axios.create({
@@ -33,14 +36,56 @@ class ApiService {
       (error) => Promise.reject(error),
     );
 
-    // Add response interceptor for error handling
+    // Add response interceptor for error handling and token refresh
     this.axiosInstance.interceptors.response.use(
       (response) => response,
-      (error) => {
-        // Error handling - logging removed for lint compliance
+      async (error) => {
+        const originalRequest = error.config;
+
+        // Handle 401 errors with automatic token refresh
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+
+          // Single-flight: reuse existing refresh promise if one is in-flight
+          if (!this.refreshPromise && this.refreshCallback) {
+            this.refreshPromise = this.refreshCallback()
+              .finally(() => {
+                this.refreshPromise = null;
+              });
+          }
+
+          if (this.refreshPromise) {
+            try {
+              await this.refreshPromise;
+              // Update the Authorization header with the new token
+              if (this.authToken && originalRequest.headers) {
+                originalRequest.headers.Authorization = `Bearer ${this.authToken}`;
+              }
+              // Retry the original request
+              return this.axiosInstance(originalRequest);
+            } catch {
+              // Refresh failed — redirect to login
+              if (this.logoutCallback) {
+                this.logoutCallback();
+              }
+              return Promise.reject(error);
+            }
+          }
+        }
+
         return Promise.reject(error);
       },
     );
+  }
+
+  // Method to register the token refresh callback from AuthContext
+  setRefreshCallback(callback: () => Promise<void>) {
+    this.refreshCallback = callback;
+  }
+
+  // Method to register the logout callback from AuthContext
+  setLogoutCallback(callback: () => void) {
+    this.logoutCallback = callback;
   }
 
   // Method to set the authentication token

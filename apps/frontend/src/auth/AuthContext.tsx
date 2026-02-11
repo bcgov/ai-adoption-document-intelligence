@@ -2,6 +2,7 @@ import axios from "axios";
 import React, {
   createContext,
   ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -89,6 +90,55 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     apiService.setAuthToken(user?.access_token ?? null);
   }, [user?.access_token]);
 
+  // Register refresh and logout callbacks with apiService for 401 handling
+  useEffect(() => {
+    apiService.setRefreshCallback(refreshToken);
+    apiService.setLogoutCallback(logout);
+  }, [refreshToken, logout]);
+
+  // Proactive token refresh timer - refresh at 75% of token lifetime
+  useEffect(() => {
+    if (!user?.expires_at || !user?.refresh_token) return;
+
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = user.expires_at;
+    const tokenLifetime = expiresAt - now;
+
+    // If token already expired or expiring very soon, don't schedule
+    if (tokenLifetime <= 0) return;
+
+    // Refresh at 75% of remaining lifetime (minimum 10 seconds before expiry)
+    const refreshIn = Math.max((tokenLifetime * 0.75) * 1000, 10_000);
+
+    const timerId = setTimeout(async () => {
+      try {
+        await refreshToken();
+      } catch {
+        // Refresh failed — the 401 interceptor will handle logout if needed
+      }
+    }, refreshIn);
+
+    return () => clearTimeout(timerId);
+  }, [user?.expires_at, user?.refresh_token]);
+
+  // Visibility change listener - refresh when user returns to tab if token expiring soon
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user?.expires_at && user?.refresh_token) {
+        const now = Math.floor(Date.now() / 1000);
+        const buffer = 60; // refresh if less than 60 seconds remaining
+        if (user.expires_at - now < buffer) {
+          refreshToken().catch(() => {
+            // Refresh failed — let the 401 interceptor handle it
+          });
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [user?.expires_at, user?.refresh_token]);
+
   /**
    * Rehydrates the last known token set from localStorage and refreshes if necessary.
    */
@@ -125,7 +175,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Decodes the ID token (if present) to provide profile metadata throughout the app.
    */
-  const decodeAndCreateUser = async (
+  const decodeAndCreateUser = useCallback(async (
     tokens: TokenResponse & { expires_at?: number },
   ): Promise<AuthUser> => {
     let profilePayload: Record<string, unknown> | undefined;
@@ -164,18 +214,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         : undefined,
     };
-  };
+  }, []);
 
   /**
    * Persists a token response, derives expiry, and updates React state.
    */
-  const persistTokens = async (tokens: TokenResponse) => {
+  const persistTokens = useCallback(async (tokens: TokenResponse) => {
     const expiresAt = Math.floor(Date.now() / 1000) + tokens.expires_in;
     const tokenData = { ...tokens, expires_at: expiresAt };
     localStorage.setItem("auth_tokens", JSON.stringify(tokenData));
     const userData = await decodeAndCreateUser(tokenData);
     setUser(userData);
-  };
+  }, [decodeAndCreateUser]);
 
   /**
    * Removes transient query params (`auth_result` / `auth_error`) without reloading the page.
@@ -233,7 +283,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     window.location.href = loginUrl;
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     const idTokenHint = user?.id_token;
     setUser(null);
     localStorage.removeItem("auth_tokens");
@@ -241,7 +291,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       ? `${apiBaseUrl}/auth/logout?id_token_hint=${encodeURIComponent(idTokenHint)}`
       : `${apiBaseUrl}/auth/logout`;
     window.location.href = logoutUrl;
-  };
+  }, [user?.id_token, apiBaseUrl]);
 
   const getAccessToken = (): string | null => {
     return user?.access_token || null;
@@ -250,7 +300,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Calls the backend refresh endpoint with the stored refresh token and rehydrates local state.
    */
-  const refreshToken = async (): Promise<void> => {
+  const refreshToken = useCallback(async (): Promise<void> => {
     try {
       const storedTokens = localStorage.getItem("auth_tokens");
       if (!storedTokens) {
@@ -276,7 +326,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       throw error;
     }
-  };
+  }, [apiBaseUrl, persistTokens]);
 
   const value: AuthContextType = {
     isAuthenticated: !!user,
