@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { WorkflowStepsConfig } from "../../types/workflow";
+import { GraphWorkflowConfig } from "../../types/workflow";
 import { apiService } from "../services/api.service";
 
 export interface WorkflowInfo {
@@ -7,7 +7,8 @@ export interface WorkflowInfo {
   name: string;
   description: string | null;
   userId: string;
-  config: WorkflowStepsConfig;
+  config: GraphWorkflowConfig;
+  schemaVersion: string;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -16,7 +17,7 @@ export interface WorkflowInfo {
 export interface CreateWorkflowDto {
   name: string;
   description?: string;
-  config: WorkflowStepsConfig;
+  config: GraphWorkflowConfig;
 }
 
 interface WorkflowsResponse {

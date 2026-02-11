@@ -22,7 +22,10 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
-import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
+import {
+  ApiKeyAuth,
+  KeycloakSSOAuth,
+} from "@/decorators/custom-auth-decorators";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
 import {
   WorkflowListResponseDto,
@@ -36,6 +39,7 @@ export class WorkflowController {
   constructor(private readonly workflowService: WorkflowService) {}
 
   @Get()
+  @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "List all workflows for the current user" })
   @ApiOkResponse({
@@ -58,6 +62,7 @@ export class WorkflowController {
   }
 
   @Get(":id")
+  @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get a workflow by ID" })
   @ApiParam({ name: "id", description: "Workflow ID" })
@@ -79,11 +84,12 @@ export class WorkflowController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Create a new workflow" })
   @ApiBody({
     type: CreateWorkflowDto,
-    description: "Workflow name, optional description, and steps configuration",
+    description: "Workflow name, optional description, and graph configuration",
   })
   @ApiCreatedResponse({
     description:
@@ -105,6 +111,7 @@ export class WorkflowController {
   }
 
   @Put(":id")
+  @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Update an existing workflow" })
   @ApiParam({ name: "id", description: "Workflow ID" })
@@ -135,6 +142,7 @@ export class WorkflowController {
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Delete a workflow" })
   @ApiParam({ name: "id", description: "Workflow ID" })

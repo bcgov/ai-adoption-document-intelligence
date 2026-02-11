@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { WorkflowStepsConfig } from "../workflow-types";
+import { GraphWorkflowConfig } from "../graph-workflow-types";
 
 export class WorkflowInfoDto {
   @ApiProperty({ description: "Unique workflow ID" })
@@ -18,11 +18,14 @@ export class WorkflowInfoDto {
   userId: string;
 
   @ApiProperty({
-    description: "Workflow steps configuration",
+    description: "Graph workflow configuration",
     type: "object",
     additionalProperties: true,
   })
-  config: WorkflowStepsConfig;
+  config: GraphWorkflowConfig;
+
+  @ApiProperty({ description: "Schema version for the workflow config" })
+  schemaVersion: string;
 
   @ApiProperty({ description: "Config version (incremented on config change)" })
   version: number;

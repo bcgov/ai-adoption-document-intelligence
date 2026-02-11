@@ -32,7 +32,6 @@ PORT=3002
 NODE_ENV=development
 FRONTEND_URL=http://localhost:5173
 DATABASE_API_URL=http://localhost:3001/api/documents
-STORAGE_PATH=./storage/documents
 
 # Temporal Configuration
 TEMPORAL_ADDRESS=localhost:7233

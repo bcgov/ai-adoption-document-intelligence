@@ -70,7 +70,7 @@ describe("TrainingService", () => {
       id: "labeling-doc-1",
       title: "Test Doc",
       original_filename: "test.pdf",
-      file_path: "storage/test.pdf",
+      file_path: "labeling-documents/labeling-doc-1/original.pdf",
       file_type: "pdf",
       file_size: 1024,
       metadata: {},
