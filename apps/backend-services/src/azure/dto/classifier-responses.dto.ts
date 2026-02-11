@@ -1,5 +1,8 @@
-import { ClassifierSource, ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { ApiProperty } from "@nestjs/swagger";
+import {
+  ClassifierSource,
+  ClassifierStatus,
+} from "@/azure/dto/classifier-constants.dto";
 
 export class UploadClassifierDocumentsResponseDto {
   @ApiProperty({ example: "Received files and data." })
@@ -54,14 +57,14 @@ export class ClassifierModelResponseDto {
   updated_at: Date;
 
   @ApiProperty({ type: Date, nullable: true })
-  last_used_at: Date | null;
+  last_used_at?: Date;
 
   @ApiProperty({ example: 1 })
   version: number;
 
-  @ApiProperty({ enum: ClassifierSource, example: ClassifierSource.AZURE })
+  @ApiProperty({ enum: ClassifierSource })
   source: ClassifierSource;
 
   @ApiProperty({ type: String, nullable: true })
-  operation_location: string | null;
+  operation_location?: string;
 }
