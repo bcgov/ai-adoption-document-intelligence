@@ -8,7 +8,7 @@ import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
 import { ocrWorkflow } from './workflow';
 import { mockActivities } from './test/mock-activities';
-import type { OCRWorkflowInput } from './types';
+import type { OCRWorkflowInput, OCRResult } from './types';
 
 const TASK_QUEUE = 'test';
 
@@ -24,7 +24,7 @@ async function runWorkflowWithInput(
   testEnv: TestWorkflowEnvironment,
   input: OCRWorkflowInput,
   workflowIdSuffix: string
-) {
+): Promise<OCRResult> {
   const workflowsPath = require.resolve('./workflow');
   const worker = await Worker.create({
     connection: testEnv.nativeConnection,

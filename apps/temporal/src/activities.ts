@@ -455,7 +455,8 @@ export async function extractOCRResults(
       tables: [],
       keyValuePairs: [],
       sections: [],
-      figures: []
+      figures: [],
+      documents: []
     };
 
     const result: OCRResult = {
@@ -464,6 +465,7 @@ export async function extractOCRResults(
       apimRequestId: apimRequestId || '',
       fileName: fileName || 'document',
       fileType: fileType || 'pdf',
+      modelId: analyzeResult.modelId || modelId || 'prebuilt-layout',
       extractedText: analyzeResult.content || '',
       pages: analyzeResult.pages || [],
       tables: analyzeResult.tables || [],
@@ -471,6 +473,7 @@ export async function extractOCRResults(
       keyValuePairs: analyzeResult.keyValuePairs || [],
       sections: analyzeResult.sections || [],
       figures: analyzeResult.figures || [],
+      documents: analyzeResult.documents || [],
       processedAt: new Date().toISOString()
     };
 
@@ -629,8 +632,9 @@ export async function storeDocumentRejection(
 
 /**
  * Activity: Upsert OCR result in database
- * Stores only keyValuePairs in the simplified schema format
- * Converts KeyValuePair[] array to ExtractedFields format (Record<string, DocumentField>)
+ * Determines extracted fields based on model type:
+ * - Custom models: use fields directly from documents[0].fields
+ * - Prebuilt models: convert keyValuePairs to fields format
  */
 export async function upsertOcrResult(
   documentId: string,
@@ -644,52 +648,74 @@ export async function upsertOcrResult(
     event: 'start',
     documentId,
     fileName: ocrResult.fileName,
+    modelId: ocrResult.modelId,
     status: ocrResult.status,
     keyValuePairsCount: ocrResult.keyValuePairs?.length || 0,
+    documentsCount: ocrResult.documents?.length || 0,
     timestamp: new Date().toISOString()
   }));
-  
+
   try {
     const prisma = getPrismaClient();
-    
-    // Convert keyValuePairs to JSON format for database
-    // The simplified schema only stores keyValuePairs as JSON in ExtractedFields format
+
+    // Convert to JSON format for database
     const asJson = (obj: any) => obj as unknown as any;
-    
-    // Extract keyValuePairs from OCR result (array of KeyValuePair objects)
-    const keyValuePairsArray = ocrResult.keyValuePairs || [];
-    
-    // Convert KeyValuePair[] array to ExtractedFields format (Record<string, DocumentField>)
-    // This matches the format expected by the backend and frontend
-    const extractedFields: Record<string, any> = {};
-    
-    for (const pair of keyValuePairsArray) {
-      const fieldName = pair.key?.content || "unknown";
-      const field = {
-        type: "string",
-        content: pair.value?.content || null,
-        confidence: pair.confidence,
-        boundingRegions: pair.value?.boundingRegions || pair.key?.boundingRegions,
-        spans: pair.value?.spans || pair.key?.spans,
-      };
-      
-      // Handle duplicate field names by appending a suffix
-      let uniqueName = fieldName;
-      let counter = 1;
-      while (extractedFields[uniqueName]) {
-        uniqueName = `${fieldName}_${counter}`;
-        counter++;
+
+    // Determine extracted fields based on model type (matches database.service.ts logic)
+    let extractedFields: Record<string, any> | null = null;
+
+    if (ocrResult.documents && ocrResult.documents.length > 0) {
+      // Custom model: use fields directly from documents[0].fields
+      extractedFields = ocrResult.documents[0].fields;
+      console.log(JSON.stringify({
+        activity: activityName,
+        event: 'fields_extracted',
+        source: 'custom_model_documents',
+        fieldCount: Object.keys(extractedFields).length,
+        timestamp: new Date().toISOString()
+      }));
+    } else if (ocrResult.keyValuePairs && ocrResult.keyValuePairs.length > 0) {
+      // Prebuilt model: convert keyValuePairs to fields format
+      const fields: Record<string, any> = {};
+
+      for (const pair of ocrResult.keyValuePairs) {
+        const fieldName = pair.key?.content || "unknown";
+        const field = {
+          type: "string",
+          content: pair.value?.content || null,
+          confidence: pair.confidence,
+          boundingRegions: pair.value?.boundingRegions || pair.key?.boundingRegions,
+          spans: pair.value?.spans || pair.key?.spans,
+        };
+
+        // Handle duplicate field names by appending a suffix
+        let uniqueName = fieldName;
+        let counter = 1;
+        while (fields[uniqueName]) {
+          uniqueName = `${fieldName}_${counter}`;
+          counter++;
+        }
+
+        fields[uniqueName] = field;
       }
-      
-      extractedFields[uniqueName] = field;
+
+      extractedFields = fields;
+      console.log(JSON.stringify({
+        activity: activityName,
+        event: 'fields_extracted',
+        source: 'prebuilt_model_keyValuePairs',
+        keyValuePairsCount: ocrResult.keyValuePairs.length,
+        fieldCount: Object.keys(extractedFields).length,
+        timestamp: new Date().toISOString()
+      }));
     }
-    
+
     const updateObject = {
       processed_at: new Date(ocrResult.processedAt),
       keyValuePairs: asJson(extractedFields),
     };
-    
-    // Upsert OCR result (only keyValuePairs field)
+
+    // Upsert OCR result
     await prisma.ocrResult.upsert({
       where: {
         document_id: documentId,
@@ -700,7 +726,7 @@ export async function upsertOcrResult(
         ...updateObject,
       },
     });
-    
+
     // Update document status to completed_ocr
     // Note: The workflow status "awaiting_review" is used by the frontend to determine if review is needed
     await prisma.document.update({
@@ -713,7 +739,9 @@ export async function upsertOcrResult(
       event: 'complete',
       documentId,
       fileName: ocrResult.fileName,
-      keyValuePairsCount: Object.keys(extractedFields).length,
+      modelId: ocrResult.modelId,
+      fieldCount: extractedFields ? Object.keys(extractedFields).length : 0,
+      dataSize: extractedFields ? JSON.stringify(extractedFields).length : 0,
       timestamp: new Date().toISOString()
     }));
   } catch (error) {

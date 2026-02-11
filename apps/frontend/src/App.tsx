@@ -9,10 +9,12 @@ import {
   Title,
 } from "@mantine/core";
 import {
+  IconClipboardCheck,
   IconFlask,
   IconList,
   IconLogout,
   IconSettings,
+  IconTags,
   IconUpload,
 } from "@tabler/icons-react";
 import { JSX, useMemo, useState } from "react";
@@ -22,13 +24,24 @@ import { Login } from "./components";
 import { DocumentViewerModal } from "./components/document/DocumentViewerModal";
 import { ProcessingQueue } from "./components/queue/ProcessingQueue";
 import { DocumentUploadPanel } from "./components/upload/DocumentUploadPanel";
+import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
+import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWorkspacePage";
+import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/LabelingWorkspacePage";
+import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
+import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkflowEditPage } from "./pages/WorkflowEditPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
 import { WorkflowPage } from "./pages/WorkflowPage";
 import type { Document } from "./shared/types";
 
-type MainView = "upload" | "queue" | "workflows" | "settings";
+type MainView =
+  | "upload"
+  | "queue"
+  | "workflows"
+  | "labeling"
+  | "review"
+  | "settings";
 type WorkflowView = "list" | "create" | "edit";
 
 function AppContent(): JSX.Element {
@@ -42,6 +55,16 @@ function AppContent(): JSX.Element {
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(
     null,
   );
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null,
+  );
+  const [selectedProjectDocumentId, setSelectedProjectDocumentId] = useState<
+    string | null
+  >(null);
+  const [activeReviewSessionId, setActiveReviewSessionId] = useState<
+    string | null
+  >(null);
+  const [reviewSessionReadOnly, setReviewSessionReadOnly] = useState(false);
 
   const navItems = useMemo(
     () => [
@@ -56,6 +79,18 @@ function AppContent(): JSX.Element {
         label: "Processing queue",
         description: "Track statuses",
         icon: IconList,
+      },
+      {
+        value: "labeling" as MainView,
+        label: "Training Labels",
+        description: "Create datasets",
+        icon: IconTags,
+      },
+      {
+        value: "review" as MainView,
+        label: "HITL Review",
+        description: "Validate OCR results",
+        icon: IconClipboardCheck,
       },
       {
         value: "workflows" as MainView,
@@ -160,9 +195,51 @@ function AppContent(): JSX.Element {
         </AppShell.Navbar>
 
         <AppShell.Main>
-          <Stack gap="lg">
+          <Stack gap="lg" style={{ flex: 1, minHeight: 0 }}>
             {activeView === "settings" ? (
               <SettingsPage />
+            ) : activeView === "labeling" ? (
+              selectedProjectId ? (
+                selectedProjectDocumentId ? (
+                  <LabelingWorkspacePage
+                    projectId={selectedProjectId}
+                    documentId={selectedProjectDocumentId}
+                    onBack={() => setSelectedProjectDocumentId(null)}
+                  />
+                ) : (
+                  <ProjectDetailPage
+                    projectId={selectedProjectId}
+                    onBack={() => setSelectedProjectId(null)}
+                    onOpenDocument={(documentId) =>
+                      setSelectedProjectDocumentId(documentId)
+                    }
+                  />
+                )
+              ) : (
+                <ProjectListPage
+                  onSelectProject={(projectId) =>
+                    setSelectedProjectId(projectId)
+                  }
+                />
+              )
+            ) : activeView === "review" ? (
+              activeReviewSessionId ? (
+                <ReviewWorkspacePage
+                  sessionId={activeReviewSessionId}
+                  onBack={() => {
+                    setActiveReviewSessionId(null);
+                    setReviewSessionReadOnly(false);
+                  }}
+                  readOnly={reviewSessionReadOnly}
+                />
+              ) : (
+                <ReviewQueuePage
+                  onStartSession={(sessionId, readOnly) => {
+                    setActiveReviewSessionId(sessionId);
+                    setReviewSessionReadOnly(readOnly || false);
+                  }}
+                />
+              )
             ) : activeView === "workflows" ? (
               workflowView === "list" ? (
                 <WorkflowListPage

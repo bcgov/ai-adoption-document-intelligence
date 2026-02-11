@@ -113,6 +113,7 @@ try {
   }
   
   console.log('✓ Prisma client generated and copied to both apps successfully');
+  process.exit(0);
 } catch (error) {
   console.error('✗ Failed to generate Prisma client:', error.message);
   

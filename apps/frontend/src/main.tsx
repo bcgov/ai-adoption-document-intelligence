@@ -13,7 +13,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
-        <MantineProvider defaultColorScheme="light">
+        <MantineProvider defaultColorScheme="dark">
           <Notifications position="top-right" />
           <App />
         </MantineProvider>
