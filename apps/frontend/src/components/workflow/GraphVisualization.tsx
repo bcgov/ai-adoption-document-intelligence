@@ -1365,9 +1365,15 @@ export function GraphVisualization({
   );
 
   const { nodes, edges } = useMemo(() => {
-    const finalize = (result: { nodes: Node[]; edges: Edge[] }) => ({
+    const finalize = (
+      result: { nodes: Node[]; edges: Edge[] },
+      options?: { staggerLabels?: boolean },
+    ) => ({
       nodes: result.nodes,
-      edges: applyStaggeredLabelDistances(result.edges, result.nodes),
+      edges:
+        options?.staggerLabels === true
+          ? applyStaggeredLabelDistances(result.edges, result.nodes)
+          : result.edges,
     });
 
     if (!config) {
@@ -1388,7 +1394,7 @@ export function GraphVisualization({
     if (viewMode === "simplified" && hasNodeGroups) {
       console.log('[GraphVisualization] Using hybrid view: simplified groups + detailed map containers');
       if (hasMapNodes) {
-        return finalize(buildHybridView(config, errorNodeIds));
+        return finalize(buildHybridView(config, errorNodeIds), { staggerLabels: true });
       }
       console.log('[GraphVisualization] Using simplified view with groups (no map containers)');
       return finalize(buildSimplifiedView(config, errorNodeIds));
@@ -1397,7 +1403,7 @@ export function GraphVisualization({
     // Priority 2: Detailed view with map containers
     if (hasMapNodes) {
       console.log('[GraphVisualization] Using detailed view with map containers');
-      return finalize(buildDetailedViewWithMapContainers(config, errorNodeIds));
+      return finalize(buildDetailedViewWithMapContainers(config, errorNodeIds), { staggerLabels: true });
     }
 
     // Fallback: original flat rendering for workflows without map nodes
@@ -1451,7 +1457,7 @@ export function GraphVisualization({
       };
     });
 
-    return finalize(layoutGraph(mappedNodes, mappedEdges));
+    return finalize(layoutGraph(mappedNodes, mappedEdges)); // no staggerLabels: flat view
   }, [config, errorNodeIds, viewMode]);
 
   // Fit view whenever nodes change

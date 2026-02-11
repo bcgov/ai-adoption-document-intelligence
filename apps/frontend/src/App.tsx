@@ -4,8 +4,8 @@ import {
   Avatar,
   Badge,
   Button,
-  Burger,
   Group,
+  NavLink,
   Stack,
   Text,
   Title,
@@ -199,18 +199,19 @@ function AppContent(): JSX.Element {
           </ActionIcon>
 
           <Stack gap="xs">
-            {navItems.map((item) => (
-              <Tooltip
-                key={item.value}
-                label={item.label}
-                disabled={navbarOpened}
-                position="right"
-              >
-                <Button
-                  variant={activeView === item.value ? "light" : "subtle"}
-                  color={activeView === item.value ? "blue" : "gray"}
-                  justify={navbarOpened ? "space-between" : "center"}
-                  leftSection={<item.icon size={18} />}
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = activeView === item.value;
+
+              return navbarOpened ? (
+                <NavLink
+                  key={item.value}
+                  label={item.label}
+                  description={item.description}
+                  leftSection={<Icon size={18} />}
+                  active={active}
+                  variant={active ? "light" : "subtle"}
+                  color={active ? "blue" : "gray"}
                   onClick={() => {
                     setActiveView(item.value);
                     if (item.value === "workflows") {
@@ -218,20 +219,28 @@ function AppContent(): JSX.Element {
                       setSelectedWorkflowId(null);
                     }
                   }}
-                >
-                  {navbarOpened && (
-                    <Stack gap={0} align="flex-start">
-                      <Text size="sm" fw={600}>
-                        {item.label}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {item.description}
-                      </Text>
-                    </Stack>
-                  )}
-                </Button>
-              </Tooltip>
-            ))}
+                />
+              ) : (
+                <Tooltip key={item.value} label={item.label} position="right">
+                  <ActionIcon
+                    variant={active ? "light" : "subtle"}
+                    color={active ? "blue" : "gray"}
+                    size="lg"
+                    radius="md"
+                    onClick={() => {
+                      setActiveView(item.value);
+                      if (item.value === "workflows") {
+                        setWorkflowView("list");
+                        setSelectedWorkflowId(null);
+                      }
+                    }}
+                    aria-label={item.label}
+                  >
+                    <Icon size={18} />
+                  </ActionIcon>
+                </Tooltip>
+              );
+            })}
           </Stack>
         </AppShell.Navbar>
 
