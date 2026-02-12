@@ -51,7 +51,7 @@ describe("LabelingService", () => {
     id: "labeling-doc-1",
     title: "Test Invoice",
     original_filename: "invoice.pdf",
-    file_path: "storage/invoice.pdf",
+    file_path: "labeling-documents/labeling-doc-1/original.pdf",
     file_type: "pdf",
     file_size: 1024,
     metadata: {},

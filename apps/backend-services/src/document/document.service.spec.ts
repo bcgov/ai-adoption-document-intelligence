@@ -1,35 +1,30 @@
 import { DocumentStatus } from "@generated/client";
-import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import * as fs from "fs";
-import * as fsPromises from "fs/promises";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "./document.service";
 
 describe("DocumentService", () => {
   let service: DocumentService;
   let databaseService: DatabaseService;
-  let configService: ConfigService;
+  let blobStorage: LocalBlobStorageService;
 
   beforeEach(async () => {
     databaseService = {
       createDocument: jest.fn(),
       findDocument: jest.fn(),
     } as any;
-    configService = {
-      get: jest.fn((key: string) => {
-        if (key === "STORAGE_PATH") return "/tmp/storage";
-        return undefined;
-      }),
+    blobStorage = {
+      write: jest.fn(),
+      read: jest.fn(),
+      exists: jest.fn(),
+      delete: jest.fn(),
     } as any;
-    jest.spyOn(fs, "existsSync").mockReturnValue(true);
-    jest.spyOn(fsPromises, "mkdir").mockResolvedValue(undefined as any);
-    jest.spyOn(fsPromises, "writeFile").mockResolvedValue(undefined as any);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DocumentService,
         { provide: DatabaseService, useValue: databaseService },
-        { provide: ConfigService, useValue: configService },
+        { provide: LocalBlobStorageService, useValue: blobStorage },
       ],
     }).compile();
     service = module.get<DocumentService>(DocumentService);
@@ -46,7 +41,7 @@ describe("DocumentService", () => {
         id: "1",
         title: "Test",
         original_filename: "file.pdf",
-        file_path: "storage/documents/uuid_file.pdf",
+        file_path: "documents/1/original.pdf",
         file_type: "pdf",
         file_size: 123,
         metadata: {},
@@ -69,7 +64,10 @@ describe("DocumentService", () => {
       expect(result.original_filename).toBe("file.pdf");
       expect(result.title).toBe("Test");
       expect(databaseService.createDocument).toHaveBeenCalled();
-      expect(fsPromises.writeFile).toHaveBeenCalled();
+      expect(blobStorage.write).toHaveBeenCalledWith(
+        expect.stringMatching(/^documents\/.+\/original\.pdf$/),
+        expect.any(Buffer),
+      );
     });
 
     it("should throw on invalid base64", async () => {
@@ -91,7 +89,7 @@ describe("DocumentService", () => {
         id: "1",
         title: "Test",
         original_filename: "file.pdf",
-        file_path: "storage/documents/uuid_file.pdf",
+        file_path: "documents/1/original.pdf",
         file_type: "pdf",
         file_size: 123,
         metadata: {},
@@ -115,21 +113,4 @@ describe("DocumentService", () => {
     });
   });
 
-  describe("ensureStorageDirectory", () => {
-    it("should create storage directory if missing", async () => {
-      (fs.existsSync as jest.Mock).mockReturnValue(false);
-      await service["ensureStorageDirectory"]();
-      expect(fsPromises.mkdir).toHaveBeenCalled();
-    });
-
-    it("should throw if storage directory creation fails", async () => {
-      (fs.existsSync as jest.Mock).mockReturnValue(false);
-      (fsPromises.mkdir as jest.Mock).mockRejectedValue(
-        new Error("fail mkdir"),
-      );
-      await expect(service["ensureStorageDirectory"]()).rejects.toThrow(
-        "fail mkdir",
-      );
-    });
-  });
 });

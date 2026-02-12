@@ -14,12 +14,11 @@ import {
 } from "@nestjs/common";
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from "@nestjs/swagger";
 import { Response } from "express";
-import { readFile } from "fs/promises";
-import { join } from "path";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
 import { ExportDto } from "./dto/export.dto";
@@ -41,7 +40,10 @@ interface AuthenticatedRequest {
 @ApiTags("labeling")
 @Controller("api/labeling")
 export class LabelingController {
-  constructor(private readonly labelingService: LabelingService) {}
+  constructor(
+    private readonly labelingService: LabelingService,
+    private readonly blobStorage: LocalBlobStorageService,
+  ) {}
 
   // ========== PROJECT ENDPOINTS ==========
 
@@ -214,8 +216,7 @@ export class LabelingController {
       documentId,
     );
     const labelingDocument = labeledDoc.labeling_document;
-    const filePath = join(process.cwd(), labelingDocument.file_path);
-    const fileBuffer = await readFile(filePath);
+    const fileBuffer = await this.blobStorage.read(labelingDocument.file_path);
 
     const fileName =
       labelingDocument.original_filename || `document-${documentId}`;

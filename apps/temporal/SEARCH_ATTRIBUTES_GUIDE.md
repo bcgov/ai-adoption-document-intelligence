@@ -59,13 +59,13 @@ docker exec temporal temporal operator search-attribute list \
 In `apps/backend-services/src/temporal/temporal-client.service.ts`:
 
 1. Add the new attribute to the `SEARCH_ATTRIBUTES` array in `ensureSearchAttributes` (same file).
-2. Add the new attribute to the `searchAttributes` object in `startOCRWorkflow`:
+2. Add the new attribute to the `searchAttributes` object in `startGraphWorkflow`:
 
 ```typescript
 searchAttributes: {
   DocumentId: [documentId],
-  FileName: [fileData.fileName],
-  FileType: [fileData.fileType],
+  FileName: [String(initialCtx.fileName ?? "")],
+  FileType: [String(initialCtx.fileType ?? "")],
   Status: ["ongoing_ocr"],
   YourNewAttribute: [yourValue], // Add your new attribute here
 },
