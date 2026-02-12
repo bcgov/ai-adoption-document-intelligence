@@ -54,6 +54,7 @@ export class ClassifierService {
 
         // Run general layout model
         const analyzeResponse = await this.client
+          // @ts-expect-error: Azure SDK type is too strict for .path()
           .path("/documentModels/prebuilt-layout:analyze")
           .post({
             body: {
@@ -111,8 +112,10 @@ export class ClassifierService {
           const fileBuffer = Buffer.from(await blobResp.arrayBuffer());
           // Fallback: Send as base64Source in JSON body
           const uploadResponse = await this.client
+            // @ts-expect-error: Azure SDK type is too strict for .path()
             .path("/documentModels/{modelId}:analyze")
             .post({
+              // @ts-expect-error: base64Source is not in the SDK types but is accepted by the API
               body: { base64Source: fileBuffer.toString("base64") },
               queryParameters: { "api-version": "2024-11-30" },
               pathParameters: { modelId: "prebuilt-layout" },
@@ -342,9 +345,11 @@ export class ClassifierService {
     const base64String = Buffer.from(fileData).toString("base64");
 
     const response = await this.client
+      // @ts-expect-error: Azure SDK type is too strict for .path()
       .path(`/documentClassifiers/${constructedClassifierName}:analyze`)
       .post({
         body: {
+          // @ts-expect-error: base64Source is not in the SDK types but is accepted by the API
           base64Source: base64String,
         },
         queryParameters: {
@@ -380,9 +385,11 @@ export class ClassifierService {
     // Read file and encode to base64
     const base64String = Buffer.from(file.buffer).toString("base64");
     const response = await this.client
+      // @ts-expect-error: Azure SDK type is too strict for .path()
       .path(`/documentClassifiers/${constructedClassifierName}:analyze`)
       .post({
         body: {
+          // @ts-expect-error: base64Source is not in the SDK types but is accepted by the API
           base64Source: base64String,
         },
         queryParameters: {
