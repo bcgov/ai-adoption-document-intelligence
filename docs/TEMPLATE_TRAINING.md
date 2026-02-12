@@ -660,6 +660,96 @@ Response:
 }
 ```
 
+### Labeling Data Flow (prebuilt-layout -> labels.json)
+
+This section documents how OCR output is used in the labeling UI and how user selections are converted into training labels.
+
+#### 1) What is rendered in the labeling canvas
+
+From `labeling_document.ocr_result.analyzeResult.pages`, the UI renders:
+
+- `pages[].words[]`: text OCR elements (content, polygon, span, confidence)
+- `pages[].selectionMarks[]`: checkbox OCR elements (state, polygon, span, confidence)
+
+The user selects a target field first, then clicks OCR elements on the canvas/PDF overlay.
+
+#### 2) What gets saved when the user labels
+
+When the user saves labels, each selected OCR element is sent as one label item:
+
+```json
+{
+  "field_key": "invoice_number",
+  "label_name": "invoice_number",
+  "value": "INV-12345",
+  "page_number": 1,
+  "bounding_box": {
+    "polygon": [100, 200, 200, 200, 200, 220, 100, 220],
+    "span": { "offset": 1234, "length": 8 }
+  }
+}
+```
+
+For selection marks, `value` is `"selected"` or `"unselected"` based on the OCR mark state.
+
+These records are stored in `document_labels` and later exported for training.
+
+#### 2.1) Auto-suggestions (semi-automatic first pass)
+
+The labeling workspace now supports suggestion loading to reduce first-document clicks:
+
+- Auto-load suggestions once on initial page load only when there are no saved labels.
+- Manual actions:
+  - `Load suggestions`: regenerate and apply suggestions.
+  - `Reset`: clear current in-memory assignments.
+
+Project-level suggestion behavior is configurable in the Labeling Project detail page under the `Suggestions` tab, where users can define per-field rules (KVP aliases, selection order, table row/column hints, and overlap thresholds).
+
+Suggestions are applied to the same assignment state used by manual clicks, so highlighted boxes look identical to user-selected boxes.
+
+Suggestion source behavior:
+
+- Key-value fields: from `analyzeResult.keyValuePairs`, mapped to existing word boxes.
+- Checkbox fields: from ordered `pages[].selectionMarks[]`, mapped by field schema order.
+- Table numeric fields: table cells are detected from `analyzeResult.tables[].cells`, then mapped to overlapping words from `pages[].words[]` (the UI still selects/highlights only words and selection marks).
+
+#### 3) How saved labels are exported to training format
+
+During export:
+
+- Labels are grouped by `field_key`
+- Entries are sorted by page and OCR `span.offset` to preserve reading order
+- Bounding polygons are normalized by page width/height when available
+- Selection mark values are converted:
+  - `"selected"` -> `":selected:"`
+  - `"unselected"` -> `":unselected:"`
+
+Resulting per-document training file shape:
+
+```json
+{
+  "document": "invoice-001.pdf",
+  "labels": [
+    {
+      "label": "invoice_number",
+      "value": [
+        {
+          "page": 1,
+          "text": "INV-12345",
+          "boundingBoxes": [[0.10, 0.25, 0.20, 0.25, 0.20, 0.28, 0.10, 0.28]]
+        }
+      ]
+    }
+  ]
+}
+```
+
+This `*.labels.json` is uploaded together with:
+
+- original document file
+- `${filename}.ocr.json` (raw prebuilt-layout OCR output)
+- `fields.json` (project field schema)
+
 ### Azure Blob Storage Format
 
 **Container Structure**:
@@ -723,6 +813,23 @@ training-{projectId}/
 ```
 
 ## Configuration
+
+### Seeded Template Project
+
+Prisma seeding includes a predefined labeling project for template training:
+
+- **Project name**: `SDPR monthly report template`
+- **Seed source**: `apps/shared/prisma/seed.ts`
+- **Seeded data**:
+  - Creates/updates the `LabelingProject`
+  - Creates/updates the full SDPR monthly report `FieldDefinition` schema
+  - Removes stale field definitions for that seeded project so reruns stay consistent
+
+Run from `apps/backend-services`:
+
+```bash
+npm run db:seed
+```
 
 ### Environment Variables
 

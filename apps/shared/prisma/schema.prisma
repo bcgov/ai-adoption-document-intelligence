@@ -105,6 +105,7 @@ model LabelingProject {
   id              String           @id @default(cuid())
   name            String
   description     String?
+  suggestion_mapping Json?
   created_by      String
   created_at      DateTime         @default(now())
   updated_at      DateTime         @updatedAt

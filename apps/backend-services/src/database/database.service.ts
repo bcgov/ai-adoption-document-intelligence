@@ -119,6 +119,7 @@ export class DatabaseService {
     name: string;
     description?: string;
     created_by: string;
+    suggestion_mapping?: JsonValue | null;
   }): Promise<LabelingProjectData> {
     return this.labelingProjectDb.createLabelingProject(data);
   }
@@ -135,7 +136,12 @@ export class DatabaseService {
 
   async updateLabelingProject(
     id: string,
-    data: { name?: string; description?: string; status?: ProjectStatus },
+    data: {
+      name?: string;
+      description?: string;
+      status?: ProjectStatus;
+      suggestion_mapping?: JsonValue | null;
+    },
   ): Promise<LabelingProjectData | null> {
     return this.labelingProjectDb.updateLabelingProject(id, data);
   }

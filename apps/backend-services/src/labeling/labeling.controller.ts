@@ -28,6 +28,8 @@ import {
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
+import { UpdateSuggestionMappingDto } from "./dto/suggestion-mapping.dto";
+import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { LabelingService } from "./labeling.service";
 
 interface AuthenticatedRequest {
@@ -89,6 +91,27 @@ export class LabelingController {
   @ApiParam({ name: "id", description: "Project ID" })
   async updateProject(@Param("id") id: string, @Body() dto: UpdateProjectDto) {
     return this.labelingService.updateProject(id, dto);
+  }
+
+  @Get("projects/:id/suggestion-mapping")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Get project suggestion mapping" })
+  @ApiParam({ name: "id", description: "Project ID" })
+  async getSuggestionMapping(@Param("id") projectId: string) {
+    return this.labelingService.getSuggestionMapping(projectId);
+  }
+
+  @Put("projects/:id/suggestion-mapping")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Update project suggestion mapping" })
+  @ApiParam({ name: "id", description: "Project ID" })
+  async updateSuggestionMapping(
+    @Param("id") projectId: string,
+    @Body() dto: UpdateSuggestionMappingDto,
+  ) {
+    return this.labelingService.updateSuggestionMapping(projectId, dto);
   }
 
   @Delete("projects/:id")
@@ -306,6 +329,25 @@ export class LabelingController {
     @Param("docId") documentId: string,
   ) {
     return this.labelingService.getDocumentOcr(projectId, documentId);
+  }
+
+  @Post("projects/:id/documents/:docId/suggestions")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary:
+      "Generate label suggestions mapped to existing words/selection marks",
+  })
+  @ApiParam({ name: "id", description: "Project ID" })
+  @ApiParam({ name: "docId", description: "Document ID" })
+  async generateDocumentSuggestions(
+    @Param("id") projectId: string,
+    @Param("docId") documentId: string,
+  ): Promise<LabelSuggestionDto[]> {
+    return this.labelingService.generateDocumentSuggestions(
+      projectId,
+      documentId,
+    );
   }
 
   // ========== EXPORT ENDPOINTS ==========
