@@ -1,0 +1,372 @@
+import {
+  ForbiddenException,
+  InternalServerErrorException,
+  NotFoundException,
+} from "@nestjs/common";
+import { AzureController } from "./azure.controller";
+import {
+  ClassifierSource,
+  ClassifierStatus,
+} from "./dto/classifier-constants.dto";
+
+describe("AzureController", () => {
+  let controller: AzureController;
+  let classifierService: any;
+  let storageService: any;
+  let databaseService: any;
+  let azureService: any;
+
+  beforeEach(() => {
+    classifierService = {
+      uploadDocumentsForTraining: jest.fn(),
+      createLayoutJson: jest.fn(),
+      requestClassifierTraining: jest.fn(),
+      requestClassificationFromFile: jest.fn(),
+    };
+    storageService = {
+      getStoragePath: jest.fn().mockImplementation(() => "/path"),
+      saveFilesBulk: jest.fn(),
+      deleteFolderRecursive: jest.fn().mockImplementation(() => undefined),
+    };
+    databaseService = {
+      isUserInGroup: jest.fn(),
+      getClassifierModel: jest.fn(),
+      createClassifierModel: jest.fn(),
+      updateClassifierModel: jest.fn(),
+    };
+    azureService = {
+      pollOperationUntilResolved: jest.fn(),
+    };
+    controller = new AzureController(
+      classifierService,
+      storageService,
+      databaseService,
+      azureService,
+    );
+  });
+
+  describe("createClassifier", () => {
+    it("should create a classifier if user is in group and classifier does not exist", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      databaseService.getClassifierModel.mockResolvedValue(null);
+      databaseService.createClassifierModel.mockResolvedValue({ id: "1" });
+      const req = { user: { sub: "user1" } };
+      const body = {
+        classifierName: "c1",
+        description: "desc",
+        source: ClassifierSource.AZURE,
+        status: ClassifierStatus.READY,
+        groupId: "g1",
+      };
+      const result = await controller.createClassifier(req, body);
+      expect(result).toEqual({ id: "1" });
+      expect(databaseService.createClassifierModel).toHaveBeenCalled();
+    });
+    it("should throw ForbiddenException if user not in group", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(false);
+      const req = { user: { sub: "user1" } };
+      const body = {
+        classifierName: "c1",
+        description: "desc",
+        source: ClassifierSource.AZURE,
+        status: ClassifierStatus.READY,
+        groupId: "g1",
+      };
+      await expect(controller.createClassifier(req, body)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+    it("should throw ForbiddenException if classifier exists", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
+      const req = { user: { sub: "user1" } };
+      const body = {
+        classifierName: "c1",
+        description: "desc",
+        source: ClassifierSource.AZURE,
+        status: ClassifierStatus.READY,
+        groupId: "g1",
+      };
+      await expect(controller.createClassifier(req, body)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+  });
+
+  describe("uploadClassifierDocuments", () => {
+    const mockFile = {
+      fieldname: "files",
+      originalname: "f1",
+      encoding: "7bit",
+      mimetype: "application/pdf",
+      size: 123,
+      buffer: Buffer.from("test"),
+      destination: "",
+      filename: "f1",
+      path: "/tmp/f1",
+      stream: {} as any,
+    };
+    it("should upload files if user in group and classifier exists", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
+      storageService.getStoragePath.mockReturnValue("/path");
+      storageService.saveFilesBulk.mockResolvedValue(["file1"]);
+      const req = { user: { sub: "user1" } };
+      const files = [mockFile];
+      const body = { classifierName: "c1", label: "l1", groupId: "g1" };
+      const result = await controller.uploadClassifierDocuments(
+        req,
+        files,
+        body,
+      );
+      expect(result).toEqual({
+        message: "Received files and data.",
+        fileCount: 1,
+        results: ["file1"],
+      });
+    });
+    it("should throw ForbiddenException if user not in group", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(false);
+      const req = { user: { sub: "user1" } };
+      await expect(
+        controller.uploadClassifierDocuments(req, [], {
+          classifierName: "c1",
+          label: "l1",
+          groupId: "g1",
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+    it("should throw NotFoundException if classifier does not exist", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      databaseService.getClassifierModel.mockResolvedValue(null);
+      const req = { user: { sub: "user1" } };
+      await expect(
+        controller.uploadClassifierDocuments(req, [], {
+          classifierName: "c1",
+          label: "l1",
+          groupId: "g1",
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("deleteClassifierDocuments", () => {
+    it("should delete folders if user in group and classifier exists", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
+      const req = { user: { sub: "user1" } };
+      const body = { classifierName: "c1", groupId: "g1", folders: ["f1"] };
+      await expect(
+        controller.deleteClassifierDocuments(req, body),
+      ).resolves.toBeUndefined();
+    });
+    it("should throw ForbiddenException if user not in group", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(false);
+      const req = { user: { sub: "user1" } };
+      await expect(
+        controller.deleteClassifierDocuments(req, {
+          classifierName: "c1",
+          groupId: "g1",
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+    it("should throw NotFoundException if classifier does not exist", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      databaseService.getClassifierModel.mockResolvedValue(null);
+      const req = { user: { sub: "user1" } };
+      await expect(
+        controller.deleteClassifierDocuments(req, {
+          classifierName: "c1",
+          groupId: "g1",
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("requestClassifierTraining", () => {
+    it("should request training and return model", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      classifierService.uploadDocumentsForTraining.mockResolvedValue([
+        { blobPath: "p1" },
+      ]);
+      classifierService.createLayoutJson.mockResolvedValue(undefined);
+      classifierService.requestClassifierTraining.mockResolvedValue({
+        status: "READY",
+        source: "API",
+      });
+      const req = { user: { sub: "user1" } };
+      const body = { classifierName: "c1", groupId: "g1" };
+      const result = await controller.requestClassifierTraining(req, body);
+      expect(result.status).toBeDefined();
+      expect(classifierService.uploadDocumentsForTraining).toHaveBeenCalled();
+    });
+    it("should handle error and update model status to FAILED", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      classifierService.uploadDocumentsForTraining.mockRejectedValue(
+        new Error("fail"),
+      );
+      databaseService.updateClassifierModel.mockResolvedValue({
+        status: "FAILED",
+        source: "API",
+      });
+      const req = { user: { sub: "user1" } };
+      const body = { classifierName: "c1", groupId: "g1" };
+      const result = await controller.requestClassifierTraining(req, body);
+      expect(result.status).toBe("FAILED");
+      expect(databaseService.updateClassifierModel).toHaveBeenCalled();
+    });
+  });
+
+  describe("requestClassification", () => {
+    const mockFile = {
+      fieldname: "file",
+      originalname: "f1",
+      encoding: "7bit",
+      mimetype: "application/pdf",
+      size: 123,
+      buffer: Buffer.from("test"),
+      destination: "",
+      filename: "f1",
+      path: "/tmp/f1",
+      stream: {} as any,
+    };
+    it("should classify document if user in group and classifier exists", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
+      classifierService.requestClassificationFromFile.mockResolvedValue({
+        result: "ok",
+      });
+      databaseService.updateClassifierModel.mockResolvedValue({});
+      const req = { user: { sub: "user1" } };
+      const file = mockFile;
+      const body = { classifierName: "c1", groupId: "g1" };
+      const result = await controller.requestClassification(req, body, file);
+      expect(result).toEqual({ result: "ok" });
+    });
+    it("should throw ForbiddenException if user not in group", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(false);
+      const req = { user: { sub: "user1" } };
+      await expect(
+        controller.requestClassification(
+          req,
+          { classifierName: "c1", groupId: "g1" },
+          mockFile,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+    it("should throw NotFoundException if classifier does not exist", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      databaseService.getClassifierModel.mockResolvedValue(null);
+      const req = { user: { sub: "user1" } };
+      await expect(
+        controller.requestClassification(
+          req,
+          { classifierName: "c1", groupId: "g1" },
+          mockFile,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("getClassificationResult", () => {
+    it("should call pollOperationUntilResolved and return value", async () => {
+      azureService.pollOperationUntilResolved.mockImplementation(
+        async (_loc: any, onSuccess: (arg0: { result: string; }) => any) => onSuccess({ result: "ok" }),
+      );
+      const query = { operationLocation: "loc" };
+      const result = await controller.getClassificationResult(query);
+      expect(result).toEqual({ result: "ok" });
+    });
+    it("should throw error if pollOperationUntilResolved fails", async () => {
+      azureService.pollOperationUntilResolved.mockImplementation(
+        async (_loc: any, _onSuccess: any, onFailure: (arg0: { error: { code: string; message: string; }; }) => any) =>
+          onFailure({ error: { code: "fail", message: "fail" } }),
+      );
+      const query = { operationLocation: "loc" };
+      await expect(controller.getClassificationResult(query)).rejects.toThrow(
+        "Could not retrieve classified document. Code: fail. Message: fail",
+      );
+    });
+  });
+
+  describe("getTrainingResult", () => {
+    it("should return updated model if classifier exists and operation_location present", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      databaseService.getClassifierModel.mockResolvedValue({
+        operation_location: "loc",
+      });
+      databaseService.updateClassifierModel.mockResolvedValue({
+        status: "READY",
+      });
+      azureService.pollOperationUntilResolved.mockImplementation(
+        async (_loc: any, onSuccess: (arg0: {}) => any) => onSuccess({}),
+      );
+      const req = { user: { sub: "user1" } };
+      const query = { classifierName: "c1", groupId: "g1" };
+      const result = await controller.getTrainingResult(req, query);
+      expect(result).toEqual({ status: "READY" });
+    });
+    it("should throw BadRequestException if missing params", async () => {
+      const req = { user: { sub: "user1" } };
+      await expect(
+        controller.getTrainingResult(req, {
+          classifierName: null,
+          groupId: null,
+        }),
+      ).rejects.toThrow();
+    });
+    it("should throw ForbiddenException if user not in group", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(false);
+      const req = { user: { sub: "user1" } };
+      await expect(
+        controller.getTrainingResult(req, {
+          classifierName: "c1",
+          groupId: "g1",
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+    it("should throw NotFoundException if classifier not found", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      databaseService.getClassifierModel.mockResolvedValue(null);
+      const req = { user: { sub: "user1" } };
+      await expect(
+        controller.getTrainingResult(req, {
+          classifierName: "c1",
+          groupId: "g1",
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+    it("should throw error if operation_location missing", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      databaseService.getClassifierModel.mockResolvedValue({
+        operation_location: null,
+      });
+      const req = { user: { sub: "user1" } };
+      await expect(
+        controller.getTrainingResult(req, {
+          classifierName: "c1",
+          groupId: "g1",
+        }),
+      ).rejects.toThrow();
+    });
+    it("should throw error if pollOperationUntilResolved fails", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(true);
+      databaseService.getClassifierModel.mockResolvedValue({
+        operation_location: "loc",
+      });
+      azureService.pollOperationUntilResolved.mockImplementation(
+        async (_loc: any, _onSuccess: any, onFailure: (arg0: { error: { code: string; message: string; }; }) => any) =>
+          onFailure({ error: { code: "fail", message: "fail" } }),
+      );
+      const req = { user: { sub: "user1" } };
+      await expect(
+        controller.getTrainingResult(req, {
+          classifierName: "c1",
+          groupId: "g1",
+        }),
+      ).rejects.toThrow(
+        "Could not retrieve status of classifier. Code: fail. Message: fail",
+      );
+    });
+  });
+});
