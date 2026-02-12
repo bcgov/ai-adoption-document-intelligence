@@ -8,12 +8,10 @@
     "start": "node dist/worker.js",
     "start:worker": "node dist/worker.js",
     "dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only src/worker.ts",
-    "example": "ts-node -r tsconfig-paths/register src/example.ts",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist",
     "db:generate": "node ../shared/scripts/generate-prisma.js",
-    "test": "jest",
-    "test:generate-history": "ts-node -r tsconfig-paths/register src/scripts/generate-history-fixture.ts"
+    "test": "jest"
   },
   "keywords": [
     "temporal",
