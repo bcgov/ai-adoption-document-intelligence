@@ -1,14 +1,32 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import type { GraphWorkflowConfig } from "./graph-workflow-types";
 import { WorkflowService } from "./workflow.service";
+
+const makeGraphConfig = (): GraphWorkflowConfig => ({
+  schemaVersion: "1.0",
+  metadata: { description: "Test graph" },
+  entryNodeId: "start",
+  ctx: { documentId: { type: "string" } },
+  nodes: {
+    start: {
+      id: "start",
+      type: "activity",
+      label: "Start",
+      activityType: "document.updateStatus",
+      inputs: [{ port: "documentId", ctxKey: "documentId" }],
+    },
+  },
+  edges: [],
+});
 
 const mockWorkflowRecord = {
   id: "wf-1",
   name: "Test",
   description: "Desc",
   user_id: "user-1",
-  config: { prepareFileData: { enabled: true } },
+  config: makeGraphConfig(),
   version: 1,
   created_at: new Date(),
   updated_at: new Date(),
@@ -118,7 +136,7 @@ describe("WorkflowService", () => {
     it("creates workflow with valid config", async () => {
       const result = await service.createWorkflow("user-1", {
         name: "New",
-        config: { prepareFileData: { enabled: true } },
+        config: makeGraphConfig(),
       });
       expect(result.id).toBe("wf-1");
       expect(mockWorkflow.create).toHaveBeenCalled();
@@ -128,7 +146,7 @@ describe("WorkflowService", () => {
       await expect(
         service.createWorkflow("user-1", {
           name: "New",
-          config: { invalidStep: { enabled: true } } as any,
+          config: { schemaVersion: "2.0" } as any,
         }),
       ).rejects.toThrow(BadRequestException);
       expect(mockWorkflow.create).not.toHaveBeenCalled();
@@ -165,10 +183,16 @@ describe("WorkflowService", () => {
       mockWorkflow.update.mockResolvedValue({
         ...mockWorkflowRecord,
         version: 2,
-        config: { prepareFileData: { enabled: false } },
+        config: {
+          ...makeGraphConfig(),
+          metadata: { description: "Updated graph" },
+        },
       });
       const result = await service.updateWorkflow("wf-1", "user-1", {
-        config: { prepareFileData: { enabled: false } },
+        config: {
+          ...makeGraphConfig(),
+          metadata: { description: "Updated graph" },
+        },
       });
       expect(result.version).toBe(2);
       expect(mockWorkflow.update).toHaveBeenCalledWith(
@@ -177,9 +201,7 @@ describe("WorkflowService", () => {
     });
 
     it("does not increment version when config is semantically same but key order differs", async () => {
-      const storedConfig = {
-        prepareFileData: { enabled: true, parameters: { option: "a" } },
-      };
+      const storedConfig = makeGraphConfig();
       mockWorkflow.findFirst.mockResolvedValue({
         ...mockWorkflowRecord,
         config: storedConfig,
@@ -191,7 +213,8 @@ describe("WorkflowService", () => {
       });
       await service.updateWorkflow("wf-1", "user-1", {
         config: {
-          prepareFileData: { parameters: { option: "a" }, enabled: true },
+          ...storedConfig,
+          metadata: { description: "Test graph" },
         },
       });
       expect(mockWorkflow.update).toHaveBeenCalledWith(
@@ -205,7 +228,7 @@ describe("WorkflowService", () => {
       mockWorkflow.findFirst.mockResolvedValue(mockWorkflowRecord);
       await expect(
         service.updateWorkflow("wf-1", "user-1", {
-          config: { invalidStep: { enabled: true } } as any,
+          config: { schemaVersion: "2.0" } as any,
         }),
       ).rejects.toThrow(BadRequestException);
     });

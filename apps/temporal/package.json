@@ -8,12 +8,10 @@
     "start": "node dist/worker.js",
     "start:worker": "node dist/worker.js",
     "dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only src/worker.ts",
-    "example": "ts-node -r tsconfig-paths/register src/example.ts",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist",
     "db:generate": "node ../shared/scripts/generate-prisma.js",
-    "test": "jest",
-    "test:generate-history": "ts-node -r tsconfig-paths/register src/scripts/generate-history-fixture.ts"
+    "test": "jest"
   },
   "keywords": [
     "temporal",
@@ -25,6 +23,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@azure-rest/ai-document-intelligence": "^1.0.0",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "7.0.1",
     "@temporalio/client": "^1.10.0",

@@ -1,14 +1,12 @@
-import { DocumentStatus, OcrResult } from "@generated/client";
+import { DocumentStatus } from "@generated/client";
 import {
   BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
-  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { readFile } from "fs/promises";
-import { join } from "path";
+import { LocalBlobStorageService } from "@/blob-storage/local-blob-storage.service";
 import { DatabaseService } from "@/database/database.service";
 import {
   AnalysisResponse,
@@ -16,7 +14,6 @@ import {
   KeyValuePair,
 } from "@/ocr/azure-types";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
-import { WorkflowStepsConfig } from "@/workflow/workflow-types";
 
 export interface OcrRequestResponse {
   status: DocumentStatus;
@@ -33,6 +30,7 @@ export class OcrService {
     _configService: ConfigService,
     private databaseService: DatabaseService,
     private temporalClientService: TemporalClientService,
+    private blobStorage: LocalBlobStorageService,
   ) {}
 
   /**
@@ -41,10 +39,7 @@ export class OcrService {
    * @param steps Optional workflow steps configuration
    * @returns New status of document and workflow ID.
    */
-  async requestOcr(
-    documentId: string,
-    steps?: WorkflowStepsConfig,
-  ): Promise<OcrRequestResponse> {
+  async requestOcr(documentId: string): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
     // Find filepath of document
     const document = await this.databaseService.findDocument(documentId);
@@ -54,19 +49,14 @@ export class OcrService {
       );
     }
     try {
-      // Resolve stored relative path to absolute (we only store relative paths)
-      const filePath = join(process.cwd(), document.file_path);
-
-      const fileBuffer = await readFile(filePath);
+      // Read file from blob storage using the blob key stored in file_path
+      const fileBuffer = await this.blobStorage.read(document.file_path);
       if (fileBuffer == null) throw Error("File not found.");
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);
 
       // Get model_id from document
       const modelId = document.model_id;
       this.logger.debug(`Document model_id: ${modelId}`);
-
-      // Convert file buffer to base64
-      const base64Data = fileBuffer.toString("base64");
 
       // Determine file type and content type
       const fileType = document.file_type === "pdf" ? "pdf" : "image";
@@ -85,40 +75,41 @@ export class OcrService {
       // Get workflow_config_id from document if available
       // This references the Workflow table and contains the workflow configuration
       // Fallback to legacy workflow_id for backward compatibility during migration
-      const workflowConfigId =
-        document.workflow_config_id || document.workflow_id || undefined;
+      const workflowConfigId = document.workflow_config_id || undefined;
       if (workflowConfigId) {
         this.logger.log(
           `Document ${documentId} has workflow configuration ID: ${workflowConfigId}`,
         );
       } else {
-        this.logger.log(
-          `Document ${documentId} has no workflow configuration ID, using default workflow`,
+        throw new BadRequestException(
+          `Document ${documentId} missing workflow configuration ID`,
         );
       }
 
-      // Start Temporal workflow with modelId
+      const initialCtx: Record<string, unknown> = {
+        documentId,
+        blobKey: document.file_path,
+        fileName: document.original_filename,
+        fileType,
+        contentType,
+        modelId,
+      };
+
+      // Start Temporal graph workflow
       const workflowExecutionId =
-        await this.temporalClientService.startOCRWorkflow(
+        await this.temporalClientService.startGraphWorkflow(
           documentId,
-          {
-            binaryData: base64Data,
-            fileName: document.original_filename,
-            fileType: fileType,
-            contentType: contentType,
-            modelId: modelId,
-          },
-          steps, // Pass optional steps configuration (overridden by workflowConfigId if provided)
-          workflowConfigId, // Pass workflow configuration ID from document
+          workflowConfigId,
+          initialCtx,
         );
 
       // Update document with workflow configuration ID and Temporal workflow execution ID
+      // Note: Status is set automatically by workflow pre-execution hook
       const updateResult = await this.databaseService.updateDocument(
         documentId,
         {
           workflow_config_id: workflowConfigId || undefined,
           workflow_execution_id: workflowExecutionId,
-          status: DocumentStatus.ongoing_ocr,
         },
       );
 
@@ -127,11 +118,12 @@ export class OcrService {
       );
 
       // Return the workflow execution ID
+      // Status is set by workflow pre-execution hook
       return {
         apimRequestId:
           updateResult.workflow_execution_id || workflowExecutionId,
         workflowId: workflowExecutionId,
-        status: updateResult.status,
+        status: DocumentStatus.ongoing_ocr,
       };
     } catch (error) {
       this.logger.error(`Error processing document: ${error.message}`);

@@ -8,15 +8,16 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getPrismaPgOptions } from "@/utils/database-url";
-import { WorkflowStepsConfig } from "./workflow-types";
-import { validateWorkflowConfig } from "./workflow-validator";
+import { validateGraphConfig } from "./graph-schema-validator";
+import { GraphWorkflowConfig } from "./graph-workflow-types";
 
 export interface WorkflowInfo {
   id: string;
   name: string;
   description: string | null;
   userId: string;
-  config: WorkflowStepsConfig;
+  config: GraphWorkflowConfig;
+  schemaVersion: string;
   version: number;
   createdAt: Date;
   updatedAt: Date;
@@ -25,7 +26,7 @@ export interface WorkflowInfo {
 export interface CreateWorkflowDto {
   name: string;
   description?: string;
-  config: WorkflowStepsConfig;
+  config: GraphWorkflowConfig;
 }
 
 @Injectable()
@@ -66,6 +67,10 @@ export class WorkflowService {
     return "{" + pairs.join(",") + "}";
   }
 
+  private asGraphConfig(config: unknown): GraphWorkflowConfig {
+    return config as unknown as GraphWorkflowConfig;
+  }
+
   /**
    * Deep comparison of two workflow configs to detect changes
    * @param oldConfig Old configuration
@@ -73,8 +78,8 @@ export class WorkflowService {
    * @returns true if configs are different, false if same
    */
   private configChanged(
-    oldConfig: WorkflowStepsConfig,
-    newConfig: WorkflowStepsConfig,
+    oldConfig: GraphWorkflowConfig,
+    newConfig: GraphWorkflowConfig,
   ): boolean {
     const oldStr = this.stableStringify(oldConfig);
     const newStr = this.stableStringify(newConfig);
@@ -92,7 +97,8 @@ export class WorkflowService {
       name: w.name,
       description: w.description,
       userId: w.user_id,
-      config: w.config as WorkflowStepsConfig,
+      config: this.asGraphConfig(w.config),
+      schemaVersion: this.asGraphConfig(w.config).schemaVersion,
       version: w.version,
       createdAt: w.created_at,
       updatedAt: w.updated_at,
@@ -116,7 +122,8 @@ export class WorkflowService {
       name: workflow.name,
       description: workflow.description,
       userId: workflow.user_id,
-      config: workflow.config as WorkflowStepsConfig,
+      config: this.asGraphConfig(workflow.config),
+      schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
       version: workflow.version,
       createdAt: workflow.created_at,
       updatedAt: workflow.updated_at,
@@ -144,7 +151,8 @@ export class WorkflowService {
       name: workflow.name,
       description: workflow.description,
       userId: workflow.user_id,
-      config: workflow.config as WorkflowStepsConfig,
+      config: this.asGraphConfig(workflow.config),
+      schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
       version: workflow.version,
       createdAt: workflow.created_at,
       updatedAt: workflow.updated_at,
@@ -155,11 +163,8 @@ export class WorkflowService {
     userId: string,
     dto: CreateWorkflowDto,
   ): Promise<WorkflowInfo> {
-    // Extract steps from config (handle backward compatibility with wrapped format)
-    const steps = (dto.config.steps || dto.config) as WorkflowStepsConfig;
-
     // Validate workflow configuration
-    const validation = validateWorkflowConfig(steps);
+    const validation = validateGraphConfig(dto.config);
     if (!validation.valid) {
       throw new BadRequestException({
         message: "Invalid workflow configuration",
@@ -167,13 +172,12 @@ export class WorkflowService {
       });
     }
 
-    // Store the validated config (use direct format, not wrapped)
     const workflow = await this.prisma.workflow.create({
       data: {
         name: dto.name,
         description: dto.description || null,
         user_id: userId,
-        config: steps as object,
+        config: dto.config as object,
       },
     });
 
@@ -184,7 +188,8 @@ export class WorkflowService {
       name: workflow.name,
       description: workflow.description,
       userId: workflow.user_id,
-      config: workflow.config as WorkflowStepsConfig,
+      config: this.asGraphConfig(workflow.config),
+      schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
       version: workflow.version,
       createdAt: workflow.created_at,
       updatedAt: workflow.updated_at,
@@ -209,15 +214,12 @@ export class WorkflowService {
 
     // Track if config changed to determine if we need to increment version
     let configChanged = false;
-    let newConfig: WorkflowStepsConfig | undefined;
+    let newConfig: GraphWorkflowConfig | undefined;
 
     // Validate config if provided
     if (dto.config) {
-      // Extract steps from config (handle backward compatibility with wrapped format)
-      const steps = (dto.config.steps || dto.config) as WorkflowStepsConfig;
-
       // Validate workflow configuration
-      const validation = validateWorkflowConfig(steps);
+      const validation = validateGraphConfig(dto.config);
       if (!validation.valid) {
         throw new BadRequestException({
           message: "Invalid workflow configuration",
@@ -225,9 +227,8 @@ export class WorkflowService {
         });
       }
 
-      // Use validated config (direct format, not wrapped)
-      newConfig = steps;
-      const oldConfig = existing.config as WorkflowStepsConfig;
+      newConfig = dto.config as GraphWorkflowConfig;
+      const oldConfig = this.asGraphConfig(existing.config);
 
       // Check if config actually changed
       configChanged = this.configChanged(oldConfig, newConfig);
@@ -276,7 +277,8 @@ export class WorkflowService {
       name: workflow.name,
       description: workflow.description,
       userId: workflow.user_id,
-      config: workflow.config as WorkflowStepsConfig,
+      config: this.asGraphConfig(workflow.config),
+      schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
       version: workflow.version,
       createdAt: workflow.created_at,
       updatedAt: workflow.updated_at,

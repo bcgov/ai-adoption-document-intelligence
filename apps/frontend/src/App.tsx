@@ -1,14 +1,20 @@
 import {
+  ActionIcon,
   AppShell,
   Avatar,
   Badge,
   Button,
   Group,
+  NavLink,
   Stack,
   Text,
   Title,
+  Tooltip,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import {
+  IconChevronLeft,
+  IconChevronRight,
   IconClipboardCheck,
   IconFlask,
   IconList,
@@ -30,9 +36,8 @@ import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/Labe
 import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
 import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
 import { SettingsPage } from "./pages/SettingsPage";
-import { WorkflowEditPage } from "./pages/WorkflowEditPage";
+import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
-import { WorkflowPage } from "./pages/WorkflowPage";
 import type { Document } from "./shared/types";
 
 type MainView =
@@ -44,6 +49,9 @@ type MainView =
   | "settings";
 type WorkflowView = "list" | "create" | "edit";
 
+const NAV_EXPANDED = 240;
+const NAV_COLLAPSED = 72;
+
 function AppContent(): JSX.Element {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
   const [activeView, setActiveView] = useState<MainView>("upload");
@@ -51,6 +59,7 @@ function AppContent(): JSX.Element {
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
     null,
   );
+  const [navbarOpened, { toggle: toggleNavbar }] = useDisclosure(true);
   const [viewerOpened, setViewerOpened] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(
     null,
@@ -130,9 +139,15 @@ function AppContent(): JSX.Element {
     <>
       <AppShell
         header={{ height: 64 }}
-        navbar={{ width: 240, breakpoint: "sm" }}
+        navbar={{
+          width: navbarOpened ? NAV_EXPANDED : NAV_COLLAPSED,
+          breakpoint: "sm",
+          collapsed: { mobile: !navbarOpened },
+        }}
         padding="md"
         withBorder
+        transitionDuration={200}
+        transitionTimingFunction="ease"
       >
         <AppShell.Header>
           <Group h="100%" px="md" justify="space-between">
@@ -164,33 +179,72 @@ function AppContent(): JSX.Element {
           </Group>
         </AppShell.Header>
 
-        <AppShell.Navbar p="md">
+        <AppShell.Navbar p="md" style={{ overflow: "visible" }}>
+          {/* Edge handle button */}
+          <ActionIcon
+            variant="default"
+            size="sm"
+            aria-label={navbarOpened ? "Collapse sidebar" : "Expand sidebar"}
+            onClick={toggleNavbar}
+            style={{
+              position: "absolute",
+              top: "50%",
+              right: -14,
+              transform: "translateY(-50%)",
+              zIndex: 300,
+              background: "var(--mantine-color-body)",
+            }}
+          >
+            {navbarOpened ? (
+              <IconChevronLeft size={18} />
+            ) : (
+              <IconChevronRight size={18} />
+            )}
+          </ActionIcon>
+
           <Stack gap="xs">
-            {navItems.map((item) => (
-              <Button
-                key={item.value}
-                variant={activeView === item.value ? "light" : "subtle"}
-                color={activeView === item.value ? "blue" : "gray"}
-                justify="space-between"
-                leftSection={<item.icon size={18} />}
-                onClick={() => {
-                  setActiveView(item.value);
-                  if (item.value === "workflows") {
-                    setWorkflowView("list");
-                    setSelectedWorkflowId(null);
-                  }
-                }}
-              >
-                <Stack gap={0} align="flex-start">
-                  <Text size="sm" fw={600}>
-                    {item.label}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {item.description}
-                  </Text>
-                </Stack>
-              </Button>
-            ))}
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = activeView === item.value;
+
+              return navbarOpened ? (
+                <NavLink
+                  key={item.value}
+                  label={item.label}
+                  description={item.description}
+                  leftSection={<Icon size={18} />}
+                  active={active}
+                  variant={active ? "light" : "subtle"}
+                  color={active ? "blue" : "gray"}
+                  onClick={() => {
+                    setActiveView(item.value);
+                    if (item.value === "workflows") {
+                      setWorkflowView("list");
+                      setSelectedWorkflowId(null);
+                    }
+                  }}
+                />
+              ) : (
+                <Tooltip key={item.value} label={item.label} position="right">
+                  <ActionIcon
+                    variant={active ? "light" : "subtle"}
+                    color={active ? "blue" : "gray"}
+                    size="lg"
+                    radius="md"
+                    onClick={() => {
+                      setActiveView(item.value);
+                      if (item.value === "workflows") {
+                        setWorkflowView("list");
+                        setSelectedWorkflowId(null);
+                      }
+                    }}
+                    aria-label={item.label}
+                  >
+                    <Icon size={18} />
+                  </ActionIcon>
+                </Tooltip>
+              );
+            })}
           </Stack>
         </AppShell.Navbar>
 
@@ -250,9 +304,14 @@ function AppContent(): JSX.Element {
                   onCreate={() => setWorkflowView("create")}
                 />
               ) : workflowView === "create" ? (
-                <WorkflowPage />
+                <WorkflowEditorPage
+                  mode="create"
+                  onBack={() => setWorkflowView("list")}
+                  onSave={() => setWorkflowView("list")}
+                />
               ) : workflowView === "edit" && selectedWorkflowId ? (
-                <WorkflowEditPage
+                <WorkflowEditorPage
+                  mode="edit"
                   workflowId={selectedWorkflowId}
                   onBack={() => {
                     setWorkflowView("list");

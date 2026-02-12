@@ -79,7 +79,7 @@ export class DatabaseService {
   }
 
   async createDocument(
-    data: Omit<DocumentData, "id" | "created_at" | "updated_at">,
+    data: Omit<DocumentData, "created_at" | "updated_at">,
   ): Promise<DocumentData> {
     this.logger.debug("=== DatabaseService.createDocument ===");
     this.logger.debug(`Creating document: ${data.title}`);
@@ -87,6 +87,7 @@ export class DatabaseService {
     try {
       const document = await this.prisma.document.create({
         data: {
+          ...(data.id ? { id: data.id } : {}),
           title: data.title,
           original_filename: data.original_filename,
           file_path: data.file_path,

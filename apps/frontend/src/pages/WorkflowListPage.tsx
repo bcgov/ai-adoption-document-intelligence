@@ -153,6 +153,7 @@ export function WorkflowListPage({ onEdit, onCreate }: WorkflowListPageProps) {
               <Table.Th>Name</Table.Th>
               <Table.Th>Description</Table.Th>
               <Table.Th>Version</Table.Th>
+              <Table.Th>Schema</Table.Th>
               <Table.Th>Created</Table.Th>
               <Table.Th>Updated</Table.Th>
               <Table.Th>Actions</Table.Th>
@@ -172,6 +173,11 @@ export function WorkflowListPage({ onEdit, onCreate }: WorkflowListPageProps) {
                 <Table.Td>
                   <Badge variant="light" color="blue">
                     v{workflow.version}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Badge variant="light" color="gray">
+                    {workflow.config.schemaVersion}
                   </Badge>
                 </Table.Td>
                 <Table.Td>

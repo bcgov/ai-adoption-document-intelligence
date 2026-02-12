@@ -1,14 +1,7 @@
-// This needs to be above imports
-const readFile = jest.fn().mockResolvedValue({
-  toString: (s: String) => s,
-  length: 100,
-});
-jest.mock("fs/promises", () => ({ readFile }));
-
 import { DocumentStatus } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import * as fs from "fs/promises";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { OcrService } from "./ocr.service";
@@ -26,12 +19,14 @@ const defaultDocument = {
   created_at: new Date(),
   apim_request_id: "uuidHere",
   model_id: "prebuilt-layout",
+  workflow_config_id: "workflow-config-123",
 } as DocumentData;
 
 describe("OcrService", () => {
   let service: OcrService;
   let databaseService: DatabaseService;
   let temporalClientService: TemporalClientService;
+  let blobStorage: LocalBlobStorageService;
   let moduleRef: TestingModule;
 
   beforeEach(async () => {
@@ -45,7 +40,6 @@ describe("OcrService", () => {
               const config: Record<string, string> = {
                 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.azure.com",
                 AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-key",
-                STORAGE_PATH: "/tmp/storage",
               };
               return config[key];
             }),
@@ -69,9 +63,18 @@ describe("OcrService", () => {
         {
           provide: TemporalClientService,
           useValue: {
-            startOCRWorkflow: jest.fn().mockResolvedValue("workflow-123"),
+            startGraphWorkflow: jest.fn().mockResolvedValue("workflow-123"),
             getWorkflowStatus: jest.fn(),
             queryWorkflowStatus: jest.fn(),
+          },
+        },
+        {
+          provide: LocalBlobStorageService,
+          useValue: {
+            read: jest.fn().mockResolvedValue(Buffer.from("test")),
+            write: jest.fn().mockResolvedValue(undefined),
+            exists: jest.fn().mockResolvedValue(true),
+            delete: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],
@@ -82,6 +85,9 @@ describe("OcrService", () => {
     temporalClientService = moduleRef.get<TemporalClientService>(
       TemporalClientService,
     );
+    blobStorage = moduleRef.get<LocalBlobStorageService>(
+      LocalBlobStorageService,
+    );
   });
 
   describe("OcrService constructor", () => {
@@ -89,12 +95,19 @@ describe("OcrService", () => {
       const mockConfigService = {
         get: jest.fn().mockReturnValue("/tmp/storage"),
       };
+      const mockBlobStorage = {
+        read: jest.fn(),
+        write: jest.fn(),
+        exists: jest.fn(),
+        delete: jest.fn(),
+      };
       expect(
         () =>
           new OcrService(
             mockConfigService as any,
             {} as DatabaseService,
             {} as TemporalClientService,
+            mockBlobStorage as any,
           ),
       ).not.toThrow();
     });
@@ -105,7 +118,7 @@ describe("OcrService", () => {
       const result = await service.requestOcr("0000");
       expect(result.status).toEqual(DocumentStatus.ongoing_ocr);
       expect(result.workflowId).toEqual("workflow-123");
-      expect(temporalClientService.startOCRWorkflow).toHaveBeenCalled();
+      expect(temporalClientService.startGraphWorkflow).toHaveBeenCalled();
     });
 
     it("should throw a NotFoundException if no document matches that id", async () => {
@@ -116,7 +129,7 @@ describe("OcrService", () => {
     });
 
     it("should return a failed status with error if the file is not loaded properly", async () => {
-      (fs.readFile as jest.Mock).mockResolvedValueOnce(null);
+      (blobStorage.read as jest.Mock).mockResolvedValueOnce(null);
       await expect(service.requestOcr("123")).resolves.toEqual({
         status: DocumentStatus.failed,
         error: "File not found.",
@@ -125,7 +138,7 @@ describe("OcrService", () => {
 
     it("should return a failed status with error if Temporal workflow fails to start", async () => {
       (
-        temporalClientService.startOCRWorkflow as jest.Mock
+        temporalClientService.startGraphWorkflow as jest.Mock
       ).mockRejectedValueOnce(new Error("Temporal connection failed"));
       await expect(service.requestOcr("123")).resolves.toEqual({
         status: DocumentStatus.failed,

@@ -2,25 +2,24 @@ import { DocumentStatus } from "@generated/client";
 import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { mkdir, readFile, writeFile } from "fs/promises";
 import { of } from "rxjs";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService } from "../database/database.service";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingOcrService } from "./labeling-ocr.service";
-
-jest.mock("fs/promises");
 
 describe("LabelingOcrService", () => {
   let service: LabelingOcrService;
   let mockDbService: jest.Mocked<DatabaseService>;
   let mockHttpService: jest.Mocked<HttpService>;
+  let mockBlobStorage: jest.Mocked<LocalBlobStorageService>;
   let _mockConfigService: jest.Mocked<ConfigService>;
 
   const mockLabelingDocument = {
     id: "doc-1",
     title: "Test Document",
     original_filename: "test.pdf",
-    file_path: "storage/labeling-documents/test.pdf",
+    file_path: "labeling-documents/doc-1/original.pdf",
     file_type: "pdf",
     file_size: 1024,
     metadata: {},
@@ -45,10 +44,16 @@ describe("LabelingOcrService", () => {
       get: jest.fn(),
     };
 
+    const mockBlob = {
+      write: jest.fn().mockResolvedValue(undefined),
+      read: jest.fn().mockResolvedValue(Buffer.from("test")),
+      exists: jest.fn().mockResolvedValue(true),
+      delete: jest.fn().mockResolvedValue(undefined),
+    };
+
     const mockConfig = {
       get: jest.fn((key: string) => {
         const config: Record<string, string> = {
-          LABELING_STORAGE_PATH: "/test/storage",
           AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
           AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
         };
@@ -71,17 +76,18 @@ describe("LabelingOcrService", () => {
           provide: ConfigService,
           useValue: mockConfig,
         },
+        {
+          provide: LocalBlobStorageService,
+          useValue: mockBlob,
+        },
       ],
     }).compile();
 
     service = module.get<LabelingOcrService>(LabelingOcrService);
     mockDbService = module.get(DatabaseService);
     mockHttpService = module.get(HttpService);
+    mockBlobStorage = module.get(LocalBlobStorageService);
     _mockConfigService = module.get(ConfigService);
-
-    (mkdir as jest.Mock).mockResolvedValue(undefined);
-    (writeFile as jest.Mock).mockResolvedValue(undefined);
-    (readFile as jest.Mock).mockResolvedValue(Buffer.from("test"));
   });
 
   describe("createLabelingDocument", () => {
@@ -100,8 +106,10 @@ describe("LabelingOcrService", () => {
 
       const result = await service.createLabelingDocument(dto);
 
-      expect(mkdir).toHaveBeenCalledWith("/test/storage", { recursive: true });
-      expect(writeFile).toHaveBeenCalled();
+      expect(mockBlobStorage.write).toHaveBeenCalledWith(
+        expect.stringMatching(/^labeling-documents\/[^/]+\/original\.pdf$/),
+        expect.any(Buffer),
+      );
       expect(mockDbService.createLabelingDocument).toHaveBeenCalledWith(
         expect.objectContaining({
           title: "Test Doc",
@@ -109,6 +117,9 @@ describe("LabelingOcrService", () => {
           source: "labeling",
           status: DocumentStatus.ongoing_ocr,
           model_id: "prebuilt-layout",
+          file_path: expect.stringMatching(
+            /^labeling-documents\/[^/]+\/original\.pdf$/,
+          ),
         }),
       );
       expect(result).toEqual(mockLabelingDocument);
@@ -127,7 +138,7 @@ describe("LabelingOcrService", () => {
 
       await service.createLabelingDocument(dto);
 
-      expect(writeFile).toHaveBeenCalled();
+      expect(mockBlobStorage.write).toHaveBeenCalled();
       expect(mockDbService.createLabelingDocument).toHaveBeenCalled();
     });
 

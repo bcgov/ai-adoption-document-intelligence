@@ -1,8 +1,25 @@
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Client, Connection } from "@temporalio/client";
+import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import { WorkflowService } from "../workflow/workflow.service";
 import { TemporalClientService } from "./temporal-client.service";
+
+const graphConfig: GraphWorkflowConfig = {
+  schemaVersion: "1.0",
+  metadata: { description: "Test graph" },
+  entryNodeId: "start",
+  ctx: { documentId: { type: "string" } },
+  nodes: {
+    start: {
+      id: "start",
+      type: "activity",
+      label: "Start",
+      activityType: "document.updateStatus",
+    },
+  },
+  edges: [],
+};
 
 // Mock Temporal client
 jest.mock("@temporalio/client", () => {
@@ -105,6 +122,18 @@ describe("TemporalClientService", () => {
     service = module.get<TemporalClientService>(TemporalClientService);
     configService = module.get<ConfigService>(ConfigService);
 
+    mockWorkflowService.getWorkflowById = jest.fn().mockResolvedValue({
+      id: "workflow-123",
+      name: "Graph Workflow",
+      description: "Test graph",
+      userId: "user-1",
+      config: graphConfig,
+      schemaVersion: "1.0",
+      version: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
     // Initialize the service
     await service.onModuleInit();
   });
@@ -205,32 +234,34 @@ describe("TemporalClientService", () => {
     });
   });
 
-  describe("startOCRWorkflow", () => {
-    it("should start OCR workflow successfully", async () => {
+  describe("startGraphWorkflow", () => {
+    it("should start graph workflow successfully", async () => {
       mockClient.workflow.start.mockResolvedValue(mockWorkflowHandle);
 
-      const result = await service.startOCRWorkflow("doc-123", {
-        binaryData: "base64data",
-        fileName: "test.pdf",
-        fileType: "pdf",
-        contentType: "application/pdf",
-      });
+      const result = await service.startGraphWorkflow(
+        "doc-123",
+        "workflow-123",
+        { documentId: "doc-123", fileName: "test.pdf", fileType: "pdf" },
+      );
 
       expect(result).toBe("workflow-123");
       expect(mockClient.workflow.start).toHaveBeenCalledWith(
-        "ocrWorkflow",
+        "graphWorkflow",
         expect.objectContaining({
           args: [
             {
-              documentId: "doc-123",
-              binaryData: "base64data",
-              fileName: "test.pdf",
-              fileType: "pdf",
-              contentType: "application/pdf",
+              graph: graphConfig,
+              initialCtx: {
+                documentId: "doc-123",
+                fileName: "test.pdf",
+                fileType: "pdf",
+              },
+              configHash: expect.any(String),
+              runnerVersion: "1.0.0",
             },
           ],
           taskQueue: "ocr-processing",
-          workflowId: "ocr-doc-123",
+          workflowId: "graph-doc-123",
         }),
       );
     });
@@ -242,12 +273,7 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        newService.startOCRWorkflow("doc-123", {
-          binaryData: "base64data",
-          fileName: "test.pdf",
-          fileType: "pdf",
-          contentType: "application/pdf",
-        }),
+        newService.startGraphWorkflow("doc-123", "workflow-123", {}),
       ).rejects.toThrow("Temporal client not initialized");
     });
 
@@ -257,13 +283,8 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        service.startOCRWorkflow("doc-123", {
-          binaryData: "base64data",
-          fileName: "test.pdf",
-          fileType: "pdf",
-          contentType: "application/pdf",
-        }),
-      ).rejects.toThrow("Failed to start OCR workflow");
+        service.startGraphWorkflow("doc-123", "workflow-123", {}),
+      ).rejects.toThrow("Failed to start graph workflow");
     });
   });
 
@@ -423,12 +444,7 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        service.startOCRWorkflow("doc-123", {
-          binaryData: "base64data",
-          fileName: "test.pdf",
-          fileType: "pdf",
-          contentType: "application/pdf",
-        }),
+        service.startGraphWorkflow("doc-123", "workflow-123", {}),
       ).rejects.toThrow("Cannot connect to Temporal server");
     });
 
@@ -438,12 +454,7 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        service.startOCRWorkflow("doc-123", {
-          binaryData: "base64data",
-          fileName: "test.pdf",
-          fileType: "pdf",
-          contentType: "application/pdf",
-        }),
+        service.startGraphWorkflow("doc-123", "workflow-123", {}),
       ).rejects.toThrow("Connection to Temporal server timed out");
     });
 
@@ -453,12 +464,7 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        service.startOCRWorkflow("doc-123", {
-          binaryData: "base64data",
-          fileName: "test.pdf",
-          fileType: "pdf",
-          contentType: "application/pdf",
-        }),
+        service.startGraphWorkflow("doc-123", "workflow-123", {}),
       ).rejects.toThrow("The Temporal worker may not be running");
     });
   });

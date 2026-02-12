@@ -1,5 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import type { GraphWorkflowConfig } from "./graph-workflow-types";
 import { WorkflowController } from "./workflow.controller";
 import {
   CreateWorkflowDto,
@@ -7,12 +8,30 @@ import {
   WorkflowService,
 } from "./workflow.service";
 
+const mockGraphConfig: GraphWorkflowConfig = {
+  schemaVersion: "1.0",
+  metadata: { description: "Test graph" },
+  entryNodeId: "start",
+  ctx: { documentId: { type: "string" } },
+  nodes: {
+    start: {
+      id: "start",
+      type: "activity",
+      label: "Start",
+      activityType: "document.updateStatus",
+      inputs: [{ port: "documentId", ctxKey: "documentId" }],
+    },
+  },
+  edges: [],
+};
+
 const mockWorkflowInfo: WorkflowInfo = {
   id: "wf-1",
   name: "Test Workflow",
   description: "Description",
   userId: "user-1",
-  config: { prepareFileData: { enabled: true } },
+  config: mockGraphConfig,
+  schemaVersion: "1.0",
   version: 1,
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -79,7 +98,7 @@ describe("WorkflowController", () => {
       const req = { user: { sub: "user-1" } } as Request;
       const dto: CreateWorkflowDto = {
         name: "New",
-        config: { prepareFileData: { enabled: true } },
+        config: mockGraphConfig,
       };
       workflowService.createWorkflow.mockResolvedValue(mockWorkflowInfo);
       const result = await controller.createWorkflow(dto, req);

@@ -1,4 +1,5 @@
 import { NotFoundException } from "@nestjs/common";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { DocumentController } from "./document.controller";
@@ -7,6 +8,7 @@ describe("DocumentController", () => {
   let controller: DocumentController;
   let databaseService: jest.Mocked<DatabaseService>;
   let temporalClientService: jest.Mocked<TemporalClientService>;
+  let blobStorage: jest.Mocked<LocalBlobStorageService>;
 
   beforeEach(async () => {
     databaseService = {
@@ -15,7 +17,17 @@ describe("DocumentController", () => {
       findOcrResult: jest.fn(),
     } as any;
     temporalClientService = {} as jest.Mocked<TemporalClientService>;
-    controller = new DocumentController(databaseService, temporalClientService);
+    blobStorage = {
+      read: jest.fn(),
+      write: jest.fn(),
+      exists: jest.fn(),
+      delete: jest.fn(),
+    } as any;
+    controller = new DocumentController(
+      databaseService,
+      temporalClientService,
+      blobStorage,
+    );
   });
 
   describe("getAllDocuments", () => {
@@ -30,6 +42,59 @@ describe("DocumentController", () => {
       await expect(controller.getAllDocuments()).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it("should update document status to failed when workflow has failed", async () => {
+      const mockDocument = {
+        id: "1",
+        status: "ongoing_ocr",
+        workflow_execution_id: "workflow-123",
+      };
+      databaseService.findAllDocuments.mockResolvedValue([mockDocument as any]);
+      databaseService.updateDocument = jest.fn().mockResolvedValue({
+        ...mockDocument,
+        status: "failed",
+      });
+      temporalClientService.getWorkflowStatus = jest.fn().mockResolvedValue({
+        status: "FAILED",
+      });
+
+      const result = await controller.getAllDocuments();
+
+      expect(temporalClientService.getWorkflowStatus).toHaveBeenCalledWith(
+        "workflow-123",
+      );
+      expect(databaseService.updateDocument).toHaveBeenCalledWith("1", {
+        status: "failed",
+      });
+      expect(result).toEqual([{ ...mockDocument, status: "failed" }]);
+    });
+
+    it("should check for awaiting review when workflow is running", async () => {
+      const mockDocument = {
+        id: "1",
+        status: "ongoing_ocr",
+        workflow_execution_id: "workflow-123",
+      };
+      databaseService.findAllDocuments.mockResolvedValue([mockDocument as any]);
+      temporalClientService.getWorkflowStatus = jest.fn().mockResolvedValue({
+        status: "RUNNING",
+      });
+      temporalClientService.queryWorkflowStatus = jest.fn().mockResolvedValue({
+        status: "awaiting_review",
+      });
+
+      const result = await controller.getAllDocuments();
+
+      expect(temporalClientService.getWorkflowStatus).toHaveBeenCalledWith(
+        "workflow-123",
+      );
+      expect(temporalClientService.queryWorkflowStatus).toHaveBeenCalledWith(
+        "workflow-123",
+      );
+      expect(result).toEqual([
+        { ...mockDocument, status: "needs_validation", needsReview: true },
+      ]);
     });
   });
 
@@ -139,12 +204,7 @@ describe("DocumentController", () => {
         original_filename: "file.pdf",
         file_type: "pdf",
       } as any);
-      const readFile = await import("fs/promises");
-      jest.spyOn(readFile, "readFile").mockResolvedValue(Buffer.from("data"));
-      const path = await import("path");
-      jest
-        .spyOn(path, "join")
-        .mockImplementation((_cwd: string, fp: string) => fp);
+      blobStorage.read.mockResolvedValue(Buffer.from("data"));
       const res: any = {
         setHeader: jest.fn(),
         send: jest.fn(),
@@ -169,12 +229,7 @@ describe("DocumentController", () => {
         original_filename: "file.jpg",
         file_type: "image",
       } as any);
-      const readFile = await import("fs/promises");
-      jest.spyOn(readFile, "readFile").mockResolvedValue(Buffer.from("data"));
-      const path = await import("path");
-      jest
-        .spyOn(path, "join")
-        .mockImplementation((_cwd: string, fp: string) => fp);
+      blobStorage.read.mockResolvedValue(Buffer.from("data"));
       const res: any = {
         setHeader: jest.fn(),
         send: jest.fn(),
@@ -191,12 +246,7 @@ describe("DocumentController", () => {
         original_filename: "file.unknown",
         file_type: "unknown",
       } as any);
-      const readFile = await import("fs/promises");
-      jest.spyOn(readFile, "readFile").mockResolvedValue(Buffer.from("data"));
-      const path = await import("path");
-      jest
-        .spyOn(path, "join")
-        .mockImplementation((_cwd: string, fp: string) => fp);
+      blobStorage.read.mockResolvedValue(Buffer.from("data"));
       const res: any = {
         setHeader: jest.fn(),
         send: jest.fn(),
@@ -216,12 +266,7 @@ describe("DocumentController", () => {
         original_filename: null,
         file_type: "pdf",
       } as any);
-      const readFile = await import("fs/promises");
-      jest.spyOn(readFile, "readFile").mockResolvedValue(Buffer.from("data"));
-      const path = await import("path");
-      jest
-        .spyOn(path, "join")
-        .mockImplementation((_cwd: string, fp: string) => fp);
+      blobStorage.read.mockResolvedValue(Buffer.from("data"));
       const res: any = {
         setHeader: jest.fn(),
         send: jest.fn(),
