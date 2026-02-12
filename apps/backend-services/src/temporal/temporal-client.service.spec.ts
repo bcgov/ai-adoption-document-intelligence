@@ -4,6 +4,23 @@ import { Client, Connection } from "@temporalio/client";
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import { WorkflowService } from "../workflow/workflow.service";
 import { TemporalClientService } from "./temporal-client.service";
+import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
+
+const graphConfig: GraphWorkflowConfig = {
+  schemaVersion: "1.0",
+  metadata: { description: "Test graph" },
+  entryNodeId: "start",
+  ctx: { documentId: { type: "string" } },
+  nodes: {
+    start: {
+      id: "start",
+      type: "activity",
+      label: "Start",
+      activityType: "document.updateStatus",
+    },
+  },
+  edges: [],
+};
 
 const graphConfig: GraphWorkflowConfig = {
   schemaVersion: "1.0",

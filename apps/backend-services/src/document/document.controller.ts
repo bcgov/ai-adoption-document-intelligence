@@ -29,6 +29,7 @@ import {
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService, DocumentData } from "../database/database.service";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";

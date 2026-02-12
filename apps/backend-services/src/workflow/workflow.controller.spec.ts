@@ -7,6 +7,24 @@ import {
   WorkflowInfo,
   WorkflowService,
 } from "./workflow.service";
+import type { GraphWorkflowConfig } from "./graph-workflow-types";
+
+const mockGraphConfig: GraphWorkflowConfig = {
+  schemaVersion: "1.0",
+  metadata: { description: "Test graph" },
+  entryNodeId: "start",
+  ctx: { documentId: { type: "string" } },
+  nodes: {
+    start: {
+      id: "start",
+      type: "activity",
+      label: "Start",
+      activityType: "document.updateStatus",
+      inputs: [{ port: "documentId", ctxKey: "documentId" }],
+    },
+  },
+  edges: [],
+};
 
 const mockGraphConfig: GraphWorkflowConfig = {
   schemaVersion: "1.0",
