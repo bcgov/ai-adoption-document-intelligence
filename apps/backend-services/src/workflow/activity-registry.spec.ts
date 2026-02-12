@@ -16,14 +16,16 @@ const EXPECTED_ACTIVITY_TYPES = [
   "document.storeRejection",
   "document.split",
   "document.classify",
+  "document.splitAndClassify",
   "document.validateFields",
+  "segment.combineResult",
 ];
 
 describe("activity-registry (backend)", () => {
   describe("REGISTERED_ACTIVITY_TYPES", () => {
-    it("contains all 12 expected activity types", () => {
+    it("contains all 14 expected activity types", () => {
       const keys = Object.keys(REGISTERED_ACTIVITY_TYPES);
-      expect(keys).toHaveLength(12);
+      expect(keys).toHaveLength(14);
       for (const activityType of EXPECTED_ACTIVITY_TYPES) {
         expect(activityType in REGISTERED_ACTIVITY_TYPES).toBe(true);
       }
@@ -54,9 +56,9 @@ describe("activity-registry (backend)", () => {
   });
 
   describe("getRegisteredActivityTypeKeys", () => {
-    it("returns all 12 activity type strings", () => {
+    it("returns all 14 activity type strings", () => {
       const keys = getRegisteredActivityTypeKeys();
-      expect(keys).toHaveLength(12);
+      expect(keys).toHaveLength(14);
       for (const activityType of EXPECTED_ACTIVITY_TYPES) {
         expect(keys).toContain(activityType);
       }
