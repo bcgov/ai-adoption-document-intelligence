@@ -4,7 +4,6 @@
  */
 
 import type {
-  OCRWorkflowInput,
   PreparedFileData,
   SubmissionResult,
   PollResult,
@@ -15,6 +14,15 @@ import type {
   Word,
   Span,
 } from '../types';
+
+interface OCRWorkflowInput {
+  documentId: string;
+  binaryData?: string;
+  fileName?: string;
+  fileType?: string;
+  contentType?: string;
+  modelId?: string;
+}
 
 const MINIMAL_SPAN: Span = { offset: 0, length: 1 };
 const MINIMAL_WORD: Word = {
@@ -62,9 +70,9 @@ export const mockActivities = {
   async prepareFileData(input: OCRWorkflowInput): Promise<PreparedFileData> {
     return {
       fileName: input.fileName || 'document.pdf',
-      fileType: input.fileType || 'pdf',
+      fileType: (input.fileType as PreparedFileData['fileType']) || 'pdf',
       contentType: input.contentType || 'application/pdf',
-      binaryData: input.binaryData || '',
+      blobKey: `documents/${input.documentId}/mock.pdf`,
       modelId: input.modelId || 'prebuilt-layout',
     };
   },

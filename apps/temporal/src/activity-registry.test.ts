@@ -14,9 +14,12 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.checkConfidence",
   "ocr.storeResults",
   "document.storeRejection",
+  "getWorkflowGraphConfig",
   "document.split",
   "document.classify",
+  "document.splitAndClassify",
   "document.validateFields",
+  "segment.combineResult",
 ];
 
 describe("activity-registry", () => {
@@ -46,9 +49,9 @@ describe("activity-registry", () => {
   });
 
   describe("getActivityRegistry", () => {
-    it("returns a map with all 12 activity types", () => {
+    it("returns a map with all registered activity types", () => {
       const registry = getActivityRegistry();
-      expect(registry.size).toBe(12);
+      expect(registry.size).toBe(EXPECTED_ACTIVITY_TYPES.length);
     });
 
     it("contains all expected activity types", () => {
@@ -60,9 +63,9 @@ describe("activity-registry", () => {
   });
 
   describe("getRegisteredActivityTypes", () => {
-    it("returns all 12 activity type strings", () => {
+    it("returns all activity type strings", () => {
       const types = getRegisteredActivityTypes();
-      expect(types).toHaveLength(12);
+      expect(types).toHaveLength(EXPECTED_ACTIVITY_TYPES.length);
       for (const activityType of EXPECTED_ACTIVITY_TYPES) {
         expect(types).toContain(activityType);
       }
@@ -80,9 +83,12 @@ describe("activity-registry", () => {
       "ocr.checkConfidence",
       "ocr.storeResults",
       "document.storeRejection",
+      "getWorkflowGraphConfig",
       "document.split",
       "document.classify",
+      "document.splitAndClassify",
       "document.validateFields",
+      "segment.combineResult",
     ];
 
     it.each(allActivities)(
