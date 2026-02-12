@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import {
   Badge,
   Button,
@@ -640,10 +639,4 @@ export function WorkflowPage() {
       </Grid>
     </Stack>
   );
-=======
-import { WorkflowEditorPage } from "./WorkflowEditorPage";
-
-export function WorkflowPage() {
-  return <WorkflowEditorPage mode="create" />;
->>>>>>> 064655a (linting and ts fixes)
 }

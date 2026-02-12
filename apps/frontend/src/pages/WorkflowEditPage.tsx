@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import {
   Badge,
   Button,
@@ -45,9 +44,6 @@ interface WorkflowConfig {
     storeResults?: WorkflowStepConfig;
   };
 }
-=======
-import { WorkflowEditorPage } from "./WorkflowEditorPage";
->>>>>>> 064655a (linting and ts fixes)
 
 interface WorkflowEditPageProps {
   workflowId: string;
@@ -60,7 +56,6 @@ export function WorkflowEditPage({
   onBack,
   onSave,
 }: WorkflowEditPageProps) {
-<<<<<<< HEAD
   const { data: workflow, isLoading, error } = useWorkflow(workflowId);
   const updateWorkflowMutation = useUpdateWorkflow();
   const [workflowName, setWorkflowName] = useState("");
@@ -743,14 +738,5 @@ export function WorkflowEditPage({
         </Grid.Col>
       </Grid>
     </Stack>
-=======
-  return (
-    <WorkflowEditorPage
-      mode="edit"
-      workflowId={workflowId}
-      onBack={onBack}
-      onSave={onSave}
-    />
->>>>>>> 064655a (linting and ts fixes)
   );
 }
