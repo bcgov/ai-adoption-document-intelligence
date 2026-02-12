@@ -1,7 +1,7 @@
 import {
-  REGISTERED_ACTIVITY_TYPES,
-  isRegisteredActivityType,
   getRegisteredActivityTypeKeys,
+  isRegisteredActivityType,
+  REGISTERED_ACTIVITY_TYPES,
 } from "./activity-registry";
 
 const EXPECTED_ACTIVITY_TYPES = [
@@ -38,12 +38,11 @@ describe("activity-registry (backend)", () => {
   });
 
   describe("isRegisteredActivityType", () => {
-    it.each(EXPECTED_ACTIVITY_TYPES)(
-      "returns true for registered type: %s",
-      (activityType) => {
-        expect(isRegisteredActivityType(activityType)).toBe(true);
-      },
-    );
+    it.each(
+      EXPECTED_ACTIVITY_TYPES,
+    )("returns true for registered type: %s", (activityType) => {
+      expect(isRegisteredActivityType(activityType)).toBe(true);
+    });
 
     it("returns false for unknown activity type", () => {
       expect(isRegisteredActivityType("nonexistent.activity")).toBe(false);

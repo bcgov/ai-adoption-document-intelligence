@@ -1,12 +1,12 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import type { GraphWorkflowConfig } from "./graph-workflow-types";
 import { WorkflowController } from "./workflow.controller";
 import {
   CreateWorkflowDto,
   WorkflowInfo,
   WorkflowService,
 } from "./workflow.service";
-import type { GraphWorkflowConfig } from "./graph-workflow-types";
 
 const mockGraphConfig: GraphWorkflowConfig = {
   schemaVersion: "1.0",

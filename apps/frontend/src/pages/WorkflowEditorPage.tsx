@@ -1,3 +1,6 @@
+import { json } from "@codemirror/lang-json";
+import { Diagnostic, linter, lintGutter } from "@codemirror/lint";
+import { EditorView } from "@codemirror/view";
 import {
   Badge,
   Button,
@@ -13,11 +16,9 @@ import {
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { json } from "@codemirror/lang-json";
-import { Diagnostic, lintGutter, linter } from "@codemirror/lint";
-import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { GraphVisualization } from "../components/workflow/GraphVisualization";
 import {
   CreateWorkflowDto,
   useCreateWorkflow,
@@ -25,7 +26,6 @@ import {
   useWorkflow,
 } from "../data/hooks/useWorkflows";
 import { GraphWorkflowConfig } from "../types/workflow";
-import { GraphVisualization } from "../components/workflow/GraphVisualization";
 
 interface GraphValidationError {
   path: string;
@@ -81,7 +81,7 @@ function validateGraphConfig(value: unknown): GraphValidationError[] {
   if (schemaVersion !== "1.0") {
     errors.push({
       path: "schemaVersion",
-      message: "schemaVersion must be \"1.0\".",
+      message: 'schemaVersion must be "1.0".',
     });
   }
 
@@ -170,10 +170,7 @@ function validateGraphConfig(value: unknown): GraphValidationError[] {
   return errors;
 }
 
-function parseJsonErrorPosition(
-  message: string,
-  documentText: string,
-): number {
+function parseJsonErrorPosition(message: string, documentText: string): number {
   const match = /position\s+(\d+)/i.exec(message);
   const fallback = Math.min(0, documentText.length);
   if (!match) {
@@ -268,7 +265,9 @@ export function WorkflowEditorPage({
     DEFAULT_GRAPH_CONFIG,
   );
   const [debouncedJson] = useDebouncedValue(jsonValue, 300);
-  const [viewMode, setViewMode] = useState<"detailed" | "simplified">("simplified");
+  const [viewMode, setViewMode] = useState<"detailed" | "simplified">(
+    "simplified",
+  );
   const initializedRef = useRef(false);
   const initialSnapshotRef = useRef<{
     name: string;
@@ -596,8 +595,7 @@ export function WorkflowEditorPage({
 
             <Collapse
               in={
-                showErrors &&
-                Boolean(jsonError || validationErrors.length > 0)
+                showErrors && Boolean(jsonError || validationErrors.length > 0)
               }
             >
               <Paper withBorder p="sm" mt="sm">
@@ -622,17 +620,20 @@ export function WorkflowEditorPage({
           <Stack gap="xs">
             <Group justify="space-between" align="center">
               <Text fw={600}>Workflow preview</Text>
-              {parsedConfig?.nodeGroups && Object.keys(parsedConfig.nodeGroups).length > 0 && (
-                <SegmentedControl
-                  size="xs"
-                  value={viewMode}
-                  onChange={(value) => setViewMode(value as "detailed" | "simplified")}
-                  data={[
-                    { label: "Detailed", value: "detailed" },
-                    { label: "Simplified", value: "simplified" },
-                  ]}
-                />
-              )}
+              {parsedConfig?.nodeGroups &&
+                Object.keys(parsedConfig.nodeGroups).length > 0 && (
+                  <SegmentedControl
+                    size="xs"
+                    value={viewMode}
+                    onChange={(value) =>
+                      setViewMode(value as "detailed" | "simplified")
+                    }
+                    data={[
+                      { label: "Detailed", value: "detailed" },
+                      { label: "Simplified", value: "simplified" },
+                    ]}
+                  />
+                )}
             </Group>
             <GraphVisualization
               config={parsedConfig}

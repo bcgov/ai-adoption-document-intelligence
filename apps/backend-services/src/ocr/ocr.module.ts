@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
+import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
 import { DatabaseModule } from "@/database/database.module";
 import { TemporalModule } from "@/temporal/temporal.module";
-import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
 import { OcrController } from "./ocr.controller";
 import { OcrService } from "./ocr.service";
 

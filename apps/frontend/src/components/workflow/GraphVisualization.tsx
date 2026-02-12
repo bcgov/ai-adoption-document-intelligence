@@ -1,39 +1,46 @@
 import "@xyflow/react/dist/style.css";
 
+import { Badge } from "@mantine/core";
+import {
+  IconBolt,
+  IconCornerDownRight,
+  IconDeviceFloppy,
+  IconFolder,
+  IconGitMerge,
+  IconRefresh,
+  IconRepeat,
+  IconScan,
+  IconSettings,
+  IconShieldCheck,
+  IconSparkles,
+  IconSwitch3,
+  IconUser,
+  IconUserCheck,
+} from "@tabler/icons-react";
+import type { ReactFlowInstance } from "@xyflow/react";
 import {
   Background,
   BaseEdge,
+  type Edge,
+  type EdgeProps,
   EdgeText,
   getBezierPath,
   Handle,
   MarkerType,
+  type Node,
   Position,
   ReactFlow,
-  type Edge,
-  type EdgeProps,
-  type Node,
 } from "@xyflow/react";
 import dagre from "dagre-esm";
-import {
-  IconBolt,
-  IconFolder,
-  IconGitMerge,
-  IconRepeat,
-  IconRefresh,
-  IconSwitch3,
-  IconUserCheck,
-  IconScan,
-  IconSparkles,
-  IconShieldCheck,
-  IconUser,
-  IconDeviceFloppy,
-  IconSettings,
-  IconCornerDownRight,
-} from "@tabler/icons-react";
-import { Badge } from "@mantine/core";
-import { memo, useMemo, useEffect, useRef } from "react";
-import type { ReactFlowInstance } from "@xyflow/react";
-import type { GraphNode, GraphWorkflowConfig, GraphEdge, MapNode, ChildWorkflowNode, SwitchNode } from "../../types/workflow";
+import { memo, useEffect, useMemo, useRef } from "react";
+import type {
+  ChildWorkflowNode,
+  GraphEdge,
+  GraphNode,
+  GraphWorkflowConfig,
+  MapNode,
+  SwitchNode,
+} from "../../types/workflow";
 
 export interface GraphVisualizationError {
   path: string;
@@ -69,16 +76,18 @@ interface MapContainerData {
   hasError: boolean;
 }
 
-const NODE_DIMENSIONS: Record<GraphNode["type"], { width: number; height: number }> =
-  {
-    activity: { width: 180, height: 72 },
-    switch: { width: 140, height: 140 },
-    map: { width: 190, height: 80 },
-    join: { width: 190, height: 80 },
-    childWorkflow: { width: 200, height: 80 },
-    pollUntil: { width: 190, height: 80 },
-    humanGate: { width: 190, height: 80 },
-  };
+const NODE_DIMENSIONS: Record<
+  GraphNode["type"],
+  { width: number; height: number }
+> = {
+  activity: { width: 180, height: 72 },
+  switch: { width: 140, height: 140 },
+  map: { width: 190, height: 80 },
+  join: { width: 190, height: 80 },
+  childWorkflow: { width: 200, height: 80 },
+  pollUntil: { width: 190, height: 80 },
+  humanGate: { width: 190, height: 80 },
+};
 
 const LAYER_GAP = 120; // Vertical spacing between layers in map containers
 
@@ -110,9 +119,10 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
   const color = NODE_COLORS[data.type];
   const isDiamond = data.type === "switch";
   const isChildWorkflow = data.type === "childWorkflow";
-  const workflowId = isChildWorkflow && data.workflowRef?.type === "library"
-    ? data.workflowRef.workflowId
-    : undefined;
+  const workflowId =
+    isChildWorkflow && data.workflowRef?.type === "library"
+      ? data.workflowRef.workflowId
+      : undefined;
 
   return (
     <div
@@ -166,14 +176,16 @@ const GraphNodeRenderer = memo(function GraphNodeRenderer({
           <span>{data.label}</span>
         </div>
         {isChildWorkflow && workflowId ? (
-          <div style={{
-            fontSize: 10,
-            color: "#6b7280",
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            justifyContent: "center"
-          }}>
+          <div
+            style={{
+              fontSize: 10,
+              color: "#6b7280",
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              justifyContent: "center",
+            }}
+          >
             <IconCornerDownRight size={12} />
             <span>{workflowId}</span>
           </div>
@@ -300,8 +312,8 @@ const GroupNodeRenderer = memo(function GroupNodeRenderer({
 });
 
 // Stagger labels by alternating: base position and higher (closer to source) to avoid overlap
-const LABEL_BASE_FRACTION = 0.75;       // main position halfway down the edge
-const LABEL_ALTERNATE_OFFSET = 0.28;   // odd-indexed labels this much higher (e.g. 50% vs 38%)
+const LABEL_BASE_FRACTION = 0.75; // main position halfway down the edge
+const LABEL_ALTERNATE_OFFSET = 0.28; // odd-indexed labels this much higher (e.g. 50% vs 38%)
 
 function applyStaggeredLabelDistances(edges: Edge[], nodes: Node[]): Edge[] {
   const labeled = edges.filter((e) => !!e.label);
@@ -375,7 +387,17 @@ const StaggerLabelEdge = memo(function StaggerLabelEdge(props: EdgeProps) {
     data,
   } = props;
 
-  console.log("[StaggerLabelEdge] render", { id, label, hasLabel: !!label, data, sourceX, sourceY, targetX, targetY });
+  // biome-ignore lint/security/noSecrets: not a secret
+  console.log("[StaggerLabelEdge] render", {
+    id,
+    label,
+    hasLabel: !!label,
+    data,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+  });
 
   const [edgePath, defaultLabelX, defaultLabelY] = getBezierPath({
     sourceX,
@@ -405,9 +427,21 @@ const StaggerLabelEdge = memo(function StaggerLabelEdge(props: EdgeProps) {
     y = sourceY + dy * t;
   }
 
-  console.log("[StaggerLabelEdge] label position", { id, fraction, distPx, x, y, defaultLabelX, defaultLabelY, renderingLabel: !!label });
+  // biome-ignore lint/security/noSecrets: not a secret
+  console.log("[StaggerLabelEdge] label position", {
+    id,
+    fraction,
+    distPx,
+    x,
+    y,
+    defaultLabelX,
+    defaultLabelY,
+    renderingLabel: !!label,
+  });
 
-  const labelStyleObj = labelStyle as { fill?: string; fontSize?: number; fontWeight?: number } | undefined;
+  const labelStyleObj = labelStyle as
+    | { fill?: string; fontSize?: number; fontWeight?: number }
+    | undefined;
   const styleObj = style as { stroke?: string } | undefined;
   const fill = labelStyleObj?.fill ?? styleObj?.stroke ?? "#111827";
 
@@ -419,7 +453,11 @@ const StaggerLabelEdge = memo(function StaggerLabelEdge(props: EdgeProps) {
           x={x}
           y={y}
           label={label}
-          labelStyle={{ fill, fontSize: labelStyleObj?.fontSize ?? 11, fontWeight: labelStyleObj?.fontWeight ?? 500 }}
+          labelStyle={{
+            fill,
+            fontSize: labelStyleObj?.fontSize ?? 11,
+            fontWeight: labelStyleObj?.fontWeight ?? 500,
+          }}
           labelShowBg
           labelBgStyle={{ fill: "#fff", stroke: fill }}
           labelBgPadding={[4, 6]}
@@ -499,7 +537,10 @@ const MapContainerRenderer = memo(function MapContainerRenderer({
   );
 });
 
-function extractSwitchEdgeLabel(edge: GraphEdge, config: GraphWorkflowConfig): string | undefined {
+function extractSwitchEdgeLabel(
+  edge: GraphEdge,
+  config: GraphWorkflowConfig,
+): string | undefined {
   // Check if source node is a switch node
   const sourceNode = config.nodes[edge.source];
   if (!sourceNode || sourceNode.type !== "switch") {
@@ -514,7 +555,7 @@ function extractSwitchEdgeLabel(edge: GraphEdge, config: GraphWorkflowConfig): s
   }
 
   // Find the case that matches this edge
-  const matchingCase = switchNode.cases.find(c => c.edgeId === edge.id);
+  const matchingCase = switchNode.cases.find((c) => c.edgeId === edge.id);
   if (!matchingCase) {
     return undefined;
   }
@@ -523,23 +564,32 @@ function extractSwitchEdgeLabel(edge: GraphEdge, config: GraphWorkflowConfig): s
   const cond = matchingCase.condition;
 
   // Check if it's a comparison expression (has left, right, operator)
-  if (!('left' in cond) || !('right' in cond) || !('operator' in cond)) {
+  if (!("left" in cond) || !("right" in cond) || !("operator" in cond)) {
     return "conditional"; // Fallback for complex expressions
   }
 
-  const leftPart = cond.left.ref ? cond.left.ref.replace("ctx.", "").replace("currentSegment.", "") : "?";
-  const rightPart = typeof cond.right.literal === "string"
-    ? cond.right.literal
-    : JSON.stringify(cond.right.literal ?? cond.right.ref ?? "?");
+  const leftPart = cond.left.ref
+    ? cond.left.ref.replace("ctx.", "").replace("currentSegment.", "")
+    : "?";
+  const rightPart =
+    typeof cond.right.literal === "string"
+      ? cond.right.literal
+      : JSON.stringify(cond.right.literal ?? cond.right.ref ?? "?");
 
-  const op = cond.operator === "equals" ? "=" :
-             cond.operator === "not-equals" ? "!=" :
-             cond.operator;
+  const op =
+    cond.operator === "equals"
+      ? "="
+      : cond.operator === "not-equals"
+        ? "!="
+        : cond.operator;
 
   return `${leftPart} ${op} ${rightPart}`;
 }
 
-function buildEdgeLabel(edge: GraphEdge, config: GraphWorkflowConfig): string | undefined {
+function buildEdgeLabel(
+  edge: GraphEdge,
+  config: GraphWorkflowConfig,
+): string | undefined {
   const labelParts: string[] = [];
 
   // Check for switch node condition first
@@ -582,7 +632,9 @@ function extractNodeIdsWithErrors(
   return nodeIds;
 }
 
-function identifyMapBodyNodes(config: GraphWorkflowConfig): Map<string, string> {
+function identifyMapBodyNodes(
+  config: GraphWorkflowConfig,
+): Map<string, string> {
   // Returns map of bodyNodeId -> mapNodeId
   const bodyNodeToMapNode = new Map<string, string>();
 
@@ -630,7 +682,7 @@ function identifyMapBodyNodes(config: GraphWorkflowConfig): Map<string, string> 
 function computeBodyNodeLayers(
   bodyNodeIds: string[],
   edges: GraphEdge[],
-  entryNodeId: string
+  entryNodeId: string,
 ): Map<number, string[]> {
   // Build adjacency list for body nodes only
   const bodyNodeSet = new Set(bodyNodeIds);
@@ -679,7 +731,10 @@ function computeBodyNodeLayers(
   return layersMap;
 }
 
-function layoutGraph(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: Edge[] } {
+function layoutGraph(
+  nodes: Node[],
+  edges: Edge[],
+): { nodes: Node[]; edges: Edge[] } {
   const graph = new dagre.graphlib.Graph();
   graph.setDefaultEdgeLabel(() => ({}));
   graph.setGraph({ rankdir: "TB", ranksep: 80, nodesep: 50 });
@@ -747,30 +802,42 @@ function buildDetailedViewWithMapContainers(
       const BOTTOM_PADDING = 25;
 
       // Compute layers for body nodes
-      const layersMap = computeBodyNodeLayers(bodyNodeIds, config.edges, mapNode.bodyEntryNodeId);
+      const layersMap = computeBodyNodeLayers(
+        bodyNodeIds,
+        config.edges,
+        mapNode.bodyEntryNodeId,
+      );
       const numLayers = layersMap.size;
 
       // Calculate width based on widest layer
-      const maxLayerWidth = Math.max(...Array.from(layersMap.values()).map(layerNodes => {
-        const nodesWidth = layerNodes.reduce((sum, nodeId) => {
-          return sum + NODE_DIMENSIONS[config.nodes[nodeId].type].width;
-        }, 0);
-        const gaps = Math.max(0, layerNodes.length - 1) * NODE_GAP;
-        return nodesWidth + gaps;
-      }));
+      const maxLayerWidth = Math.max(
+        ...Array.from(layersMap.values()).map((layerNodes) => {
+          const nodesWidth = layerNodes.reduce((sum, nodeId) => {
+            return sum + NODE_DIMENSIONS[config.nodes[nodeId].type].width;
+          }, 0);
+          const gaps = Math.max(0, layerNodes.length - 1) * NODE_GAP;
+          return nodesWidth + gaps;
+        }),
+      );
 
       const containerWidth = Math.max(250, maxLayerWidth + PADDING * 2);
 
       // Calculate height based on actual max height per layer for tight fit
-      const layerHeights = Array.from(layersMap.values()).map(layerNodeIds => {
-        return Math.max(...layerNodeIds.map(nodeId =>
-          NODE_DIMENSIONS[config.nodes[nodeId].type].height
-        ));
-      });
+      const layerHeights = Array.from(layersMap.values()).map(
+        (layerNodeIds) => {
+          return Math.max(
+            ...layerNodeIds.map(
+              (nodeId) => NODE_DIMENSIONS[config.nodes[nodeId].type].height,
+            ),
+          );
+        },
+      );
       const totalLayersHeight = layerHeights.reduce((sum, h) => sum + h, 0);
-      const containerHeight = HEADER_HEIGHT + TOP_PADDING +
+      const containerHeight =
+        HEADER_HEIGHT +
+        TOP_PADDING +
         totalLayersHeight +
-        (Math.max(0, numLayers - 1) * LAYER_GAP) +
+        Math.max(0, numLayers - 1) * LAYER_GAP +
         BOTTOM_PADDING;
 
       mappedNodes.push({
@@ -791,9 +858,10 @@ function buildDetailedViewWithMapContainers(
       // Create body node with parent relationship
       const parentMapNodeId = bodyNodeToMapNode.get(node.id)!;
       const dimensions = NODE_DIMENSIONS[node.type];
-      const workflowRef = node.type === "childWorkflow"
-        ? (node as ChildWorkflowNode).workflowRef
-        : undefined;
+      const workflowRef =
+        node.type === "childWorkflow"
+          ? (node as ChildWorkflowNode).workflowRef
+          : undefined;
 
       mappedNodes.push({
         id: node.id,
@@ -813,9 +881,10 @@ function buildDetailedViewWithMapContainers(
     } else {
       // Regular top-level node
       const dimensions = NODE_DIMENSIONS[node.type];
-      const workflowRef = node.type === "childWorkflow"
-        ? (node as ChildWorkflowNode).workflowRef
-        : undefined;
+      const workflowRef =
+        node.type === "childWorkflow"
+          ? (node as ChildWorkflowNode).workflowRef
+          : undefined;
 
       mappedNodes.push({
         id: node.id,
@@ -837,7 +906,8 @@ function buildDetailedViewWithMapContainers(
   for (const edge of config.edges) {
     const sourceMapParent = bodyNodeToMapNode.get(edge.source);
     const targetMapParent = bodyNodeToMapNode.get(edge.target);
-    const isInternalEdge = sourceMapParent && targetMapParent && sourceMapParent === targetMapParent;
+    const isInternalEdge =
+      sourceMapParent && targetMapParent && sourceMapParent === targetMapParent;
 
     if (isInternalEdge) {
       // Internal edge within map body - use vertical connections (bottom → top) for layer-based layout
@@ -904,7 +974,12 @@ function buildDetailedViewWithMapContainers(
   }
 
   // Two-pass layout: Dagre for top-level, manual for body nodes
-  return layoutGraphWithMapContainers(mappedNodes, mappedEdges, mapNodeToBodyNodes, config);
+  return layoutGraphWithMapContainers(
+    mappedNodes,
+    mappedEdges,
+    mapNodeToBodyNodes,
+    config,
+  );
 }
 
 function layoutGraphWithMapContainers(
@@ -914,102 +989,115 @@ function layoutGraphWithMapContainers(
   config: GraphWorkflowConfig,
 ): { nodes: Node[]; edges: Edge[] } {
   // Pass 1: Layout top-level nodes only (exclude body nodes)
-  const topLevelNodes = nodes.filter(node => !node.parentId);
-  const topLevelEdges = edges.filter(edge => {
-    const sourceNode = nodes.find(n => n.id === edge.source);
-    const targetNode = nodes.find(n => n.id === edge.target);
+  const topLevelNodes = nodes.filter((node) => !node.parentId);
+  const topLevelEdges = edges.filter((edge) => {
+    const sourceNode = nodes.find((n) => n.id === edge.source);
+    const targetNode = nodes.find((n) => n.id === edge.target);
     return !sourceNode?.parentId && !targetNode?.parentId;
   });
 
   const { nodes: layoutedTopLevel } = layoutGraph(topLevelNodes, topLevelEdges);
 
   // Pass 2: Position body nodes inside their parent containers using layers
-  const finalNodes = layoutedTopLevel.map(node => {
-    if (node.type === "mapContainer") {
-      // Position body nodes inside this container based on layers
-      const bodyNodeIds = mapNodeToBodyNodes.get(node.id) || [];
-      const PADDING = 24;
-      const HEADER_HEIGHT = 50;
-      const NODE_GAP = 40;
-      const TOP_PADDING = 40; // Increased for more visible spacing
+  const finalNodes = layoutedTopLevel
+    .map((node) => {
+      if (node.type === "mapContainer") {
+        // Position body nodes inside this container based on layers
+        const bodyNodeIds = mapNodeToBodyNodes.get(node.id) || [];
+        const PADDING = 24;
+        const HEADER_HEIGHT = 50;
+        const NODE_GAP = 40;
+        const TOP_PADDING = 40; // Increased for more visible spacing
 
-      // Find the map node from config
-      const mapNodeConfig = Object.values(config.nodes).find(n => n.id === node.id && n.type === "map") as MapNode | undefined;
+        // Find the map node from config
+        const mapNodeConfig = Object.values(config.nodes).find(
+          (n) => n.id === node.id && n.type === "map",
+        ) as MapNode | undefined;
 
-      if (!mapNodeConfig) {
-        // Fallback to old horizontal layout if map node not found
-        let currentX = PADDING;
-        const positionedBodyNodes = bodyNodeIds.map(bodyNodeId => {
-          const bodyNode = nodes.find(n => n.id === bodyNodeId)!;
-          const positionedBody = {
-            ...bodyNode,
-            position: {
-              x: currentX,
-              y: HEADER_HEIGHT + TOP_PADDING,
-            },
-          };
-          currentX += (bodyNode.width ?? 0) + NODE_GAP;
-          return positionedBody;
+        if (!mapNodeConfig) {
+          // Fallback to old horizontal layout if map node not found
+          let currentX = PADDING;
+          const positionedBodyNodes = bodyNodeIds.map((bodyNodeId) => {
+            const bodyNode = nodes.find((n) => n.id === bodyNodeId)!;
+            const positionedBody = {
+              ...bodyNode,
+              position: {
+                x: currentX,
+                y: HEADER_HEIGHT + TOP_PADDING,
+              },
+            };
+            currentX += (bodyNode.width ?? 0) + NODE_GAP;
+            return positionedBody;
+          });
+          return [node, ...positionedBodyNodes];
+        }
+
+        // Compute layers for body nodes
+        const layersMap = computeBodyNodeLayers(
+          bodyNodeIds,
+          config.edges,
+          mapNodeConfig.bodyEntryNodeId,
+        );
+
+        // Calculate actual max height per layer for precise positioning
+        const layerHeights = Array.from(layersMap.values()).map(
+          (layerNodeIds) => {
+            return Math.max(
+              ...layerNodeIds.map((nodeId) => {
+                const bodyNode = nodes.find((n) => n.id === nodeId)!;
+                return bodyNode.height ?? 80;
+              }),
+            );
+          },
+        );
+
+        // Position nodes layer by layer
+        const positionedBodyNodes: Node[] = [];
+        let cumulativeY = HEADER_HEIGHT + TOP_PADDING;
+
+        layersMap.forEach((layerNodeIds, layerNumber) => {
+          // Calculate layer dimensions
+          const layerNodesWithDims = layerNodeIds.map((nodeId) => {
+            const bodyNode = nodes.find((n) => n.id === nodeId)!;
+            return {
+              nodeId,
+              node: bodyNode,
+              width: bodyNode.width ?? 180,
+              height: bodyNode.height ?? 80,
+            };
+          });
+
+          const totalLayerWidth =
+            layerNodesWithDims.reduce((sum, n) => sum + n.width, 0) +
+            Math.max(0, layerNodeIds.length - 1) * NODE_GAP;
+
+          // Center the layer horizontally
+          let currentX = (node.width! - totalLayerWidth) / 2;
+
+          // Use cumulative Y position for this layer
+          const currentY = cumulativeY;
+
+          // Position each node in the layer
+          layerNodesWithDims.forEach(({ node: bodyNode }) => {
+            positionedBodyNodes.push({
+              ...bodyNode,
+              position: {
+                x: currentX,
+                y: currentY,
+              },
+            });
+            currentX += bodyNode.width! + NODE_GAP;
+          });
+
+          // Update cumulative Y for next layer
+          cumulativeY += layerHeights[layerNumber] + LAYER_GAP;
         });
+
         return [node, ...positionedBodyNodes];
       }
-
-      // Compute layers for body nodes
-      const layersMap = computeBodyNodeLayers(bodyNodeIds, config.edges, mapNodeConfig.bodyEntryNodeId);
-
-      // Calculate actual max height per layer for precise positioning
-      const layerHeights = Array.from(layersMap.values()).map(layerNodeIds => {
-        return Math.max(...layerNodeIds.map(nodeId => {
-          const bodyNode = nodes.find(n => n.id === nodeId)!;
-          return bodyNode.height ?? 80;
-        }));
-      });
-
-      // Position nodes layer by layer
-      const positionedBodyNodes: Node[] = [];
-      let cumulativeY = HEADER_HEIGHT + TOP_PADDING;
-
-      layersMap.forEach((layerNodeIds, layerNumber) => {
-        // Calculate layer dimensions
-        const layerNodesWithDims = layerNodeIds.map(nodeId => {
-          const bodyNode = nodes.find(n => n.id === nodeId)!;
-          return {
-            nodeId,
-            node: bodyNode,
-            width: bodyNode.width ?? 180,
-            height: bodyNode.height ?? 80
-          };
-        });
-
-        const totalLayerWidth = layerNodesWithDims.reduce((sum, n) => sum + n.width, 0) +
-          Math.max(0, layerNodeIds.length - 1) * NODE_GAP;
-
-        // Center the layer horizontally
-        let currentX = (node.width! - totalLayerWidth) / 2;
-
-        // Use cumulative Y position for this layer
-        const currentY = cumulativeY;
-
-        // Position each node in the layer
-        layerNodesWithDims.forEach(({ node: bodyNode }) => {
-          positionedBodyNodes.push({
-            ...bodyNode,
-            position: {
-              x: currentX,
-              y: currentY
-            }
-          });
-          currentX += bodyNode.width! + NODE_GAP;
-        });
-
-        // Update cumulative Y for next layer
-        cumulativeY += layerHeights[layerNumber] + LAYER_GAP;
-      });
-
-      return [node, ...positionedBodyNodes];
-    }
-    return [node];
-  }).flat();
+      return [node];
+    })
+    .flat();
 
   return { nodes: finalNodes, edges };
 }
@@ -1048,7 +1136,7 @@ function buildHybridView(
   // Build group nodes (for non-map nodes only)
   for (const [groupId, group] of Object.entries(nodeGroups)) {
     // Check if this group contains any non-map nodes
-    const nonMapNodeIds = group.nodeIds.filter(nodeId => {
+    const nonMapNodeIds = group.nodeIds.filter((nodeId) => {
       const node = config.nodes[nodeId];
       return node && node.type !== "map";
     });
@@ -1091,28 +1179,40 @@ function buildHybridView(
       const TOP_PADDING = 40;
       const BOTTOM_PADDING = 25;
 
-      const layersMap = computeBodyNodeLayers(bodyNodeIds, config.edges, mapNode.bodyEntryNodeId);
+      const layersMap = computeBodyNodeLayers(
+        bodyNodeIds,
+        config.edges,
+        mapNode.bodyEntryNodeId,
+      );
       const numLayers = layersMap.size;
 
-      const maxLayerWidth = Math.max(...Array.from(layersMap.values()).map(layerNodes => {
-        const nodesWidth = layerNodes.reduce((sum, nodeId) => {
-          return sum + NODE_DIMENSIONS[config.nodes[nodeId].type].width;
-        }, 0);
-        const gaps = Math.max(0, layerNodes.length - 1) * NODE_GAP;
-        return nodesWidth + gaps;
-      }));
+      const maxLayerWidth = Math.max(
+        ...Array.from(layersMap.values()).map((layerNodes) => {
+          const nodesWidth = layerNodes.reduce((sum, nodeId) => {
+            return sum + NODE_DIMENSIONS[config.nodes[nodeId].type].width;
+          }, 0);
+          const gaps = Math.max(0, layerNodes.length - 1) * NODE_GAP;
+          return nodesWidth + gaps;
+        }),
+      );
 
       const containerWidth = Math.max(250, maxLayerWidth + PADDING * 2);
 
-      const layerHeights = Array.from(layersMap.values()).map(layerNodeIds => {
-        return Math.max(...layerNodeIds.map(nodeId =>
-          NODE_DIMENSIONS[config.nodes[nodeId].type].height
-        ));
-      });
+      const layerHeights = Array.from(layersMap.values()).map(
+        (layerNodeIds) => {
+          return Math.max(
+            ...layerNodeIds.map(
+              (nodeId) => NODE_DIMENSIONS[config.nodes[nodeId].type].height,
+            ),
+          );
+        },
+      );
       const totalLayersHeight = layerHeights.reduce((sum, h) => sum + h, 0);
-      const containerHeight = HEADER_HEIGHT + TOP_PADDING +
+      const containerHeight =
+        HEADER_HEIGHT +
+        TOP_PADDING +
         totalLayersHeight +
-        (Math.max(0, numLayers - 1) * LAYER_GAP) +
+        Math.max(0, numLayers - 1) * LAYER_GAP +
         BOTTOM_PADDING;
 
       // Add map container node
@@ -1133,9 +1233,10 @@ function buildHybridView(
       for (const bodyNodeId of bodyNodeIds) {
         const bodyNode = config.nodes[bodyNodeId];
         const dimensions = NODE_DIMENSIONS[bodyNode.type];
-        const workflowRef = bodyNode.type === "childWorkflow"
-          ? (bodyNode as ChildWorkflowNode).workflowRef
-          : undefined;
+        const workflowRef =
+          bodyNode.type === "childWorkflow"
+            ? (bodyNode as ChildWorkflowNode).workflowRef
+            : undefined;
 
         mappedNodes.push({
           id: bodyNode.id,
@@ -1175,7 +1276,8 @@ function buildHybridView(
   for (const edge of config.edges) {
     const sourceMapParent = bodyNodeToMapNode.get(edge.source);
     const targetMapParent = bodyNodeToMapNode.get(edge.target);
-    const isInternalEdge = sourceMapParent && targetMapParent && sourceMapParent === targetMapParent;
+    const isInternalEdge =
+      sourceMapParent && targetMapParent && sourceMapParent === targetMapParent;
 
     if (isInternalEdge) {
       // Internal edge within map body - use vertical connections
@@ -1249,7 +1351,12 @@ function buildHybridView(
   }
 
   // Use layoutGraphWithMapContainers to position everything including map body nodes
-  return layoutGraphWithMapContainers(mappedNodes, mappedEdges, mapNodeToBodyNodes, config);
+  return layoutGraphWithMapContainers(
+    mappedNodes,
+    mappedEdges,
+    mapNodeToBodyNodes,
+    config,
+  );
 }
 
 function buildSimplifiedView(
@@ -1380,10 +1487,14 @@ export function GraphVisualization({
       return finalize({ nodes: [], edges: [] });
     }
 
-    const hasMapNodes = Object.values(config.nodes).some(node => node.type === "map");
-    const hasNodeGroups = config.nodeGroups && Object.keys(config.nodeGroups).length > 0;
+    const hasMapNodes = Object.values(config.nodes).some(
+      (node) => node.type === "map",
+    );
+    const hasNodeGroups =
+      config.nodeGroups && Object.keys(config.nodeGroups).length > 0;
 
-    console.log('[GraphVisualization] Render decision:', {
+    // biome-ignore lint/security/noSecrets: not a secret
+    console.log("[GraphVisualization] Render decision:", {
       viewMode,
       hasMapNodes,
       hasNodeGroups,
@@ -1392,42 +1503,55 @@ export function GraphVisualization({
 
     // Priority 1: Hybrid view - simplified groups + detailed map containers
     if (viewMode === "simplified" && hasNodeGroups) {
-      console.log('[GraphVisualization] Using hybrid view: simplified groups + detailed map containers');
+      console.log(
+        // biome-ignore lint/security/noSecrets: not a secret
+        "[GraphVisualization] Using hybrid view: simplified groups + detailed map containers",
+      );
       if (hasMapNodes) {
-        return finalize(buildHybridView(config, errorNodeIds), { staggerLabels: true });
+        return finalize(buildHybridView(config, errorNodeIds), {
+          staggerLabels: true,
+        });
       }
-      console.log('[GraphVisualization] Using simplified view with groups (no map containers)');
+      console.log(
+        // biome-ignore lint/security/noSecrets: not a secret
+        "[GraphVisualization] Using simplified view with groups (no map containers)",
+      );
       return finalize(buildSimplifiedView(config, errorNodeIds));
     }
 
     // Priority 2: Detailed view with map containers
     if (hasMapNodes) {
-      console.log('[GraphVisualization] Using detailed view with map containers');
-      return finalize(buildDetailedViewWithMapContainers(config, errorNodeIds), { staggerLabels: true });
+      console.log(
+        // biome-ignore lint/security/noSecrets: not a secret
+        "[GraphVisualization] Using detailed view with map containers",
+      );
+      return finalize(
+        buildDetailedViewWithMapContainers(config, errorNodeIds),
+        { staggerLabels: true },
+      );
     }
 
     // Fallback: original flat rendering for workflows without map nodes
-    const mappedNodes: Node[] = Object.values(config.nodes).map(
-      (node) => {
-        const dimensions = NODE_DIMENSIONS[node.type];
-        const workflowRef = node.type === "childWorkflow"
+    const mappedNodes: Node[] = Object.values(config.nodes).map((node) => {
+      const dimensions = NODE_DIMENSIONS[node.type];
+      const workflowRef =
+        node.type === "childWorkflow"
           ? (node as ChildWorkflowNode).workflowRef
           : undefined;
-        return {
-          id: node.id,
-          type: "graphNode",
-          position: { x: 0, y: 0 },
-          width: dimensions.width,
-          height: dimensions.height,
-          data: {
-            label: node.label,
-            type: node.type,
-            hasError: errorNodeIds.has(node.id),
-            workflowRef,
-          } as unknown as Record<string, unknown>,
-        };
-      },
-    );
+      return {
+        id: node.id,
+        type: "graphNode",
+        position: { x: 0, y: 0 },
+        width: dimensions.width,
+        height: dimensions.height,
+        data: {
+          label: node.label,
+          type: node.type,
+          hasError: errorNodeIds.has(node.id),
+          workflowRef,
+        } as unknown as Record<string, unknown>,
+      };
+    });
 
     const mappedEdges: Edge[] = config.edges.map((edge) => {
       const label = buildEdgeLabel(edge, config);

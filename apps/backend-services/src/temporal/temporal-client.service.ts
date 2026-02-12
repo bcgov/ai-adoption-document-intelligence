@@ -6,9 +6,9 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Client, Connection } from "@temporalio/client";
-import { WorkflowService } from "../workflow/workflow.service";
-import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import { computeConfigHash } from "../workflow/config-hash";
+import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
+import { WorkflowService } from "../workflow/workflow.service";
 import { WORKFLOW_TYPES } from "./workflow-types";
 
 @Injectable()
@@ -198,11 +198,12 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(
         `[Temporal] Looking up graph workflow configuration: ${workflowConfigId}`,
       );
-      const workflowConfig = await this.workflowService.getWorkflowById(
-        workflowConfigId,
-      );
+      const workflowConfig =
+        await this.workflowService.getWorkflowById(workflowConfigId);
       if (!workflowConfig) {
-        throw new Error(`Workflow configuration not found: ${workflowConfigId}`);
+        throw new Error(
+          `Workflow configuration not found: ${workflowConfigId}`,
+        );
       }
 
       const graph = workflowConfig.config as GraphWorkflowConfig;

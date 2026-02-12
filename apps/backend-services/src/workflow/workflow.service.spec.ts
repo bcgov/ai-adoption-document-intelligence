@@ -1,8 +1,8 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { WorkflowService } from "./workflow.service";
 import type { GraphWorkflowConfig } from "./graph-workflow-types";
+import { WorkflowService } from "./workflow.service";
 
 const makeGraphConfig = (): GraphWorkflowConfig => ({
   schemaVersion: "1.0",

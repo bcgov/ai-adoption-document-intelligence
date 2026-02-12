@@ -1,7 +1,7 @@
 import { NotFoundException } from "@nestjs/common";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DocumentController } from "./document.controller";
 
 describe("DocumentController", () => {
@@ -23,7 +23,11 @@ describe("DocumentController", () => {
       exists: jest.fn(),
       delete: jest.fn(),
     } as any;
-    controller = new DocumentController(databaseService, temporalClientService, blobStorage);
+    controller = new DocumentController(
+      databaseService,
+      temporalClientService,
+      blobStorage,
+    );
   });
 
   describe("getAllDocuments", () => {
@@ -76,11 +80,9 @@ describe("DocumentController", () => {
       temporalClientService.getWorkflowStatus = jest.fn().mockResolvedValue({
         status: "RUNNING",
       });
-      temporalClientService.queryWorkflowStatus = jest
-        .fn()
-        .mockResolvedValue({
-          status: "awaiting_review",
-        });
+      temporalClientService.queryWorkflowStatus = jest.fn().mockResolvedValue({
+        status: "awaiting_review",
+      });
 
       const result = await controller.getAllDocuments();
 
