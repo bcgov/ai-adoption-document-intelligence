@@ -1,8 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { PreparedFileData } from '../types';
-
-const DEFAULT_BLOB_BASE_PATH = './data/blobs';
+import { resolveBlobKeyToPath } from '../blob-storage/blob-path-resolver';
 
 export interface PrepareFileDataInput {
   documentId: string;
@@ -11,15 +10,6 @@ export interface PrepareFileDataInput {
   fileType?: 'pdf' | 'image';
   contentType?: string;
   modelId?: string;
-}
-
-function resolveBlobKeyToPath(blobKey: string): string {
-  const basePath = process.env.LOCAL_BLOB_STORAGE_PATH ?? DEFAULT_BLOB_BASE_PATH;
-  const normalized = path.normalize(blobKey);
-  if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
-    throw new Error(`Invalid blob key: "${blobKey}"`);
-  }
-  return path.join(basePath, normalized);
 }
 
 async function readBlobData(blobKey: string): Promise<Buffer> {

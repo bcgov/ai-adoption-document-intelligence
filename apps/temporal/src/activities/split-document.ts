@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
+import { resolveBlobKeyToPath } from '../blob-storage/blob-path-resolver';
 
 const execFileAsync = promisify(execFile);
 
@@ -24,8 +25,6 @@ export interface DocumentSegment {
 export interface SplitDocumentOutput {
   segments: DocumentSegment[];
 }
-
-const DEFAULT_BLOB_BASE_PATH = './data/blobs';
 
 export async function splitDocument(
   input: SplitDocumentInput,
@@ -64,16 +63,6 @@ export async function splitDocument(
   }
 
   return { segments };
-}
-
-function resolveBlobKeyToPath(blobKey: string): string {
-  const basePath =
-    process.env.LOCAL_BLOB_STORAGE_PATH ?? DEFAULT_BLOB_BASE_PATH;
-  const normalized = path.normalize(blobKey);
-  if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
-    throw new Error(`Invalid blob key: "${blobKey}"`);
-  }
-  return path.join(basePath, normalized);
 }
 
 async function assertFileExists(filePath: string, blobKey: string) {

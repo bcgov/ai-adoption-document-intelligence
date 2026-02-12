@@ -3,10 +3,8 @@ import DocumentIntelligence, {
   isUnexpected,
 } from '@azure-rest/ai-document-intelligence';
 import * as fs from 'fs/promises';
-import * as path from 'path';
 import type { PreparedFileData, SubmissionResult } from '../types';
-
-const DEFAULT_BLOB_BASE_PATH = './data/blobs';
+import { resolveBlobKeyToPath } from '../blob-storage/blob-path-resolver';
 
 /**
  * Normalize endpoint URL by removing trailing slash
@@ -14,15 +12,6 @@ const DEFAULT_BLOB_BASE_PATH = './data/blobs';
 function normalizeEndpoint(url: string | undefined): string {
   if (!url) return '';
   return url.endsWith('/') ? url.slice(0, -1) : url;
-}
-
-function resolveBlobKeyToPath(blobKey: string): string {
-  const basePath = process.env.LOCAL_BLOB_STORAGE_PATH ?? DEFAULT_BLOB_BASE_PATH;
-  const normalized = path.normalize(blobKey);
-  if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
-    throw new Error(`Invalid blob key: "${blobKey}"`);
-  }
-  return path.join(basePath, normalized);
 }
 
 async function readBlobData(blobKey: string): Promise<Buffer> {

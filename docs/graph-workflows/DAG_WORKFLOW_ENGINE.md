@@ -1435,6 +1435,11 @@ class LocalBlobStorageService implements BlobStorageService {
 }
 ```
 
+For local development, Temporal activities resolve `LOCAL_BLOB_STORAGE_PATH` as follows:
+- absolute value: used directly
+- relative value: resolved from `apps/temporal`
+- unset: defaults to `apps/backend-services/data/blobs` so Temporal reads files written by backend-services
+
 ### 13.4 Upload Flow Change
 
 Current:
