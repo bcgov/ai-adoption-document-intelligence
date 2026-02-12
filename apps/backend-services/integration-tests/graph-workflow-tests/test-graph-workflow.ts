@@ -7,7 +7,10 @@
  * This test will run until it encounters the current error to help debug the issue.
  */
 
+<<<<<<< HEAD:apps/backend-services/integration-tests/graph-workflow-tests/test-graph-workflow.ts
 import { Logger } from "@nestjs/common";
+=======
+>>>>>>> 064655a (linting and ts fixes):apps/backend-services/integration-tests/test-graph-workflow.ts
 import {
   Client,
   Connection,
@@ -106,15 +109,25 @@ function log(
     warn: "\x1b[33m", // yellow
   };
   const reset = "\x1b[0m";
+<<<<<<< HEAD:apps/backend-services/integration-tests/graph-workflow-tests/test-graph-workflow.ts
   logger.log(
+=======
+  console.log(
+>>>>>>> 064655a (linting and ts fixes):apps/backend-services/integration-tests/test-graph-workflow.ts
     `${colors[type]}${symbols[type]}${reset} [${timestamp}] ${message}`,
   );
 }
 
 function section(title: string): void {
+<<<<<<< HEAD:apps/backend-services/integration-tests/graph-workflow-tests/test-graph-workflow.ts
   logger.log("\n" + "=".repeat(80));
   logger.log(`  ${title}`);
   logger.log("=".repeat(80) + "\n");
+=======
+  console.log("\n" + "=".repeat(80));
+  console.log(`  ${title}`);
+  console.log("=".repeat(80) + "\n");
+>>>>>>> 064655a (linting and ts fixes):apps/backend-services/integration-tests/test-graph-workflow.ts
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -148,7 +161,11 @@ async function startWorker(): Promise<void> {
       .split("\n")
       .filter((line) => line.trim());
     lines.forEach((line) => {
+<<<<<<< HEAD:apps/backend-services/integration-tests/graph-workflow-tests/test-graph-workflow.ts
       logger.log(`\x1b[90m[WORKER]\x1b[0m ${line}`);
+=======
+      console.log(`\x1b[90m[WORKER]\x1b[0m ${line}`);
+>>>>>>> 064655a (linting and ts fixes):apps/backend-services/integration-tests/test-graph-workflow.ts
     });
   });
 
@@ -159,7 +176,11 @@ async function startWorker(): Promise<void> {
       .split("\n")
       .filter((line) => line.trim());
     lines.forEach((line) => {
+<<<<<<< HEAD:apps/backend-services/integration-tests/graph-workflow-tests/test-graph-workflow.ts
       logger.log(`\x1b[90m[WORKER]\x1b[0m ${line}`);
+=======
+      console.log(`\x1b[90m[WORKER]\x1b[0m ${line}`);
+>>>>>>> 064655a (linting and ts fixes):apps/backend-services/integration-tests/test-graph-workflow.ts
     });
   });
 
@@ -713,7 +734,11 @@ async function cleanup(): Promise<void> {
 
 // --- Main Test Flow ---
 async function runIntegrationTest(): Promise<void> {
+<<<<<<< HEAD:apps/backend-services/integration-tests/graph-workflow-tests/test-graph-workflow.ts
   logger.log("\n");
+=======
+  console.log("\n");
+>>>>>>> 064655a (linting and ts fixes):apps/backend-services/integration-tests/test-graph-workflow.ts
   section("🔍 Integration Test: Graph Workflow Execution");
 
   // Setup signal handlers for graceful shutdown
@@ -804,7 +829,11 @@ async function runIntegrationTest(): Promise<void> {
 // Run the test
 if (require.main === module) {
   runIntegrationTest().catch((error) => {
+<<<<<<< HEAD:apps/backend-services/integration-tests/graph-workflow-tests/test-graph-workflow.ts
     logger.error("Unhandled error:", error);
+=======
+    console.error("Unhandled error:", error);
+>>>>>>> 064655a (linting and ts fixes):apps/backend-services/integration-tests/test-graph-workflow.ts
     process.exit(1);
   });
 }

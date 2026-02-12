@@ -1,8 +1,12 @@
 import { HttpModule } from "@nestjs/axios";
 import { Module } from "@nestjs/common";
+<<<<<<< HEAD
 import { BlobStorageModule } from "../blob-storage/blob-storage.module";
 import { DatabaseModule } from "../database/database.module";
+=======
+>>>>>>> 064655a (linting and ts fixes)
 import { BlobStorageModule } from "../blob-storage/blob-storage.module";
+import { DatabaseModule } from "../database/database.module";
 import { LabelingController } from "./labeling.controller";
 import { LabelingService } from "./labeling.service";
 import { LabelingOcrService } from "./labeling-ocr.service";

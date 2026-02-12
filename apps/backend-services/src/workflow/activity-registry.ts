@@ -28,9 +28,12 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     "azureOcr.poll": { description: "Poll Azure for OCR results" },
     "azureOcr.extract": { description: "Extract structured OCR data" },
     "ocr.cleanup": { description: "Post-OCR text normalization" },
+<<<<<<< HEAD
     "ocr.enrich": {
       description: "Enrich OCR results using field schema and optional LLM",
     },
+=======
+>>>>>>> 064655a (linting and ts fixes)
     "ocr.checkConfidence": { description: "Calculate OCR confidence" },
     "ocr.storeResults": { description: "Store OCR results in database" },
     "document.storeRejection": { description: "Store document rejection data" },

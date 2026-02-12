@@ -18,7 +18,10 @@ import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import CodeMirror from "@uiw/react-codemirror";
 import { useEffect, useMemo, useRef, useState } from "react";
+<<<<<<< HEAD
 import { GraphConfigFormEditor } from "../components/workflow/GraphConfigFormEditor";
+=======
+>>>>>>> 064655a (linting and ts fixes)
 import { GraphVisualization } from "../components/workflow/GraphVisualization";
 import {
   CreateWorkflowDto,
@@ -269,9 +272,12 @@ export function WorkflowEditorPage({
   const [viewMode, setViewMode] = useState<"detailed" | "simplified">(
     "simplified",
   );
+<<<<<<< HEAD
   const [configEditorMode, setConfigEditorMode] = useState<"form" | "json">(
     "form",
   );
+=======
+>>>>>>> 064655a (linting and ts fixes)
   const initializedRef = useRef(false);
   const initialSnapshotRef = useRef<{
     name: string;
@@ -587,6 +593,7 @@ export function WorkflowEditorPage({
               </Group>
             </Group>
 
+<<<<<<< HEAD
             {configEditorMode === "form" ? (
               <Paper
                 withBorder
@@ -597,6 +604,56 @@ export function WorkflowEditorPage({
                   value={parsedConfig ?? DEFAULT_GRAPH_CONFIG}
                   onChange={handleFormConfigChange}
                 />
+=======
+            <Paper withBorder>
+              <CodeMirror
+                value={jsonValue}
+                theme="dark"
+                height="520px"
+                extensions={[
+                  json(),
+                  lintGutter(),
+                  linter(() => diagnostics),
+                  EditorView.lineWrapping,
+                ]}
+                onChange={(value) => setJsonValue(value)}
+              />
+            </Paper>
+
+            <Group justify="space-between" mt="sm">
+              <Text size="sm" c="dimmed">
+                Changes sync after 300ms.
+              </Text>
+              {(jsonError || validationErrors.length > 0) && (
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  onClick={() => setShowErrors((prev) => !prev)}
+                >
+                  {showErrors ? "Hide errors" : "Show errors"}
+                </Button>
+              )}
+            </Group>
+
+            <Collapse
+              in={
+                showErrors && Boolean(jsonError || validationErrors.length > 0)
+              }
+            >
+              <Paper withBorder p="sm" mt="sm">
+                <Stack gap="xs">
+                  {jsonError ? (
+                    <Text c="red" size="sm">
+                      {jsonError}
+                    </Text>
+                  ) : null}
+                  {validationErrors.map((err) => (
+                    <Text key={`${err.path}-${err.message}`} c="red" size="sm">
+                      {err.path}: {err.message}
+                    </Text>
+                  ))}
+                </Stack>
+>>>>>>> 064655a (linting and ts fixes)
               </Paper>
             ) : (
               <>

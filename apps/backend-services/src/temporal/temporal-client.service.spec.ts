@@ -4,7 +4,6 @@ import { Client, Connection } from "@temporalio/client";
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import { WorkflowService } from "../workflow/workflow.service";
 import { TemporalClientService } from "./temporal-client.service";
-import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 
 const graphConfig: GraphWorkflowConfig = {
   schemaVersion: "1.0",

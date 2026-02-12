@@ -7,7 +7,6 @@ import {
   WorkflowInfo,
   WorkflowService,
 } from "./workflow.service";
-import type { GraphWorkflowConfig } from "./graph-workflow-types";
 
 const mockGraphConfig: GraphWorkflowConfig = {
   schemaVersion: "1.0",

@@ -93,9 +93,8 @@ export class DocumentService {
         model_id: modelId,
       };
 
-      const savedDocument = await this.databaseService.createDocument(
-        documentData,
-      );
+      const savedDocument =
+        await this.databaseService.createDocument(documentData);
       this.logger.debug(`Document saved to database: ${savedDocument.id}`);
 
       const result: UploadedDocument = {
