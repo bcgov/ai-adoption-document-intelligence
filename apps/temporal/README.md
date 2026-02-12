@@ -169,7 +169,7 @@ to the `graphWorkflow` Temporal workflow.
 ### Workflow Input
 
 The `graphWorkflow` input includes the graph definition, initial context, and runner metadata.
-See `docs/DAG_WORKFLOW_ENGINE.md` for the full `GraphWorkflowInput` specification.
+See `docs/graph-workflows/DAG_WORKFLOW_ENGINE.md` for the full `GraphWorkflowInput` specification.
 
 ### Workflow Output
 

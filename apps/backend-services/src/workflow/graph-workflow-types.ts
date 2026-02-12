@@ -3,7 +3,7 @@
  *
  * Defines the complete type system for the DAG workflow engine.
  * These types are shared between backend-services and temporal worker.
- * See docs/DAG_WORKFLOW_ENGINE.md for the full specification.
+ * See docs/graph-workflows/DAG_WORKFLOW_ENGINE.md for the full specification.
  */
 
 // ---------------------------------------------------------------------------
