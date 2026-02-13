@@ -11,12 +11,12 @@ import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { DatabaseService } from "../database/database.service";
 import { AnalyticsService } from "./analytics.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
-import {
-  AnalyticsFilterDto,
-  QueueFilterDto,
-} from "./dto/queue-filter.dto";
+import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
-import { DocumentStatusFilter, ReviewStatusFilter } from "./dto/status-constants.dto";
+import {
+  DocumentStatusFilter,
+  ReviewStatusFilter,
+} from "./dto/status-constants.dto";
 
 interface DocumentWithOcrResult extends Document {
   ocr_result: OcrResult | null;

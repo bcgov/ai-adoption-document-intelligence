@@ -8,7 +8,10 @@ import {
   Max,
   Min,
 } from "class-validator";
-import { DocumentStatusFilter, ReviewStatusFilter } from "./status-constants.dto";
+import {
+  DocumentStatusFilter,
+  ReviewStatusFilter,
+} from "./status-constants.dto";
 
 export class QueueFilterDto {
   @ApiPropertyOptional({
