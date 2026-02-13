@@ -441,4 +441,140 @@ describe("SuggestionService", () => {
     expect(suggestion).toBeDefined();
     expect(suggestion?.value).toBe("123-456-789");
   });
+
+  it("matches table row Worker's Compensation for applicant_workers_compensation", () => {
+    const valueCellPolygon = [495, 95, 530, 95, 530, 125, 495, 125];
+    const suggestions = service.generateSuggestions(
+      {
+        status: "succeeded",
+        createdDateTime: "",
+        lastUpdatedDateTime: "",
+        analyzeResult: {
+          apiVersion: "2024-11-30",
+          modelId: "prebuilt-layout",
+          stringIndexType: "textElements",
+          content: "",
+          pages: [
+            {
+              pageNumber: 1,
+              angle: 0,
+              width: 1000,
+              height: 1000,
+              unit: "pixel",
+              words: [
+                { content: "0", polygon: [500, 98, 510, 98, 510, 118, 500, 118], confidence: 0.99, span: { offset: 10, length: 1 } },
+              ],
+              selectionMarks: [],
+              lines: [],
+              spans: [],
+            },
+          ],
+          tables: [
+            {
+              rowCount: 3,
+              columnCount: 3,
+              boundingRegions: [],
+              spans: [],
+              cells: [
+                { rowIndex: 0, columnIndex: 0, content: "Income", boundingRegions: [{ pageNumber: 1, polygon: [0, 0, 80, 0, 80, 20, 0, 20] }], spans: [], elements: [] },
+                { rowIndex: 0, columnIndex: 1, content: "Applicant", boundingRegions: [{ pageNumber: 1, polygon: [100, 0, 180, 0, 180, 20, 100, 20] }], spans: [], elements: [] },
+                { rowIndex: 0, columnIndex: 2, content: "Spouse", boundingRegions: [{ pageNumber: 1, polygon: [200, 0, 260, 0, 260, 20, 200, 20] }], spans: [], elements: [] },
+                { rowIndex: 1, columnIndex: 0, content: "Worker's Compensation", boundingRegions: [{ pageNumber: 1, polygon: [0, 100, 180, 100, 180, 120, 0, 120] }], spans: [], elements: [] },
+                { rowIndex: 1, columnIndex: 1, content: "$ 0", boundingRegions: [{ pageNumber: 1, polygon: valueCellPolygon }], spans: [], elements: [] },
+                { rowIndex: 1, columnIndex: 2, content: "", boundingRegions: [], spans: [], elements: [] },
+              ],
+            },
+          ],
+          paragraphs: [],
+          styles: [],
+          contentFormat: "text",
+          sections: [],
+          figures: [],
+        },
+      },
+      [
+        {
+          id: "f1",
+          project_id: "p1",
+          field_key: "applicant_workers_compensation",
+          field_type: FieldType.number,
+          field_format: null,
+          display_order: 0,
+        },
+      ],
+    );
+
+    const suggestion = suggestions.find((s) => s.field_key === "applicant_workers_compensation");
+    expect(suggestion).toBeDefined();
+    expect(suggestion?.source_type).toBe("tableCellToWords");
+    expect(suggestion?.value).toBe("0");
+  });
+
+  it("matches table row Income of Dependent Children for applicant_income_of_dependent_children", () => {
+    const valueCellPolygon = [495, 95, 530, 95, 530, 125, 495, 125];
+    const suggestions = service.generateSuggestions(
+      {
+        status: "succeeded",
+        createdDateTime: "",
+        lastUpdatedDateTime: "",
+        analyzeResult: {
+          apiVersion: "2024-11-30",
+          modelId: "prebuilt-layout",
+          stringIndexType: "textElements",
+          content: "",
+          pages: [
+            {
+              pageNumber: 1,
+              angle: 0,
+              width: 1000,
+              height: 1000,
+              unit: "pixel",
+              words: [
+                { content: "0", polygon: [500, 98, 510, 98, 510, 118, 500, 118], confidence: 0.99, span: { offset: 10, length: 1 } },
+              ],
+              selectionMarks: [],
+              lines: [],
+              spans: [],
+            },
+          ],
+          tables: [
+            {
+              rowCount: 3,
+              columnCount: 3,
+              boundingRegions: [],
+              spans: [],
+              cells: [
+                { rowIndex: 0, columnIndex: 0, content: "Income", boundingRegions: [{ pageNumber: 1, polygon: [0, 0, 80, 0, 80, 20, 0, 20] }], spans: [], elements: [] },
+                { rowIndex: 0, columnIndex: 1, content: "Applicant", boundingRegions: [{ pageNumber: 1, polygon: [100, 0, 180, 0, 180, 20, 100, 20] }], spans: [], elements: [] },
+                { rowIndex: 0, columnIndex: 2, content: "Spouse", boundingRegions: [{ pageNumber: 1, polygon: [200, 0, 260, 0, 260, 20, 200, 20] }], spans: [], elements: [] },
+                { rowIndex: 1, columnIndex: 0, content: "Income of Dependent Children", boundingRegions: [{ pageNumber: 1, polygon: [0, 100, 250, 100, 250, 120, 0, 120] }], spans: [], elements: [] },
+                { rowIndex: 1, columnIndex: 1, content: "$ 0", boundingRegions: [{ pageNumber: 1, polygon: valueCellPolygon }], spans: [], elements: [] },
+                { rowIndex: 1, columnIndex: 2, content: "", boundingRegions: [], spans: [], elements: [] },
+              ],
+            },
+          ],
+          paragraphs: [],
+          styles: [],
+          contentFormat: "text",
+          sections: [],
+          figures: [],
+        },
+      },
+      [
+        {
+          id: "f1",
+          project_id: "p1",
+          field_key: "applicant_income_of_dependent_children",
+          field_type: FieldType.number,
+          field_format: null,
+          display_order: 0,
+        },
+      ],
+    );
+
+    const suggestion = suggestions.find((s) => s.field_key === "applicant_income_of_dependent_children");
+    expect(suggestion).toBeDefined();
+    expect(suggestion?.source_type).toBe("tableCellToWords");
+    expect(suggestion?.value).toBe("0");
+  });
 });

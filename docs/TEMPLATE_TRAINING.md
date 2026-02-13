@@ -723,7 +723,7 @@ Suggestion source behavior:
   - Suggestions are **skipped when the value has no content** (e.g. empty "Spouse signature" when there is no spouse).
   - For field key `sin`, default key aliases include "social insurance number", "sin number", and "sin #" so OCR keys like "Social Insurance Number" match.
 - Checkbox fields: from ordered `pages[].selectionMarks[]`, mapped by field schema order.
-- Table numeric fields: table cells are detected from `analyzeResult.tables[].cells`, then mapped to overlapping words from `pages[].words[]` (the UI still selects/highlights only words and selection marks).
+- Table numeric fields: table cells are detected from `analyzeResult.tables[].cells`, then mapped to overlapping words from `pages[].words[]` (the UI still selects/highlights only words and selection marks). Row header text is normalized so apostrophes are removed (e.g. "Worker's Compensation" matches the inferred row label "workers compensation" from field key `applicant_workers_compensation`).
 
 #### 3) How saved labels are exported to training format
 

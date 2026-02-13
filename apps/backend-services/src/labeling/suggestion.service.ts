@@ -420,11 +420,16 @@ export class SuggestionService {
         if (!hasAnchor) continue;
       }
 
-      const applicantOrSpouseHeader = table.cells.find((cell) => {
+      let bestColumnHeader: { cell: TableCell; score: number } | null = null;
+      for (const cell of table.cells) {
         const text = this.normalizeText(cell.content ?? "");
-        return text.includes(normalizedColumnLabel);
-      });
-      if (!applicantOrSpouseHeader) continue;
+        const score = this.scoreTextMatch(normalizedColumnLabel, text);
+        if (score > 0 && (!bestColumnHeader || score > bestColumnHeader.score)) {
+          bestColumnHeader = { cell, score };
+        }
+      }
+      if (!bestColumnHeader || bestColumnHeader.score < 0.4) continue;
+      const applicantOrSpouseHeader = bestColumnHeader.cell;
 
       const valueColumnIndex = applicantOrSpouseHeader.columnIndex;
       const rowHeaderCells = table.cells.filter((cell) => cell.columnIndex === 0);
@@ -523,6 +528,7 @@ export class SuggestionService {
   private normalizeText(text: string): string {
     return text
       .toLowerCase()
+      .replace(/[\u2018\u2019']/g, "") // collapse apostrophes so "worker's" -> "workers"
       .replace(/[^a-z0-9\s]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
