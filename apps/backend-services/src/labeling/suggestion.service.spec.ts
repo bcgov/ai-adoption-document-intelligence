@@ -648,4 +648,191 @@ describe("SuggestionService", () => {
     expect(spouseNameSuggestion).toBeDefined();
     expect(spouseNameSuggestion?.value).toBe("Jane");
   });
+
+  it("assigns repeated Date key by document order: first to date, second to spouse_date", () => {
+    const suggestions = service.generateSuggestions(
+      {
+        status: "succeeded",
+        createdDateTime: "",
+        lastUpdatedDateTime: "",
+        analyzeResult: {
+          apiVersion: "2024-11-30",
+          modelId: "prebuilt-layout",
+          stringIndexType: "textElements",
+          content: "Date 2025-Nov-12 Date 2025-Nov-10",
+          pages: [
+            {
+              pageNumber: 1,
+              angle: 0,
+              width: 1000,
+              height: 1000,
+              unit: "pixel",
+              words: [
+                { content: "2025-Nov-12", polygon: [15, 12, 95, 12, 95, 22, 15, 22], confidence: 0.9, span: { offset: 5, length: 11 } },
+                { content: "2025-Nov-10", polygon: [15, 32, 95, 32, 95, 42, 15, 42], confidence: 0.9, span: { offset: 22, length: 11 } },
+              ],
+              selectionMarks: [],
+              lines: [],
+              spans: [],
+            },
+          ],
+          tables: [],
+          paragraphs: [],
+          styles: [],
+          contentFormat: "text",
+          sections: [],
+          figures: [],
+          keyValuePairs: [
+            {
+              key: { content: "Date (yyyy-mmm-dd)", boundingRegions: [], spans: [{ offset: 0, length: 4 }] },
+              value: {
+                content: "2025-Nov-12",
+                boundingRegions: [{ pageNumber: 1, polygon: [10, 10, 100, 10, 100, 25, 10, 25] }],
+                spans: [{ offset: 5, length: 11 }],
+              },
+              confidence: 0.97,
+            },
+            {
+              key: { content: "Date (yyyy-mmm-dd)", boundingRegions: [], spans: [{ offset: 17, length: 4 }] },
+              value: {
+                content: "2025-Nov-10",
+                boundingRegions: [{ pageNumber: 1, polygon: [10, 30, 100, 30, 100, 45, 10, 45] }],
+                spans: [{ offset: 22, length: 11 }],
+              },
+              confidence: 0.97,
+            },
+          ],
+        },
+      },
+      [
+        { id: "f1", project_id: "p1", field_key: "date", field_type: FieldType.date, field_format: "dmy", display_order: 0 },
+        { id: "f2", project_id: "p1", field_key: "spouse_date", field_type: FieldType.date, field_format: "dmy", display_order: 1 },
+      ],
+    );
+
+    const dateSuggestion = suggestions.find((s) => s.field_key === "date");
+    const spouseDateSuggestion = suggestions.find((s) => s.field_key === "spouse_date");
+    expect(dateSuggestion?.value).toBe("2025-Nov-12");
+    expect(spouseDateSuggestion?.value).toBe("2025-Nov-10");
+  });
+
+  it("matches Spouse Telephone to spouse_phone via telephone alias", () => {
+    const suggestions = service.generateSuggestions(
+      {
+        status: "succeeded",
+        createdDateTime: "",
+        lastUpdatedDateTime: "",
+        analyzeResult: {
+          apiVersion: "2024-11-30",
+          modelId: "prebuilt-layout",
+          stringIndexType: "textElements",
+          content: "Spouse Telephone 604-555-1234",
+          pages: [
+            {
+              pageNumber: 1,
+              angle: 0,
+              width: 1000,
+              height: 1000,
+              unit: "pixel",
+              words: [
+                { content: "604-555-1234", polygon: [15, 12, 95, 12, 95, 22, 15, 22], confidence: 0.9, span: { offset: 18, length: 12 } },
+              ],
+              selectionMarks: [],
+              lines: [],
+              spans: [],
+            },
+          ],
+          tables: [],
+          paragraphs: [],
+          styles: [],
+          contentFormat: "text",
+          sections: [],
+          figures: [],
+          keyValuePairs: [
+            {
+              key: { content: "Spouse Telephone", boundingRegions: [{ pageNumber: 1, polygon: [0, 0, 120, 0, 120, 15, 0, 15] }], spans: [] },
+              value: {
+                content: "604-555-1234",
+                boundingRegions: [{ pageNumber: 1, polygon: [10, 10, 100, 10, 100, 25, 10, 25] }],
+                spans: [{ offset: 18, length: 12 }],
+              },
+              confidence: 0.9,
+            },
+          ],
+        },
+      },
+      [
+        { id: "f1", project_id: "p1", field_key: "spouse_phone", field_type: FieldType.string, field_format: null, display_order: 0 },
+      ],
+    );
+
+    const suggestion = suggestions.find((s) => s.field_key === "spouse_phone");
+    expect(suggestion).toBeDefined();
+    expect(suggestion?.value).toBe("604-555-1234");
+  });
+
+  it("assigns second Social Insurance Number to spouse_sin by document order", () => {
+    const suggestions = service.generateSuggestions(
+      {
+        status: "succeeded",
+        createdDateTime: "",
+        lastUpdatedDateTime: "",
+        analyzeResult: {
+          apiVersion: "2024-11-30",
+          modelId: "prebuilt-layout",
+          stringIndexType: "textElements",
+          content: "SIN 111-222-333 SIN 444-555-666",
+          pages: [
+            {
+              pageNumber: 1,
+              angle: 0,
+              width: 1000,
+              height: 1000,
+              unit: "pixel",
+              words: [
+                { content: "111-222-333", polygon: [15, 12, 95, 12, 95, 22, 15, 22], confidence: 0.9, span: { offset: 4, length: 11 } },
+                { content: "444-555-666", polygon: [15, 32, 95, 32, 95, 42, 15, 42], confidence: 0.9, span: { offset: 21, length: 11 } },
+              ],
+              selectionMarks: [],
+              lines: [],
+              spans: [],
+            },
+          ],
+          tables: [],
+          paragraphs: [],
+          styles: [],
+          contentFormat: "text",
+          sections: [],
+          figures: [],
+          keyValuePairs: [
+            {
+              key: { content: "Social Insurance Number", boundingRegions: [], spans: [] },
+              value: {
+                content: "111-222-333",
+                boundingRegions: [{ pageNumber: 1, polygon: [10, 10, 100, 10, 100, 25, 10, 25] }],
+                spans: [{ offset: 4, length: 11 }],
+              },
+              confidence: 0.9,
+            },
+            {
+              key: { content: "Social Insurance Number", boundingRegions: [], spans: [] },
+              value: {
+                content: "444-555-666",
+                boundingRegions: [{ pageNumber: 1, polygon: [10, 30, 100, 30, 100, 45, 10, 45] }],
+                spans: [{ offset: 21, length: 11 }],
+              },
+              confidence: 0.9,
+            },
+          ],
+        },
+      },
+      [
+        { id: "f1", project_id: "p1", field_key: "sin", field_type: FieldType.string, field_format: null, display_order: 0 },
+        { id: "f2", project_id: "p1", field_key: "spouse_sin", field_type: FieldType.string, field_format: null, display_order: 1 },
+      ],
+    );
+
+    expect(suggestions.find((s) => s.field_key === "sin")?.value).toBe("111-222-333");
+    expect(suggestions.find((s) => s.field_key === "spouse_sin")?.value).toBe("444-555-666");
+  });
 });

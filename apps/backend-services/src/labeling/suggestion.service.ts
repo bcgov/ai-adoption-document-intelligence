@@ -191,35 +191,57 @@ export class SuggestionService {
     const keyValuePairs = ocrResult.analyzeResult?.keyValuePairs ?? [];
     if (!keyValuePairs.length) return [];
 
-    const suggestions: LabelSuggestionDto[] = [];
-    for (const field of fieldSchema) {
-      if (field.field_type === FieldType.selectionMark) continue;
-      if (field.field_type === FieldType.number) continue;
+    const kvpEligibleFields = fieldSchema
+      .filter(
+        (f) =>
+          f.field_type !== FieldType.selectionMark && f.field_type !== FieldType.number,
+      )
+      .sort((a, b) => a.display_order - b.display_order);
 
+    const fieldAliases = new Map<string, string[]>();
+    const fieldRules = new Map<string, SuggestionRule | undefined>();
+    for (const field of kvpEligibleFields) {
       const rule = this.getRule(mapping, field.field_key, "keyValuePair");
-      const aliases =
-        rule?.keyAliases && rule.keyAliases.length > 0
+      fieldRules.set(field.field_key, rule);
+      fieldAliases.set(
+        field.field_key,
+        rule?.keyAliases?.length
           ? rule.keyAliases
-          : this.buildFieldAliases(field.field_key);
-      const bestMatch = this.findBestKeyValuePair(aliases, keyValuePairs);
-      if (!bestMatch) continue;
+          : this.buildFieldAliases(field.field_key),
+      );
+    }
 
+    const assignedFields = new Set<string>();
+    const suggestions: LabelSuggestionDto[] = [];
+
+    // Process keyValuePairs in document order so repeated keys (e.g. Date, SIN) assign
+    // first occurrence to first matching field, second to second, etc.
+    for (const pair of keyValuePairs) {
+      const keyText = this.normalizeText(pair.key?.content ?? "");
+      if (!keyText) continue;
+
+      const best = this.findBestFieldForPair(
+        pair,
+        kvpEligibleFields,
+        fieldAliases,
+        assignedFields,
+      );
+      if (!best) continue;
+
+      const { field } = best;
+      const rule = fieldRules.get(field.field_key);
       if (
         rule?.confidenceThreshold !== undefined
-        && bestMatch.confidence < rule.confidenceThreshold
+        && pair.confidence < rule.confidenceThreshold
       ) {
         continue;
       }
 
-      // Use only the value's region: do not fall back to key region, so we never
-      // assign the key label (e.g. "Spouse signature") as the value, and we skip
-      // when there is no value region (e.g. empty spouse signature).
-      const valueRegion = this.getBestRegion(bestMatch.value?.boundingRegions);
-      const valueSpan = bestMatch.value?.spans?.[0];
-      const valueContent = (bestMatch.value?.content ?? "").trim();
+      const valueRegion = this.getBestRegion(pair.value?.boundingRegions);
+      const valueSpan = pair.value?.spans?.[0];
+      const valueContent = (pair.value?.content ?? "").trim();
 
       if (!valueRegion && !valueSpan) continue;
-      // Do not suggest when value has no content (e.g. no spouse signature on form).
       if (!valueContent) continue;
 
       const matchedWords = valueSpan
@@ -231,11 +253,12 @@ export class SuggestionService {
       if (!region) continue;
 
       matchedWords.forEach((word) => usedWordIds.add(word.id));
+      assignedFields.add(field.field_key);
       const valueText =
-        bestMatch.value?.content
+        pair.value?.content
         ?? matchedWords.map((word) => word.content).join(" ");
+      const suggestionSpan = pair.value?.spans?.[0] ?? pair.key?.spans?.[0];
 
-      const suggestionSpan = bestMatch.value?.spans?.[0] ?? bestMatch.key?.spans?.[0];
       suggestions.push({
         field_key: field.field_key,
         label_name: field.field_key,
@@ -247,11 +270,59 @@ export class SuggestionService {
           span: suggestionSpan,
         },
         source_type: "keyValuePair",
-        confidence: bestMatch.confidence,
-        explanation: `Matched key "${bestMatch.key.content}" from keyValuePairs`,
+        confidence: pair.confidence,
+        explanation: `Matched key "${pair.key?.content}" from keyValuePairs`,
       });
     }
     return suggestions;
+  }
+
+  /** Find the best unassigned field for this keyValuePair (by score, then alias length, then schema order). */
+  private findBestFieldForPair(
+    pair: KeyValuePair,
+    fields: FieldDefinition[],
+    fieldAliases: Map<string, string[]>,
+    assignedFields: Set<string>,
+  ): { field: FieldDefinition; score: number; aliasLength: number } | null {
+    const keyText = this.normalizeText(pair.key?.content ?? "");
+    if (!keyText) return null;
+
+    let best: {
+      field: FieldDefinition;
+      score: number;
+      aliasLength: number;
+    } | null = null;
+
+    for (const field of fields) {
+      if (assignedFields.has(field.field_key)) continue;
+
+      const aliases = fieldAliases.get(field.field_key) ?? [];
+      let score = 0;
+      let bestAliasLength = 0;
+      for (const alias of aliases) {
+        const aliasNorm = this.normalizeText(alias);
+        const s = this.scoreTextMatch(aliasNorm, keyText);
+        if (s > score || (s === score && aliasNorm.length > bestAliasLength)) {
+          score = s;
+          bestAliasLength = aliasNorm.length;
+        }
+      }
+
+      if (score < 0.45) continue;
+
+      const prefer =
+        !best
+        || score > best.score
+        || (score === best.score && bestAliasLength > best.aliasLength)
+        || (score === best.score
+          && bestAliasLength === best.aliasLength
+          && field.display_order < best.field.display_order);
+      if (prefer) {
+        best = { field, score, aliasLength: bestAliasLength };
+      }
+    }
+
+    return best;
   }
 
   private suggestFromTables(
@@ -404,10 +475,13 @@ export class SuggestionService {
     }
 
     // Common form label aliases for known field keys (OCR often uses full labels).
-    if (fieldKey === "sin") {
+    if (fieldKey === "sin" || fieldKey === "spouse_sin") {
       aliases.add("social insurance number");
       aliases.add("sin number");
       aliases.add("sin #");
+    }
+    if (fieldKey === "phone" || fieldKey === "spouse_phone") {
+      aliases.add("telephone");
     }
 
     return [...aliases];
