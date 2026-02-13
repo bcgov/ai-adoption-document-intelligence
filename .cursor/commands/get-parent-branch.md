@@ -34,6 +34,13 @@ Interaction flow:
        - git config remote.pushDefault origin
      - Also set this branch's push remote explicitly:
        - git config branch.BRANCH.pushRemote origin
+     - Validate push routing before any push:
+       - git config --get remote.pushDefault
+       - git config --get branch.BRANCH.pushRemote
+       - git rev-parse --abbrev-ref --symbolic-full-name @{push}
+     - If push target is not origin/BRANCH, stop and fix before pushing:
+       - git config remote.pushDefault origin
+       - git config branch.BRANCH.pushRemote origin
    - First push (creates branch on origin; -u sets upstream to origin/BRANCH, which overwrites the upstream tracking above):
      - git push -u origin BRANCH
    - Re-set pull-tracking to upstream (so pull/rebase use the parent, not the fork):
@@ -41,9 +48,11 @@ Interaction flow:
 
 Guardrails:
 - Never push to upstream.
+- Never use a bare `git push` until push-target checks confirm it resolves to origin/BRANCH.
 - Before any command that changes git config or resets commits, show the exact command and ask for confirmation.
 - After setup, show: git status, git remote -v, and:
   - git rev-parse --abbrev-ref --symbolic-full-name @{u}
+  - git rev-parse --abbrev-ref --symbolic-full-name @{push}
   - git config --get remote.pushDefault
   - git config --get branch.$(git branch --show-current).pushRemote
 and explain what each means in 1 line.
