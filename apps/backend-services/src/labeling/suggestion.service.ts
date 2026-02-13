@@ -336,27 +336,17 @@ export class SuggestionService {
   private buildFieldAliases(fieldKey: string): string[] {
     const aliases = new Set<string>();
     aliases.add(fieldKey);
+    aliases.add(fieldKey.replace(/_/g, " "));
 
-    const normalizedKey = fieldKey.replace(/^applicant_/, "").replace(/^spouse_/, "");
-    aliases.add(normalizedKey);
-    aliases.add(normalizedKey.replace(/_/g, " "));
+    const parts = fieldKey.split("_").filter(Boolean);
+    if (parts.length > 1) {
+      const withoutPrefix = parts.slice(1).join("_");
+      aliases.add(withoutPrefix);
+      aliases.add(withoutPrefix.replace(/_/g, " "));
 
-    const explicitAliases: Record<string, string[]> = {
-      name: ["applicant print name", "applicant name", "print name"],
-      spouse_name: ["spouse print name", "spouse name"],
-      phone: ["applicant telephone", "applicant phone", "telephone"],
-      spouse_phone: ["spouse telephone", "spouse phone"],
-      sin: ["social insurance number", "sin", "applicant sin"],
-      spouse_sin: ["spouse social insurance number", "spouse sin"],
-      signature: ["applicant signature", "signature"],
-      spouse_signature: ["spouse signature"],
-      date: ["date", "applicant date"],
-      spouse_date: ["spouse date"],
-      explain_changes: ["explain changes", "please explain", "describe changes"],
-    };
-
-    for (const alias of explicitAliases[fieldKey] ?? []) {
-      aliases.add(alias);
+      const withoutSuffix = parts.slice(0, -1).join("_");
+      aliases.add(withoutSuffix);
+      aliases.add(withoutSuffix.replace(/_/g, " "));
     }
 
     return [...aliases];
@@ -364,20 +354,22 @@ export class SuggestionService {
 
   private parseTableFieldKey(
     fieldKey: string,
-  ): { columnLabel: "Applicant" | "Spouse"; rowLabel: string } | null {
-    if (fieldKey.startsWith("applicant_")) {
-      return {
-        columnLabel: "Applicant",
-        rowLabel: fieldKey.replace("applicant_", "").replace(/_/g, " "),
-      };
-    }
-    if (fieldKey.startsWith("spouse_")) {
-      return {
-        columnLabel: "Spouse",
-        rowLabel: fieldKey.replace("spouse_", "").replace(/_/g, " "),
-      };
-    }
-    return null;
+  ): { columnLabel: string; rowLabel: string } | null {
+    const parts = fieldKey.split("_").filter(Boolean);
+    if (parts.length < 2) return null;
+
+    const columnLabel = parts[0]
+      .split(" ")
+      .map((part) =>
+        part.length > 0
+          ? `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`
+          : part,
+      )
+      .join(" ");
+    const rowLabel = parts.slice(1).join(" ").trim();
+    if (!columnLabel || !rowLabel) return null;
+
+    return { columnLabel, rowLabel };
   }
 
   private getRule(
