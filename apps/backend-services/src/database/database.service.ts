@@ -1,7 +1,5 @@
 import {
   CorrectionAction,
-  ClassifierSource,
-  ClassifierStatus,
   Document,
   DocumentLabel,
   DocumentStatus,

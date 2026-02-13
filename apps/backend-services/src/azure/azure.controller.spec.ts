@@ -271,7 +271,8 @@ describe("AzureController", () => {
   describe("getClassificationResult", () => {
     it("should call pollOperationUntilResolved and return value", async () => {
       azureService.pollOperationUntilResolved.mockImplementation(
-        async (_loc: any, onSuccess: (arg0: { result: string; }) => any) => onSuccess({ result: "ok" }),
+        async (_loc: any, onSuccess: (arg0: { result: string }) => any) =>
+          onSuccess({ result: "ok" }),
       );
       const query = { operationLocation: "loc" };
       const result = await controller.getClassificationResult(query);
@@ -279,8 +280,13 @@ describe("AzureController", () => {
     });
     it("should throw error if pollOperationUntilResolved fails", async () => {
       azureService.pollOperationUntilResolved.mockImplementation(
-        async (_loc: any, _onSuccess: any, onFailure: (arg0: { error: { code: string; message: string; }; }) => any) =>
-          onFailure({ error: { code: "fail", message: "fail" } }),
+        async (
+          _loc: any,
+          _onSuccess: any,
+          onFailure: (arg0: {
+            error: { code: string; message: string };
+          }) => any,
+        ) => onFailure({ error: { code: "fail", message: "fail" } }),
       );
       const query = { operationLocation: "loc" };
       await expect(controller.getClassificationResult(query)).rejects.toThrow(
@@ -355,8 +361,13 @@ describe("AzureController", () => {
         operation_location: "loc",
       });
       azureService.pollOperationUntilResolved.mockImplementation(
-        async (_loc: any, _onSuccess: any, onFailure: (arg0: { error: { code: string; message: string; }; }) => any) =>
-          onFailure({ error: { code: "fail", message: "fail" } }),
+        async (
+          _loc: any,
+          _onSuccess: any,
+          onFailure: (arg0: {
+            error: { code: string; message: string };
+          }) => any,
+        ) => onFailure({ error: { code: "fail", message: "fail" } }),
       );
       const req = { user: { sub: "user1" } };
       await expect(
