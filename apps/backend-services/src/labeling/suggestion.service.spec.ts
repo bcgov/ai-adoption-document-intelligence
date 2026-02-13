@@ -579,4 +579,73 @@ describe("SuggestionService", () => {
     expect(suggestion?.source_type).toBe("tableCellToWords");
     expect(suggestion?.value).toBe("0");
   });
+
+  it("matches Applicant Print Name to name and Spouse Print Name to spouse_name (tie-break by longer alias)", () => {
+    const suggestions = service.generateSuggestions(
+      {
+        status: "succeeded",
+        createdDateTime: "",
+        lastUpdatedDateTime: "",
+        analyzeResult: {
+          apiVersion: "2024-11-30",
+          modelId: "prebuilt-layout",
+          stringIndexType: "textElements",
+          content: "Applicant Print Name John Spouse Print Name Jane",
+          pages: [
+            {
+              pageNumber: 1,
+              angle: 0,
+              width: 1000,
+              height: 1000,
+              unit: "pixel",
+              words: [
+                { content: "John", polygon: [15, 12, 45, 12, 45, 22, 15, 22], confidence: 0.9, span: { offset: 20, length: 4 } },
+                { content: "Jane", polygon: [15, 32, 42, 32, 42, 42, 15, 42], confidence: 0.9, span: { offset: 45, length: 4 } },
+              ],
+              selectionMarks: [],
+              lines: [],
+              spans: [],
+            },
+          ],
+          tables: [],
+          paragraphs: [],
+          styles: [],
+          contentFormat: "text",
+          sections: [],
+          figures: [],
+          keyValuePairs: [
+            {
+              key: { content: "Applicant Print Name", boundingRegions: [{ pageNumber: 1, polygon: [0, 0, 100, 0, 100, 15, 0, 15] }], spans: [{ offset: 0, length: 19 }] },
+              value: {
+                content: "John",
+                boundingRegions: [{ pageNumber: 1, polygon: [10, 10, 50, 10, 50, 25, 10, 25] }],
+                spans: [{ offset: 20, length: 4 }],
+              },
+              confidence: 0.9,
+            },
+            {
+              key: { content: "Spouse Print Name", boundingRegions: [{ pageNumber: 1, polygon: [0, 26, 120, 26, 120, 41, 0, 41] }], spans: [{ offset: 25, length: 18 }] },
+              value: {
+                content: "Jane",
+                boundingRegions: [{ pageNumber: 1, polygon: [10, 30, 45, 30, 45, 45, 10, 45] }],
+                spans: [{ offset: 44, length: 4 }],
+              },
+              confidence: 0.9,
+            },
+          ],
+        },
+      },
+      [
+        { id: "f1", project_id: "p1", field_key: "name", field_type: FieldType.string, field_format: null, display_order: 0 },
+        { id: "f2", project_id: "p1", field_key: "spouse_name", field_type: FieldType.string, field_format: null, display_order: 1 },
+      ],
+    );
+
+    const nameSuggestion = suggestions.find((s) => s.field_key === "name");
+    const spouseNameSuggestion = suggestions.find((s) => s.field_key === "spouse_name");
+    expect(nameSuggestion).toBeDefined();
+    expect(nameSuggestion?.value).toBe("John");
+    expect(spouseNameSuggestion).toBeDefined();
+    expect(spouseNameSuggestion?.value).toBe("Jane");
+  });
 });

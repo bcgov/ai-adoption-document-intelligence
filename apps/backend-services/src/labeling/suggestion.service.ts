@@ -357,20 +357,30 @@ export class SuggestionService {
     aliases: string[],
     keyValuePairs: KeyValuePair[],
   ): KeyValuePair | null {
-    let best: { pair: KeyValuePair; score: number } | null = null;
+    let best: { pair: KeyValuePair; score: number; aliasLength: number } | null = null;
 
     for (const pair of keyValuePairs) {
       const keyText = this.normalizeText(pair.key?.content ?? "");
       if (!keyText) continue;
 
       let score = 0;
+      let bestAliasLength = 0;
       for (const alias of aliases) {
         const aliasNorm = this.normalizeText(alias);
-        score = Math.max(score, this.scoreTextMatch(aliasNorm, keyText));
+        const s = this.scoreTextMatch(aliasNorm, keyText);
+        if (s > score || (s === score && aliasNorm.length > bestAliasLength)) {
+          score = s;
+          bestAliasLength = aliasNorm.length;
+        }
       }
 
-      if (score > 0 && (!best || score > best.score)) {
-        best = { pair, score };
+      const prefer =
+        score > 0
+        && (!best
+          || score > best.score
+          || (score === best.score && bestAliasLength > best.aliasLength));
+      if (prefer) {
+        best = { pair, score, aliasLength: bestAliasLength };
       }
     }
 
