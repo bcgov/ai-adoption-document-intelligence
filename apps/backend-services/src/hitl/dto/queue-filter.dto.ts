@@ -57,6 +57,7 @@ export class QueueFilterDto {
   @ApiPropertyOptional({
     description: "Filter by review status",
     enum: ReviewStatusFilter,
+    // biome-ignore lint/security/noSecrets
     enumName: "ReviewStatusFilter",
     default: ReviewStatusFilter.PENDING,
   })

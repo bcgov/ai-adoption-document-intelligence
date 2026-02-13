@@ -47,6 +47,7 @@ export class HitlController {
     name: "reviewStatus",
     required: false,
     enum: ReviewStatusFilter,
+    // biome-ignore lint/security/noSecrets
     enumName: "ReviewStatusFilter",
     description: "Filter by review status",
   })
