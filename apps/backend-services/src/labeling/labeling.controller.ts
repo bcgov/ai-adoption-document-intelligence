@@ -28,7 +28,6 @@ import {
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
-import { UpdateSuggestionMappingDto } from "./dto/suggestion-mapping.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { LabelingService } from "./labeling.service";
 
@@ -93,26 +92,6 @@ export class LabelingController {
     return this.labelingService.updateProject(id, dto);
   }
 
-  @Get("projects/:id/suggestion-mapping")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Get project suggestion mapping" })
-  @ApiParam({ name: "id", description: "Project ID" })
-  async getSuggestionMapping(@Param("id") projectId: string) {
-    return this.labelingService.getSuggestionMapping(projectId);
-  }
-
-  @Put("projects/:id/suggestion-mapping")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Update project suggestion mapping" })
-  @ApiParam({ name: "id", description: "Project ID" })
-  async updateSuggestionMapping(
-    @Param("id") projectId: string,
-    @Body() dto: UpdateSuggestionMappingDto,
-  ) {
-    return this.labelingService.updateSuggestionMapping(projectId, dto);
-  }
 
   @Delete("projects/:id")
   @ApiKeyAuth()

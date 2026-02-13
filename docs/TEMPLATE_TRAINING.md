@@ -703,9 +703,34 @@ The labeling workspace now supports suggestion loading to reduce first-document 
   - `Load suggestions`: regenerate and apply suggestions.
   - `Reset`: clear current in-memory assignments.
 
-Project-level suggestion behavior is configurable in the Labeling Project detail page under the `Suggestions` tab, where users can define per-field rules (KVP aliases, selection order, table row/column hints, and overlap thresholds).
+**Note:** The suggestion system uses **default heuristics only** (no configuration UI). The current implementation is **brittle and tuned for SDPR forms**. Making it more generic is a **TODO**. Also, `fields.json` generation is currently done manually or with VLM as a beginner for SDPR case - standardizing this process is a **TODO**.
 
 Suggestions are applied to the same assignment state used by manual clicks, so highlighted boxes look identical to user-selected boxes.
+
+**How the suggestion system works:**
+
+The suggestion engine (`SuggestionService`) processes OCR data in three phases:
+
+1. **Selection marks** (checkboxes): Maps `FieldType.selectionMark` fields to selection marks by schema `display_order` (first field → first mark, second → second, etc.). Marks are sorted by page then `span.offset` (reading order). Output: `{ field_key, value: "selected"|"unselected", element_ids: [markId] }`.
+
+2. **Key-value pairs** (labeled fields): Processes `analyzeResult.keyValuePairs` in **document order**. For each pair:
+   - Generates field aliases from field key (e.g. `spouse_name` → `["spouse_name", "spouse name", "name", "spouse"]`). Special cases: `sin`/`spouse_sin` get "social insurance number" aliases; `phone`/`spouse_phone` get "telephone" alias.
+   - Scores each unassigned field's aliases against OCR key using text matching (exact=1.0, substring=0.8, token overlap=Jaccard). Minimum score: 0.45.
+   - Assigns pair to best matching field (tie-break: longer alias, then schema order). This ensures repeated keys (e.g. "Date", "Social Insurance Number") assign first occurrence → first field, second → second field.
+   - Matches words in value region: prefers **span-based matching** (if value has `spans`) to include all value words; falls back to polygon IoU. **Only uses value region** (never key region). **Skips if value is empty**.
+   - Output: `{ field_key, value, element_ids: [wordIds...], source_type: "keyValuePair" }`.
+
+3. **Table cells** (numeric values): Processes `FieldType.number` fields. For each field:
+   - Infers row/column from field key: `applicant_workers_compensation` → row "workers compensation", column "Applicant".
+   - Finds matching table: scores column headers (threshold 0.4), scores row headers (threshold 0.4, normalizes apostrophes). Gets value cell at intersection.
+   - Matches words in value cell: uses IoU > 0.05 OR containment ≥ 0.5 (for small words like "0" in large cells). **Excludes currency-only words** (`$`, `€`, `£`, `¥`).
+   - Output: `{ field_key, value, element_ids: [wordIds...], source_type: "tableCellToWords" }`.
+
+All suggestions are sorted by `page_number`, then `span.offset` (reading order). Words/selection marks are marked as "used" after assignment to prevent reuse.
+
+**Text normalization:** Lowercase, remove apostrophes (`'` → removed), strip non-alphanumeric to spaces, collapse whitespace. This enables matching like "Worker's Compensation" → "workers compensation".
+
+**Debugging:** Set `LOG_LEVEL=debug` to see detailed logs: `[suggestFromTables]`, `[findTableCellMatch]`, `[matchWordsInRegion]` show matching decisions and scores.
 
 #### 2.2) Field list filtering
 

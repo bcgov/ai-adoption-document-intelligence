@@ -27,7 +27,6 @@ import {
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
-import { UpdateSuggestionMappingDto } from "./dto/suggestion-mapping.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { SuggestionService } from "./suggestion.service";
 
@@ -54,8 +53,6 @@ export class LabelingService {
       name: dto.name,
       description: dto.description,
       created_by: userId,
-      suggestion_mapping:
-        (dto.suggestion_mapping as unknown as Prisma.JsonValue) ?? null,
     });
   }
 
@@ -72,10 +69,6 @@ export class LabelingService {
     this.logger.debug(`Updating project: ${id}`);
     const project = await this.db.updateLabelingProject(id, {
       ...dto,
-      suggestion_mapping:
-        dto.suggestion_mapping === undefined
-          ? undefined
-          : (dto.suggestion_mapping as unknown as Prisma.JsonValue | null),
     });
     if (!project) {
       throw new NotFoundException(`Project with id ${id} not found`);
@@ -83,37 +76,6 @@ export class LabelingService {
     return project;
   }
 
-  async getSuggestionMapping(projectId: string) {
-    this.logger.debug(`Getting suggestion mapping for project: ${projectId}`);
-    const project = await this.db.findLabelingProject(projectId);
-    if (!project) {
-      throw new NotFoundException(`Project with id ${projectId} not found`);
-    }
-    return {
-      project_id: project.id,
-      suggestion_mapping: project.suggestion_mapping ?? null,
-    };
-  }
-
-  async updateSuggestionMapping(
-    projectId: string,
-    dto: UpdateSuggestionMappingDto,
-  ) {
-    this.logger.debug(`Updating suggestion mapping for project: ${projectId}`);
-    const project = await this.db.updateLabelingProject(projectId, {
-      suggestion_mapping:
-        dto.suggestion_mapping === undefined
-          ? undefined
-          : (dto.suggestion_mapping as unknown as Prisma.JsonValue | null),
-    });
-    if (!project) {
-      throw new NotFoundException(`Project with id ${projectId} not found`);
-    }
-    return {
-      project_id: project.id,
-      suggestion_mapping: project.suggestion_mapping ?? null,
-    };
-  }
 
   async deleteProject(id: string) {
     this.logger.debug(`Deleting project: ${id}`);
@@ -365,7 +327,7 @@ export class LabelingService {
     return this.suggestionService.generateSuggestions(
       ocrResult,
       project.field_schema,
-      project.suggestion_mapping as Record<string, unknown> | null,
+      null,
     );
   }
 

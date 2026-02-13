@@ -34,7 +34,6 @@ describe("LabelingService", () => {
     id: "project-1",
     name: "Test Project",
     description: "Test Description",
-    suggestion_mapping: null,
     created_by: "user-1",
     created_at: new Date(),
     updated_at: new Date(),
@@ -203,7 +202,6 @@ describe("LabelingService", () => {
         name: dto.name,
         description: dto.description,
         created_by: "user-1",
-        suggestion_mapping: null,
       });
       expect(result).toEqual(mockProject);
     });
@@ -248,36 +246,6 @@ describe("LabelingService", () => {
       expect(result).toEqual(updatedProject);
     });
 
-    it("should update project suggestion mapping when provided", async () => {
-      const dto: UpdateProjectDto = {
-        suggestion_mapping: {
-          version: 1,
-          rules: [
-            {
-              fieldKey: "name",
-              sourceType: "keyValuePair",
-              keyAliases: ["applicant print name"],
-            },
-          ],
-        },
-      };
-
-      const updatedProject = {
-        ...mockProject,
-        suggestion_mapping: dto.suggestion_mapping,
-      } as unknown as LabelingProjectData;
-      mockDbService.updateLabelingProject.mockResolvedValueOnce(updatedProject);
-
-      const result = await service.updateProject("project-1", dto);
-
-      expect(mockDbService.updateLabelingProject).toHaveBeenCalledWith(
-        "project-1",
-        expect.objectContaining({
-          suggestion_mapping: dto.suggestion_mapping,
-        }),
-      );
-      expect(result).toEqual(updatedProject);
-    });
 
     it("should throw NotFoundException when project not found", async () => {
       mockDbService.updateLabelingProject.mockResolvedValueOnce(null);
@@ -802,43 +770,6 @@ describe("LabelingService", () => {
     });
   });
 
-  describe("suggestion mapping endpoints in service", () => {
-    it("should get suggestion mapping", async () => {
-      const projectWithMapping = {
-        ...mockProject,
-        suggestion_mapping: { version: 1, rules: [] },
-      };
-      mockDbService.findLabelingProject.mockResolvedValueOnce(projectWithMapping);
-
-      const result = await service.getSuggestionMapping("project-1");
-
-      expect(result).toEqual({
-        project_id: "project-1",
-        suggestion_mapping: { version: 1, rules: [] },
-      });
-    });
-
-    it("should update suggestion mapping", async () => {
-      const updatedProject = {
-        ...mockProject,
-        suggestion_mapping: { version: 1, rules: [] },
-      };
-      mockDbService.updateLabelingProject.mockResolvedValueOnce(updatedProject);
-
-      const result = await service.updateSuggestionMapping("project-1", {
-        suggestion_mapping: { version: 1, rules: [] },
-      });
-
-      expect(mockDbService.updateLabelingProject).toHaveBeenCalledWith(
-        "project-1",
-        { suggestion_mapping: { version: 1, rules: [] } },
-      );
-      expect(result).toEqual({
-        project_id: "project-1",
-        suggestion_mapping: { version: 1, rules: [] },
-      });
-    });
-  });
 
   // ========== EXPORT ==========
 

@@ -39,11 +39,9 @@ import { apiService } from "@/data/services/api.service";
 import type { FieldDefinition } from "../../core/types/field";
 import { ExportPanel } from "../components/ExportPanel";
 import { FieldSchemaEditor } from "../components/FieldSchemaEditor";
-import { SuggestionMappingEditor } from "../components/SuggestionMappingEditor";
 import { TrainingPanel } from "../components/TrainingPanel";
 import { useFieldSchema } from "../hooks/useFieldSchema";
 import { useProject, useProjectDocuments } from "../hooks/useProjects";
-import { useSuggestionMapping } from "../hooks/useSuggestionMapping";
 
 interface LabelingUploadPayload {
   title: string;
@@ -104,12 +102,6 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
     updateField,
     deleteField,
   } = useFieldSchema(projectId);
-  const {
-    suggestionMapping,
-    isLoading: isMappingLoading,
-    updateSuggestionMappingAsync,
-    isUpdating: isUpdatingMapping,
-  } = useSuggestionMapping(projectId);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [schemaEditorOpen, setSchemaEditorOpen] = useState(false);
   const [editingField, setEditingField] = useState<FieldDefinition | null>(
@@ -262,7 +254,6 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
         <Tabs.List>
           <Tabs.Tab value="documents">Documents</Tabs.Tab>
           <Tabs.Tab value="schema">Field Schema</Tabs.Tab>
-          <Tabs.Tab value="suggestions">Suggestions</Tabs.Tab>
           <Tabs.Tab value="export">Export</Tabs.Tab>
           <Tabs.Tab value="training">Training</Tabs.Tab>
         </Tabs.List>
@@ -429,37 +420,6 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
           </Stack>
         </Tabs.Panel>
 
-        <Tabs.Panel value="suggestions" pt="md">
-          <Stack gap="md">
-            <Group justify="space-between">
-              <Text fw={600}>Suggestion mapping</Text>
-            </Group>
-
-            {isSchemaLoading || isMappingLoading ? (
-              <Loader />
-            ) : schema.length === 0 ? (
-              <Paper withBorder p="lg">
-                <Text size="sm" c="dimmed">
-                  Define field schema first, then configure suggestion mapping.
-                </Text>
-              </Paper>
-            ) : (
-              <SuggestionMappingEditor
-                schema={schema}
-                initialMapping={suggestionMapping}
-                isSaving={isUpdatingMapping}
-                onSave={async (mapping) => {
-                  await updateSuggestionMappingAsync(mapping);
-                  notifications.show({
-                    title: "Mapping saved",
-                    message: "Suggestion mapping updated successfully.",
-                    color: "green",
-                  });
-                }}
-              />
-            )}
-          </Stack>
-        </Tabs.Panel>
 
         <Tabs.Panel value="export" pt="md">
           <ExportPanel
