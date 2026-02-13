@@ -1,5 +1,5 @@
 import { FieldDefinition, FieldType } from "@generated/client";
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import {
   AnalysisResponse,
   BoundingRegion,
@@ -48,6 +48,8 @@ type SuggestionMapping = {
 
 @Injectable()
 export class SuggestionService {
+  private readonly logger = new Logger(SuggestionService.name);
+
   generateSuggestions(
     ocrResult: AnalysisResponse,
     fieldSchema: FieldDefinition[],
@@ -260,6 +262,7 @@ export class SuggestionService {
     mapping?: SuggestionMapping | null,
   ): LabelSuggestionDto[] {
     const tables = ocrResult.analyzeResult?.tables ?? [];
+    this.logger.debug(`[suggestFromTables] tables=${tables.length}, words=${words.length}`);
     if (!tables.length) return [];
 
     const suggestions: LabelSuggestionDto[] = [];
@@ -279,7 +282,10 @@ export class SuggestionService {
       const columnLabel = rule?.table?.columnLabel ?? inferred?.columnLabel;
       const anchorText = rule?.table?.anchorText;
       const overlapThreshold = rule?.table?.wordOverlapThreshold ?? 0.05;
-      if (!columnLabel || rowLabelAliases.length === 0) continue;
+      if (!columnLabel || rowLabelAliases.length === 0) {
+        this.logger.debug(`[suggestFromTables] skip ${field.field_key}: no columnLabel or rowLabelAliases`);
+        continue;
+      }
 
       const tableMatch = this.findTableCellMatch(
         tables,
@@ -287,18 +293,43 @@ export class SuggestionService {
         columnLabel,
         anchorText,
       );
-      if (!tableMatch?.valueCell) continue;
+      if (!tableMatch?.valueCell) {
+        this.logger.debug(`[suggestFromTables] ${field.field_key}: no table match (rowLabels=[${rowLabelAliases.join(",")}], column=${columnLabel})`);
+        continue;
+      }
+
+      this.logger.debug(`[suggestFromTables] ${field.field_key}: matched row "${tableMatch.rowHeader.content}" col ${tableMatch.valueCell.columnIndex}, valueCell.content="${tableMatch.valueCell.content}"`);
 
       const region = this.getBestRegion(tableMatch.valueCell.boundingRegions);
-      if (!region) continue;
+      if (!region) {
+        this.logger.debug(`[suggestFromTables] ${field.field_key}: value cell has no boundingRegions`);
+        continue;
+      }
 
-      const matchedWords = this.matchWordsInRegion(
+      let matchedWords = this.matchWordsInRegion(
         words,
         region,
         usedWordIds,
         overlapThreshold,
+        true,
       );
-      if (!matchedWords.length) continue;
+      if (!matchedWords.length) {
+        const pageWords = words.filter((w) => w.pageNumber === region.pageNumber);
+        const usedOnPage = pageWords.filter((w) => usedWordIds.has(w.id)).length;
+        this.logger.debug(
+          `[suggestFromTables] ${field.field_key}: no words in region (page=${region.pageNumber}, ` +
+            `regionPolygon=[${region.polygon.slice(0, 4).join(",")}...], ` +
+            `pageWords=${pageWords.length}, usedOnPage=${usedOnPage})`,
+        );
+        continue;
+      }
+
+      // Exclude currency-only tokens (e.g. "$") so we suggest only the numeric value.
+      matchedWords = matchedWords.filter((word) => !this.isCurrencyOnlyWord(word.content));
+      if (!matchedWords.length) {
+        this.logger.debug(`[suggestFromTables] ${field.field_key}: only currency symbols in cell, skipping`);
+        continue;
+      }
 
       matchedWords.forEach((word) => usedWordIds.add(word.id));
       const valueText = matchedWords.map((word) => word.content).join(" ").trim();
@@ -412,7 +443,8 @@ export class SuggestionService {
     const normalizedColumnLabel = this.normalizeText(columnLabel);
     const normalizedAnchor = anchorText ? this.normalizeText(anchorText) : null;
 
-    for (const table of tables) {
+    for (let ti = 0; ti < tables.length; ti++) {
+      const table = tables[ti];
       if (normalizedAnchor) {
         const hasAnchor = table.cells.some((cell) =>
           this.normalizeText(cell.content ?? "").includes(normalizedAnchor),
@@ -428,7 +460,10 @@ export class SuggestionService {
           bestColumnHeader = { cell, score };
         }
       }
-      if (!bestColumnHeader || bestColumnHeader.score < 0.4) continue;
+      if (!bestColumnHeader || bestColumnHeader.score < 0.4) {
+        this.logger.debug(`[findTableCellMatch] table ${ti}: no column match for "${columnLabel}" (bestScore=${bestColumnHeader?.score ?? 0})`);
+        continue;
+      }
       const applicantOrSpouseHeader = bestColumnHeader.cell;
 
       const valueColumnIndex = applicantOrSpouseHeader.columnIndex;
@@ -445,15 +480,22 @@ export class SuggestionService {
           bestRow = { cell: rowHeader, score };
         }
       }
-      if (!bestRow || bestRow.score < 0.4) continue;
+      if (!bestRow || bestRow.score < 0.4) {
+        this.logger.debug(`[findTableCellMatch] table ${ti}: no row match for [${rowLabels.join("|")}] (bestScore=${bestRow?.score ?? 0}, rowHeaderCells=${rowHeaderCells.length})`);
+        continue;
+      }
 
       const valueCell = table.cells.find(
         (cell) =>
           cell.rowIndex === bestRow.cell.rowIndex
           && cell.columnIndex === valueColumnIndex,
       );
-      if (!valueCell) continue;
+      if (!valueCell) {
+        this.logger.debug(`[findTableCellMatch] table ${ti}: no value cell at row ${bestRow.cell.rowIndex} col ${valueColumnIndex}`);
+        continue;
+      }
 
+      this.logger.debug(`[findTableCellMatch] table ${ti}: matched row "${bestRow.cell.content}" (rowIndex=${bestRow.cell.rowIndex}) col ${valueColumnIndex}`);
       return { rowHeader: bestRow.cell, valueCell };
     }
 
@@ -465,21 +507,52 @@ export class SuggestionService {
     region: BoundingRegion,
     usedWordIds: Set<string>,
     overlapThreshold = 0.05,
+    useContainment = false,
   ): WordElement[] {
     const candidates = words.filter((word) => word.pageNumber === region.pageNumber);
+    const regionRect = this.toBoundingRect(region.polygon);
     const withOverlap = candidates
-      .map((word) => ({
-        word,
-        overlap: this.computeIoU(region.polygon, word.polygon),
-      }))
+      .map((word) => {
+        const overlap = this.computeIoU(region.polygon, word.polygon);
+        let containment = 0;
+        if (useContainment && regionRect) {
+          const wordRect = this.toBoundingRect(word.polygon);
+          if (wordRect) {
+            const left = Math.max(regionRect.minX, wordRect.minX);
+            const right = Math.min(regionRect.maxX, wordRect.maxX);
+            const top = Math.max(regionRect.minY, wordRect.minY);
+            const bottom = Math.min(regionRect.maxY, wordRect.maxY);
+            if (right > left && bottom > top) {
+              const intersection = (right - left) * (bottom - top);
+              const wordArea = (wordRect.maxX - wordRect.minX) * (wordRect.maxY - wordRect.minY);
+              containment = wordArea > 0 ? intersection / wordArea : 0;
+            }
+          }
+        }
+        return { word, overlap, containment };
+      })
       .filter(
-        ({ overlap, word }) => overlap > overlapThreshold && !usedWordIds.has(word.id),
+        ({ overlap, containment, word }) => {
+          if (usedWordIds.has(word.id)) return false;
+          if (overlap > overlapThreshold) return true;
+          if (useContainment && containment >= 0.5) return true;
+          return false;
+        },
       )
       .sort((a, b) => {
-        if (b.overlap !== a.overlap) return b.overlap - a.overlap;
+        const scoreA = Math.max(a.overlap, a.containment);
+        const scoreB = Math.max(b.overlap, b.containment);
+        if (scoreB !== scoreA) return scoreB - scoreA;
         return a.word.spanOffset - b.word.spanOffset;
       });
 
+    if (useContainment && withOverlap.length > 0) {
+      this.logger.debug(
+        `[matchWordsInRegion] containment: matched ${withOverlap.length} words, ` +
+          `overlaps=[${withOverlap.map((e) => e.overlap.toFixed(3)).join(",")}], ` +
+          `containments=[${withOverlap.map((e) => e.containment.toFixed(3)).join(",")}]`,
+      );
+    }
     return withOverlap.map((entry) => entry.word);
   }
 
@@ -523,6 +596,13 @@ export class SuggestionService {
   private getBestRegion(regions?: BoundingRegion[]): BoundingRegion | null {
     if (!regions?.length) return null;
     return regions[0] ?? null;
+  }
+
+  /** True if the word is only a currency symbol (e.g. "$"), so we skip it for numeric table values. */
+  private isCurrencyOnlyWord(content: string): boolean {
+    const t = content.trim();
+    if (!t) return false;
+    return /^[\$€£¥]+$/.test(t);
   }
 
   private normalizeText(text: string): string {

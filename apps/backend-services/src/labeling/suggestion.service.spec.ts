@@ -253,6 +253,8 @@ describe("SuggestionService", () => {
     expect(suggestion).toBeDefined();
     expect(suggestion?.element_ids.length).toBeGreaterThan(0);
     expect(suggestion?.source_type).toBe("tableCellToWords");
+    expect(suggestion?.value).toBe("0");
+    expect(suggestion?.value).not.toContain("$");
   });
 
   it("matches all value words by span when KVP value has spans (e.g. explain_changes)", () => {
