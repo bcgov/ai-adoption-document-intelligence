@@ -718,6 +718,10 @@ The labeling Fields panel includes a search box above the field list:
 Suggestion source behavior:
 
 - Key-value fields: from `analyzeResult.keyValuePairs`, mapped to existing word boxes.
+  - Only the **value** bounding region is used; the key region is never used for assigning words (so the key label text is never suggested as the value).
+  - When the KVP value has **spans** (character offset/length), words are matched by span overlap so multi-line or large value regions (e.g. "Explain changes") include all value words, not only those overlapping the value polygon.
+  - Suggestions are **skipped when the value has no content** (e.g. empty "Spouse signature" when there is no spouse).
+  - For field key `sin`, default key aliases include "social insurance number", "sin number", and "sin #" so OCR keys like "Social Insurance Number" match.
 - Checkbox fields: from ordered `pages[].selectionMarks[]`, mapped by field schema order.
 - Table numeric fields: table cells are detected from `analyzeResult.tables[].cells`, then mapped to overlapping words from `pages[].words[]` (the UI still selects/highlights only words and selection marks).
 

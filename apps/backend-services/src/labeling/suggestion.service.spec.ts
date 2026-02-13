@@ -254,4 +254,191 @@ describe("SuggestionService", () => {
     expect(suggestion?.element_ids.length).toBeGreaterThan(0);
     expect(suggestion?.source_type).toBe("tableCellToWords");
   });
+
+  it("matches all value words by span when KVP value has spans (e.g. explain_changes)", () => {
+    const suggestions = service.generateSuggestions(
+      {
+        status: "succeeded",
+        createdDateTime: "",
+        lastUpdatedDateTime: "",
+        analyzeResult: {
+          apiVersion: "2024-11-30",
+          modelId: "prebuilt-layout",
+          stringIndexType: "textElements",
+          content: "Explain:\nLine one text.\nLine two text.",
+          pages: [
+            {
+              pageNumber: 1,
+              angle: 0,
+              width: 1000,
+              height: 1000,
+              unit: "pixel",
+              words: [
+                { content: "Line", polygon: [10, 10, 40, 10, 40, 20, 10, 20], confidence: 0.9, span: { offset: 8, length: 4 } },
+                { content: "one", polygon: [42, 10, 65, 10, 65, 20, 42, 20], confidence: 0.9, span: { offset: 13, length: 3 } },
+                { content: "text.", polygon: [67, 10, 95, 10, 95, 20, 67, 20], confidence: 0.9, span: { offset: 17, length: 5 } },
+                { content: "Line", polygon: [10, 25, 40, 25, 40, 35, 10, 35], confidence: 0.9, span: { offset: 23, length: 4 } },
+                { content: "two", polygon: [42, 25, 65, 25, 65, 35, 42, 35], confidence: 0.9, span: { offset: 28, length: 3 } },
+                { content: "text.", polygon: [67, 25, 95, 25, 95, 35, 67, 35], confidence: 0.9, span: { offset: 32, length: 5 } },
+              ],
+              selectionMarks: [],
+              lines: [],
+              spans: [],
+            },
+          ],
+          tables: [],
+          paragraphs: [],
+          styles: [],
+          contentFormat: "text",
+          sections: [],
+          figures: [],
+          keyValuePairs: [
+            {
+              key: { content: "Explain", boundingRegions: [{ pageNumber: 1, polygon: [0, 0, 50, 0, 50, 15, 0, 15] }], spans: [{ offset: 0, length: 7 }] },
+              value: {
+                content: "Line one text. Line two text.",
+                boundingRegions: [{ pageNumber: 1, polygon: [10, 10, 95, 10, 95, 35, 10, 35] }],
+                spans: [{ offset: 8, length: 30 }],
+              },
+              confidence: 0.9,
+            },
+          ],
+        },
+      },
+      [
+        {
+          id: "f1",
+          project_id: "p1",
+          field_key: "explain_changes",
+          field_type: FieldType.string,
+          field_format: null,
+          display_order: 0,
+        },
+      ],
+    );
+
+    const suggestion = suggestions.find((s) => s.field_key === "explain_changes");
+    expect(suggestion).toBeDefined();
+    expect(suggestion?.element_ids).toHaveLength(6);
+    expect(suggestion?.value).toBe("Line one text. Line two text.");
+  });
+
+  it("skips KVP suggestion when value has no content (e.g. no spouse signature)", () => {
+    const suggestions = service.generateSuggestions(
+      {
+        status: "succeeded",
+        createdDateTime: "",
+        lastUpdatedDateTime: "",
+        analyzeResult: {
+          apiVersion: "2024-11-30",
+          modelId: "prebuilt-layout",
+          stringIndexType: "textElements",
+          content: "Spouse signature",
+          pages: [
+            {
+              pageNumber: 1,
+              angle: 0,
+              width: 1000,
+              height: 1000,
+              unit: "pixel",
+              words: [
+                { content: "Spouse", polygon: [10, 10, 60, 10, 60, 20, 10, 20], confidence: 0.9, span: { offset: 0, length: 6 } },
+                { content: "signature", polygon: [62, 10, 130, 10, 130, 20, 62, 20], confidence: 0.9, span: { offset: 7, length: 9 } },
+              ],
+              selectionMarks: [],
+              lines: [],
+              spans: [],
+            },
+          ],
+          tables: [],
+          paragraphs: [],
+          styles: [],
+          contentFormat: "text",
+          sections: [],
+          figures: [],
+          keyValuePairs: [
+            {
+              key: { content: "Spouse signature", boundingRegions: [{ pageNumber: 1, polygon: [10, 10, 130, 10, 130, 20, 10, 20] }], spans: [{ offset: 0, length: 16 }] },
+              value: { content: "", boundingRegions: [], spans: [] },
+              confidence: 0.9,
+            },
+          ],
+        },
+      },
+      [
+        {
+          id: "f1",
+          project_id: "p1",
+          field_key: "spouse_signature",
+          field_type: FieldType.string,
+          field_format: null,
+          display_order: 0,
+        },
+      ],
+    );
+
+    expect(suggestions.find((s) => s.field_key === "spouse_signature")).toBeUndefined();
+  });
+
+  it("matches sin field when OCR key is Social Insurance Number", () => {
+    const suggestions = service.generateSuggestions(
+      {
+        status: "succeeded",
+        createdDateTime: "",
+        lastUpdatedDateTime: "",
+        analyzeResult: {
+          apiVersion: "2024-11-30",
+          modelId: "prebuilt-layout",
+          stringIndexType: "textElements",
+          content: "Social Insurance Number 123-456-789",
+          pages: [
+            {
+              pageNumber: 1,
+              angle: 0,
+              width: 1000,
+              height: 1000,
+              unit: "pixel",
+              words: [
+                { content: "123-456-789", polygon: [10, 10, 120, 10, 120, 20, 10, 20], confidence: 0.9, span: { offset: 24, length: 11 } },
+              ],
+              selectionMarks: [],
+              lines: [],
+              spans: [],
+            },
+          ],
+          tables: [],
+          paragraphs: [],
+          styles: [],
+          contentFormat: "text",
+          sections: [],
+          figures: [],
+          keyValuePairs: [
+            {
+              key: { content: "Social Insurance Number", boundingRegions: [{ pageNumber: 1, polygon: [0, 0, 180, 0, 180, 15, 0, 15] }], spans: [{ offset: 0, length: 23 }] },
+              value: {
+                content: "123-456-789",
+                boundingRegions: [{ pageNumber: 1, polygon: [10, 10, 120, 10, 120, 20, 10, 20] }],
+                spans: [{ offset: 24, length: 11 }],
+              },
+              confidence: 0.9,
+            },
+          ],
+        },
+      },
+      [
+        {
+          id: "f1",
+          project_id: "p1",
+          field_key: "sin",
+          field_type: FieldType.string,
+          field_format: null,
+          display_order: 0,
+        },
+      ],
+    );
+
+    const suggestion = suggestions.find((s) => s.field_key === "sin");
+    expect(suggestion).toBeDefined();
+    expect(suggestion?.value).toBe("123-456-789");
+  });
 });

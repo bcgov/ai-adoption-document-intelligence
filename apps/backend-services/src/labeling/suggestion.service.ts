@@ -209,18 +209,31 @@ export class SuggestionService {
         continue;
       }
 
-      const region = this.getBestRegion(bestMatch.value?.boundingRegions)
-        ?? this.getBestRegion(bestMatch.key?.boundingRegions);
-      if (!region) continue;
+      // Use only the value's region: do not fall back to key region, so we never
+      // assign the key label (e.g. "Spouse signature") as the value, and we skip
+      // when there is no value region (e.g. empty spouse signature).
+      const valueRegion = this.getBestRegion(bestMatch.value?.boundingRegions);
+      const valueSpan = bestMatch.value?.spans?.[0];
+      const valueContent = (bestMatch.value?.content ?? "").trim();
 
-      const matchedWords = this.matchWordsInRegion(words, region, usedWordIds);
+      if (!valueRegion && !valueSpan) continue;
+      // Do not suggest when value has no content (e.g. no spouse signature on form).
+      if (!valueContent) continue;
+
+      const matchedWords = valueSpan
+        ? this.matchWordsBySpan(words, valueSpan, usedWordIds)
+        : this.matchWordsInRegion(words, valueRegion, usedWordIds);
       if (!matchedWords.length) continue;
+
+      const region = valueRegion ?? this.regionFromWords(matchedWords);
+      if (!region) continue;
 
       matchedWords.forEach((word) => usedWordIds.add(word.id));
       const valueText =
         bestMatch.value?.content
         ?? matchedWords.map((word) => word.content).join(" ");
 
+      const suggestionSpan = bestMatch.value?.spans?.[0] ?? bestMatch.key?.spans?.[0];
       suggestions.push({
         field_key: field.field_key,
         label_name: field.field_key,
@@ -229,7 +242,7 @@ export class SuggestionService {
         element_ids: matchedWords.map((word) => word.id),
         bounding_box: {
           polygon: region.polygon,
-          span: bestMatch.value?.spans?.[0] ?? bestMatch.key?.spans?.[0],
+          span: suggestionSpan,
         },
         source_type: "keyValuePair",
         confidence: bestMatch.confidence,
@@ -349,6 +362,13 @@ export class SuggestionService {
       aliases.add(withoutSuffix.replace(/_/g, " "));
     }
 
+    // Common form label aliases for known field keys (OCR often uses full labels).
+    if (fieldKey === "sin") {
+      aliases.add("social insurance number");
+      aliases.add("sin number");
+      aliases.add("sin #");
+    }
+
     return [...aliases];
   }
 
@@ -456,6 +476,43 @@ export class SuggestionService {
       });
 
     return withOverlap.map((entry) => entry.word);
+  }
+
+  /** Match words whose span overlaps the given value span (document character range). */
+  private matchWordsBySpan(
+    words: WordElement[],
+    valueSpan: { offset: number; length: number },
+    usedWordIds: Set<string>,
+  ): WordElement[] {
+    const valueEnd = valueSpan.offset + valueSpan.length;
+    return words
+      .filter((word) => {
+        if (usedWordIds.has(word.id)) return false;
+        const wordEnd = word.spanOffset + word.spanLength;
+        return wordEnd > valueSpan.offset && word.spanOffset < valueEnd;
+      })
+      .sort((a, b) => a.spanOffset - b.spanOffset);
+  }
+
+  /** Build a bounding region from the combined polygons of words (same page). */
+  private regionFromWords(words: WordElement[]): BoundingRegion | null {
+    if (!words.length) return null;
+    const pageNumber = words[0].pageNumber;
+    const allPolygons = words.map((w) => w.polygon).filter((p) => p?.length >= 8);
+    if (!allPolygons.length) return null;
+    const xs = allPolygons.flatMap((p) => p.filter((_, i) => i % 2 === 0));
+    const ys = allPolygons.flatMap((p) => p.filter((_, i) => i % 2 === 1));
+    const polygon = [
+      Math.min(...xs),
+      Math.min(...ys),
+      Math.max(...xs),
+      Math.min(...ys),
+      Math.max(...xs),
+      Math.max(...ys),
+      Math.min(...xs),
+      Math.max(...ys),
+    ];
+    return { pageNumber, polygon };
   }
 
   private getBestRegion(regions?: BoundingRegion[]): BoundingRegion | null {

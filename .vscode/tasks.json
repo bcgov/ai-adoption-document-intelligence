@@ -4,7 +4,8 @@
     {
       "label": "temporal: docker up",
       "type": "shell",
-      "command": "docker compose up -d",
+      "command": "docker",
+      "args": ["compose", "up", "-d"],
       "options": {
         "cwd": "${workspaceFolder}/apps/temporal"
       },
@@ -17,7 +18,8 @@
     {
       "label": "temporal: dev",
       "type": "shell",
-      "command": "npm run dev",
+      "command": "npm",
+      "args": ["run", "dev"],
       "options": {
         "cwd": "${workspaceFolder}/apps/temporal"
       },
@@ -31,7 +33,8 @@
     {
       "label": "backend-services: docker up",
       "type": "shell",
-      "command": "docker compose up -d",
+      "command": "docker",
+      "args": ["compose", "up", "-d"],
       "options": {
         "cwd": "${workspaceFolder}/apps/backend-services"
       },
@@ -93,7 +96,8 @@
     {
       "label": "root: frontend dev",
       "type": "shell",
-      "command": "npm run dev:frontend",
+      "command": "npm",
+      "args": ["run", "dev:frontend"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -107,7 +111,8 @@
     {
       "label": "root: backend dev",
       "type": "shell",
-      "command": "npm run dev:backend",
+      "command": "npm",
+      "args": ["run", "dev:backend"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
