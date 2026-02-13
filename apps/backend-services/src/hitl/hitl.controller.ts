@@ -8,7 +8,7 @@ import {
   Query,
   Req,
 } from "@nestjs/common";
-import { ApiOperation, ApiParam, ApiTags } from "@nestjs/swagger";
+import { ApiOperation, ApiParam, ApiQuery, ApiTags } from "@nestjs/swagger";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
@@ -17,10 +17,10 @@ import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import {
   AnalyticsFilterDto,
   QueueFilterDto,
-  ReviewStatusFilter,
 } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import { HitlService } from "./hitl.service";
+import { ReviewStatusFilter } from "./dto/status-constants.dto";
 
 interface AuthenticatedRequest {
   user?: {
@@ -46,6 +46,13 @@ export class HitlController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get queue statistics" })
+  @ApiQuery({
+    name: "reviewStatus",
+    required: false,
+    enum: ReviewStatusFilter,
+    enumName: "ReviewStatusFilter",
+    description: "Filter by review status",
+  })
   async getQueueStats(
     @Query("reviewStatus") reviewStatus?: ReviewStatusFilter,
   ) {

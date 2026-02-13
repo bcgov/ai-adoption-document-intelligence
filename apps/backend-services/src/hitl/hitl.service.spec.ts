@@ -13,12 +13,11 @@ import {
   SubmitCorrectionsDto,
 } from "./dto/correction.dto";
 import {
-  DocumentStatusFilter,
   QueueFilterDto,
-  ReviewStatusFilter,
 } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import { HitlService } from "./hitl.service";
+import { DocumentStatusFilter, ReviewStatusFilter } from "./dto/status-constants.dto";
 
 describe("HitlService", () => {
   let service: HitlService;
