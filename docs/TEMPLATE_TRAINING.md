@@ -707,6 +707,14 @@ Project-level suggestion behavior is configurable in the Labeling Project detail
 
 Suggestions are applied to the same assignment state used by manual clicks, so highlighted boxes look identical to user-selected boxes.
 
+#### 2.2) Field list filtering
+
+The labeling Fields panel includes a search box above the field list:
+
+- The filter matches against `fieldKey` (case-insensitive, partial match).
+- Filtering only changes the visible field list in the side panel; OCR overlays and assignments are unchanged.
+- If the currently selected field is filtered out, selection is cleared to avoid accidental assignment to a hidden field.
+
 Suggestion source behavior:
 
 - Key-value fields: from `analyzeResult.keyValuePairs`, mapped to existing word boxes.
