@@ -22,13 +22,13 @@ The platform currently supports arbitrary document intelligence workflows via th
 
 | Phase | Scope | UI Strategy |
 |-------|-------|-------------|
-| **Phase 1** | Core data model, dataset management (DVC-backed), benchmark execution via Temporal, evaluation framework, MLflow integration for run tracking | Use MLflow UI for viewing runs, metrics, and artifacts |
-| **Phase 2** | Richer React benchmarking UI in the frontend that deep-links into MLflow artifacts, side-by-side comparison, regression reports, baseline management UI | Build custom React views in `apps/frontend` |
+| **Phase 1** | Core data model, dataset management (DVC-backed), benchmark execution via Temporal, evaluation framework (black-box + simple schema-aware), MLflow integration for run tracking, basic frontend UI (dataset list, definition CRUD, run list, start/cancel, deep-links to MLflow) | Use MLflow UI for detailed run/metrics/artifact inspection |
+| **Phase 1.5** | Dataset validation & quality checks (beyond minimal completeness), split management UI, baseline management (promote run + compare thresholds), scheduled/nightly runs | Incremental frontend additions |
+| **Phase 2** | Rich React benchmarking UI: side-by-side run comparison, regression reports, slicing/filtering, drill-down panels, in-app artifact viewer with deep-links into MLflow artifacts | Full custom React views in `apps/frontend` |
 
 ### 1.4 Non-Goals (Explicit Exclusions)
 
 - No model training or fine-tuning orchestration (existing `TrainingJob`/`TrainedModel` covers Azure DI training separately).
-- No drag-and-drop dataset editor — datasets are managed via DVC + API.
 - No multi-tenant isolation (current platform is single-tenant).
 - No cloud-specific vendor lock-in — all storage backends should remain pluggable (consistent with existing blob storage abstraction).
 
@@ -46,8 +46,8 @@ A versioned bundle of inputs + ground truth + metadata.
 | `name` | string | Human-readable dataset name |
 | `description` | string | Optional description |
 | `metadata` | JSONB | Arbitrary metadata: domain, doc type, language, source, size, tags |
-| `dvcRemote` | string | DVC remote identifier for large file storage |
-| `repositoryPath` | string | Path within repo where DVC metadata lives |
+| `repositoryUrl` | string | URL of the dedicated dataset Git repository |
+| `dvcRemote` | string | DVC remote identifier (e.g., MinIO bucket name) |
 | `createdBy` | string | User who created the dataset |
 | `createdAt` | DateTime | Creation timestamp |
 | `updatedAt` | DateTime | Last update timestamp |
@@ -61,8 +61,8 @@ An immutable pointer to a specific snapshot of the dataset.
 | `id` | UUID | Primary key |
 | `datasetId` | UUID | FK → Dataset |
 | `version` | string | Semantic or incremental version label |
-| `gitRevision` | string | Git commit SHA / tag that pins DVC metadata |
-| `manifestPath` | string | Path to the dataset manifest file within the repo |
+| `gitRevision` | string | Git commit SHA / tag that pins DVC metadata in the dataset repo |
+| `manifestPath` | string | Path to the dataset manifest file within the dataset repo |
 | `documentCount` | int | Number of documents/samples in this version |
 | `groundTruthSchema` | JSONB | Schema describing the ground truth format |
 | `status` | enum | `draft`, `published`, `archived` |
@@ -114,7 +114,7 @@ Specifies exactly what to benchmark: which dataset, workflow, evaluator, and run
 | `evaluatorType` | string | Evaluator identifier (from evaluator registry) |
 | `evaluatorConfig` | JSONB | Evaluator-specific configuration |
 | `runtimeSettings` | JSONB | Concurrency limits, timeouts, resource class, etc. |
-| `artifactPolicy` | JSONB | What artifacts to store (full, failures-only, sampled, redacted) |
+| `artifactPolicy` | JSONB | What artifacts to store (full, failures-only, sampled) |
 | `immutable` | boolean | Becomes true once a run has been executed against this definition |
 | `revision` | int | Incremented when a new revision is created from an immutable definition |
 | `createdAt` | DateTime | Creation timestamp |
@@ -151,7 +151,7 @@ Output files produced during execution or evaluation.
 | `id` | UUID | Primary key |
 | `runId` | UUID | FK → BenchmarkRun |
 | `type` | enum | `per_doc_output`, `intermediate_node_output`, `diff_report`, `evaluation_report`, `error_log` |
-| `path` | string | Storage path (blob storage or MLflow artifact store) |
+| `path` | string | Storage path (MinIO key or MLflow artifact path) |
 | `sampleId` | string? | Specific sample this artifact pertains to |
 | `nodeId` | string? | Graph node that produced this artifact |
 | `sizeBytes` | bigint | File size |
@@ -164,61 +164,128 @@ Output files produced during execution or evaluation.
 
 ### 3.1 Storage Architecture
 
-- **DVC metadata** stored in the same Git repository (co-located with project code for now).
-- **Large data files** (actual documents, images, ground truth files) stored in a configurable DVC remote (S3, MinIO, NFS, or local filesystem).
-- Follows the existing blob storage abstraction pattern from `apps/temporal/src/blob-storage/`.
+- **DVC metadata** stored in a **dedicated dataset Git repository**, separate from the main application repository. This avoids bloating the application repo with dataset metadata commits and allows independent dataset versioning.
+- **Large data files** (documents, images, ground truth files) stored in **MinIO** (S3-compatible object storage), configured as the DVC remote.
+- **MinIO** is the unified object storage backend for both DVC remotes and benchmark artifacts. It provides S3-compatible semantics, is self-hostable, and scales beyond local filesystem.
+- MinIO is added to the docker-compose infrastructure alongside PostgreSQL and Temporal.
 
-### 3.2 Dataset Materialization
+### 3.2 Dataset Upload & DVC Automation
 
-- Workers (Temporal activities) must be able to fetch a pinned dataset snapshot for a given Git revision.
-- Materialization methods: `dvc pull` for tracked files or `dvc get` for registry-style downloads.
+Users create and manage datasets through the **frontend UI**. The backend automates all DVC operations transparently:
+
+1. User uploads files (documents + ground truth) via the frontend.
+2. Backend receives files, writes them to the dataset repository working directory.
+3. Backend runs `dvc add` on the uploaded files to track them.
+4. Backend commits DVC metadata (`.dvc` files + manifest) to Git.
+5. Backend runs `dvc push` to push large files to the MinIO remote.
+6. Backend creates/updates the `DatasetVersion` record in Postgres with the Git commit SHA.
+
+This flow is exposed through the Dataset APIs and orchestrated by the `DvcService` in the backend. Users never interact with DVC or Git directly.
+
+### 3.3 Dataset Materialization
+
+- Temporal workers (benchmark activities) fetch a pinned dataset snapshot for a given Git revision from the dataset repo.
+- Materialization methods: `dvc pull` in a checked-out revision of the dataset repo, or `dvc get` for registry-style downloads.
 - Materialized datasets are cached on the worker filesystem to avoid redundant fetches across runs.
 
-### 3.3 Dataset Manifest Format
+### 3.4 Dataset Manifest Format
 
-- Standardize a canonical input representation: list of files with paths and metadata.
-- Standardize ground truth representation: support multiple ground truth schemas per workflow family (since different workflows may produce different output structures).
-- Manifest is a JSON file checked into the repo alongside DVC files.
+The storage primitive is **arbitrary files + manifest**. The manifest is a JSON file in the dataset repo that describes all samples:
 
-### 3.4 Normalization Pipeline
+```json
+{
+  "schemaVersion": "1.0",
+  "samples": [
+    {
+      "id": "sample-001",
+      "inputs": [
+        { "path": "inputs/form_image_0.jpg", "mimeType": "image/jpeg" }
+      ],
+      "groundTruth": [
+        { "path": "ground-truth/form_data_0.json", "format": "json" }
+      ],
+      "metadata": {
+        "docType": "income-declaration",
+        "pageCount": 1,
+        "language": "en",
+        "source": "synthetic"
+      }
+    }
+  ]
+}
+```
+
+**Ground truth format conventions** (built on top of the arbitrary-files primitive):
+- **JSON**: For small/structured ground truth (e.g., key-value extractions like the example data — flat objects with checkbox booleans, text fields, income values, signatures, dates).
+- **JSONL**: For large datasets with per-sample records.
+- **CSV/Parquet**: For tabular ground truth.
+- **Any file**: Ground truth can reference images, PDFs, or other binary files when needed.
+
+The evaluator receives file references and is responsible for parsing the format appropriate to its evaluation mode.
+
+### 3.5 Example Ground Truth (from existing example data)
+
+The [example data](feature-docs/003-benchmarking-system/example%20data/) demonstrates a typical key-value extraction ground truth format:
+
+- **Inputs**: Form images (`form_image_0.jpg`, `form_image_1.jpg`).
+- **Ground truth**: JSON files (`form_data_0.json`, `form_data_1.json`) containing flat key-value pairs extracted from the forms:
+  - Checkbox fields: `"checkbox_need_assistance_no": true`
+  - Text fields: `"explain_changes": "..."`
+  - Numeric fields: `"income1": "999.91"`
+  - Identity fields: `"name": "Edward Shaw"`, `"sin": "104125381"`
+  - Date fields: `"date": "2013-09-21"`
+  - Signature fields: `"signature": "Edward Shaw"`
+
+This format is workflow-output-agnostic — the evaluator compares workflow outputs against these ground truth files using the configured matching rules.
+
+### 3.6 Normalization Pipeline
 
 - Ingest from multiple sources: production database dumps, synthetic data, external exports.
-- Transform into canonical input format.
+- Transform into canonical input format (files + manifest entries).
 - Validate against manifest schema.
-- Commit and publish as a new dataset version.
+- Commit and publish as a new dataset version via the automated DVC flow (Section 3.2).
 
-### 3.5 Data Quality Checks
+### 3.7 Data Quality Checks (Phase 1.5)
 
 - Schema validation against declared ground truth schema.
-- Missing ground truth detection.
+- Missing ground truth detection (inputs without matching ground truth files).
 - Duplicate detection (by content hash or metadata).
 - Corruption checks (file integrity, format validation).
 - Optional sampling previews (show N random samples before publishing).
 
-### 3.6 Split Management
+### 3.8 Split Management (Phase 1.5)
 
 - Create/edit splits with named subsets of samples.
 - Stratification by metadata fields (e.g., equal distribution across document types).
 - Freeze golden regression sets (immutable after freeze).
 - Split definitions recorded as versioned artifacts.
+- Phase 1: splits can be defined as config in the dataset repo; Phase 1.5 adds UI management.
 
 ---
 
 ## 4. Benchmark Execution (Temporal)
 
-### 4.1 Run Orchestration
+### 4.1 Task Queue Isolation
+
+Benchmark runs execute on a **dedicated task queue** (`benchmark-processing`), separate from the production `ocr-processing` queue. This prevents benchmark traffic from starving production workloads.
+
+- Same worker code is reused, but separate worker deployments (or separate pollers) are configured with their own concurrency limits and scaling rules.
+- An explicit, privileged option can route benchmark runs to the production queue for "production-like load testing" scenarios — this requires deliberate opt-in.
+
+### 4.2 Run Orchestration
 
 A new Temporal workflow type (`benchmarkRunWorkflow`) that:
 
-1. Materializes the pinned dataset version on the worker.
+1. Materializes the pinned dataset version on the worker (pulls from dataset repo + MinIO via DVC).
 2. Fans out per document using the existing `map` node pattern.
-3. For each document, executes the referenced `GraphWorkflowConfig` (invokes the existing `graphWorkflow` as a child workflow).
+3. For each document, executes the referenced `GraphWorkflowConfig` (invokes the existing `graphWorkflow` as a child workflow on the `benchmark-processing` queue).
 4. Collects all outputs.
-5. Runs the configured evaluator against (predictions, ground truth).
-6. Logs params, metrics, and artifacts to MLflow.
-7. Updates the `BenchmarkRun` record in Postgres with final status and metrics.
+5. Runs the configured evaluator against (predictions, ground truth) per sample.
+6. Aggregates metrics across all samples.
+7. Logs params, metrics, and artifacts to MLflow.
+8. Updates the `BenchmarkRun` record in Postgres with final status and metrics.
 
-### 4.2 Concurrency Controls
+### 4.3 Concurrency Controls
 
 - **Per-run concurrency**: configurable max parallel documents within a single benchmark run.
 - **Global concurrency**: configurable limit on total concurrent benchmark documents across all runs.
@@ -226,12 +293,12 @@ A new Temporal workflow type (`benchmarkRunWorkflow`) that:
 - **Timeouts & retries**: per-document and per-run timeouts, with configurable retry policies.
 - **Resource class selection**: ability to route benchmark runs to specific task queues (e.g., CPU vs GPU workers).
 
-### 4.3 Determinism Safety
+### 4.4 Determinism Safety
 
 - Add replay-test coverage in CI for workflow changes to reduce non-determinism risk in Temporal workflows.
 - Benchmark workflow itself should be deterministic — side effects only in activities.
 
-### 4.4 Re-run Capability
+### 4.5 Re-run Capability
 
 - Re-run a prior benchmark using the exact same dataset version + workflow config hash + runtime settings.
 - Creates a new `BenchmarkRun` record linked to the same `BenchmarkDefinition`.
@@ -242,6 +309,8 @@ A new Temporal workflow type (`benchmarkRunWorkflow`) that:
 
 ### 5.1 Pluggable Evaluator Interface
 
+TypeScript evaluators are the default implementation. The interface is designed so that external evaluators (e.g., Python via subprocess/sidecar) can be added later without refactoring core concepts.
+
 ```typescript
 interface BenchmarkEvaluator {
   type: string;
@@ -250,33 +319,42 @@ interface BenchmarkEvaluator {
 
 interface EvaluationInput {
   sampleId: string;
-  input: unknown;            // Original document/input data
-  prediction: unknown;       // Workflow output
-  groundTruth: unknown;      // Expected output
-  metadata: Record<string, unknown>; // Sample metadata
+  inputPaths: string[];                    // Paths to input files (materialized)
+  predictionPaths: string[];               // Paths to workflow output files
+  groundTruthPaths: string[];              // Paths to ground truth files
+  metadata: Record<string, unknown>;       // Sample metadata from manifest
+  evaluatorConfig: Record<string, unknown>; // Evaluator-specific config
 }
 
 interface EvaluationResult {
   sampleId: string;
-  metrics: Record<string, number>;        // Per-sample metrics
-  diagnostics: Record<string, unknown>;   // Per-sample diagnostics
-  artifacts?: EvaluationArtifact[];       // Optional output files (diffs, visualizations)
-  pass: boolean;                          // Pass/fail based on evaluator thresholds
+  metrics: Record<string, number>;         // Per-sample metrics
+  diagnostics: Record<string, unknown>;    // Per-sample diagnostics
+  artifacts?: EvaluationArtifact[];        // Optional output files (diffs, visualizations)
+  pass: boolean;                           // Pass/fail based on evaluator thresholds
 }
 ```
 
+**Extensibility for external evaluators**: The `EvaluationInput` uses file paths rather than in-memory objects, making it straightforward to serialize inputs to a subprocess boundary (e.g., invoke a Python script that reads the same files and returns `EvaluationResult` as JSON). This is not implemented in Phase 1 but the interface accommodates it.
+
 ### 5.2 Schema-Aware Evaluators
 
-- Field-level comparison: precision, recall, F1 per field.
-- Table-level comparison: row matching, cell accuracy.
-- Configurable matching rules: exact match, fuzzy match, numeric tolerance, date format normalization.
-- Typed metrics per field type (string similarity for text, absolute/relative error for numbers, etc.).
+For workflows that produce structured output matching a known ground truth schema (e.g., key-value extraction as in the example data):
+
+- **Field-level comparison**: precision, recall, F1 per field.
+- **Table-level comparison**: row matching, cell accuracy.
+- **Configurable matching rules**: exact match, fuzzy match (Levenshtein/Jaro-Winkler), numeric tolerance, date format normalization.
+- **Typed metrics per field type**: string similarity for text, absolute/relative error for numbers, checkbox accuracy for booleans, date parsing equivalence.
+
+Phase 1 includes a simple schema-aware evaluator that compares flat JSON key-value outputs (matching the example ground truth format).
 
 ### 5.3 Black-Box Evaluators
 
 - Custom scoring functions that treat outputs as opaque (JSON, text, binary).
 - Emit arbitrary named metrics.
-- Useful for comparing workflow outputs where ground truth schema is not formalized.
+- Useful for comparing workflow outputs where ground truth schema is not formalized, or for novel evaluation criteria.
+
+Phase 1 includes a basic black-box evaluator (e.g., JSON deep-equal with diff output).
 
 ### 5.4 Aggregation
 
@@ -295,13 +373,20 @@ interface EvaluationResult {
 
 ## 6. Experiment Tracking (MLflow)
 
-### 6.1 MLflow Integration
+### 6.1 MLflow Deployment
+
+- MLflow server runs as a **new containerized service** added to docker-compose.
+- **Backend store**: Separate database (`mlflow`) on the **same PostgreSQL 15 instance** used by the application, with a dedicated role and schema discipline. MLflow supports PostgreSQL backend stores via SQLAlchemy — this is the standard production pattern for collaborative usage.
+- **Artifact store**: MinIO (S3-compatible), shared with the DVC remote. MLflow is configured with `--default-artifact-root s3://mlflow-artifacts/` pointing to MinIO.
+- This keeps infrastructure simple (one Postgres server, one object store) while maintaining logical separation.
+
+### 6.2 MLflow Integration
 
 - Every `BenchmarkRun` is logged to MLflow as an MLflow Run within the corresponding MLflow Experiment (mapped from `BenchmarkProject`).
 - Log: params, metrics, artifacts, and run tags.
 - Runs are searchable and comparable via the MLflow UI (Phase 1).
 
-### 6.2 Required Run Metadata
+### 6.3 Required Run Metadata
 
 Every MLflow run must include at minimum:
 
@@ -318,20 +403,19 @@ Every MLflow run must include at minimum:
 | **Tag** | `benchmark_definition_id` | BenchmarkDefinition.id |
 | **Tag** | `benchmark_project_id` | BenchmarkProject.id |
 
-### 6.3 Artifact Storage
+### 6.4 Artifact Storage
 
-- Configure MLflow artifact store backend (local filesystem, S3, MinIO).
+- MLflow artifact store uses MinIO (S3-compatible).
 - Artifact upload policy per run (controlled by `BenchmarkDefinition.artifactPolicy`):
   - `full`: Upload all outputs for all samples.
   - `failures_only`: Upload outputs only for failing samples.
   - `sampled`: Upload a configurable percentage of outputs.
-  - `redacted`: Apply redaction before upload.
 
-### 6.4 Linkage
+### 6.5 Linkage
 
 - Store `mlflowRunId` in Postgres `BenchmarkRun` record.
 - Store `temporalWorkflowId` in Postgres `BenchmarkRun` record.
-- Frontend can deep-link to MLflow UI for detailed inspection (Phase 1).
+- Frontend deep-links to MLflow UI for detailed inspection (Phase 1).
 - Frontend provides native drill-down (Phase 2).
 
 ---
@@ -353,7 +437,7 @@ Every MLflow run must include at minimum:
 
 ### 7.3 Dataset Versioning
 
-- `DatasetVersion.gitRevision` pins exact Git commit + DVC state.
+- `DatasetVersion.gitRevision` pins exact Git commit + DVC state in the dedicated dataset repository.
 - Never benchmark against a "moving" dataset reference by default (must use a published version).
 - Draft versions can be used for ad-hoc testing but are flagged in results.
 
@@ -362,7 +446,7 @@ Every MLflow run must include at minimum:
 - `BenchmarkDefinition.immutable` becomes `true` after the first run executes.
 - Editing an immutable definition creates a new revision (increments `revision` field, new `id`).
 
-### 7.5 Regression Baselines
+### 7.5 Regression Baselines (Phase 1.5)
 
 - Mark a `BenchmarkRun` as `isBaseline = true`.
 - Compare new runs against baseline with configurable thresholds.
@@ -370,31 +454,39 @@ Every MLflow run must include at minimum:
 
 ---
 
-## 8. Storage, Retention & Privacy
+## 8. Storage, Retention & Infrastructure
 
-### 8.1 Storage Backends
+### 8.1 Storage Architecture
 
 | Data Type | Backend | Notes |
 |-----------|---------|-------|
-| Benchmark metadata | Postgres | Same database as existing app (extends Prisma schema) |
-| Large artifacts | Blob storage | Extends existing blob storage abstraction |
-| Dataset binaries | DVC remote | S3/MinIO/NFS, configurable |
-| MLflow backend store | Postgres | MLflow's own metadata DB (can share or separate instance) |
-| MLflow artifact store | Blob storage | Aligned with blob storage backend |
+| Benchmark metadata | Postgres 15 | Same instance as existing app, extends Prisma schema |
+| MLflow backend store | Postgres 15 | Same instance, separate `mlflow` database with dedicated role |
+| Dataset binaries (DVC) | MinIO | S3-compatible, self-hosted, DVC remote |
+| Benchmark artifacts | MinIO | MLflow artifact store, same MinIO instance |
+| Benchmark run outputs | MinIO | Per-run output files stored via `BlobStorageInterface` |
 
-### 8.2 Retention Policies
+**MinIO** serves as the unified object storage layer for all large file storage needs (DVC data, MLflow artifacts, benchmark outputs). This consolidates storage infrastructure and provides S3-compatible APIs that work with DVC, MLflow, and the application's blob storage abstraction.
+
+### 8.2 Blob Storage Integration
+
+The existing codebase has two blob storage implementations:
+- **`LocalBlobStorageService`**: Implements `BlobStorageInterface` (write/read/exists/delete with string keys). Used for document storage.
+- **`BlobStorageService`**: Azure-specific operations (container management, SAS URLs, batch uploads). Used for training data.
+
+For benchmarking, MinIO is introduced as the primary object store. The approach:
+- Add a new **`MinioBlobStorageService`** that implements the existing `BlobStorageInterface` using the S3-compatible MinIO API (via AWS SDK or MinIO client).
+- Benchmark activities use this service for reading/writing dataset files and artifacts.
+- Existing `LocalBlobStorageService` and Azure `BlobStorageService` remain unchanged — they continue serving their current roles.
+- Configuration determines which blob storage implementation is injected for benchmark operations (MinIO by default).
+
+### 8.3 Retention Policies
 
 - Per-project retention settings for each artifact class:
   - Raw outputs: configurable (e.g., 90 days).
   - Diff reports: configurable (e.g., 180 days).
   - Intermediate node traces: configurable (e.g., 30 days).
 - Baseline runs are exempt from retention (never auto-deleted).
-
-### 8.3 Redaction / PII
-
-- Configurable redaction steps applied before artifact upload.
-- Per-run toggle for storing raw documents vs. redacted copies.
-- Redaction pipeline runs as a post-processing step in the benchmark workflow.
 
 ### 8.4 Audit Logging
 
@@ -405,38 +497,34 @@ Every MLflow run must include at minimum:
 
 ## 9. Security & Access Control
 
-### 9.1 Authentication & Authorization
+Uses the existing OIDC-based authentication from `apps/backend-services/src/auth/`. No new roles or permission models are introduced — all authenticated users can access benchmarking features. This is consistent with the current single-tenant deployment model.
 
-- Leverages existing OIDC-based auth from `apps/backend-services/src/auth/`.
-- Roles: Admin, Engineer, Analyst, Reviewer.
-- Per-project permissions for benchmark projects.
-
-### 9.2 Secrets Management
-
-- Credentials for DVC remote access.
-- Credentials for MLflow backend and artifact store.
-- Managed via environment variables (consistent with existing `.env` pattern).
-
-### 9.3 Isolation Boundaries
-
-- Project-level isolation: users can only access benchmark projects they have permission for.
-- Least privilege for viewing documents/artifacts within benchmark results.
+Secrets management for new services:
+- MinIO access credentials (access key + secret key) managed via environment variables.
+- MLflow backend store database credentials managed via environment variables.
+- Dataset repository Git credentials (for clone/pull operations) managed via environment variables.
+- Consistent with the existing `.env` pattern used throughout the project.
 
 ---
 
 ## 10. UI/UX Requirements
 
-### 10.1 Phase 1 — MLflow-Backed UI
+### 10.1 Phase 1 — Basic Benchmarking UI + MLflow
 
-Minimal in-app UI that leverages MLflow for heavy lifting:
+In-app UI for managing benchmark entities, with MLflow UI for detailed metrics/artifact inspection:
 
-- **Dataset UI**: Create/import datasets, browse versions, preview samples, define splits, validate, publish.
+- **Dataset UI**: Create datasets (upload documents + ground truth files via frontend), browse versions, preview samples (show input images + ground truth JSON), publish versions. Backend automates all DVC operations (add, commit, push) transparently.
 - **Benchmark UI**: Create benchmark definitions (select dataset version + workflow + evaluator + runtime settings + artifact policy).
 - **Run UI**: Start/cancel runs, track progress (polling `BenchmarkRun.status`), link to Temporal execution in Temporal UI (existing port 8088).
 - **Results UI**: List runs with headline metrics, link to MLflow UI for deep inspection of metrics, parameters, and artifacts.
-- **Baseline Management**: Promote a run to baseline, show pass/fail status.
 
-### 10.2 Phase 2 — Rich React Benchmarking UI
+### 10.2 Phase 1.5 — Incremental Additions
+
+- **Split Management UI**: Create/edit splits from the dataset version view.
+- **Baseline Management**: Promote a run to baseline, set thresholds, show pass/fail status for candidate runs.
+- **Dataset Validation UI**: Run quality checks, view results, fix issues before publishing.
+
+### 10.3 Phase 2 — Rich React Benchmarking UI
 
 Build custom views within `apps/frontend`:
 
@@ -446,7 +534,7 @@ Build custom views within `apps/frontend`:
 - **Drill-Down Panels**: Pluggable workflow-specific panels for detailed result inspection.
 - **Artifact Viewer**: In-app viewing of artifacts with deep-links to MLflow artifacts.
 
-### 10.3 Navigation
+### 10.4 Navigation
 
 - Add a "Benchmarking" section to the existing sidebar navigation in `apps/frontend/src/App.tsx`.
 - Sub-views: Datasets, Projects, Definitions, Runs, Results.
@@ -462,13 +550,15 @@ Build custom views within `apps/frontend`:
 | POST | `/api/benchmark/datasets` | Create a new dataset |
 | GET | `/api/benchmark/datasets` | List datasets |
 | GET | `/api/benchmark/datasets/:id` | Get dataset details |
-| POST | `/api/benchmark/datasets/:id/versions` | Publish a new version |
+| POST | `/api/benchmark/datasets/:id/versions` | Create and publish a new version (triggers DVC add/commit/push) |
 | GET | `/api/benchmark/datasets/:id/versions` | List versions |
 | GET | `/api/benchmark/datasets/:id/versions/:versionId` | Get version details |
-| POST | `/api/benchmark/datasets/:id/versions/:versionId/validate` | Validate version data quality |
-| POST | `/api/benchmark/datasets/:id/versions/:versionId/splits` | Create a split |
+| POST | `/api/benchmark/datasets/:id/versions/:versionId/validate` | Validate version data quality (Phase 1.5) |
+| GET | `/api/benchmark/datasets/:id/versions/:versionId/samples` | List/preview samples in a version |
+| POST | `/api/benchmark/datasets/:id/versions/:versionId/splits` | Create a split (Phase 1.5) |
 | GET | `/api/benchmark/datasets/:id/versions/:versionId/splits` | List splits |
-| PUT | `/api/benchmark/datasets/:id/versions/:versionId/splits/:splitId` | Update a split |
+| PUT | `/api/benchmark/datasets/:id/versions/:versionId/splits/:splitId` | Update a split (Phase 1.5) |
+| POST | `/api/benchmark/datasets/:id/upload` | Upload files (documents + ground truth) to a dataset |
 
 ### 11.2 Benchmark APIs
 
@@ -484,7 +574,7 @@ Build custom views within `apps/frontend`:
 | GET | `/api/benchmark/projects/:id/runs` | List runs for a project |
 | GET | `/api/benchmark/projects/:id/runs/:runId` | Get run details + metrics |
 | POST | `/api/benchmark/projects/:id/runs/:runId/cancel` | Cancel a running benchmark |
-| POST | `/api/benchmark/projects/:id/runs/:runId/baseline` | Promote run to baseline |
+| POST | `/api/benchmark/projects/:id/runs/:runId/baseline` | Promote run to baseline (Phase 1.5) |
 | GET | `/api/benchmark/projects/:id/runs/:runId/artifacts` | List run artifacts |
 | GET | `/api/benchmark/projects/:id/runs/:runId/drill-down` | Get detailed drill-down summary |
 
@@ -492,18 +582,19 @@ Build custom views within `apps/frontend`:
 
 | Service | Location | Responsibility |
 |---------|----------|----------------|
-| `MlflowClientService` | `apps/backend-services/src/benchmark/` | Wrap MLflow REST API — log params, metrics, artifacts, manage experiments |
-| `DvcMaterializerService` | `apps/backend-services/src/benchmark/` | Fetch dataset for a Git revision via DVC CLI |
-| `BenchmarkTemporalService` | `apps/backend-services/src/benchmark/` | Start/cancel/query benchmark Temporal workflows |
+| `MlflowClientService` | `apps/backend-services/src/benchmark/` | Wrap MLflow REST API — create experiments, log params/metrics/artifacts, query runs |
+| `DvcService` | `apps/backend-services/src/benchmark/` | Automate DVC operations (add, commit, push, pull) on the dataset repository |
+| `BenchmarkTemporalService` | `apps/backend-services/src/benchmark/` | Start/cancel/query benchmark Temporal workflows on `benchmark-processing` queue |
 | `EvaluatorRegistryService` | `apps/backend-services/src/benchmark/` | Registry of available evaluators (mirrors activity registry pattern) |
+| `MinioBlobStorageService` | `apps/backend-services/src/blob-storage/` | S3-compatible blob storage via MinIO, implements `BlobStorageInterface` |
 
 ### 11.4 Temporal Activities (New)
 
 | Activity Type | Description |
 |---------------|-------------|
-| `benchmark.materializeDataset` | Pull dataset files for a pinned Git revision |
-| `benchmark.executeWorkflow` | Run GraphWorkflowConfig against a single document |
-| `benchmark.evaluate` | Run evaluator on (prediction, ground truth) pair |
+| `benchmark.materializeDataset` | Clone/checkout dataset repo at pinned revision, run `dvc pull` to fetch files from MinIO |
+| `benchmark.executeWorkflow` | Run GraphWorkflowConfig against a single document (invokes `graphWorkflow` as child workflow) |
+| `benchmark.evaluate` | Run evaluator on (prediction, ground truth) pair for a single sample |
 | `benchmark.logToMlflow` | Log run params, metrics, artifacts to MLflow |
 | `benchmark.aggregate` | Compute aggregate metrics across all samples |
 | `benchmark.cleanup` | Clean up temporary materialized files |
@@ -514,10 +605,20 @@ Build custom views within `apps/frontend`:
 
 ### 12.1 Deployment
 
-- Self-hosted OSS stack.
-- New containerized service: **MLflow server** (added to docker-compose).
-- MLflow artifact store backend: initially local filesystem (aligned with existing blob storage), configurable to S3/MinIO.
-- MLflow backend store: can share the existing Postgres instance or use a separate one.
+Self-hosted OSS stack. New services added to docker-compose:
+
+| Service | Image | Port | Purpose |
+|---------|-------|------|---------|
+| **MLflow Server** | `ghcr.io/mlflow/mlflow` | 5000 | Experiment tracking, artifact management |
+| **MinIO** | `minio/minio` | 9000 (API), 9001 (Console) | S3-compatible object storage for DVC + MLflow artifacts |
+
+MLflow configuration:
+- `--backend-store-uri postgresql://mlflow:password@postgres:5432/mlflow`
+- `--default-artifact-root s3://mlflow-artifacts/` (pointing to MinIO)
+
+MinIO configuration:
+- Buckets: `datasets` (DVC remote), `mlflow-artifacts` (MLflow artifact store), `benchmark-outputs` (run outputs)
+- Access via AWS SDK / MinIO client with `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`
 
 ### 12.2 Observability
 
@@ -528,8 +629,8 @@ Build custom views within `apps/frontend`:
 ### 12.3 Cost Controls
 
 - Quotas: max documents/pages per run, max concurrent runs.
-- Scheduled runs: support cron-style scheduling for nightly regression benchmarks.
-- Cache reuse: cache materialized datasets to avoid re-fetching from DVC remote.
+- Scheduled runs (Phase 1.5): support cron-style scheduling for nightly regression benchmarks.
+- Cache reuse: cache materialized datasets to avoid re-fetching from MinIO/DVC remote.
 
 ### 12.4 CI/CD Integration
 
@@ -546,7 +647,7 @@ Build custom views within `apps/frontend`:
 The benchmarking system reuses the existing graph workflow engine rather than replacing it:
 
 - A **Benchmark Run** executes the same `graphWorkflow` Temporal workflow function that production documents use.
-- The benchmark orchestrator wraps this: it fans out across all dataset samples, each invoking `graphWorkflow` as a child workflow.
+- The benchmark orchestrator wraps this: it fans out across all dataset samples, each invoking `graphWorkflow` as a child workflow on the `benchmark-processing` queue.
 - This ensures benchmarks test the **actual execution path** — no separate "benchmark mode" engine.
 
 ### 13.2 Evaluator Registry Pattern
@@ -556,6 +657,7 @@ Mirrors the existing Activity Registry pattern (`apps/temporal/src/activity-regi
 - Evaluators are registered by type string.
 - Each evaluator has a `type`, `evaluate()` function, and default config.
 - New evaluators can be added without code changes to the orchestrator.
+- The interface uses file paths (not in-memory objects), enabling future external evaluator support (e.g., Python subprocess) without interface changes.
 
 ### 13.3 Prisma Schema Extension
 
@@ -568,13 +670,34 @@ New NestJS module: `apps/backend-services/src/benchmark/` containing:
 - `benchmark.controller.ts`
 - `benchmark.service.ts`
 - `dataset.service.ts`
+- `dataset.controller.ts`
 - `mlflow-client.service.ts`
 - `evaluator-registry.service.ts`
-- `dvc-materializer.service.ts`
+- `dvc.service.ts`
+
+New blob storage service: `apps/backend-services/src/blob-storage/`
+- `minio-blob-storage.service.ts` (implements `BlobStorageInterface`)
 
 New Temporal workflow and activities in `apps/temporal/src/`:
 - `benchmark-workflow.ts`
 - `activities/benchmark-*.ts`
+
+### 13.5 Infrastructure Additions
+
+```
+docker-compose additions:
+├── mlflow (port 5000)
+│   ├── backend-store → postgres:5432/mlflow
+│   └── artifact-store → minio:9000/mlflow-artifacts
+├── minio (ports 9000, 9001)
+│   ├── bucket: datasets (DVC remote)
+│   ├── bucket: mlflow-artifacts
+│   └── bucket: benchmark-outputs
+└── (existing services unchanged)
+    ├── postgres (port 5432) — gains 'mlflow' database
+    ├── temporal (port 7233)
+    └── temporal-ui (port 8088)
+```
 
 ---
 
@@ -582,10 +705,9 @@ New Temporal workflow and activities in `apps/temporal/src/`:
 
 > These will be resolved through the iterative refinement process.
 
-1. **DVC repository structure**: Should DVC metadata live in this repo or a separate dataset repo?
-2. **MLflow deployment model**: Shared Postgres instance or separate database for MLflow?
-3. **Evaluator extensibility**: Should evaluators be JavaScript/TypeScript functions only, or support external scripts (Python, etc.)?
-4. **Ground truth format**: What canonical format(s) should ground truth support? JSON-only, or also CSV/JSONL/Parquet?
-5. **Scheduled runs**: Should cron scheduling be managed by Temporal schedules, a separate scheduler, or CI-only?
-6. **Artifact redaction**: What redaction capabilities are needed? Regex-based PII scrubbing, field-level omission, or full document anonymization?
-7. **Phase 1 vs Phase 2 boundary**: What specific UI features are required for Phase 1 MVP vs deferred to Phase 2?
+1. **Dataset repository hosting**: Where will the dedicated dataset Git repository be hosted? Same Git server as the main repo, or a separate location? Does it need to be created programmatically by the backend?
+2. **Scheduled runs**: Should cron scheduling be managed by Temporal schedules, a separate scheduler, or CI-only? (Phase 1.5)
+3. **Worker deployment model**: Should benchmark workers be a separate deployment from production workers (sharing the same codebase but different process), or the same worker process polling multiple queues?
+4. **MLflow UI access**: Should MLflow UI be exposed directly to users (separate port), or proxied through the NestJS backend?
+5. **Dataset size limits**: What are reasonable limits for dataset size (max samples per version, max file size per sample)?
+6. **Evaluation timeout**: What timeout should apply per-sample evaluation? Per-run? Should these differ from production workflow timeouts?
