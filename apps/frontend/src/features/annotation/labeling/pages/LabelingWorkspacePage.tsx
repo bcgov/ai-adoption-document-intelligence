@@ -389,23 +389,55 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   const applySuggestionsToAssignments = (
     suggestions: Array<{ field_key: string; element_ids: string[] }>,
   ) => {
+    console.debug("[Labeling] Applying suggestions", {
+      suggestionCount: suggestions.length,
+      suggestions: suggestions.map(s => ({
+        field_key: s.field_key,
+        element_count: s.element_ids.length,
+      })),
+    });
+
     const elementSet = new Set(ocrWords.map((element) => element.id));
     const nextAssignments: Record<string, string> = {};
 
     for (const suggestion of suggestions) {
+      console.debug(`[Labeling] Processing suggestion for field "${suggestion.field_key}" with ${suggestion.element_ids.length} elements`);
+      let assignedCount = 0;
+      let skippedCount = 0;
+
       for (const elementId of suggestion.element_ids) {
-        if (!elementSet.has(elementId)) continue;
-        if (nextAssignments[elementId]) continue;
+        if (!elementSet.has(elementId)) {
+          skippedCount++;
+          continue;
+        }
+        if (nextAssignments[elementId]) {
+          console.debug(`[Labeling] Element ${elementId} already assigned to ${nextAssignments[elementId]}, skipping for ${suggestion.field_key}`);
+          skippedCount++;
+          continue;
+        }
         nextAssignments[elementId] = suggestion.field_key;
+        assignedCount++;
       }
+
+      console.debug(`[Labeling] Assigned ${assignedCount} elements to "${suggestion.field_key}" (skipped ${skippedCount})`);
     }
+
+    console.debug("[Labeling] Final assignments", {
+      totalAssignments: Object.keys(nextAssignments).length,
+      fieldKeys: [...new Set(Object.values(nextAssignments))],
+    });
 
     setWordAssignments(nextAssignments);
   };
 
   const handleLoadSuggestions = async () => {
     try {
+      console.debug("[Labeling] Loading suggestions from backend...");
       const suggestions = await loadSuggestionsAsync();
+      console.debug("[Labeling] Received suggestions from backend", {
+        count: suggestions.length,
+        fields: suggestions.map(s => `${s.field_key}="${s.value}"`),
+      });
       applySuggestionsToAssignments(suggestions);
       notifications.show({
         title: "Suggestions loaded",
@@ -413,6 +445,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
         color: "blue",
       });
     } catch (error) {
+      console.error("[Labeling] Failed to load suggestions", error);
       notifications.show({
         title: "Failed to load suggestions",
         message:

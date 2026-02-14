@@ -189,6 +189,8 @@ export class SuggestionService {
     mapping?: SuggestionMapping | null,
   ): LabelSuggestionDto[] {
     const keyValuePairs = ocrResult.analyzeResult?.keyValuePairs ?? [];
+    this.logger.debug(`[suggestFromKeyValuePairs] Found ${keyValuePairs.length} keyValuePairs`);
+
     if (!keyValuePairs.length) return [];
 
     const kvpEligibleFields = fieldSchema
@@ -198,27 +200,57 @@ export class SuggestionService {
       )
       .sort((a, b) => a.display_order - b.display_order);
 
+    this.logger.debug(`[suggestFromKeyValuePairs] Eligible fields (${kvpEligibleFields.length}): ${kvpEligibleFields.map(f => `${f.field_key}(order=${f.display_order})`).join(", ")}`);
+
     const fieldAliases = new Map<string, string[]>();
     const fieldRules = new Map<string, SuggestionRule | undefined>();
     for (const field of kvpEligibleFields) {
       const rule = this.getRule(mapping, field.field_key, "keyValuePair");
       fieldRules.set(field.field_key, rule);
-      fieldAliases.set(
-        field.field_key,
-        rule?.keyAliases?.length
-          ? rule.keyAliases
-          : this.buildFieldAliases(field.field_key),
-      );
+      const aliases = rule?.keyAliases?.length
+        ? rule.keyAliases
+        : this.buildFieldAliases(field.field_key);
+      fieldAliases.set(field.field_key, aliases);
+      this.logger.debug(`[suggestFromKeyValuePairs] Field "${field.field_key}" aliases: [${aliases.join(", ")}]`);
     }
 
     const assignedFields = new Set<string>();
     const suggestions: LabelSuggestionDto[] = [];
 
-    // Process keyValuePairs in document order so repeated keys (e.g. Date, SIN) assign
-    // first occurrence to first matching field, second to second, etc.
-    for (const pair of keyValuePairs) {
+    // Sort keyValuePairs by best match score (descending) so exact matches get priority.
+    // This ensures "Spouse Signature" matches before generic "Spouse" from table headers.
+    // For repeated keys with same score (e.g. Date, SIN), document order is preserved.
+    const pairsWithScores = keyValuePairs.map((pair, index) => {
+      const keyText = this.normalizeText(pair.key?.content ?? "");
+      let bestScore = 0;
+
+      if (keyText) {
+        for (const field of kvpEligibleFields) {
+          const aliases = fieldAliases.get(field.field_key) ?? [];
+          for (const alias of aliases) {
+            const aliasNorm = this.normalizeText(alias);
+            const score = this.scoreTextMatch(aliasNorm, keyText);
+            bestScore = Math.max(bestScore, score);
+          }
+        }
+      }
+
+      return { pair, bestScore, originalIndex: index };
+    });
+
+    // Sort by best score (desc), then by original document order (asc) for ties
+    pairsWithScores.sort((a, b) => {
+      if (b.bestScore !== a.bestScore) return b.bestScore - a.bestScore;
+      return a.originalIndex - b.originalIndex;
+    });
+
+    this.logger.debug(`[suggestFromKeyValuePairs] Sorted keyValuePairs by match quality: ${pairsWithScores.map(p => `"${p.pair.key?.content}"(score=${p.bestScore.toFixed(2)})`).join(", ")}`);
+
+    for (const { pair } of pairsWithScores) {
       const keyText = this.normalizeText(pair.key?.content ?? "");
       if (!keyText) continue;
+
+      this.logger.debug(`[suggestFromKeyValuePairs] Processing keyValuePair: key="${pair.key?.content}" (normalized="${keyText}"), value="${pair.value?.content}"`);
 
       const best = this.findBestFieldForPair(
         pair,
@@ -226,7 +258,13 @@ export class SuggestionService {
         fieldAliases,
         assignedFields,
       );
-      if (!best) continue;
+
+      if (!best) {
+        this.logger.debug(`[suggestFromKeyValuePairs] No matching field found for key="${pair.key?.content}"`);
+        continue;
+      }
+
+      this.logger.debug(`[suggestFromKeyValuePairs] Best match: field="${best.field.field_key}" (score=${best.score.toFixed(2)}, aliasLength=${best.aliasLength}, display_order=${best.field.display_order})`);
 
       const { field } = best;
       const rule = fieldRules.get(field.field_key);
@@ -234,6 +272,7 @@ export class SuggestionService {
         rule?.confidenceThreshold !== undefined
         && pair.confidence < rule.confidenceThreshold
       ) {
+        this.logger.debug(`[suggestFromKeyValuePairs] Skipping field "${field.field_key}": confidence ${pair.confidence} < threshold ${rule.confidenceThreshold}`);
         continue;
       }
 
@@ -241,16 +280,28 @@ export class SuggestionService {
       const valueSpan = pair.value?.spans?.[0];
       const valueContent = (pair.value?.content ?? "").trim();
 
-      if (!valueRegion && !valueSpan) continue;
-      if (!valueContent) continue;
+      if (!valueRegion && !valueSpan) {
+        this.logger.debug(`[suggestFromKeyValuePairs] Skipping field "${field.field_key}": no value region or span`);
+        continue;
+      }
+      if (!valueContent) {
+        this.logger.debug(`[suggestFromKeyValuePairs] Skipping field "${field.field_key}": empty value content`);
+        continue;
+      }
 
       const matchedWords = valueSpan
         ? this.matchWordsBySpan(words, valueSpan, usedWordIds)
         : this.matchWordsInRegion(words, valueRegion, usedWordIds);
-      if (!matchedWords.length) continue;
+      if (!matchedWords.length) {
+        this.logger.debug(`[suggestFromKeyValuePairs] Skipping field "${field.field_key}": no matched words in region`);
+        continue;
+      }
 
       const region = valueRegion ?? this.regionFromWords(matchedWords);
-      if (!region) continue;
+      if (!region) {
+        this.logger.debug(`[suggestFromKeyValuePairs] Skipping field "${field.field_key}": could not determine region`);
+        continue;
+      }
 
       matchedWords.forEach((word) => usedWordIds.add(word.id));
       assignedFields.add(field.field_key);
@@ -258,6 +309,8 @@ export class SuggestionService {
         pair.value?.content
         ?? matchedWords.map((word) => word.content).join(" ");
       const suggestionSpan = pair.value?.spans?.[0] ?? pair.key?.spans?.[0];
+
+      this.logger.debug(`[suggestFromKeyValuePairs] ✓ Assigned "${field.field_key}" = "${valueText}" (${matchedWords.length} words, page ${region.pageNumber})`);
 
       suggestions.push({
         field_key: field.field_key,
@@ -274,6 +327,8 @@ export class SuggestionService {
         explanation: `Matched key "${pair.key?.content}" from keyValuePairs`,
       });
     }
+
+    this.logger.debug(`[suggestFromKeyValuePairs] Generated ${suggestions.length} suggestions from keyValuePairs`);
     return suggestions;
   }
 
@@ -293,21 +348,35 @@ export class SuggestionService {
       aliasLength: number;
     } | null = null;
 
+    const candidateFields: Array<{ field: string; score: number; aliasLength: number; assigned: boolean }> = [];
+
     for (const field of fields) {
-      if (assignedFields.has(field.field_key)) continue;
+      const isAssigned = assignedFields.has(field.field_key);
 
       const aliases = fieldAliases.get(field.field_key) ?? [];
       let score = 0;
       let bestAliasLength = 0;
+      let matchedAlias = "";
       for (const alias of aliases) {
         const aliasNorm = this.normalizeText(alias);
         const s = this.scoreTextMatch(aliasNorm, keyText);
         if (s > score || (s === score && aliasNorm.length > bestAliasLength)) {
           score = s;
           bestAliasLength = aliasNorm.length;
+          matchedAlias = alias;
         }
       }
 
+      if (score >= 0.45) {
+        candidateFields.push({
+          field: `${field.field_key}(score=${score.toFixed(2)}, aliasLen=${bestAliasLength}, alias="${matchedAlias}", order=${field.display_order})`,
+          score,
+          aliasLength: bestAliasLength,
+          assigned: isAssigned,
+        });
+      }
+
+      if (isAssigned) continue;
       if (score < 0.45) continue;
 
       const prefer =
@@ -320,6 +389,10 @@ export class SuggestionService {
       if (prefer) {
         best = { field, score, aliasLength: bestAliasLength };
       }
+    }
+
+    if (candidateFields.length > 0) {
+      this.logger.debug(`[findBestFieldForPair] key="${pair.key?.content}" candidates: ${candidateFields.map(c => `${c.field}${c.assigned ? "[ASSIGNED]" : ""}`).join(", ")}`);
     }
 
     return best;
@@ -424,64 +497,54 @@ export class SuggestionService {
     return suggestions;
   }
 
-  private findBestKeyValuePair(
-    aliases: string[],
-    keyValuePairs: KeyValuePair[],
-  ): KeyValuePair | null {
-    let best: { pair: KeyValuePair; score: number; aliasLength: number } | null = null;
-
-    for (const pair of keyValuePairs) {
-      const keyText = this.normalizeText(pair.key?.content ?? "");
-      if (!keyText) continue;
-
-      let score = 0;
-      let bestAliasLength = 0;
-      for (const alias of aliases) {
-        const aliasNorm = this.normalizeText(alias);
-        const s = this.scoreTextMatch(aliasNorm, keyText);
-        if (s > score || (s === score && aliasNorm.length > bestAliasLength)) {
-          score = s;
-          bestAliasLength = aliasNorm.length;
-        }
-      }
-
-      const prefer =
-        score > 0
-        && (!best
-          || score > best.score
-          || (score === best.score && bestAliasLength > best.aliasLength));
-      if (prefer) {
-        best = { pair, score, aliasLength: bestAliasLength };
-      }
-    }
-
-    return best && best.score >= 0.45 ? best.pair : null;
-  }
-
   private buildFieldAliases(fieldKey: string): string[] {
     const aliases = new Set<string>();
     aliases.add(fieldKey);
     aliases.add(fieldKey.replace(/_/g, " "));
 
     const parts = fieldKey.split("_").filter(Boolean);
+
+    // Don't generate generic prefixes like "spouse" or "applicant" as aliases for fields
+    // that end with common suffixes (date, name, signature, etc.)
+    // This prevents "spouse_date" from matching "Spouse:" labels incorrectly
+    const commonFieldSuffixes = new Set([
+      "date", "name", "signature", "phone", "sin", "email", "address",
+      "city", "province", "postal", "code", "number"
+    ]);
+    const lastPart = parts[parts.length - 1];
+    const shouldSkipGenericPrefixAlias = commonFieldSuffixes.has(lastPart);
+
     if (parts.length > 1) {
       const withoutPrefix = parts.slice(1).join("_");
       aliases.add(withoutPrefix);
       aliases.add(withoutPrefix.replace(/_/g, " "));
 
-      const withoutSuffix = parts.slice(0, -1).join("_");
-      aliases.add(withoutSuffix);
-      aliases.add(withoutSuffix.replace(/_/g, " "));
+      // Only add withoutSuffix alias if it's not a generic prefix
+      if (!shouldSkipGenericPrefixAlias) {
+        const withoutSuffix = parts.slice(0, -1).join("_");
+        aliases.add(withoutSuffix);
+        aliases.add(withoutSuffix.replace(/_/g, " "));
+      }
     }
 
     // Common form label aliases for known field keys (OCR often uses full labels).
-    if (fieldKey === "sin" || fieldKey === "spouse_sin") {
+    if (fieldKey === "sin") {
       aliases.add("social insurance number");
       aliases.add("sin number");
       aliases.add("sin #");
     }
-    if (fieldKey === "phone" || fieldKey === "spouse_phone") {
+    if (fieldKey === "spouse_sin") {
+      aliases.add("social insurance number");
+      aliases.add("sin number");
+      aliases.add("sin #");
+      aliases.add("spouse social insurance number");
+    }
+    if (fieldKey === "phone") {
       aliases.add("telephone");
+    }
+    if (fieldKey === "spouse_phone") {
+      aliases.add("telephone");
+      aliases.add("spouse telephone");
     }
 
     return [...aliases];
@@ -701,13 +764,45 @@ export class SuggestionService {
   private scoreTextMatch(a: string, b: string): number {
     if (!a || !b) return 0;
     if (a === b) return 1;
-    if (a.includes(b) || b.includes(a)) return 0.8;
 
-    const aTokens = new Set(a.split(" "));
-    const bTokens = new Set(b.split(" "));
+    // Check token-level matching first (more accurate than substring matching)
+    const aTokens = new Set(a.split(" ").filter(Boolean));
+    const bTokens = new Set(b.split(" ").filter(Boolean));
     const intersection = [...aTokens].filter((token) => bTokens.has(token));
-    const union = new Set([...aTokens, ...bTokens]).size;
-    return union > 0 ? intersection.length / union : 0;
+    const union = new Set([...aTokens, ...bTokens]);
+
+    // If all tokens match, it's a perfect match
+    if (intersection.length === aTokens.size && intersection.length === bTokens.size) {
+      return 1;
+    }
+
+    // If one is a subset of the other's tokens AND they have similar token counts, score it high
+    if (intersection.length > 0) {
+      const minTokens = Math.min(aTokens.size, bTokens.size);
+      const maxTokens = Math.max(aTokens.size, bTokens.size);
+
+      // All tokens from the shorter string are in the longer string
+      if (intersection.length === minTokens) {
+        // If token counts are close (within 1), it's a strong match
+        if (maxTokens - minTokens <= 1) {
+          const score = 0.9;
+          this.logger.debug(`[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (all tokens match, counts close: ${aTokens.size} vs ${bTokens.size})`);
+          return score;
+        }
+        // Otherwise, penalize based on how different the token counts are
+        // e.g., "spouse" vs "spouse signature" has 1 vs 2 tokens = 50% difference
+        const score = 0.5 + (0.4 * (minTokens / maxTokens));
+        this.logger.debug(`[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (subset match, penalized: ${minTokens} / ${maxTokens} tokens)`);
+        return score;
+      }
+    }
+
+    // Jaccard similarity for partial token overlap
+    const score = union.size > 0 ? intersection.length / union.size : 0;
+    if (score > 0) {
+      this.logger.debug(`[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (jaccard: ${intersection.length} / ${union.size} tokens)`);
+    }
+    return score;
   }
 
   private computeIoU(polygonA: number[], polygonB: number[]): number {
