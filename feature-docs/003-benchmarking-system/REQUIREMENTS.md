@@ -605,7 +605,7 @@ Build custom views within `apps/frontend`:
 
 ### 12.1 Deployment
 
-Self-hosted OSS stack. New services added to docker-compose:
+Self-hosted OSS stack. New services added to `apps/backend-services/docker-compose.yml`:
 
 | Service | Image | Port | Purpose |
 |---------|-------|------|---------|
@@ -615,10 +615,14 @@ Self-hosted OSS stack. New services added to docker-compose:
 MLflow configuration:
 - `--backend-store-uri postgresql://mlflow:password@postgres:5432/mlflow`
 - `--default-artifact-root s3://mlflow-artifacts/` (pointing to MinIO)
+- Depends on: postgres (for backend store), minio (for artifact store)
 
 MinIO configuration:
 - Buckets: `datasets` (DVC remote), `mlflow-artifacts` (MLflow artifact store), `benchmark-outputs` (run outputs)
 - Access via AWS SDK / MinIO client with `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`
+- Volume: `minio_data` for persistent storage
+
+The existing `apps/backend-services/docker-compose.yml` is extended to include these new services alongside the existing PostgreSQL 15 container.
 
 ### 12.2 Observability
 
@@ -685,7 +689,7 @@ New Temporal workflow and activities in `apps/temporal/src/`:
 ### 13.5 Infrastructure Additions
 
 ```
-docker-compose additions:
+apps/backend-services/docker-compose.yml additions:
 ├── mlflow (port 5000)
 │   ├── backend-store → postgres:5432/mlflow
 │   └── artifact-store → minio:9000/mlflow-artifacts
@@ -693,10 +697,13 @@ docker-compose additions:
 │   ├── bucket: datasets (DVC remote)
 │   ├── bucket: mlflow-artifacts
 │   └── bucket: benchmark-outputs
-└── (existing services unchanged)
-    ├── postgres (port 5432) — gains 'mlflow' database
-    ├── temporal (port 7233)
-    └── temporal-ui (port 8088)
+└── postgres (port 5432) — existing service
+    └── gains 'mlflow' database
+
+apps/temporal/docker-compose.yaml (unchanged):
+├── temporal (port 7233)
+├── temporal-ui (port 8088)
+└── postgresql (port 5433) — Temporal's own DB
 ```
 
 ---
