@@ -102,7 +102,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 
 ### Phase 4 -- Evaluation System
 - [x] **US-014** (Evaluator Interface & Registry) -- depends on US-002
-- [ ] **US-015** (Schema-Aware Evaluator) -- depends on US-014
+- [x] **US-015** (Schema-Aware Evaluator) -- depends on US-014
 - [ ] **US-016** (Black-Box Evaluator) -- depends on US-014
 - [ ] **US-017** (Metrics Aggregation & Failure Analysis) -- depends on US-014
 
