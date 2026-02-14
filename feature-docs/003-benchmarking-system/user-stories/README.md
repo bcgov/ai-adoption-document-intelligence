@@ -104,7 +104,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 - [x] **US-014** (Evaluator Interface & Registry) -- depends on US-002
 - [x] **US-015** (Schema-Aware Evaluator) -- depends on US-014
 - [x] **US-016** (Black-Box Evaluator) -- depends on US-014
-- [ ] **US-017** (Metrics Aggregation & Failure Analysis) -- depends on US-014
+- [x] **US-017** (Metrics Aggregation & Failure Analysis) -- depends on US-014
 
 ### Phase 5 -- Benchmark Management
 - [ ] **US-010** (Benchmark Project Service & Controller) -- depends on US-002, US-004
