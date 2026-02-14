@@ -17,8 +17,12 @@ import {
   Post,
   Query,
   Req,
+  UploadedFiles,
+  UseInterceptors,
   BadRequestException,
+  PayloadTooLargeException,
 } from "@nestjs/common";
+import { FilesInterceptor } from "@nestjs/platform-express";
 import {
   ApiTags,
   ApiOperation,
@@ -43,6 +47,7 @@ import {
   CreateVersionDto,
   VersionResponseDto,
   VersionListResponseDto,
+  UploadResponseDto,
 } from "./dto";
 
 @ApiTags("Benchmark - Datasets")
@@ -128,6 +133,59 @@ export class DatasetController {
   })
   async getDatasetById(@Param("id") id: string): Promise<DatasetResponseDto> {
     return this.datasetService.getDatasetById(id);
+  }
+
+  @Post(":id/upload")
+  @HttpCode(HttpStatus.OK)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @UseInterceptors(
+    FilesInterceptor("files", 100, {
+      limits: {
+        fileSize: 100 * 1024 * 1024, // 100MB per file
+      },
+    }),
+  )
+  @ApiOperation({ summary: "Upload files to a dataset" })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiOkResponse({
+    description:
+      "Files uploaded successfully. Returns list of uploaded files and manifest status.",
+    type: UploadResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: "Dataset not found",
+  })
+  @ApiBadRequestResponse({
+    description: "Invalid file upload or dataset not found",
+  })
+  async uploadFiles(
+    @Param("id") id: string,
+    @UploadedFiles() files: Array<{
+      fieldname: string;
+      originalname: string;
+      encoding: string;
+      mimetype: string;
+      buffer: Buffer;
+      size: number;
+    }>,
+  ): Promise<UploadResponseDto> {
+    if (!files || files.length === 0) {
+      throw new BadRequestException("No files provided for upload");
+    }
+
+    // Check for file size limit violations (this is redundant with FilesInterceptor limits,
+    // but provides a more specific error message)
+    const maxSize = 100 * 1024 * 1024; // 100MB
+    for (const file of files) {
+      if (file.size > maxSize) {
+        throw new PayloadTooLargeException(
+          `File ${file.originalname} exceeds maximum size of 100MB`,
+        );
+      }
+    }
+
+    return this.datasetService.uploadFiles(id, files);
   }
 
   @Post(":id/versions")

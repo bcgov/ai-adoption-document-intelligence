@@ -13,6 +13,7 @@ const mockDatasetService = {
   createDataset: jest.fn(),
   listDatasets: jest.fn(),
   getDatasetById: jest.fn(),
+  uploadFiles: jest.fn(),
   createVersion: jest.fn(),
   publishVersion: jest.fn(),
   archiveVersion: jest.fn(),
@@ -402,6 +403,60 @@ describe("DatasetController", () => {
         "version-123",
       );
       expect(result).toEqual(mockResponse);
+    });
+  });
+
+  describe("POST /api/benchmark/datasets/:id/upload", () => {
+    const mockFiles: any[] = [
+      {
+        fieldname: "files",
+        originalname: "test.jpg",
+        encoding: "7bit",
+        mimetype: "image/jpeg",
+        buffer: Buffer.from("image data"),
+        size: 1024,
+      },
+    ];
+
+    it("uploads files successfully", async () => {
+      const mockResponse = {
+        datasetId: "dataset-123",
+        uploadedFiles: [
+          {
+            filename: "test.jpg",
+            path: "inputs/test.jpg",
+            size: 1024,
+            mimeType: "image/jpeg",
+          },
+        ],
+        manifestUpdated: true,
+        totalFiles: 1,
+      };
+
+      mockDatasetService.uploadFiles.mockResolvedValue(mockResponse);
+
+      const result = await controller.uploadFiles("dataset-123", mockFiles);
+
+      expect(mockDatasetService.uploadFiles).toHaveBeenCalledWith(
+        "dataset-123",
+        mockFiles,
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it("throws BadRequestException when no files provided", async () => {
+      await expect(controller.uploadFiles("dataset-123", [])).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(controller.uploadFiles("dataset-123", [])).rejects.toThrow(
+        "No files provided for upload",
+      );
+    });
+
+    it("throws BadRequestException when files is undefined", async () => {
+      await expect(
+        controller.uploadFiles("dataset-123", undefined),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

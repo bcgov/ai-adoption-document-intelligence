@@ -26,6 +26,8 @@ import {
   VersionResponseDto,
   VersionListResponseDto,
   VersionListItemDto,
+  UploadResponseDto,
+  UploadedFileDto,
 } from "./dto";
 import * as os from "os";
 import * as path from "path";
@@ -470,6 +472,221 @@ export class DatasetService {
     }
 
     return this.mapToVersionResponseDto(version, version.splits);
+  }
+
+  /**
+   * Upload files to a dataset
+   */
+  async uploadFiles(
+    datasetId: string,
+    files: Array<{
+      fieldname: string;
+      originalname: string;
+      encoding: string;
+      mimetype: string;
+      buffer: Buffer;
+      size: number;
+    }>,
+  ): Promise<UploadResponseDto> {
+    this.logger.log(`Uploading ${files.length} files to dataset ${datasetId}`);
+
+    // Verify dataset exists
+    const dataset = await this.prisma.dataset.findUnique({
+      where: { id: datasetId },
+    });
+
+    if (!dataset) {
+      throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
+    }
+
+    // Create temporary directory for dataset operations
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-upload-"));
+
+    try {
+      // Clone the dataset repository
+      await this.dvcService.cloneRepository(dataset.repositoryUrl, tempDir);
+
+      // Create inputs and ground-truth directories if they don't exist
+      const inputsDir = path.join(tempDir, "inputs");
+      const groundTruthDir = path.join(tempDir, "ground-truth");
+      await fs.promises.mkdir(inputsDir, { recursive: true });
+      await fs.promises.mkdir(groundTruthDir, { recursive: true });
+
+      const uploadedFiles: UploadedFileDto[] = [];
+
+      // Process each file
+      for (const file of files) {
+        // Determine if file is input or ground truth based on mimetype/extension
+        const isGroundTruth = this.isGroundTruthFile(file);
+        const targetDir = isGroundTruth ? groundTruthDir : inputsDir;
+        const relativePath = isGroundTruth
+          ? `ground-truth/${file.originalname}`
+          : `inputs/${file.originalname}`;
+        const targetPath = path.join(targetDir, file.originalname);
+
+        // Write file to appropriate directory
+        await fs.promises.writeFile(targetPath, file.buffer);
+
+        uploadedFiles.push({
+          filename: file.originalname,
+          path: relativePath,
+          size: file.size,
+          mimeType: file.mimetype,
+        });
+
+        this.logger.debug(`File written: ${relativePath}`);
+      }
+
+      // Load or create manifest
+      const manifestPath = path.join(tempDir, "dataset-manifest.json");
+      let manifest: {
+        schemaVersion: string;
+        samples: Array<{
+          id: string;
+          inputs: Array<{ path: string; mimeType: string }>;
+          groundTruth: Array<{ path: string; format: string }>;
+          metadata?: Record<string, unknown>;
+        }>;
+      };
+
+      try {
+        const manifestContent = await fs.promises.readFile(
+          manifestPath,
+          "utf-8",
+        );
+        manifest = JSON.parse(manifestContent);
+      } catch (error) {
+        // Create new manifest if it doesn't exist
+        manifest = {
+          schemaVersion: "1.0",
+          samples: [],
+        };
+      }
+
+      // Update manifest with new file references
+      // Group files by sample ID (derived from filename pattern)
+      const filesBySample = this.groupFilesBySampleId(uploadedFiles);
+
+      for (const [sampleId, sampleFiles] of Object.entries(filesBySample)) {
+        // Find or create sample entry
+        let sample = manifest.samples.find((s) => s.id === sampleId);
+        if (!sample) {
+          sample = {
+            id: sampleId,
+            inputs: [],
+            groundTruth: [],
+          };
+          manifest.samples.push(sample);
+        }
+
+        // Add file references
+        for (const file of sampleFiles) {
+          if (file.path.startsWith("inputs/")) {
+            sample.inputs.push({
+              path: file.path,
+              mimeType: file.mimeType,
+            });
+          } else if (file.path.startsWith("ground-truth/")) {
+            sample.groundTruth.push({
+              path: file.path,
+              format: this.getGroundTruthFormat(file.filename),
+            });
+          }
+        }
+      }
+
+      // Write updated manifest
+      await fs.promises.writeFile(
+        manifestPath,
+        JSON.stringify(manifest, null, 2),
+      );
+
+      this.logger.log(
+        `Upload complete: ${uploadedFiles.length} files, manifest updated`,
+      );
+
+      return {
+        datasetId: datasetId,
+        uploadedFiles: uploadedFiles,
+        manifestUpdated: true,
+        totalFiles: uploadedFiles.length,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to upload files to dataset ${datasetId}`,
+        error.stack,
+      );
+      throw error;
+    } finally {
+      // Clean up temporary directory
+      try {
+        await rm(tempDir, { recursive: true, force: true });
+      } catch (cleanupError) {
+        this.logger.warn(
+          `Failed to clean up temp directory: ${tempDir}`,
+          cleanupError,
+        );
+      }
+    }
+  }
+
+  /**
+   * Determine if a file is a ground truth file based on mimetype
+   */
+  private isGroundTruthFile(file: {
+    originalname: string;
+    mimetype: string;
+  }): boolean {
+    const groundTruthTypes = [
+      "application/json",
+      "application/x-ndjson",
+      "text/csv",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ];
+
+    const groundTruthExtensions = [".json", ".jsonl", ".csv", ".xlsx", ".parquet"];
+
+    return (
+      groundTruthTypes.includes(file.mimetype) ||
+      groundTruthExtensions.some((ext) =>
+        file.originalname.toLowerCase().endsWith(ext),
+      )
+    );
+  }
+
+  /**
+   * Group uploaded files by sample ID (derived from filename)
+   */
+  private groupFilesBySampleId(
+    files: UploadedFileDto[],
+  ): Record<string, UploadedFileDto[]> {
+    const groups: Record<string, UploadedFileDto[]> = {};
+
+    for (const file of files) {
+      // Extract sample ID from filename (e.g., "sample-001" from "sample-001.jpg" or "sample-001_gt.json")
+      const match = file.filename.match(/^([^._]+)/);
+      const sampleId = match ? match[1] : file.filename;
+
+      if (!groups[sampleId]) {
+        groups[sampleId] = [];
+      }
+      groups[sampleId].push(file);
+    }
+
+    return groups;
+  }
+
+  /**
+   * Get ground truth format from filename
+   */
+  private getGroundTruthFormat(filename: string): string {
+    if (filename.endsWith(".json")) return "json";
+    if (filename.endsWith(".jsonl")) return "jsonl";
+    if (filename.endsWith(".csv")) return "csv";
+    if (filename.endsWith(".xlsx")) return "xlsx";
+    if (filename.endsWith(".parquet")) return "parquet";
+    return "unknown";
   }
 
   /**

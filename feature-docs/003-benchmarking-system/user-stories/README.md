@@ -97,7 +97,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 ### Phase 3 -- Dataset Management
 - [x] **US-006** (Dataset Service & Controller) -- depends on US-002, US-005
 - [x] **US-007** (Dataset Version Management) -- depends on US-006, US-005
-- [ ] **US-008** (Dataset File Upload) -- depends on US-006
+- [x] **US-008** (Dataset File Upload) -- depends on US-006
 - [ ] **US-009** (Dataset Manifest & Sample Preview) -- depends on US-007
 
 ### Phase 4 -- Evaluation System

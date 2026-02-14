@@ -1,11 +1,15 @@
 const mockMkdtemp = jest.fn();
 const mockRm = jest.fn();
 const mockWriteFile = jest.fn();
+const mockMkdir = jest.fn();
+const mockReadFile = jest.fn();
 const mockFs = {
   mkdtemp: jest.fn(),
   rm: jest.fn(),
   promises: {
     writeFile: mockWriteFile,
+    mkdir: mockMkdir,
+    readFile: mockReadFile,
   },
 };
 
@@ -90,6 +94,8 @@ describe("DatasetService", () => {
     mockMkdtemp.mockResolvedValue("/tmp/dataset-init-test123");
     mockRm.mockResolvedValue(undefined);
     mockWriteFile.mockResolvedValue(undefined);
+    mockMkdir.mockResolvedValue(undefined);
+    mockReadFile.mockRejectedValue(new Error("File not found")); // Default: no existing manifest
   });
 
   // -----------------------------------------------------------------------
@@ -619,6 +625,119 @@ describe("DatasetService", () => {
       await expect(
         service.getVersionById("dataset-123", "nonexistent"),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // File Upload Tests
+  // -----------------------------------------------------------------------
+  describe("uploadFiles", () => {
+    const mockFiles: any[] = [
+      {
+        fieldname: "files",
+        originalname: "sample-001.jpg",
+        encoding: "7bit",
+        mimetype: "image/jpeg",
+        buffer: Buffer.from("fake image data"),
+        size: 1024,
+      },
+      {
+        fieldname: "files",
+        originalname: "sample-001_gt.json",
+        encoding: "7bit",
+        mimetype: "application/json",
+        buffer: Buffer.from('{"field": "value"}'),
+        size: 256,
+      },
+    ];
+
+    it("uploads files successfully and updates manifest", async () => {
+      const mockDataset = {
+        id: "dataset-123",
+        repositoryUrl: "https://github.com/user/dataset.git",
+      };
+
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+
+      const result = await service.uploadFiles("dataset-123", mockFiles);
+
+      expect(mockDvcService.cloneRepository).toHaveBeenCalled();
+      expect(mockMkdir).toHaveBeenCalledTimes(2); // inputs and ground-truth dirs
+      expect(mockWriteFile).toHaveBeenCalledTimes(3); // 2 files + 1 manifest
+      expect(result.datasetId).toBe("dataset-123");
+      expect(result.uploadedFiles).toHaveLength(2);
+      expect(result.manifestUpdated).toBe(true);
+      expect(result.totalFiles).toBe(2);
+      expect(result.uploadedFiles[0].path).toBe("inputs/sample-001.jpg");
+      expect(result.uploadedFiles[1].path).toBe("ground-truth/sample-001_gt.json");
+    });
+
+    it("groups files by sample ID in manifest", async () => {
+      const mockDataset = {
+        id: "dataset-123",
+        repositoryUrl: "https://github.com/user/dataset.git",
+      };
+
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+
+      await service.uploadFiles("dataset-123", mockFiles);
+
+      // Verify manifest was written with grouped samples
+      expect(mockWriteFile).toHaveBeenCalledWith(
+        expect.stringContaining("dataset-manifest.json"),
+        expect.stringContaining("sample-001"),
+      );
+    });
+
+    it("throws NotFoundException when dataset not found", async () => {
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.uploadFiles("nonexistent", mockFiles),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("categorizes input and ground truth files correctly", async () => {
+      const mixedFiles: any[] = [
+        {
+          fieldname: "files",
+          originalname: "doc.pdf",
+          mimetype: "application/pdf",
+          buffer: Buffer.from("pdf data"),
+          size: 2048,
+        },
+        {
+          fieldname: "files",
+          originalname: "data.csv",
+          mimetype: "text/csv",
+          buffer: Buffer.from("csv data"),
+          size: 512,
+        },
+      ];
+
+      const mockDataset = {
+        id: "dataset-123",
+        repositoryUrl: "https://github.com/user/dataset.git",
+      };
+
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+
+      const result = await service.uploadFiles("dataset-123", mixedFiles);
+
+      const inputFile = result.uploadedFiles.find((f) =>
+        f.path.startsWith("inputs/"),
+      );
+      const gtFile = result.uploadedFiles.find((f) =>
+        f.path.startsWith("ground-truth/"),
+      );
+
+      expect(inputFile).toBeDefined();
+      expect(gtFile).toBeDefined();
+      expect(inputFile.filename).toBe("doc.pdf");
+      expect(gtFile.filename).toBe("data.csv");
     });
   });
 });
