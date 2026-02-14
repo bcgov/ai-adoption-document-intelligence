@@ -1,0 +1,17 @@
+{
+  "branchName": "ralph/user-stories",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Example story",
+      "acceptanceCriteria": [
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "user_stories/US-001-example.md"
+    }
+  ]
+}

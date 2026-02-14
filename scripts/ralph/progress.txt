@@ -1,0 +1,29 @@
+# Ralph Progress Log
+Started: 2026-02-14
+
+## Codebase Patterns
+
+### Project Structure
+- Monorepo with apps/backend-services (NestJS), apps/temporal (Temporal.io), apps/frontend (React), apps/shared (Prisma)
+- Backend tests: `.spec.ts` | Temporal tests: `.test.ts`
+- No shared import path between backend and temporal - types must be duplicated
+
+### Testing Patterns
+- Backend: Jest with NestJS Test.createTestingModule
+- Temporal: Plain Jest with ts-jest
+- Always run tests after modifying code
+- Pre-existing test failures may exist (Prisma type mismatches) - verify new failures
+
+### Important Commands
+- Prisma generation: `npm run db:generate` from apps/backend-services (writes to both apps)
+- Never use `npx prisma generate` directly - use the npm script
+
+### DAG Workflow Engine
+- Requirements: docs/DAG_WORKFLOW_ENGINE.md
+- Types: docs/GRAPH_TYPES.md
+- Expression evaluator namespaces: ctx.*, doc.*, segment.*
+- 12 registered activity types
+
+## Iteration Log
+(Learnings from each iteration will be appended below)
+
