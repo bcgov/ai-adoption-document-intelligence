@@ -107,7 +107,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 - [x] **US-017** (Metrics Aggregation & Failure Analysis) -- depends on US-014
 
 ### Phase 5 -- Benchmark Management
-- [ ] **US-010** (Benchmark Project Service & Controller) -- depends on US-002, US-004
+- [x] **US-010** (Benchmark Project Service & Controller) -- depends on US-002, US-004
 - [ ] **US-011** (Benchmark Definition Service & Controller) -- depends on US-010, US-014
 - [ ] **US-012** (Benchmark Run Service & Controller) -- depends on US-011
 - [ ] **US-013** (Benchmark Artifact Management) -- depends on US-012, US-003

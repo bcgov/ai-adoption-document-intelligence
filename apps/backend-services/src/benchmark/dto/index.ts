@@ -6,3 +6,5 @@ export * from "./version-response.dto";
 export * from "./version-list-response.dto";
 export * from "./upload-response.dto";
 export * from "./manifest-sample.dto";
+export * from "./create-project.dto";
+export * from "./project-response.dto";
