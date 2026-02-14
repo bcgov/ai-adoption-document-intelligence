@@ -7,12 +7,12 @@
 
 import { NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { EvaluatorRegistryService } from "./evaluator-registry.service";
 import {
   BenchmarkEvaluator,
   EvaluationInput,
   EvaluationResult,
 } from "./evaluator.interface";
+import { EvaluatorRegistryService } from "./evaluator-registry.service";
 
 describe("EvaluatorRegistryService", () => {
   let service: EvaluatorRegistryService;
@@ -24,7 +24,7 @@ describe("EvaluatorRegistryService", () => {
       async (input: EvaluationInput): Promise<EvaluationResult> => {
         return {
           sampleId: input.sampleId,
-          metrics: { accuracy: 0.95, precision: 0.92, recall: 0.90 },
+          metrics: { accuracy: 0.95, precision: 0.92, recall: 0.9 },
           diagnostics: { fieldsCompared: 10, fieldsMatched: 9 },
           pass: true,
         };

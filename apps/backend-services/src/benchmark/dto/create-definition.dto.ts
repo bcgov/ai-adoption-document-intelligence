@@ -5,7 +5,7 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-011-benchmark-definition-service-controller.md
  */
 
-import { IsString, IsNotEmpty, IsObject, IsOptional } from "class-validator";
+import { IsNotEmpty, IsObject, IsOptional, IsString } from "class-validator";
 
 export class CreateDefinitionDto {
   /**

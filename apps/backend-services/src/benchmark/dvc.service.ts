@@ -53,7 +53,11 @@ export class DvcService {
     try {
       // If credentials are provided, inject them into the URL
       let cloneUrl = repositoryUrl;
-      if (this.gitUsername && this.gitPassword && repositoryUrl.startsWith("http")) {
+      if (
+        this.gitUsername &&
+        this.gitPassword &&
+        repositoryUrl.startsWith("http")
+      ) {
         const url = new URL(repositoryUrl);
         url.username = this.gitUsername;
         url.password = this.gitPassword;
@@ -94,9 +98,12 @@ export class DvcService {
       await this.configureRemote(repoPath, remoteName, bucketUrl);
 
       // Commit DVC initialization files
-      await execAsync('git add .dvc .dvcignore && git commit -m "Initialize DVC"', {
-        cwd: repoPath,
-      });
+      await execAsync(
+        'git add .dvc .dvcignore && git commit -m "Initialize DVC"',
+        {
+          cwd: repoPath,
+        },
+      );
 
       this.logger.log(`DVC repository initialized at ${repoPath}`);
     } catch (error) {
@@ -221,7 +228,10 @@ export class DvcService {
 
       this.logger.log(`Pushed DVC data from ${repoPath} to MinIO`);
     } catch (error) {
-      this.logger.error(`Failed to push DVC data from ${repoPath}`, error.stack);
+      this.logger.error(
+        `Failed to push DVC data from ${repoPath}`,
+        error.stack,
+      );
       throw new Error(`Failed to push DVC data: ${error.message}`);
     }
   }

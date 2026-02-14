@@ -70,7 +70,10 @@ describe("DvcService", () => {
     it("clones without credentials for SSH URLs", async () => {
       mockSuccessfulExec("", "Cloning into 'repo'...");
 
-      await service.cloneRepository("git@github.com:user/repo.git", "/tmp/repo");
+      await service.cloneRepository(
+        "git@github.com:user/repo.git",
+        "/tmp/repo",
+      );
 
       expect(mockExec).toHaveBeenCalledWith(
         'git clone "git@github.com:user/repo.git" "/tmp/repo"',
@@ -81,7 +84,10 @@ describe("DvcService", () => {
       mockFailedExec(new Error("Repository not found"));
 
       await expect(
-        service.cloneRepository("https://github.com/user/repo.git", "/tmp/repo"),
+        service.cloneRepository(
+          "https://github.com/user/repo.git",
+          "/tmp/repo",
+        ),
       ).rejects.toThrow("Failed to clone repository");
     });
   });

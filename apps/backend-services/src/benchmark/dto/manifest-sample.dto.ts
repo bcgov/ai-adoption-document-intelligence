@@ -12,7 +12,8 @@ import { ApiProperty } from "@nestjs/swagger";
  */
 export class InputFileDto {
   @ApiProperty({
-    description: "Relative path to the input file within the dataset repository",
+    description:
+      "Relative path to the input file within the dataset repository",
     example: "inputs/form_image_0.jpg",
   })
   path: string;

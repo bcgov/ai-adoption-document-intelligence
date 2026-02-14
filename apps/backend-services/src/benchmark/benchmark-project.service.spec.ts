@@ -25,12 +25,12 @@ jest.mock("@/utils/database-url", () => ({
   getPrismaPgOptions: jest.fn().mockReturnValue({}),
 }));
 
-import { Test, TestingModule } from "@nestjs/testing";
 import { NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { Test, TestingModule } from "@nestjs/testing";
 import { BenchmarkProjectService } from "./benchmark-project.service";
-import { MLflowClientService } from "./mlflow-client.service";
 import { CreateProjectDto } from "./dto";
+import { MLflowClientService } from "./mlflow-client.service";
 
 describe("BenchmarkProjectService", () => {
   let service: BenchmarkProjectService;

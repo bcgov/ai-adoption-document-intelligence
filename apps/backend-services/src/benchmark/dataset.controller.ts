@@ -7,6 +7,7 @@
  */
 
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -14,25 +15,24 @@ import {
   HttpStatus,
   Param,
   Patch,
+  PayloadTooLargeException,
   Post,
   Query,
   Req,
   UploadedFiles,
   UseInterceptors,
-  BadRequestException,
-  PayloadTooLargeException,
 } from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import {
-  ApiTags,
-  ApiOperation,
-  ApiCreatedResponse,
-  ApiOkResponse,
-  ApiNotFoundResponse,
   ApiBadRequestResponse,
-  ApiQuery,
-  ApiParam,
   ApiBody,
+  ApiCreatedResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
 import {
@@ -42,13 +42,13 @@ import {
 import { DatasetService } from "./dataset.service";
 import {
   CreateDatasetDto,
+  CreateVersionDto,
   DatasetResponseDto,
   PaginatedDatasetResponseDto,
-  CreateVersionDto,
-  VersionResponseDto,
-  VersionListResponseDto,
-  UploadResponseDto,
   SampleListResponseDto,
+  UploadResponseDto,
+  VersionListResponseDto,
+  VersionResponseDto,
 } from "./dto";
 
 @ApiTags("Benchmark - Datasets")
@@ -239,9 +239,7 @@ export class DatasetController {
   @ApiNotFoundResponse({
     description: "Dataset not found",
   })
-  async listVersions(
-    @Param("id") id: string,
-  ): Promise<VersionListResponseDto> {
+  async listVersions(@Param("id") id: string): Promise<VersionListResponseDto> {
     return this.datasetService.listVersions(id);
   }
 

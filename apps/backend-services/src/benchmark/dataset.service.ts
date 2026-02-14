@@ -9,32 +9,32 @@
 
 import { AuditAction, Prisma, PrismaClient } from "@generated/client";
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
-  BadRequestException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { getPrismaPgOptions } from "@/utils/database-url";
-import { DvcService } from "./dvc.service";
-import {
-  CreateDatasetDto,
-  DatasetResponseDto,
-  PaginatedDatasetResponseDto,
-  CreateVersionDto,
-  VersionResponseDto,
-  VersionListResponseDto,
-  VersionListItemDto,
-  UploadResponseDto,
-  UploadedFileDto,
-  SampleListResponseDto,
-  ManifestSampleDto,
-} from "./dto";
+import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import * as fs from "fs";
 import { promisify } from "util";
+import { getPrismaPgOptions } from "@/utils/database-url";
+import {
+  CreateDatasetDto,
+  CreateVersionDto,
+  DatasetResponseDto,
+  ManifestSampleDto,
+  PaginatedDatasetResponseDto,
+  SampleListResponseDto,
+  UploadedFileDto,
+  UploadResponseDto,
+  VersionListItemDto,
+  VersionListResponseDto,
+  VersionResponseDto,
+} from "./dto";
+import { DvcService } from "./dvc.service";
 
 const mkdtemp = promisify(fs.mkdtemp);
 const rm = promisify(fs.rm);
@@ -237,8 +237,7 @@ export class DatasetService {
       await this.dvcService.cloneRepository(dataset.repositoryUrl, tempDir);
 
       // Default manifest path if not provided
-      const manifestPath =
-        createDto.manifestPath || "dataset-manifest.json";
+      const manifestPath = createDto.manifestPath || "dataset-manifest.json";
 
       // Generate a simple manifest with document count
       // In a real implementation, this would scan the repository for actual files
@@ -258,8 +257,10 @@ export class DatasetService {
 
       // Commit changes to Git
       const commitMessage = `Add dataset version ${createDto.version}`;
-      const gitRevision =
-        await this.dvcService.commitChanges(tempDir, commitMessage);
+      const gitRevision = await this.dvcService.commitChanges(
+        tempDir,
+        commitMessage,
+      );
 
       // Push DVC-tracked files to remote (if any were added)
       // await this.dvcService.pushData(tempDir);
@@ -313,9 +314,7 @@ export class DatasetService {
     versionId: string,
     userId: string,
   ): Promise<VersionResponseDto> {
-    this.logger.log(
-      `Publishing version ${versionId} for dataset ${datasetId}`,
-    );
+    this.logger.log(`Publishing version ${versionId} for dataset ${datasetId}`);
 
     // Get the version
     const version = await this.prisma.datasetVersion.findFirst({
@@ -374,9 +373,7 @@ export class DatasetService {
     datasetId: string,
     versionId: string,
   ): Promise<VersionResponseDto> {
-    this.logger.log(
-      `Archiving version ${versionId} for dataset ${datasetId}`,
-    );
+    this.logger.log(`Archiving version ${versionId} for dataset ${datasetId}`);
 
     // Get the version
     const version = await this.prisma.datasetVersion.findFirst({
@@ -446,9 +443,7 @@ export class DatasetService {
     datasetId: string,
     versionId: string,
   ): Promise<VersionResponseDto> {
-    this.logger.debug(
-      `Getting version ${versionId} for dataset ${datasetId}`,
-    );
+    this.logger.debug(`Getting version ${versionId} for dataset ${datasetId}`);
 
     const version = await this.prisma.datasetVersion.findFirst({
       where: {
@@ -688,10 +683,7 @@ export class DatasetService {
       const total = manifest.samples.length;
 
       // Paginate samples
-      const paginatedSamples = manifest.samples.slice(
-        skip,
-        skip + validLimit,
-      );
+      const paginatedSamples = manifest.samples.slice(skip, skip + validLimit);
 
       // Map to DTOs
       const samples: ManifestSampleDto[] = paginatedSamples.map((sample) => ({
@@ -709,7 +701,10 @@ export class DatasetService {
         totalPages: Math.ceil(total / validLimit),
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(
@@ -744,14 +739,14 @@ export class DatasetService {
   }> {
     try {
       // Read manifest file
-      const manifestContent = await fs.promises.readFile(
-        manifestPath,
-        "utf-8",
-      );
+      const manifestContent = await fs.promises.readFile(manifestPath, "utf-8");
       const manifest = JSON.parse(manifestContent);
 
       // Validate manifest schema
-      if (!manifest.schemaVersion || typeof manifest.schemaVersion !== "string") {
+      if (
+        !manifest.schemaVersion ||
+        typeof manifest.schemaVersion !== "string"
+      ) {
         throw new BadRequestException(
           "Invalid manifest: schemaVersion is required and must be a string",
         );
@@ -816,7 +811,10 @@ export class DatasetService {
         }
 
         // Validate metadata (optional, but must be an object if present)
-        if (sample.metadata !== undefined && typeof sample.metadata !== "object") {
+        if (
+          sample.metadata !== undefined &&
+          typeof sample.metadata !== "object"
+        ) {
           throw new BadRequestException(
             `Invalid manifest: sample '${sample.id}' metadata must be an object`,
           );
@@ -855,7 +853,13 @@ export class DatasetService {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ];
 
-    const groundTruthExtensions = [".json", ".jsonl", ".csv", ".xlsx", ".parquet"];
+    const groundTruthExtensions = [
+      ".json",
+      ".jsonl",
+      ".csv",
+      ".xlsx",
+      ".parquet",
+    ];
 
     return (
       groundTruthTypes.includes(file.mimetype) ||

@@ -8,19 +8,19 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 2.4, 6.2, 11.2
  */
 
+import { PrismaClient } from "@generated/client";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { PrismaClient } from "@generated/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getPrismaPgOptions } from "@/utils/database-url";
-import { MLflowClientService } from "./mlflow-client.service";
 import {
   CreateProjectDto,
-  ProjectSummaryDto,
-  ProjectDetailsDto,
   DefinitionSummary,
+  ProjectDetailsDto,
+  ProjectSummaryDto,
   RecentRunSummary,
 } from "./dto";
+import { MLflowClientService } from "./mlflow-client.service";
 
 @Injectable()
 export class BenchmarkProjectService {
@@ -58,9 +58,7 @@ export class BenchmarkProjectService {
         error.stack,
       );
       // Re-throw as a service unavailable error
-      throw new Error(
-        `Failed to create MLflow experiment: ${error.message}`,
-      );
+      throw new Error(`Failed to create MLflow experiment: ${error.message}`);
     }
 
     // Create project in Postgres
@@ -194,7 +192,9 @@ export class BenchmarkProjectService {
     });
 
     if (!project) {
-      throw new NotFoundException(`Benchmark project with ID "${id}" not found`);
+      throw new NotFoundException(
+        `Benchmark project with ID "${id}" not found`,
+      );
     }
 
     return this.mapToProjectDetails(project);

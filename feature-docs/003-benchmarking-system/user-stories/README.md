@@ -109,7 +109,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 ### Phase 5 -- Benchmark Management
 - [x] **US-010** (Benchmark Project Service & Controller) -- depends on US-002, US-004
 - [x] **US-011** (Benchmark Definition Service & Controller) -- depends on US-010, US-014
-- [ ] **US-012** (Benchmark Run Service & Controller) -- depends on US-011
+- [x] **US-012** (Benchmark Run Service & Controller) -- depends on US-011
 - [ ] **US-013** (Benchmark Artifact Management) -- depends on US-012, US-003
 
 ### Phase 6 -- Temporal Execution

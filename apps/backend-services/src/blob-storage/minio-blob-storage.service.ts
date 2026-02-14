@@ -101,7 +101,10 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       this.logger.debug(`Read blob: ${key} (${data.length} bytes)`);
       return data;
     } catch (error) {
-      if (error.name === "NoSuchKey" || error.$metadata?.httpStatusCode === 404) {
+      if (
+        error.name === "NoSuchKey" ||
+        error.$metadata?.httpStatusCode === 404
+      ) {
         throw new Error(
           `Blob not found: "${key}" does not exist in bucket "${this.bucket}"`,
         );
@@ -124,7 +127,10 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       );
       return true;
     } catch (error) {
-      if (error.name === "NotFound" || error.$metadata?.httpStatusCode === 404) {
+      if (
+        error.name === "NotFound" ||
+        error.$metadata?.httpStatusCode === 404
+      ) {
         return false;
       }
       this.logger.error(`Failed to check blob existence: ${key}`, error.stack);

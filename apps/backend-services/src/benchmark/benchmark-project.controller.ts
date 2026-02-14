@@ -8,22 +8,18 @@
  */
 
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Body,
-  Param,
   HttpCode,
   HttpStatus,
   Logger,
+  Param,
+  Post,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { BenchmarkProjectService } from "./benchmark-project.service";
-import {
-  CreateProjectDto,
-  ProjectSummaryDto,
-  ProjectDetailsDto,
-} from "./dto";
+import { CreateProjectDto, ProjectDetailsDto, ProjectSummaryDto } from "./dto";
 
 @Controller("api/benchmark/projects")
 export class BenchmarkProjectController {
@@ -43,7 +39,9 @@ export class BenchmarkProjectController {
   async createProject(
     @Body() createProjectDto: CreateProjectDto,
   ): Promise<ProjectDetailsDto> {
-    this.logger.log(`POST /api/benchmark/projects - name: ${createProjectDto.name}`);
+    this.logger.log(
+      `POST /api/benchmark/projects - name: ${createProjectDto.name}`,
+    );
 
     try {
       return await this.benchmarkProjectService.createProject(createProjectDto);

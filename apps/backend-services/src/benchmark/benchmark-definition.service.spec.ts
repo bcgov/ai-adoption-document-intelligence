@@ -5,13 +5,13 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-011-benchmark-definition-service-controller.md
  */
 
-import { Test, TestingModule } from "@nestjs/testing";
-import { ConfigService } from "@nestjs/config";
-import { NotFoundException, BadRequestException } from "@nestjs/common";
-import { BenchmarkDefinitionService } from "./benchmark-definition.service";
-import { EvaluatorRegistryService } from "./evaluator-registry.service";
-import { BenchmarkEvaluator } from "./evaluator.interface";
 import { PrismaClient } from "@generated/client";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Test, TestingModule } from "@nestjs/testing";
+import { BenchmarkDefinitionService } from "./benchmark-definition.service";
+import { BenchmarkEvaluator } from "./evaluator.interface";
+import { EvaluatorRegistryService } from "./evaluator-registry.service";
 
 // Mock Prisma
 jest.mock("@generated/client", () => {
@@ -152,8 +152,12 @@ describe("BenchmarkDefinitionService", () => {
     };
 
     it("creates a definition with all valid references", async () => {
-      jest.spyOn(prisma.benchmarkProject, "findUnique").mockResolvedValue(mockProject);
-      jest.spyOn(prisma.datasetVersion, "findUnique").mockResolvedValue(mockDatasetVersion);
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
+      jest
+        .spyOn(prisma.datasetVersion, "findUnique")
+        .mockResolvedValue(mockDatasetVersion);
       jest.spyOn(prisma.split, "findUnique").mockResolvedValue(mockSplit);
       jest.spyOn(prisma.workflow, "findUnique").mockResolvedValue(mockWorkflow);
 
@@ -179,7 +183,9 @@ describe("BenchmarkDefinitionService", () => {
         benchmarkRuns: [],
       };
 
-      jest.spyOn(prisma.benchmarkDefinition, "create").mockResolvedValue(mockCreatedDefinition as never);
+      jest
+        .spyOn(prisma.benchmarkDefinition, "create")
+        .mockResolvedValue(mockCreatedDefinition as never);
 
       const result = await service.createDefinition("project-1", createDto);
 
@@ -192,8 +198,12 @@ describe("BenchmarkDefinitionService", () => {
     });
 
     it("captures workflow config hash at creation time", async () => {
-      jest.spyOn(prisma.benchmarkProject, "findUnique").mockResolvedValue(mockProject);
-      jest.spyOn(prisma.datasetVersion, "findUnique").mockResolvedValue(mockDatasetVersion);
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
+      jest
+        .spyOn(prisma.datasetVersion, "findUnique")
+        .mockResolvedValue(mockDatasetVersion);
       jest.spyOn(prisma.split, "findUnique").mockResolvedValue(mockSplit);
       jest.spyOn(prisma.workflow, "findUnique").mockResolvedValue(mockWorkflow);
 
@@ -219,7 +229,9 @@ describe("BenchmarkDefinitionService", () => {
         benchmarkRuns: [],
       };
 
-      jest.spyOn(prisma.benchmarkDefinition, "create").mockResolvedValue(mockCreatedDefinition as never);
+      jest
+        .spyOn(prisma.benchmarkDefinition, "create")
+        .mockResolvedValue(mockCreatedDefinition as never);
 
       const result = await service.createDefinition("project-1", createDto);
 
@@ -253,7 +265,9 @@ describe("BenchmarkDefinitionService", () => {
     });
 
     it("returns 400 when dataset version does not exist", async () => {
-      jest.spyOn(prisma.benchmarkProject, "findUnique").mockResolvedValue(mockProject);
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
       jest.spyOn(prisma.datasetVersion, "findUnique").mockResolvedValue(null);
 
       await expect(
@@ -261,12 +275,18 @@ describe("BenchmarkDefinitionService", () => {
       ).rejects.toThrow(BadRequestException);
       await expect(
         service.createDefinition("project-1", createDto),
-      ).rejects.toThrow('Dataset version with ID "ds-version-1" does not exist');
+      ).rejects.toThrow(
+        'Dataset version with ID "ds-version-1" does not exist',
+      );
     });
 
     it("returns 400 when split does not exist", async () => {
-      jest.spyOn(prisma.benchmarkProject, "findUnique").mockResolvedValue(mockProject);
-      jest.spyOn(prisma.datasetVersion, "findUnique").mockResolvedValue(mockDatasetVersion);
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
+      jest
+        .spyOn(prisma.datasetVersion, "findUnique")
+        .mockResolvedValue(mockDatasetVersion);
       jest.spyOn(prisma.split, "findUnique").mockResolvedValue(null);
 
       await expect(
@@ -278,8 +298,12 @@ describe("BenchmarkDefinitionService", () => {
     });
 
     it("returns 400 when split does not belong to dataset version", async () => {
-      jest.spyOn(prisma.benchmarkProject, "findUnique").mockResolvedValue(mockProject);
-      jest.spyOn(prisma.datasetVersion, "findUnique").mockResolvedValue(mockDatasetVersion);
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
+      jest
+        .spyOn(prisma.datasetVersion, "findUnique")
+        .mockResolvedValue(mockDatasetVersion);
       jest.spyOn(prisma.split, "findUnique").mockResolvedValue({
         ...mockSplit,
         datasetVersionId: "different-ds-version",
@@ -290,12 +314,18 @@ describe("BenchmarkDefinitionService", () => {
       ).rejects.toThrow(BadRequestException);
       await expect(
         service.createDefinition("project-1", createDto),
-      ).rejects.toThrow('Split "split-1" does not belong to dataset version "ds-version-1"');
+      ).rejects.toThrow(
+        'Split "split-1" does not belong to dataset version "ds-version-1"',
+      );
     });
 
     it("returns 400 when workflow does not exist", async () => {
-      jest.spyOn(prisma.benchmarkProject, "findUnique").mockResolvedValue(mockProject);
-      jest.spyOn(prisma.datasetVersion, "findUnique").mockResolvedValue(mockDatasetVersion);
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
+      jest
+        .spyOn(prisma.datasetVersion, "findUnique")
+        .mockResolvedValue(mockDatasetVersion);
       jest.spyOn(prisma.split, "findUnique").mockResolvedValue(mockSplit);
       jest.spyOn(prisma.workflow, "findUnique").mockResolvedValue(null);
 
@@ -308,8 +338,12 @@ describe("BenchmarkDefinitionService", () => {
     });
 
     it("returns 400 when evaluator type is not registered", async () => {
-      jest.spyOn(prisma.benchmarkProject, "findUnique").mockResolvedValue(mockProject);
-      jest.spyOn(prisma.datasetVersion, "findUnique").mockResolvedValue(mockDatasetVersion);
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
+      jest
+        .spyOn(prisma.datasetVersion, "findUnique")
+        .mockResolvedValue(mockDatasetVersion);
       jest.spyOn(prisma.split, "findUnique").mockResolvedValue(mockSplit);
       jest.spyOn(prisma.workflow, "findUnique").mockResolvedValue(mockWorkflow);
 
@@ -323,7 +357,9 @@ describe("BenchmarkDefinitionService", () => {
       ).rejects.toThrow(BadRequestException);
       await expect(
         service.createDefinition("project-1", invalidDto),
-      ).rejects.toThrow('Evaluator type "non-existent-evaluator" is not registered');
+      ).rejects.toThrow(
+        'Evaluator type "non-existent-evaluator" is not registered',
+      );
     });
   });
 
@@ -332,7 +368,9 @@ describe("BenchmarkDefinitionService", () => {
   // -----------------------------------------------------------------------
   describe("listDefinitions", () => {
     it("returns list of definitions for a project", async () => {
-      jest.spyOn(prisma.benchmarkProject, "findUnique").mockResolvedValue(mockProject);
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
 
       const mockDefinitions = [
         {
@@ -359,7 +397,9 @@ describe("BenchmarkDefinitionService", () => {
         },
       ];
 
-      jest.spyOn(prisma.benchmarkDefinition, "findMany").mockResolvedValue(mockDefinitions as never);
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findMany")
+        .mockResolvedValue(mockDefinitions as never);
 
       const result = await service.listDefinitions("project-1");
 
@@ -413,7 +453,9 @@ describe("BenchmarkDefinitionService", () => {
         ],
       };
 
-      jest.spyOn(prisma.benchmarkDefinition, "findFirst").mockResolvedValue(mockDefinition as never);
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(mockDefinition as never);
 
       const result = await service.getDefinitionById("project-1", "def-1");
 
@@ -454,7 +496,9 @@ describe("BenchmarkDefinitionService", () => {
         },
       };
 
-      jest.spyOn(prisma.benchmarkDefinition, "findFirst").mockResolvedValue(existingDefinition as never);
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(existingDefinition as never);
       jest.spyOn(prisma.benchmarkDefinition, "update").mockResolvedValue({
         ...existingDefinition,
         immutable: true,
@@ -468,7 +512,9 @@ describe("BenchmarkDefinitionService", () => {
         benchmarkRuns: [],
       };
 
-      jest.spyOn(prisma.benchmarkDefinition, "create").mockResolvedValue(newRevision as never);
+      jest
+        .spyOn(prisma.benchmarkDefinition, "create")
+        .mockResolvedValue(newRevision as never);
 
       const updateDto = {
         name: "Updated Name",
@@ -520,7 +566,9 @@ describe("BenchmarkDefinitionService", () => {
         },
       };
 
-      jest.spyOn(prisma.benchmarkDefinition, "findFirst").mockResolvedValue(existingDefinition as never);
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(existingDefinition as never);
 
       const updatedDefinition = {
         ...existingDefinition,
@@ -528,7 +576,9 @@ describe("BenchmarkDefinitionService", () => {
         benchmarkRuns: [],
       };
 
-      jest.spyOn(prisma.benchmarkDefinition, "update").mockResolvedValue(updatedDefinition as never);
+      jest
+        .spyOn(prisma.benchmarkDefinition, "update")
+        .mockResolvedValue(updatedDefinition as never);
 
       const updateDto = {
         name: "Updated Name",
@@ -553,7 +603,9 @@ describe("BenchmarkDefinitionService", () => {
   // -----------------------------------------------------------------------
   describe("getDefinitionById - not found", () => {
     it("returns 404 when definition does not exist", async () => {
-      jest.spyOn(prisma.benchmarkDefinition, "findFirst").mockResolvedValue(null);
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(null);
 
       await expect(
         service.getDefinitionById("project-1", "invalid-def"),

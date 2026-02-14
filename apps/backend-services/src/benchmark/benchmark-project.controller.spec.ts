@@ -5,19 +5,15 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-010-benchmark-project-service-controller.md
  */
 
-import { Test, TestingModule } from "@nestjs/testing";
 import {
+  BadRequestException,
   NotFoundException,
   ServiceUnavailableException,
-  BadRequestException,
 } from "@nestjs/common";
+import { Test, TestingModule } from "@nestjs/testing";
 import { BenchmarkProjectController } from "./benchmark-project.controller";
 import { BenchmarkProjectService } from "./benchmark-project.service";
-import {
-  CreateProjectDto,
-  ProjectSummaryDto,
-  ProjectDetailsDto,
-} from "./dto";
+import { CreateProjectDto, ProjectDetailsDto, ProjectSummaryDto } from "./dto";
 
 describe("BenchmarkProjectController", () => {
   let controller: BenchmarkProjectController;

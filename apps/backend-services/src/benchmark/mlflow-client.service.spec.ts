@@ -1,8 +1,8 @@
 import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { of, throwError } from "rxjs";
 import { AxiosResponse } from "axios";
+import { of, throwError } from "rxjs";
 import { MLflowClientService, MLflowRunStatus } from "./mlflow-client.service";
 
 const mockConfigService = {
@@ -338,9 +338,7 @@ describe("MLflowClientService", () => {
         },
       ];
 
-      mockHttpPost.mockReturnValue(
-        of(createMockResponse({ runs: mockRuns })),
-      );
+      mockHttpPost.mockReturnValue(of(createMockResponse({ runs: mockRuns })));
 
       const result = await service.queryRuns("exp-123");
 

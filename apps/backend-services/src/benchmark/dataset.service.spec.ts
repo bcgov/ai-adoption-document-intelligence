@@ -58,7 +58,8 @@ const mockDvcService = {
 
 const mockConfigService = {
   get: jest.fn((key: string) => {
-    if (key === "DATABASE_URL") return "postgresql://test:test@localhost:5432/test";
+    if (key === "DATABASE_URL")
+      return "postgresql://test:test@localhost:5432/test";
     return undefined;
   }),
 };
@@ -594,10 +595,7 @@ describe("DatasetService", () => {
 
       mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
 
-      const result = await service.getVersionById(
-        "dataset-123",
-        "version-123",
-      );
+      const result = await service.getVersionById("dataset-123", "version-123");
 
       expect(mockPrismaClient.datasetVersion.findFirst).toHaveBeenCalledWith({
         where: {
@@ -671,7 +669,9 @@ describe("DatasetService", () => {
       expect(result.manifestUpdated).toBe(true);
       expect(result.totalFiles).toBe(2);
       expect(result.uploadedFiles[0].path).toBe("inputs/sample-001.jpg");
-      expect(result.uploadedFiles[1].path).toBe("ground-truth/sample-001_gt.json");
+      expect(result.uploadedFiles[1].path).toBe(
+        "ground-truth/sample-001_gt.json",
+      );
     });
 
     it("groups files by sample ID in manifest", async () => {

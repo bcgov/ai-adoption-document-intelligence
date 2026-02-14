@@ -8,28 +8,28 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 2.5, 7.4, 11.2
  */
 
+import { PrismaClient } from "@generated/client";
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
-  BadRequestException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { PrismaClient } from "@generated/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getPrismaPgOptions } from "@/utils/database-url";
-import { EvaluatorRegistryService } from "./evaluator-registry.service";
 import { computeConfigHash } from "@/workflow/config-hash";
 import {
   CreateDefinitionDto,
-  UpdateDefinitionDto,
-  DefinitionSummaryDto,
-  DefinitionDetailsDto,
   DatasetVersionInfo,
-  WorkflowInfo,
-  SplitInfo,
+  DefinitionDetailsDto,
+  DefinitionSummaryDto,
   RunHistorySummary,
+  SplitInfo,
+  UpdateDefinitionDto,
+  WorkflowInfo,
 } from "./dto";
+import { EvaluatorRegistryService } from "./evaluator-registry.service";
 
 @Injectable()
 export class BenchmarkDefinitionService {
@@ -389,12 +389,12 @@ export class BenchmarkDefinitionService {
           workflowId: dto.workflowId ?? existing.workflowId,
           workflowConfigHash,
           evaluatorType: dto.evaluatorType ?? existing.evaluatorType,
-          evaluatorConfig:
-            (dto.evaluatorConfig ?? existing.evaluatorConfig) as never,
-          runtimeSettings:
-            (dto.runtimeSettings ?? existing.runtimeSettings) as never,
-          artifactPolicy:
-            (dto.artifactPolicy ?? existing.artifactPolicy) as never,
+          evaluatorConfig: (dto.evaluatorConfig ??
+            existing.evaluatorConfig) as never,
+          runtimeSettings: (dto.runtimeSettings ??
+            existing.runtimeSettings) as never,
+          artifactPolicy: (dto.artifactPolicy ??
+            existing.artifactPolicy) as never,
           immutable: false,
           revision: existing.revision + 1,
         },
@@ -434,16 +434,20 @@ export class BenchmarkDefinitionService {
       // Update in place
       const updateData: Record<string, unknown> = {};
       if (dto.name) updateData.name = dto.name;
-      if (dto.datasetVersionId) updateData.datasetVersionId = dto.datasetVersionId;
+      if (dto.datasetVersionId)
+        updateData.datasetVersionId = dto.datasetVersionId;
       if (dto.splitId) updateData.splitId = dto.splitId;
       if (dto.workflowId) {
         updateData.workflowId = dto.workflowId;
         updateData.workflowConfigHash = workflowConfigHash;
       }
       if (dto.evaluatorType) updateData.evaluatorType = dto.evaluatorType;
-      if (dto.evaluatorConfig) updateData.evaluatorConfig = dto.evaluatorConfig as never;
-      if (dto.runtimeSettings) updateData.runtimeSettings = dto.runtimeSettings as never;
-      if (dto.artifactPolicy) updateData.artifactPolicy = dto.artifactPolicy as never;
+      if (dto.evaluatorConfig)
+        updateData.evaluatorConfig = dto.evaluatorConfig as never;
+      if (dto.runtimeSettings)
+        updateData.runtimeSettings = dto.runtimeSettings as never;
+      if (dto.artifactPolicy)
+        updateData.artifactPolicy = dto.artifactPolicy as never;
 
       const updated = await this.prisma.benchmarkDefinition.update({
         where: { id: definitionId },

@@ -8,22 +8,22 @@
  */
 
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Put,
-  Body,
-  Param,
   HttpCode,
   HttpStatus,
   Logger,
+  Param,
+  Post,
+  Put,
 } from "@nestjs/common";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import {
   CreateDefinitionDto,
-  UpdateDefinitionDto,
-  DefinitionSummaryDto,
   DefinitionDetailsDto,
+  DefinitionSummaryDto,
+  UpdateDefinitionDto,
 } from "./dto";
 
 @Controller("api/benchmark/projects/:projectId/definitions")
@@ -63,9 +63,7 @@ export class BenchmarkDefinitionController {
   async listDefinitions(
     @Param("projectId") projectId: string,
   ): Promise<DefinitionSummaryDto[]> {
-    this.logger.log(
-      `GET /api/benchmark/projects/${projectId}/definitions`,
-    );
+    this.logger.log(`GET /api/benchmark/projects/${projectId}/definitions`);
     return this.benchmarkDefinitionService.listDefinitions(projectId);
   }
 

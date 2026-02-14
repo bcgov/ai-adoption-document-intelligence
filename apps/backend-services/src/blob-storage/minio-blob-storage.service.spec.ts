@@ -112,7 +112,8 @@ describe("MinioBlobStorageService", () => {
     });
 
     it("throws descriptive error for 404 status code", async () => {
-      const error: Error & { $metadata?: { httpStatusCode?: number } } = new Error("Not Found");
+      const error: Error & { $metadata?: { httpStatusCode?: number } } =
+        new Error("Not Found");
       error.$metadata = { httpStatusCode: 404 };
       mockS3Send.mockRejectedValue(error);
 
@@ -155,7 +156,8 @@ describe("MinioBlobStorageService", () => {
     });
 
     it("returns false when file does not exist (404 status)", async () => {
-      const error: Error & { $metadata?: { httpStatusCode?: number } } = new Error("Not Found");
+      const error: Error & { $metadata?: { httpStatusCode?: number } } =
+        new Error("Not Found");
       error.$metadata = { httpStatusCode: 404 };
       mockS3Send.mockRejectedValue(error);
 

@@ -67,7 +67,9 @@ export class MLflowClientService {
       "MLFLOW_TRACKING_URI",
       "http://localhost:5000",
     );
-    this.logger.log(`MLflow client initialized: trackingUri=${this.trackingUri}`);
+    this.logger.log(
+      `MLflow client initialized: trackingUri=${this.trackingUri}`,
+    );
   }
 
   /**
@@ -82,11 +84,18 @@ export class MLflowClientService {
         ),
       );
 
-      this.logger.log(`Created MLflow experiment: ${name} (ID: ${response.data.experiment_id})`);
+      this.logger.log(
+        `Created MLflow experiment: ${name} (ID: ${response.data.experiment_id})`,
+      );
       return response.data.experiment_id;
     } catch (error) {
-      this.logger.error(`Failed to create MLflow experiment: ${name}`, error.stack);
-      throw new Error(`Failed to create MLflow experiment "${name}": ${error.message}`);
+      this.logger.error(
+        `Failed to create MLflow experiment: ${name}`,
+        error.stack,
+      );
+      throw new Error(
+        `Failed to create MLflow experiment "${name}": ${error.message}`,
+      );
     }
   }
 
@@ -114,7 +123,9 @@ export class MLflowClientService {
       );
 
       const runId = response.data.run.info.run_id;
-      this.logger.log(`Created MLflow run: ${runName || "unnamed"} (ID: ${runId})`);
+      this.logger.log(
+        `Created MLflow run: ${runName || "unnamed"} (ID: ${runId})`,
+      );
       return runId;
     } catch (error) {
       this.logger.error(
@@ -128,7 +139,10 @@ export class MLflowClientService {
   /**
    * Log parameters to an MLflow run.
    */
-  async logParams(runId: string, params: Record<string, string>): Promise<void> {
+  async logParams(
+    runId: string,
+    params: Record<string, string>,
+  ): Promise<void> {
     try {
       const promises = Object.entries(params).map(([key, value]) =>
         firstValueFrom(
@@ -144,9 +158,14 @@ export class MLflowClientService {
       );
 
       await Promise.all(promises);
-      this.logger.debug(`Logged ${Object.keys(params).length} parameters to run ${runId}`);
+      this.logger.debug(
+        `Logged ${Object.keys(params).length} parameters to run ${runId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to log parameters to run ${runId}`, error.stack);
+      this.logger.error(
+        `Failed to log parameters to run ${runId}`,
+        error.stack,
+      );
       throw new Error(`Failed to log parameters: ${error.message}`);
     }
   }
@@ -154,7 +173,10 @@ export class MLflowClientService {
   /**
    * Log metrics to an MLflow run.
    */
-  async logMetrics(runId: string, metrics: Record<string, number>): Promise<void> {
+  async logMetrics(
+    runId: string,
+    metrics: Record<string, number>,
+  ): Promise<void> {
     try {
       const timestamp = Date.now();
       const promises = Object.entries(metrics).map(([key, value]) =>
@@ -173,7 +195,9 @@ export class MLflowClientService {
       );
 
       await Promise.all(promises);
-      this.logger.debug(`Logged ${Object.keys(metrics).length} metrics to run ${runId}`);
+      this.logger.debug(
+        `Logged ${Object.keys(metrics).length} metrics to run ${runId}`,
+      );
     } catch (error) {
       this.logger.error(`Failed to log metrics to run ${runId}`, error.stack);
       throw new Error(`Failed to log metrics: ${error.message}`);
@@ -187,11 +211,14 @@ export class MLflowClientService {
     try {
       const promises = Object.entries(tags).map(([key, value]) =>
         firstValueFrom(
-          this.httpService.post(`${this.trackingUri}/api/2.0/mlflow/runs/set-tag`, {
-            run_id: runId,
-            key,
-            value: String(value),
-          }),
+          this.httpService.post(
+            `${this.trackingUri}/api/2.0/mlflow/runs/set-tag`,
+            {
+              run_id: runId,
+              key,
+              value: String(value),
+            },
+          ),
         ),
       );
 
@@ -239,11 +266,15 @@ export class MLflowClientService {
   async updateRunStatus(runId: string, status: MLflowRunStatus): Promise<void> {
     try {
       await firstValueFrom(
-        this.httpService.post(`${this.trackingUri}/api/2.0/mlflow/runs/update`, {
-          run_id: runId,
-          status,
-          end_time: status !== MLflowRunStatus.RUNNING ? Date.now() : undefined,
-        }),
+        this.httpService.post(
+          `${this.trackingUri}/api/2.0/mlflow/runs/update`,
+          {
+            run_id: runId,
+            status,
+            end_time:
+              status !== MLflowRunStatus.RUNNING ? Date.now() : undefined,
+          },
+        ),
       );
 
       this.logger.log(`Updated run ${runId} status to ${status}`);
