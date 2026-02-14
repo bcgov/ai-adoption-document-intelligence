@@ -246,7 +246,6 @@ describe("LabelingService", () => {
       expect(result).toEqual(updatedProject);
     });
 
-
     it("should throw NotFoundException when project not found", async () => {
       mockDbService.updateLabelingProject.mockResolvedValueOnce(null);
 
@@ -731,7 +730,9 @@ describe("LabelingService", () => {
         },
       ];
 
-      mockDbService.findLabeledDocument.mockResolvedValueOnce(mockLabeledDocument);
+      mockDbService.findLabeledDocument.mockResolvedValueOnce(
+        mockLabeledDocument,
+      );
       mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
       mockSuggestionService.generateSuggestions.mockReturnValueOnce(
         suggestions as never,
@@ -769,7 +770,6 @@ describe("LabelingService", () => {
       ).rejects.toThrow(NotFoundException);
     });
   });
-
 
   // ========== EXPORT ==========
 

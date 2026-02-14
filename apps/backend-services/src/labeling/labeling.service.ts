@@ -76,7 +76,6 @@ export class LabelingService {
     return project;
   }
 
-
   async deleteProject(id: string) {
     this.logger.debug(`Deleting project: ${id}`);
     const deleted = await this.db.deleteLabelingProject(id);

@@ -1,6 +1,6 @@
-import { FieldType } from "../generated/client";
 import * as fs from "fs";
 import * as path from "path";
+import { FieldType } from "../generated/client";
 import { SuggestionService } from "./suggestion.service";
 
 describe("SuggestionService Integration Test", () => {
@@ -16,18 +16,21 @@ describe("SuggestionService Integration Test", () => {
     const fixturesDir = path.join(__dirname, "../../test/fixtures");
 
     const ocrData = JSON.parse(
-      fs.readFileSync(path.join(fixturesDir, "ocr_output.json"), "utf-8")
+      fs.readFileSync(path.join(fixturesDir, "ocr_output.json"), "utf-8"),
     );
 
     // Extract the actual OCR result from the document structure
     ocrResult = ocrData.labeling_document.ocr_result;
 
     expectedLabels = JSON.parse(
-      fs.readFileSync(path.join(fixturesDir, "form_image_0.jpg.labels.json"), "utf-8")
+      fs.readFileSync(
+        path.join(fixturesDir, "form_image_0.jpg.labels.json"),
+        "utf-8",
+      ),
     );
 
     const fieldsData = JSON.parse(
-      fs.readFileSync(path.join(fixturesDir, "fields.json"), "utf-8")
+      fs.readFileSync(path.join(fixturesDir, "fields.json"), "utf-8"),
     );
 
     fields = fieldsData.fields;
@@ -48,7 +51,7 @@ describe("SuggestionService Integration Test", () => {
     const suggestions = service.generateSuggestions(
       ocrResult,
       fieldSchema,
-      null
+      null,
     );
 
     console.log("\n=== SUGGESTION RESULTS ===");
@@ -106,15 +109,16 @@ describe("SuggestionService Integration Test", () => {
       const expected = expectedByField.get(fieldKey);
       const actual = actualByField.get(fieldKey);
       // Normalize whitespace for comparison to handle formatting differences
-      const match = normalizeWhitespace(expected) === normalizeWhitespace(actual);
+      const match =
+        normalizeWhitespace(expected) === normalizeWhitespace(actual);
 
       results.push({ field: fieldKey, expected, actual, match });
 
       if (expected || actual) {
         const status = match ? "✓" : "✗";
         console.log(`${status} ${fieldKey}:`);
-        console.log(`  Expected: "${expected || '(none)'}"`);
-        console.log(`  Actual:   "${actual || '(none)'}"`);
+        console.log(`  Expected: "${expected || "(none)"}"`);
+        console.log(`  Actual:   "${actual || "(none)"}"`);
         if (!match) {
           console.log(`  MISMATCH!`);
         }
@@ -123,8 +127,10 @@ describe("SuggestionService Integration Test", () => {
     }
 
     // Count matches and mismatches
-    const matches = results.filter(r => r.match && (r.expected || r.actual));
-    const mismatches = results.filter(r => !r.match && (r.expected || r.actual));
+    const matches = results.filter((r) => r.match && (r.expected || r.actual));
+    const mismatches = results.filter(
+      (r) => !r.match && (r.expected || r.actual),
+    );
 
     console.log("\n=== SUMMARY ===");
     console.log(`Matches: ${matches.length}`);
@@ -134,14 +140,18 @@ describe("SuggestionService Integration Test", () => {
     if (mismatches.length > 0) {
       console.log("\nMismatched fields:");
       for (const r of mismatches) {
-        console.log(`  - ${r.field}: expected "${r.expected}", got "${r.actual}"`);
+        console.log(
+          `  - ${r.field}: expected "${r.expected}", got "${r.actual}"`,
+        );
       }
     }
 
     // Report all suggestions for debugging
     console.log("\n=== ALL SUGGESTIONS ===");
     for (const suggestion of suggestions) {
-      console.log(`${suggestion.field_key} = "${suggestion.value}" (source: ${suggestion.source_type})`);
+      console.log(
+        `${suggestion.field_key} = "${suggestion.value}" (source: ${suggestion.source_type})`,
+      );
     }
 
     // Don't fail the test - we expect some mismatches initially

@@ -6,7 +6,7 @@ Read both requirements document and individual user story files for implementati
 
 After implementing the user story check it off at the bottom of this file
 
-Run `git add .` and `git commit -m ...` after every user story.
+Run `git add .` and `git commit -m ... --no-verify` after every user story.
 
 ## Infrastructure & Foundation (US-001 to US-004) -- HIGH priority
 | File | Title |

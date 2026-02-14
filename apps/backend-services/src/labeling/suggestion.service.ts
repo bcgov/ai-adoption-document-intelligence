@@ -86,7 +86,13 @@ export class SuggestionService {
       ),
     );
     suggestions.push(
-      ...this.suggestFromTables(fieldSchema, ocrResult, words, usedWordIds, mapping),
+      ...this.suggestFromTables(
+        fieldSchema,
+        ocrResult,
+        words,
+        usedWordIds,
+        mapping,
+      ),
     );
 
     return suggestions.sort((a, b) => {
@@ -118,7 +124,9 @@ export class SuggestionService {
     return elements;
   }
 
-  private extractSelectionElements(ocrResult: AnalysisResponse): SelectionElement[] {
+  private extractSelectionElements(
+    ocrResult: AnalysisResponse,
+  ): SelectionElement[] {
     const elements: SelectionElement[] = [];
     for (const page of ocrResult.analyzeResult?.pages ?? []) {
       const pageNumber = page.pageNumber ?? 1;
@@ -189,18 +197,23 @@ export class SuggestionService {
     mapping?: SuggestionMapping | null,
   ): LabelSuggestionDto[] {
     const keyValuePairs = ocrResult.analyzeResult?.keyValuePairs ?? [];
-    this.logger.debug(`[suggestFromKeyValuePairs] Found ${keyValuePairs.length} keyValuePairs`);
+    this.logger.debug(
+      `[suggestFromKeyValuePairs] Found ${keyValuePairs.length} keyValuePairs`,
+    );
 
     if (!keyValuePairs.length) return [];
 
     const kvpEligibleFields = fieldSchema
       .filter(
         (f) =>
-          f.field_type !== FieldType.selectionMark && f.field_type !== FieldType.number,
+          f.field_type !== FieldType.selectionMark &&
+          f.field_type !== FieldType.number,
       )
       .sort((a, b) => a.display_order - b.display_order);
 
-    this.logger.debug(`[suggestFromKeyValuePairs] Eligible fields (${kvpEligibleFields.length}): ${kvpEligibleFields.map(f => `${f.field_key}(order=${f.display_order})`).join(", ")}`);
+    this.logger.debug(
+      `[suggestFromKeyValuePairs] Eligible fields (${kvpEligibleFields.length}): ${kvpEligibleFields.map((f) => `${f.field_key}(order=${f.display_order})`).join(", ")}`,
+    );
 
     const fieldAliases = new Map<string, string[]>();
     const fieldRules = new Map<string, SuggestionRule | undefined>();
@@ -211,7 +224,9 @@ export class SuggestionService {
         ? rule.keyAliases
         : this.buildFieldAliases(field.field_key);
       fieldAliases.set(field.field_key, aliases);
-      this.logger.debug(`[suggestFromKeyValuePairs] Field "${field.field_key}" aliases: [${aliases.join(", ")}]`);
+      this.logger.debug(
+        `[suggestFromKeyValuePairs] Field "${field.field_key}" aliases: [${aliases.join(", ")}]`,
+      );
     }
 
     const assignedFields = new Set<string>();
@@ -244,13 +259,17 @@ export class SuggestionService {
       return a.originalIndex - b.originalIndex;
     });
 
-    this.logger.debug(`[suggestFromKeyValuePairs] Sorted keyValuePairs by match quality: ${pairsWithScores.map(p => `"${p.pair.key?.content}"(score=${p.bestScore.toFixed(2)})`).join(", ")}`);
+    this.logger.debug(
+      `[suggestFromKeyValuePairs] Sorted keyValuePairs by match quality: ${pairsWithScores.map((p) => `"${p.pair.key?.content}"(score=${p.bestScore.toFixed(2)})`).join(", ")}`,
+    );
 
     for (const { pair } of pairsWithScores) {
       const keyText = this.normalizeText(pair.key?.content ?? "");
       if (!keyText) continue;
 
-      this.logger.debug(`[suggestFromKeyValuePairs] Processing keyValuePair: key="${pair.key?.content}" (normalized="${keyText}"), value="${pair.value?.content}"`);
+      this.logger.debug(
+        `[suggestFromKeyValuePairs] Processing keyValuePair: key="${pair.key?.content}" (normalized="${keyText}"), value="${pair.value?.content}"`,
+      );
 
       const best = this.findBestFieldForPair(
         pair,
@@ -260,19 +279,25 @@ export class SuggestionService {
       );
 
       if (!best) {
-        this.logger.debug(`[suggestFromKeyValuePairs] No matching field found for key="${pair.key?.content}"`);
+        this.logger.debug(
+          `[suggestFromKeyValuePairs] No matching field found for key="${pair.key?.content}"`,
+        );
         continue;
       }
 
-      this.logger.debug(`[suggestFromKeyValuePairs] Best match: field="${best.field.field_key}" (score=${best.score.toFixed(2)}, aliasLength=${best.aliasLength}, display_order=${best.field.display_order})`);
+      this.logger.debug(
+        `[suggestFromKeyValuePairs] Best match: field="${best.field.field_key}" (score=${best.score.toFixed(2)}, aliasLength=${best.aliasLength}, display_order=${best.field.display_order})`,
+      );
 
       const { field } = best;
       const rule = fieldRules.get(field.field_key);
       if (
-        rule?.confidenceThreshold !== undefined
-        && pair.confidence < rule.confidenceThreshold
+        rule?.confidenceThreshold !== undefined &&
+        pair.confidence < rule.confidenceThreshold
       ) {
-        this.logger.debug(`[suggestFromKeyValuePairs] Skipping field "${field.field_key}": confidence ${pair.confidence} < threshold ${rule.confidenceThreshold}`);
+        this.logger.debug(
+          `[suggestFromKeyValuePairs] Skipping field "${field.field_key}": confidence ${pair.confidence} < threshold ${rule.confidenceThreshold}`,
+        );
         continue;
       }
 
@@ -281,11 +306,15 @@ export class SuggestionService {
       const valueContent = (pair.value?.content ?? "").trim();
 
       if (!valueRegion && !valueSpan) {
-        this.logger.debug(`[suggestFromKeyValuePairs] Skipping field "${field.field_key}": no value region or span`);
+        this.logger.debug(
+          `[suggestFromKeyValuePairs] Skipping field "${field.field_key}": no value region or span`,
+        );
         continue;
       }
       if (!valueContent) {
-        this.logger.debug(`[suggestFromKeyValuePairs] Skipping field "${field.field_key}": empty value content`);
+        this.logger.debug(
+          `[suggestFromKeyValuePairs] Skipping field "${field.field_key}": empty value content`,
+        );
         continue;
       }
 
@@ -293,24 +322,30 @@ export class SuggestionService {
         ? this.matchWordsBySpan(words, valueSpan, usedWordIds)
         : this.matchWordsInRegion(words, valueRegion, usedWordIds);
       if (!matchedWords.length) {
-        this.logger.debug(`[suggestFromKeyValuePairs] Skipping field "${field.field_key}": no matched words in region`);
+        this.logger.debug(
+          `[suggestFromKeyValuePairs] Skipping field "${field.field_key}": no matched words in region`,
+        );
         continue;
       }
 
       const region = valueRegion ?? this.regionFromWords(matchedWords);
       if (!region) {
-        this.logger.debug(`[suggestFromKeyValuePairs] Skipping field "${field.field_key}": could not determine region`);
+        this.logger.debug(
+          `[suggestFromKeyValuePairs] Skipping field "${field.field_key}": could not determine region`,
+        );
         continue;
       }
 
       matchedWords.forEach((word) => usedWordIds.add(word.id));
       assignedFields.add(field.field_key);
       const valueText =
-        pair.value?.content
-        ?? matchedWords.map((word) => word.content).join(" ");
+        pair.value?.content ??
+        matchedWords.map((word) => word.content).join(" ");
       const suggestionSpan = pair.value?.spans?.[0] ?? pair.key?.spans?.[0];
 
-      this.logger.debug(`[suggestFromKeyValuePairs] ✓ Assigned "${field.field_key}" = "${valueText}" (${matchedWords.length} words, page ${region.pageNumber})`);
+      this.logger.debug(
+        `[suggestFromKeyValuePairs] ✓ Assigned "${field.field_key}" = "${valueText}" (${matchedWords.length} words, page ${region.pageNumber})`,
+      );
 
       suggestions.push({
         field_key: field.field_key,
@@ -328,7 +363,9 @@ export class SuggestionService {
       });
     }
 
-    this.logger.debug(`[suggestFromKeyValuePairs] Generated ${suggestions.length} suggestions from keyValuePairs`);
+    this.logger.debug(
+      `[suggestFromKeyValuePairs] Generated ${suggestions.length} suggestions from keyValuePairs`,
+    );
     return suggestions;
   }
 
@@ -348,7 +385,12 @@ export class SuggestionService {
       aliasLength: number;
     } | null = null;
 
-    const candidateFields: Array<{ field: string; score: number; aliasLength: number; assigned: boolean }> = [];
+    const candidateFields: Array<{
+      field: string;
+      score: number;
+      aliasLength: number;
+      assigned: boolean;
+    }> = [];
 
     for (const field of fields) {
       const isAssigned = assignedFields.has(field.field_key);
@@ -380,19 +422,21 @@ export class SuggestionService {
       if (score < 0.45) continue;
 
       const prefer =
-        !best
-        || score > best.score
-        || (score === best.score && bestAliasLength > best.aliasLength)
-        || (score === best.score
-          && bestAliasLength === best.aliasLength
-          && field.display_order < best.field.display_order);
+        !best ||
+        score > best.score ||
+        (score === best.score && bestAliasLength > best.aliasLength) ||
+        (score === best.score &&
+          bestAliasLength === best.aliasLength &&
+          field.display_order < best.field.display_order);
       if (prefer) {
         best = { field, score, aliasLength: bestAliasLength };
       }
     }
 
     if (candidateFields.length > 0) {
-      this.logger.debug(`[findBestFieldForPair] key="${pair.key?.content}" candidates: ${candidateFields.map(c => `${c.field}${c.assigned ? "[ASSIGNED]" : ""}`).join(", ")}`);
+      this.logger.debug(
+        `[findBestFieldForPair] key="${pair.key?.content}" candidates: ${candidateFields.map((c) => `${c.field}${c.assigned ? "[ASSIGNED]" : ""}`).join(", ")}`,
+      );
     }
 
     return best;
@@ -406,7 +450,9 @@ export class SuggestionService {
     mapping?: SuggestionMapping | null,
   ): LabelSuggestionDto[] {
     const tables = ocrResult.analyzeResult?.tables ?? [];
-    this.logger.debug(`[suggestFromTables] tables=${tables.length}, words=${words.length}`);
+    this.logger.debug(
+      `[suggestFromTables] tables=${tables.length}, words=${words.length}`,
+    );
     if (!tables.length) return [];
 
     const suggestions: LabelSuggestionDto[] = [];
@@ -427,7 +473,9 @@ export class SuggestionService {
       const anchorText = rule?.table?.anchorText;
       const overlapThreshold = rule?.table?.wordOverlapThreshold ?? 0.05;
       if (!columnLabel || rowLabelAliases.length === 0) {
-        this.logger.debug(`[suggestFromTables] skip ${field.field_key}: no columnLabel or rowLabelAliases`);
+        this.logger.debug(
+          `[suggestFromTables] skip ${field.field_key}: no columnLabel or rowLabelAliases`,
+        );
         continue;
       }
 
@@ -438,15 +486,21 @@ export class SuggestionService {
         anchorText,
       );
       if (!tableMatch?.valueCell) {
-        this.logger.debug(`[suggestFromTables] ${field.field_key}: no table match (rowLabels=[${rowLabelAliases.join(",")}], column=${columnLabel})`);
+        this.logger.debug(
+          `[suggestFromTables] ${field.field_key}: no table match (rowLabels=[${rowLabelAliases.join(",")}], column=${columnLabel})`,
+        );
         continue;
       }
 
-      this.logger.debug(`[suggestFromTables] ${field.field_key}: matched row "${tableMatch.rowHeader.content}" col ${tableMatch.valueCell.columnIndex}, valueCell.content="${tableMatch.valueCell.content}"`);
+      this.logger.debug(
+        `[suggestFromTables] ${field.field_key}: matched row "${tableMatch.rowHeader.content}" col ${tableMatch.valueCell.columnIndex}, valueCell.content="${tableMatch.valueCell.content}"`,
+      );
 
       const region = this.getBestRegion(tableMatch.valueCell.boundingRegions);
       if (!region) {
-        this.logger.debug(`[suggestFromTables] ${field.field_key}: value cell has no boundingRegions`);
+        this.logger.debug(
+          `[suggestFromTables] ${field.field_key}: value cell has no boundingRegions`,
+        );
         continue;
       }
 
@@ -458,8 +512,12 @@ export class SuggestionService {
         true,
       );
       if (!matchedWords.length) {
-        const pageWords = words.filter((w) => w.pageNumber === region.pageNumber);
-        const usedOnPage = pageWords.filter((w) => usedWordIds.has(w.id)).length;
+        const pageWords = words.filter(
+          (w) => w.pageNumber === region.pageNumber,
+        );
+        const usedOnPage = pageWords.filter((w) =>
+          usedWordIds.has(w.id),
+        ).length;
         this.logger.debug(
           `[suggestFromTables] ${field.field_key}: no words in region (page=${region.pageNumber}, ` +
             `regionPolygon=[${region.polygon.slice(0, 4).join(",")}...], ` +
@@ -469,14 +527,21 @@ export class SuggestionService {
       }
 
       // Exclude currency-only tokens (e.g. "$") so we suggest only the numeric value.
-      matchedWords = matchedWords.filter((word) => !this.isCurrencyOnlyWord(word.content));
+      matchedWords = matchedWords.filter(
+        (word) => !this.isCurrencyOnlyWord(word.content),
+      );
       if (!matchedWords.length) {
-        this.logger.debug(`[suggestFromTables] ${field.field_key}: only currency symbols in cell, skipping`);
+        this.logger.debug(
+          `[suggestFromTables] ${field.field_key}: only currency symbols in cell, skipping`,
+        );
         continue;
       }
 
       matchedWords.forEach((word) => usedWordIds.add(word.id));
-      const valueText = matchedWords.map((word) => word.content).join(" ").trim();
+      const valueText = matchedWords
+        .map((word) => word.content)
+        .join(" ")
+        .trim();
 
       suggestions.push({
         field_key: field.field_key,
@@ -508,8 +573,18 @@ export class SuggestionService {
     // that end with common suffixes (date, name, signature, etc.)
     // This prevents "spouse_date" from matching "Spouse:" labels incorrectly
     const commonFieldSuffixes = new Set([
-      "date", "name", "signature", "phone", "sin", "email", "address",
-      "city", "province", "postal", "code", "number"
+      "date",
+      "name",
+      "signature",
+      "phone",
+      "sin",
+      "email",
+      "address",
+      "city",
+      "province",
+      "postal",
+      "code",
+      "number",
     ]);
     const lastPart = parts[parts.length - 1];
     const shouldSkipGenericPrefixAlias = commonFieldSuffixes.has(lastPart);
@@ -586,7 +661,9 @@ export class SuggestionService {
     columnLabel: string,
     anchorText?: string,
   ): { rowHeader: TableCell; valueCell: TableCell } | null {
-    const normalizedRowLabels = rowLabels.map((label) => this.normalizeText(label));
+    const normalizedRowLabels = rowLabels.map((label) =>
+      this.normalizeText(label),
+    );
     const normalizedColumnLabel = this.normalizeText(columnLabel);
     const normalizedAnchor = anchorText ? this.normalizeText(anchorText) : null;
 
@@ -603,46 +680,62 @@ export class SuggestionService {
       for (const cell of table.cells) {
         const text = this.normalizeText(cell.content ?? "");
         const score = this.scoreTextMatch(normalizedColumnLabel, text);
-        if (score > 0 && (!bestColumnHeader || score > bestColumnHeader.score)) {
+        if (
+          score > 0 &&
+          (!bestColumnHeader || score > bestColumnHeader.score)
+        ) {
           bestColumnHeader = { cell, score };
         }
       }
       if (!bestColumnHeader || bestColumnHeader.score < 0.4) {
-        this.logger.debug(`[findTableCellMatch] table ${ti}: no column match for "${columnLabel}" (bestScore=${bestColumnHeader?.score ?? 0})`);
+        this.logger.debug(
+          `[findTableCellMatch] table ${ti}: no column match for "${columnLabel}" (bestScore=${bestColumnHeader?.score ?? 0})`,
+        );
         continue;
       }
       const applicantOrSpouseHeader = bestColumnHeader.cell;
 
       const valueColumnIndex = applicantOrSpouseHeader.columnIndex;
-      const rowHeaderCells = table.cells.filter((cell) => cell.columnIndex === 0);
+      const rowHeaderCells = table.cells.filter(
+        (cell) => cell.columnIndex === 0,
+      );
 
       let bestRow: { cell: TableCell; score: number } | null = null;
       for (const rowHeader of rowHeaderCells) {
         const rowText = this.normalizeText(rowHeader.content ?? "");
         let score = 0;
         for (const normalizedRowLabel of normalizedRowLabels) {
-          score = Math.max(score, this.scoreTextMatch(normalizedRowLabel, rowText));
+          score = Math.max(
+            score,
+            this.scoreTextMatch(normalizedRowLabel, rowText),
+          );
         }
         if (score > 0 && (!bestRow || score > bestRow.score)) {
           bestRow = { cell: rowHeader, score };
         }
       }
       if (!bestRow || bestRow.score < 0.4) {
-        this.logger.debug(`[findTableCellMatch] table ${ti}: no row match for [${rowLabels.join("|")}] (bestScore=${bestRow?.score ?? 0}, rowHeaderCells=${rowHeaderCells.length})`);
+        this.logger.debug(
+          `[findTableCellMatch] table ${ti}: no row match for [${rowLabels.join("|")}] (bestScore=${bestRow?.score ?? 0}, rowHeaderCells=${rowHeaderCells.length})`,
+        );
         continue;
       }
 
       const valueCell = table.cells.find(
         (cell) =>
-          cell.rowIndex === bestRow.cell.rowIndex
-          && cell.columnIndex === valueColumnIndex,
+          cell.rowIndex === bestRow.cell.rowIndex &&
+          cell.columnIndex === valueColumnIndex,
       );
       if (!valueCell) {
-        this.logger.debug(`[findTableCellMatch] table ${ti}: no value cell at row ${bestRow.cell.rowIndex} col ${valueColumnIndex}`);
+        this.logger.debug(
+          `[findTableCellMatch] table ${ti}: no value cell at row ${bestRow.cell.rowIndex} col ${valueColumnIndex}`,
+        );
         continue;
       }
 
-      this.logger.debug(`[findTableCellMatch] table ${ti}: matched row "${bestRow.cell.content}" (rowIndex=${bestRow.cell.rowIndex}) col ${valueColumnIndex}`);
+      this.logger.debug(
+        `[findTableCellMatch] table ${ti}: matched row "${bestRow.cell.content}" (rowIndex=${bestRow.cell.rowIndex}) col ${valueColumnIndex}`,
+      );
       return { rowHeader: bestRow.cell, valueCell };
     }
 
@@ -656,7 +749,9 @@ export class SuggestionService {
     overlapThreshold = 0.05,
     useContainment = false,
   ): WordElement[] {
-    const candidates = words.filter((word) => word.pageNumber === region.pageNumber);
+    const candidates = words.filter(
+      (word) => word.pageNumber === region.pageNumber,
+    );
     const regionRect = this.toBoundingRect(region.polygon);
     const withOverlap = candidates
       .map((word) => {
@@ -671,21 +766,21 @@ export class SuggestionService {
             const bottom = Math.min(regionRect.maxY, wordRect.maxY);
             if (right > left && bottom > top) {
               const intersection = (right - left) * (bottom - top);
-              const wordArea = (wordRect.maxX - wordRect.minX) * (wordRect.maxY - wordRect.minY);
+              const wordArea =
+                (wordRect.maxX - wordRect.minX) *
+                (wordRect.maxY - wordRect.minY);
               containment = wordArea > 0 ? intersection / wordArea : 0;
             }
           }
         }
         return { word, overlap, containment };
       })
-      .filter(
-        ({ overlap, containment, word }) => {
-          if (usedWordIds.has(word.id)) return false;
-          if (overlap > overlapThreshold) return true;
-          if (useContainment && containment >= 0.5) return true;
-          return false;
-        },
-      )
+      .filter(({ overlap, containment, word }) => {
+        if (usedWordIds.has(word.id)) return false;
+        if (overlap > overlapThreshold) return true;
+        if (useContainment && containment >= 0.5) return true;
+        return false;
+      })
       .sort((a, b) => {
         const scoreA = Math.max(a.overlap, a.containment);
         const scoreB = Math.max(b.overlap, b.containment);
@@ -723,7 +818,9 @@ export class SuggestionService {
   private regionFromWords(words: WordElement[]): BoundingRegion | null {
     if (!words.length) return null;
     const pageNumber = words[0].pageNumber;
-    const allPolygons = words.map((w) => w.polygon).filter((p) => p?.length >= 8);
+    const allPolygons = words
+      .map((w) => w.polygon)
+      .filter((p) => p?.length >= 8);
     if (!allPolygons.length) return null;
     const xs = allPolygons.flatMap((p) => p.filter((_, i) => i % 2 === 0));
     const ys = allPolygons.flatMap((p) => p.filter((_, i) => i % 2 === 1));
@@ -749,7 +846,7 @@ export class SuggestionService {
   private isCurrencyOnlyWord(content: string): boolean {
     const t = content.trim();
     if (!t) return false;
-    return /^[\$€£¥]+$/.test(t);
+    return /^[$€£¥]+$/.test(t);
   }
 
   private normalizeText(text: string): string {
@@ -773,7 +870,10 @@ export class SuggestionService {
     const union = new Set([...aTokens, ...bTokens]);
 
     // If all tokens match, it's a perfect match
-    if (intersection.length === aTokens.size && intersection.length === bTokens.size) {
+    if (
+      intersection.length === aTokens.size &&
+      intersection.length === bTokens.size
+    ) {
       return 1;
     }
 
@@ -786,22 +886,28 @@ export class SuggestionService {
       // If token counts are close (within 1), it's a strong match
       if (bTokens.size - aTokens.size <= 1) {
         const score = 0.9;
-        this.logger.debug(`[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (all alias tokens in key, counts close: ${aTokens.size} vs ${bTokens.size})`);
+        this.logger.debug(
+          `[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (all alias tokens in key, counts close: ${aTokens.size} vs ${bTokens.size})`,
+        );
         return score;
       }
       // For longer keys with extra descriptive text (e.g., "Date (yyyy-mmm-dd)"),
       // still give a good score if the alias is fully contained
       // Base score 0.8 for full alias containment, reduced slightly by extra tokens
       const extraTokenRatio = (bTokens.size - aTokens.size) / bTokens.size;
-      const score = 0.8 - (0.2 * extraTokenRatio);
-      this.logger.debug(`[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (all alias tokens contained in key with ${bTokens.size - aTokens.size} extra tokens)`);
+      const score = 0.8 - 0.2 * extraTokenRatio;
+      this.logger.debug(
+        `[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (all alias tokens contained in key with ${bTokens.size - aTokens.size} extra tokens)`,
+      );
       return score;
     }
 
     // Jaccard similarity for partial token overlap
     const score = union.size > 0 ? intersection.length / union.size : 0;
     if (score > 0) {
-      this.logger.debug(`[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (jaccard: ${intersection.length} / ${union.size} tokens)`);
+      this.logger.debug(
+        `[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (jaccard: ${intersection.length} / ${union.size} tokens)`,
+      );
     }
     return score;
   }

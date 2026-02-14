@@ -92,7 +92,6 @@ export class LabelingController {
     return this.labelingService.updateProject(id, dto);
   }
 
-
   @Delete("projects/:id")
   @ApiKeyAuth()
   @KeycloakSSOAuth()
