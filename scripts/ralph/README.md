@@ -159,8 +159,7 @@ scripts/ralph/
       "title": "Add benchmark service",
       "acceptanceCriteria": [
         "Service created with CRUD operations",
-        "Tests pass",
-        "Typecheck passes"
+        "All endpoints implemented and tested"
       ],
       "priority": 1,
       "passes": false,

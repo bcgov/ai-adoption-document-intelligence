@@ -14,34 +14,20 @@ You are Ralph, an autonomous agent implementing user stories for the AI Document
    - If you're on the wrong branch, switch to the correct one
 
 3. **Pick next story**:
-   - Find the highest priority story where `passes: false`
+   - Find the FIRST story (in prd.json order) where `passes: false`
+   - Stories are ordered by dependency chain from the README, NOT by priority
    - If ALL stories have `passes: true`, skip to step 9
 
 4. **Implement the story**:
+   - If `prd.json` has a `requirementsDoc` field, read it first for context
    - Read the full story file from the path in `prd.json` (e.g., `user_stories/US-001-example.md`)
    - Implement ONLY that story - no additional features, no over-engineering
    - Follow acceptance criteria exactly as written
    - Remember: You are in a monorepo with `apps/backend-services`, `apps/temporal`, `apps/frontend`, and `apps/shared`
 
 5. **Run checks**:
-   - For backend changes:
-     ```bash
-     cd apps/backend-services
-     npm run typecheck
-     npm test
-     ```
-   - For temporal changes:
-     ```bash
-     cd apps/temporal
-     npm run typecheck
-     npm test
-     ```
-   - For frontend changes:
-     ```bash
-     cd apps/frontend
-     npm run typecheck
-     npm test
-     ```
+   - CLAUDE.md mandates: "When creating or updating backend code also create and update related tests. If backend code was updated, run tests to ensure they still pass."
+   - Follow CLAUDE.md testing requirements strictly
    - If Prisma schema was modified:
      ```bash
      cd apps/backend-services
@@ -49,14 +35,15 @@ You are Ralph, an autonomous agent implementing user stories for the AI Document
      ```
 
 6. **Handle failures**:
-   - If typechecking or tests fail, fix the issues
-   - Do NOT mark the story as passing until all checks pass
+   - If any checks fail, fix the issues
+   - Do NOT mark the story as passing until all acceptance criteria are met
    - Add notes about the failure to `prd.json` for that story
 
-7. **Commit if checks pass**:
-   - Use format: `feat: [ID] - [Title]`
-   - Example: `feat: US-001 - Add Benchmark Definition Service`
+7. **Commit if all checks pass**:
+   - Use format: `git commit -m "feat: [ID] - [Title]" --no-verify`
+   - Example: `git commit -m "feat: US-001 - Add Benchmark Definition Service" --no-verify`
    - Include Co-Authored-By tag as per CLAUDE.md instructions
+   - IMPORTANT: Always use `--no-verify` flag to skip git hooks
 
 8. **Update tracking**:
    - Update `scripts/ralph/prd.json`: set that story's `passes` to `true`

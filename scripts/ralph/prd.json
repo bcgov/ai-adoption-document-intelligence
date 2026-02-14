@@ -1,0 +1,680 @@
+{
+  "branchName": "ralph/benchmarking-system",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Docker Compose -- MinIO & MLflow Services",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-001-docker-compose-minio-mlflow.md"
+    },
+    {
+      "id": "US-002",
+      "title": "Prisma Schema -- Benchmark Data Models",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7",
+        "Scenario 8",
+        "Scenario 9",
+        "Scenario 10",
+        "Scenario 11"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-002-prisma-schema-benchmark-models.md"
+    },
+    {
+      "id": "US-003",
+      "title": "MinIO Blob Storage Service",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-003-minio-blob-storage-service.md"
+    },
+    {
+      "id": "US-004",
+      "title": "MLflow Client Service",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7",
+        "Scenario 8",
+        "Scenario 9"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-004-mlflow-client-service.md"
+    },
+    {
+      "id": "US-005",
+      "title": "DVC Service",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7",
+        "Scenario 8"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-005-dvc-service.md"
+    },
+    {
+      "id": "US-006",
+      "title": "Dataset Service & Controller",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-006-dataset-service-controller.md"
+    },
+    {
+      "id": "US-007",
+      "title": "Dataset Version Management",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-007-dataset-version-management.md"
+    },
+    {
+      "id": "US-008",
+      "title": "Dataset File Upload",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-008-dataset-file-upload.md"
+    },
+    {
+      "id": "US-009",
+      "title": "Dataset Manifest & Sample Preview",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-009-dataset-manifest-sample-preview.md"
+    },
+    {
+      "id": "US-010",
+      "title": "Benchmark Project Service & Controller",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-010-benchmark-project-service-controller.md"
+    },
+    {
+      "id": "US-011",
+      "title": "Benchmark Definition Service & Controller",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7",
+        "Scenario 8"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-011-benchmark-definition-service-controller.md"
+    },
+    {
+      "id": "US-012",
+      "title": "Benchmark Run Service & Controller",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7",
+        "Scenario 8",
+        "Scenario 9"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-012-benchmark-run-service-controller.md"
+    },
+    {
+      "id": "US-013",
+      "title": "Benchmark Artifact Management",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-013-benchmark-artifact-management.md"
+    },
+    {
+      "id": "US-014",
+      "title": "Evaluator Interface & Registry",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7",
+        "Scenario 8"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-014-evaluator-interface-registry.md"
+    },
+    {
+      "id": "US-015",
+      "title": "Schema-Aware Evaluator",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7",
+        "Scenario 8",
+        "Scenario 9",
+        "Scenario 10"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-015-schema-aware-evaluator.md"
+    },
+    {
+      "id": "US-016",
+      "title": "Black-Box Evaluator",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-016-black-box-evaluator.md"
+    },
+    {
+      "id": "US-017",
+      "title": "Metrics Aggregation & Failure Analysis",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-017-metrics-aggregation-failure-analysis.md"
+    },
+    {
+      "id": "US-018",
+      "title": "Dataset Materialization Activity",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-018-dataset-materialization-activity.md"
+    },
+    {
+      "id": "US-019",
+      "title": "Workflow Execution Activity",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-019-workflow-execution-activity.md"
+    },
+    {
+      "id": "US-020",
+      "title": "Evaluation & Aggregation Activities",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-020-evaluation-aggregation-activities.md"
+    },
+    {
+      "id": "US-021",
+      "title": "MLflow Logging & Cleanup Activities",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7",
+        "Scenario 8"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-021-mlflow-logging-cleanup-activities.md"
+    },
+    {
+      "id": "US-022",
+      "title": "Benchmark Run Workflow Orchestrator",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7",
+        "Scenario 8",
+        "Scenario 9",
+        "Scenario 10"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-022-benchmark-run-workflow.md"
+    },
+    {
+      "id": "US-023",
+      "title": "Task Queue Isolation & Concurrency Controls",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-023-task-queue-isolation-concurrency.md"
+    },
+    {
+      "id": "US-024",
+      "title": "Workflow & Configuration Versioning",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-024-workflow-configuration-versioning.md"
+    },
+    {
+      "id": "US-025",
+      "title": "Audit Logging",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7",
+        "Scenario 8"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-025-audit-logging.md"
+    },
+    {
+      "id": "US-026",
+      "title": "Benchmarking Navigation & Routing",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-026-benchmarking-navigation-routing.md"
+    },
+    {
+      "id": "US-027",
+      "title": "Dataset List & Create UI",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-027-dataset-list-create-ui.md"
+    },
+    {
+      "id": "US-028",
+      "title": "Dataset Version & Sample Preview UI",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-028-dataset-version-sample-preview-ui.md"
+    },
+    {
+      "id": "US-029",
+      "title": "Benchmark Definition CRUD UI",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-029-benchmark-definition-crud-ui.md"
+    },
+    {
+      "id": "US-030",
+      "title": "Run List, Start/Cancel, Progress UI",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7",
+        "Scenario 8"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-030-run-list-start-cancel-progress-ui.md"
+    },
+    {
+      "id": "US-031",
+      "title": "Results Summary & MLflow Deep-Links UI",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-031-results-summary-mlflow-deeplinks-ui.md"
+    },
+    {
+      "id": "US-032",
+      "title": "Dataset Quality Checks & Validation",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7",
+        "Scenario 8"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-032-dataset-quality-checks-validation.md"
+    },
+    {
+      "id": "US-033",
+      "title": "Split Management UI",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7",
+        "Scenario 8"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-033-split-management-ui.md"
+    },
+    {
+      "id": "US-034",
+      "title": "Baseline Management",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-034-baseline-management.md"
+    },
+    {
+      "id": "US-035",
+      "title": "Scheduled & Nightly Runs",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-035-scheduled-nightly-runs.md"
+    },
+    {
+      "id": "US-036",
+      "title": "Side-by-Side Run Comparison UI",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-036-side-by-side-run-comparison-ui.md"
+    },
+    {
+      "id": "US-037",
+      "title": "Regression Reports UI",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-037-regression-reports-ui.md"
+    },
+    {
+      "id": "US-038",
+      "title": "Slicing, Filtering & Drill-Down UI",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-038-slicing-filtering-drilldown-ui.md"
+    },
+    {
+      "id": "US-039",
+      "title": "In-App Artifact Viewer",
+      "acceptanceCriteria": [
+        "Scenario 1",
+        "Scenario 2",
+        "Scenario 3",
+        "Scenario 4",
+        "Scenario 5",
+        "Scenario 6",
+        "Scenario 7"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "",
+      "file": "feature-docs/003-benchmarking-system/user-stories/US-039-in-app-artifact-viewer.md"
+    }
+  ],
+  "requirementsDoc": "feature-docs/003-benchmarking-system/REQUIREMENTS.md"
+}

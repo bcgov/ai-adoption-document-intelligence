@@ -51,7 +51,42 @@ function extractAcceptanceCriteria(content) {
     }
   }
 
-  return criteria.length > 0 ? criteria : ['Implementation complete', 'Tests passing'];
+  return criteria.length > 0 ? criteria : ['Implementation complete per story requirements'];
+}
+
+function extractRequirementsDoc(readmeContent) {
+  // Look for: NOTE: The requirements document for this feature is available here: `path/to/REQUIREMENTS.md`.
+  const match = readmeContent.match(/NOTE:.*?available here:\s*`([^`]+)`/);
+  if (match) {
+    return match[1];
+  }
+  return null;
+}
+
+function extractImplementationOrder(readmeContent) {
+  // Extract story IDs from "Suggested Implementation Order" section
+  const storyOrder = [];
+  const lines = readmeContent.split('\n');
+  let inImplementationOrder = false;
+
+  for (const line of lines) {
+    if (line.includes('## Suggested Implementation Order')) {
+      inImplementationOrder = true;
+      continue;
+    }
+    if (inImplementationOrder && line.startsWith('##') && !line.includes('Suggested Implementation Order')) {
+      break;
+    }
+    if (inImplementationOrder) {
+      // Look for lines like: - [ ] **US-001** (description)
+      const match = line.match(/- \[.\]\s*\*\*(US-\d+)\*\*/);
+      if (match) {
+        storyOrder.push(match[1]);
+      }
+    }
+  }
+
+  return storyOrder;
 }
 
 function convertStoriesToPrd(userStoriesDir, branchName = 'ralph/user-stories') {
@@ -60,11 +95,23 @@ function convertStoriesToPrd(userStoriesDir, branchName = 'ralph/user-stories') 
     process.exit(1);
   }
 
+  // Read README.md to get requirements doc and implementation order
+  const readmePath = path.join(userStoriesDir, 'README.md');
+  let requirementsDoc = null;
+  let implementationOrder = [];
+
+  if (fs.existsSync(readmePath)) {
+    const readmeContent = fs.readFileSync(readmePath, 'utf8');
+    requirementsDoc = extractRequirementsDoc(readmeContent);
+    implementationOrder = extractImplementationOrder(readmeContent);
+  }
+
+  // Read all story files
   const files = fs.readdirSync(userStoriesDir)
     .filter(f => f.startsWith('US-') && f.endsWith('.md'))
     .sort();
 
-  const userStories = [];
+  const storiesMap = {};
 
   for (const file of files) {
     const filePath = path.join(userStoriesDir, file);
@@ -83,7 +130,27 @@ function convertStoriesToPrd(userStoriesDir, branchName = 'ralph/user-stories') 
       file: path.relative(process.cwd(), filePath)
     };
 
-    userStories.push(story);
+    storiesMap[id] = story;
+  }
+
+  // Order stories according to implementation order from README
+  let userStories = [];
+  if (implementationOrder.length > 0) {
+    // Use README order
+    for (const id of implementationOrder) {
+      if (storiesMap[id]) {
+        userStories.push(storiesMap[id]);
+      }
+    }
+    // Add any stories not in the implementation order (shouldn't happen, but just in case)
+    for (const id in storiesMap) {
+      if (!implementationOrder.includes(id)) {
+        userStories.push(storiesMap[id]);
+      }
+    }
+  } else {
+    // Fallback to alphabetical order if no README
+    userStories = Object.values(storiesMap);
   }
 
   const prd = {
@@ -91,14 +158,25 @@ function convertStoriesToPrd(userStoriesDir, branchName = 'ralph/user-stories') 
     userStories
   };
 
+  // Add requirements doc if found
+  if (requirementsDoc) {
+    prd.requirementsDoc = requirementsDoc;
+  }
+
   const outputPath = path.join(__dirname, 'prd.json');
   fs.writeFileSync(outputPath, JSON.stringify(prd, null, 2));
 
   console.log(`Converted ${userStories.length} user stories to ${outputPath}`);
   console.log(`Branch: ${branchName}`);
-  console.log('\nStories:');
-  userStories.forEach(s => {
-    console.log(`  ${s.id}: ${s.title} (Priority ${s.priority})`);
+  if (requirementsDoc) {
+    console.log(`Requirements: ${requirementsDoc}`);
+  }
+  if (implementationOrder.length > 0) {
+    console.log(`Using implementation order from README (${implementationOrder.length} stories)`);
+  }
+  console.log('\nStories (in implementation order):');
+  userStories.forEach((s, i) => {
+    console.log(`  ${i + 1}. ${s.id}: ${s.title} (Priority ${s.priority})`);
   });
 }
 

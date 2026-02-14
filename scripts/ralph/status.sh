@@ -46,15 +46,15 @@ if [[ $COMPLETED -gt 0 ]]; then
     echo ""
 fi
 
-# Pending stories (by priority)
+# Pending stories (in implementation order)
 if [[ $PENDING -gt 0 ]]; then
-    echo "⏳ Pending Stories (by priority):"
-    jq -r '.userStories[] | select(.passes == false) | "   [\(.priority)] \(.id): \(.title)"' "$PRD_FILE" | sort
+    echo "⏳ Pending Stories (in implementation order):"
+    jq -r '.userStories[] | select(.passes == false) | "   \(.id): \(.title) (Priority \(.priority))"' "$PRD_FILE"
     echo ""
 
-    # Next story to implement
+    # Next story to implement (first pending in order)
     echo "🎯 Next Story:"
-    NEXT=$(jq -r '[.userStories[] | select(.passes == false)] | sort_by(.priority) | first | "   \(.id): \(.title) (Priority \(.priority))"' "$PRD_FILE")
+    NEXT=$(jq -r '[.userStories[] | select(.passes == false)] | first | "   \(.id): \(.title) (Priority \(.priority))"' "$PRD_FILE")
     echo "$NEXT"
     echo ""
 fi
