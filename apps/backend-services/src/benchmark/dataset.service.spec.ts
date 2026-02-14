@@ -53,6 +53,7 @@ const mockDvcService = {
   cloneRepository: jest.fn(),
   initRepository: jest.fn(),
   commitChanges: jest.fn(),
+  checkout: jest.fn(),
 };
 
 const mockConfigService = {
@@ -738,6 +739,473 @@ describe("DatasetService", () => {
       expect(gtFile).toBeDefined();
       expect(inputFile.filename).toBe("doc.pdf");
       expect(gtFile.filename).toBe("data.csv");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Scenario: List samples with pagination (US-009)
+  // -----------------------------------------------------------------------
+  describe("listSamples", () => {
+    const datasetId = "dataset-123";
+    const versionId = "version-123";
+
+    const mockVersion = {
+      id: versionId,
+      datasetId: datasetId,
+      version: "v1.0.0",
+      gitRevision: "abc123",
+      manifestPath: "dataset-manifest.json",
+      documentCount: 100,
+      groundTruthSchema: null,
+      status: "published",
+      publishedAt: new Date(),
+      createdAt: new Date(),
+      dataset: {
+        id: datasetId,
+        repositoryUrl: "https://github.com/user/dataset.git",
+      },
+    };
+
+    const validManifest = {
+      schemaVersion: "1.0",
+      samples: [
+        {
+          id: "sample-001",
+          inputs: [{ path: "inputs/form_0.jpg", mimeType: "image/jpeg" }],
+          groundTruth: [{ path: "ground-truth/form_0.json", format: "json" }],
+          metadata: {
+            docType: "income-declaration",
+            pageCount: 1,
+            language: "en",
+            source: "synthetic",
+          },
+        },
+        {
+          id: "sample-002",
+          inputs: [{ path: "inputs/form_1.jpg", mimeType: "image/jpeg" }],
+          groundTruth: [{ path: "ground-truth/form_1.json", format: "json" }],
+          metadata: {
+            docType: "income-declaration",
+            pageCount: 2,
+            language: "en",
+            source: "synthetic",
+          },
+        },
+        {
+          id: "sample-003",
+          inputs: [{ path: "inputs/form_2.jpg", mimeType: "image/jpeg" }],
+          groundTruth: [{ path: "ground-truth/form_2.json", format: "json" }],
+          metadata: {
+            docType: "tax-form",
+            pageCount: 1,
+            language: "fr",
+            source: "real",
+          },
+        },
+      ],
+    };
+
+    it("returns paginated samples from manifest successfully", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(validManifest));
+
+      const result = await service.listSamples(datasetId, versionId, 1, 2);
+
+      expect(mockPrismaClient.datasetVersion.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: versionId,
+          datasetId: datasetId,
+        },
+        include: {
+          dataset: true,
+        },
+      });
+      expect(mockDvcService.cloneRepository).toHaveBeenCalled();
+      expect(mockDvcService.checkout).toHaveBeenCalledWith(
+        "/tmp/dataset-init-test123",
+        "abc123",
+      );
+      expect(mockReadFile).toHaveBeenCalled();
+      expect(result.samples).toHaveLength(2);
+      expect(result.total).toBe(3);
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(2);
+      expect(result.totalPages).toBe(2);
+      expect(result.samples[0].id).toBe("sample-001");
+      expect(result.samples[1].id).toBe("sample-002");
+    });
+
+    it("returns second page of samples correctly", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(validManifest));
+
+      const result = await service.listSamples(datasetId, versionId, 2, 2);
+
+      expect(result.samples).toHaveLength(1);
+      expect(result.samples[0].id).toBe("sample-003");
+      expect(result.page).toBe(2);
+      expect(result.totalPages).toBe(2);
+    });
+
+    it("includes input file references with path and mimeType", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(validManifest));
+
+      const result = await service.listSamples(datasetId, versionId, 1, 1);
+
+      expect(result.samples[0].inputs).toHaveLength(1);
+      expect(result.samples[0].inputs[0].path).toBe("inputs/form_0.jpg");
+      expect(result.samples[0].inputs[0].mimeType).toBe("image/jpeg");
+    });
+
+    it("includes ground truth file references with path and format", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(validManifest));
+
+      const result = await service.listSamples(datasetId, versionId, 1, 1);
+
+      expect(result.samples[0].groundTruth).toHaveLength(1);
+      expect(result.samples[0].groundTruth[0].path).toBe(
+        "ground-truth/form_0.json",
+      );
+      expect(result.samples[0].groundTruth[0].format).toBe("json");
+    });
+
+    it("includes sample metadata", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(validManifest));
+
+      const result = await service.listSamples(datasetId, versionId, 1, 1);
+
+      expect(result.samples[0].metadata).toBeDefined();
+      expect(result.samples[0].metadata.docType).toBe("income-declaration");
+      expect(result.samples[0].metadata.pageCount).toBe(1);
+      expect(result.samples[0].metadata.language).toBe("en");
+      expect(result.samples[0].metadata.source).toBe("synthetic");
+    });
+
+    it("throws NotFoundException when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    });
+
+    it("throws BadRequestException when manifest has invalid schema - missing schemaVersion", async () => {
+      const invalidManifest = {
+        samples: [],
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(invalidManifest));
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(
+        "Invalid manifest: schemaVersion is required and must be a string",
+      );
+    });
+
+    it("throws BadRequestException when manifest has invalid schema - samples not array", async () => {
+      const invalidManifest = {
+        schemaVersion: "1.0",
+        samples: "not an array",
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(invalidManifest));
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow("Invalid manifest: samples must be an array");
+    });
+
+    it("throws BadRequestException when sample is missing id", async () => {
+      const invalidManifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            inputs: [],
+            groundTruth: [],
+          },
+        ],
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(invalidManifest));
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(
+        "Invalid manifest: sample at index 0 must have an 'id' field of type string",
+      );
+    });
+
+    it("throws BadRequestException when sample is missing inputs array", async () => {
+      const invalidManifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "sample-001",
+            groundTruth: [],
+          },
+        ],
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(invalidManifest));
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(
+        "Invalid manifest: sample 'sample-001' must have an 'inputs' array",
+      );
+    });
+
+    it("throws BadRequestException when input file is missing path", async () => {
+      const invalidManifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "sample-001",
+            inputs: [{ mimeType: "image/jpeg" }],
+            groundTruth: [],
+          },
+        ],
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(invalidManifest));
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(
+        "Invalid manifest: sample 'sample-001', input at index 0 must have a 'path' field of type string",
+      );
+    });
+
+    it("throws BadRequestException when input file is missing mimeType", async () => {
+      const invalidManifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "sample-001",
+            inputs: [{ path: "inputs/form.jpg" }],
+            groundTruth: [],
+          },
+        ],
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(invalidManifest));
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(
+        "Invalid manifest: sample 'sample-001', input at index 0 must have a 'mimeType' field of type string",
+      );
+    });
+
+    it("throws BadRequestException when sample is missing groundTruth array", async () => {
+      const invalidManifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "sample-001",
+            inputs: [],
+          },
+        ],
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(invalidManifest));
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(
+        "Invalid manifest: sample 'sample-001' must have a 'groundTruth' array",
+      );
+    });
+
+    it("throws BadRequestException when groundTruth file is missing path", async () => {
+      const invalidManifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "sample-001",
+            inputs: [],
+            groundTruth: [{ format: "json" }],
+          },
+        ],
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(invalidManifest));
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(
+        "Invalid manifest: sample 'sample-001', groundTruth at index 0 must have a 'path' field of type string",
+      );
+    });
+
+    it("throws BadRequestException when groundTruth file is missing format", async () => {
+      const invalidManifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "sample-001",
+            inputs: [],
+            groundTruth: [{ path: "ground-truth/form.json" }],
+          },
+        ],
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(invalidManifest));
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(
+        "Invalid manifest: sample 'sample-001', groundTruth at index 0 must have a 'format' field of type string",
+      );
+    });
+
+    it("throws BadRequestException when metadata is not an object", async () => {
+      const invalidManifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "sample-001",
+            inputs: [],
+            groundTruth: [],
+            metadata: "not an object",
+          },
+        ],
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(invalidManifest));
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(
+        "Invalid manifest: sample 'sample-001' metadata must be an object",
+      );
+    });
+
+    it("throws NotFoundException when manifest file does not exist", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      const enoentError: NodeJS.ErrnoException = new Error("File not found");
+      enoentError.code = "ENOENT";
+      mockReadFile.mockRejectedValue(enoentError);
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow("Manifest file not found in repository");
+    });
+
+    it("throws BadRequestException when manifest is malformed JSON", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue("{ invalid json");
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow("Invalid manifest: malformed JSON");
+    });
+
+    it("caps limit at 100 items per page", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(validManifest));
+
+      const result = await service.listSamples(datasetId, versionId, 1, 200);
+
+      expect(result.limit).toBe(100);
+    });
+
+    it("validates page number (minimum 1)", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(validManifest));
+
+      const result = await service.listSamples(datasetId, versionId, 0, 20);
+
+      expect(result.page).toBe(1);
+    });
+
+    it("cleans up temp directory even when error occurs", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockReadFile.mockRejectedValue(new Error("Read failed"));
+
+      await expect(
+        service.listSamples(datasetId, versionId, 1, 20),
+      ).rejects.toThrow();
+
+      expect(mockRm).toHaveBeenCalledWith(
+        "/tmp/dataset-init-test123",
+        expect.objectContaining({ recursive: true, force: true }),
+      );
     });
   });
 });

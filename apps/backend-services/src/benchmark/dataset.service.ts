@@ -28,6 +28,8 @@ import {
   VersionListItemDto,
   UploadResponseDto,
   UploadedFileDto,
+  SampleListResponseDto,
+  ManifestSampleDto,
 } from "./dto";
 import * as os from "os";
 import * as path from "path";
@@ -627,6 +629,214 @@ export class DatasetService {
           cleanupError,
         );
       }
+    }
+  }
+
+  /**
+   * List samples from a dataset version with pagination
+   */
+  async listSamples(
+    datasetId: string,
+    versionId: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<SampleListResponseDto> {
+    this.logger.debug(
+      `Listing samples for dataset ${datasetId}, version ${versionId} - page: ${page}, limit: ${limit}`,
+    );
+
+    // Validate pagination parameters
+    const validPage = Math.max(1, page);
+    const validLimit = Math.min(100, Math.max(1, limit)); // Cap at 100
+    const skip = (validPage - 1) * validLimit;
+
+    // Get the version
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: {
+        id: versionId,
+        datasetId: datasetId,
+      },
+      include: {
+        dataset: true,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    // Create temporary directory for checking out the dataset
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-samples-"));
+
+    try {
+      // Clone the dataset repository
+      await this.dvcService.cloneRepository(
+        version.dataset.repositoryUrl,
+        tempDir,
+      );
+
+      // Checkout the specific git revision
+      await this.dvcService.checkout(tempDir, version.gitRevision);
+
+      // Load and validate the manifest
+      const manifestPath = path.join(tempDir, version.manifestPath);
+      const manifest = await this.loadAndValidateManifest(manifestPath);
+
+      // Get total count
+      const total = manifest.samples.length;
+
+      // Paginate samples
+      const paginatedSamples = manifest.samples.slice(
+        skip,
+        skip + validLimit,
+      );
+
+      // Map to DTOs
+      const samples: ManifestSampleDto[] = paginatedSamples.map((sample) => ({
+        id: sample.id,
+        inputs: sample.inputs,
+        groundTruth: sample.groundTruth,
+        metadata: sample.metadata,
+      }));
+
+      return {
+        samples,
+        total,
+        page: validPage,
+        limit: validLimit,
+        totalPages: Math.ceil(total / validLimit),
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to list samples for dataset ${datasetId}, version ${versionId}`,
+        error.stack,
+      );
+      throw error;
+    } finally {
+      // Clean up temporary directory
+      try {
+        await rm(tempDir, { recursive: true, force: true });
+      } catch (cleanupError) {
+        this.logger.warn(
+          `Failed to clean up temp directory: ${tempDir}`,
+          cleanupError,
+        );
+      }
+    }
+  }
+
+  /**
+   * Load and validate a manifest file
+   */
+  private async loadAndValidateManifest(manifestPath: string): Promise<{
+    schemaVersion: string;
+    samples: Array<{
+      id: string;
+      inputs: Array<{ path: string; mimeType: string }>;
+      groundTruth: Array<{ path: string; format: string }>;
+      metadata?: Record<string, unknown>;
+    }>;
+  }> {
+    try {
+      // Read manifest file
+      const manifestContent = await fs.promises.readFile(
+        manifestPath,
+        "utf-8",
+      );
+      const manifest = JSON.parse(manifestContent);
+
+      // Validate manifest schema
+      if (!manifest.schemaVersion || typeof manifest.schemaVersion !== "string") {
+        throw new BadRequestException(
+          "Invalid manifest: schemaVersion is required and must be a string",
+        );
+      }
+
+      if (!Array.isArray(manifest.samples)) {
+        throw new BadRequestException(
+          "Invalid manifest: samples must be an array",
+        );
+      }
+
+      // Validate each sample
+      for (let i = 0; i < manifest.samples.length; i++) {
+        const sample = manifest.samples[i];
+
+        if (!sample.id || typeof sample.id !== "string") {
+          throw new BadRequestException(
+            `Invalid manifest: sample at index ${i} must have an 'id' field of type string`,
+          );
+        }
+
+        if (!Array.isArray(sample.inputs)) {
+          throw new BadRequestException(
+            `Invalid manifest: sample '${sample.id}' must have an 'inputs' array`,
+          );
+        }
+
+        // Validate input files
+        for (let j = 0; j < sample.inputs.length; j++) {
+          const input = sample.inputs[j];
+          if (!input.path || typeof input.path !== "string") {
+            throw new BadRequestException(
+              `Invalid manifest: sample '${sample.id}', input at index ${j} must have a 'path' field of type string`,
+            );
+          }
+          if (!input.mimeType || typeof input.mimeType !== "string") {
+            throw new BadRequestException(
+              `Invalid manifest: sample '${sample.id}', input at index ${j} must have a 'mimeType' field of type string`,
+            );
+          }
+        }
+
+        if (!Array.isArray(sample.groundTruth)) {
+          throw new BadRequestException(
+            `Invalid manifest: sample '${sample.id}' must have a 'groundTruth' array`,
+          );
+        }
+
+        // Validate ground truth files
+        for (let j = 0; j < sample.groundTruth.length; j++) {
+          const gt = sample.groundTruth[j];
+          if (!gt.path || typeof gt.path !== "string") {
+            throw new BadRequestException(
+              `Invalid manifest: sample '${sample.id}', groundTruth at index ${j} must have a 'path' field of type string`,
+            );
+          }
+          if (!gt.format || typeof gt.format !== "string") {
+            throw new BadRequestException(
+              `Invalid manifest: sample '${sample.id}', groundTruth at index ${j} must have a 'format' field of type string`,
+            );
+          }
+        }
+
+        // Validate metadata (optional, but must be an object if present)
+        if (sample.metadata !== undefined && typeof sample.metadata !== "object") {
+          throw new BadRequestException(
+            `Invalid manifest: sample '${sample.id}' metadata must be an object`,
+          );
+        }
+      }
+
+      return manifest;
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new NotFoundException("Manifest file not found in repository");
+      }
+      if (error instanceof SyntaxError) {
+        throw new BadRequestException(
+          `Invalid manifest: malformed JSON - ${error.message}`,
+        );
+      }
+      throw error;
     }
   }
 

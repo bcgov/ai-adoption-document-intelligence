@@ -48,6 +48,7 @@ import {
   VersionResponseDto,
   VersionListResponseDto,
   UploadResponseDto,
+  SampleListResponseDto,
 } from "./dto";
 
 @ApiTags("Benchmark - Datasets")
@@ -316,5 +317,46 @@ export class DatasetController {
     @Param("versionId") versionId: string,
   ): Promise<VersionResponseDto> {
     return this.datasetService.archiveVersion(id, versionId);
+  }
+
+  @Get(":id/versions/:versionId/samples")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "List samples from a dataset version" })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiQuery({
+    name: "page",
+    required: false,
+    type: Number,
+    description: "Page number (default: 1)",
+  })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    type: Number,
+    description: "Items per page (default: 20, max: 100)",
+  })
+  @ApiOkResponse({
+    description:
+      "Returns paginated list of samples from the manifest with IDs, input file references, ground truth file references, and metadata",
+    type: SampleListResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: "Version not found",
+  })
+  @ApiBadRequestResponse({
+    description: "Invalid manifest or malformed JSON",
+  })
+  async listSamples(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ): Promise<SampleListResponseDto> {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+
+    return this.datasetService.listSamples(id, versionId, pageNum, limitNum);
   }
 }
