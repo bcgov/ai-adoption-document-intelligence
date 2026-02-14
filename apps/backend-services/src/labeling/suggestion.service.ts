@@ -766,6 +766,7 @@ export class SuggestionService {
     if (a === b) return 1;
 
     // Check token-level matching first (more accurate than substring matching)
+    // a = alias (from field), b = key (from document OCR)
     const aTokens = new Set(a.split(" ").filter(Boolean));
     const bTokens = new Set(b.split(" ").filter(Boolean));
     const intersection = [...aTokens].filter((token) => bTokens.has(token));
@@ -776,28 +777,25 @@ export class SuggestionService {
       return 1;
     }
 
-    // If one is a subset of the other's tokens
-    if (intersection.length > 0) {
-      const minTokens = Math.min(aTokens.size, bTokens.size);
-      const maxTokens = Math.max(aTokens.size, bTokens.size);
-
-      // All tokens from the ALIAS (shorter, more specific) are in the KEY (longer, with extra descriptors)
-      // This is the common case: "Date (yyyy-mmm-dd)" contains "date" or "spouse date"
-      if (intersection.length === minTokens) {
-        // If token counts are close (within 1), it's a strong match
-        if (maxTokens - minTokens <= 1) {
-          const score = 0.9;
-          this.logger.debug(`[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (all tokens match, counts close: ${aTokens.size} vs ${bTokens.size})`);
-          return score;
-        }
-        // For longer keys with extra descriptive text (e.g., "Date (yyyy-mmm-dd)"),
-        // still give a good score if the alias is fully contained
-        // Base score 0.8 for full alias containment, reduced slightly by extra tokens
-        const extraTokenRatio = (maxTokens - minTokens) / maxTokens;
-        const score = 0.8 - (0.2 * extraTokenRatio);
-        this.logger.debug(`[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (alias contained in key with ${maxTokens - minTokens} extra tokens)`);
+    // Check if all tokens from the ALIAS are contained in the KEY
+    // This is the desired direction: we want the alias to be fully represented in the key text
+    // Example: alias "date" should match key "Date (yyyy-mmm-dd)"
+    // Example: alias "spouse date" should NOT match key "Spouse" (only 1 of 2 tokens)
+    if (intersection.length === aTokens.size) {
+      // All alias tokens are present in the key
+      // If token counts are close (within 1), it's a strong match
+      if (bTokens.size - aTokens.size <= 1) {
+        const score = 0.9;
+        this.logger.debug(`[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (all alias tokens in key, counts close: ${aTokens.size} vs ${bTokens.size})`);
         return score;
       }
+      // For longer keys with extra descriptive text (e.g., "Date (yyyy-mmm-dd)"),
+      // still give a good score if the alias is fully contained
+      // Base score 0.8 for full alias containment, reduced slightly by extra tokens
+      const extraTokenRatio = (bTokens.size - aTokens.size) / bTokens.size;
+      const score = 0.8 - (0.2 * extraTokenRatio);
+      this.logger.debug(`[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (all alias tokens contained in key with ${bTokens.size - aTokens.size} extra tokens)`);
+      return score;
     }
 
     // Jaccard similarity for partial token overlap
