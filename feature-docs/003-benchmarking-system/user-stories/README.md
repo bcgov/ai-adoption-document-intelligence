@@ -87,7 +87,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 
 ### Phase 1 -- Infrastructure
 - [x] **US-001** (Docker Compose -- MinIO & MLflow) -- everything depends on this infrastructure
-- [ ] **US-002** (Prisma Schema -- Benchmark Models) -- all services depend on the data model
+- [x] **US-002** (Prisma Schema -- Benchmark Models) -- all services depend on the data model
 
 ### Phase 2 -- Core Services
 - [ ] **US-003** (MinIO Blob Storage Service) -- depends on US-001
