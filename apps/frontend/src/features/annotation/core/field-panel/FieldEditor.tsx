@@ -1,7 +1,6 @@
-import { Checkbox, NumberInput, TextInput } from "@mantine/core";
+import { TextInput } from "@mantine/core";
 import { FC } from "react";
 import type { FieldDefinition } from "../types/field";
-import { FieldType } from "../types/field";
 
 interface FieldEditorProps {
   field: FieldDefinition;
@@ -16,31 +15,8 @@ export const FieldEditor: FC<FieldEditorProps> = ({
   onChange,
   readOnly,
 }) => {
-  if (field.fieldType === FieldType.SELECTION_MARK) {
-    return (
-      <Checkbox
-        checked={value === "selected"}
-        onChange={(event) =>
-          onChange?.(event.currentTarget.checked ? "selected" : "unselected")
-        }
-        label="Selected"
-        readOnly={readOnly}
-      />
-    );
-  }
-
-  if (field.fieldType === FieldType.NUMBER) {
-    return (
-      <NumberInput
-        value={value ? Number(value) : undefined}
-        onChange={(val) => onChange?.(val?.toString() || "")}
-        placeholder="Enter value"
-        size="xs"
-        readOnly={readOnly}
-      />
-    );
-  }
-
+  // During labeling, always show raw string values regardless of field type
+  // Field type validation only applies when submitting training data to Azure
   return (
     <TextInput
       value={value || ""}

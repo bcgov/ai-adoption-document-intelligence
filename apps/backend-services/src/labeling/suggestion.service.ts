@@ -776,12 +776,13 @@ export class SuggestionService {
       return 1;
     }
 
-    // If one is a subset of the other's tokens AND they have similar token counts, score it high
+    // If one is a subset of the other's tokens
     if (intersection.length > 0) {
       const minTokens = Math.min(aTokens.size, bTokens.size);
       const maxTokens = Math.max(aTokens.size, bTokens.size);
 
-      // All tokens from the shorter string are in the longer string
+      // All tokens from the ALIAS (shorter, more specific) are in the KEY (longer, with extra descriptors)
+      // This is the common case: "Date (yyyy-mmm-dd)" contains "date" or "spouse date"
       if (intersection.length === minTokens) {
         // If token counts are close (within 1), it's a strong match
         if (maxTokens - minTokens <= 1) {
@@ -789,10 +790,12 @@ export class SuggestionService {
           this.logger.debug(`[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (all tokens match, counts close: ${aTokens.size} vs ${bTokens.size})`);
           return score;
         }
-        // Otherwise, penalize based on how different the token counts are
-        // e.g., "spouse" vs "spouse signature" has 1 vs 2 tokens = 50% difference
-        const score = 0.5 + (0.4 * (minTokens / maxTokens));
-        this.logger.debug(`[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (subset match, penalized: ${minTokens} / ${maxTokens} tokens)`);
+        // For longer keys with extra descriptive text (e.g., "Date (yyyy-mmm-dd)"),
+        // still give a good score if the alias is fully contained
+        // Base score 0.8 for full alias containment, reduced slightly by extra tokens
+        const extraTokenRatio = (maxTokens - minTokens) / maxTokens;
+        const score = 0.8 - (0.2 * extraTokenRatio);
+        this.logger.debug(`[scoreTextMatch] "${a}" vs "${b}" → ${score.toFixed(2)} (alias contained in key with ${maxTokens - minTokens} extra tokens)`);
         return score;
       }
     }

@@ -30,6 +30,10 @@ const SDPR_MONTHLY_REPORT_FIELDS: SeedFieldDefinition[] = [
   { fieldKey: "checkbox_family_assets_no", fieldType: FieldType.selectionMark },
   { fieldKey: "checkbox_shelter_yes", fieldType: FieldType.selectionMark },
   { fieldKey: "checkbox_shelter_no", fieldType: FieldType.selectionMark },
+
+  { fieldKey: "checkbox_dependants_yes", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_dependants_no", fieldType: FieldType.selectionMark },
+
   {
     fieldKey: "checkbox_employment_changes_yes",
     fieldType: FieldType.selectionMark,
@@ -46,10 +50,17 @@ const SDPR_MONTHLY_REPORT_FIELDS: SeedFieldDefinition[] = [
     fieldKey: "checkbox_employment_changes_spouse_no",
     fieldType: FieldType.selectionMark,
   },
+
   { fieldKey: "checkbox_school_yes", fieldType: FieldType.selectionMark },
   { fieldKey: "checkbox_school_no", fieldType: FieldType.selectionMark },
   { fieldKey: "checkbox_school_spouse_yes", fieldType: FieldType.selectionMark },
   { fieldKey: "checkbox_school_spouse_no", fieldType: FieldType.selectionMark },
+
+  { fieldKey: "checkbox_work_yes", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_work_no", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_work_souse_yes", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_work_souse_no", fieldType: FieldType.selectionMark },
+
   { fieldKey: "checkbox_moved_yes", fieldType: FieldType.selectionMark },
   { fieldKey: "checkbox_moved_no", fieldType: FieldType.selectionMark },
   { fieldKey: "checkbox_moved_spouse_yes", fieldType: FieldType.selectionMark },
@@ -129,12 +140,6 @@ const SDPR_MONTHLY_REPORT_FIELDS: SeedFieldDefinition[] = [
   { fieldKey: "spouse_income_tax_refund", fieldType: FieldType.number },
   { fieldKey: "spouse_other_income_money_received", fieldType: FieldType.number },
   { fieldKey: "spouse_income_of_dependent_children", fieldType: FieldType.number },
-  { fieldKey: "checkbox_dependants_yes", fieldType: FieldType.selectionMark },
-  { fieldKey: "checkbox_dependants_no", fieldType: FieldType.selectionMark },
-  { fieldKey: "checkbox_work_yes", fieldType: FieldType.selectionMark },
-  { fieldKey: "checkbox_work_no", fieldType: FieldType.selectionMark },
-  { fieldKey: "checkbox_work_souse_yes", fieldType: FieldType.selectionMark },
-  { fieldKey: "checkbox_work_souse_no", fieldType: FieldType.selectionMark },
 ];
 
 async function main() {
