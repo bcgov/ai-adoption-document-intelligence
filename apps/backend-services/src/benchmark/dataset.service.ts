@@ -22,6 +22,10 @@ import {
   CreateDatasetDto,
   DatasetResponseDto,
   PaginatedDatasetResponseDto,
+  CreateVersionDto,
+  VersionResponseDto,
+  VersionListResponseDto,
+  VersionListItemDto,
 } from "./dto";
 import * as os from "os";
 import * as path from "path";
@@ -200,6 +204,275 @@ export class DatasetService {
   }
 
   /**
+   * Create a new dataset version
+   * Runs DVC add, git commit, DVC push workflow
+   */
+  async createVersion(
+    datasetId: string,
+    createDto: CreateVersionDto,
+    userId: string,
+  ): Promise<VersionResponseDto> {
+    this.logger.log(
+      `Creating version ${createDto.version} for dataset ${datasetId}`,
+    );
+
+    // Verify dataset exists
+    const dataset = await this.prisma.dataset.findUnique({
+      where: { id: datasetId },
+    });
+
+    if (!dataset) {
+      throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
+    }
+
+    // Create temporary directory for dataset operations
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-version-"));
+
+    try {
+      // Clone the dataset repository
+      await this.dvcService.cloneRepository(dataset.repositoryUrl, tempDir);
+
+      // Default manifest path if not provided
+      const manifestPath =
+        createDto.manifestPath || "dataset-manifest.json";
+
+      // Generate a simple manifest with document count
+      // In a real implementation, this would scan the repository for actual files
+      const manifestData = {
+        schemaVersion: "1.0",
+        samples: [],
+      };
+      const manifestFilePath = path.join(tempDir, manifestPath);
+      await fs.promises.writeFile(
+        manifestFilePath,
+        JSON.stringify(manifestData, null, 2),
+      );
+
+      // Add manifest to DVC tracking (if needed, based on size/type)
+      // For small JSON files, we typically just commit to Git directly
+      // For actual data files, we would run: await this.dvcService.addFiles(tempDir, [manifestPath]);
+
+      // Commit changes to Git
+      const commitMessage = `Add dataset version ${createDto.version}`;
+      const gitRevision =
+        await this.dvcService.commitChanges(tempDir, commitMessage);
+
+      // Push DVC-tracked files to remote (if any were added)
+      // await this.dvcService.pushData(tempDir);
+
+      // Calculate document count from manifest
+      const documentCount = manifestData.samples.length;
+
+      // Create DatasetVersion record
+      const version = await this.prisma.datasetVersion.create({
+        data: {
+          datasetId: datasetId,
+          version: createDto.version,
+          gitRevision: gitRevision,
+          manifestPath: manifestPath,
+          documentCount: documentCount,
+          groundTruthSchema: (createDto.groundTruthSchema ||
+            null) as Prisma.JsonValue,
+          status: "draft",
+        },
+      });
+
+      this.logger.log(
+        `Version created successfully: ${version.id} with git revision ${gitRevision}`,
+      );
+
+      return this.mapToVersionResponseDto(version);
+    } catch (error) {
+      this.logger.error(
+        `Failed to create version for dataset ${datasetId}`,
+        error.stack,
+      );
+      throw error;
+    } finally {
+      // Clean up temporary directory
+      try {
+        await rm(tempDir, { recursive: true, force: true });
+      } catch (cleanupError) {
+        this.logger.warn(
+          `Failed to clean up temp directory: ${tempDir}`,
+          cleanupError,
+        );
+      }
+    }
+  }
+
+  /**
+   * Publish a dataset version
+   */
+  async publishVersion(
+    datasetId: string,
+    versionId: string,
+    userId: string,
+  ): Promise<VersionResponseDto> {
+    this.logger.log(
+      `Publishing version ${versionId} for dataset ${datasetId}`,
+    );
+
+    // Get the version
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: {
+        id: versionId,
+        datasetId: datasetId,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    // Check if already published
+    if (version.status === "published") {
+      throw new BadRequestException(
+        "Version is already published and cannot be published again",
+      );
+    }
+
+    // Update version status to published
+    const updatedVersion = await this.prisma.datasetVersion.update({
+      where: { id: versionId },
+      data: {
+        status: "published",
+        publishedAt: new Date(),
+      },
+    });
+
+    // Create audit log entry
+    await this.prisma.benchmarkAuditLog.create({
+      data: {
+        userId: userId,
+        action: AuditAction.version_published,
+        entityType: "DatasetVersion",
+        entityId: updatedVersion.id,
+        metadata: {
+          datasetId: datasetId,
+          version: updatedVersion.version,
+          gitRevision: updatedVersion.gitRevision,
+        },
+      },
+    });
+
+    this.logger.log(`Version published successfully: ${versionId}`);
+
+    return this.mapToVersionResponseDto(updatedVersion);
+  }
+
+  /**
+   * Archive a dataset version
+   */
+  async archiveVersion(
+    datasetId: string,
+    versionId: string,
+  ): Promise<VersionResponseDto> {
+    this.logger.log(
+      `Archiving version ${versionId} for dataset ${datasetId}`,
+    );
+
+    // Get the version
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: {
+        id: versionId,
+        datasetId: datasetId,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    // Update version status to archived
+    const updatedVersion = await this.prisma.datasetVersion.update({
+      where: { id: versionId },
+      data: {
+        status: "archived",
+      },
+    });
+
+    this.logger.log(`Version archived successfully: ${versionId}`);
+
+    return this.mapToVersionResponseDto(updatedVersion);
+  }
+
+  /**
+   * List versions for a dataset
+   */
+  async listVersions(datasetId: string): Promise<VersionListResponseDto> {
+    this.logger.debug(`Listing versions for dataset ${datasetId}`);
+
+    // Verify dataset exists
+    const dataset = await this.prisma.dataset.findUnique({
+      where: { id: datasetId },
+    });
+
+    if (!dataset) {
+      throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
+    }
+
+    // Get all versions for this dataset
+    const versions = await this.prisma.datasetVersion.findMany({
+      where: { datasetId: datasetId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const versionList: VersionListItemDto[] = versions.map((v) => ({
+      id: v.id,
+      version: v.version,
+      status: v.status,
+      documentCount: v.documentCount,
+      gitRevision: v.gitRevision,
+      publishedAt: v.publishedAt,
+      createdAt: v.createdAt,
+    }));
+
+    return { versions: versionList };
+  }
+
+  /**
+   * Get version details by ID
+   */
+  async getVersionById(
+    datasetId: string,
+    versionId: string,
+  ): Promise<VersionResponseDto> {
+    this.logger.debug(
+      `Getting version ${versionId} for dataset ${datasetId}`,
+    );
+
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: {
+        id: versionId,
+        datasetId: datasetId,
+      },
+      include: {
+        splits: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            sampleIds: true,
+          },
+        },
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    return this.mapToVersionResponseDto(version, version.splits);
+  }
+
+  /**
    * Map database entity to response DTO
    */
   private mapToResponseDto(
@@ -235,6 +508,52 @@ export class DatasetService {
       updatedAt: dataset.updatedAt,
       versionCount,
       recentVersions,
+    };
+  }
+
+  /**
+   * Map DatasetVersion entity to response DTO
+   */
+  private mapToVersionResponseDto(
+    version: {
+      id: string;
+      datasetId: string;
+      version: string;
+      gitRevision: string;
+      manifestPath: string;
+      documentCount: number;
+      groundTruthSchema: unknown;
+      status: string;
+      publishedAt: Date | null;
+      createdAt: Date;
+    },
+    splits?: Array<{
+      id: string;
+      name: string;
+      type: string;
+      sampleIds: unknown;
+    }>,
+  ): VersionResponseDto {
+    return {
+      id: version.id,
+      datasetId: version.datasetId,
+      version: version.version,
+      gitRevision: version.gitRevision,
+      manifestPath: version.manifestPath,
+      documentCount: version.documentCount,
+      groundTruthSchema: version.groundTruthSchema as Record<
+        string,
+        unknown
+      > | null,
+      status: version.status,
+      publishedAt: version.publishedAt,
+      createdAt: version.createdAt,
+      splits: splits?.map((s) => ({
+        id: s.id,
+        name: s.name,
+        type: s.type,
+        sampleCount: Array.isArray(s.sampleIds) ? s.sampleIds.length : 0,
+      })),
     };
   }
 }

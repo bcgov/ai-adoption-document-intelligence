@@ -1,8 +1,12 @@
 const mockMkdtemp = jest.fn();
 const mockRm = jest.fn();
+const mockWriteFile = jest.fn();
 const mockFs = {
   mkdtemp: jest.fn(),
   rm: jest.fn(),
+  promises: {
+    writeFile: mockWriteFile,
+  },
 };
 
 jest.mock("fs", () => mockFs);
@@ -30,6 +34,12 @@ const mockPrismaClient = {
     findUnique: jest.fn(),
     count: jest.fn(),
   },
+  datasetVersion: {
+    create: jest.fn(),
+    update: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+  },
   benchmarkAuditLog: {
     create: jest.fn(),
   },
@@ -38,6 +48,7 @@ const mockPrismaClient = {
 const mockDvcService = {
   cloneRepository: jest.fn(),
   initRepository: jest.fn(),
+  commitChanges: jest.fn(),
 };
 
 const mockConfigService = {
@@ -78,6 +89,7 @@ describe("DatasetService", () => {
     // Mock file system operations
     mockMkdtemp.mockResolvedValue("/tmp/dataset-init-test123");
     mockRm.mockResolvedValue(undefined);
+    mockWriteFile.mockResolvedValue(undefined);
   });
 
   // -----------------------------------------------------------------------
@@ -332,6 +344,281 @@ describe("DatasetService", () => {
       await expect(service.getDatasetById("nonexistent")).rejects.toThrow(
         "Dataset with ID nonexistent not found",
       );
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Version Management Tests
+  // -----------------------------------------------------------------------
+  describe("createVersion", () => {
+    const createDto = {
+      version: "1.0.0",
+      groundTruthSchema: { type: "object" },
+      manifestPath: "manifest.json",
+    };
+
+    const userId = "user-123";
+
+    it("creates a version successfully with DVC workflow", async () => {
+      const mockDataset = {
+        id: "dataset-123",
+        repositoryUrl: "https://github.com/user/dataset.git",
+      };
+
+      const mockVersion = {
+        id: "version-123",
+        datasetId: "dataset-123",
+        version: "1.0.0",
+        gitRevision: "abc123",
+        manifestPath: "manifest.json",
+        documentCount: 0,
+        groundTruthSchema: { type: "object" },
+        status: "draft",
+        publishedAt: null,
+        createdAt: new Date(),
+      };
+
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockPrismaClient.datasetVersion.create.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.commitChanges.mockResolvedValue("abc123");
+
+      const result = await service.createVersion(
+        "dataset-123",
+        createDto,
+        userId,
+      );
+
+      expect(mockDvcService.cloneRepository).toHaveBeenCalled();
+      expect(mockDvcService.commitChanges).toHaveBeenCalled();
+      expect(mockPrismaClient.datasetVersion.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          datasetId: "dataset-123",
+          version: "1.0.0",
+          gitRevision: "abc123",
+          status: "draft",
+        }),
+      });
+      expect(result.id).toBe(mockVersion.id);
+      expect(result.status).toBe("draft");
+    });
+
+    it("throws NotFoundException when dataset not found", async () => {
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.createVersion("nonexistent", createDto, userId),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("publishVersion", () => {
+    const userId = "user-123";
+
+    it("publishes a draft version successfully", async () => {
+      const mockVersion = {
+        id: "version-123",
+        datasetId: "dataset-123",
+        version: "1.0.0",
+        status: "draft",
+        gitRevision: "abc123",
+      };
+
+      const mockPublishedVersion = {
+        ...mockVersion,
+        status: "published",
+        publishedAt: new Date(),
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockPrismaClient.datasetVersion.update.mockResolvedValue(
+        mockPublishedVersion,
+      );
+      mockPrismaClient.benchmarkAuditLog.create.mockResolvedValue({});
+
+      const result = await service.publishVersion(
+        "dataset-123",
+        "version-123",
+        userId,
+      );
+
+      expect(mockPrismaClient.datasetVersion.update).toHaveBeenCalledWith({
+        where: { id: "version-123" },
+        data: {
+          status: "published",
+          publishedAt: expect.any(Date),
+        },
+      });
+      expect(mockPrismaClient.benchmarkAuditLog.create).toHaveBeenCalled();
+      expect(result.status).toBe("published");
+    });
+
+    it("throws BadRequestException when version is already published", async () => {
+      const mockVersion = {
+        id: "version-123",
+        status: "published",
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+
+      await expect(
+        service.publishVersion("dataset-123", "version-123", userId),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.publishVersion("dataset-123", "version-123", userId),
+      ).rejects.toThrow("already published");
+    });
+
+    it("throws NotFoundException when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.publishVersion("dataset-123", "nonexistent", userId),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("archiveVersion", () => {
+    it("archives a version successfully", async () => {
+      const mockVersion = {
+        id: "version-123",
+        datasetId: "dataset-123",
+        status: "published",
+      };
+
+      const mockArchivedVersion = {
+        ...mockVersion,
+        status: "archived",
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockPrismaClient.datasetVersion.update.mockResolvedValue(
+        mockArchivedVersion,
+      );
+
+      const result = await service.archiveVersion("dataset-123", "version-123");
+
+      expect(mockPrismaClient.datasetVersion.update).toHaveBeenCalledWith({
+        where: { id: "version-123" },
+        data: {
+          status: "archived",
+        },
+      });
+      expect(result.status).toBe("archived");
+    });
+
+    it("throws NotFoundException when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.archiveVersion("dataset-123", "nonexistent"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("listVersions", () => {
+    it("returns list of versions for a dataset", async () => {
+      const mockDataset = { id: "dataset-123" };
+      const mockVersions = [
+        {
+          id: "v1",
+          version: "1.0.0",
+          status: "published",
+          documentCount: 100,
+          gitRevision: "abc123",
+          publishedAt: new Date(),
+          createdAt: new Date(),
+        },
+        {
+          id: "v2",
+          version: "1.1.0",
+          status: "draft",
+          documentCount: 120,
+          gitRevision: "def456",
+          publishedAt: null,
+          createdAt: new Date(),
+        },
+      ];
+
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockPrismaClient.datasetVersion.findMany.mockResolvedValue(mockVersions);
+
+      const result = await service.listVersions("dataset-123");
+
+      expect(mockPrismaClient.datasetVersion.findMany).toHaveBeenCalledWith({
+        where: { datasetId: "dataset-123" },
+        orderBy: { createdAt: "desc" },
+      });
+      expect(result.versions).toHaveLength(2);
+      expect(result.versions[0].version).toBe("1.0.0");
+    });
+
+    it("throws NotFoundException when dataset not found", async () => {
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(null);
+
+      await expect(service.listVersions("nonexistent")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe("getVersionById", () => {
+    it("returns version details with splits", async () => {
+      const mockVersion = {
+        id: "version-123",
+        datasetId: "dataset-123",
+        version: "1.0.0",
+        gitRevision: "abc123",
+        manifestPath: "manifest.json",
+        documentCount: 100,
+        groundTruthSchema: { type: "object" },
+        status: "published",
+        publishedAt: new Date(),
+        createdAt: new Date(),
+        splits: [
+          {
+            id: "split-1",
+            name: "test",
+            type: "test",
+            sampleIds: ["s1", "s2", "s3"],
+          },
+        ],
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+
+      const result = await service.getVersionById(
+        "dataset-123",
+        "version-123",
+      );
+
+      expect(mockPrismaClient.datasetVersion.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: "version-123",
+          datasetId: "dataset-123",
+        },
+        include: {
+          splits: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              sampleIds: true,
+            },
+          },
+        },
+      });
+      expect(result.id).toBe(mockVersion.id);
+      expect(result.splits).toHaveLength(1);
+      expect(result.splits[0].sampleCount).toBe(3);
+    });
+
+    it("throws NotFoundException when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getVersionById("dataset-123", "nonexistent"),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

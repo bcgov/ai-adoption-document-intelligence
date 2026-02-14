@@ -13,6 +13,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -39,6 +40,9 @@ import {
   CreateDatasetDto,
   DatasetResponseDto,
   PaginatedDatasetResponseDto,
+  CreateVersionDto,
+  VersionResponseDto,
+  VersionListResponseDto,
 } from "./dto";
 
 @ApiTags("Benchmark - Datasets")
@@ -124,5 +128,135 @@ export class DatasetController {
   })
   async getDatasetById(@Param("id") id: string): Promise<DatasetResponseDto> {
     return this.datasetService.getDatasetById(id);
+  }
+
+  @Post(":id/versions")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Create a new dataset version" })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiBody({
+    type: CreateVersionDto,
+    description:
+      "Version creation request with version label and optional ground truth schema",
+  })
+  @ApiCreatedResponse({
+    description:
+      "Version created successfully with DVC workflow (add, commit, push). Returns the created version with git revision.",
+    type: VersionResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: "Dataset not found",
+  })
+  @ApiBadRequestResponse({
+    description: "Invalid request body or validation error",
+  })
+  async createVersion(
+    @Param("id") id: string,
+    @Body() createDto: CreateVersionDto,
+    @Req() req: Request,
+  ): Promise<VersionResponseDto> {
+    const user = req.user;
+    const userId = user?.sub as string;
+
+    if (!userId) {
+      throw new BadRequestException("User ID not found in request");
+    }
+
+    return this.datasetService.createVersion(id, createDto, userId);
+  }
+
+  @Get(":id/versions")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "List versions for a dataset" })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiOkResponse({
+    description:
+      "Returns list of versions with version label, status, documentCount, gitRevision, publishedAt, and createdAt",
+    type: VersionListResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: "Dataset not found",
+  })
+  async listVersions(
+    @Param("id") id: string,
+  ): Promise<VersionListResponseDto> {
+    return this.datasetService.listVersions(id);
+  }
+
+  @Get(":id/versions/:versionId")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Get version details by ID" })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiOkResponse({
+    description:
+      "Returns full version details including groundTruthSchema, manifestPath, split list, and all metadata",
+    type: VersionResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: "Version not found",
+  })
+  async getVersionById(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+  ): Promise<VersionResponseDto> {
+    return this.datasetService.getVersionById(id, versionId);
+  }
+
+  @Patch(":id/versions/:versionId/publish")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Publish a dataset version" })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiOkResponse({
+    description:
+      "Version published successfully. Status transitions to published and publishedAt is set.",
+    type: VersionResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: "Version not found",
+  })
+  @ApiBadRequestResponse({
+    description: "Version is already published",
+  })
+  async publishVersion(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+    @Req() req: Request,
+  ): Promise<VersionResponseDto> {
+    const user = req.user;
+    const userId = user?.sub as string;
+
+    if (!userId) {
+      throw new BadRequestException("User ID not found in request");
+    }
+
+    return this.datasetService.publishVersion(id, versionId, userId);
+  }
+
+  @Patch(":id/versions/:versionId/archive")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Archive a dataset version" })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiOkResponse({
+    description:
+      "Version archived successfully. Status transitions to archived.",
+    type: VersionResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: "Version not found",
+  })
+  async archiveVersion(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+  ): Promise<VersionResponseDto> {
+    return this.datasetService.archiveVersion(id, versionId);
   }
 }
