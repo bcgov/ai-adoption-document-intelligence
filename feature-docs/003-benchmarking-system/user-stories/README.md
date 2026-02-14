@@ -6,6 +6,8 @@ Read both requirements document and individual user story files for implementati
 
 After implementing the user story check it off at the bottom of this file
 
+Run `git add .` and `git commit -m ...` after every user story.
+
 ## Infrastructure & Foundation (US-001 to US-004) -- HIGH priority
 | File | Title |
 |---|---|
@@ -84,7 +86,7 @@ After implementing the user story check it off at the bottom of this file
 ## Suggested Implementation Order (by dependency chain)
 
 ### Phase 1 -- Infrastructure
-- [ ] **US-001** (Docker Compose -- MinIO & MLflow) -- everything depends on this infrastructure
+- [x] **US-001** (Docker Compose -- MinIO & MLflow) -- everything depends on this infrastructure
 - [ ] **US-002** (Prisma Schema -- Benchmark Models) -- all services depend on the data model
 
 ### Phase 2 -- Core Services
