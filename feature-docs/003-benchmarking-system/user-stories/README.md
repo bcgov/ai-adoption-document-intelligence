@@ -113,7 +113,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 - [x] **US-013** (Benchmark Artifact Management) -- depends on US-012, US-003
 
 ### Phase 6 -- Temporal Execution
-- [ ] **US-018** (Dataset Materialization Activity) -- depends on US-005
+- [x] **US-018** (Dataset Materialization Activity) -- depends on US-005
 - [ ] **US-019** (Workflow Execution Activity) -- depends on US-002
 - [ ] **US-020** (Evaluation & Aggregation Activities) -- depends on US-014, US-015, US-016, US-017
 - [ ] **US-021** (MLflow Logging & Cleanup Activities) -- depends on US-004
