@@ -8,3 +8,6 @@ export * from "./upload-response.dto";
 export * from "./manifest-sample.dto";
 export * from "./create-project.dto";
 export * from "./project-response.dto";
+export * from "./create-definition.dto";
+export * from "./update-definition.dto";
+export * from "./definition-response.dto";
