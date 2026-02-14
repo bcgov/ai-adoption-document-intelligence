@@ -1,3 +1,4 @@
+export * from "./artifact-response.dto";
 export * from "./create-dataset.dto";
 export * from "./create-definition.dto";
 export * from "./create-project.dto";

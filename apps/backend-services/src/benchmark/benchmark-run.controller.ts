@@ -16,9 +16,13 @@ import {
   Logger,
   Param,
   Post,
+  Query,
 } from "@nestjs/common";
+import { BenchmarkArtifactType } from "@generated/client";
 import { BenchmarkRunService } from "./benchmark-run.service";
+import { BenchmarkArtifactService } from "./benchmark-artifact.service";
 import {
+  ArtifactListResponseDto,
   CreateRunDto,
   DrillDownResponseDto,
   RunDetailsDto,
@@ -29,7 +33,10 @@ import {
 export class BenchmarkRunController {
   private readonly logger = new Logger(BenchmarkRunController.name);
 
-  constructor(private readonly benchmarkRunService: BenchmarkRunService) {}
+  constructor(
+    private readonly benchmarkRunService: BenchmarkRunService,
+    private readonly benchmarkArtifactService: BenchmarkArtifactService,
+  ) {}
 
   /**
    * Start a benchmark run
@@ -111,5 +118,23 @@ export class BenchmarkRunController {
       `GET /api/benchmark/projects/${projectId}/runs/${runId}/drill-down`,
     );
     return this.benchmarkRunService.getDrillDown(projectId, runId);
+  }
+
+  /**
+   * List artifacts for a benchmark run with optional type filter
+   *
+   * GET /api/benchmark/projects/:projectId/runs/:runId/artifacts
+   * Query params: type (optional) - filter by BenchmarkArtifactType
+   */
+  @Get("runs/:runId/artifacts")
+  async listArtifacts(
+    @Param("projectId") projectId: string,
+    @Param("runId") runId: string,
+    @Query("type") type?: BenchmarkArtifactType,
+  ): Promise<ArtifactListResponseDto> {
+    this.logger.log(
+      `GET /api/benchmark/projects/${projectId}/runs/${runId}/artifacts${type ? `?type=${type}` : ""}`,
+    );
+    return this.benchmarkArtifactService.listArtifacts(projectId, runId, type);
   }
 }
