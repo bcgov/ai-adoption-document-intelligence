@@ -90,9 +90,9 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 - [x] **US-002** (Prisma Schema -- Benchmark Models) -- all services depend on the data model
 
 ### Phase 2 -- Core Services
-- [ ] **US-003** (MinIO Blob Storage Service) -- depends on US-001
-- [ ] **US-004** (MLflow Client Service) -- depends on US-001
-- [ ] **US-005** (DVC Service) -- depends on US-001
+- [x] **US-003** (MinIO Blob Storage Service) -- depends on US-001
+- [x] **US-004** (MLflow Client Service) -- depends on US-001
+- [x] **US-005** (DVC Service) -- depends on US-001
 
 ### Phase 3 -- Dataset Management
 - [ ] **US-006** (Dataset Service & Controller) -- depends on US-002, US-005
