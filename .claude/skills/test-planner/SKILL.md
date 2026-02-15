@@ -1,6 +1,6 @@
 ***
 name: test-planner
-description: Converts requirements and user stories into structured test plans
+description: Converts requirements and user stories into structured test plans for UI testing
 allowed-tools: [Read, Glob, Grep, Edit, Write]
 ***
 
@@ -14,9 +14,10 @@ Read requirements and user stories from a feature directory and generate compreh
 ## Process
 1. Read `requirements.md` (or `REQUIREMENTS.md`) from the feature directory
 2. Read all files in the `user-stories/` subdirectory
-3. Analyze and extract testable scenarios for each requirement
-4. Identify happy paths, edge cases, and error scenarios
-5. Map acceptance criteria to test cases
+3. **Filter: Only include user stories with UI interactions** (forms, buttons, pages, navigation, displays, modals, etc.). Skip pure API/backend/infrastructure stories.
+4. Analyze and extract testable scenarios for each UI-focused requirement
+5. Identify happy paths, edge cases, and error scenarios
+6. Map acceptance criteria to test cases
 
 ## Output
 Create separate test plan files in `{feature-dir}/playwright/test-plans/`:
@@ -61,38 +62,3 @@ Create separate test plan files in `{feature-dir}/playwright/test-plans/`:
 - ✅ Edge cases covered
 - ✅ Error handling covered
 - ⚠️ Missing: [Any gaps identified]
-```
-
-### Summary File Format (`README.md`):
-```markdown
-# Test Plans Overview
-
-**Feature**: {Feature name from requirements.md}
-**Generated**: {timestamp}
-
-## Test Plan Files
-
-| User Story | File | Scenarios | Priority | Status |
-|------------|------|-----------|----------|--------|
-| US-001     | [US-001.md](./US-001.md) | 5 | High | ✅ Ready |
-| US-002     | [US-002.md](./US-002.md) | 3 | Medium | ✅ Ready |
-
-## Coverage Summary
-- **Total Scenarios**: {count}
-- **Happy Paths**: {count}
-- **Edge Cases**: {count}
-- **Error Cases**: {count}
-
-## Cross-Feature Dependencies
-{List any dependencies on other features}
-
-## Test Data Requirements
-{Consolidated list of all test data needed}
-```
-
-Group related scenarios within each user story file. Include authentication requirements, data setup needs, and inter-feature dependencies.
-
-## Important References
-- Always refer to the feature's `requirements.md` for the source of truth on expected behavior
-- Cross-reference user stories in the `user-stories/` folder to understand acceptance criteria
-- When unclear about expected behavior, flag it in the test plan with a `⚠️ CLARIFICATION NEEDED` marker
