@@ -135,7 +135,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 ### Phase 9 -- Phase 1.5 Enhancements
 - [x] **US-032** (Dataset Quality Checks & Validation) -- depends on US-007, US-009
 - [x] **US-033** (Split Management UI) -- depends on US-028
-- [ ] **US-034** (Baseline Management) -- depends on US-012, US-031
+- [x] **US-034** (Baseline Management) -- depends on US-012, US-031
 - [ ] **US-035** (Scheduled & Nightly Runs) -- depends on US-022
 
 ### Phase 10 -- Phase 2 Rich UI

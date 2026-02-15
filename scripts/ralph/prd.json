@@ -590,8 +590,8 @@
         "Scenario 7"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented full baseline management with promotion, comparison, thresholds, and UI. Added baselineThresholds and baselineComparison fields to schema. Created temporal activity for automatic comparison on run completion. All 719 backend tests pass.",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-034-baseline-management.md"
     },
     {

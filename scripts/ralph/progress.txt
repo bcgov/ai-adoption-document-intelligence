@@ -190,3 +190,35 @@ Started: 2026-02-14
   - useMutation mutate() requires parameter matching mutationFn signature
   - All 710 backend tests pass including new split tests
 ---
+
+## 2026-02-15 - US-034
+- What was implemented: Baseline Management
+- Files changed:
+  - apps/shared/prisma/schema.prisma (added baselineThresholds and baselineComparison fields)
+  - apps/shared/prisma/migrations/20260215101025_add_baseline_fields/migration.sql (new)
+  - apps/backend-services/src/benchmark/dto/promote-baseline.dto.ts (new)
+  - apps/backend-services/src/benchmark/dto/run-response.dto.ts (updated)
+  - apps/backend-services/src/benchmark/dto/index.ts (exports)
+  - apps/backend-services/src/benchmark/benchmark-run.service.ts (promoteToBaseline, compareAgainstBaseline)
+  - apps/backend-services/src/benchmark/benchmark-run.controller.ts (POST baseline endpoint)
+  - apps/backend-services/src/benchmark/benchmark-run.service.spec.ts (9 new tests)
+  - apps/temporal/src/activities/benchmark-baseline-comparison.ts (new activity)
+  - apps/temporal/src/activities.ts (exports)
+  - apps/temporal/src/activity-registry.ts (registered benchmark activities)
+  - apps/temporal/src/benchmark-workflow.ts (Phase 6a baseline comparison)
+  - apps/frontend/src/features/benchmarking/hooks/useRuns.ts (baseline types and hook)
+  - apps/frontend/src/features/benchmarking/pages/RunDetailPage.tsx (UI for baseline)
+- **Learnings for future iterations:**
+  - Prisma Json fields require double casting: `as unknown as Type` to avoid TS errors
+  - Temporal activities should be registered in activity-registry.ts for worker discovery
+  - Baseline comparison added as Phase 6a (after status update, before cleanup)
+  - Baseline comparison wrapped in try/catch to prevent workflow failure
+  - Floating point test comparisons need toBeCloseTo() instead of exact equality
+  - Test mocks need mockResolvedValueOnce() chaining for sequential calls
+  - BaselineComparison stores per-metric results including deltas and threshold checks
+  - Regression tag automatically added to run when metrics fall below threshold
+  - Relative thresholds: currentValue >= baselineValue * threshold
+  - Absolute thresholds: currentValue >= threshold
+  - Frontend uses Alert component for regression status, Card for detailed comparison
+  - All 719 backend tests pass
+---
