@@ -27,6 +27,8 @@ import {
   FieldErrorBreakdownDto,
   MetricComparison,
   MetricThreshold,
+  PerSampleResultDto,
+  PerSampleResultsResponseDto,
   PromoteBaselineDto,
   PromoteBaselineResponseDto,
   RunDetailsDto,
@@ -676,5 +678,121 @@ export class BenchmarkRunService {
     );
 
     return comparison;
+  }
+
+  /**
+   * Get per-sample results with filtering and pagination
+   *
+   * Allows filtering by metadata dimensions and fetching individual sample results.
+   * Used for slicing, filtering, and drill-down UI.
+   */
+  async getPerSampleResults(
+    projectId: string,
+    runId: string,
+    filters: Record<string, string | number> = {},
+    page = 1,
+    limit = 20,
+  ): Promise<PerSampleResultsResponseDto> {
+    this.logger.log(`Getting per-sample results for run ${runId}`);
+
+    // Get the run
+    const run = await this.prisma.benchmarkRun.findFirst({
+      where: {
+        id: runId,
+        projectId,
+      },
+    });
+
+    if (!run) {
+      throw new NotFoundException(
+        `Benchmark run with ID "${runId}" not found for project "${projectId}"`,
+      );
+    }
+
+    if (run.status !== "completed") {
+      throw new BadRequestException(
+        `Per-sample results are only available for completed runs. Run status is "${run.status}".`,
+      );
+    }
+
+    const metrics = run.metrics as Record<string, unknown>;
+
+    // Extract per-sample results from metrics
+    const allResults = (metrics.perSampleResults || []) as Array<{
+      sampleId: string;
+      metadata?: Record<string, unknown>;
+      metrics?: Record<string, number>;
+      diagnostics?: Record<string, unknown>;
+      groundTruth?: unknown;
+      prediction?: unknown;
+      evaluationDetails?: unknown;
+    }>;
+
+    // Collect available dimensions and their values
+    const dimensionValuesMap = new Map<string, Set<string | number>>();
+
+    for (const result of allResults) {
+      if (result.metadata) {
+        for (const [key, value] of Object.entries(result.metadata)) {
+          if (!dimensionValuesMap.has(key)) {
+            dimensionValuesMap.set(key, new Set());
+          }
+          if (typeof value === "string" || typeof value === "number") {
+            dimensionValuesMap.get(key)!.add(value);
+          } else if (typeof value === "boolean") {
+            // Convert boolean to string for filtering
+            dimensionValuesMap.get(key)!.add(String(value));
+          }
+        }
+      }
+    }
+
+    const availableDimensions = Array.from(dimensionValuesMap.keys()).sort();
+    const dimensionValues: Record<string, Array<string | number>> = {};
+    for (const [key, values] of dimensionValuesMap.entries()) {
+      dimensionValues[key] = Array.from(values).sort();
+    }
+
+    // Apply filters
+    let filteredResults = allResults;
+    if (Object.keys(filters).length > 0) {
+      filteredResults = allResults.filter((result) => {
+        if (!result.metadata) return false;
+        for (const [key, value] of Object.entries(filters)) {
+          if (result.metadata[key] !== value) {
+            return false;
+          }
+        }
+        return true;
+      });
+    }
+
+    // Pagination
+    const total = filteredResults.length;
+    const totalPages = Math.ceil(total / limit);
+    const offset = (page - 1) * limit;
+    const paginatedResults = filteredResults.slice(offset, offset + limit);
+
+    // Map to DTO
+    const results: PerSampleResultDto[] = paginatedResults.map((result) => ({
+      sampleId: result.sampleId,
+      metadata: result.metadata || {},
+      metrics: result.metrics || {},
+      diagnostics: result.diagnostics,
+      groundTruth: result.groundTruth,
+      prediction: result.prediction,
+      evaluationDetails: result.evaluationDetails,
+    }));
+
+    return {
+      runId: run.id,
+      results,
+      total,
+      page,
+      limit,
+      totalPages,
+      availableDimensions,
+      dimensionValues,
+    };
   }
 }

@@ -926,4 +926,147 @@ describe("BenchmarkRunService", () => {
       expect(result?.metricComparisons[0].deltaPercent).toBeCloseTo(12.5, 5);
     });
   });
+
+  // Scenario 9: Get per-sample results with filtering
+  describe("getPerSampleResults", () => {
+    it("should return paginated per-sample results with filtering", async () => {
+      const runId = "run-1";
+      const projectId = "project-1";
+
+      // Mock Prisma findFirst to return a completed run with per-sample results
+      prisma.benchmarkRun.findFirst = jest.fn().mockResolvedValue({
+        id: runId,
+        projectId,
+        status: "completed",
+        metrics: {
+          perSampleResults: [
+            {
+              sampleId: "sample-001",
+              metadata: { docType: "invoice", language: "en" },
+              metrics: { accuracy: 0.95, f1: 0.93 },
+            },
+            {
+              sampleId: "sample-002",
+              metadata: { docType: "receipt", language: "en" },
+              metrics: { accuracy: 0.88, f1: 0.85 },
+            },
+            {
+              sampleId: "sample-003",
+              metadata: { docType: "invoice", language: "fr" },
+              metrics: { accuracy: 0.92, f1: 0.90 },
+            },
+          ],
+        },
+      });
+
+      // Test without filters
+      const resultAll = await service.getPerSampleResults(
+        projectId,
+        runId,
+        {},
+        1,
+        10,
+      );
+
+      expect(resultAll.total).toBe(3);
+      expect(resultAll.results).toHaveLength(3);
+      expect(resultAll.availableDimensions).toContain("docType");
+      expect(resultAll.availableDimensions).toContain("language");
+      expect(resultAll.dimensionValues["docType"]).toContain("invoice");
+      expect(resultAll.dimensionValues["docType"]).toContain("receipt");
+
+      // Test with filter
+      const resultFiltered = await service.getPerSampleResults(
+        projectId,
+        runId,
+        { docType: "invoice" },
+        1,
+        10,
+      );
+
+      expect(resultFiltered.total).toBe(2);
+      expect(resultFiltered.results).toHaveLength(2);
+      expect(
+        resultFiltered.results.every((r) => r.metadata.docType === "invoice"),
+      ).toBe(true);
+    });
+
+    it("should throw NotFoundException if run not found", async () => {
+      prisma.benchmarkRun.findFirst = jest.fn().mockResolvedValue(null);
+
+      await expect(
+        service.getPerSampleResults("project-1", "run-1", {}, 1, 10),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw BadRequestException if run is not completed", async () => {
+      prisma.benchmarkRun.findFirst = jest.fn().mockResolvedValue({
+        id: "run-1",
+        projectId: "project-1",
+        status: "running",
+        metrics: {},
+      });
+
+      await expect(
+        service.getPerSampleResults("project-1", "run-1", {}, 1, 10),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("should handle pagination correctly", async () => {
+      const runId = "run-1";
+      const projectId = "project-1";
+
+      // Create 25 sample results
+      const perSampleResults = Array.from({ length: 25 }, (_, i) => ({
+        sampleId: `sample-${String(i + 1).padStart(3, "0")}`,
+        metadata: { index: i },
+        metrics: { score: i * 0.01 },
+      }));
+
+      prisma.benchmarkRun.findFirst = jest.fn().mockResolvedValue({
+        id: runId,
+        projectId,
+        status: "completed",
+        metrics: { perSampleResults },
+      });
+
+      // Get page 1
+      const page1 = await service.getPerSampleResults(
+        projectId,
+        runId,
+        {},
+        1,
+        10,
+      );
+
+      expect(page1.total).toBe(25);
+      expect(page1.totalPages).toBe(3);
+      expect(page1.results).toHaveLength(10);
+      expect(page1.results[0].sampleId).toBe("sample-001");
+
+      // Get page 2
+      const page2 = await service.getPerSampleResults(
+        projectId,
+        runId,
+        {},
+        2,
+        10,
+      );
+
+      expect(page2.results).toHaveLength(10);
+      expect(page2.results[0].sampleId).toBe("sample-011");
+
+      // Get page 3 (partial)
+      const page3 = await service.getPerSampleResults(
+        projectId,
+        runId,
+        {},
+        3,
+        10,
+      );
+
+      expect(page3.results).toHaveLength(5);
+      expect(page3.results[0].sampleId).toBe("sample-021");
+    });
+  });
 });

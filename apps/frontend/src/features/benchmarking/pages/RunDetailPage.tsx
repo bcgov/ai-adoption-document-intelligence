@@ -551,7 +551,20 @@ export function RunDetailPage() {
       {run.status === "completed" && drillDown && (
         <Card>
           <Stack gap="md">
-            <Title order={3}>Drill-Down Summary</Title>
+            <Group justify="space-between">
+              <Title order={3}>Drill-Down Summary</Title>
+              <Button
+                variant="light"
+                size="sm"
+                onClick={() =>
+                  navigate(
+                    `/benchmarking/projects/${projectId}/runs/${runId}/drill-down`,
+                  )
+                }
+              >
+                View All Samples
+              </Button>
+            </Group>
 
             {drillDown.worstSamples.length > 0 && (
               <Stack gap="xs">

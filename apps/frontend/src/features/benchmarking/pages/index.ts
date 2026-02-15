@@ -3,5 +3,6 @@ export { DatasetListPage } from "./DatasetListPage";
 export { ProjectDetailPage } from "./ProjectDetailPage";
 export { ProjectListPage } from "./ProjectListPage";
 export { RegressionReportPage } from "./RegressionReportPage";
+export { default as ResultsDrillDownPage } from "./ResultsDrillDownPage";
 export { RunComparisonPage } from "./RunComparisonPage";
 export { RunDetailPage } from "./RunDetailPage";

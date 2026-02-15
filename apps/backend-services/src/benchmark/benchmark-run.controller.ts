@@ -25,6 +25,7 @@ import {
   ArtifactListResponseDto,
   CreateRunDto,
   DrillDownResponseDto,
+  PerSampleResultsResponseDto,
   PromoteBaselineDto,
   PromoteBaselineResponseDto,
   RunDetailsDto,
@@ -120,6 +121,48 @@ export class BenchmarkRunController {
       `GET /api/benchmark/projects/${projectId}/runs/${runId}/drill-down`,
     );
     return this.benchmarkRunService.getDrillDown(projectId, runId);
+  }
+
+  /**
+   * Get per-sample results with filtering and pagination
+   *
+   * GET /api/benchmark/projects/:projectId/runs/:runId/samples
+   * Query params:
+   *   - page: Page number (default: 1)
+   *   - limit: Items per page (default: 20)
+   *   - Any metadata dimension key (e.g., docType=invoice, language=en)
+   */
+  @Get("runs/:runId/samples")
+  async getPerSampleResults(
+    @Param("projectId") projectId: string,
+    @Param("runId") runId: string,
+    @Query() query: Record<string, string>,
+  ): Promise<PerSampleResultsResponseDto> {
+    this.logger.log(
+      `GET /api/benchmark/projects/${projectId}/runs/${runId}/samples`,
+    );
+
+    // Extract pagination params
+    const page = query.page ? parseInt(query.page, 10) : 1;
+    const limit = query.limit ? parseInt(query.limit, 10) : 20;
+
+    // Extract filter params (everything except page and limit)
+    const filters: Record<string, string | number> = {};
+    for (const [key, value] of Object.entries(query)) {
+      if (key !== "page" && key !== "limit") {
+        // Try to parse as number, otherwise keep as string
+        const numValue = Number(value);
+        filters[key] = isNaN(numValue) ? value : numValue;
+      }
+    }
+
+    return this.benchmarkRunService.getPerSampleResults(
+      projectId,
+      runId,
+      filters,
+      page,
+      limit,
+    );
   }
 
   /**

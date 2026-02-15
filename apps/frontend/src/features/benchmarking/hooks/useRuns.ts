@@ -284,4 +284,82 @@ export const usePromoteBaseline = (projectId: string, runId: string) => {
   };
 };
 
-export type { MetricThreshold, BaselineComparison, MetricComparison };
+// Per-sample results for slicing and filtering
+
+interface PerSampleResult {
+  sampleId: string;
+  metadata: Record<string, unknown>;
+  metrics: Record<string, number>;
+  diagnostics?: Record<string, unknown>;
+  groundTruth?: unknown;
+  prediction?: unknown;
+  evaluationDetails?: unknown;
+}
+
+interface PerSampleResultsData {
+  runId: string;
+  results: PerSampleResult[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  availableDimensions: string[];
+  dimensionValues: Record<string, Array<string | number>>;
+}
+
+export const usePerSampleResults = (
+  projectId: string,
+  runId: string,
+  filters: Record<string, string | number> = {},
+  page = 1,
+  limit = 20,
+) => {
+  const queryKey = [
+    "benchmark-per-sample-results",
+    projectId,
+    runId,
+    filters,
+    page,
+    limit,
+  ];
+
+  const resultsQuery = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", String(limit));
+
+      // Add filters
+      for (const [key, value] of Object.entries(filters)) {
+        params.set(key, String(value));
+      }
+
+      const response = await apiService.get<PerSampleResultsData>(
+        `/benchmark/projects/${projectId}/runs/${runId}/samples?${params.toString()}`,
+      );
+      return response.data;
+    },
+    enabled: !!projectId && !!runId,
+  });
+
+  return {
+    results: resultsQuery.data?.results || [],
+    total: resultsQuery.data?.total || 0,
+    page: resultsQuery.data?.page || 1,
+    limit: resultsQuery.data?.limit || 20,
+    totalPages: resultsQuery.data?.totalPages || 0,
+    availableDimensions: resultsQuery.data?.availableDimensions || [],
+    dimensionValues: resultsQuery.data?.dimensionValues || {},
+    isLoading: resultsQuery.isLoading,
+    error: resultsQuery.error,
+  };
+};
+
+export type {
+  MetricThreshold,
+  BaselineComparison,
+  MetricComparison,
+  PerSampleResult,
+  PerSampleResultsData,
+};
