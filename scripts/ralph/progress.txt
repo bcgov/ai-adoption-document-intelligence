@@ -49,3 +49,20 @@ Started: 2026-02-14
   - Activity exports must be added to apps/temporal/src/activities.ts
 ---
 
+## 2026-02-14 19:23 - US-021
+- What was implemented: MLflow Logging & Cleanup Activities
+- Files changed:
+  - apps/temporal/src/activities/benchmark-logging.ts (new)
+  - apps/temporal/src/activities/benchmark-logging.test.ts (new)
+  - apps/temporal/src/activities.ts (updated exports)
+  - apps/temporal/package.json (added axios, axios-mock-adapter)
+- **Learnings for future iterations:**
+  - MLflow REST API integration uses axios directly (not NestJS HttpService) in Temporal activities
+  - MLFLOW_TRACKING_URI environment variable read from process.env in activities
+  - Cleanup activities must be idempotent - check file existence before erroring on deletion
+  - Artifact upload skipped for now (requires direct MinIO integration, see US-013)
+  - All Section 6.3 required params and tags implemented: dataset_version_id, dataset_git_revision, workflow_config_hash, evaluator_type, evaluator_config_hash, worker_image_digest, worker_git_sha, benchmark_run_id, benchmark_definition_id, benchmark_project_id
+  - Tests use axios-mock-adapter to mock MLflow HTTP calls
+  - Cleanup supports both files and directories (recursive deletion)
+---
+

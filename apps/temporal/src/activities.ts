@@ -47,3 +47,9 @@ export type {
   BenchmarkLogToMlflowInput,
   BenchmarkCleanupInput,
 } from './activities/benchmark-logging';
+
+export { benchmarkUpdateRunStatus } from './activities/benchmark-update-run';
+export type { BenchmarkUpdateRunStatusInput } from './activities/benchmark-update-run';
+
+export { materializeDataset, loadDatasetManifest } from './activities/benchmark-materialize';
+export type { DatasetManifest } from './activities/benchmark-materialize';

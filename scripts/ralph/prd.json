@@ -362,8 +362,8 @@
         "Scenario 8"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented benchmarkLogToMlflow and benchmarkCleanup activities with full MLflow integration. All tests pass (11 tests).",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-021-mlflow-logging-cleanup-activities.md"
     },
     {

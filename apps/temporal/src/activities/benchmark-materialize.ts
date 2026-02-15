@@ -328,3 +328,76 @@ export async function materializeDataset(
     throw error;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Manifest Loading Activity
+// ---------------------------------------------------------------------------
+
+export interface DatasetManifest {
+  schemaVersion: string;
+  samples: Array<{
+    id: string;
+    inputs: Array<{ path: string; mimeType: string }>;
+    groundTruth: Array<{ path: string; format: string }>;
+    metadata: Record<string, unknown>;
+  }>;
+  splits?: {
+    train?: string[];
+    validation?: string[];
+    test?: string[];
+    [splitName: string]: string[] | undefined;
+  };
+}
+
+interface LoadManifestParams {
+  materializedPath: string;
+}
+
+interface LoadManifestResult {
+  manifest: DatasetManifest;
+}
+
+/**
+ * Activity: Load dataset manifest from materialized dataset directory
+ *
+ * Reads and parses the manifest.json file from the materialized dataset.
+ */
+export async function loadDatasetManifest(
+  params: LoadManifestParams
+): Promise<LoadManifestResult> {
+  const activityName = 'loadDatasetManifest';
+  const { materializedPath } = params;
+
+  console.log(JSON.stringify({
+    activity: activityName,
+    event: 'start',
+    materializedPath,
+    timestamp: new Date().toISOString()
+  }));
+
+  try {
+    const manifestPath = path.join(materializedPath, 'manifest.json');
+    const manifestContent = await fs.readFile(manifestPath, 'utf-8');
+    const manifest: DatasetManifest = JSON.parse(manifestContent);
+
+    console.log(JSON.stringify({
+      activity: activityName,
+      event: 'complete',
+      sampleCount: manifest.samples.length,
+      hasSplits: !!manifest.splits,
+      timestamp: new Date().toISOString()
+    }));
+
+    return { manifest };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(JSON.stringify({
+      activity: activityName,
+      event: 'error',
+      materializedPath,
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    }));
+    throw new Error(`Failed to load manifest: ${errorMessage}`);
+  }
+}
