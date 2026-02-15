@@ -34,3 +34,10 @@ export { classifyDocument } from './activities/classify-document';
 export { validateDocumentFields } from './activities/document-validate-fields';
 export { splitAndClassifyDocument } from './activities/split-and-classify-document';
 export { combineSegmentResult } from './activities/combine-segment-result';
+
+// Benchmark activities
+export { benchmarkEvaluate, benchmarkAggregate } from './activities/benchmark-evaluate';
+export type {
+  BenchmarkEvaluateInput,
+  BenchmarkAggregateInput,
+} from './activities/benchmark-evaluate';
