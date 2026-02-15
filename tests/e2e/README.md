@@ -2,6 +2,8 @@
 
 This directory contains end-to-end tests for the AI OCR application using Playwright.
 
+**📖 [How to Write New Tests](./WRITING_TESTS.md)** - Start here to create new tests!
+
 ## Setup
 
 1. Ensure the backend and frontend are running:
