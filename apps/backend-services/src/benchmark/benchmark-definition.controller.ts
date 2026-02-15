@@ -23,6 +23,8 @@ import {
   CreateDefinitionDto,
   DefinitionDetailsDto,
   DefinitionSummaryDto,
+  ScheduleConfigDto,
+  ScheduleInfoDto,
   UpdateDefinitionDto,
 } from "./dto";
 
@@ -104,6 +106,46 @@ export class BenchmarkDefinitionController {
       projectId,
       definitionId,
       updateDefinitionDto,
+    );
+  }
+
+  /**
+   * Configure schedule for a benchmark definition
+   *
+   * POST /api/benchmark/projects/:projectId/definitions/:definitionId/schedule
+   */
+  @Post(":definitionId/schedule")
+  async configureSchedule(
+    @Param("projectId") projectId: string,
+    @Param("definitionId") definitionId: string,
+    @Body() scheduleConfigDto: ScheduleConfigDto,
+  ): Promise<DefinitionDetailsDto> {
+    this.logger.log(
+      `POST /api/benchmark/projects/${projectId}/definitions/${definitionId}/schedule`,
+    );
+    return this.benchmarkDefinitionService.configureSchedule(
+      projectId,
+      definitionId,
+      scheduleConfigDto,
+    );
+  }
+
+  /**
+   * Get schedule information for a definition
+   *
+   * GET /api/benchmark/projects/:projectId/definitions/:definitionId/schedule
+   */
+  @Get(":definitionId/schedule")
+  async getScheduleInfo(
+    @Param("projectId") projectId: string,
+    @Param("definitionId") definitionId: string,
+  ): Promise<ScheduleInfoDto | null> {
+    this.logger.log(
+      `GET /api/benchmark/projects/${projectId}/definitions/${definitionId}/schedule`,
+    );
+    return this.benchmarkDefinitionService.getScheduleInfo(
+      projectId,
+      definitionId,
     );
   }
 }

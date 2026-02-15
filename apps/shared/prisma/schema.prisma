@@ -406,6 +406,9 @@ model BenchmarkDefinition {
   artifactPolicy      Json
   immutable           Boolean            @default(false)
   revision            Int                @default(1)
+  scheduleEnabled     Boolean            @default(false)
+  scheduleCron        String?
+  scheduleId          String?            @unique
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
   benchmarkRuns       BenchmarkRun[]

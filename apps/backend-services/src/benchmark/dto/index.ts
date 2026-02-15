@@ -12,6 +12,8 @@ export * from "./paginated-dataset-response.dto";
 export * from "./project-response.dto";
 export * from "./promote-baseline.dto";
 export * from "./run-response.dto";
+export * from "./schedule-config.dto";
+export * from "./schedule-info.dto";
 export * from "./split-response.dto";
 export * from "./update-definition.dto";
 export * from "./update-split.dto";

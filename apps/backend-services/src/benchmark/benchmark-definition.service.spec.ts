@@ -10,6 +10,7 @@ import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
+import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { BenchmarkEvaluator } from "./evaluator.interface";
 import { EvaluatorRegistryService } from "./evaluator-registry.service";
 
@@ -42,6 +43,7 @@ jest.mock("@generated/client", () => {
 describe("BenchmarkDefinitionService", () => {
   let service: BenchmarkDefinitionService;
   let evaluatorRegistry: EvaluatorRegistryService;
+  let temporalService: BenchmarkTemporalService;
   let prisma: PrismaClient;
 
   const mockEvaluator: BenchmarkEvaluator = {
@@ -115,6 +117,14 @@ describe("BenchmarkDefinitionService", () => {
             get: jest.fn().mockReturnValue("postgresql://test"),
           },
         },
+        {
+          provide: BenchmarkTemporalService,
+          useValue: {
+            createSchedule: jest.fn(),
+            deleteSchedule: jest.fn(),
+            getScheduleInfo: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -123,6 +133,9 @@ describe("BenchmarkDefinitionService", () => {
     );
     evaluatorRegistry = module.get<EvaluatorRegistryService>(
       EvaluatorRegistryService,
+    );
+    temporalService = module.get<BenchmarkTemporalService>(
+      BenchmarkTemporalService,
     );
 
     // Access the private prisma instance
@@ -615,6 +628,204 @@ describe("BenchmarkDefinitionService", () => {
       ).rejects.toThrow(
         'Benchmark definition with ID "invalid-def" not found for project "project-1"',
       );
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // US-035: Schedule Configuration Tests
+  // -----------------------------------------------------------------------
+  describe("configureSchedule", () => {
+    const mockDefinition = {
+      id: "def-1",
+      projectId: "project-1",
+      name: "Test Definition",
+      datasetVersionId: "ds-version-1",
+      splitId: "split-1",
+      workflowId: "workflow-1",
+      workflowConfigHash: "hash-123",
+      evaluatorType: "schema-aware",
+      evaluatorConfig: { threshold: 0.9 },
+      runtimeSettings: { maxParallelDocuments: 5 },
+      artifactPolicy: { mode: "all" },
+      immutable: false,
+      revision: 1,
+      scheduleEnabled: false,
+      scheduleCron: null,
+      scheduleId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      datasetVersion: mockDatasetVersion,
+      split: mockSplit,
+      workflow: mockWorkflow,
+    };
+
+    it("creates a new schedule when enabling", async () => {
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(mockDefinition as never);
+
+      jest
+        .spyOn(temporalService, "createSchedule")
+        .mockResolvedValue("schedule-def-1");
+
+      jest.spyOn(prisma.benchmarkDefinition, "update").mockResolvedValue({
+        ...mockDefinition,
+        scheduleEnabled: true,
+        scheduleCron: "0 2 * * *",
+        scheduleId: "schedule-def-1",
+        benchmarkRuns: [],
+      } as never);
+
+      const result = await service.configureSchedule("project-1", "def-1", {
+        enabled: true,
+        cron: "0 2 * * *",
+      });
+
+      expect(temporalService.createSchedule).toHaveBeenCalledWith(
+        "def-1",
+        "0 2 * * *",
+        expect.objectContaining({
+          definitionId: "def-1",
+          evaluatorType: "schema-aware",
+        }),
+      );
+      expect(prisma.benchmarkDefinition.update).toHaveBeenCalledWith({
+        where: { id: "def-1" },
+        data: {
+          scheduleEnabled: true,
+          scheduleCron: "0 2 * * *",
+          scheduleId: "schedule-def-1",
+        },
+        include: expect.any(Object),
+      });
+      expect(result.scheduleEnabled).toBe(true);
+    });
+
+    it("deletes existing schedule when disabling", async () => {
+      const definitionWithSchedule = {
+        ...mockDefinition,
+        scheduleEnabled: true,
+        scheduleCron: "0 2 * * *",
+        scheduleId: "schedule-def-1",
+      };
+
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(definitionWithSchedule as never);
+
+      jest.spyOn(temporalService, "deleteSchedule").mockResolvedValue();
+
+      jest.spyOn(prisma.benchmarkDefinition, "update").mockResolvedValue({
+        ...mockDefinition,
+        scheduleEnabled: false,
+        scheduleCron: null,
+        scheduleId: null,
+        benchmarkRuns: [],
+      } as never);
+
+      await service.configureSchedule("project-1", "def-1", {
+        enabled: false,
+      });
+
+      expect(temporalService.deleteSchedule).toHaveBeenCalledWith(
+        "schedule-def-1",
+      );
+      expect(prisma.benchmarkDefinition.update).toHaveBeenCalledWith({
+        where: { id: "def-1" },
+        data: {
+          scheduleEnabled: false,
+          scheduleCron: null,
+          scheduleId: null,
+        },
+        include: expect.any(Object),
+      });
+    });
+
+    it("throws error when enabling without cron expression", async () => {
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(mockDefinition as never);
+
+      await expect(
+        service.configureSchedule("project-1", "def-1", {
+          enabled: true,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.configureSchedule("project-1", "def-1", {
+          enabled: true,
+        }),
+      ).rejects.toThrow("Cron expression is required when enabling schedule");
+    });
+
+    it("throws error when definition not found", async () => {
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(null);
+
+      await expect(
+        service.configureSchedule("project-1", "invalid-def", {
+          enabled: true,
+          cron: "0 2 * * *",
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("getScheduleInfo", () => {
+    it("returns schedule info when schedule exists", async () => {
+      const mockDefinition = {
+        id: "def-1",
+        scheduleId: "schedule-def-1",
+      };
+
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(mockDefinition as never);
+
+      const mockScheduleInfo = {
+        scheduleId: "schedule-def-1",
+        cron: "0 2 * * *",
+        nextRunTime: new Date("2026-02-16T02:00:00Z"),
+        paused: false,
+      };
+
+      jest
+        .spyOn(temporalService, "getScheduleInfo")
+        .mockResolvedValue(mockScheduleInfo);
+
+      const result = await service.getScheduleInfo("project-1", "def-1");
+
+      expect(result).toEqual(mockScheduleInfo);
+      expect(temporalService.getScheduleInfo).toHaveBeenCalledWith(
+        "schedule-def-1",
+      );
+    });
+
+    it("returns null when no schedule is configured", async () => {
+      const mockDefinition = {
+        id: "def-1",
+        scheduleId: null,
+      };
+
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(mockDefinition as never);
+
+      const result = await service.getScheduleInfo("project-1", "def-1");
+
+      expect(result).toBeNull();
+      expect(temporalService.getScheduleInfo).not.toHaveBeenCalled();
+    });
+
+    it("throws error when definition not found", async () => {
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(null);
+
+      await expect(
+        service.getScheduleInfo("project-1", "invalid-def"),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

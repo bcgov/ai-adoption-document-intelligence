@@ -25,11 +25,14 @@ import {
   DefinitionDetailsDto,
   DefinitionSummaryDto,
   RunHistorySummary,
+  ScheduleConfigDto,
+  ScheduleInfoDto,
   SplitInfo,
   UpdateDefinitionDto,
   WorkflowInfo,
 } from "./dto";
 import { EvaluatorRegistryService } from "./evaluator-registry.service";
+import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 
 @Injectable()
 export class BenchmarkDefinitionService {
@@ -39,6 +42,7 @@ export class BenchmarkDefinitionService {
   constructor(
     private configService: ConfigService,
     private readonly evaluatorRegistry: EvaluatorRegistryService,
+    private readonly temporalService: BenchmarkTemporalService,
   ) {
     const dbOptions = getPrismaPgOptions(
       this.configService.get("DATABASE_URL"),
@@ -544,6 +548,9 @@ export class BenchmarkDefinitionService {
     artifactPolicy: unknown;
     immutable: boolean;
     revision: number;
+    scheduleEnabled: boolean;
+    scheduleCron: string | null;
+    scheduleId: string | null;
     createdAt: Date;
     updatedAt: Date;
     datasetVersion: {
@@ -613,9 +620,163 @@ export class BenchmarkDefinitionService {
       artifactPolicy: definition.artifactPolicy as Record<string, unknown>,
       immutable: definition.immutable,
       revision: definition.revision,
+      scheduleEnabled: definition.scheduleEnabled,
+      scheduleCron: definition.scheduleCron ?? undefined,
+      scheduleId: definition.scheduleId ?? undefined,
       runHistory,
       createdAt: definition.createdAt,
       updatedAt: definition.updatedAt,
     };
+  }
+
+  /**
+   * Configure schedule for a benchmark definition
+   *
+   * Creates or updates a Temporal schedule for automatic benchmark runs.
+   * If a schedule already exists and is being disabled, it will be deleted.
+   */
+  async configureSchedule(
+    projectId: string,
+    definitionId: string,
+    dto: ScheduleConfigDto,
+  ): Promise<DefinitionDetailsDto> {
+    this.logger.log(
+      `Configuring schedule for definition ${definitionId}: enabled=${dto.enabled}, cron=${dto.cron}`,
+    );
+
+    // Get the definition
+    const definition = await this.prisma.benchmarkDefinition.findFirst({
+      where: {
+        id: definitionId,
+        projectId,
+      },
+      include: {
+        datasetVersion: {
+          include: {
+            dataset: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        split: true,
+        workflow: true,
+      },
+    });
+
+    if (!definition) {
+      throw new NotFoundException(
+        `Benchmark definition with ID "${definitionId}" not found for project "${projectId}"`,
+      );
+    }
+
+    // If enabling schedule, validate cron expression is provided
+    if (dto.enabled && !dto.cron) {
+      throw new BadRequestException(
+        "Cron expression is required when enabling schedule",
+      );
+    }
+
+    // Delete existing schedule if any
+    if (definition.scheduleId) {
+      try {
+        await this.temporalService.deleteSchedule(definition.scheduleId);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to delete existing schedule ${definition.scheduleId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    let scheduleId: string | null = null;
+
+    // Create new schedule if enabled
+    if (dto.enabled && dto.cron) {
+      scheduleId = await this.temporalService.createSchedule(
+        definitionId,
+        dto.cron,
+        {
+          definitionId: definition.id,
+          datasetVersionId: definition.datasetVersionId,
+          splitId: definition.splitId,
+          workflowId: definition.workflowId,
+          workflowConfigHash: definition.workflowConfigHash,
+          evaluatorType: definition.evaluatorType,
+          evaluatorConfig: definition.evaluatorConfig as Record<string, unknown>,
+          runtimeSettings: definition.runtimeSettings as Record<string, unknown>,
+          artifactPolicy: definition.artifactPolicy as Record<string, unknown>,
+        },
+      );
+    }
+
+    // Update definition with schedule info
+    const updated = await this.prisma.benchmarkDefinition.update({
+      where: { id: definitionId },
+      data: {
+        scheduleEnabled: dto.enabled,
+        scheduleCron: dto.cron ?? null,
+        scheduleId: scheduleId,
+      },
+      include: {
+        datasetVersion: {
+          include: {
+            dataset: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        split: true,
+        workflow: true,
+        benchmarkRuns: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 10,
+        },
+      },
+    });
+
+    return this.mapToDefinitionDetails(updated);
+  }
+
+  /**
+   * Get schedule information for a definition
+   *
+   * Returns current schedule configuration and timing info from Temporal.
+   */
+  async getScheduleInfo(
+    projectId: string,
+    definitionId: string,
+  ): Promise<ScheduleInfoDto | null> {
+    this.logger.log(`Getting schedule info for definition ${definitionId}`);
+
+    const definition = await this.prisma.benchmarkDefinition.findFirst({
+      where: {
+        id: definitionId,
+        projectId,
+      },
+    });
+
+    if (!definition) {
+      throw new NotFoundException(
+        `Benchmark definition with ID "${definitionId}" not found for project "${projectId}"`,
+      );
+    }
+
+    if (!definition.scheduleId) {
+      return null;
+    }
+
+    try {
+      return await this.temporalService.getScheduleInfo(definition.scheduleId);
+    } catch (error) {
+      this.logger.error(
+        `Failed to get schedule info for ${definition.scheduleId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    }
   }
 }

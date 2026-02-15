@@ -215,6 +215,21 @@ export class DefinitionDetailsDto {
   revision: number;
 
   /**
+   * Schedule configuration
+   */
+  scheduleEnabled: boolean;
+
+  /**
+   * Cron expression for scheduled runs
+   */
+  scheduleCron?: string;
+
+  /**
+   * Temporal schedule ID
+   */
+  scheduleId?: string;
+
+  /**
    * Run history
    */
   runHistory: RunHistorySummary[];

@@ -11,6 +11,7 @@ import {
 import { IconPlayerPlay } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import { useStartRun } from "../hooks/useRuns";
+import { ScheduleConfig } from "./ScheduleConfig";
 
 interface DatasetVersionInfo {
   id: string;
@@ -52,6 +53,9 @@ interface DefinitionDetails {
   artifactPolicy: Record<string, unknown>;
   immutable: boolean;
   revision: number;
+  scheduleEnabled: boolean;
+  scheduleCron?: string;
+  scheduleId?: string;
   runHistory: RunHistorySummary[];
   createdAt: string;
   updatedAt: string;
@@ -169,6 +173,18 @@ export function DefinitionDetailView({
           <Code block>
             {JSON.stringify(definition.artifactPolicy, null, 2)}
           </Code>
+        </Stack>
+      </Card>
+
+      <Card>
+        <Stack gap="md">
+          <Title order={4}>Schedule Configuration</Title>
+          <ScheduleConfig
+            projectId={definition.projectId}
+            definitionId={definition.id}
+            initialEnabled={definition.scheduleEnabled}
+            initialCron={definition.scheduleCron}
+          />
         </Stack>
       </Card>
 
