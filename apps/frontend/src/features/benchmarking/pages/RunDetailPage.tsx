@@ -8,14 +8,22 @@ import {
   Code,
   Group,
   Loader,
+  Select,
   Stack,
   Table,
   Text,
   Title,
 } from "@mantine/core";
 import { IconAlertCircle, IconExternalLink, IconX } from "@tabler/icons-react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useRun, useStartRun } from "../hooks/useRuns";
+import { useProject } from "../hooks/useProjects";
+import {
+  useArtifacts,
+  useDrillDown,
+  useRun,
+  useStartRun,
+} from "../hooks/useRuns";
 
 function getStatusColor(status: string): string {
   switch (status) {
@@ -59,12 +67,23 @@ export function RunDetailPage() {
   const { id, runId } = useParams<{ id: string; runId: string }>();
   const projectId = id || "";
   const navigate = useNavigate();
+  const [artifactTypeFilter, setArtifactTypeFilter] = useState<string | null>(
+    null,
+  );
 
   // Enable polling for non-terminal states
   const { run, isLoading, cancelRun, isCancelling } = useRun(
     projectId,
     runId || "",
     true, // Enable polling
+  );
+
+  const { project } = useProject(projectId);
+  const { drillDown } = useDrillDown(projectId, runId || "");
+  const { artifacts, total: totalArtifacts } = useArtifacts(
+    projectId,
+    runId || "",
+    artifactTypeFilter || undefined,
   );
 
   const { startRun, isStarting } = useStartRun(
@@ -97,6 +116,21 @@ export function RunDetailPage() {
   const canCancel = run.status === "running" || run.status === "pending";
   const canRerun = run.status === "completed" || run.status === "failed";
   const temporalUrl = `http://localhost:8088/namespaces/default/workflows/${run.temporalWorkflowId}`;
+  const mlflowUrl = project?.mlflowExperimentId
+    ? `http://localhost:5000/#/experiments/${project.mlflowExperimentId}/runs/${run.mlflowRunId}`
+    : null;
+
+  // Get unique artifact types for filter dropdown
+  const artifactTypes = Array.from(
+    new Set(artifacts.map((a) => a.type)),
+  ).sort();
+
+  const formatBytes = (bytes: string): string => {
+    const num = Number.parseInt(bytes, 10);
+    if (num < 1024) return `${num} B`;
+    if (num < 1024 * 1024) return `${(num / 1024).toFixed(1)} KB`;
+    return `${(num / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   return (
     <Stack gap="lg">
@@ -168,9 +202,23 @@ export function RunDetailPage() {
                 </Table.Td>
               </Table.Tr>
               <Table.Tr>
-                <Table.Td fw={500}>MLflow Run ID</Table.Td>
+                <Table.Td fw={500}>MLflow Run</Table.Td>
                 <Table.Td>
-                  <Code>{run.mlflowRunId}</Code>
+                  {mlflowUrl ? (
+                    <Anchor
+                      href={mlflowUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {run.mlflowRunId}{" "}
+                      <IconExternalLink
+                        size={14}
+                        style={{ verticalAlign: "middle" }}
+                      />
+                    </Anchor>
+                  ) : (
+                    <Code>{run.mlflowRunId}</Code>
+                  )}
                 </Table.Td>
               </Table.Tr>
               <Table.Tr>
@@ -218,10 +266,232 @@ export function RunDetailPage() {
         </Stack>
       </Card>
 
-      <Text c="dimmed" size="sm">
-        Detailed metrics, artifacts, and MLflow deep-links will be implemented
-        in US-031
-      </Text>
+      {run.status === "completed" && run.metrics && (
+        <Card>
+          <Stack gap="md">
+            <Title order={3}>Aggregated Metrics</Title>
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Metric Name</Table.Th>
+                  <Table.Th>Value</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {Object.entries(run.metrics).map(([key, value]) => (
+                  <Table.Tr key={key}>
+                    <Table.Td>{key}</Table.Td>
+                    <Table.Td>
+                      <Code>
+                        {typeof value === "number"
+                          ? value.toFixed(4)
+                          : JSON.stringify(value)}
+                      </Code>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Stack>
+        </Card>
+      )}
+
+      {run.status === "completed" && (run.params || run.tags) && (
+        <Card>
+          <Stack gap="md">
+            <Title order={3}>Run Parameters & Tags</Title>
+            {run.params && Object.keys(run.params).length > 0 && (
+              <Stack gap="xs">
+                <Text fw={500}>Parameters</Text>
+                <Table striped>
+                  <Table.Tbody>
+                    {Object.entries(run.params).map(([key, value]) => (
+                      <Table.Tr key={key}>
+                        <Table.Td fw={500}>{key}</Table.Td>
+                        <Table.Td>
+                          <Code>{JSON.stringify(value)}</Code>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Stack>
+            )}
+            {run.tags && Object.keys(run.tags).length > 0 && (
+              <Stack gap="xs">
+                <Text fw={500}>Tags</Text>
+                <Table striped>
+                  <Table.Tbody>
+                    {Object.entries(run.tags).map(([key, value]) => (
+                      <Table.Tr key={key}>
+                        <Table.Td fw={500}>{key}</Table.Td>
+                        <Table.Td>
+                          <Code>{JSON.stringify(value)}</Code>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Stack>
+            )}
+          </Stack>
+        </Card>
+      )}
+
+      {run.status === "completed" && artifacts.length > 0 && (
+        <Card>
+          <Stack gap="md">
+            <Group justify="space-between">
+              <Title order={3}>
+                Artifacts ({totalArtifacts} total
+                {artifactTypeFilter
+                  ? `, filtered by ${artifactTypeFilter}`
+                  : ""}
+                )
+              </Title>
+              <Select
+                placeholder="Filter by type"
+                data={[
+                  { value: "", label: "All types" },
+                  ...artifactTypes.map((type) => ({
+                    value: type,
+                    label: type,
+                  })),
+                ]}
+                value={artifactTypeFilter || ""}
+                onChange={(value) => setArtifactTypeFilter(value || null)}
+                clearable
+                style={{ width: 200 }}
+              />
+            </Group>
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Type</Table.Th>
+                  <Table.Th>Sample ID</Table.Th>
+                  <Table.Th>Node ID</Table.Th>
+                  <Table.Th>Size</Table.Th>
+                  <Table.Th>MIME Type</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {artifacts.map((artifact) => (
+                  <Table.Tr key={artifact.id}>
+                    <Table.Td>
+                      <Badge>{artifact.type}</Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Code>{artifact.sampleId || "-"}</Code>
+                    </Table.Td>
+                    <Table.Td>
+                      <Code>{artifact.nodeId || "-"}</Code>
+                    </Table.Td>
+                    <Table.Td>{formatBytes(artifact.sizeBytes)}</Table.Td>
+                    <Table.Td>
+                      <Code>{artifact.mimeType}</Code>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Stack>
+        </Card>
+      )}
+
+      {run.status === "completed" && drillDown && (
+        <Card>
+          <Stack gap="md">
+            <Title order={3}>Drill-Down Summary</Title>
+
+            {drillDown.worstSamples.length > 0 && (
+              <Stack gap="xs">
+                <Text fw={500}>
+                  Top {drillDown.worstSamples.length} Worst-Performing Samples
+                </Text>
+                <Table striped highlightOnHover>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Sample ID</Table.Th>
+                      <Table.Th>Metric</Table.Th>
+                      <Table.Th>Value</Table.Th>
+                      <Table.Th>Metadata</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {drillDown.worstSamples.map((sample) => (
+                      <Table.Tr key={sample.sampleId}>
+                        <Table.Td>
+                          <Code>{sample.sampleId}</Code>
+                        </Table.Td>
+                        <Table.Td>{sample.metricName}</Table.Td>
+                        <Table.Td>
+                          <Code>{sample.metricValue.toFixed(4)}</Code>
+                        </Table.Td>
+                        <Table.Td>
+                          {sample.metadata ? (
+                            <Code>{JSON.stringify(sample.metadata)}</Code>
+                          ) : (
+                            "-"
+                          )}
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Stack>
+            )}
+
+            {drillDown.fieldErrorBreakdown &&
+              drillDown.fieldErrorBreakdown.length > 0 && (
+                <Stack gap="xs">
+                  <Text fw={500}>Per-Field Error Breakdown</Text>
+                  <Table striped highlightOnHover>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Field Name</Table.Th>
+                        <Table.Th>Error Count</Table.Th>
+                        <Table.Th>Error Rate</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {drillDown.fieldErrorBreakdown.map((field) => (
+                        <Table.Tr key={field.fieldName}>
+                          <Table.Td>
+                            <Code>{field.fieldName}</Code>
+                          </Table.Td>
+                          <Table.Td>{field.errorCount}</Table.Td>
+                          <Table.Td>
+                            <Code>{(field.errorRate * 100).toFixed(2)}%</Code>
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </Stack>
+              )}
+
+            {Object.keys(drillDown.errorClusters).length > 0 && (
+              <Stack gap="xs">
+                <Text fw={500}>Error Cluster Tags</Text>
+                <Table striped>
+                  <Table.Tbody>
+                    {Object.entries(drillDown.errorClusters).map(
+                      ([tag, count]) => (
+                        <Table.Tr key={tag}>
+                          <Table.Td fw={500}>{tag}</Table.Td>
+                          <Table.Td>
+                            <Badge>{count}</Badge>
+                          </Table.Td>
+                        </Table.Tr>
+                      ),
+                    )}
+                  </Table.Tbody>
+                </Table>
+              </Stack>
+            )}
+          </Stack>
+        </Card>
+      )}
     </Stack>
   );
 }

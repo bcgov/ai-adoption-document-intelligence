@@ -132,3 +132,85 @@ export const useStartRun = (projectId: string, definitionId: string) => {
     startedRun: startRunMutation.data,
   };
 };
+
+interface SampleFailure {
+  sampleId: string;
+  metricValue: number;
+  metricName: string;
+  metadata?: Record<string, unknown>;
+}
+
+interface FieldErrorBreakdown {
+  fieldName: string;
+  errorCount: number;
+  errorRate: number;
+}
+
+interface DrillDownData {
+  runId: string;
+  aggregatedMetrics: Record<string, unknown>;
+  worstSamples: SampleFailure[];
+  fieldErrorBreakdown: FieldErrorBreakdown[] | null;
+  errorClusters: Record<string, number>;
+}
+
+export const useDrillDown = (projectId: string, runId: string) => {
+  const drillDownQuery = useQuery({
+    queryKey: ["benchmark-drill-down", projectId, runId],
+    queryFn: async () => {
+      const response = await apiService.get<DrillDownData>(
+        `/benchmark/projects/${projectId}/runs/${runId}/drill-down`,
+      );
+      return response.data;
+    },
+    enabled: !!projectId && !!runId,
+  });
+
+  return {
+    drillDown: drillDownQuery.data,
+    isLoading: drillDownQuery.isLoading,
+    error: drillDownQuery.error,
+  };
+};
+
+interface Artifact {
+  id: string;
+  runId: string;
+  type: string;
+  path: string;
+  sampleId: string | null;
+  nodeId: string | null;
+  sizeBytes: string; // BigInt as string from backend
+  mimeType: string;
+  createdAt: string;
+}
+
+interface ArtifactsData {
+  artifacts: Artifact[];
+  total: number;
+}
+
+export const useArtifacts = (
+  projectId: string,
+  runId: string,
+  type?: string,
+) => {
+  const artifactsQuery = useQuery({
+    queryKey: ["benchmark-artifacts", projectId, runId, type],
+    queryFn: async () => {
+      const url = type
+        ? `/benchmark/projects/${projectId}/runs/${runId}/artifacts?type=${type}`
+        : `/benchmark/projects/${projectId}/runs/${runId}/artifacts`;
+      const response = await apiService.get<ArtifactsData>(url);
+      return response.data;
+    },
+    enabled: !!projectId && !!runId,
+  });
+
+  return {
+    artifacts: artifactsQuery.data?.artifacts || [],
+    total: artifactsQuery.data?.total || 0,
+    isLoading: artifactsQuery.isLoading,
+    error: artifactsQuery.error,
+  };
+};
