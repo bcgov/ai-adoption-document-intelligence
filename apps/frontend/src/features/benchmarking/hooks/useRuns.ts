@@ -11,6 +11,8 @@ interface RunSummary {
   completedAt: string | null;
   durationMs: number | null;
   headlineMetrics: Record<string, unknown> | null;
+  hasRegression?: boolean;
+  regressedMetricCount?: number;
 }
 
 interface MetricThreshold {

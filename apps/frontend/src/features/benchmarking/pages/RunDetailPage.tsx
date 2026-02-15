@@ -185,6 +185,18 @@ export function RunDetailPage() {
                 Re-run
               </Button>
             )}
+            {run.baselineComparison && (
+              <Button
+                variant="light"
+                onClick={() =>
+                  navigate(
+                    `/benchmarking/projects/${projectId}/runs/${runId}/regression`,
+                  )
+                }
+              >
+                View Regression Report
+              </Button>
+            )}
           </Group>
         </Group>
       </Stack>

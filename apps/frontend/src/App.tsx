@@ -45,6 +45,7 @@ import {
   ProjectListPage as BenchmarkProjectListPage,
   DatasetDetailPage,
   DatasetListPage,
+  RegressionReportPage,
   RunComparisonPage,
   RunDetailPage,
 } from "./features/benchmarking/pages";
@@ -360,6 +361,10 @@ function AppContent(): JSX.Element {
               <Route
                 path="/benchmarking/projects/:id/runs/:runId"
                 element={<RunDetailPage />}
+              />
+              <Route
+                path="/benchmarking/projects/:id/runs/:runId/regression"
+                element={<RegressionReportPage />}
               />
               <Route
                 path="/benchmarking/projects/:id/compare"

@@ -12,7 +12,11 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { IconGitCompare, IconPlus } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconGitCompare,
+  IconPlus,
+} from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -272,9 +276,19 @@ export function ProjectDetailPage() {
                         )
                       }
                     >
-                      <Badge color={getStatusColor(run.status)}>
-                        {run.status}
-                      </Badge>
+                      <Group gap="xs">
+                        <Badge color={getStatusColor(run.status)}>
+                          {run.status}
+                        </Badge>
+                        {run.hasRegression && run.regressedMetricCount && (
+                          <Badge
+                            color="red"
+                            leftSection={<IconAlertTriangle size={12} />}
+                          >
+                            {run.regressedMetricCount} regressed
+                          </Badge>
+                        )}
+                      </Group>
                     </Table.Td>
                     <Table.Td
                       style={{ cursor: "pointer" }}
