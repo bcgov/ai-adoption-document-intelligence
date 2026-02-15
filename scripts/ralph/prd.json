@@ -537,8 +537,8 @@
         "Scenario 7"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented comprehensive results UI with metrics table, run parameters/tags, MLflow deep-link (using mlflowExperimentId from project), artifacts list with type filtering, and drill-down summary with worst samples, field error breakdown, and error clusters. All sections conditionally rendered for completed runs only.",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-031-results-summary-mlflow-deeplinks-ui.md"
     },
     {

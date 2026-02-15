@@ -130,7 +130,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 - [x] **US-028** (Dataset Version & Sample Preview UI) -- depends on US-027, US-007, US-008, US-009
 - [x] **US-029** (Benchmark Definition CRUD UI) -- depends on US-026, US-011
 - [x] **US-030** (Run List, Start/Cancel, Progress UI) -- depends on US-026, US-012
-- [ ] **US-031** (Results Summary & MLflow Deep-Links UI) -- depends on US-030, US-013
+- [x] **US-031** (Results Summary & MLflow Deep-Links UI) -- depends on US-030, US-013
 
 ### Phase 9 -- Phase 1.5 Enhancements
 - [ ] **US-032** (Dataset Quality Checks & Validation) -- depends on US-007, US-009
