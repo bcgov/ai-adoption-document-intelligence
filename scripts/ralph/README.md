@@ -107,6 +107,8 @@ Run up to 25 iterations:
 ./scripts/ralph/ralph.sh 25
 ```
 
+Ralph uses **Claude Sonnet 4.5** by default for speed and cost efficiency. To use a different model, edit `ralph.sh` and change the `--model` flag (options: `sonnet`, `opus`, `haiku`).
+
 Ralph will:
 - Work on your current branch (does NOT switch branches)
 - Implement stories in dependency order (from README)

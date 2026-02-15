@@ -129,12 +129,14 @@ git checkout -b my-feature-branch
 ### 6. Run Ralph
 
 ```bash
-# Run up to 25 iterations
+# Run up to 25 iterations (uses Claude Sonnet 4.5)
 ./scripts/ralph/ralph.sh 25
 
 # Or start smaller for testing
 ./scripts/ralph/ralph.sh 5
 ```
+
+**Note**: Ralph uses Sonnet 4.5 by default for speed and cost. To use Opus or Haiku, edit `scripts/ralph/ralph.sh` and change `--model sonnet` to `--model opus` or `--model haiku`.
 
 Ralph will:
 - ✅ Work on your current branch (no branch switching)

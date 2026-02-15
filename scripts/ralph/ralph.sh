@@ -11,7 +11,7 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
 
   OUTPUT="$(
     cat "$SCRIPT_DIR/prompt.md" \
-      | claude 2>&1 \
+      | claude --model sonnet 2>&1 \
       | tee /dev/stderr
   )" || true
 
