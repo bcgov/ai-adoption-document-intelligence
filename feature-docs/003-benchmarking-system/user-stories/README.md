@@ -122,7 +122,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 
 ### Phase 7 -- Versioning & Operations
 - [x] **US-024** (Workflow & Configuration Versioning) -- depends on US-011, US-012
-- [ ] **US-025** (Audit Logging) -- depends on US-002
+- [x] **US-025** (Audit Logging) -- depends on US-002
 
 ### Phase 8 -- Frontend (Phase 1)
 - [ ] **US-026** (Benchmarking Navigation & Routing) -- depends on backend APIs from Phases 3-5

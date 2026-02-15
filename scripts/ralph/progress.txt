@@ -127,3 +127,21 @@ Started: 2026-02-14
   - All 679 backend tests pass (43 test suites)
 ---
 
+## 2026-02-14 - US-025
+- What was implemented: Audit Logging
+- Files changed:
+  - apps/backend-services/src/benchmark/audit-log.service.ts (new)
+  - apps/backend-services/src/benchmark/audit-log.service.spec.ts (new)
+  - apps/backend-services/src/benchmark/benchmark.module.ts (updated)
+- **Learnings for future iterations:**
+  - AuditLogService is a standalone injectable service using standard NestJS pattern
+  - All 6 AuditAction enum values implemented: dataset_created, version_published, run_started, run_completed, baseline_promoted, artifact_deleted
+  - Service provides both specific methods (logDatasetCreated, logVersionPublished, etc.) and generic logAuditEvent
+  - Query method supports filters: entityType, entityId, action, date range (startDate/endDate), limit
+  - Results always returned in chronological order (timestamp ASC)
+  - Metadata field uses Prisma.InputJsonValue type for JSONB storage
+  - Service registered in BenchmarkModule providers and exports for DI throughout the module
+  - Test pattern: mock PrismaClient, ConfigService, PrismaPg adapter
+  - All 12 tests pass, total backend tests: 691 (44 test suites)
+---
+
