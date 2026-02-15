@@ -41,3 +41,9 @@ export type {
   BenchmarkEvaluateInput,
   BenchmarkAggregateInput,
 } from './activities/benchmark-evaluate';
+
+export { benchmarkLogToMlflow, benchmarkCleanup } from './activities/benchmark-logging';
+export type {
+  BenchmarkLogToMlflowInput,
+  BenchmarkCleanupInput,
+} from './activities/benchmark-logging';
