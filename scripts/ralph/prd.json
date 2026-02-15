@@ -207,7 +207,7 @@
         "Scenario 9"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-012-benchmark-run-service-controller.md"
     },
@@ -224,7 +224,7 @@
         "Scenario 7"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-013-benchmark-artifact-management.md"
     },
@@ -242,7 +242,7 @@
         "Scenario 8"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-014-evaluator-interface-registry.md"
     },
@@ -262,7 +262,7 @@
         "Scenario 10"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-015-schema-aware-evaluator.md"
     },
@@ -279,7 +279,7 @@
         "Scenario 7"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-016-black-box-evaluator.md"
     },
@@ -296,7 +296,7 @@
         "Scenario 7"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-017-metrics-aggregation-failure-analysis.md"
     },
@@ -312,7 +312,7 @@
         "Scenario 6"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-018-dataset-materialization-activity.md"
     },

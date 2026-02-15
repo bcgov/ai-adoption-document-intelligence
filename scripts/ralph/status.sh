@@ -18,15 +18,9 @@ echo ""
 
 # Branch info
 BRANCH=$(jq -r '.branchName' "$PRD_FILE")
-echo "🔀 Target Branch: $BRANCH"
-
-# Current git branch
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-if [[ "$CURRENT_BRANCH" == "$BRANCH" ]]; then
-    echo "   ✅ Currently on target branch"
-else
-    echo "   ⚠️  Currently on: $CURRENT_BRANCH (expected: $BRANCH)"
-fi
+echo "🔀 Working Branch: $CURRENT_BRANCH"
+echo "   (prd.json reference: $BRANCH)"
 
 echo ""
 

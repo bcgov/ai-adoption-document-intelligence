@@ -14,12 +14,15 @@ Get Ralph running in 5 minutes!
 # 3. Convert to Ralph format
 node scripts/ralph/convert-stories-to-prd.js feature-docs/your-feature/user_stories ralph/your-feature
 
-# 4. Configure permissions (CRITICAL - do this in Claude Code)
+# 4. Checkout your working branch (Ralph works on current branch)
+git checkout your-feature-branch
+
+# 5. Configure permissions (CRITICAL - do this in Claude Code)
 # Run: /permissions
 # Set defaultMode to: acceptEdits
 # Add allow rules for: npm run *, git *
 
-# 5. Run Ralph
+# 6. Run Ralph
 ./scripts/ralph/ralph.sh 25
 ```
 
@@ -111,7 +114,19 @@ In Claude Code:
 
 **Why this matters:** Ralph spawns fresh Claude instances each iteration. If permissions aren't configured, each iteration will pause waiting for approval, and Ralph will hang.
 
-### 5. Run Ralph
+### 5. Checkout Your Working Branch
+
+**IMPORTANT**: Ralph works on your current branch. It does NOT create or switch branches.
+
+```bash
+# Make sure you're on the branch where you want Ralph to work
+git checkout benchmarking-system
+
+# Or create a new branch if needed
+git checkout -b my-feature-branch
+```
+
+### 6. Run Ralph
 
 ```bash
 # Run up to 25 iterations
@@ -122,14 +137,14 @@ In Claude Code:
 ```
 
 Ralph will:
-- ✅ Create/switch to the branch in prd.json
-- ✅ Implement stories one by one
+- ✅ Work on your current branch (no branch switching)
+- ✅ Implement stories one by one in dependency order
 - ✅ Run tests and typecheck
-- ✅ Commit successful implementations
+- ✅ Commit successful implementations with `--no-verify`
 - ✅ Update tracking files
 - ✅ Stop when all stories pass
 
-### 6. Monitor Progress
+### 7. Monitor Progress
 
 **In another terminal**, watch progress in real-time:
 
@@ -147,7 +162,7 @@ tail -f scripts/ralph/progress.txt
 git log --oneline -20
 ```
 
-### 7. When Complete
+### 8. When Complete
 
 Ralph will output `<promise>COMPLETE</promise>` and exit.
 

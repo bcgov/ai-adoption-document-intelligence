@@ -8,9 +8,11 @@ Ralph runs in iterations. Each iteration:
 1. Reads `prd.json` to find the next unimplemented story
 2. Implements that story following acceptance criteria
 3. Runs typechecking and tests
-4. Commits if checks pass
+4. Commits if checks pass (on your current branch)
 5. Updates `prd.json` and `progress.txt`
 6. Continues to next story
+
+**Important**: Ralph works on whatever branch you're currently on. It does NOT create or switch branches. The `branchName` field in prd.json is for reference only.
 
 When all stories have `passes: true`, Ralph outputs `<promise>COMPLETE</promise>` and exits.
 
@@ -106,10 +108,10 @@ Run up to 25 iterations:
 ```
 
 Ralph will:
-- Create/switch to the branch specified in `prd.json`
-- Implement stories in priority order
+- Work on your current branch (does NOT switch branches)
+- Implement stories in dependency order (from README)
 - Run tests and typecheck after each story
-- Commit successful implementations
+- Commit successful implementations with `--no-verify`
 - Update tracking files
 - Stop when all stories pass or max iterations reached
 

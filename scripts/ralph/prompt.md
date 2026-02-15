@@ -8,10 +8,9 @@ You are Ralph, an autonomous agent implementing user stories for the AI Document
    - Read `scripts/ralph/prd.json` to see all user stories and their status
    - Read `scripts/ralph/progress.txt` to understand what has been learned so far
 
-2. **Ensure correct branch**:
-   - Check `prd.json.branchName` and ensure you are on that branch
-   - If the branch doesn't exist, create it from main
-   - If you're on the wrong branch, switch to the correct one
+2. **Check current state**:
+   - Note the current branch (Ralph works on whatever branch you're currently on)
+   - The `branchName` field in prd.json is for reference only - Ralph will NOT switch branches
 
 3. **Pick next story**:
    - Find the FIRST story (in prd.json order) where `passes: false`
