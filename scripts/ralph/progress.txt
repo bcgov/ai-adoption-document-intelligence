@@ -65,3 +65,25 @@ Started: 2026-02-14
   - Chart library placeholder: When a library isn't installed, show installation instructions in an Alert
   - Baseline comparison data already exists from US-034, so reuse it rather than duplicating logic
 ---
+## 2026-02-15 - US-038
+- What was implemented: Slicing, Filtering & Drill-Down UI
+- Files changed:
+  - apps/backend-services/src/benchmark/benchmark-run.controller.ts
+  - apps/backend-services/src/benchmark/benchmark-run.service.ts
+  - apps/backend-services/src/benchmark/benchmark-run.service.spec.ts
+  - apps/backend-services/src/benchmark/dto/per-sample-result.dto.ts (new)
+  - apps/backend-services/src/benchmark/dto/index.ts
+  - apps/frontend/src/features/benchmarking/hooks/useRuns.ts
+  - apps/frontend/src/features/benchmarking/pages/ResultsDrillDownPage.tsx (new)
+  - apps/frontend/src/features/benchmarking/pages/RunDetailPage.tsx
+  - apps/frontend/src/features/benchmarking/pages/index.ts
+  - apps/frontend/src/App.tsx
+- **Learnings for future iterations:**
+  - Per-sample results can be extracted from run.metrics.perSampleResults array
+  - Dynamic filter generation: Iterate through all results' metadata to build dimensionValues map
+  - TypeScript conditional rendering: Use `value !== undefined` instead of `value &&` to avoid "Type 'unknown' is not assignable" errors
+  - JSON.stringify can return undefined, so always cast with `|| "{}"` and add `as string` for type safety
+  - Pluggable component registry pattern: Export singleton registry from page for other modules to extend
+  - URLSearchParams for query string construction handles encoding automatically
+---
+
