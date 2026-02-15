@@ -26,6 +26,7 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { FileUploadDialog } from "../components/FileUploadDialog";
 import { GroundTruthViewer } from "../components/GroundTruthViewer";
+import { SplitManagement } from "../components/SplitManagement";
 import { ValidationReport } from "../components/ValidationReport";
 import { useDataset } from "../hooks/useDatasets";
 import { useValidateDataset } from "../hooks/useDatasetValidation";
@@ -111,7 +112,7 @@ export function DatasetDetailPage() {
   const handleValidate = (versionId: string) => {
     setValidationVersionId(versionId);
     setValidationDialogOpen(true);
-    validateDataset();
+    validateDataset(undefined);
   };
 
   const handleViewGroundTruth = async (sampleId: string) => {
@@ -157,6 +158,11 @@ export function DatasetDetailPage() {
             <Tabs.Tab value="versions">Versions ({versions.length})</Tabs.Tab>
             {selectedVersionId && (
               <Tabs.Tab value={selectedVersionId}>Sample Preview</Tabs.Tab>
+            )}
+            {selectedVersionId && (
+              <Tabs.Tab value={`splits-${selectedVersionId}`}>
+                Splits
+              </Tabs.Tab>
             )}
           </Tabs.List>
 
@@ -335,6 +341,16 @@ export function DatasetDetailPage() {
               </Stack>
             </Tabs.Panel>
           )}
+
+          {selectedVersionId && (
+            <Tabs.Panel value={`splits-${selectedVersionId}`} pt="md">
+              <SplitManagement
+                datasetId={id || ""}
+                versionId={selectedVersionId}
+                samples={samples}
+              />
+            </Tabs.Panel>
+          )}
         </Tabs>
       </Stack>
 
@@ -360,8 +376,8 @@ export function DatasetDetailPage() {
           <Center h={200}>
             <Loader />
           </Center>
-        ) : validationResult ? (
-          <ValidationReport validation={validationResult} />
+        ) : validationResult?.data ? (
+          <ValidationReport validation={validationResult.data} />
         ) : (
           <Text c="dimmed">No validation results available</Text>
         )}

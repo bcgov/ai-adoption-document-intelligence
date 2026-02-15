@@ -52,6 +52,12 @@ const mockPrismaClient = {
   benchmarkAuditLog: {
     create: jest.fn(),
   },
+  split: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    update: jest.fn(),
+  },
 };
 
 const mockDvcService = {
@@ -1557,6 +1563,265 @@ describe("DatasetService", () => {
         "/tmp/dataset-init-test123",
         expect.objectContaining({ recursive: true, force: true }),
       );
+    });
+  });
+
+  describe("Split Management", () => {
+    const datasetId = "dataset-123";
+    const versionId = "version-456";
+    const splitId = "split-789";
+
+    const mockVersion = {
+      id: versionId,
+      datasetId: datasetId,
+      version: "1.0",
+      gitRevision: "abc123",
+      manifestPath: "dataset-manifest.json",
+      documentCount: 100,
+      groundTruthSchema: null,
+      status: "draft",
+      publishedAt: null,
+      createdAt: new Date("2026-01-01"),
+      dataset: {
+        id: datasetId,
+        name: "Test Dataset",
+        repositoryUrl: "https://github.com/test/dataset.git",
+      },
+    };
+
+    describe("createSplit", () => {
+      it("creates a new split successfully", async () => {
+        const createDto = {
+          name: "train-v1",
+          type: "train",
+          sampleIds: ["sample-1", "sample-2", "sample-3"],
+          stratificationRules: { field: "docType" },
+        };
+
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.split.create.mockResolvedValue({
+          id: splitId,
+          datasetVersionId: versionId,
+          name: createDto.name,
+          type: createDto.type,
+          sampleIds: createDto.sampleIds,
+          stratificationRules: createDto.stratificationRules,
+          frozen: false,
+          createdAt: new Date(),
+        });
+
+        const result = await service.createSplit(
+          datasetId,
+          versionId,
+          createDto,
+        );
+
+        expect(result.name).toBe(createDto.name);
+        expect(result.type).toBe(createDto.type);
+        expect(result.sampleIds).toEqual(createDto.sampleIds);
+        expect(result.frozen).toBe(false);
+        expect(mockPrismaClient.split.create).toHaveBeenCalledWith({
+          data: {
+            datasetVersionId: versionId,
+            name: createDto.name,
+            type: createDto.type,
+            sampleIds: createDto.sampleIds,
+            stratificationRules: createDto.stratificationRules,
+            frozen: false,
+          },
+        });
+      });
+
+      it("throws NotFoundException when version not found", async () => {
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+        await expect(
+          service.createSplit(datasetId, versionId, {
+            name: "train",
+            type: "train",
+            sampleIds: ["sample-1"],
+          }),
+        ).rejects.toThrow(NotFoundException);
+      });
+    });
+
+    describe("listSplits", () => {
+      it("lists all splits for a version", async () => {
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.split.findMany.mockResolvedValue([
+          {
+            id: "split-1",
+            datasetVersionId: versionId,
+            name: "train-v1",
+            type: "train",
+            sampleIds: ["s1", "s2", "s3"],
+            stratificationRules: null,
+            frozen: false,
+            createdAt: new Date("2026-01-02"),
+          },
+          {
+            id: "split-2",
+            datasetVersionId: versionId,
+            name: "val-v1",
+            type: "val",
+            sampleIds: ["s4", "s5"],
+            stratificationRules: { field: "docType" },
+            frozen: false,
+            createdAt: new Date("2026-01-01"),
+          },
+        ]);
+
+        const result = await service.listSplits(datasetId, versionId);
+
+        expect(result).toHaveLength(2);
+        expect(result[0].name).toBe("train-v1");
+        expect(result[0].sampleCount).toBe(3);
+        expect(result[1].sampleCount).toBe(2);
+        expect(result[1].stratificationRules).toEqual({ field: "docType" });
+      });
+
+      it("throws NotFoundException when version not found", async () => {
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+        await expect(service.listSplits(datasetId, versionId)).rejects.toThrow(
+          NotFoundException,
+        );
+      });
+    });
+
+    describe("getSplit", () => {
+      it("gets a single split with full details", async () => {
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.split.findFirst.mockResolvedValue({
+          id: splitId,
+          datasetVersionId: versionId,
+          name: "train-v1",
+          type: "train",
+          sampleIds: ["s1", "s2", "s3"],
+          stratificationRules: null,
+          frozen: false,
+          createdAt: new Date(),
+        });
+
+        const result = await service.getSplit(datasetId, versionId, splitId);
+
+        expect(result.id).toBe(splitId);
+        expect(result.sampleIds).toEqual(["s1", "s2", "s3"]);
+        expect(result.sampleCount).toBe(3);
+      });
+
+      it("throws NotFoundException when split not found", async () => {
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.split.findFirst.mockResolvedValue(null);
+
+        await expect(
+          service.getSplit(datasetId, versionId, splitId),
+        ).rejects.toThrow(NotFoundException);
+      });
+    });
+
+    describe("updateSplit", () => {
+      it("updates an unfrozen split successfully", async () => {
+        const updateDto = { sampleIds: ["s1", "s2", "s4"] };
+
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.split.findFirst.mockResolvedValue({
+          id: splitId,
+          datasetVersionId: versionId,
+          name: "train-v1",
+          type: "train",
+          sampleIds: ["s1", "s2", "s3"],
+          frozen: false,
+          createdAt: new Date(),
+        });
+        mockPrismaClient.split.update.mockResolvedValue({
+          id: splitId,
+          datasetVersionId: versionId,
+          name: "train-v1",
+          type: "train",
+          sampleIds: updateDto.sampleIds,
+          frozen: false,
+          createdAt: new Date(),
+        });
+
+        const result = await service.updateSplit(
+          datasetId,
+          versionId,
+          splitId,
+          updateDto,
+        );
+
+        expect(result.sampleIds).toEqual(updateDto.sampleIds);
+        expect(mockPrismaClient.split.update).toHaveBeenCalledWith({
+          where: { id: splitId },
+          data: { sampleIds: updateDto.sampleIds },
+        });
+      });
+
+      it("throws BadRequestException when split is frozen", async () => {
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.split.findFirst.mockResolvedValue({
+          id: splitId,
+          datasetVersionId: versionId,
+          name: "golden-v1",
+          type: "golden",
+          sampleIds: ["s1", "s2"],
+          frozen: true,
+          createdAt: new Date(),
+        });
+
+        await expect(
+          service.updateSplit(datasetId, versionId, splitId, {
+            sampleIds: ["s1"],
+          }),
+        ).rejects.toThrow(BadRequestException);
+        await expect(
+          service.updateSplit(datasetId, versionId, splitId, {
+            sampleIds: ["s1"],
+          }),
+        ).rejects.toThrow("Cannot update a frozen split");
+      });
+    });
+
+    describe("freezeSplit", () => {
+      it("freezes a split successfully", async () => {
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.split.findFirst.mockResolvedValue({
+          id: splitId,
+          datasetVersionId: versionId,
+          name: "golden-v1",
+          type: "golden",
+          sampleIds: ["s1", "s2"],
+          frozen: false,
+          createdAt: new Date(),
+        });
+        mockPrismaClient.split.update.mockResolvedValue({
+          id: splitId,
+          datasetVersionId: versionId,
+          name: "golden-v1",
+          type: "golden",
+          sampleIds: ["s1", "s2"],
+          frozen: true,
+          createdAt: new Date(),
+        });
+
+        const result = await service.freezeSplit(datasetId, versionId, splitId);
+
+        expect(result.frozen).toBe(true);
+        expect(mockPrismaClient.split.update).toHaveBeenCalledWith({
+          where: { id: splitId },
+          data: { frozen: true },
+        });
+      });
+
+      it("throws NotFoundException when split not found", async () => {
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.split.findFirst.mockResolvedValue(null);
+
+        await expect(
+          service.freezeSplit(datasetId, versionId, splitId),
+        ).rejects.toThrow(NotFoundException);
+      });
     });
   });
 });

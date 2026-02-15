@@ -1347,4 +1347,321 @@ export class DatasetService {
         return true;
     }
   }
+
+  /**
+   * Create a new split for a dataset version
+   * See US-033: Split Management UI
+   */
+  async createSplit(
+    datasetId: string,
+    versionId: string,
+    createDto: {
+      name: string;
+      type: string;
+      sampleIds: string[];
+      stratificationRules?: Record<string, unknown>;
+    },
+  ): Promise<{
+    id: string;
+    datasetVersionId: string;
+    name: string;
+    type: string;
+    sampleIds: string[];
+    stratificationRules?: Record<string, unknown>;
+    frozen: boolean;
+    createdAt: Date;
+  }> {
+    this.logger.log(
+      `Creating split '${createDto.name}' for version ${versionId}`,
+    );
+
+    // Verify version exists and belongs to dataset
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: {
+        id: versionId,
+        datasetId: datasetId,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    // Create the split
+    const split = await this.prisma.split.create({
+      data: {
+        datasetVersionId: versionId,
+        name: createDto.name,
+        type: createDto.type as any, // Type is validated by Prisma enum
+        sampleIds: createDto.sampleIds as Prisma.JsonValue,
+        stratificationRules: createDto.stratificationRules
+          ? (createDto.stratificationRules as Prisma.JsonValue)
+          : null,
+        frozen: false,
+      },
+    });
+
+    return {
+      id: split.id,
+      datasetVersionId: split.datasetVersionId,
+      name: split.name,
+      type: split.type,
+      sampleIds: split.sampleIds as string[],
+      stratificationRules: split.stratificationRules
+        ? (split.stratificationRules as Record<string, unknown>)
+        : undefined,
+      frozen: split.frozen,
+      createdAt: split.createdAt,
+    };
+  }
+
+  /**
+   * List all splits for a dataset version
+   */
+  async listSplits(
+    datasetId: string,
+    versionId: string,
+  ): Promise<
+    Array<{
+      id: string;
+      datasetVersionId: string;
+      name: string;
+      type: string;
+      sampleCount: number;
+      frozen: boolean;
+      stratificationRules?: Record<string, unknown>;
+      createdAt: Date;
+    }>
+  > {
+    // Verify version exists
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: {
+        id: versionId,
+        datasetId: datasetId,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    const splits = await this.prisma.split.findMany({
+      where: {
+        datasetVersionId: versionId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return splits.map((split) => ({
+      id: split.id,
+      datasetVersionId: split.datasetVersionId,
+      name: split.name,
+      type: split.type,
+      sampleCount: Array.isArray(split.sampleIds)
+        ? (split.sampleIds as string[]).length
+        : 0,
+      frozen: split.frozen,
+      stratificationRules: split.stratificationRules
+        ? (split.stratificationRules as Record<string, unknown>)
+        : undefined,
+      createdAt: split.createdAt,
+    }));
+  }
+
+  /**
+   * Get a single split with full details
+   */
+  async getSplit(
+    datasetId: string,
+    versionId: string,
+    splitId: string,
+  ): Promise<{
+    id: string;
+    datasetVersionId: string;
+    name: string;
+    type: string;
+    sampleIds: string[];
+    sampleCount: number;
+    frozen: boolean;
+    stratificationRules?: Record<string, unknown>;
+    createdAt: Date;
+  }> {
+    // Verify version exists
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: {
+        id: versionId,
+        datasetId: datasetId,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    const split = await this.prisma.split.findFirst({
+      where: {
+        id: splitId,
+        datasetVersionId: versionId,
+      },
+    });
+
+    if (!split) {
+      throw new NotFoundException(
+        `Split with ID ${splitId} not found for version ${versionId}`,
+      );
+    }
+
+    return {
+      id: split.id,
+      datasetVersionId: split.datasetVersionId,
+      name: split.name,
+      type: split.type,
+      sampleIds: split.sampleIds as string[],
+      sampleCount: Array.isArray(split.sampleIds)
+        ? (split.sampleIds as string[]).length
+        : 0,
+      frozen: split.frozen,
+      stratificationRules: split.stratificationRules
+        ? (split.stratificationRules as Record<string, unknown>)
+        : undefined,
+      createdAt: split.createdAt,
+    };
+  }
+
+  /**
+   * Update a split's sample IDs
+   * Throws BadRequestException if split is frozen
+   */
+  async updateSplit(
+    datasetId: string,
+    versionId: string,
+    splitId: string,
+    updateDto: { sampleIds: string[] },
+  ): Promise<{
+    id: string;
+    datasetVersionId: string;
+    name: string;
+    type: string;
+    sampleIds: string[];
+    frozen: boolean;
+    createdAt: Date;
+  }> {
+    // Verify version exists
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: {
+        id: versionId,
+        datasetId: datasetId,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    // Get the split
+    const split = await this.prisma.split.findFirst({
+      where: {
+        id: splitId,
+        datasetVersionId: versionId,
+      },
+    });
+
+    if (!split) {
+      throw new NotFoundException(
+        `Split with ID ${splitId} not found for version ${versionId}`,
+      );
+    }
+
+    // Check if frozen
+    if (split.frozen) {
+      throw new BadRequestException(
+        "Cannot update a frozen split. Frozen splits are immutable.",
+      );
+    }
+
+    // Update the split
+    const updated = await this.prisma.split.update({
+      where: { id: splitId },
+      data: {
+        sampleIds: updateDto.sampleIds as Prisma.JsonValue,
+      },
+    });
+
+    return {
+      id: updated.id,
+      datasetVersionId: updated.datasetVersionId,
+      name: updated.name,
+      type: updated.type,
+      sampleIds: updated.sampleIds as string[],
+      frozen: updated.frozen,
+      createdAt: updated.createdAt,
+    };
+  }
+
+  /**
+   * Freeze a split to make it immutable
+   */
+  async freezeSplit(
+    datasetId: string,
+    versionId: string,
+    splitId: string,
+  ): Promise<{
+    id: string;
+    datasetVersionId: string;
+    name: string;
+    type: string;
+    frozen: boolean;
+  }> {
+    // Verify version exists
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: {
+        id: versionId,
+        datasetId: datasetId,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    // Get the split
+    const split = await this.prisma.split.findFirst({
+      where: {
+        id: splitId,
+        datasetVersionId: versionId,
+      },
+    });
+
+    if (!split) {
+      throw new NotFoundException(
+        `Split with ID ${splitId} not found for version ${versionId}`,
+      );
+    }
+
+    // Freeze the split
+    const frozen = await this.prisma.split.update({
+      where: { id: splitId },
+      data: { frozen: true },
+    });
+
+    return {
+      id: frozen.id,
+      datasetVersionId: frozen.datasetVersionId,
+      name: frozen.name,
+      type: frozen.type,
+      frozen: frozen.frozen,
+    };
+  }
 }

@@ -25,7 +25,7 @@ interface VersionListResponse {
   total: number;
 }
 
-interface ManifestSample {
+export interface ManifestSample {
   id: string;
   inputs: Array<{
     path: string;

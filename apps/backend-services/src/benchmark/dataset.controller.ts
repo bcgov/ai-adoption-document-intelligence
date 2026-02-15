@@ -398,4 +398,137 @@ export class DatasetController {
       requestDto,
     );
   }
+
+  @Post(":id/versions/:versionId/splits")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Create a split for a dataset version",
+    description:
+      "Creates a new split with the specified name, type (train/val/test/golden), and sample IDs. Optionally accepts stratificationRules for proportional distribution.",
+  })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiBody({
+    description: "Split creation request with name, type, and sampleIds",
+  })
+  @ApiCreatedResponse({
+    description: "Split created successfully",
+  })
+  @ApiNotFoundResponse({
+    description: "Dataset version not found",
+  })
+  async createSplit(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+    @Body() createDto: any,
+  ): Promise<any> {
+    return this.datasetService.createSplit(id, versionId, createDto);
+  }
+
+  @Get(":id/versions/:versionId/splits")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "List splits for a dataset version",
+    description:
+      "Returns all splits for the specified version with name, type, sample count, frozen status, and creation date.",
+  })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiOkResponse({
+    description: "List of splits for this dataset version",
+  })
+  @ApiNotFoundResponse({
+    description: "Dataset version not found",
+  })
+  async listSplits(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+  ): Promise<any> {
+    const splits = await this.datasetService.listSplits(id, versionId);
+    return { splits };
+  }
+
+  @Get(":id/versions/:versionId/splits/:splitId")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Get a single split with full details",
+    description: "Returns complete split details including the full sampleIds array.",
+  })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiParam({ name: "splitId", description: "Split ID (UUID)" })
+  @ApiOkResponse({
+    description: "Split details",
+  })
+  @ApiNotFoundResponse({
+    description: "Split not found",
+  })
+  async getSplit(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+    @Param("splitId") splitId: string,
+  ): Promise<any> {
+    return this.datasetService.getSplit(id, versionId, splitId);
+  }
+
+  @Patch(":id/versions/:versionId/splits/:splitId")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Update a split",
+    description:
+      "Updates the sampleIds for an unfrozen split. Returns 400 if the split is frozen.",
+  })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiParam({ name: "splitId", description: "Split ID (UUID)" })
+  @ApiBody({
+    description: "Update request with new sampleIds",
+  })
+  @ApiOkResponse({
+    description: "Split updated successfully",
+  })
+  @ApiNotFoundResponse({
+    description: "Split not found",
+  })
+  @ApiBadRequestResponse({
+    description: "Split is frozen and cannot be modified",
+  })
+  async updateSplit(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+    @Param("splitId") splitId: string,
+    @Body() updateDto: any,
+  ): Promise<any> {
+    return this.datasetService.updateSplit(id, versionId, splitId, updateDto);
+  }
+
+  @Post(":id/versions/:versionId/splits/:splitId/freeze")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Freeze a split",
+    description:
+      "Freezes a split, making it immutable. Typically used for golden regression sets.",
+  })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiParam({ name: "splitId", description: "Split ID (UUID)" })
+  @ApiOkResponse({
+    description: "Split frozen successfully",
+  })
+  @ApiNotFoundResponse({
+    description: "Split not found",
+  })
+  async freezeSplit(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+    @Param("splitId") splitId: string,
+  ): Promise<any> {
+    return this.datasetService.freezeSplit(id, versionId, splitId);
+  }
 }
