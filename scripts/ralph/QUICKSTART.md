@@ -22,8 +22,12 @@ git checkout your-feature-branch
 # Set defaultMode to: acceptEdits
 # Add allow rules for: npm run *, git *
 
-# 6. Run Ralph
+# 6. Run Ralph (choose tool)
+# Option 1: Use amp (default)
 ./scripts/ralph/ralph.sh 25
+
+# Option 2: Use Claude Code with Sonnet 4.5
+./scripts/ralph/ralph.sh --tool claude 25
 ```
 
 ## Step-by-Step
@@ -129,14 +133,21 @@ git checkout -b my-feature-branch
 ### 6. Run Ralph
 
 ```bash
-# Run up to 25 iterations (uses Claude Sonnet 4.5)
+# Default: Uses amp tool
 ./scripts/ralph/ralph.sh 25
 
-# Or start smaller for testing
-./scripts/ralph/ralph.sh 5
+# Use Claude Code with Sonnet 4.5
+./scripts/ralph/ralph.sh --tool claude 25
+
+# Start smaller for testing
+./scripts/ralph/ralph.sh --tool claude 5
 ```
 
-**Note**: Ralph uses Sonnet 4.5 by default for speed and cost. To use Opus or Haiku, edit `scripts/ralph/ralph.sh` and change `--model sonnet` to `--model opus` or `--model haiku`.
+**Tool Options:**
+- **`--tool amp`** (default): Uses amp with `--dangerously-allow-all`
+- **`--tool claude`**: Uses Claude Code with **Sonnet 4.5** by default
+
+**To change Claude model**: Edit `ralph.sh` line 95 and change `--model sonnet` to `--model opus` or `--model haiku`.
 
 Ralph will:
 - ✅ Work on your current branch (no branch switching)
