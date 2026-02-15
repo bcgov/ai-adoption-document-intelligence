@@ -90,3 +90,25 @@ Started: 2026-02-14
   - MLflow logging happens in both success and failure paths (with appropriate status)
 ---
 
+## 2026-02-15 03:45 - US-023
+- What was implemented: Task Queue Isolation & Concurrency Controls
+- Files changed:
+  - apps/temporal/src/worker.ts (multi-queue support)
+  - apps/temporal/src/worker.test.ts (new)
+  - apps/temporal/src/benchmark-workflow.ts (configurable concurrency and timeouts)
+  - apps/temporal/src/benchmark-workflow.test.ts (added concurrency tests)
+  - apps/temporal/src/activities/benchmark-execute.ts (configurable task queue routing)
+  - apps/temporal/src/activities/benchmark-execute.test.ts (added queue routing tests)
+- **Learnings for future iterations:**
+  - Worker can run multiple task queues in parallel by creating multiple Worker instances
+  - Use Promise.all to run workers concurrently - they each block until shutdown
+  - Environment variables: BENCHMARK_TASK_QUEUE (default: benchmark-processing), ENABLE_BENCHMARK_QUEUE (default: true)
+  - Per-run concurrency already implemented via batched fan-out (maxParallelDocuments)
+  - Activity options can be customized per-workflow by creating separate proxyActivities with custom settings
+  - Use ?? (nullish coalescing) for maximumAttempts to preserve 0 as valid value
+  - Task queue routing: pass taskQueue parameter to benchmarkExecuteWorkflow and executeChild
+  - Default behavior: benchmarks run on benchmark-processing queue (isolated from production)
+  - Opt-in production queue: runtimeSettings.useProductionQueue = true routes to ocr-processing
+  - TypeScript type inference: use string type annotation to avoid literal type comparison errors
+---
+
