@@ -47,6 +47,8 @@ import {
   PaginatedDatasetResponseDto,
   SampleListResponseDto,
   UploadResponseDto,
+  ValidateDatasetRequestDto,
+  ValidationResponseDto,
   VersionListResponseDto,
   VersionResponseDto,
 } from "./dto";
@@ -356,5 +358,44 @@ export class DatasetController {
     const limitNum = limit ? parseInt(limit, 10) : 20;
 
     return this.datasetService.listSamples(id, versionId, pageNum, limitNum);
+  }
+
+  @Post(":id/versions/:versionId/validate")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Validate a dataset version for quality issues",
+    description:
+      "Runs validation checks on a dataset version including schema validation, missing ground truth detection, duplicate detection, and file corruption checks. Returns a structured validation report.",
+  })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiBody({
+    type: ValidateDatasetRequestDto,
+    description:
+      "Optional request body with sampleSize parameter for sampling validation",
+    required: false,
+  })
+  @ApiOkResponse({
+    description:
+      "Returns validation report with pass/fail status, issue counts by category, and detailed list of issues",
+    type: ValidationResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: "Dataset version not found",
+  })
+  @ApiBadRequestResponse({
+    description: "Invalid request or validation failed",
+  })
+  async validateDatasetVersion(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+    @Body() requestDto: ValidateDatasetRequestDto,
+  ): Promise<ValidationResponseDto> {
+    return this.datasetService.validateDatasetVersion(
+      id,
+      versionId,
+      requestDto,
+    );
   }
 }

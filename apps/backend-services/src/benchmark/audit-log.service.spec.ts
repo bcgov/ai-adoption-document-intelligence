@@ -168,10 +168,15 @@ describe("AuditLogService", () => {
 
       mockPrismaClient.benchmarkAuditLog.create.mockResolvedValue(mockLog);
 
-      const result = await service.logRunCompleted("user-1", "run-1", "completed", {
-        accuracy: 0.95,
-        f1Score: 0.92,
-      });
+      const result = await service.logRunCompleted(
+        "user-1",
+        "run-1",
+        "completed",
+        {
+          accuracy: 0.95,
+          f1Score: 0.92,
+        },
+      );
 
       expect(result).toEqual(mockLog);
       expect(mockPrismaClient.benchmarkAuditLog.create).toHaveBeenCalledWith({

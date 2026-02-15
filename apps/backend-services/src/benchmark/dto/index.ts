@@ -12,5 +12,7 @@ export * from "./project-response.dto";
 export * from "./run-response.dto";
 export * from "./update-definition.dto";
 export * from "./upload-response.dto";
+export * from "./validate-dataset-request.dto";
+export * from "./validation-response.dto";
 export * from "./version-list-response.dto";
 export * from "./version-response.dto";

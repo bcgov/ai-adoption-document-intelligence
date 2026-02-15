@@ -3,13 +3,18 @@ const mockRm = jest.fn();
 const mockWriteFile = jest.fn();
 const mockMkdir = jest.fn();
 const mockReadFile = jest.fn();
+const mockAccess = jest.fn();
 const mockFs = {
   mkdtemp: jest.fn(),
   rm: jest.fn(),
+  constants: {
+    R_OK: 4,
+  },
   promises: {
     writeFile: mockWriteFile,
     mkdir: mockMkdir,
     readFile: mockReadFile,
+    access: mockAccess,
   },
 };
 
@@ -1201,6 +1206,352 @@ describe("DatasetService", () => {
       await expect(
         service.listSamples(datasetId, versionId, 1, 20),
       ).rejects.toThrow();
+
+      expect(mockRm).toHaveBeenCalledWith(
+        "/tmp/dataset-init-test123",
+        expect.objectContaining({ recursive: true, force: true }),
+      );
+    });
+  });
+
+  describe("validateDatasetVersion", () => {
+    const datasetId = "dataset-123";
+    const versionId = "version-456";
+
+    const mockDataset = {
+      id: datasetId,
+      repositoryUrl: "git@example.com:dataset-repo.git",
+      dvcRemote: "minio",
+    };
+
+    const mockVersion = {
+      id: versionId,
+      datasetId: datasetId,
+      version: "1.0.0",
+      gitRevision: "abc123",
+      manifestPath: "dataset-manifest.json",
+      documentCount: 3,
+      groundTruthSchema: null,
+      status: "draft",
+      dataset: mockDataset,
+    };
+
+    const validManifest = {
+      schemaVersion: "1.0",
+      samples: [
+        {
+          id: "sample-001",
+          inputs: [{ path: "inputs/doc1.jpg", mimeType: "image/jpeg" }],
+          groundTruth: [{ path: "ground-truth/doc1.json", format: "json" }],
+          metadata: { docType: "invoice" },
+        },
+        {
+          id: "sample-002",
+          inputs: [{ path: "inputs/doc2.jpg", mimeType: "image/jpeg" }],
+          groundTruth: [{ path: "ground-truth/doc2.json", format: "json" }],
+          metadata: { docType: "receipt" },
+        },
+        {
+          id: "sample-003",
+          inputs: [{ path: "inputs/doc3.jpg", mimeType: "image/jpeg" }],
+          groundTruth: [{ path: "ground-truth/doc3.json", format: "json" }],
+          metadata: { docType: "invoice" },
+        },
+      ],
+    };
+
+    beforeEach(() => {
+      mockAccess.mockResolvedValue(undefined);
+    });
+
+    it("validates a dataset version with no issues", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+
+      // Mock manifest file read
+      let readCount = 0;
+      mockReadFile.mockImplementation((path: string) => {
+        if (path.endsWith("dataset-manifest.json")) {
+          return Promise.resolve(JSON.stringify(validManifest));
+        }
+        // Mock ground truth files with unique content
+        if (path.includes("ground-truth")) {
+          readCount++;
+          return Promise.resolve(
+            JSON.stringify({ field1: `value-${readCount}` }),
+          );
+        }
+        // Mock input image files (JPEG magic bytes)
+        if (path.includes("inputs")) {
+          const jpegHeader = Buffer.from([
+            0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46,
+          ]);
+          return Promise.resolve(jpegHeader);
+        }
+        return Promise.reject(new Error("File not found"));
+      });
+
+      const result = await service.validateDatasetVersion(
+        datasetId,
+        versionId,
+        {},
+      );
+
+      expect(result.valid).toBe(true);
+      expect(result.sampled).toBe(false);
+      expect(result.totalSamples).toBe(3);
+      expect(result.issueCount.schemaViolations).toBe(0);
+      expect(result.issueCount.missingGroundTruth).toBe(0);
+      expect(result.issueCount.duplicates).toBe(0);
+      expect(result.issueCount.corruption).toBe(0);
+      expect(result.issues).toHaveLength(0);
+    });
+
+    it("detects missing ground truth", async () => {
+      const manifestWithMissing = {
+        ...validManifest,
+        samples: [
+          {
+            id: "sample-001",
+            inputs: [{ path: "inputs/doc1.jpg", mimeType: "image/jpeg" }],
+            groundTruth: [],
+            metadata: { docType: "invoice" },
+          },
+        ],
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+      mockReadFile.mockImplementation((path: string) => {
+        if (path.endsWith("dataset-manifest.json")) {
+          return Promise.resolve(JSON.stringify(manifestWithMissing));
+        }
+        return Promise.reject(new Error("File not found"));
+      });
+
+      const result = await service.validateDatasetVersion(
+        datasetId,
+        versionId,
+        {},
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.issueCount.missingGroundTruth).toBe(1);
+      expect(result.issues).toHaveLength(1);
+      expect(result.issues[0].category).toBe("missing_ground_truth");
+      expect(result.issues[0].sampleId).toBe("sample-001");
+    });
+
+    it("detects file corruption (unreadable files)", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+      mockReadFile.mockImplementation((path: string) => {
+        if (path.endsWith("dataset-manifest.json")) {
+          return Promise.resolve(JSON.stringify(validManifest));
+        }
+        return Promise.resolve(JSON.stringify({ field1: "value" }));
+      });
+
+      // Mock access failure for ground truth file
+      mockAccess.mockImplementation((path: string) => {
+        if (path.includes("ground-truth/doc1.json")) {
+          return Promise.reject(new Error("File not found"));
+        }
+        return Promise.resolve(undefined);
+      });
+
+      const result = await service.validateDatasetVersion(
+        datasetId,
+        versionId,
+        {},
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.issueCount.corruption).toBeGreaterThan(0);
+      const corruptionIssue = result.issues.find(
+        (i) =>
+          i.category === "corruption" &&
+          i.filePath === "ground-truth/doc1.json",
+      );
+      expect(corruptionIssue).toBeDefined();
+    });
+
+    it("detects duplicate ground truth content", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+
+      // All ground truth files have identical content
+      mockReadFile.mockImplementation((path: string) => {
+        if (path.endsWith("dataset-manifest.json")) {
+          return Promise.resolve(JSON.stringify(validManifest));
+        }
+        if (path.includes("ground-truth")) {
+          return Promise.resolve(JSON.stringify({ field1: "same-value" }));
+        }
+        if (path.includes("inputs")) {
+          const jpegHeader = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+          return Promise.resolve(jpegHeader);
+        }
+        return Promise.reject(new Error("File not found"));
+      });
+
+      const result = await service.validateDatasetVersion(
+        datasetId,
+        versionId,
+        {},
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.issueCount.duplicates).toBeGreaterThan(0);
+      const duplicateIssue = result.issues.find(
+        (i) => i.category === "duplicate",
+      );
+      expect(duplicateIssue).toBeDefined();
+      expect(duplicateIssue?.details?.duplicateSampleIds).toHaveLength(3);
+    });
+
+    it("validates JSON schema when groundTruthSchema is provided", async () => {
+      const schema = {
+        type: "object",
+        properties: {
+          field1: { type: "string" },
+          field2: { type: "number" },
+        },
+        required: ["field1", "field2"],
+      };
+
+      const versionWithSchema = {
+        ...mockVersion,
+        groundTruthSchema: schema,
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(
+        versionWithSchema,
+      );
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+
+      mockReadFile.mockImplementation((path: string) => {
+        if (path.endsWith("dataset-manifest.json")) {
+          return Promise.resolve(JSON.stringify(validManifest));
+        }
+        if (path.includes("ground-truth")) {
+          // Missing required field2
+          return Promise.resolve(JSON.stringify({ field1: "value" }));
+        }
+        if (path.includes("inputs")) {
+          const jpegHeader = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+          return Promise.resolve(jpegHeader);
+        }
+        return Promise.reject(new Error("File not found"));
+      });
+
+      const result = await service.validateDatasetVersion(
+        datasetId,
+        versionId,
+        {},
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.issueCount.schemaViolations).toBeGreaterThan(0);
+      const schemaIssue = result.issues.find(
+        (i) => i.category === "schema_violation",
+      );
+      expect(schemaIssue).toBeDefined();
+    });
+
+    it("supports sampling validation with sampleSize parameter", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+
+      mockReadFile.mockImplementation((path: string) => {
+        if (path.endsWith("dataset-manifest.json")) {
+          return Promise.resolve(JSON.stringify(validManifest));
+        }
+        if (path.includes("ground-truth")) {
+          return Promise.resolve(JSON.stringify({ field1: "value" }));
+        }
+        if (path.includes("inputs")) {
+          const jpegHeader = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+          return Promise.resolve(jpegHeader);
+        }
+        return Promise.reject(new Error("File not found"));
+      });
+
+      const result = await service.validateDatasetVersion(
+        datasetId,
+        versionId,
+        { sampleSize: 2 },
+      );
+
+      expect(result.sampled).toBe(true);
+      expect(result.sampleSize).toBe(2);
+      expect(result.totalSamples).toBe(3);
+    });
+
+    it("validates image file headers", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+
+      mockReadFile.mockImplementation((path: string) => {
+        if (path.endsWith("dataset-manifest.json")) {
+          return Promise.resolve(JSON.stringify(validManifest));
+        }
+        if (path.includes("ground-truth")) {
+          return Promise.resolve(JSON.stringify({ field1: "value" }));
+        }
+        if (path.includes("inputs")) {
+          // Invalid JPEG header
+          const invalidHeader = Buffer.from([0x00, 0x00, 0x00, 0x00]);
+          return Promise.resolve(invalidHeader);
+        }
+        return Promise.reject(new Error("File not found"));
+      });
+
+      const result = await service.validateDatasetVersion(
+        datasetId,
+        versionId,
+        {},
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.issueCount.corruption).toBeGreaterThan(0);
+      const corruptionIssue = result.issues.find(
+        (i) =>
+          i.category === "corruption" &&
+          i.message.includes("Invalid image file header"),
+      );
+      expect(corruptionIssue).toBeDefined();
+    });
+
+    it("throws NotFoundException when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.validateDatasetVersion(datasetId, versionId, {}),
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        service.validateDatasetVersion(datasetId, versionId, {}),
+      ).rejects.toThrow(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    });
+
+    it("cleans up temp directory even when error occurs", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockRejectedValue(
+        new Error("Clone failed"),
+      );
+
+      await expect(
+        service.validateDatasetVersion(datasetId, versionId, {}),
+      ).rejects.toThrow("Clone failed");
 
       expect(mockRm).toHaveBeenCalledWith(
         "/tmp/dataset-init-test123",

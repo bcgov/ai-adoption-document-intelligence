@@ -16,6 +16,8 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
+import Ajv from "ajv";
+import * as crypto from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -30,6 +32,9 @@ import {
   SampleListResponseDto,
   UploadedFileDto,
   UploadResponseDto,
+  ValidateDatasetRequestDto,
+  ValidationIssue,
+  ValidationResponseDto,
   VersionListItemDto,
   VersionListResponseDto,
   VersionResponseDto,
@@ -986,5 +991,360 @@ export class DatasetService {
         sampleCount: Array.isArray(s.sampleIds) ? s.sampleIds.length : 0,
       })),
     };
+  }
+
+  /**
+   * Validate a dataset version for quality issues
+   * Checks for schema violations, missing ground truth, duplicates, and file corruption
+   */
+  async validateDatasetVersion(
+    datasetId: string,
+    versionId: string,
+    requestDto: ValidateDatasetRequestDto,
+  ): Promise<ValidationResponseDto> {
+    this.logger.log(
+      `Validating dataset ${datasetId}, version ${versionId} with sampleSize: ${requestDto.sampleSize || "all"}`,
+    );
+
+    // Get the version
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: {
+        id: versionId,
+        datasetId: datasetId,
+      },
+      include: {
+        dataset: true,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    // Create temporary directory for checking out the dataset
+    const tempDir = await mkdtemp(
+      path.join(os.tmpdir(), "dataset-validation-"),
+    );
+
+    try {
+      // Clone the dataset repository
+      await this.dvcService.cloneRepository(
+        version.dataset.repositoryUrl,
+        tempDir,
+      );
+
+      // Checkout the specific git revision
+      await this.dvcService.checkout(tempDir, version.gitRevision);
+
+      // Load and validate the manifest
+      const manifestPath = path.join(tempDir, version.manifestPath);
+      const manifest = await this.loadAndValidateManifest(manifestPath);
+
+      // Determine samples to validate (all or random sample)
+      const allSamples = manifest.samples;
+      const totalSamples = allSamples.length;
+      const sampled =
+        !!requestDto.sampleSize && requestDto.sampleSize < totalSamples;
+      const samplesToValidate = sampled
+        ? this.randomSample(allSamples, requestDto.sampleSize!)
+        : allSamples;
+
+      // Initialize validation issues array
+      const issues: ValidationIssue[] = [];
+
+      // Initialize AJV for schema validation
+      const ajv = new Ajv({ allErrors: true });
+      let schemaValidator: ReturnType<typeof ajv.compile> | null = null;
+
+      if (version.groundTruthSchema) {
+        try {
+          schemaValidator = ajv.compile(
+            version.groundTruthSchema as Record<string, unknown>,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `Invalid ground truth schema for version ${versionId}: ${error.message}`,
+          );
+        }
+      }
+
+      // Track content hashes for duplicate detection
+      const contentHashes = new Map<string, string[]>();
+
+      // Validate each sample
+      for (const sample of samplesToValidate) {
+        // Check for missing ground truth
+        if (!sample.groundTruth || sample.groundTruth.length === 0) {
+          issues.push({
+            category: "missing_ground_truth",
+            severity: "error",
+            sampleId: sample.id,
+            message: "Sample has no ground truth files",
+          });
+          continue;
+        }
+
+        // Validate each ground truth file
+        for (const gt of sample.groundTruth) {
+          const gtFilePath = path.join(tempDir, gt.path);
+
+          // Check file existence and readability (corruption check)
+          try {
+            await fs.promises.access(gtFilePath, fs.constants.R_OK);
+          } catch (error) {
+            issues.push({
+              category: "corruption",
+              severity: "error",
+              sampleId: sample.id,
+              filePath: gt.path,
+              message: "Ground truth file is not readable or does not exist",
+            });
+            continue;
+          }
+
+          // Read file content
+          let fileContent: string;
+          try {
+            fileContent = await fs.promises.readFile(gtFilePath, "utf-8");
+          } catch (error) {
+            issues.push({
+              category: "corruption",
+              severity: "error",
+              sampleId: sample.id,
+              filePath: gt.path,
+              message: "Failed to read ground truth file",
+            });
+            continue;
+          }
+
+          // Calculate content hash for duplicate detection
+          const contentHash = crypto
+            .createHash("sha256")
+            .update(fileContent)
+            .digest("hex");
+
+          if (contentHashes.has(contentHash)) {
+            contentHashes.get(contentHash)!.push(sample.id);
+          } else {
+            contentHashes.set(contentHash, [sample.id]);
+          }
+
+          // Validate JSON format for JSON files
+          if (gt.format === "json") {
+            try {
+              const jsonData = JSON.parse(fileContent);
+
+              // Validate against schema if available
+              if (schemaValidator) {
+                const valid = schemaValidator(jsonData);
+                if (!valid && schemaValidator.errors) {
+                  for (const error of schemaValidator.errors) {
+                    issues.push({
+                      category: "schema_violation",
+                      severity: "error",
+                      sampleId: sample.id,
+                      filePath: gt.path,
+                      message: `Schema validation error: ${error.instancePath} ${error.message}`,
+                      details: {
+                        keyword: error.keyword,
+                        dataPath: error.instancePath,
+                        schemaPath: error.schemaPath,
+                        params: error.params,
+                      },
+                    });
+                  }
+                }
+              }
+            } catch (error) {
+              issues.push({
+                category: "corruption",
+                severity: "error",
+                sampleId: sample.id,
+                filePath: gt.path,
+                message: `Invalid JSON format: ${error.message}`,
+              });
+            }
+          }
+        }
+
+        // Validate input files for corruption
+        for (const input of sample.inputs) {
+          const inputFilePath = path.join(tempDir, input.path);
+
+          // Check file existence and readability
+          try {
+            await fs.promises.access(inputFilePath, fs.constants.R_OK);
+          } catch (error) {
+            issues.push({
+              category: "corruption",
+              severity: "error",
+              sampleId: sample.id,
+              filePath: input.path,
+              message: "Input file is not readable or does not exist",
+            });
+            continue;
+          }
+
+          // Validate image file headers for image files
+          if (input.mimeType.startsWith("image/")) {
+            try {
+              const buffer = await fs.promises.readFile(inputFilePath);
+              const isValidImage = this.validateImageHeader(
+                buffer,
+                input.mimeType,
+              );
+
+              if (!isValidImage) {
+                issues.push({
+                  category: "corruption",
+                  severity: "error",
+                  sampleId: sample.id,
+                  filePath: input.path,
+                  message: `Invalid image file header for type ${input.mimeType}`,
+                });
+              }
+            } catch (error) {
+              issues.push({
+                category: "corruption",
+                severity: "error",
+                sampleId: sample.id,
+                filePath: input.path,
+                message: "Failed to read input file for validation",
+              });
+            }
+          }
+        }
+      }
+
+      // Report duplicates
+      for (const [hash, sampleIds] of contentHashes.entries()) {
+        if (sampleIds.length > 1) {
+          issues.push({
+            category: "duplicate",
+            severity: "error",
+            sampleId: sampleIds[0],
+            message: `Duplicate ground truth content found in ${sampleIds.length} samples`,
+            details: {
+              duplicateSampleIds: sampleIds,
+              contentHash: hash,
+            },
+          });
+        }
+      }
+
+      // Calculate issue counts by category
+      const issueCount = {
+        schemaViolations: issues.filter(
+          (i) => i.category === "schema_violation",
+        ).length,
+        missingGroundTruth: issues.filter(
+          (i) => i.category === "missing_ground_truth",
+        ).length,
+        duplicates: issues.filter((i) => i.category === "duplicate").length,
+        corruption: issues.filter((i) => i.category === "corruption").length,
+      };
+
+      // Determine overall validity (valid if no errors)
+      const errorCount = issues.filter((i) => i.severity === "error").length;
+      const valid = errorCount === 0;
+
+      return {
+        valid,
+        sampled,
+        sampleSize: sampled ? requestDto.sampleSize : undefined,
+        totalSamples,
+        issueCount,
+        issues,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to validate dataset ${datasetId}, version ${versionId}`,
+        error.stack,
+      );
+      throw error;
+    } finally {
+      // Clean up temporary directory
+      try {
+        await rm(tempDir, { recursive: true, force: true });
+      } catch (cleanupError) {
+        this.logger.warn(
+          `Failed to clean up temp directory: ${tempDir}`,
+          cleanupError,
+        );
+      }
+    }
+  }
+
+  /**
+   * Select N random samples from an array
+   */
+  private randomSample<T>(array: T[], count: number): T[] {
+    const shuffled = [...array].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count);
+  }
+
+  /**
+   * Validate image file header (magic bytes)
+   */
+  private validateImageHeader(buffer: Buffer, mimeType: string): boolean {
+    if (buffer.length < 8) {
+      return false;
+    }
+
+    // Check magic bytes for common image formats
+    switch (mimeType) {
+      case "image/jpeg":
+      case "image/jpg":
+        return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+
+      case "image/png":
+        return (
+          buffer[0] === 0x89 &&
+          buffer[1] === 0x50 &&
+          buffer[2] === 0x4e &&
+          buffer[3] === 0x47
+        );
+
+      case "image/gif":
+        return (
+          buffer[0] === 0x47 &&
+          buffer[1] === 0x49 &&
+          buffer[2] === 0x46 &&
+          buffer[3] === 0x38
+        );
+
+      case "image/webp":
+        return (
+          buffer[0] === 0x52 &&
+          buffer[1] === 0x49 &&
+          buffer[2] === 0x46 &&
+          buffer[3] === 0x46 &&
+          buffer[8] === 0x57 &&
+          buffer[9] === 0x45 &&
+          buffer[10] === 0x42 &&
+          buffer[11] === 0x50
+        );
+
+      case "image/bmp":
+        return buffer[0] === 0x42 && buffer[1] === 0x4d;
+
+      case "image/tiff":
+        return (
+          (buffer[0] === 0x49 && buffer[1] === 0x49 && buffer[2] === 0x2a) ||
+          (buffer[0] === 0x4d && buffer[1] === 0x4d && buffer[2] === 0x00)
+        );
+
+      default:
+        // Unknown format - assume valid
+        return true;
+    }
   }
 }

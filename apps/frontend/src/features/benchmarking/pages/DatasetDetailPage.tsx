@@ -6,6 +6,7 @@ import {
   Group,
   Loader,
   Menu,
+  Modal,
   Pagination,
   Stack,
   Table,
@@ -18,13 +19,16 @@ import {
   IconCheck,
   IconDotsVertical,
   IconEye,
+  IconShieldCheck,
   IconUpload,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { FileUploadDialog } from "../components/FileUploadDialog";
 import { GroundTruthViewer } from "../components/GroundTruthViewer";
+import { ValidationReport } from "../components/ValidationReport";
 import { useDataset } from "../hooks/useDatasets";
+import { useValidateDataset } from "../hooks/useDatasetValidation";
 import {
   useDatasetSamples,
   useDatasetVersions,
@@ -50,12 +54,22 @@ export function DatasetDetailPage() {
     string,
     unknown
   > | null>(null);
+  const [validationDialogOpen, setValidationDialogOpen] = useState(false);
+  const [validationVersionId, setValidationVersionId] = useState<string | null>(
+    null,
+  );
 
   const {
     samples,
     totalPages,
     isLoading: isLoadingSamples,
   } = useDatasetSamples(id || "", selectedVersionId || "", samplePage, 20);
+
+  const {
+    mutate: validateDataset,
+    data: validationResult,
+    isPending: isValidating,
+  } = useValidateDataset(id || "", validationVersionId || "");
 
   if (isLoadingDataset || isLoadingVersions) {
     return (
@@ -92,6 +106,12 @@ export function DatasetDetailPage() {
 
   const handleArchive = (versionId: string) => {
     archiveVersion(versionId);
+  };
+
+  const handleValidate = (versionId: string) => {
+    setValidationVersionId(versionId);
+    setValidationDialogOpen(true);
+    validateDataset();
   };
 
   const handleViewGroundTruth = async (sampleId: string) => {
@@ -201,6 +221,12 @@ export function DatasetDetailPage() {
                               onClick={() => setSelectedVersionId(version.id)}
                             >
                               View Samples
+                            </Menu.Item>
+                            <Menu.Item
+                              leftSection={<IconShieldCheck size={16} />}
+                              onClick={() => handleValidate(version.id)}
+                            >
+                              Validate
                             </Menu.Item>
                             {version.status === "draft" && (
                               <Menu.Item
@@ -323,6 +349,23 @@ export function DatasetDetailPage() {
         opened={groundTruthViewerOpen}
         onClose={() => setGroundTruthViewerOpen(false)}
       />
+
+      <Modal
+        opened={validationDialogOpen}
+        onClose={() => setValidationDialogOpen(false)}
+        title="Dataset Validation Report"
+        size="xl"
+      >
+        {isValidating ? (
+          <Center h={200}>
+            <Loader />
+          </Center>
+        ) : validationResult ? (
+          <ValidationReport validation={validationResult} />
+        ) : (
+          <Text c="dimmed">No validation results available</Text>
+        )}
+      </Modal>
     </>
   );
 }

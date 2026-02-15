@@ -7,7 +7,12 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-025-audit-logging.md
  */
 
-import { AuditAction, BenchmarkAuditLog, Prisma, PrismaClient } from "@generated/client";
+import {
+  AuditAction,
+  BenchmarkAuditLog,
+  Prisma,
+  PrismaClient,
+} from "@generated/client";
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -200,7 +205,14 @@ export class AuditLogService {
   async queryAuditLogs(
     params: QueryAuditLogsParams,
   ): Promise<BenchmarkAuditLog[]> {
-    const { entityType, entityId, action, startDate, endDate, limit = 100 } = params;
+    const {
+      entityType,
+      entityId,
+      action,
+      startDate,
+      endDate,
+      limit = 100,
+    } = params;
 
     const where: Prisma.BenchmarkAuditLogWhereInput = {};
 
