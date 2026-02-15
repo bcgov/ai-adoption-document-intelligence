@@ -186,3 +186,27 @@ Started: 2026-02-14
   - Icons from @tabler/icons-react (IconPlus, IconDatabase)
   - Biome linter auto-formats code - always run lint:fix before commit
 ---
+
+## 2026-02-14 - US-028
+- What was implemented: Dataset Version & Sample Preview UI
+- Files changed:
+  - apps/frontend/src/features/benchmarking/hooks/useDatasetVersions.ts (new)
+  - apps/frontend/src/features/benchmarking/hooks/useDatasetUpload.ts (new)
+  - apps/frontend/src/features/benchmarking/components/FileUploadDialog.tsx (new)
+  - apps/frontend/src/features/benchmarking/components/GroundTruthViewer.tsx (new)
+  - apps/frontend/src/features/benchmarking/pages/DatasetDetailPage.tsx (updated)
+  - apps/frontend/src/data/services/api.service.ts (added patch method and config parameter)
+- **Learnings for future iterations:**
+  - ApiService needs patch method for PATCH endpoints (publish/archive)
+  - ApiService post method needs config parameter for multipart/form-data uploads
+  - Mantine Tabs component for switching between version list and sample preview
+  - Mantine Menu component for dropdown actions (publish, archive)
+  - Mantine Badge with color prop for status visualization (yellow=draft, green=published, gray=archived)
+  - Mantine Dropzone (@mantine/dropzone) for drag-and-drop file uploads
+  - File upload: FormData with multiple files appended with same key "files"
+  - Ground truth viewer: Code component with block prop for JSON formatting
+  - Pagination: Mantine Pagination component with value, onChange, total props
+  - Version actions use PATCH endpoints: /versions/:id/publish and /versions/:id/archive
+  - Sample preview API: /versions/:id/samples with page and limit query params
+  - Query invalidation: invalidate both list and detail queries after mutations
+---

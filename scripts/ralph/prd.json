@@ -485,8 +485,8 @@
         "Scenario 7"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented dataset detail page with version list, publish/archive actions, sample preview with pagination, file upload dialog, and ground truth JSON viewer. Extended ApiService with patch method.",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-028-dataset-version-sample-preview-ui.md"
     },
     {
