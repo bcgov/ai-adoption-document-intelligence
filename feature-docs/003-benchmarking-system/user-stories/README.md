@@ -140,6 +140,6 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 
 ### Phase 10 -- Phase 2 Rich UI
 - [x] **US-036** (Side-by-Side Run Comparison UI) -- depends on US-031
-- [ ] **US-037** (Regression Reports UI) -- depends on US-034, US-036
+- [x] **US-037** (Regression Reports UI) -- depends on US-034, US-036
 - [ ] **US-038** (Slicing, Filtering & Drill-Down UI) -- depends on US-031
 - [ ] **US-039** (In-App Artifact Viewer) -- depends on US-013, US-031

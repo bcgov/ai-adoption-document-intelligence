@@ -48,3 +48,20 @@ Started: 2026-02-14
   - When using multiple instances of the same interface across components, ensure all required fields are synchronized (e.g., scheduleEnabled field was missing)
   - Client-side export: create Blob -> URL.createObjectURL -> anchor click -> URL.revokeObjectURL
 ---
+
+## 2026-02-15 - US-037
+- What was implemented: Regression Reports UI with detailed regression analysis
+- Files changed:
+  - apps/frontend/src/features/benchmarking/pages/RegressionReportPage.tsx (new)
+  - apps/frontend/src/features/benchmarking/pages/ProjectDetailPage.tsx
+  - apps/frontend/src/features/benchmarking/pages/RunDetailPage.tsx
+  - apps/frontend/src/features/benchmarking/pages/index.ts
+  - apps/frontend/src/App.tsx
+  - apps/frontend/src/features/benchmarking/hooks/useRuns.ts
+- **Learnings for future iterations:**
+  - RunSummary vs RunDetails: RunSummary is for list views, RunDetails is for detail views - keep them separate
+  - Severity calculation: Can compute severity from deltaPercent and threshold values (critical: >10% or >2x threshold, warning: between threshold and 10%)
+  - HTML export: Template literal with embedded CSS for self-contained reports
+  - Chart library placeholder: When a library isn't installed, show installation instructions in an Alert
+  - Baseline comparison data already exists from US-034, so reuse it rather than duplicating logic
+---
