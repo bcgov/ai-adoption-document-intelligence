@@ -101,3 +101,23 @@ Started: 2026-02-14
   - Radio.Group with Group for horizontal layout, Stack for vertical layout
   - NumberInput with min/max/step for numeric configuration fields
 ---
+
+## 2026-02-14 - US-030
+- What was implemented: Run List, Start/Cancel, Progress UI
+- Files changed:
+  - apps/frontend/src/features/benchmarking/hooks/useRuns.ts (new)
+  - apps/frontend/src/features/benchmarking/pages/ProjectDetailPage.tsx (added run list)
+  - apps/frontend/src/features/benchmarking/pages/RunDetailPage.tsx (full implementation)
+  - apps/frontend/src/features/benchmarking/components/DefinitionDetailView.tsx (Start Run button)
+  - apps/frontend/src/data/services/api.service.ts (linter formatting)
+- **Learnings for future iterations:**
+  - useMutation.mutateAsync allows components to await result with async/await
+  - useMutation.mutate requires mutation options to be passed differently (not as second arg)
+  - apiService.post requires data parameter (use {} for empty POST requests)
+  - useQuery refetchInterval parameter accepts callback function to conditionally poll
+  - Poll non-terminal states (pending/running) every 5s, stop polling on terminal states (completed/failed/cancelled)
+  - Status badge colors: pending=blue, running=yellow, completed=green, failed=red, cancelled=gray
+  - Temporal UI link format: http://localhost:8088/namespaces/default/workflows/{workflowId}
+  - Duration calculation: handle both completed (use completedAt) and running (use Date.now()) states
+  - Linter auto-formats code with npm run lint:fix - pre-existing errors remain but don't block build
+---

@@ -520,8 +520,8 @@
         "Scenario 8"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented run list in ProjectDetailPage, full RunDetailPage with cancel/re-run actions, Start Run button in DefinitionDetailView, polling for non-terminal states, status badges, and Temporal workflow deep-links.",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-030-run-list-start-cancel-progress-ui.md"
     },
     {
