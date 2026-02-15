@@ -107,7 +107,7 @@ Run up to 25 iterations:
 # Default: Uses amp tool
 ./scripts/ralph/ralph.sh 25
 
-# Use Claude Code with Sonnet 4.5
+# Use Claude Code
 ./scripts/ralph/ralph.sh --tool claude 25
 
 # Or use explicit tool flag
@@ -116,9 +116,7 @@ Run up to 25 iterations:
 
 **Tools available:**
 - **`amp`** (default): Uses amp tool with `--dangerously-allow-all`
-- **`claude`**: Uses Claude Code with **Sonnet 4.5** for speed and cost efficiency
-
-To change the model for Claude Code mode, edit `ralph.sh` and modify the `--model sonnet` flag (options: `sonnet`, `opus`, `haiku`).
+- **`claude`**: Uses Claude Code (model configured via settings.json)
 
 Ralph will:
 - Work on your current branch (does NOT switch branches)

@@ -26,7 +26,7 @@ git checkout your-feature-branch
 # Option 1: Use amp (default)
 ./scripts/ralph/ralph.sh 25
 
-# Option 2: Use Claude Code with Sonnet 4.5
+# Option 2: Use Claude Code
 ./scripts/ralph/ralph.sh --tool claude 25
 ```
 
@@ -136,7 +136,7 @@ git checkout -b my-feature-branch
 # Default: Uses amp tool
 ./scripts/ralph/ralph.sh 25
 
-# Use Claude Code with Sonnet 4.5
+# Use Claude Code
 ./scripts/ralph/ralph.sh --tool claude 25
 
 # Start smaller for testing
@@ -145,9 +145,7 @@ git checkout -b my-feature-branch
 
 **Tool Options:**
 - **`--tool amp`** (default): Uses amp with `--dangerously-allow-all`
-- **`--tool claude`**: Uses Claude Code with **Sonnet 4.5** by default
-
-**To change Claude model**: Edit `ralph.sh` line 95 and change `--model sonnet` to `--model opus` or `--model haiku`.
+- **`--tool claude`**: Uses Claude Code (model configured via settings.json)
 
 Ralph will:
 - ✅ Work on your current branch (no branch switching)
