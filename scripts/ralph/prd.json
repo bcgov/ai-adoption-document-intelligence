@@ -607,8 +607,8 @@
         "Scenario 7"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented using Temporal Schedules API. Schedule triggers benchmark workflow directly. Schedule configuration UI integrated into definition detail view. All 726 backend tests pass.",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-035-scheduled-nightly-runs.md"
     },
     {

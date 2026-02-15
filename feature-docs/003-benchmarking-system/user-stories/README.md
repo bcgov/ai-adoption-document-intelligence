@@ -136,7 +136,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 - [x] **US-032** (Dataset Quality Checks & Validation) -- depends on US-007, US-009
 - [x] **US-033** (Split Management UI) -- depends on US-028
 - [x] **US-034** (Baseline Management) -- depends on US-012, US-031
-- [ ] **US-035** (Scheduled & Nightly Runs) -- depends on US-022
+- [x] **US-035** (Scheduled & Nightly Runs) -- depends on US-022
 
 ### Phase 10 -- Phase 2 Rich UI
 - [ ] **US-036** (Side-by-Side Run Comparison UI) -- depends on US-031

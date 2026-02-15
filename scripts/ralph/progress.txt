@@ -222,3 +222,34 @@ Started: 2026-02-14
   - Frontend uses Alert component for regression status, Card for detailed comparison
   - All 719 backend tests pass
 ---
+
+## 2026-02-15 - US-035
+- What was implemented: Scheduled & Nightly Runs
+- Files changed:
+  - apps/shared/prisma/schema.prisma (added scheduleEnabled, scheduleCron, scheduleId fields to BenchmarkDefinition)
+  - apps/shared/prisma/migrations/20260215082856_add_schedule_fields/migration.sql (new)
+  - apps/backend-services/src/benchmark/dto/schedule-config.dto.ts (new)
+  - apps/backend-services/src/benchmark/dto/schedule-info.dto.ts (new)
+  - apps/backend-services/src/benchmark/dto/index.ts (exports)
+  - apps/backend-services/src/benchmark/dto/definition-response.dto.ts (added schedule fields)
+  - apps/backend-services/src/benchmark/benchmark-temporal.service.ts (schedule CRUD methods)
+  - apps/backend-services/src/benchmark/benchmark-definition.service.ts (configureSchedule, getScheduleInfo)
+  - apps/backend-services/src/benchmark/benchmark-definition.controller.ts (POST/GET /schedule endpoints)
+  - apps/backend-services/src/benchmark/benchmark-definition.service.spec.ts (6 new tests)
+  - apps/frontend/src/features/benchmarking/hooks/useSchedule.ts (new)
+  - apps/frontend/src/features/benchmarking/components/ScheduleConfig.tsx (new)
+  - apps/frontend/src/features/benchmarking/components/DefinitionDetailView.tsx (integrated schedule UI)
+- **Learnings for future iterations:**
+  - Temporal Schedules API: use ScheduleClient from @temporalio/client
+  - scheduleClient.create() takes scheduleId, spec (cronExpressions array), action (workflow to start)
+  - Schedule action type: "startWorkflow" with workflowType, args, taskQueue
+  - Template variables in args: {{.ScheduledTime}}, {{.ScheduleId}} for unique IDs
+  - scheduleClient.getHandle(scheduleId).describe() returns ScheduleDescription
+  - ScheduleDescription structure varies by version - use type assertions for safe access
+  - Schedule info: spec.calendars[0].cronString, info.nextActionTimes, state.paused
+  - Cron validation: use @Matches decorator in DTO with regex pattern
+  - Temporal schedule triggers workflow directly - no pre-created run record needed
+  - Schedule configuration: enable/disable, cron expression, returns updated definition
+  - Frontend: Switch for enable/disable, TextInput for cron, display schedule status
+  - All 726 backend tests pass with new schedule functionality
+---
