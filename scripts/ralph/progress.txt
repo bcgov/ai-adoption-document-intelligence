@@ -138,3 +138,29 @@ Started: 2026-02-14
   - BigInt from backend comes as string in JSON - use parseInt for display formatting
   - Nested conditional rendering: check outer condition (completed), then check data availability (drillDown?.fieldErrorBreakdown)
 ---
+
+## 2026-02-14 - US-032
+- What was implemented: Dataset Quality Checks & Validation
+- Files changed:
+  - apps/backend-services/src/benchmark/dto/validate-dataset-request.dto.ts (new)
+  - apps/backend-services/src/benchmark/dto/validation-response.dto.ts (new)
+  - apps/backend-services/src/benchmark/dataset.service.ts (added validateDatasetVersion method)
+  - apps/backend-services/src/benchmark/dataset.controller.ts (added POST validate endpoint)
+  - apps/backend-services/src/benchmark/dataset.service.spec.ts (added 9 validation tests)
+  - apps/frontend/src/features/benchmarking/hooks/useDatasetValidation.ts (new)
+  - apps/frontend/src/features/benchmarking/components/ValidationReport.tsx (new)
+  - apps/frontend/src/features/benchmarking/pages/DatasetDetailPage.tsx (integrated validation UI)
+- **Learnings for future iterations:**
+  - AJV library for JSON schema validation - use ajv.compile() to create reusable validator
+  - Content hash for duplicate detection: crypto.createHash('sha256').update(content).digest('hex')
+  - Image header validation: check magic bytes in Buffer (first 8-12 bytes identify file type)
+  - JPEG magic bytes: [0xFF, 0xD8, 0xFF, ...], PNG: [0x89, 0x50, 0x4E, 0x47]
+  - File access check: fs.promises.access(path, fs.constants.R_OK) to verify readability
+  - Random sampling: array.sort(() => 0.5 - Math.random()).slice(0, count)
+  - Validation endpoint uses POST (not GET) to accept optional sampleSize parameter
+  - Modal size "xl" for detailed validation reports
+  - Badge colors: error=red, warning=yellow/orange, success=green, neutral=gray
+  - IconAlertCircle, IconShieldCheck for validation UI elements
+  - Test mocking: unique content per file prevents false duplicate detection
+  - All 700 backend tests pass with new validation tests
+---

@@ -133,7 +133,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 - [x] **US-031** (Results Summary & MLflow Deep-Links UI) -- depends on US-030, US-013
 
 ### Phase 9 -- Phase 1.5 Enhancements
-- [ ] **US-032** (Dataset Quality Checks & Validation) -- depends on US-007, US-009
+- [x] **US-032** (Dataset Quality Checks & Validation) -- depends on US-007, US-009
 - [ ] **US-033** (Split Management UI) -- depends on US-028
 - [ ] **US-034** (Baseline Management) -- depends on US-012, US-031
 - [ ] **US-035** (Scheduled & Nightly Runs) -- depends on US-022

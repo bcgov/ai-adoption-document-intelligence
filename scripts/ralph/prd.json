@@ -555,8 +555,8 @@
         "Scenario 8"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented full dataset validation with schema validation (AJV), missing ground truth detection, duplicate detection (content hash), file corruption checks (readability + image headers), and optional sampling. All 700 backend tests pass including 9 new validation tests. Frontend includes validation button, modal with ValidationReport component showing categorized issues.",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-032-dataset-quality-checks-validation.md"
     },
     {
