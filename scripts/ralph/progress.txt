@@ -24,6 +24,28 @@ Started: 2026-02-14
 - Expression evaluator namespaces: ctx.*, doc.*, segment.*
 - 12 registered activity types
 
+### Benchmarking System
+- Evaluators: apps/temporal/src/evaluators/ (schema-aware, black-box)
+- Evaluator types duplicated in apps/temporal/src/benchmark-types.ts
+- Aggregation module: apps/temporal/src/benchmark-aggregation.ts
+- Temporal activities for benchmarks in apps/temporal/src/activities/benchmark-*.ts
+
 ## Iteration Log
 (Learnings from each iteration will be appended below)
+
+## 2026-02-14 19:06 - US-020
+- What was implemented: Evaluation & Aggregation Activities
+- Files changed:
+  - apps/temporal/src/evaluator-registry.ts (new)
+  - apps/temporal/src/activities/benchmark-evaluate.ts (new)
+  - apps/temporal/src/activities/benchmark-evaluate.test.ts (new)
+  - apps/temporal/src/activities.ts (updated exports)
+- **Learnings for future iterations:**
+  - Evaluator registry in temporal app mirrors backend pattern but uses plain functions (not NestJS service)
+  - Built-in evaluators (schema-aware, black-box) exist in apps/temporal/src/evaluators/
+  - Aggregation module from US-017 is in apps/temporal/src/benchmark-aggregation.ts
+  - Activities should handle missing prediction files gracefully with diagnostic error messages
+  - Test pattern: create temp files for file-based activities, clean up in afterEach
+  - Activity exports must be added to apps/temporal/src/activities.ts
+---
 
