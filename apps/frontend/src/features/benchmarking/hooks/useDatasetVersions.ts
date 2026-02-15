@@ -154,3 +154,32 @@ export const useDatasetSamples = (
     error: samplesQuery.error,
   };
 };
+
+export const useAllDatasetVersions = () => {
+  const versionsQuery = useQuery({
+    queryKey: ["benchmark-all-dataset-versions"],
+    queryFn: async () => {
+      const datasetsResponse = await apiService.get<{
+        data: Array<{ id: string }>;
+      }>("/benchmark/datasets?limit=1000");
+      const datasets = datasetsResponse.data?.data || [];
+
+      const allVersions: DatasetVersion[] = [];
+      for (const dataset of datasets) {
+        const versionsResponse = await apiService.get<VersionListResponse>(
+          `/benchmark/datasets/${dataset.id}/versions`,
+        );
+        if (versionsResponse.data?.versions) {
+          allVersions.push(...versionsResponse.data.versions);
+        }
+      }
+      return allVersions;
+    },
+  });
+
+  return {
+    versions: versionsQuery.data || [],
+    isLoading: versionsQuery.isLoading,
+    error: versionsQuery.error,
+  };
+};
