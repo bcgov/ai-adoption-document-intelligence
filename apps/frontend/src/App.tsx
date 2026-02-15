@@ -13,17 +13,22 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
+  IconChartBar,
   IconChevronLeft,
   IconChevronRight,
   IconClipboardCheck,
+  IconDatabase,
   IconFlask,
+  IconFolderOpen,
   IconList,
   IconLogout,
+  IconPlayerPlay,
   IconSettings,
   IconTags,
   IconUpload,
 } from "@tabler/icons-react";
 import { JSX, useMemo, useState } from "react";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext";
 import "./App.css";
 import { Login } from "./components";
@@ -35,6 +40,13 @@ import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWork
 import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/LabelingWorkspacePage";
 import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
 import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
+import {
+  ProjectDetailPage as BenchmarkProjectDetailPage,
+  ProjectListPage as BenchmarkProjectListPage,
+  DatasetDetailPage,
+  DatasetListPage,
+  RunDetailPage,
+} from "./features/benchmarking/pages";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
@@ -54,6 +66,8 @@ const NAV_COLLAPSED = 72;
 
 function AppContent(): JSX.Element {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [activeView, setActiveView] = useState<MainView>("upload");
   const [workflowView, setWorkflowView] = useState<WorkflowView>("list");
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
@@ -74,6 +88,9 @@ function AppContent(): JSX.Element {
     string | null
   >(null);
   const [reviewSessionReadOnly, setReviewSessionReadOnly] = useState(false);
+
+  // Determine if we're on a benchmarking route
+  const isBenchmarkingRoute = location.pathname.startsWith("/benchmarking");
 
   const navItems = useMemo(
     () => [
@@ -112,6 +129,30 @@ function AppContent(): JSX.Element {
         label: "Settings",
         description: "API key management",
         icon: IconSettings,
+      },
+    ],
+    [],
+  );
+
+  const benchmarkingNavItems = useMemo(
+    () => [
+      {
+        path: "/benchmarking/datasets",
+        label: "Datasets",
+        description: "Manage benchmark datasets",
+        icon: IconDatabase,
+      },
+      {
+        path: "/benchmarking/projects",
+        label: "Projects",
+        description: "Benchmark projects",
+        icon: IconFolderOpen,
+      },
+      {
+        path: "/benchmarking/runs",
+        label: "Runs",
+        description: "Benchmark runs",
+        icon: IconPlayerPlay,
       },
     ],
     [],
@@ -205,7 +246,7 @@ function AppContent(): JSX.Element {
           <Stack gap="xs">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const active = activeView === item.value;
+              const active = !isBenchmarkingRoute && activeView === item.value;
 
               return navbarOpened ? (
                 <NavLink
@@ -217,6 +258,7 @@ function AppContent(): JSX.Element {
                   variant={active ? "light" : "subtle"}
                   color={active ? "blue" : "gray"}
                   onClick={() => {
+                    navigate("/");
                     setActiveView(item.value);
                     if (item.value === "workflows") {
                       setWorkflowView("list");
@@ -232,6 +274,7 @@ function AppContent(): JSX.Element {
                     size="lg"
                     radius="md"
                     onClick={() => {
+                      navigate("/");
                       setActiveView(item.value);
                       if (item.value === "workflows") {
                         setWorkflowView("list");
@@ -245,111 +288,188 @@ function AppContent(): JSX.Element {
                 </Tooltip>
               );
             })}
+
+            {/* Benchmarking Section */}
+            {navbarOpened ? (
+              <NavLink
+                label="Benchmarking"
+                description="Benchmark management"
+                leftSection={<IconChartBar size={18} />}
+                active={isBenchmarkingRoute}
+                variant={isBenchmarkingRoute ? "light" : "subtle"}
+                color={isBenchmarkingRoute ? "blue" : "gray"}
+                childrenOffset={28}
+                defaultOpened={isBenchmarkingRoute}
+              >
+                {benchmarkingNavItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = location.pathname === item.path;
+
+                  return (
+                    <NavLink
+                      key={item.path}
+                      label={item.label}
+                      description={item.description}
+                      leftSection={<Icon size={16} />}
+                      active={active}
+                      variant={active ? "filled" : "subtle"}
+                      color={active ? "blue" : "gray"}
+                      onClick={() => navigate(item.path)}
+                    />
+                  );
+                })}
+              </NavLink>
+            ) : (
+              <Tooltip label="Benchmarking" position="right">
+                <ActionIcon
+                  variant={isBenchmarkingRoute ? "light" : "subtle"}
+                  color={isBenchmarkingRoute ? "blue" : "gray"}
+                  size="lg"
+                  radius="md"
+                  onClick={() => navigate("/benchmarking/datasets")}
+                  aria-label="Benchmarking"
+                >
+                  <IconChartBar size={18} />
+                </ActionIcon>
+              </Tooltip>
+            )}
           </Stack>
         </AppShell.Navbar>
 
         <AppShell.Main>
           <Stack gap="lg" style={{ flex: 1, minHeight: 0 }}>
-            {activeView === "settings" ? (
-              <SettingsPage />
-            ) : activeView === "labeling" ? (
-              selectedProjectId ? (
-                selectedProjectDocumentId ? (
-                  <LabelingWorkspacePage
-                    projectId={selectedProjectId}
-                    documentId={selectedProjectDocumentId}
-                    onBack={() => setSelectedProjectDocumentId(null)}
-                  />
-                ) : (
-                  <ProjectDetailPage
-                    projectId={selectedProjectId}
-                    onBack={() => setSelectedProjectId(null)}
-                    onOpenDocument={(documentId) =>
-                      setSelectedProjectDocumentId(documentId)
-                    }
-                  />
-                )
-              ) : (
-                <ProjectListPage
-                  onSelectProject={(projectId) =>
-                    setSelectedProjectId(projectId)
-                  }
-                />
-              )
-            ) : activeView === "review" ? (
-              activeReviewSessionId ? (
-                <ReviewWorkspacePage
-                  sessionId={activeReviewSessionId}
-                  onBack={() => {
-                    setActiveReviewSessionId(null);
-                    setReviewSessionReadOnly(false);
-                  }}
-                  readOnly={reviewSessionReadOnly}
-                />
-              ) : (
-                <ReviewQueuePage
-                  onStartSession={(sessionId, readOnly) => {
-                    setActiveReviewSessionId(sessionId);
-                    setReviewSessionReadOnly(readOnly || false);
-                  }}
-                />
-              )
-            ) : activeView === "workflows" ? (
-              workflowView === "list" ? (
-                <WorkflowListPage
-                  onEdit={(workflowId) => {
-                    setSelectedWorkflowId(workflowId);
-                    setWorkflowView("edit");
-                  }}
-                  onCreate={() => setWorkflowView("create")}
-                />
-              ) : workflowView === "create" ? (
-                <WorkflowEditorPage
-                  mode="create"
-                  onBack={() => setWorkflowView("list")}
-                  onSave={() => setWorkflowView("list")}
-                />
-              ) : workflowView === "edit" && selectedWorkflowId ? (
-                <WorkflowEditorPage
-                  mode="edit"
-                  workflowId={selectedWorkflowId}
-                  onBack={() => {
-                    setWorkflowView("list");
-                    setSelectedWorkflowId(null);
-                  }}
-                  onSave={() => {
-                    setWorkflowView("list");
-                    setSelectedWorkflowId(null);
-                  }}
-                />
-              ) : null
-            ) : (
-              <>
-                <Group justify="space-between">
-                  <Stack gap={2}>
-                    <Title order={2}>
-                      {activeView === "upload"
-                        ? "Upload documents"
-                        : "Processing monitor"}
-                    </Title>
-                    <Text c="dimmed" size="sm">
-                      {activeView === "upload"
-                        ? "Add new images and track their ingestion progress."
-                        : "View the OCR pipeline and drill into results."}
-                    </Text>
-                  </Stack>
-                  <Badge variant="outline" size="lg">
-                    {new Date().toLocaleDateString()}
-                  </Badge>
-                </Group>
+            <Routes>
+              {/* Benchmarking Routes */}
+              <Route
+                path="/benchmarking/datasets"
+                element={<DatasetListPage />}
+              />
+              <Route
+                path="/benchmarking/datasets/:id"
+                element={<DatasetDetailPage />}
+              />
+              <Route
+                path="/benchmarking/projects"
+                element={<BenchmarkProjectListPage />}
+              />
+              <Route
+                path="/benchmarking/projects/:id"
+                element={<BenchmarkProjectDetailPage />}
+              />
+              <Route
+                path="/benchmarking/projects/:id/runs/:runId"
+                element={<RunDetailPage />}
+              />
 
-                {activeView === "upload" ? (
-                  <DocumentUploadPanel />
-                ) : (
-                  <ProcessingQueue onSelectDocument={openViewer} />
-                )}
-              </>
-            )}
+              {/* Default Route - Legacy State-Based Navigation */}
+              <Route
+                path="/"
+                element={
+                  <>
+                    {activeView === "settings" ? (
+                      <SettingsPage />
+                    ) : activeView === "labeling" ? (
+                      selectedProjectId ? (
+                        selectedProjectDocumentId ? (
+                          <LabelingWorkspacePage
+                            projectId={selectedProjectId}
+                            documentId={selectedProjectDocumentId}
+                            onBack={() => setSelectedProjectDocumentId(null)}
+                          />
+                        ) : (
+                          <ProjectDetailPage
+                            projectId={selectedProjectId}
+                            onBack={() => setSelectedProjectId(null)}
+                            onOpenDocument={(documentId) =>
+                              setSelectedProjectDocumentId(documentId)
+                            }
+                          />
+                        )
+                      ) : (
+                        <ProjectListPage
+                          onSelectProject={(projectId) =>
+                            setSelectedProjectId(projectId)
+                          }
+                        />
+                      )
+                    ) : activeView === "review" ? (
+                      activeReviewSessionId ? (
+                        <ReviewWorkspacePage
+                          sessionId={activeReviewSessionId}
+                          onBack={() => {
+                            setActiveReviewSessionId(null);
+                            setReviewSessionReadOnly(false);
+                          }}
+                          readOnly={reviewSessionReadOnly}
+                        />
+                      ) : (
+                        <ReviewQueuePage
+                          onStartSession={(sessionId, readOnly) => {
+                            setActiveReviewSessionId(sessionId);
+                            setReviewSessionReadOnly(readOnly || false);
+                          }}
+                        />
+                      )
+                    ) : activeView === "workflows" ? (
+                      workflowView === "list" ? (
+                        <WorkflowListPage
+                          onEdit={(workflowId) => {
+                            setSelectedWorkflowId(workflowId);
+                            setWorkflowView("edit");
+                          }}
+                          onCreate={() => setWorkflowView("create")}
+                        />
+                      ) : workflowView === "create" ? (
+                        <WorkflowEditorPage
+                          mode="create"
+                          onBack={() => setWorkflowView("list")}
+                          onSave={() => setWorkflowView("list")}
+                        />
+                      ) : workflowView === "edit" && selectedWorkflowId ? (
+                        <WorkflowEditorPage
+                          mode="edit"
+                          workflowId={selectedWorkflowId}
+                          onBack={() => {
+                            setWorkflowView("list");
+                            setSelectedWorkflowId(null);
+                          }}
+                          onSave={() => {
+                            setWorkflowView("list");
+                            setSelectedWorkflowId(null);
+                          }}
+                        />
+                      ) : null
+                    ) : (
+                      <>
+                        <Group justify="space-between">
+                          <Stack gap={2}>
+                            <Title order={2}>
+                              {activeView === "upload"
+                                ? "Upload documents"
+                                : "Processing monitor"}
+                            </Title>
+                            <Text c="dimmed" size="sm">
+                              {activeView === "upload"
+                                ? "Add new images and track their ingestion progress."
+                                : "View the OCR pipeline and drill into results."}
+                            </Text>
+                          </Stack>
+                          <Badge variant="outline" size="lg">
+                            {new Date().toLocaleDateString()}
+                          </Badge>
+                        </Group>
+
+                        {activeView === "upload" ? (
+                          <DocumentUploadPanel />
+                        ) : (
+                          <ProcessingQueue onSelectDocument={openViewer} />
+                        )}
+                      </>
+                    )}
+                  </>
+                }
+              />
+            </Routes>
           </Stack>
         </AppShell.Main>
       </AppShell>
