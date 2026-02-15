@@ -145,3 +145,23 @@ Started: 2026-02-14
   - All 12 tests pass, total backend tests: 691 (44 test suites)
 ---
 
+## 2026-02-14 - US-026
+- What was implemented: Benchmarking Navigation & Routing
+- Files changed:
+  - apps/frontend/src/main.tsx (added BrowserRouter)
+  - apps/frontend/src/App.tsx (added benchmarking routes and sidebar)
+  - apps/frontend/src/features/benchmarking/pages/*.tsx (5 placeholder pages created)
+  - apps/frontend/src/features/benchmarking/pages/index.ts (exports)
+- **Learnings for future iterations:**
+  - Frontend uses React Router 7.9.6 for routing
+  - App.tsx uses hybrid navigation: React Router for benchmarking, state-based for legacy views
+  - Sidebar uses Mantine NavLink with nested children for collapsible sections
+  - Use useLocation() and useNavigate() hooks from react-router-dom
+  - Linter (biome) auto-fixes import ordering with npm run lint:fix
+  - Build with vite (npm run dev/build) - tsc directly has jsx flag issues but vite handles it
+  - Benchmarking routes all start with /benchmarking/* prefix
+  - Placeholder pages use Stack, Text, Title from Mantine for consistent layout
+  - Active route highlighting: check location.pathname for exact match
+  - Icons from @tabler/icons-react: IconChartBar, IconDatabase, IconFolderOpen, IconPlayerPlay
+---
+
