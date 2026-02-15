@@ -66,3 +66,27 @@ Started: 2026-02-14
   - Cleanup supports both files and directories (recursive deletion)
 ---
 
+## 2026-02-15 03:34 - US-022
+- What was implemented: Benchmark Run Workflow Orchestrator
+- Files changed:
+  - apps/temporal/src/benchmark-workflow.ts (new)
+  - apps/temporal/src/benchmark-workflow.test.ts (new)
+  - apps/temporal/src/activities/benchmark-update-run.ts (new)
+  - apps/temporal/src/activities/benchmark-materialize.ts (added loadDatasetManifest activity)
+  - apps/temporal/src/activities.ts (updated exports)
+- **Learnings for future iterations:**
+  - Workflows cannot use fs/promises or path module directly - must use activities
+  - Simple deterministic path joining can be done with helper function (joinPath)
+  - Workflow implements 7 phases: materialize, execute, evaluate, aggregate, log, update, cleanup
+  - Fan-out execution uses CancellationScope.cancellable for graceful shutdown
+  - Progress tracking via query handler (getProgress) - update state variables throughout workflow
+  - Partial failures handled gracefully - failed samples recorded but don't block completion
+  - Artifact collection based on policy: full (all outputs), failures_only (failed samples), sampled
+  - Prisma JSON fields require InputJsonValue type cast (import from generated/index)
+  - benchmarkExecuteWorkflow is a workflow-level helper (not activity) because it uses executeChild
+  - loadDatasetManifest activity added to read manifest.json (workflows can't do fs operations)
+  - Split support: filter manifest samples by split ID before processing
+  - Cancellation signal sets flag, cleanup runs in both cancel and error paths
+  - MLflow logging happens in both success and failure paths (with appropriate status)
+---
+

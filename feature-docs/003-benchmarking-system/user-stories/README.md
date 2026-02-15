@@ -117,7 +117,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 - [x] **US-019** (Workflow Execution Activity) -- depends on US-002
 - [x] **US-020** (Evaluation & Aggregation Activities) -- depends on US-014, US-015, US-016, US-017
 - [x] **US-021** (MLflow Logging & Cleanup Activities) -- depends on US-004
-- [ ] **US-022** (Benchmark Run Workflow Orchestrator) -- depends on US-018, US-019, US-020, US-021
+- [x] **US-022** (Benchmark Run Workflow Orchestrator) -- depends on US-018, US-019, US-020, US-021
 - [ ] **US-023** (Task Queue Isolation & Concurrency) -- depends on US-022
 
 ### Phase 7 -- Versioning & Operations
