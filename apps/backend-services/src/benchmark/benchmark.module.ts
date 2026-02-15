@@ -2,6 +2,7 @@ import { HttpModule } from "@nestjs/axios";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
+import { AuditLogService } from "./audit-log.service";
 import { BenchmarkArtifactService } from "./benchmark-artifact.service";
 import { BenchmarkDefinitionController } from "./benchmark-definition.controller";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
@@ -34,6 +35,7 @@ import { MLflowClientService } from "./mlflow-client.service";
     BenchmarkTemporalService,
     EvaluatorRegistryService,
     BenchmarkArtifactService,
+    AuditLogService,
   ],
   exports: [
     DatasetService,
@@ -45,6 +47,7 @@ import { MLflowClientService } from "./mlflow-client.service";
     BenchmarkTemporalService,
     EvaluatorRegistryService,
     BenchmarkArtifactService,
+    AuditLogService,
   ],
 })
 export class BenchmarkModule {}
