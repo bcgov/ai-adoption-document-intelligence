@@ -210,3 +210,27 @@ Started: 2026-02-14
   - Sample preview API: /versions/:id/samples with page and limit query params
   - Query invalidation: invalidate both list and detail queries after mutations
 ---
+
+## 2026-02-14 - US-029
+- What was implemented: Benchmark Definition CRUD UI
+- Files changed:
+  - apps/frontend/src/features/benchmarking/hooks/useProjects.ts (new)
+  - apps/frontend/src/features/benchmarking/hooks/useDefinitions.ts (new)
+  - apps/frontend/src/features/benchmarking/hooks/useWorkflows.ts (new)
+  - apps/frontend/src/features/benchmarking/hooks/useDatasetVersions.ts (added useAllDatasetVersions hook)
+  - apps/frontend/src/features/benchmarking/components/CreateDefinitionDialog.tsx (new)
+  - apps/frontend/src/features/benchmarking/components/DefinitionDetailView.tsx (new)
+  - apps/frontend/src/features/benchmarking/pages/ProjectDetailPage.tsx (updated)
+- **Learnings for future iterations:**
+  - Hook pattern: separate hooks for list (useDefinitions) and detail (useDefinition) operations
+  - Complex forms: use JSON editor (Textarea) with validation for config objects
+  - Conditional form fields: show sampleRate input only when artifactPolicyMode is "sampled"
+  - Dataset version selection: filter splits by selected version, show draft warning in dropdown
+  - Modal size "xl" for detailed views with multiple sections
+  - Code component for displaying JSON configuration with syntax highlighting
+  - useQuery enabled parameter prevents query execution when ID is missing
+  - Multiple query invalidations on mutation success to refresh list and detail views
+  - useAllDatasetVersions fetches versions across all datasets for global selection
+  - Radio.Group with Group for horizontal layout, Stack for vertical layout
+  - NumberInput with min/max/step for numeric configuration fields
+---
