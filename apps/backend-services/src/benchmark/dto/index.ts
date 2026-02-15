@@ -10,6 +10,7 @@ export * from "./definition-response.dto";
 export * from "./manifest-sample.dto";
 export * from "./paginated-dataset-response.dto";
 export * from "./project-response.dto";
+export * from "./promote-baseline.dto";
 export * from "./run-response.dto";
 export * from "./split-response.dto";
 export * from "./update-definition.dto";

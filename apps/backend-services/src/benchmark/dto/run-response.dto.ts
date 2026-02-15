@@ -5,6 +5,8 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-012-benchmark-run-service-controller.md
  */
 
+import { BaselineComparison, MetricThreshold } from "./promote-baseline.dto";
+
 /**
  * Benchmark run summary (for list view)
  */
@@ -138,6 +140,16 @@ export class RunDetailsDto {
    * Whether this is the baseline run
    */
   isBaseline: boolean;
+
+  /**
+   * Baseline thresholds (if this run is a baseline)
+   */
+  baselineThresholds: MetricThreshold[] | null;
+
+  /**
+   * Baseline comparison result (if compared against a baseline)
+   */
+  baselineComparison: BaselineComparison | null;
 
   /**
    * Creation timestamp

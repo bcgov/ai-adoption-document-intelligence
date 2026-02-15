@@ -418,25 +418,27 @@ model BenchmarkDefinition {
 }
 
 model BenchmarkRun {
-  id                 String                @id @default(uuid())
-  definitionId       String
-  definition         BenchmarkDefinition   @relation(fields: [definitionId], references: [id], onDelete: Cascade)
-  projectId          String
-  project            BenchmarkProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  status             BenchmarkRunStatus    @default(pending)
-  mlflowRunId        String
-  temporalWorkflowId String
-  workerImageDigest  String?
-  workerGitSha       String
-  startedAt          DateTime?
-  completedAt        DateTime?
-  metrics            Json                  @default("{}")
-  params             Json                  @default("{}")
-  tags               Json                  @default("{}")
-  error              String?
-  isBaseline         Boolean               @default(false)
-  createdAt          DateTime              @default(now())
-  artifacts          BenchmarkArtifact[]
+  id                   String                @id @default(uuid())
+  definitionId         String
+  definition           BenchmarkDefinition   @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  projectId            String
+  project              BenchmarkProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status               BenchmarkRunStatus    @default(pending)
+  mlflowRunId          String
+  temporalWorkflowId   String
+  workerImageDigest    String?
+  workerGitSha         String
+  startedAt            DateTime?
+  completedAt          DateTime?
+  metrics              Json                  @default("{}")
+  params               Json                  @default("{}")
+  tags                 Json                  @default("{}")
+  error                String?
+  isBaseline           Boolean               @default(false)
+  baselineThresholds   Json?
+  baselineComparison   Json?
+  createdAt            DateTime              @default(now())
+  artifacts            BenchmarkArtifact[]
 
   @@index([definitionId])
   @@index([projectId])

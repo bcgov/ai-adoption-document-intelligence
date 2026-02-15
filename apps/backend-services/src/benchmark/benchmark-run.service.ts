@@ -21,9 +21,14 @@ import { execSync } from "child_process";
 import { getPrismaPgOptions } from "@/utils/database-url";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import {
+  BaselineComparison,
   CreateRunDto,
   DrillDownResponseDto,
   FieldErrorBreakdownDto,
+  MetricComparison,
+  MetricThreshold,
+  PromoteBaselineDto,
+  PromoteBaselineResponseDto,
   RunDetailsDto,
   RunSummaryDto,
   SampleFailureDto,
@@ -79,7 +84,7 @@ export class BenchmarkRunService {
    */
   private async createAuditLog(
     runId: string,
-    action: "run_started" | "run_completed",
+    action: "run_started" | "run_completed" | "baseline_promoted",
     metadata: Record<string, unknown>,
   ): Promise<void> {
     try {
@@ -347,6 +352,8 @@ export class BenchmarkRunService {
       tags: run.tags as Record<string, unknown>,
       error: run.error,
       isBaseline: run.isBaseline,
+      baselineThresholds: run.baselineThresholds as unknown as MetricThreshold[] | null,
+      baselineComparison: run.baselineComparison as unknown as BaselineComparison | null,
       createdAt: run.createdAt,
     };
   }
@@ -467,5 +474,207 @@ export class BenchmarkRunService {
       fieldErrorBreakdown,
       errorClusters,
     };
+  }
+
+  /**
+   * Promote a run to baseline
+   *
+   * Sets the run's isBaseline flag to true, clears any previous baseline for the same definition,
+   * stores thresholds, and records an audit log.
+   */
+  async promoteToBaseline(
+    projectId: string,
+    runId: string,
+    dto: PromoteBaselineDto,
+  ): Promise<PromoteBaselineResponseDto> {
+    this.logger.log(`Promoting run ${runId} to baseline`);
+
+    // Get the run
+    const run = await this.prisma.benchmarkRun.findFirst({
+      where: {
+        id: runId,
+        projectId,
+      },
+    });
+
+    if (!run) {
+      throw new NotFoundException(
+        `Benchmark run with ID "${runId}" not found for project "${projectId}"`,
+      );
+    }
+
+    // Only completed runs can be promoted to baseline
+    if (run.status !== "completed") {
+      throw new BadRequestException(
+        `Only completed runs can be promoted to baseline. Run status is "${run.status}".`,
+      );
+    }
+
+    // Find the previous baseline for this definition
+    const previousBaseline = await this.prisma.benchmarkRun.findFirst({
+      where: {
+        definitionId: run.definitionId,
+        isBaseline: true,
+      },
+    });
+
+    // Update previous baseline to clear its baseline flag
+    if (previousBaseline) {
+      await this.prisma.benchmarkRun.update({
+        where: { id: previousBaseline.id },
+        data: { isBaseline: false },
+      });
+      this.logger.log(
+        `Cleared baseline flag from previous baseline run ${previousBaseline.id}`,
+      );
+    }
+
+    // Promote the run to baseline
+    await this.prisma.benchmarkRun.update({
+      where: { id: runId },
+      data: {
+        isBaseline: true,
+        baselineThresholds: dto.thresholds
+          ? (dto.thresholds as never)
+          : null,
+      },
+    });
+
+    // Create audit log
+    await this.createAuditLog(runId, "baseline_promoted" as never, {
+      definitionId: run.definitionId,
+      previousBaselineId: previousBaseline?.id || null,
+      thresholds: dto.thresholds || null,
+    });
+
+    this.logger.log(`Run ${runId} promoted to baseline`);
+
+    return {
+      runId,
+      isBaseline: true,
+      previousBaselineId: previousBaseline?.id || null,
+      thresholds: dto.thresholds || null,
+    };
+  }
+
+  /**
+   * Compare a run against the baseline for its definition
+   *
+   * This is called when a run completes to check if it regresses below baseline thresholds.
+   */
+  async compareAgainstBaseline(
+    runId: string,
+  ): Promise<BaselineComparison | null> {
+    this.logger.log(`Comparing run ${runId} against baseline`);
+
+    // Get the run
+    const run = await this.prisma.benchmarkRun.findUnique({
+      where: { id: runId },
+    });
+
+    if (!run) {
+      throw new NotFoundException(`Run with ID "${runId}" not found`);
+    }
+
+    // Find the baseline run for this definition
+    const baseline = await this.prisma.benchmarkRun.findFirst({
+      where: {
+        definitionId: run.definitionId,
+        isBaseline: true,
+      },
+    });
+
+    // No baseline exists yet
+    if (!baseline) {
+      this.logger.debug(
+        `No baseline found for definition ${run.definitionId}`,
+      );
+      return null;
+    }
+
+    // Don't compare baseline against itself
+    if (baseline.id === runId) {
+      this.logger.debug("Run is the baseline itself, skipping comparison");
+      return null;
+    }
+
+    const currentMetrics = run.metrics as Record<string, unknown>;
+    const baselineMetrics = baseline.metrics as Record<string, unknown>;
+    const thresholds = (baseline.baselineThresholds as unknown as MetricThreshold[]) || [];
+
+    const metricComparisons: MetricComparison[] = [];
+    const regressedMetrics: string[] = [];
+
+    // Compare each metric that exists in both runs
+    for (const metricName of Object.keys(currentMetrics)) {
+      const currentValue = currentMetrics[metricName];
+      const baselineValue = baselineMetrics[metricName];
+
+      // Skip non-numeric metrics
+      if (
+        typeof currentValue !== "number" ||
+        typeof baselineValue !== "number"
+      ) {
+        continue;
+      }
+
+      const delta = currentValue - baselineValue;
+      const deltaPercent =
+        baselineValue !== 0 ? (delta / baselineValue) * 100 : 0;
+
+      // Find threshold for this metric
+      const threshold = thresholds.find((t) => t.metricName === metricName);
+
+      let passed = true;
+
+      if (threshold) {
+        if (threshold.type === "absolute") {
+          // Absolute threshold: current value must be >= threshold value
+          passed = currentValue >= threshold.value;
+        } else if (threshold.type === "relative") {
+          // Relative threshold: current value must be >= (baseline * threshold value)
+          passed = currentValue >= baselineValue * threshold.value;
+        }
+
+        if (!passed) {
+          regressedMetrics.push(metricName);
+        }
+      }
+
+      metricComparisons.push({
+        metricName,
+        currentValue,
+        baselineValue,
+        delta,
+        deltaPercent,
+        passed,
+        threshold,
+      });
+    }
+
+    const comparison: BaselineComparison = {
+      baselineRunId: baseline.id,
+      overallPassed: regressedMetrics.length === 0,
+      metricComparisons,
+      regressedMetrics,
+    };
+
+    // Update the run with comparison results
+    await this.prisma.benchmarkRun.update({
+      where: { id: runId },
+      data: {
+        baselineComparison: comparison as never,
+        tags: {
+          ...(run.tags as Record<string, unknown>),
+          ...(regressedMetrics.length > 0 ? { regression: "true" } : {}),
+        } as never,
+      },
+    });
+
+    this.logger.log(
+      `Baseline comparison complete: ${regressedMetrics.length > 0 ? `FAILED (${regressedMetrics.join(", ")})` : "PASSED"}`,
+    );
+
+    return comparison;
   }
 }

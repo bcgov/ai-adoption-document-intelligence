@@ -28,6 +28,7 @@ jest.mock("@generated/client", () => {
         create: jest.fn(),
         update: jest.fn(),
         findFirst: jest.fn(),
+        findUnique: jest.fn(),
         findMany: jest.fn(),
       },
       benchmarkAuditLog: {
@@ -659,6 +660,270 @@ describe("BenchmarkRunService", () => {
       await expect(service.getDrillDown("project-1", "run-1")).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  describe("promoteToBaseline", () => {
+    it("should promote a completed run to baseline", async () => {
+      const completedRun = {
+        ...mockRun,
+        status: "completed",
+        isBaseline: false,
+      };
+
+      (prisma.benchmarkRun.findFirst as jest.Mock)
+        .mockResolvedValueOnce(completedRun)  // First call: get the run to promote
+        .mockResolvedValueOnce(null);  // Second call: find previous baseline (none exists)
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...completedRun,
+        isBaseline: true,
+      });
+
+      const thresholds = [
+        { metricName: "f1", type: "relative" as const, value: 0.95 },
+        { metricName: "precision", type: "absolute" as const, value: 0.9 },
+      ];
+
+      const result = await service.promoteToBaseline("project-1", "run-1", {
+        thresholds,
+      });
+
+      expect(result).toEqual({
+        runId: "run-1",
+        isBaseline: true,
+        previousBaselineId: null,
+        thresholds,
+      });
+
+      expect(prisma.benchmarkRun.update).toHaveBeenCalledWith({
+        where: { id: "run-1" },
+        data: {
+          isBaseline: true,
+          baselineThresholds: thresholds,
+        },
+      });
+    });
+
+    it("should clear previous baseline when promoting a new one", async () => {
+      const completedRun = {
+        ...mockRun,
+        status: "completed",
+        isBaseline: false,
+      };
+
+      const previousBaseline = {
+        id: "baseline-run-1",
+        definitionId: "def-1",
+        isBaseline: true,
+      };
+
+      (prisma.benchmarkRun.findFirst as jest.Mock)
+        .mockResolvedValueOnce(completedRun)
+        .mockResolvedValueOnce(previousBaseline);
+
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...completedRun,
+        isBaseline: true,
+      });
+
+      const result = await service.promoteToBaseline("project-1", "run-1", {});
+
+      expect(result.previousBaselineId).toBe("baseline-run-1");
+
+      // Should clear previous baseline
+      expect(prisma.benchmarkRun.update).toHaveBeenCalledWith({
+        where: { id: "baseline-run-1" },
+        data: { isBaseline: false },
+      });
+
+      // Should promote new baseline
+      expect(prisma.benchmarkRun.update).toHaveBeenCalledWith({
+        where: { id: "run-1" },
+        data: {
+          isBaseline: true,
+          baselineThresholds: null,
+        },
+      });
+    });
+
+    it("should throw NotFoundException if run does not exist", async () => {
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.promoteToBaseline("project-1", "run-1", {}),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw BadRequestException if run is not completed", async () => {
+      const runningRun = {
+        ...mockRun,
+        status: "running",
+      };
+
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        runningRun,
+      );
+
+      await expect(
+        service.promoteToBaseline("project-1", "run-1", {}),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe("compareAgainstBaseline", () => {
+    it("should return null if no baseline exists", async () => {
+      const completedRun = {
+        ...mockRun,
+        status: "completed",
+        metrics: { f1: 0.95, precision: 0.92 },
+      };
+
+      (prisma.benchmarkRun.findUnique as jest.Mock).mockResolvedValue(
+        completedRun,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(null);
+
+      const result = await service.compareAgainstBaseline("run-1");
+
+      expect(result).toBeNull();
+    });
+
+    it("should return null when comparing baseline against itself", async () => {
+      const baselineRun = {
+        ...mockRun,
+        id: "run-1",
+        status: "completed",
+        isBaseline: true,
+        metrics: { f1: 0.95 },
+      };
+
+      (prisma.benchmarkRun.findUnique as jest.Mock).mockResolvedValue(
+        baselineRun,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        baselineRun,
+      );
+
+      const result = await service.compareAgainstBaseline("run-1");
+
+      expect(result).toBeNull();
+    });
+
+    it("should compare metrics with relative thresholds", async () => {
+      const baselineRun = {
+        id: "baseline-run",
+        definitionId: "def-1",
+        status: "completed",
+        isBaseline: true,
+        metrics: { f1: 0.9, precision: 0.85 },
+        baselineThresholds: [
+          { metricName: "f1", type: "relative", value: 0.95 }, // 95% of baseline
+        ],
+      };
+
+      const currentRun = {
+        ...mockRun,
+        id: "run-1",
+        status: "completed",
+        metrics: { f1: 0.84, precision: 0.88 }, // f1 regressed below 95% (0.9 * 0.95 = 0.855, so 0.84 < 0.855)
+        tags: {},
+      };
+
+      (prisma.benchmarkRun.findUnique as jest.Mock).mockResolvedValue(
+        currentRun,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        baselineRun,
+      );
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue(currentRun);
+
+      const result = await service.compareAgainstBaseline("run-1");
+
+      expect(result).toBeDefined();
+      expect(result?.baselineRunId).toBe("baseline-run");
+      expect(result?.overallPassed).toBe(false);
+      expect(result?.regressedMetrics).toContain("f1");
+
+      // Should update run with comparison and regression tag
+      expect(prisma.benchmarkRun.update).toHaveBeenCalledWith({
+        where: { id: "run-1" },
+        data: {
+          baselineComparison: expect.any(Object),
+          tags: { regression: "true" },
+        },
+      });
+    });
+
+    it("should compare metrics with absolute thresholds", async () => {
+      const baselineRun = {
+        id: "baseline-run",
+        definitionId: "def-1",
+        status: "completed",
+        isBaseline: true,
+        metrics: { precision: 0.92 },
+        baselineThresholds: [
+          { metricName: "precision", type: "absolute", value: 0.9 }, // Must be >= 0.9
+        ],
+      };
+
+      const currentRun = {
+        ...mockRun,
+        id: "run-1",
+        status: "completed",
+        metrics: { precision: 0.91 }, // Passes absolute threshold
+        tags: {},
+      };
+
+      (prisma.benchmarkRun.findUnique as jest.Mock).mockResolvedValue(
+        currentRun,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        baselineRun,
+      );
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue(currentRun);
+
+      const result = await service.compareAgainstBaseline("run-1");
+
+      expect(result).toBeDefined();
+      expect(result?.overallPassed).toBe(true);
+      expect(result?.regressedMetrics).toHaveLength(0);
+    });
+
+    it("should calculate deltas correctly", async () => {
+      const baselineRun = {
+        id: "baseline-run",
+        definitionId: "def-1",
+        status: "completed",
+        isBaseline: true,
+        metrics: { f1: 0.8 },
+        baselineThresholds: [],
+      };
+
+      const currentRun = {
+        ...mockRun,
+        id: "run-1",
+        status: "completed",
+        metrics: { f1: 0.9 }, // 0.1 improvement
+        tags: {},
+      };
+
+      (prisma.benchmarkRun.findUnique as jest.Mock).mockResolvedValue(
+        currentRun,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        baselineRun,
+      );
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue(currentRun);
+
+      const result = await service.compareAgainstBaseline("run-1");
+
+      expect(result).toBeDefined();
+      expect(result?.metricComparisons).toHaveLength(1);
+      expect(result?.metricComparisons[0].metricName).toBe("f1");
+      expect(result?.metricComparisons[0].currentValue).toBe(0.9);
+      expect(result?.metricComparisons[0].baselineValue).toBe(0.8);
+      expect(result?.metricComparisons[0].delta).toBeCloseTo(0.1, 5);
+      expect(result?.metricComparisons[0].deltaPercent).toBeCloseTo(12.5, 5);
     });
   });
 });

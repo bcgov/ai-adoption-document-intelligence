@@ -13,6 +13,29 @@ interface RunSummary {
   headlineMetrics: Record<string, unknown> | null;
 }
 
+interface MetricThreshold {
+  metricName: string;
+  type: "absolute" | "relative";
+  value: number;
+}
+
+interface MetricComparison {
+  metricName: string;
+  currentValue: number;
+  baselineValue: number;
+  delta: number;
+  deltaPercent: number;
+  passed: boolean;
+  threshold?: MetricThreshold;
+}
+
+interface BaselineComparison {
+  baselineRunId: string;
+  overallPassed: boolean;
+  metricComparisons: MetricComparison[];
+  regressedMetrics: string[];
+}
+
 interface RunDetails {
   id: string;
   definitionId: string;
@@ -30,6 +53,8 @@ interface RunDetails {
   tags: Record<string, unknown>;
   error: string | null;
   isBaseline: boolean;
+  baselineThresholds: MetricThreshold[] | null;
+  baselineComparison: BaselineComparison | null;
   createdAt: string;
 }
 
@@ -214,3 +239,47 @@ export const useArtifacts = (
     error: artifactsQuery.error,
   };
 };
+
+// Baseline management
+
+interface PromoteBaselineDto {
+  thresholds?: MetricThreshold[];
+}
+
+interface PromoteBaselineResponse {
+  runId: string;
+  isBaseline: boolean;
+  previousBaselineId: string | null;
+  thresholds: MetricThreshold[] | null;
+}
+
+export const usePromoteBaseline = (projectId: string, runId: string) => {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async (dto: PromoteBaselineDto) => {
+      const response = await apiService.post<PromoteBaselineResponse>(
+        `/benchmark/projects/${projectId}/runs/${runId}/baseline`,
+        dto,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate queries to refresh run details
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-run", projectId, runId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-runs", projectId],
+      });
+    },
+  });
+
+  return {
+    promoteToBaseline: mutation.mutate,
+    isPromoting: mutation.isPending,
+    error: mutation.error,
+  };
+};
+
+export type { MetricThreshold, BaselineComparison, MetricComparison };

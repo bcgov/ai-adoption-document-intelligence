@@ -89,6 +89,10 @@ type BenchmarkActivities = {
     error?: string;
     completedAt?: Date;
   }) => Promise<void>;
+
+  'benchmark.compareAgainstBaseline': (params: {
+    runId: string;
+  }) => Promise<unknown>;
 };
 
 // Default activity options for benchmark activities
@@ -632,6 +636,26 @@ export async function benchmarkRunWorkflow(
       metrics: aggregatedMetrics,
       completedAt: new Date(),
     });
+
+    // ---------------------------------------------------------------------------
+    // Phase 6a: Compare Against Baseline
+    // ---------------------------------------------------------------------------
+    try {
+      await customActivities['benchmark.compareAgainstBaseline']({
+        runId,
+      });
+    } catch (error) {
+      // Don't fail the run if baseline comparison fails
+      console.error(
+        JSON.stringify({
+          workflow: 'benchmarkRunWorkflow',
+          event: 'baseline_comparison_failed',
+          runId,
+          error: error instanceof Error ? error.message : String(error),
+          timestamp: new Date().toISOString(),
+        }),
+      );
+    }
 
     // ---------------------------------------------------------------------------
     // Phase 7: Cleanup

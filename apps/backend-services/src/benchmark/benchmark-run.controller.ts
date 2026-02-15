@@ -25,6 +25,8 @@ import {
   ArtifactListResponseDto,
   CreateRunDto,
   DrillDownResponseDto,
+  PromoteBaselineDto,
+  PromoteBaselineResponseDto,
   RunDetailsDto,
   RunSummaryDto,
 } from "./dto";
@@ -136,5 +138,27 @@ export class BenchmarkRunController {
       `GET /api/benchmark/projects/${projectId}/runs/${runId}/artifacts${type ? `?type=${type}` : ""}`,
     );
     return this.benchmarkArtifactService.listArtifacts(projectId, runId, type);
+  }
+
+  /**
+   * Promote a run to baseline
+   *
+   * POST /api/benchmark/projects/:projectId/runs/:runId/baseline
+   */
+  @Post("runs/:runId/baseline")
+  @HttpCode(HttpStatus.OK)
+  async promoteToBaseline(
+    @Param("projectId") projectId: string,
+    @Param("runId") runId: string,
+    @Body() promoteBaselineDto: PromoteBaselineDto,
+  ): Promise<PromoteBaselineResponseDto> {
+    this.logger.log(
+      `POST /api/benchmark/projects/${projectId}/runs/${runId}/baseline`,
+    );
+    return this.benchmarkRunService.promoteToBaseline(
+      projectId,
+      runId,
+      promoteBaselineDto,
+    );
   }
 }

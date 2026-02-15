@@ -14,13 +14,20 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { IconAlertCircle, IconExternalLink, IconX } from "@tabler/icons-react";
+import {
+  IconAlertCircle,
+  IconCheck,
+  IconExternalLink,
+  IconTrophy,
+  IconX,
+} from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useProject } from "../hooks/useProjects";
 import {
   useArtifacts,
   useDrillDown,
+  usePromoteBaseline,
   useRun,
   useStartRun,
 } from "../hooks/useRuns";
@@ -91,10 +98,19 @@ export function RunDetailPage() {
     run?.definitionId || "",
   );
 
+  const { promoteToBaseline, isPromoting } = usePromoteBaseline(
+    projectId,
+    runId || "",
+  );
+
   const handleRerun = async () => {
     if (!run) return;
     const newRun = await startRun({});
     navigate(`/benchmarking/projects/${projectId}/runs/${newRun.id}`);
+  };
+
+  const handlePromoteBaseline = () => {
+    promoteToBaseline({});
   };
 
   if (isLoading) {
@@ -115,6 +131,7 @@ export function RunDetailPage() {
 
   const canCancel = run.status === "running" || run.status === "pending";
   const canRerun = run.status === "completed" || run.status === "failed";
+  const canPromoteBaseline = run.status === "completed" && !run.isBaseline;
   const temporalUrl = `http://localhost:8088/namespaces/default/workflows/${run.temporalWorkflowId}`;
   const mlflowUrl = project?.mlflowExperimentId
     ? `http://localhost:5000/#/experiments/${project.mlflowExperimentId}/runs/${run.mlflowRunId}`
@@ -153,6 +170,16 @@ export function RunDetailPage() {
                 Cancel
               </Button>
             )}
+            {canPromoteBaseline && (
+              <Button
+                color="yellow"
+                leftSection={<IconTrophy size={16} />}
+                onClick={handlePromoteBaseline}
+                loading={isPromoting}
+              >
+                Promote to Baseline
+              </Button>
+            )}
             {canRerun && (
               <Button onClick={handleRerun} loading={isStarting}>
                 Re-run
@@ -165,6 +192,47 @@ export function RunDetailPage() {
       {run.error && (
         <Alert icon={<IconAlertCircle size={16} />} color="red" title="Error">
           {run.error}
+        </Alert>
+      )}
+
+      {run.baselineComparison && (
+        <Alert
+          icon={
+            run.baselineComparison.overallPassed ? (
+              <IconCheck size={16} />
+            ) : (
+              <IconAlertCircle size={16} />
+            )
+          }
+          color={run.baselineComparison.overallPassed ? "green" : "orange"}
+          title={
+            run.baselineComparison.overallPassed
+              ? "Baseline Comparison: PASSED"
+              : "Baseline Comparison: REGRESSION DETECTED"
+          }
+        >
+          {run.baselineComparison.overallPassed ? (
+            <Text>
+              All metrics meet or exceed the baseline thresholds. This run
+              performs as well or better than the baseline run{" "}
+              <Code>{run.baselineComparison.baselineRunId}</Code>.
+            </Text>
+          ) : (
+            <Stack gap="xs">
+              <Text>
+                Some metrics have regressed below baseline thresholds. Baseline
+                run: <Code>{run.baselineComparison.baselineRunId}</Code>
+              </Text>
+              <Text fw={500}>Regressed metrics:</Text>
+              <Group gap="xs">
+                {run.baselineComparison.regressedMetrics.map((metric) => (
+                  <Badge key={metric} color="red">
+                    {metric}
+                  </Badge>
+                ))}
+              </Group>
+            </Stack>
+          )}
         </Alert>
       )}
 
@@ -265,6 +333,76 @@ export function RunDetailPage() {
           </Table>
         </Stack>
       </Card>
+
+      {run.status === "completed" && run.baselineComparison && (
+        <Card>
+          <Stack gap="md">
+            <Title order={3}>Baseline Comparison</Title>
+            <Text c="dimmed" size="sm">
+              Comparing against baseline run:{" "}
+              <Code>{run.baselineComparison.baselineRunId}</Code>
+            </Text>
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Metric</Table.Th>
+                  <Table.Th>Current</Table.Th>
+                  <Table.Th>Baseline</Table.Th>
+                  <Table.Th>Delta</Table.Th>
+                  <Table.Th>Delta %</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {run.baselineComparison.metricComparisons.map((comparison) => (
+                  <Table.Tr key={comparison.metricName}>
+                    <Table.Td fw={500}>{comparison.metricName}</Table.Td>
+                    <Table.Td>
+                      <Code>{comparison.currentValue.toFixed(4)}</Code>
+                    </Table.Td>
+                    <Table.Td>
+                      <Code>{comparison.baselineValue.toFixed(4)}</Code>
+                    </Table.Td>
+                    <Table.Td>
+                      <Code
+                        c={
+                          comparison.delta > 0
+                            ? "green"
+                            : comparison.delta < 0
+                              ? "red"
+                              : undefined
+                        }
+                      >
+                        {comparison.delta > 0 ? "+" : ""}
+                        {comparison.delta.toFixed(4)}
+                      </Code>
+                    </Table.Td>
+                    <Table.Td>
+                      <Code
+                        c={
+                          comparison.deltaPercent > 0
+                            ? "green"
+                            : comparison.deltaPercent < 0
+                              ? "red"
+                              : undefined
+                        }
+                      >
+                        {comparison.deltaPercent > 0 ? "+" : ""}
+                        {comparison.deltaPercent.toFixed(2)}%
+                      </Code>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge color={comparison.passed ? "green" : "red"}>
+                        {comparison.passed ? "PASS" : "FAIL"}
+                      </Badge>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Stack>
+        </Card>
+      )}
 
       {run.status === "completed" && run.metrics && (
         <Card>

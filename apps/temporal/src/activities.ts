@@ -51,5 +51,8 @@ export type {
 export { benchmarkUpdateRunStatus } from './activities/benchmark-update-run';
 export type { BenchmarkUpdateRunStatusInput } from './activities/benchmark-update-run';
 
+export { benchmarkCompareAgainstBaseline } from './activities/benchmark-baseline-comparison';
+export type { BenchmarkBaselineComparisonInput } from './activities/benchmark-baseline-comparison';
+
 export { materializeDataset, loadDatasetManifest } from './activities/benchmark-materialize';
 export type { DatasetManifest } from './activities/benchmark-materialize';
