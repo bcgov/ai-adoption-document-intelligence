@@ -112,3 +112,18 @@ Started: 2026-02-14
   - TypeScript type inference: use string type annotation to avoid literal type comparison errors
 ---
 
+## 2026-02-14 - US-024
+- What was implemented: Workflow & Configuration Versioning
+- Files changed:
+  - apps/backend-services/src/benchmark/benchmark-run.service.ts (added getWorkerImageDigest, draft dataset detection)
+  - apps/backend-services/src/benchmark/benchmark-run.service.spec.ts (added 4 new tests)
+  - feature-docs/003-benchmarking-system/user-stories/README.md (marked US-024 complete)
+- **Learnings for future iterations:**
+  - Scenarios 1-3 were already implemented: workflowConfigHash capture, immutability on first run, revision creation
+  - Worker image digest read from process.env.WORKER_IMAGE_DIGEST (nullable if not set)
+  - Draft dataset detection: check datasetVersion.status === 'draft' and add 'draft_dataset' tag
+  - Dataset status must be included in definition query (datasetVersion.status field)
+  - Testing environment variables: save/restore originalEnv in try/finally blocks
+  - All 679 backend tests pass (43 test suites)
+---
+

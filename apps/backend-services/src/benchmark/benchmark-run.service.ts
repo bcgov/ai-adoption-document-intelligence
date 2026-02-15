@@ -63,6 +63,18 @@ export class BenchmarkRunService {
   }
 
   /**
+   * Get the worker image digest from environment variable
+   */
+  private getWorkerImageDigest(): string | null {
+    const digest = process.env.WORKER_IMAGE_DIGEST;
+    if (!digest) {
+      this.logger.debug("WORKER_IMAGE_DIGEST environment variable not set");
+      return null;
+    }
+    return digest;
+  }
+
+  /**
    * Create audit log entry
    */
   private async createAuditLog(
@@ -129,8 +141,21 @@ export class BenchmarkRunService {
       );
     }
 
-    // Get worker git SHA
+    // Get worker git SHA and image digest
     const workerGitSha = this.getWorkerGitSha();
+    const workerImageDigest = this.getWorkerImageDigest();
+
+    // Check if dataset version is draft and prepare tags
+    const isDraftDataset = definition.datasetVersion.status === "draft";
+    if (isDraftDataset) {
+      this.logger.warn(
+        `Dataset version ${definition.datasetVersionId} has status 'draft'. Run will be tagged with 'draft_dataset'.`,
+      );
+    }
+    const runTags = {
+      ...(dto.tags || {}),
+      ...(isDraftDataset ? { draft_dataset: "true" } : {}),
+    };
 
     // Create MLflow run
     const mlflowRunId = await this.mlflowClient.createRun(
@@ -147,13 +172,14 @@ export class BenchmarkRunService {
         mlflowRunId,
         temporalWorkflowId: "", // Will be updated after starting workflow
         workerGitSha,
+        workerImageDigest,
         params: {
           runtimeSettings: {
             ...(definition.runtimeSettings as Record<string, unknown>),
             ...(dto.runtimeSettingsOverride || {}),
           },
         } as never,
-        tags: (dto.tags || {}) as never,
+        tags: runTags as never,
       },
       include: {
         definition: true,

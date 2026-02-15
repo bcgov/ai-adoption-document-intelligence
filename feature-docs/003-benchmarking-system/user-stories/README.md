@@ -121,7 +121,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 - [x] **US-023** (Task Queue Isolation & Concurrency) -- depends on US-022
 
 ### Phase 7 -- Versioning & Operations
-- [ ] **US-024** (Workflow & Configuration Versioning) -- depends on US-011, US-012
+- [x] **US-024** (Workflow & Configuration Versioning) -- depends on US-011, US-012
 - [ ] **US-025** (Audit Logging) -- depends on US-002
 
 ### Phase 8 -- Frontend (Phase 1)

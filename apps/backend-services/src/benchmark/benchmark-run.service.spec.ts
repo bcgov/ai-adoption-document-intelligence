@@ -77,6 +77,7 @@ describe("BenchmarkRunService", () => {
     datasetVersion: {
       id: "ds-version-1",
       version: "v1.0.0",
+      status: "published",
       dataset: {
         name: "Test Dataset",
       },
@@ -254,6 +255,195 @@ describe("BenchmarkRunService", () => {
           data: expect.objectContaining({
             status: "failed",
             error: expect.stringContaining("Temporal error"),
+          }),
+        }),
+      );
+    });
+
+    it("should capture worker image digest when WORKER_IMAGE_DIGEST env var is set", async () => {
+      const originalEnv = process.env.WORKER_IMAGE_DIGEST;
+      process.env.WORKER_IMAGE_DIGEST = "sha256:abc123def456";
+
+      try {
+        (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+          mockDefinition,
+        );
+        (mlflowClient.createRun as jest.Mock).mockResolvedValue("mlflow-run-1");
+        (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+          ...mockRun,
+          workerImageDigest: "sha256:abc123def456",
+        });
+        (
+          benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+        ).mockResolvedValue("benchmark-run-run-1");
+        (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+          ...mockRun,
+          workerImageDigest: "sha256:abc123def456",
+          temporalWorkflowId: "benchmark-run-run-1",
+          status: "running",
+        });
+        (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+          mockDefinition,
+        );
+        (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+          ...mockRun,
+          workerImageDigest: "sha256:abc123def456",
+          temporalWorkflowId: "benchmark-run-run-1",
+          status: "running",
+          definition: {
+            name: "Test Definition",
+          },
+        });
+
+        await service.startRun("project-1", "def-1", {});
+
+        // Verify worker image digest was captured in create call
+        expect(prisma.benchmarkRun.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              workerImageDigest: "sha256:abc123def456",
+            }),
+          }),
+        );
+      } finally {
+        if (originalEnv === undefined) {
+          delete process.env.WORKER_IMAGE_DIGEST;
+        } else {
+          process.env.WORKER_IMAGE_DIGEST = originalEnv;
+        }
+      }
+    });
+
+    it("should set workerImageDigest to null when WORKER_IMAGE_DIGEST env var is not set", async () => {
+      const originalEnv = process.env.WORKER_IMAGE_DIGEST;
+      delete process.env.WORKER_IMAGE_DIGEST;
+
+      try {
+        (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+          mockDefinition,
+        );
+        (mlflowClient.createRun as jest.Mock).mockResolvedValue("mlflow-run-1");
+        (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue(mockRun);
+        (
+          benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+        ).mockResolvedValue("benchmark-run-run-1");
+        (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+          ...mockRun,
+          temporalWorkflowId: "benchmark-run-run-1",
+          status: "running",
+        });
+        (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+          mockDefinition,
+        );
+        (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+          ...mockRun,
+          temporalWorkflowId: "benchmark-run-run-1",
+          status: "running",
+          definition: {
+            name: "Test Definition",
+          },
+        });
+
+        await service.startRun("project-1", "def-1", {});
+
+        // Verify worker image digest is null
+        expect(prisma.benchmarkRun.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              workerImageDigest: null,
+            }),
+          }),
+        );
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env.WORKER_IMAGE_DIGEST = originalEnv;
+        }
+      }
+    });
+
+    it("should add draft_dataset tag when dataset version status is draft", async () => {
+      const draftDefinition = {
+        ...mockDefinition,
+        datasetVersion: {
+          ...mockDefinition.datasetVersion,
+          status: "draft",
+        },
+      };
+
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        draftDefinition,
+      );
+      (mlflowClient.createRun as jest.Mock).mockResolvedValue("mlflow-run-1");
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue(mockRun);
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        draftDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+        definition: {
+          name: "Test Definition",
+        },
+      });
+
+      await service.startRun("project-1", "def-1", {});
+
+      // Verify draft_dataset tag was added
+      expect(prisma.benchmarkRun.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            tags: expect.objectContaining({
+              draft_dataset: "true",
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("should not add draft_dataset tag when dataset version status is published", async () => {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (mlflowClient.createRun as jest.Mock).mockResolvedValue("mlflow-run-1");
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue(mockRun);
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+        definition: {
+          name: "Test Definition",
+        },
+      });
+
+      await service.startRun("project-1", "def-1", {});
+
+      // Verify draft_dataset tag was NOT added
+      expect(prisma.benchmarkRun.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            tags: expect.not.objectContaining({
+              draft_dataset: expect.anything(),
+            }),
           }),
         }),
       );
