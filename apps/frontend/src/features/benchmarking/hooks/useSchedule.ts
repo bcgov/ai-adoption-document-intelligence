@@ -54,10 +54,9 @@ export function useScheduleInfo(projectId: string, definitionId: string) {
   return useQuery({
     queryKey: ["schedule-info", projectId, definitionId],
     queryFn: async () => {
-      const response =
-        await apiService.get<ScheduleInfo | null>(
-          `/api/benchmark/projects/${projectId}/definitions/${definitionId}/schedule`,
-        );
+      const response = await apiService.get<ScheduleInfo | null>(
+        `/api/benchmark/projects/${projectId}/definitions/${definitionId}/schedule`,
+      );
       return response.data;
     },
     enabled: !!projectId && !!definitionId,

@@ -1,4 +1,12 @@
-import { Badge, Button, Group, Stack, Switch, Text, TextInput } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Group,
+  Stack,
+  Switch,
+  Text,
+  TextInput,
+} from "@mantine/core";
 import { IconClock } from "@tabler/icons-react";
 import { useState } from "react";
 import type { ScheduleConfig as ScheduleConfigType } from "../hooks/useSchedule";
@@ -44,7 +52,9 @@ export function ScheduleConfig({
     try {
       await configureSchedule.mutateAsync(config);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to configure schedule");
+      setError(
+        err instanceof Error ? err.message : "Failed to configure schedule",
+      );
     }
   };
 

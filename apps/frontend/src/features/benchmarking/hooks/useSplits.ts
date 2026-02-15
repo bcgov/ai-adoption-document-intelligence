@@ -39,7 +39,10 @@ export interface UpdateSplitRequest {
 /**
  * Hook to list all splits for a dataset version
  */
-export function useSplits(datasetId: string | undefined, versionId: string | undefined) {
+export function useSplits(
+  datasetId: string | undefined,
+  versionId: string | undefined,
+) {
   return useQuery({
     queryKey: ["datasets", datasetId, "versions", versionId, "splits"],
     queryFn: async () => {
@@ -120,7 +123,14 @@ export function useUpdateSplit(
         queryKey: ["datasets", datasetId, "versions", versionId, "splits"],
       });
       queryClient.invalidateQueries({
-        queryKey: ["datasets", datasetId, "versions", versionId, "splits", splitId],
+        queryKey: [
+          "datasets",
+          datasetId,
+          "versions",
+          versionId,
+          "splits",
+          splitId,
+        ],
       });
     },
   });
@@ -148,7 +158,14 @@ export function useFreezeSplit(
         queryKey: ["datasets", datasetId, "versions", versionId, "splits"],
       });
       queryClient.invalidateQueries({
-        queryKey: ["datasets", datasetId, "versions", versionId, "splits", splitId],
+        queryKey: [
+          "datasets",
+          datasetId,
+          "versions",
+          versionId,
+          "splits",
+          splitId,
+        ],
       });
     },
   });

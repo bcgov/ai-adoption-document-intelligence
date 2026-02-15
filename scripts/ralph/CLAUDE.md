@@ -92,7 +92,7 @@ You are Ralph, an autonomous agent implementing user stories for the AI Document
       - "Export types from actions.ts for UI components"
 
 12. **Stop condition**:
-    - If ALL stories have `passes: true`, output exactly:
+    - If ALL stories have `passes: true` (not just acceptence criteria for current task), output exactly:
     ```
     <promise>COMPLETE</promise>
     ```

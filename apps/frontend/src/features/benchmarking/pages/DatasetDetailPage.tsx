@@ -160,9 +160,7 @@ export function DatasetDetailPage() {
               <Tabs.Tab value={selectedVersionId}>Sample Preview</Tabs.Tab>
             )}
             {selectedVersionId && (
-              <Tabs.Tab value={`splits-${selectedVersionId}`}>
-                Splits
-              </Tabs.Tab>
+              <Tabs.Tab value={`splits-${selectedVersionId}`}>Splits</Tabs.Tab>
             )}
           </Tabs.List>
 

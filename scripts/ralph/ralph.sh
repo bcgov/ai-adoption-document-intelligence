@@ -40,7 +40,7 @@ ARCHIVE_DIR="$SCRIPT_DIR/archive"
 LAST_BRANCH_FILE="$SCRIPT_DIR/.last-branch"
 
 # ---- NEW: Claude capacity guard ----
-CLAUDE_USAGE_THRESHOLD="${CLAUDE_USAGE_THRESHOLD:-90}"   # percent
+CLAUDE_USAGE_THRESHOLD="${CLAUDE_USAGE_THRESHOLD:-85}"   # percent
 CLAUDE_CREDS_FILE="${CLAUDE_CREDS_FILE:-$HOME/.claude/.credentials.json}"
 CLAUDE_RESET_BUFFER_SECONDS="${CLAUDE_RESET_BUFFER_SECONDS:-15}"  # extra cushion
 
@@ -213,7 +213,7 @@ for i in $(seq 1 $MAX_ITERATIONS); do
     OUTPUT=$(claude --dangerously-skip-permissions --print < "$SCRIPT_DIR/CLAUDE.md" 2>&1 | tee /dev/stderr) || true
   fi
 
-  if echo "$OUTPUT" | grep -q "<promise>COMPLETE</promise>"; then
+  if echo "$OUTPUT" | grep -q "^<promise>COMPLETE</promise>$"; then
     echo ""
     echo "Ralph completed all tasks!"
     echo "Completed at iteration $i of $MAX_ITERATIONS"

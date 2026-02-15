@@ -57,7 +57,7 @@ You are Ralph, an autonomous agent implementing user stories for the AI Document
      - Any issues you encountered and how you solved them
 
 9. **Stop condition**:
-   - If ALL stories have `passes: true`, output exactly:
+   - If ALL stories have `passes: true` (not just acceptence criteria for current task), output exactly:
    ```
    <promise>COMPLETE</promise>
    ```
