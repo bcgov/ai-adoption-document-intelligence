@@ -623,8 +623,8 @@
         "Scenario 6"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented full side-by-side comparison UI with checkboxes in run list, metrics comparison table with deltas/percentages, parameters/tags diff with change badges, and CSV/JSON export. Supports comparing 2+ runs with first run as baseline.",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-036-side-by-side-run-comparison-ui.md"
     },
     {
