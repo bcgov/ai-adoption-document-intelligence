@@ -9,12 +9,12 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 2.7, 6.4
  */
 
-import { PrismaClient, BenchmarkArtifactType } from "@generated/client";
+import { BenchmarkArtifactType, PrismaClient } from "@generated/client";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { getPrismaPgOptions } from "@/utils/database-url";
 import { MinioBlobStorageService } from "@/blob-storage/minio-blob-storage.service";
+import { getPrismaPgOptions } from "@/utils/database-url";
 import { ArtifactListResponseDto, ArtifactResponseDto } from "./dto";
 
 export interface CreateArtifactInput {

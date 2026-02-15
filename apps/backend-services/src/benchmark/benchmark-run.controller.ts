@@ -7,6 +7,7 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 11.2
  */
 
+import { BenchmarkArtifactType } from "@generated/client";
 import {
   Body,
   Controller,
@@ -18,9 +19,8 @@ import {
   Post,
   Query,
 } from "@nestjs/common";
-import { BenchmarkArtifactType } from "@generated/client";
-import { BenchmarkRunService } from "./benchmark-run.service";
 import { BenchmarkArtifactService } from "./benchmark-artifact.service";
+import { BenchmarkRunService } from "./benchmark-run.service";
 import {
   ArtifactListResponseDto,
   CreateRunDto,

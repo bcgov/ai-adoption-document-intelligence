@@ -6,11 +6,11 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-013-benchmark-artifact-management.md
  */
 
+import { BenchmarkArtifactType } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { BenchmarkArtifactType } from "@generated/client";
-import { BenchmarkArtifactService } from "./benchmark-artifact.service";
 import { MinioBlobStorageService } from "@/blob-storage/minio-blob-storage.service";
+import { BenchmarkArtifactService } from "./benchmark-artifact.service";
 
 // Mock Prisma Client
 const mockPrismaClient = {
@@ -49,7 +49,8 @@ describe("BenchmarkArtifactService", () => {
 
     const mockConfigService = {
       get: jest.fn((key: string, defaultValue?: string) => {
-        if (key === "DATABASE_URL") return "postgresql://test:test@localhost:5432/test";
+        if (key === "DATABASE_URL")
+          return "postgresql://test:test@localhost:5432/test";
         if (key === "MINIO_ARTIFACT_BUCKET") return "benchmark-outputs";
         return defaultValue;
       }),
@@ -70,7 +71,9 @@ describe("BenchmarkArtifactService", () => {
     }).compile();
 
     service = module.get<BenchmarkArtifactService>(BenchmarkArtifactService);
-    minioBlobStorage = module.get(MinioBlobStorageService) as jest.Mocked<MinioBlobStorageService>;
+    minioBlobStorage = module.get(
+      MinioBlobStorageService,
+    ) as jest.Mocked<MinioBlobStorageService>;
 
     // Reset mocks
     jest.clearAllMocks();
@@ -198,7 +201,9 @@ describe("BenchmarkArtifactService", () => {
       ];
 
       mockPrismaClient.benchmarkRun.findFirst.mockResolvedValue(mockRun);
-      mockPrismaClient.benchmarkArtifact.findMany.mockResolvedValue(mockArtifacts);
+      mockPrismaClient.benchmarkArtifact.findMany.mockResolvedValue(
+        mockArtifacts,
+      );
 
       const result = await service.listArtifacts(projectId, runId);
 
@@ -235,7 +240,9 @@ describe("BenchmarkArtifactService", () => {
       ];
 
       mockPrismaClient.benchmarkRun.findFirst.mockResolvedValue(mockRun);
-      mockPrismaClient.benchmarkArtifact.findMany.mockResolvedValue(mockArtifacts);
+      mockPrismaClient.benchmarkArtifact.findMany.mockResolvedValue(
+        mockArtifacts,
+      );
 
       const result = await service.listArtifacts(projectId, runId, type);
 
