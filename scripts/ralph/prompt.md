@@ -47,6 +47,10 @@ You are Ralph, an autonomous agent implementing user stories for the AI Document
 8. **Update tracking**:
    - Update `scripts/ralph/prd.json`: set that story's `passes` to `true`
    - Add brief `notes` to the story in prd.json if there were any challenges or important decisions
+   - Update the user-stories README.md to mark the story as complete:
+     - Find the README.md in the same directory as the story files
+     - Change `- [ ] **US-XXX**` to `- [x] **US-XXX**` for the completed story
+     - This is typically in a path like `feature-docs/*/user-stories/README.md`
    - Append learnings to `scripts/ralph/progress.txt` including:
      - What you implemented
      - Any patterns you discovered

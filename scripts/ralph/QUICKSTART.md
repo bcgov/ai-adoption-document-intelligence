@@ -143,7 +143,8 @@ Ralph will:
 - ✅ Implement stories one by one in dependency order
 - ✅ Run tests and typecheck
 - ✅ Commit successful implementations with `--no-verify`
-- ✅ Update tracking files
+- ✅ Update tracking files (prd.json, progress.txt, README.md)
+- ✅ Mark stories as `[x]` in the user-stories README.md
 - ✅ Stop when all stories pass
 
 ### 7. Monitor Progress
