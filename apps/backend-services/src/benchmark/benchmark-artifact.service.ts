@@ -191,4 +191,39 @@ export class BenchmarkArtifactService {
 
     return mimeToExtMap[mimeType] || "";
   }
+
+  /**
+   * Get artifact content from MinIO
+   *
+   * Retrieves the artifact file content for in-app viewing or downloading.
+   */
+  async getArtifactContent(
+    projectId: string,
+    runId: string,
+    artifactId: string,
+  ): Promise<Buffer> {
+    this.logger.log(`Getting content for artifact ${artifactId}`);
+
+    // Get the artifact record
+    const artifact = await this.prisma.benchmarkArtifact.findFirst({
+      where: {
+        id: artifactId,
+        runId,
+        run: {
+          projectId,
+        },
+      },
+    });
+
+    if (!artifact) {
+      throw new NotFoundException(
+        `Artifact with ID "${artifactId}" not found for run "${runId}"`,
+      );
+    }
+
+    // Read from MinIO
+    const content = await this.minioBlobStorage.read(artifact.path);
+
+    return content;
+  }
 }

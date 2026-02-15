@@ -23,6 +23,7 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { ArtifactViewer } from "../components/ArtifactViewer";
 import { useProject } from "../hooks/useProjects";
 import {
   useArtifacts,
@@ -77,6 +78,17 @@ export function RunDetailPage() {
   const [artifactTypeFilter, setArtifactTypeFilter] = useState<string | null>(
     null,
   );
+  const [selectedArtifact, setSelectedArtifact] = useState<{
+    id: string;
+    runId: string;
+    type: string;
+    path: string;
+    sampleId: string | null;
+    nodeId: string | null;
+    sizeBytes: string;
+    mimeType: string;
+    createdAt: string;
+  } | null>(null);
 
   // Enable polling for non-terminal states
   const { run, isLoading, cancelRun, isCancelling } = useRun(
@@ -526,7 +538,11 @@ export function RunDetailPage() {
               </Table.Thead>
               <Table.Tbody>
                 {artifacts.map((artifact) => (
-                  <Table.Tr key={artifact.id}>
+                  <Table.Tr
+                    key={artifact.id}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => setSelectedArtifact(artifact)}
+                  >
                     <Table.Td>
                       <Badge>{artifact.type}</Badge>
                     </Table.Td>
@@ -655,6 +671,15 @@ export function RunDetailPage() {
           </Stack>
         </Card>
       )}
+
+      {/* Artifact Viewer */}
+      <ArtifactViewer
+        artifact={selectedArtifact}
+        projectId={projectId}
+        mlflowExperimentId={project?.mlflowExperimentId}
+        mlflowRunId={run?.mlflowRunId}
+        onClose={() => setSelectedArtifact(null)}
+      />
     </Stack>
   );
 }

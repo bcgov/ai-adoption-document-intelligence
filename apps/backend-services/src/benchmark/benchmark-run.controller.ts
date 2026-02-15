@@ -12,13 +12,17 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Logger,
   Param,
   Post,
   Query,
+  Res,
+  StreamableFile,
 } from "@nestjs/common";
+import { Response } from "express";
 import { BenchmarkArtifactService } from "./benchmark-artifact.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import {
@@ -181,6 +185,46 @@ export class BenchmarkRunController {
       `GET /api/benchmark/projects/${projectId}/runs/${runId}/artifacts${type ? `?type=${type}` : ""}`,
     );
     return this.benchmarkArtifactService.listArtifacts(projectId, runId, type);
+  }
+
+  /**
+   * Get artifact content for viewing/downloading
+   *
+   * GET /api/benchmark/projects/:projectId/runs/:runId/artifacts/:artifactId/content
+   */
+  @Get("runs/:runId/artifacts/:artifactId/content")
+  async getArtifactContent(
+    @Param("projectId") projectId: string,
+    @Param("runId") runId: string,
+    @Param("artifactId") artifactId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    this.logger.log(
+      `GET /api/benchmark/projects/${projectId}/runs/${runId}/artifacts/${artifactId}/content`,
+    );
+
+    const content = await this.benchmarkArtifactService.getArtifactContent(
+      projectId,
+      runId,
+      artifactId,
+    );
+
+    // Get artifact metadata to set proper content type
+    const artifacts = await this.benchmarkArtifactService.listArtifacts(
+      projectId,
+      runId,
+    );
+    const artifact = artifacts.artifacts.find((a) => a.id === artifactId);
+
+    if (artifact) {
+      res.setHeader("Content-Type", artifact.mimeType);
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${artifact.path.split("/").pop()}"`,
+      );
+    }
+
+    res.send(content);
   }
 
   /**
