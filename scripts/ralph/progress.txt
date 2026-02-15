@@ -87,3 +87,20 @@ Started: 2026-02-14
   - URLSearchParams for query string construction handles encoding automatically
 ---
 
+## 2026-02-15 - US-039
+- What was implemented: In-App Artifact Viewer with comprehensive support for multiple artifact types
+- Files changed:
+  - apps/backend-services/src/benchmark/benchmark-artifact.service.ts
+  - apps/backend-services/src/benchmark/benchmark-run.controller.ts
+  - apps/frontend/src/features/benchmarking/components/ArtifactViewer.tsx (new)
+  - apps/frontend/src/features/benchmarking/pages/RunDetailPage.tsx
+- **Learnings for future iterations:**
+  - Blob URLs for images: Create with URL.createObjectURL, remember to cleanup with URL.revokeObjectURL in useEffect return
+  - Streaming responses in NestJS: Use @Res() decorator with res.send(buffer) for binary content
+  - Content-Type and Content-Disposition headers enable proper browser rendering/download behavior
+  - JsonInput component works well for read-only formatted JSON display
+  - Textarea with monospace font and readOnly works for text files
+  - MLflow deep-link format: `${mlflowUrl}/#/experiments/${expId}/runs/${runId}/artifacts/${path}`
+  - For unsupported types (PDF, binary), show helpful placeholder with download/MLflow options
+---
+
