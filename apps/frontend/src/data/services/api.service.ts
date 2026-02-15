@@ -49,15 +49,17 @@ class ApiService {
   }
 
   private async request<T>(
-    method: "GET" | "POST" | "PUT" | "DELETE",
+    method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
     endpoint: string,
     data?: unknown,
+    config?: Record<string, unknown>,
   ): Promise<ApiResponse<T>> {
     try {
       const response: AxiosResponse<T> = await this.axiosInstance({
         method,
         url: endpoint,
         data,
+        ...config,
       });
 
       return {
@@ -78,12 +80,23 @@ class ApiService {
     return this.request<T>("GET", endpoint);
   }
 
-  async post<T>(endpoint: string, data: unknown): Promise<ApiResponse<T>> {
-    return this.request<T>("POST", endpoint, data);
+  async post<T>(
+    endpoint: string,
+    data: unknown,
+    config?: Record<string, unknown>,
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>("POST", endpoint, data, config);
   }
 
   async put<T>(endpoint: string, data: unknown): Promise<ApiResponse<T>> {
     return this.request<T>("PUT", endpoint, data);
+  }
+
+  async patch<T>(
+    endpoint: string,
+    data: unknown,
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>("PATCH", endpoint, data);
   }
 
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
