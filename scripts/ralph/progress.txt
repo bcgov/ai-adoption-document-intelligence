@@ -164,3 +164,29 @@ Started: 2026-02-14
   - Test mocking: unique content per file prevents false duplicate detection
   - All 700 backend tests pass with new validation tests
 ---
+
+## 2026-02-15 - US-033
+- What was implemented: Split Management UI
+- Files changed:
+  - apps/backend-services/src/benchmark/dto/create-split.dto.ts (new)
+  - apps/backend-services/src/benchmark/dto/update-split.dto.ts (new)
+  - apps/backend-services/src/benchmark/dto/split-response.dto.ts (new)
+  - apps/backend-services/src/benchmark/dto/index.ts (exports)
+  - apps/backend-services/src/benchmark/dataset.service.ts (5 split methods)
+  - apps/backend-services/src/benchmark/dataset.controller.ts (5 endpoints)
+  - apps/backend-services/src/benchmark/dataset.service.spec.ts (9 tests)
+  - apps/frontend/src/features/benchmarking/hooks/useSplits.ts (new)
+  - apps/frontend/src/features/benchmarking/components/SplitManagement.tsx (new)
+  - apps/frontend/src/features/benchmarking/pages/DatasetDetailPage.tsx (added Splits tab)
+  - apps/frontend/src/features/benchmarking/hooks/useDatasetVersions.ts (exported ManifestSample)
+- **Learnings for future iterations:**
+  - Split type enum: train/val/test/golden matches Prisma schema
+  - Frozen splits throw BadRequestException on update attempts
+  - Freeze endpoint: POST /splits/:splitId/freeze (no body)
+  - Backend service returns inline types (not DTOs) - service is internal layer
+  - MultiSelect component from Mantine for sample selection UI
+  - Badge colors: train=blue, val=cyan, test=grape, golden=yellow
+  - ApiService returns ApiResponse<T> wrapper - access data via response.data
+  - useMutation mutate() requires parameter matching mutationFn signature
+  - All 710 backend tests pass including new split tests
+---

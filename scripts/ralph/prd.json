@@ -573,8 +573,8 @@
         "Scenario 8"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented full split CRUD with backend service, controller endpoints, tests, and frontend UI (SplitManagement component with create/edit/freeze dialogs). All 710 backend tests pass including 9 new split tests. Supports stratificationRules, frozen status, and multi-select sample picker.",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-033-split-management-ui.md"
     },
     {
