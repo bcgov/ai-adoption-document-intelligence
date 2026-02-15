@@ -3,360 +3,222 @@
 
 <div class="hero">
     <span class="badge badge-gold">Open Source</span>
-    <h1>AI Hub Tracking</h1>
-    <p>Infrastructure as Code for Azure Landing Zone deployments with GitHub Actions OIDC authentication. Zero secrets to rotate.</p>
+    <h1>Document Intelligence Platform</h1>
+    <p>Enterprise-grade document processing platform with OCR, graph-based workflow orchestration, custom model training, and human-in-the-loop review capabilities.</p>
     
     <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center;">
-        <a href="#quick-start" style="text-decoration: none;">
+        <a href="api-reference.html" style="text-decoration: none;">
             <button style="background: var(--bc-gold); color: var(--bc-blue); border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 1rem;">
-                Get Started ↓
+                View API Docs →
             </button>
         </a>
-        <a href="diagrams.html" style="text-decoration: none;">
+        <a href="https://github.com/bcgov/ai-adoption-document-intelligence-docu" style="text-decoration: none;">
             <button style="background: rgba(255,255,255,0.2); color: white; border: 1px solid white; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 1rem;">
-                View Architecture
+                View on GitHub ↗
             </button>
         </a>
     </div>
 </div>
 
-<div class="alert alert-warning" style="margin-bottom: 2rem;">
-    <div style="display: flex; gap: 1rem;">
-        <div class="alert-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0Z"/></svg>
-        </div>
-        <div>
-            <h3 style="margin-top: 0; color: var(--bc-blue-dark);">Pilot Project Disclaimer</h3>
-            <p><strong>This is an early-stage pilot.</strong> Many architectural patterns are still being validated with Platform Services. This project consolidates hard-learned lessons from navigating Azure policy into a shared landing zone to help other BC Gov teams avoid the same pitfalls.</p>
-            <p><small><em>The upstream <a href="https://github.com/Azure/AI-Landing-Zones">Azure AI Landing Zones</a> reference architecture carries an archival risk, of which this project team is aware.</em></small></p>
-        </div>
+<h2>Platform Overview</h2>
+
+<p>The Document Intelligence Platform is a comprehensive solution for document processing workflows. It combines OCR services, flexible graph-based workflow orchestration, supervised learning capabilities, and collaborative review tools into a unified platform.</p>
+
+<div class="grid grid-2" style="margin-top: 2rem;">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h3 style="margin-top:0;">🚀 Core Features</h3>
+        <ul>
+            <li><strong>Document Processing</strong> - Multi-format document upload and OCR with Azure Document Intelligence</li>
+            <li><strong>Graph Workflows</strong> - DAG-based workflow engine with 30+ extensible activities powered by Temporal</li>
+            <li><strong>Model Training</strong> - Supervised learning with custom model training and versioned deployments</li>
+            <li><strong>HITL Review</strong> - Collaborative human-in-the-loop workflows with confidence-based routing</li>
+        </ul>
+    </div>
+
+    <div class="card" style="border-left-color: #003366;">
+        <h3 style="margin-top:0;">🏗️ Architecture</h3>
+        <ul>
+            <li><strong>Backend</strong> - NestJS with Fastify, Prisma ORM, PostgreSQL</li>
+            <li><strong>Frontend</strong> - React with TypeScript, TailwindCSS, shadcn/ui</li>
+            <li><strong>Orchestration</strong> - Temporal workflow engine with durable execution</li>
+            <li><strong>Storage</strong> - Pluggable blob storage (Azure, S3, filesystem)</li>
+        </ul>
     </div>
 </div>
 
-<h2>Project Scope: Enabling AI on Azure</h2>
-<div class="card card-gold">
-    <h3 style="margin-top:0;">This is an AI Platform, Not a General Azure Onboarding Tool</h3>
-    <p>The primary mission of this project is to create a secure, compliant, and reusable "paved road" for <strong>AI-specific workloads</strong> in the BC Government. It is not intended for general-purpose application hosting.</p>
-    <p>Our scope is defined by what can be provisioned and managed via Infrastructure as Code. We exclusively support services that have a mature <strong>Azure Verified Module (AVM)</strong> for Terraform. This ensures every component of the platform is repeatable, auditable, and aligned with industry best practices.</p>
+<h2>Key Capabilities</h2>
+
+<div class="card card-gold" style="margin-bottom: 2rem;">
+    <h3 style="margin-top:0;">Graph-Based Workflow Engine</h3>
+    <p>The platform features a sophisticated DAG (Directed Acyclic Graph) workflow engine that enables complex, multi-step document processing pipelines. Workflows are defined as JSON graphs with nodes representing activities like OCR, validation, training, and review operations.</p>
+    <p><strong>30+ Built-in Activities:</strong> OCR processing, field extraction, validation, confidence filtering, model training, HITL routing, parallel execution, conditional branching, and more.</p>
 </div>
 
-<h2>The Challenge: Microsoft's Model vs. BC Gov's Reality</h2>
-
-<p>A newcomer to this project might ask: "Why is this so complex? Why not just follow Microsoft's tutorials?" This project exists to answer that question. There is a fundamental disconnect between Microsoft's standard approach and the strict policy requirements of the BC Government.</p>
-
-<div class="grid grid-2">
-    <div class="card" style="border-left-color: #0078d4;">
-        <h3 style="margin-top:0;">Microsoft's Assumption: UI-First, Public-Friendly</h3>
-        <p>Microsoft's documentation and tools (like Azure Portal and AI Studio) are designed for a user-friendly, web-based experience. This model assumes that Azure services have <strong>public endpoints</strong> so the browser-based UIs can connect to them.</p>
+<div class="grid grid-3">
+    <div class="card">
+        <h3 style="margin-top:0;">📄 Document Management</h3>
+        <p>Full lifecycle document management with metadata tagging, versioning, and relationship tracking. Supports PDF, images, and multi-page documents.</p>
     </div>
-    <div class="card" style="border-left-color: #ef4444;">
-        <h3 style="margin-top:0;">BC Gov's Reality: Private-Only, Zero-Trust</h3>
-        <p>BC Government security policy mandates a "zero-trust" network model. Critically, this means **no public endpoints** on any Azure PaaS services. All access must be from within a private, controlled network.</p>
+
+    <div class="card">
+        <h3 style="margin-top:0;">🏷️ Labeling & Annotation</h3>
+        <p>Project-based labeling system for ground truth creation. Supports bounding box annotations, field labeling, and batch operations for training data preparation.</p>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0;">🧠 Model Training</h3>
+        <p>End-to-end custom model training pipeline. Train Azure Document Intelligence custom models from labeled data with versioning and deployment management.</p>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0;">👥 Human Review Queue</h3>
+        <p>Collaborative HITL system with assignment management, bulk operations, and confidence-based routing for quality assurance workflows.</p>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0;">🔐 Authentication & Security</h3>
+        <p>Keycloak SSO integration with JWT bearer tokens and API key management. Role-based access control for secure multi-tenant operations.</p>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0;">📊 Extensible Activities</h3>
+        <p>Developer-friendly activity registry system. Create custom activities by extending base classes and registering them in the workflow engine.</p>
     </div>
 </div>
 
-<div class="alert alert-info" style="margin-top: 1rem;">
-    <div class="alert-icon">💡</div>
+<h2>Quick Start</h2>
+
+<div class="alert alert-info" style="margin-bottom: 2rem;">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
     <div>
-        <strong>This is the core problem.</strong> The "no public endpoints" policy makes the standard, UI-driven Microsoft workflow non-functional. This project implements the architecture required to operate securely within this constraint. For a full breakdown, see <a href="diagrams.html#ms-vs-bcgov">Microsoft vs BC Gov Comparison</a> and <a href="decisions.html#adr-008">ADR-008</a>.
+        <strong>Prerequisites</strong><br>
+        Node.js 20+, PostgreSQL 14+, Temporal Server, Azure Document Intelligence resource (for OCR)
     </div>
 </div>
 
-<h2>Our Solution: An API-First, Secure Landing Zone</h2>
-
-<p>This repository provides a standardized, secure-by-default environment that solves the challenges above. Instead of a UI-driven model, we provide an <strong>API-first, Infrastructure-as-Code (IaC) model</strong>.</p>
-
-<div class="grid grid-3">
-    <div class="card">
-        <h4 style="margin-top:0;">1. Secure Private Network</h4>
-        <p>A shared VNet isolates all resources. A <strong>Bastion Host</strong> and <strong>Jumpbox VM</strong> provide the only secure administrative access. Self-hosted runners execute deployments from within the network.</p>
-        <p><small>See <a href="decisions.html#adr-001">ADR-001: Shared Landing Zone</a> and <a href="cost.html#cicd-runner-costs">CI/CD Runner Costs</a></small></p>
-    </div>
-    <div class="card">
-        <h4 style="margin-top:0;">2. Passwordless OIDC Auth</h4>
-        <p>We eliminate long-lived secrets by using <strong>OpenID Connect (OIDC)</strong>. GitHub Actions receives temporary, auto-expiring tokens from Azure for each deployment, dramatically improving security.</p>
-        <p><small>See <a href="decisions.html#adr-002">ADR-002: OIDC Authentication</a></small></p>
-    </div>
-    <div class="card">
-        <h4 style="margin-top:0;">3. Reusable IaC Modules</h4>
-        <p>We use Microsoft's official <strong>Azure Verified Modules (AVM)</strong> to define infrastructure. This provides a library of tested, maintained, and reusable components for anyone to consume.</p>
-        <p><small>See <a href="decisions.html#adr-009">ADR-009: Why AVMs</a></small></p>
-    </div>
+<div class="card" style="margin-bottom: 2rem;">
+    <h3 style="margin-top: 0;">1. Install Dependencies</h3>
+    <pre><code>npm install</code></pre>
 </div>
 
-<h2>Flexible Access Methods</h2>
-
-<p>Private endpoints block data plane access from the public internet. We provide <strong>four interchangeable access methods</strong> - enable only what you need.</p>
-
-<div class="grid grid-2">
-    <div class="card" style="border-left-color: #22c55e;">
-        <h3 style="margin-top: 0; color: #166534;">Control Plane (Always Works)</h3>
-        <p>Creating/configuring resources via ARM API (<code>management.azure.com</code>). OIDC authentication works from anywhere.</p>
-        <p style="margin-bottom: 0; font-size: 0.9rem;"><strong>Examples:</strong> Create Key Vault, deploy VMs, assign RBAC roles</p>
-    </div>
-    <div class="card" style="border-left-color: #ef4444;">
-        <h3 style="margin-top: 0; color: #991b1b;">Data Plane (Requires VNet Access)</h3>
-        <p>Accessing data <em>inside</em> resources (blocked by private endpoints). Needs network path into VNet.</p>
-        <p style="margin-bottom: 0; font-size: 0.9rem;"><strong>Examples:</strong> Read Key Vault secrets, write Storage blobs, query databases</p>
-    </div>
+<div class="card" style="margin-bottom: 2rem;">
+    <h3 style="margin-top: 0;">2. Configure Environment</h3>
+    <p>Set up environment variables for database, Temporal, Azure services, and authentication:</p>
+    <pre><code>DATABASE_URL=postgresql://user:pass@localhost:5432/docdb
+TEMPORAL_ADDRESS=localhost:7233
+AZURE_DI_ENDPOINT=https://your-instance.cognitiveservices.azure.com/
+AZURE_DI_KEY=your-key
+SSO_AUTH_SERVER_URL=https://your-keycloak.com/realms/your-realm</code></pre>
 </div>
 
-<div class="grid grid-4" style="margin-top: 1rem;">
-    <div class="card" style="text-align: center;">
-        <div class="feature-icon gold" style="margin: 0 auto 0.5rem;">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-        </div>
-        <strong>GitHub Runners</strong>
-        <p style="font-size: 0.8rem; margin: 0.5rem 0 0;">Control plane only</p>
-    </div>
-    <div class="card" style="text-align: center;">
-        <div class="feature-icon green" style="margin: 0 auto 0.5rem;">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
-        </div>
-        <strong>Self-Hosted</strong>
-        <p style="font-size: 0.8rem; margin: 0.5rem 0 0;">Full access (in VNet)</p>
-    </div>
-    <div class="card" style="text-align: center;">
-        <div class="feature-icon purple" style="margin: 0 auto 0.5rem;">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
-        </div>
-        <strong>Bastion + Jumpbox</strong>
-        <p style="font-size: 0.8rem; margin: 0.5rem 0 0;">Admin access</p>
-    </div>
-    <div class="card" style="text-align: center;">
-        <div class="feature-icon blue" style="margin: 0 auto 0.5rem;">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
-        </div>
-        <strong>Chisel Tunnel</strong>
-        <p style="font-size: 0.8rem; margin: 0.5rem 0 0;">Local dev access</p>
-    </div>
+<div class="card" style="margin-bottom: 2rem;">
+    <h3 style="margin-top: 0;">3. Initialize Database</h3>
+    <pre><code>cd apps/backend-services
+npm run db:migrate
+npm run db:generate</code></pre>
 </div>
 
-<p style="text-align: center; margin-top: 1rem;"><a href="decisions.html#adr-011">ADR-011: Control vs Data Plane</a> | <a href="terraform.html#choosing-your-access-method">Choose Your Method</a> | <a href="diagrams.html#access-methods">Architecture Diagram</a></p>
+<div class="card" style="margin-bottom: 2rem;">
+    <h3 style="margin-top: 0;">4. Start Services</h3>
+    <pre><code># Terminal 1: Backend API
+cd apps/backend-services && npm run start:dev
 
-<div class="card card-gold">
-    <h3 style="margin-top: 0;">What Can You Run Here?</h3>
-    <p>This landing zone is optimized for modern AI/ML workloads that require secure compute and private data access.</p>
-    <div class="grid grid-3">
-        <div style="text-align: center;">
-            <div class="feature-icon blue" style="margin: 0 auto 1rem;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--bc-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
-            </div>
-            <strong>Azure AI Foundry</strong>
-            <p style="font-size: 0.9rem; color: var(--text-secondary);">Access many models (OpenAI, Meta, Mistral) and cognitive services through a unified, secure platform.</p>
-        </div>
-        <div style="text-align: center;">
-            <div class="feature-icon gold" style="margin: 0 auto 1rem;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--bc-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
-            </div>
-            <strong>Open Source Models</strong>
-            <p style="font-size: 0.9rem; color: var(--text-secondary);">Host private weights (Llama 3, Mistral) on secure VMs using Ollama or vLLM.</p>
-        </div>
-        <div style="text-align: center;">
-            <div class="feature-icon purple" style="margin: 0 auto 1rem;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--bc-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10Z"/></svg>
-            </div>
-            <strong>RAG & Data Apps</strong>
-            <p style="font-size: 0.9rem; color: var(--text-secondary);">Vector databases and Streamlit/Gradio apps for rapid internal prototyping.</p>
-        </div>
-    </div>
-</div>
+# Terminal 2: Temporal Worker
+cd apps/temporal && npm run worker
 
-<h2>I want to...</h2>
-
-<div class="grid grid-3">
-    <a href="oidc-setup.html" class="card-link">
-        <div class="card" style="border-left-color: #fcba19; height: 100%;">
-            <h4 style="margin-top: 0; color: var(--bc-blue);">Set up Authentication</h4>
-            <p style="font-size: 0.9rem; margin-bottom: 0;">Configure OIDC trust between GitHub and Azure.</p>
-        </div>
-    </a>
-    <a href="terraform.html" class="card-link">
-        <div class="card" style="border-left-color: #8b5cf6; height: 100%;">
-            <h4 style="margin-top: 0; color: var(--bc-blue);">Deploy Infrastructure</h4>
-            <p style="font-size: 0.9rem; margin-bottom: 0;">Deploy VNet, Bastion, and Jumpbox modules.</p>
-        </div>
-    </a>
-    <a href="playbooks.html" class="card-link">
-        <div class="card" style="border-left-color: #ef4444; height: 100%;">
-            <h4 style="margin-top: 0; color: var(--bc-blue);">Fix a Problem</h4>
-            <p style="font-size: 0.9rem; margin-bottom: 0;">Troubleshoot state locks, auth failures, or rollbacks.</p>
-        </div>
-    </a>
-</div>
-
-<h2>Network Allocation (License Plate: da4cf6)</h2>
-
-<div class="card" style="border-left-color: #22c55e; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);">
-    <p style="margin-top: 0;"><strong>Confirmed Dec 11, 2025</strong> - Platform Services Team</p>
-    <div class="grid grid-4" style="margin: 1rem 0;">
-        <div style="text-align: center;">
-            <div class="stat-number" style="font-size: 1.5rem;">4x /24</div>
-            <div class="stat-label">Prod (= /22)</div>
-        </div>
-        <div style="text-align: center;">
-            <div class="stat-number" style="font-size: 1.5rem;">2x /24</div>
-            <div class="stat-label">Test (= /23)</div>
-        </div>
-        <div style="text-align: center;">
-            <div class="stat-number" style="font-size: 1.5rem;">1x /24</div>
-            <div class="stat-label">Dev</div>
-        </div>
-        <div style="text-align: center;">
-            <div class="stat-number" style="font-size: 1.5rem;">1x /24</div>
-            <div class="stat-label">Tools</div>
-        </div>
-    </div>
-    <p style="margin-bottom: 0; font-size: 0.9rem;">See <a href="faq.html">FAQ</a> for pending questions about Canada East non-routable ranges.</p>
-</div>
-
-<h2>Documentation Library</h2>
-
-<div class="grid grid-3">
-    <!-- Row 1 -->
-    <a href="decisions.html" class="card-link">
-        <div class="card" style="border-left-color: #ef4444;">
-            <h3 style="margin-top: 0;">ADRs</h3>
-            <p>Architecture decisions and why things are built this way.</p>
-            <div class="card-arrow">Start Here →</div>
-        </div>
-    </a>
-    <a href="faq.html" class="card-link">
-        <div class="card" style="border-left-color: #f59e0b;">
-            <h3 style="margin-top: 0;">FAQ</h3>
-            <p>Common questions, pending decisions, and contact info.</p>
-            <div class="card-arrow">View FAQ →</div>
-        </div>
-    </a>
-    <a href="oidc-setup.html" class="card-link">
-        <div class="card">
-            <h3 style="margin-top: 0;">OIDC Setup</h3>
-            <p>Complete guide to passwordless authentication setup.</p>
-            <div class="card-arrow">View Guide →</div>
-        </div>
-    </a>
-
-    <!-- Row 2 -->
-    <a href="terraform.html" class="card-link">
-        <div class="card">
-            <h3 style="margin-top: 0;">Modules</h3>
-            <p>Deep dive into Network, Bastion, and Jumpbox configs.</p>
-            <div class="card-arrow">View Modules →</div>
-        </div>
-    </a>
-    <a href="workflows.html" class="card-link">
-        <div class="card">
-            <h3 style="margin-top: 0;">Workflows</h3>
-            <p>CI/CD pipeline automation details.</p>
-            <div class="card-arrow">View Workflows →</div>
-        </div>
-    </a>
-    <a href="diagrams.html" class="card-link">
-        <div class="card">
-            <h3 style="margin-top: 0;">Diagrams</h3>
-            <p>Interactive architecture and flow visualizations.</p>
-            <div class="card-arrow">View Diagrams →</div>
-        </div>
-    </a>
-
-    <!-- Row 3 -->
-    <a href="playbooks.html" class="card-link">
-        <div class="card">
-            <h3 style="margin-top: 0;">Playbooks</h3>
-            <p>Operational runbooks for Day 2 maintenance.</p>
-            <div class="card-arrow">View Playbooks →</div>
-        </div>
-    </a>
-    <a href="terraform-reference.html" class="card-link">
-        <div class="card">
-            <h3 style="margin-top: 0;">TF Reference</h3>
-            <p>Auto-generated variable and output docs.</p>
-            <div class="card-arrow">View Reference →</div>
-        </div>
-    </a>
-</div>
-
-<h2 id="quick-start">Quick Start</h2>
-
-<div class="card card-gold">
-    <h3 style="margin-bottom: 1.5rem;">Get Started in 3 Steps</h3>
-    <div class="grid grid-3">
-        <div style="text-align: center;">
-            <div class="stat-number">1</div>
-            <p style="margin: 0.5rem 0;"><strong>Run Setup Script</strong></p>
-            <p style="font-size: 0.9rem; color: var(--text-secondary); margin: 0;">Configure OIDC trust between GitHub and Azure (once per environment)</p>
-        </div>
-        <div style="text-align: center;">
-            <div class="stat-number">2</div>
-            <p style="margin: 0.5rem 0;"><strong>Add Workflow</strong></p>
-            <p style="font-size: 0.9rem; color: var(--text-secondary); margin: 0;">Copy the deploy.yml workflow and backend.tf to your repo</p>
-        </div>
-        <div style="text-align: center;">
-            <div class="stat-number">3</div>
-            <p style="margin: 0.5rem 0;"><strong>Push & Deploy</strong></p>
-            <p style="font-size: 0.9rem; color: var(--text-secondary); margin: 0;">Push to main and watch Terraform deploy automatically</p>
-        </div>
-    </div>
+# Terminal 3: Frontend
+cd apps/frontend && npm run dev</code></pre>
 </div>
 
 <div class="card">
-    <h3>Step 1: Initial Setup</h3>
-    <p>Run this one-time command to create the Azure identity and trust relationship:</p>
-<pre>./initial-setup/initial-azure-setup.sh \
-    -g "YOUR-RESOURCE-GROUP" \
-    -n "your-app-identity" \
-    -r "bcgov/your-repo" \
-    -e "dev" \
-    --create-storage --create-github-secrets</pre>
+    <h3 style="margin-top: 0;">5. Access the Platform</h3>
+    <ul>
+        <li><strong>Frontend:</strong> http://localhost:3000</li>
+        <li><strong>Backend API:</strong> http://localhost:3002</li>
+        <li><strong>API Docs:</strong> http://localhost:3002/api</li>
+        <li><strong>Temporal UI:</strong> http://localhost:8233</li>
+    </ul>
 </div>
 
-<h2>Key Features</h2>
+<h2>API Documentation</h2>
 
-<div class="grid grid-3">
-    <div class="card">
-        <div class="feature-icon green">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+<p>Comprehensive REST API documentation is available on the <a href="api-reference.html">API Reference</a> page. The API supports both Bearer token authentication (Keycloak SSO) and API key authentication.</p>
+
+<div class="grid grid-2" style="margin-top: 2rem;">
+    <a href="api-reference.html" class="card-link">
+        <div class="card">
+            <h3 style="margin-top:0;">📚 API Reference</h3>
+            <p>Interactive API documentation with request/response schemas, authentication details, and example requests for all 56 endpoints.</p>
         </div>
-        <h3 style="margin-top: 0;">Secure by Default</h3>
-        <ul style="margin-bottom: 0;">
-            <li>OIDC federated credentials</li>
-            <li>No stored secrets</li>
-            <li>Environment isolation</li>
-            <li>Least privilege access</li>
-        </ul>
-    </div>
-    <div class="card">
-        <div class="feature-icon blue">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a3.5 3.5 0 0 0 0-7h-1.5a7 7 0 1 0-11.76 5.14"/></svg>
+    </a>
+
+    <a href="https://github.com/bcgov/ai-adoption-document-intelligence-docu" class="card-link">
+        <div class="card">
+            <h3 style="margin-top:0;">💻 GitHub Repository</h3>
+            <p>View source code, report issues, contribute to the project, and access additional documentation.</p>
         </div>
-        <h3 style="margin-top: 0;">Azure Native</h3>
-        <ul style="margin-bottom: 0;">
-            <li>Managed identities</li>
-            <li>Azure Bastion access</li>
-            <li>Blob storage for state</li>
-            <li>NSG security rules</li>
-        </ul>
-    </div>
-    <div class="card">
-        <div class="feature-icon purple">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+    </a>
+</div>
+
+<h2>Technology Stack</h2>
+
+<div class="card">
+    <h3 style="margin-top: 0;">Core Technologies</h3>
+    <div class="grid grid-2">
+        <div>
+            <h4>Backend Services</h4>
+            <ul>
+                <li>NestJS 11 + Fastify</li>
+                <li>Prisma ORM</li>
+                <li>PostgreSQL 14+</li>
+                <li>Temporal Workflow Engine</li>
+                <li>Azure Document Intelligence SDK</li>
+            </ul>
         </div>
-        <h3 style="margin-top: 0;">Automated</h3>
-        <ul style="margin-bottom: 0;">
-            <li>GitOps workflow</li>
-            <li>Auto VM shutdown</li>
-            <li>Scheduled cleanup</li>
-            <li>On-demand resources</li>
-        </ul>
+        <div>
+            <h4>Frontend Application</h4>
+            <ul>
+                <li>React 18 + TypeScript</li>
+                <li>Vite + TailwindCSS</li>
+                <li>shadcn/ui Components</li>
+                <li>React Flow (workflow visualization)</li>
+                <li>Axios + React Query</li>
+            </ul>
+        </div>
     </div>
 </div>
 
-<h2>Contributing</h2>
+<h2>Project Structure</h2>
 
-<p>This documentation is built automatically from the <code>docs/</code> folder. To add or update pages:</p>
+<div class="card">
+    <pre><code>apps/
+├── backend-services/    # NestJS API server (13 modules)
+├── frontend/            # React application
+├── temporal/            # Temporal workflow workers
+├── image-service/       # Python image preprocessing tools
+└── shared/              # Shared Prisma schema
 
-<ol>
-    <li>Edit files in <code>docs/_pages/</code></li>
-    <li>Run <code>./docs/build.sh</code> to test locally</li>
-    <li>Push to main - GitHub Actions deploys automatically</li>
-</ol>
+docs/                    # Technical documentation
+docs-site/               # This documentation site
+deployments/             # OpenShift/Kubernetes manifests</code></pre>
+</div>
+
+<h2>Learn More</h2>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    </div>
+    <div>
+        <strong>Additional Documentation</strong><br>
+        Detailed technical documentation is available in the <code>/docs</code> directory including:
+        <ul style="margin-top: 0.5rem; margin-bottom: 0;">
+            <li><strong>API.md:</strong> Detailed API documentation</li>
+            <li><strong>HITL_ARCHITECTURE.md:</strong> Human-in-the-loop system design</li>
+            <li><strong>TEMPLATE_TRAINING.md:</strong> Model training workflows</li>
+            <li><strong>docs/graph-workflows/:</strong> Workflow engine architecture and activity development guides</li>
+        </ul>
+    </div>
+</div>

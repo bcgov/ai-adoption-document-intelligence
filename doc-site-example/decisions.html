@@ -1,0 +1,3407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArchitectureDecisions | AI Hub Tracking</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <style>
+        :root {
+            --bc-blue: #003366;
+            --bc-gold: #fcba19;
+            --bc-blue-dark: #002244;
+            --bc-blue-light: #1a5a96;
+            --text-primary: #313132;
+            --text-secondary: #606060;
+            --bg-light: #f2f2f2;
+            --white: #ffffff;
+            --gradient-hero: linear-gradient(135deg, #003366 0%, #1a5a96 50%, #003366 100%);
+            --shadow-sm: 0 2px 4px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.12);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.16);
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'BC Sans', 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: var(--bg-light);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .bc-header {
+            background: var(--gradient-hero);
+            border-bottom: 4px solid var(--bc-gold);
+            padding: 0.5rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: var(--shadow-md);
+        }
+
+        .bc-header-brand {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            text-decoration: none;
+        }
+
+        .bc-header-logo {
+            height: 36px;
+            width: auto;
+            border-radius: 4px;
+        }
+
+        .bc-header-title {
+            color: var(--white);
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .bc-header-subtitle {
+            color: var(--bc-gold);
+            font-size: 0.875rem;
+        }
+
+        /* Navigation with Dropdowns */
+        .bc-nav {
+            display: flex;
+            gap: 0.25rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .bc-nav > a,
+        .nav-dropdown > .nav-trigger {
+            color: var(--white);
+            text-decoration: none;
+            padding: 0.6rem 1rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            border: none;
+            background: transparent;
+            font-family: inherit;
+        }
+
+        .bc-nav > a:hover,
+        .nav-dropdown:hover > .nav-trigger {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .bc-nav > a.active {
+            background: var(--bc-gold);
+            color: var(--bc-blue);
+            font-weight: 600;
+        }
+
+        /* Dropdown */
+        .nav-dropdown {
+            position: relative;
+        }
+
+        .nav-trigger::after {
+            content: '';
+            border: solid currentColor;
+            border-width: 0 2px 2px 0;
+            display: inline-block;
+            padding: 3px;
+            transform: rotate(45deg);
+            margin-top: -3px;
+            transition: transform 0.2s;
+        }
+
+        .nav-dropdown:hover .nav-trigger::after {
+            transform: rotate(-135deg);
+            margin-top: 3px;
+        }
+
+        .nav-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: var(--white);
+            border-radius: 8px;
+            box-shadow: var(--shadow-lg);
+            min-width: 220px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: var(--transition);
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .nav-dropdown:hover .nav-dropdown-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .nav-dropdown-menu a {
+            display: block;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: var(--transition);
+            border-left: 3px solid transparent;
+        }
+
+        .nav-dropdown-menu a:hover {
+            background: var(--bg-light);
+            border-left-color: var(--bc-gold);
+            color: var(--bc-blue);
+        }
+
+        .nav-dropdown-menu a small {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            margin-top: 0.2rem;
+        }
+
+        /* Main Content */
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            flex: 1;
+            width: 100%;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: var(--gradient-hero);
+            color: var(--white);
+            padding: 3rem 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            text-align: center;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .hero h1 {
+            color: var(--white);
+            border: none;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Typography */
+        h1 {
+            color: var(--bc-blue);
+            font-size: 2.25rem;
+            margin-bottom: 1rem;
+            border-bottom: 3px solid var(--bc-gold);
+            padding-bottom: 0.5rem;
+        }
+
+        h2 {
+            color: var(--bc-blue);
+            font-size: 1.5rem;
+            margin: 2rem 0 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        h2::before {
+            content: '';
+            width: 4px;
+            height: 1.5rem;
+            background: var(--bc-gold);
+            border-radius: 2px;
+        }
+
+        h3 {
+            color: var(--bc-blue-light);
+            font-size: 1.25rem;
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+        }
+
+        /* Cards - Enhanced */
+        .card {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            border-left: 4px solid var(--bc-blue);
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .card-gold {
+            border-left-color: var(--bc-gold);
+        }
+
+        .card h3 {
+            margin-top: 0;
+        }
+
+        /* Clickable Cards */
+        a.card-link {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        a.card-link .card {
+            cursor: pointer;
+        }
+
+        a.card-link .card:hover {
+            border-left-width: 6px;
+        }
+
+        .card-arrow {
+            color: var(--bc-blue-light);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            transition: var(--transition);
+        }
+
+        a.card-link:hover .card-arrow {
+            gap: 0.75rem;
+            color: var(--bc-blue);
+        }
+
+        /* Feature Cards */
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-icon.gold { background: rgba(252, 186, 25, 0.15); }
+        .feature-icon.blue { background: rgba(0, 51, 102, 0.1); }
+        .feature-icon.green { background: rgba(34, 197, 94, 0.1); }
+        .feature-icon.purple { background: rgba(139, 92, 246, 0.1); }
+
+        /* Stats */
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--bc-gold);
+            line-height: 1;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Code blocks */
+        pre {
+            background: var(--bc-blue-dark);
+            color: #e2e8f0;
+            padding: 1.25rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1rem 0;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 0.875rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        code {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            background: #e2e8f0;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: var(--white);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        th {
+            background: var(--bc-blue);
+            color: var(--white);
+            padding: 0.875rem 1rem;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 0.875rem 1rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        tr:hover {
+            background: #f8fafc;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Lists */
+        ul, ol {
+            margin: 1rem 0;
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        /* Links */
+        a {
+            color: var(--bc-blue-light);
+            transition: var(--transition);
+        }
+
+        a:hover {
+            color: var(--bc-blue);
+        }
+
+        /* Grid */
+        .grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .grid-3 {
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        }
+
+        .grid-4 {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+
+        .alert > * {
+            min-width: 0;
+        }
+
+        .alert-icon {
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .alert-info {
+            background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+            border-left: 4px solid #0ea5e9;
+        }
+
+        .alert-warning {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid var(--bc-gold);
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+            border-left: 4px solid #22c55e;
+        }
+
+        /* Image containers */
+        .img-container {
+            margin: 1.5rem 0;
+            text-align: center;
+        }
+
+        .img-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-gold {
+            background: var(--bc-gold);
+            color: var(--bc-blue);
+        }
+
+        .badge-blue {
+            background: var(--bc-blue);
+            color: var(--white);
+        }
+
+        /* Accordion / Collapsible */
+        details {
+            background: var(--white);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            box-shadow: var(--shadow-sm);
+            border-left: 4px solid var(--bc-blue);
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        details:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        details[open] {
+            border-left-color: var(--bc-gold);
+        }
+
+        summary {
+            padding: 1rem 1.25rem;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--bc-blue);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            list-style: none;
+            user-select: none;
+            transition: var(--transition);
+        }
+
+        summary::-webkit-details-marker {
+            display: none;
+        }
+
+        summary::after {
+            content: '';
+            border: solid var(--bc-blue-light);
+            border-width: 0 2px 2px 0;
+            display: inline-block;
+            padding: 4px;
+            transform: rotate(-45deg);
+            transition: transform 0.2s ease;
+            flex-shrink: 0;
+            margin-left: 1rem;
+        }
+
+        details[open] summary::after {
+            transform: rotate(45deg);
+        }
+
+        summary:hover {
+            background: var(--bg-light);
+        }
+
+        details[open] summary {
+            border-bottom: 1px solid #e2e8f0;
+            background: var(--bg-light);
+        }
+
+        .accordion-content {
+            padding: 1rem 1.25rem;
+        }
+
+        .accordion-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Accordion with badge */
+        summary .badge {
+            margin-left: auto;
+            margin-right: 1rem;
+        }
+
+        /* Accordion group */
+        .accordion-group {
+            margin: 1rem 0;
+        }
+
+        .accordion-group details:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Footer */
+        .site-footer {
+            background: var(--bc-blue);
+            color: var(--white);
+            padding: 3rem 2rem;
+            margin-top: auto;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+        }
+
+        .footer-brand h4,
+        .footer-links h4 {
+            color: var(--bc-gold);
+            margin-bottom: 0.75rem;
+            font-size: 1rem;
+        }
+
+        .footer-brand p {
+            color: #94a3b8;
+            font-size: 0.875rem;
+            margin: 0;
+        }
+
+        .footer-links ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .footer-links li {
+            margin-bottom: 0.5rem;
+        }
+
+        .footer-links a {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: var(--transition);
+        }
+
+        .footer-links a:hover {
+            color: var(--bc-gold);
+        }
+
+        .footer-copyright {
+            text-align: right;
+        }
+
+        .footer-copyright p {
+            color: #64748b;
+            font-size: 0.75rem;
+            margin: 0;
+        }
+
+        .footer-meta {
+            margin-top: 0.5rem !important;
+            opacity: 0.7;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .bc-header {
+                flex-direction: column;
+                text-align: center;
+                padding: 1rem;
+            }
+
+            .bc-nav {
+                justify-content: center;
+            }
+
+            .nav-dropdown-menu {
+                position: fixed;
+                left: 1rem;
+                right: 1rem;
+                width: auto;
+            }
+
+            main {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 1.75rem;
+            }
+
+            .hero {
+                padding: 2rem 1rem;
+            }
+
+            .hero h1 {
+                font-size: 1.75rem;
+            }
+
+            .footer-content {
+                text-align: center;
+            }
+
+            .footer-copyright {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="bc-header">
+        <a href="index.html" class="bc-header-brand">
+            <img src="assets/bc_citz_logo.jpg" alt="BC Government" class="bc-header-logo">
+            <div>
+                <div class="bc-header-title">AI Hub Tracking</div>
+                <div class="bc-header-subtitle">Azure Landing Zone Infrastructure</div>
+            </div>
+        </a>
+        <nav class="bc-nav">
+            <a href="index.html" class="">Home</a>
+            <div class="nav-dropdown">
+                <span class="nav-trigger">Guides</span>
+                <div class="nav-dropdown-menu">
+                    <a href="oidc-setup.html">
+                        OIDC Setup
+                        <small>GitHub to Azure authentication</small>
+                    </a>
+                    <a href="terraform.html">
+                        Terraform Modules
+                        <small>Network, Bastion, Runners, Proxy</small>
+                    </a>
+                    <a href="language-service-pii.html">
+                        Language Service PII
+                        <small>ML-based PII detection & APIM</small>
+                    </a>
+                    <a href="document-intelligence.html">
+                        Document Intelligence
+                        <small>SDK configuration & APIM integration</small>
+                    </a>
+                    <a href="workflows.html">
+                        GitHub Workflows
+                        <small>CI/CD automation</small>
+                    </a>
+                    <a href="terraform-reference.html">
+                        TF Reference
+                        <small>Auto-generated from code</small>
+                    </a>
+                </div>
+            </div>
+            <a href="diagrams.html" class="">Diagrams</a>
+            <a href="playbooks.html" class="">Playbooks</a>
+            <a href="decisions.html" class="">ADRs</a>
+            <a href="cost.html" class="">Cost</a>
+            <a href="faq.html" class="">FAQ</a>
+        </nav>
+    </header>
+    <main>
+
+<style>
+/* Collapsible ADR Styling */
+details.adr {
+    background: var(--white);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+details.adr[open] {
+    border-color: var(--bc-gold);
+    box-shadow: var(--shadow-md);
+}
+
+details.adr summary {
+    padding: 1rem 1.5rem;
+    cursor: pointer;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 2px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-weight: 600;
+    color: var(--bc-blue);
+    list-style: none;
+}
+
+details.adr summary::-webkit-details-marker {
+    display: none;
+}
+
+details.adr summary::before {
+    content: "▶";
+    font-size: 0.8rem;
+    transition: transform 0.2s;
+    color: var(--bc-gold);
+}
+
+details.adr[open] summary::before {
+    transform: rotate(90deg);
+}
+
+details.adr[open] summary {
+    border-bottom: 2px solid var(--bc-gold);
+    background: linear-gradient(135deg, #fef9e7 0%, #fef3c7 100%);
+}
+
+details.adr summary .adr-title {
+    flex: 1;
+}
+
+details.adr summary .adr-status {
+    font-size: 0.85rem;
+}
+
+details.adr .adr-content {
+    padding: 1.5rem;
+}
+
+details.adr.pending summary {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+details.adr.pending[open] summary {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+}
+</style>
+
+<h1>Architecture Decision Records</h1>
+
+<p>This page documents key architectural decisions for the AI Hub Tracking infrastructure. Each ADR explains the context, decision, and consequences to help future maintainers understand why things are built the way they are.</p>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
+    </div>
+    <div>
+        <strong>BC Government Policy Context</strong><br>
+        Most decisions documented here are <strong>driven by BC Government security policies</strong>, not optional architectural choices. Key policy constraints include:
+        <ul style="margin: 0.5rem 0 0 0;">
+            <li><strong>No public endpoints</strong> - All Azure services must use private endpoints only</li>
+            <li><strong>Private networking required</strong> - Resources must be isolated within VNets</li>
+            <li><strong>No long-lived secrets</strong> - Credential rotation policies favor OIDC/managed identities</li>
+            <li><strong>Bastion-only access</strong> - Direct SSH/RDP from internet is prohibited</li>
+        </ul>
+    </div>
+</div>
+
+<div class="card" style="border-left-color: #003366; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);">
+    <h3 style="margin-top: 0; color: var(--bc-blue);">Start Here: ADR-001</h3>
+    <p style="margin-bottom: 0;"><strong>ADR-001 (Shared Landing Zone)</strong> is the foundation that explains <em>why</em> all the other infrastructure exists. Read it first to understand the architecture.</p>
+</div>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+    </div>
+    <div>
+        <strong>About ADRs</strong><br>
+        Architecture Decision Records capture decisions along with their context and consequences. They help prevent re-litigating settled discussions and provide onboarding context for new team members.
+    </div>
+</div>
+
+<h2>Decision Index</h2>
+
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Driver</th>
+        <th>Status</th>
+    </tr>
+    <tr>
+        <td><a href="#adr-001">ADR-001</a></td>
+        <td>Shared Landing Zone with Bastion/Jumpbox</td>
+        <td><span class="badge badge-blue">Policy</span></td>
+        <td><span class="badge badge-gold">Accepted</span></td>
+    </tr>
+    <tr>
+        <td><a href="#adr-002">ADR-002</a></td>
+        <td>Use OIDC instead of Service Principal Secrets</td>
+        <td><span class="badge badge-blue">Policy</span></td>
+        <td><span class="badge badge-gold">Accepted</span></td>
+    </tr>
+    <tr>
+        <td><a href="#adr-003">ADR-003</a></td>
+        <td>Use Azure Bastion for VM Access</td>
+        <td><span class="badge badge-blue">Policy</span></td>
+        <td><span class="badge badge-gold">Accepted</span></td>
+    </tr>
+    <tr>
+        <td><a href="#adr-004">ADR-004</a></td>
+        <td>Private Endpoints for All Azure Services</td>
+        <td><span class="badge badge-blue">Policy</span></td>
+        <td><span class="badge badge-gold">Accepted</span></td>
+    </tr>
+    <tr>
+        <td><a href="#adr-005">ADR-005</a></td>
+        <td>Zero-Dependency Documentation System</td>
+        <td><span class="badge" style="background:#22c55e;color:white;">Choice</span></td>
+        <td><span class="badge badge-gold">Accepted</span></td>
+    </tr>
+    <tr>
+        <td><a href="#adr-006">ADR-006</a></td>
+        <td>Terraform as Infrastructure as Code (IaC)</td>
+        <td><span class="badge" style="background:#22c55e;color:white;">Choice</span></td>
+        <td><span class="badge badge-gold">Accepted</span></td>
+    </tr>
+    <tr>
+        <td><a href="#adr-007">ADR-007</a></td>
+        <td>Client Connectivity via App Gateway + APIM</td>
+        <td><span class="badge badge-blue">Policy</span></td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">Pending Platform/MS</span></td>
+    </tr>
+    <tr>
+        <td><a href="#adr-008">ADR-008</a></td>
+        <td>No Azure Portal or Foundry Studio UI Access</td>
+        <td><span class="badge badge-blue">Policy</span></td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">Pending Platform/MS</span></td>
+    </tr>
+    <tr>
+        <td><a href="#adr-009">ADR-009</a></td>
+        <td>Why AI Landing Zone vs Custom Solution</td>
+        <td><span class="badge" style="background:#22c55e;color:white;">Choice</span></td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">Pending Platform/MS</span></td>
+    </tr>
+    <tr>
+        <td><a href="#adr-010">ADR-010</a></td>
+        <td>Multi-Tenant Isolation Model</td>
+        <td><span class="badge badge-blue">Policy</span></td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">Pending Platform/MS</span></td>
+    </tr>
+    <tr>
+        <td><a href="#adr-011">ADR-011</a></td>
+        <td>Control Plane vs Data Plane Access & Chisel Tunnel</td>
+        <td><span class="badge badge-blue">Policy</span></td>
+        <td><span class="badge badge-gold">Accepted</span></td>
+    </tr>
+    <tr>
+        <td><a href="#adr-012">ADR-012</a></td>
+        <td>Usage Monitoring, Cost Allocation and Chargeback Metrics</td>
+        <td><span class="badge badge-blue">Operations</span></td>
+        <td><span class="badge badge-blue">Proposed</span></td>
+    </tr>
+</table>
+
+<details class="adr" id="adr-001" open>
+<summary>
+    <span class="adr-title">ADR-001: Shared Landing Zone with Bastion/Jumpbox</span>
+    <span class="adr-status"><span class="badge badge-gold">Accepted</span></span>
+</summary>
+<div class="adr-content">
+
+<div class="grid grid-4" style="margin-bottom: 1rem;">
+    <div><strong>Status:</strong> Accepted</div>
+    <div><strong>Date:</strong> 2025-01</div>
+    <div><strong>Driver:</strong> <span class="badge badge-blue">Policy Required</span></div>
+    <div><strong>Category:</strong> Architecture</div>
+</div>
+
+<div class="alert alert-success">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    </div>
+    <div>
+        <strong>This is the foundational ADR.</strong> It explains why we need VNets, Bastion, Jumpbox, and self-hosted runners. All other ADRs build on these concepts.
+    </div>
+</div>
+
+<h3>Context</h3>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <div>
+        <strong>Policy Driver:</strong> BC Gov requires all Azure services to use private endpoints only for data plane access. GitHub Actions runners on the public internet cannot reach private endpoints. This creates a fundamental problem: how do we run Terraform if GitHub can't talk to Azure resources?
+    </div>
+</div>
+
+<h3>The Problem: Why Can't GitHub Just Run Terraform Directly?</h3>
+
+<div class="card" style="border-left-color: #ef4444;">
+    <h4 style="margin-top: 0;">The Network Barrier</h4>
+    <p>When you run <code>terraform apply</code> from GitHub Actions, here's what happens:</p>
+    <ol>
+        <li>GitHub spins up a runner (a VM on Microsoft's public cloud)</li>
+        <li>Terraform tries to connect to Azure PaaS services for data plane access for ec: key vault secrets</li>
+        <li><strong style="color:#ef4444;">BLOCKED</strong> - KV has no public endpoint</li>
+        <li>Terraform tries to connect to Key Vault, databases, etc.</li>
+        <li><strong style="color:#ef4444;">BLOCKED</strong> - All services data plane access are private-only within the vnet.</li>
+    </ol>
+    <p style="margin-bottom:0;"><strong>Result:</strong> Terraform can run from the public internet but limited to Storage account and control plane access of Azure resources.</p>
+</div>
+
+<h3>The Solution: Landing Zone Architecture</h3>
+
+<p>We need infrastructure <strong>inside the private network</strong> that can:</p>
+<ul>
+    <li>Receive commands from GitHub (via OIDC tokens)</li>
+    <li>Run Terraform against private endpoints</li>
+    <li>Allow humans to access resources for debugging</li>
+</ul>
+
+<div class="grid grid-3">
+    <div class="card" style="border-left-color: var(--bc-gold);">
+        <h4 style="margin-top: 0;">VNet (Virtual Network)</h4>
+        <p><strong>What:</strong> Private network in Azure</p>
+        <p><strong>Why:</strong> All resources live here, isolated from public internet</p>
+        <p style="margin-bottom:0;"><strong>Analogy:</strong> The building's internal network</p>
+    </div>
+    <div class="card" style="border-left-color: var(--bc-gold);">
+        <h4 style="margin-top: 0;">Jumpbox VM</h4>
+        <p><strong>What:</strong> Linux VM inside the VNet</p>
+        <p><strong>Why:</strong> Runs Terraform, can reach all private endpoints</p>
+        <p style="margin-bottom:0;"><strong>Analogy:</strong> A workstation inside the secure office</p>
+    </div>
+    <div class="card" style="border-left-color: var(--bc-gold);">
+        <h4 style="margin-top: 0;">Azure Bastion</h4>
+        <p><strong>What:</strong> Managed gateway service</p>
+        <p><strong>Why:</strong> Secure way to access Jumpbox (no public SSH)</p>
+        <p style="margin-bottom:0;"><strong>Analogy:</strong> The secure lobby with ID verification</p>
+    </div>
+</div>
+
+<h3>How Terraform Actually Runs</h3>
+
+<div class="card" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);">
+<pre style="background: var(--bc-blue-dark); margin: 0; padding: 1rem; overflow-x: auto;">
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         DEPLOYMENT FLOW                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   GitHub Actions          │ Azure Landing Zone (Private Network)        │
+│   (Public Internet)       │                                             │
+│                           │                                             │
+│   ┌──────────────┐        │    ┌──────────────┐    ┌─────────────────┐  │
+│   │ Workflow     │        │    │ Self-Hosted  │    │ Private         │  │
+│   │ Triggers     │OIDC ─▶│ Runner       │───▶│     | Endpoints       │  │
+│   │              │        │    │ (in VNet)    │    │ (Storage, KV)   │  │
+│   └──────────────┘        │    └──────────────┘    └─────────────────┘  │
+│                           │           │                                 │
+│                           │           ▼                                 │
+│                           │    ┌──────────────┐                         │
+│                           │    │ terraform    │                         │
+│                           │    │ plan/apply   │                         │
+│                           │    └──────────────┘                         │
+│                           │                                             │
+└─────────────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+
+<p><strong>Two deployment options:</strong></p>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #22c55e;">
+        <h4 style="margin-top: 0;">Option A: Self-Hosted Runners</h4>
+        <p>GitHub Actions runners deployed inside the VNet as Container App Jobs. Workflows run directly on these.</p>
+        <ul>
+            <li>Runner registers with GitHub</li>
+            <li>Workflow triggers, runner picks it up</li>
+            <li>Terraform runs inside VNet</li>
+            <li>Full access to private endpoints</li>
+            <li>Vnet peering is enabled in spoke VNets for tools to deploy to dev/test/prod</li>
+        </ul>
+        <div class="alert alert-info" style="margin-top: 1rem;">
+            <span class="alert-icon">💰</span>
+            <div>
+                <strong>Cost drivers (from the runner Terraform module):</strong>
+                <ul style="margin: 0.5rem 0 0;">
+                    <li><strong>Runner compute:</strong> Azure Container Apps job runtime (scales to zero when idle)</li>
+                    <li><strong>Sizing knobs:</strong> <code>container_cpu</code> (default 1 vCPU), <code>container_memory</code> (default 2Gi), concurrency capped by <code>max_runners</code> (default 4)</li>
+                    <li><strong>Supporting costs:</strong> Log Analytics ingestion + ACR Premium base cost (fixed) + storage/transfer <em>(ACR private endpoints require Premium)</em></li>
+                </ul>
+                <p style="margin: 0.75rem 0 0;"><strong>Sample usage calculation (units-first):</strong></p>
+                <pre style="margin: 0.5rem 0 0;">Assumptions: 20 jobs/day, 10 min/job, avg concurrency = 1.5
+Monthly runner hours = 30 * 20 * (10/60) * 1.5 = 150 hours
+Total seconds = 150 * 3600 = 540,000 seconds
+
+Canada Central rates (Container Apps):
+vCPU-seconds: $0.0000480/sec
+GiB-seconds:  $0.0000057/sec
+Requests:     $0.565 per million
+
+vCPU cost = 540,000 * 1 vCPU * 0.0000480 = $25.92
+Memory cost = 540,000 * 2 GiB * 0.0000057 = $6.16
+Request cost (example 1M req/mo) = $0.57
+
+Estimated runner compute total ≈ $32.65/mo
+ACR Premium base cost = $2.351/day ≈ $70.53/mo (30-day month)
+Estimated compute + ACR base ≈ $103.18/mo (excludes Log Analytics)
+
+Assumes a single-region ACR Premium registry with no geo-replication and no connected registry</pre>
+            </div>
+        </div>
+        <p style="margin-bottom:0;color:#22c55e;"><strong>Recommended and Used for CI/CD</strong></p>
+    </div>
+    <div class="card" style="border-left-color: #0ea5e9;">
+        <h4 style="margin-top: 0;">Option B: Jumpbox + Bastion</h4>
+        <p>Manual access via Bastion for debugging, testing, and emergency fixes.</p>
+        <ul>
+            <li>Human connects via Azure Portal</li>
+            <li>Bastion brokers SSH connection</li>
+            <li>Land on Jumpbox inside VNet</li>
+            <li>Run commands, debug issues</li>
+        </ul>
+        <p style="margin-bottom:0;color:#0ea5e9;"><strong>Required for human access</strong></p>
+    </div>
+</div>
+
+<h3>What About Other Repositories?</h3>
+
+<div class="alert alert-success">
+    <span class="alert-icon">✅</span>
+    <div>
+        <strong>Good News: Other repos do NOT need their own Bastion/Jumpbox/VNet!</strong><br>
+        This is <strong>shared infrastructure</strong> - the Landing Zone is set up once and used by all projects.
+    </div>
+</div>
+
+<h4>What This Repo Provides (Set Up Once)</h4>
+<table>
+    <tr>
+        <th>Component</th>
+        <th>Purpose</th>
+        <th>Shared?</th>
+    </tr>
+    <tr>
+        <td>VNet + Subnets</td>
+        <td>Private network for all resources</td>
+        <td><strong>Yes - all projects use this</strong></td>
+    </tr>
+    <tr>
+        <td>Azure Bastion</td>
+        <td>Secure access gateway</td>
+        <td><strong>Yes - one Bastion for all</strong></td>
+    </tr>
+    <tr>
+        <td>Jumpbox VM</td>
+        <td>Admin access point</td>
+        <td><strong>Yes - shared by admins</strong></td>
+    </tr>
+    <tr>
+        <td>Self-Hosted Runners</td>
+        <td>CI/CD execution inside VNet</td>
+        <td><strong>Yes - shared runner pool</strong></td>
+    </tr>
+    <tr>
+        <td>Private DNS Zones</td>
+        <td>Name resolution for private endpoints</td>
+        <td><strong>Managed by Platform Services</strong></td>
+    </tr>
+</table>
+
+<div class="alert alert-info" style="margin-top: 1rem;">
+    <span class="alert-icon">&#128274;</span>
+    <div>
+        <strong>DNS & ExpressRoute Note:</strong> Private DNS zones are managed centrally by Platform Services, not by this Landing Zone. ExpressRoute connectivity exists for on-premises access, but AI Hub clients will connect through <strong>App Gateway + APIM</strong> endpoints rather than directly via ExpressRoute.
+    </div>
+</div>
+
+<h4>How Access Actually Works (Public vs Private)</h4>
+
+<div class="alert alert-warning">
+    <span class="alert-icon">🔑</span>
+    <div>
+        <strong>Key Concept:</strong> "No public endpoints" doesn't mean "no access". It means access flows through <strong>controlled private channels</strong>, not the open internet.
+    </div>
+</div>
+
+<table>
+    <tr>
+        <th>Who</th>
+        <th>Access Path</th>
+        <th>Public IPs?</th>
+        <th>How It Works</th>
+    </tr>
+    <tr>
+        <td><strong>Platform Team (Admin)</strong></td>
+        <td>Internet → Azure Portal → Bastion → VMs</td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">Bastion only</span></td>
+        <td>Bastion is Azure-managed PaaS with public IP. VMs have private IPs only. This is the ONE public-to-private bridge.</td>
+    </tr>
+    <tr>
+        <td><strong>Ministry Apps/Users</strong></td>
+        <td>Gov Network → ExpressRoute → App Gateway → APIM → Services</td>
+        <td><span class="badge" style="background:#22c55e;color:white;">None</span></td>
+        <td>ExpressRoute is a <strong>private dedicated circuit</strong> from BC Gov data centers to Azure backbone. Traffic never touches public internet.</td>
+    </tr>
+    <tr>
+        <td><strong>GitHub Actions (CI/CD)</strong></td>
+        <td>Self-hosted runners inside VNet → Private Endpoints</td>
+        <td><span class="badge" style="background:#22c55e;color:white;">None</span></td>
+        <td>Self Hosted Runners are container jobs running inside Azure Container Apps inside our VNet. They access Azure resources via private endpoints directly.</td>
+    </tr>
+</table>
+
+<div class="grid grid-2" style="margin-top: 1rem;">
+    <div class="card" style="border-left-color: #8b5cf6;">
+        <h4 style="margin-top: 0; color: #7c3aed;">What is ExpressRoute?</h4>
+        <p>ExpressRoute is <strong>NOT</strong> a public endpoint. It's a dedicated fiber connection from BC Gov's data centers directly into Azure's network backbone.</p>
+        <ul style="margin-bottom: 0;">
+            <li>Traffic stays on private circuits (not internet)</li>
+            <li>Managed by BC Gov Platform Services</li>
+            <li>Already exists - we just use it</li>
+            <li>Like a private tunnel to Azure</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #0078d4;">
+        <h4 style="margin-top: 0; color: #0078d4;">Why APIM is Internal</h4>
+        <p>APIM  is internal only <strong> for security purposes.</strong> APIM is reachable via App gateway :</p>
+        <ul style="margin-bottom: 0;">
+            <li>ExpressRoute connects Gov Network → Azure VNet</li>
+            <li>App Gateway acts as TCP layer 4 load balancer and proxy to APIM with strong WAF protection.</li>
+            <li>Gov users can reach internal IPs via ExpressRoute if needed with proper Firewall rules in place.</li>
+        </ul>
+    </div>
+</div>
+
+<div class="card" style="border-left-color: #003366; margin-top: 1rem; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);">
+    <h4 style="margin-top: 0;">Summary: Only ONE Public Endpoint</h4>
+    <pre style="background: #1e1e1e; font-size: 11px; margin: 0.5rem 0; padding: 1rem;">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           BC Gov Network                                    │
+│  ┌──────────────┐                                                           │
+│  │ Ministry     │                                                           │
+│  │ Applications │──┐                                                        │
+│  └──────────────┘  │                                                        │
+│                    │                                                        │
+│  ┌──────────────┐  │    ┌──────────────────────────────────────────────────┐│
+│  │ Ministry     │──┼────│         ExpressRoute (Private Circuit)           ││
+│  │ Users        │  │    │         NOT public internet!                     ││
+│  └──────────────┘  │    └──────────────────────────────────────────────────┘│
+└────────────────────┼────────────────────────────────────────────────────────┘
+                     │ Firewall Rules (Allowed Traffic)
+                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Azure (Private VNet)                              │
+│                                                                             │
+│  ┌────────────────┐    ┌────────────────┐    ┌────────────────────────────┐ │
+│  │  App Gateway   │───▶│     APIM       │───▶│   Private Endpoints        │ │
+│  │  (Public IP)   │    │  (Internal IP) │    │   (Storage, OpenAI, etc.)  │ │
+│  └────────────────┘    └────────────────┘    └────────────────────────────┘ │
+│         ▲                                                                   │
+│         │                                                                   │
+│         │ All private IPs - reachable via ExpressRoute                      │
+│                                                                             │
+│  ════════════════════════════════════════════════════════════════════════   │
+│                                                                             │
+│  ┌────────────────┐    ┌────────────────┐                                   │
+│  │    BASTION     │─▶ │   Jumpbox VM   │    ◀── Only Bastion has public IP  │
+│  │  (PUBLIC IP)   │    │  (Private IP)  │        (for admin access)         │
+│  └────────────────┘    └────────────────┘                                   │
+│         ▲                                                                   │
+└─────────┼───────────────────────────────────────────────────────────────────┘
+          │
+          │ Admin accesses via Azure Portal (browser)
+          │
+┌─────────┴────────┐
+│    INTERNET      │
+│  (Platform Team) │
+└──────────────────┘
+    </pre>
+</div>
+
+<h4>What Other Repos Need To Do</h4>
+<table>
+    <tr>
+        <th>Task</th>
+        <th>Why</th>
+        <th>Effort</th>
+    </tr>
+    <tr>
+        <td>Configure OIDC federation</td>
+        <td>Allow their repo to authenticate to Azure</td>
+        <td>~30 min setup</td>
+    </tr>
+    <tr>
+        <td>Use shared runner labels</td>
+        <td>Target self-hosted runners in VNet</td>
+        <td>1 line in workflow</td>
+    </tr>
+    <tr>
+        <td>Deploy into existing VNet</td>
+        <td>Resources join the private network</td>
+        <td>Reference VNet in Terraform</td>
+    </tr>
+</table>
+
+<div class="card" style="border-left-color: #22c55e; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);">
+    <h4 style="margin-top: 0; color: #166534;">Example: New Project Onboarding</h4>
+    <p>A new AI project wants to deploy a model endpoint. Here's what they do:</p>
+    <ol>
+        <li><strong>OIDC Setup:</strong> Platform team adds federated credential for <code>repo:bcgov/new-project:*</code></li>
+        <li><strong>Workflow:</strong> Use <code>runs-on: [self-hosted, azure-vnet]</code> instead of <code>runs-on: ubuntu-latest</code></li>
+        <li><strong>Terraform:</strong> Reference existing VNet: <code>data "azurerm_virtual_network" "hub" { ... }</code></li>
+        <li><strong>Deploy:</strong> Resources automatically use private endpoints in the shared network</li>
+    </ol>
+    <p style="margin-bottom:0;"><strong>Total setup time: ~1 hour</strong> (vs. days to build their own Landing Zone)</p>
+</div>
+
+<h3>Why Not Just Open Public Endpoints Temporarily?</h3>
+
+<div class="card" style="border-left-color: #ef4444;">
+    <p><strong>Policy prohibits this.</strong> Even temporary public access:</p>
+    <ul>
+        <li>Creates audit findings</li>
+        <li>Requires security exemption paperwork</li>
+        <li>Introduces attack window</li>
+        <li>Must be reverted manually (often forgotten)</li>
+    </ul>
+    <p style="margin-bottom:0;">The Landing Zone approach is <strong>always private</strong> - no exemptions needed.</p>
+</div>
+
+<h3>Consequences</h3>
+
+<h4>Positive</h4>
+<ul>
+    <li><strong>Fully policy compliant</strong> - No public endpoints ever</li>
+    <li><strong>Shared infrastructure</strong> - One-time setup, many projects benefit</li>
+    <li><strong>Consistent security</strong> - All projects inherit the same secure baseline</li>
+    <li><strong>Cost efficient</strong> - Single Bastion (~$140/mo) serves all projects</li>
+</ul>
+
+<h4>Negative</h4>
+<ul>
+    <li><strong>Initial complexity</strong> - Landing Zone must be built first</li>
+    <li><strong>Runner maintenance</strong> - Self-hosted runners need updates</li>
+    <li><strong>VNet planning</strong> - Must allocate IP ranges carefully</li>
+</ul>
+
+<h3>References</h3>
+<ul>
+    <li><a href="https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/landing-zone/">Azure Landing Zone Concepts</a></li>
+    <li><a href="https://docs.github.com/en/actions/hosting-your-own-runners">GitHub Self-Hosted Runners</a></li>
+    <li><a href="diagrams.html#network-arch">Network Architecture Diagram</a></li>
+</ul>
+
+</div>
+</details>
+
+<details class="adr" id="adr-002">
+<summary>
+    <span class="adr-title">ADR-002: Use OIDC instead of Service Principal Secrets</span>
+    <span class="adr-status"><span class="badge badge-gold">Accepted</span></span>
+</summary>
+<div class="adr-content">
+
+<div class="grid grid-4" style="margin-bottom: 1rem;">
+    <div><strong>Status:</strong> Accepted</div>
+    <div><strong>Date:</strong> 2025-01</div>
+    <div><strong>Driver:</strong> <span class="badge badge-blue">Policy Required</span></div>
+    <div><strong>Category:</strong> Security</div>
+</div>
+
+<h3>Context</h3>
+
+<div class="alert alert-warning">
+    <span class="alert-icon">🏛️</span>
+    <div>
+        <strong>Policy Driver:</strong> BC Gov security policy requires minimizing long-lived credentials and implementing credential rotation. The platform team provides rotating keys, but OIDC eliminates the need for a cron job to fetch and update credentials.
+    </div>
+</div>
+
+<p>GitHub Actions workflows need to authenticate with Azure to deploy infrastructure via Terraform. We evaluated three options for credential management:</p>
+
+<div class="grid grid-3">
+    <div class="card" style="border-left-color: #ef4444;">
+        <h4 style="margin-top: 0;">Option A: Static Secrets</h4>
+        <ul>
+            <li>Create Azure AD App Registration</li>
+            <li>Generate Client Secret</li>
+            <li>Store in GitHub Secrets</li>
+            <li>Rotate manually every 1-2 years</li>
+        </ul>
+        <p style="margin-bottom:0;color:#ef4444;"><strong>Not policy compliant</strong> - Long-lived credentials prohibited</p>
+    </div>
+    <div class="card" style="border-left-color: #f59e0b;">
+        <h4 style="margin-top: 0;">Option B: Platform Rotating Keys</h4>
+        <ul>
+            <li>Platform team rotates keys every 2 days</li>
+            <li>Keys expire after 4 days</li>
+            <li>Requires cron job to fetch/update</li>
+            <li>Must sync to GitHub Secrets</li>
+        </ul>
+        <p style="margin-bottom:0;color:#f59e0b;"><strong>Policy compliant</strong> - But adds operational overhead</p>
+    </div>
+    <div class="card" style="border-left-color: #22c55e;">
+        <h4 style="margin-top: 0;">Option C: OIDC Federation</h4>
+        <ul>
+            <li>Create Managed Identity</li>
+            <li>Configure GitHub OIDC trust</li>
+            <li>Token fetched in pipeline</li>
+            <li>No cron job needed</li>
+        </ul>
+        <p style="margin-bottom:0;color:#22c55e;"><strong>Policy compliant</strong> - Zero operational overhead</p>
+    </div>
+</div>
+
+<h3>Decision</h3>
+
+<p><strong>We chose Option C: OIDC Federated Credentials.</strong></p>
+
+<p>While the platform team's rotating key solution (Option B) is policy compliant, it requires maintaining a cron job to continuously fetch and update credentials. OIDC eliminates this operational burden - the bearer token is obtained directly within the GitHub Actions workflow at runtime, with no external synchronization required.</p>
+
+<h3>Rationale</h3>
+
+<table>
+    <tr>
+        <th>Criteria</th>
+        <th>Static Secrets</th>
+        <th>Platform Rotating</th>
+        <th>OIDC</th>
+    </tr>
+    <tr>
+        <td>Policy Compliant</td>
+        <td style="color:#ef4444;">No</td>
+        <td>Yes</td>
+        <td><strong>Yes</strong></td>
+    </tr>
+    <tr>
+        <td>Secret Management</td>
+        <td>Manual rotation</td>
+        <td>Cron job required</td>
+        <td><strong>No secrets needed</strong></td>
+    </tr>
+    <tr>
+        <td>Security Risk</td>
+        <td>Long-lived credential leak</td>
+        <td>4-day window if compromised</td>
+        <td><strong>~10 min window</strong></td>
+    </tr>
+    <tr>
+        <td>Operational Overhead</td>
+        <td>Annual rotation</td>
+        <td>Cron job maintenance</td>
+        <td><strong>Set and forget</strong></td>
+    </tr>
+    <tr>
+        <td>Token Lifetime</td>
+        <td>1-2 years</td>
+        <td>4 days max</td>
+        <td><strong>~10 minutes</strong></td>
+    </tr>
+    <tr>
+        <td>Failure Mode</td>
+        <td>Expired secret breaks deploy</td>
+        <td>Cron failure breaks deploy</td>
+        <td><strong>Self-contained in pipeline</strong></td>
+    </tr>
+    <tr>
+        <td>Scope Control</td>
+        <td>Per application</td>
+        <td>Per application</td>
+        <td><strong>Per repo/branch/env</strong></td>
+    </tr>
+</table>
+
+<h3>Consequences</h3>
+
+<h4>Positive</h4>
+<ul>
+    <li><strong>Zero secrets to rotate</strong> - Eliminates credential management overhead</li>
+    <li><strong>Reduced blast radius</strong> - Tokens valid for minutes, not years</li>
+    <li><strong>Fine-grained access</strong> - Can restrict to specific branches/environments</li>
+    <li><strong>Better audit trail</strong> - Every token exchange is logged with JWT claims</li>
+    <li><strong>No secret sprawl</strong> - Secrets don't end up in logs, config files, or developer machines</li>
+</ul>
+
+<h4>Negative</h4>
+<ul>
+    <li><strong>More complex initial setup</strong> - Federated credential configuration is more involved</li>
+    <li><strong>Newer technology</strong> - Less documentation and community examples available</li>
+    <li><strong>GitHub dependency</strong> - Tightly coupled to GitHub's OIDC provider</li>
+</ul>
+
+<h4>Neutral</h4>
+<ul>
+    <li>Requires understanding of JWT claims and subject matching</li>
+    <li>Debugging auth failures requires knowledge of OIDC flow</li>
+</ul>
+
+<h3>References</h3>
+<ul>
+    <li><a href="https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect">GitHub OIDC Documentation</a></li>
+    <li><a href="https://learn.microsoft.com/en-us/azure/active-directory/workload-identities/workload-identity-federation">Azure Workload Identity Federation</a></li>
+    <li><a href="diagrams.html#token-flow">Token Exchange Flow Diagram</a></li>
+</ul>
+
+</div>
+</details>
+
+<details class="adr" id="adr-003">
+<summary>
+    <span class="adr-title">ADR-003: Use Azure Bastion for VM Access</span>
+    <span class="adr-status"><span class="badge badge-gold">Accepted</span></span>
+</summary>
+<div class="adr-content">
+
+<div class="grid grid-4" style="margin-bottom: 1rem;">
+    <div><strong>Status:</strong> Accepted</div>
+    <div><strong>Date:</strong> 2025-01</div>
+    <div><strong>Driver:</strong> <span class="badge badge-blue">Policy Required</span></div>
+    <div><strong>Category:</strong> Networking</div>
+</div>
+
+<h3>Context</h3>
+
+<div class="alert alert-warning">
+    <span class="alert-icon">🏛️</span>
+    <div>
+        <strong>Policy Driver:</strong> BC Gov policy prohibits public IP addresses on virtual machines. VMs must only be accessible through private networks. Azure Bastion provides compliant access without exposing VMs to the internet.
+    </div>
+</div>
+
+<div class="alert alert-info">
+    <span class="alert-icon">🌉</span>
+    <div>
+        <strong>Bastion = The Public-to-Private Bridge</strong><br>
+        Azure Bastion is the <strong>one approved exception</strong> to the "no public endpoints" rule. It's an Azure-managed PaaS service with a public IP that provides secure browser-based access to private VMs. The key point: Bastion has the public IP, not the VMs themselves.
+    </div>
+</div>
+
+<h4>Public Endpoints in the Architecture</h4>
+<table>
+    <tr>
+        <th>Service</th>
+        <th>Has Public IP?</th>
+        <th>Why</th>
+    </tr>
+    <tr>
+        <td><strong>Azure Bastion</strong></td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">Yes (exception)</span></td>
+        <td>Required for browser-based VM access. Azure-managed, AAD-authenticated. This is the public-to-private bridge for admin access.</td>
+    </tr>
+    <tr>
+        <td>App Gateway</td>
+        <td><span class="badge" style="background:#22c55e;color:white;">Yes</span></td>
+        <td>Receives traffic from  public internet with WAF (Web Application Firewall).</td>
+    </tr>
+    <tr>
+        <td>APIM</td>
+        <td><span class="badge" style="background:#22c55e;color:white;">No (internal)</span></td>
+        <td>Deployed in internal mode, sits behind App Gateway. No public exposure.</td>
+    </tr>
+    <tr>
+        <td>VMs (Jumpbox)</td>
+        <td><span class="badge" style="background:#22c55e;color:white;">No</span></td>
+        <td>Private IPs only. Access via Bastion.</td>
+    </tr>
+    <tr>
+        <td>Storage, Key Vault, etc.</td>
+        <td><span class="badge" style="background:#22c55e;color:white;">No</span></td>
+        <td>Private endpoints only. Public access disabled.</td>
+    </tr>
+</table>
+
+<p>Operators need secure access to jumpbox VMs for debugging and administration. The VMs cannot have public IPs per policy. We evaluated:</p>
+
+<div class="grid grid-3">
+    <div class="card">
+        <h4 style="margin-top: 0;">Option A: VPN Gateway</h4>
+        <p>Point-to-site VPN for developer access</p>
+    </div>
+    <div class="card">
+        <h4 style="margin-top: 0;">Option B: Public IP + NSG</h4>
+        <p>Expose SSH/RDP with IP allowlisting</p>
+    </div>
+    <div class="card" style="border-left-color: #22c55e;">
+        <h4 style="margin-top: 0;">Option C: Azure Bastion</h4>
+        <p>Browser-based RDP/SSH via Azure Portal</p>
+    </div>
+</div>
+
+<h3>Decision</h3>
+
+<p><strong>We chose Option C: Azure Bastion.</strong></p>
+
+<h3>Rationale</h3>
+
+<table>
+    <tr>
+        <th>Criteria</th>
+        <th>VPN Gateway</th>
+        <th>Public IP</th>
+        <th>Bastion</th>
+    </tr>
+    <tr>
+        <td>Setup Complexity</td>
+        <td>High (certs, clients)</td>
+        <td>Low</td>
+        <td><strong>Medium</strong></td>
+    </tr>
+    <tr>
+        <td>Client Requirements</td>
+        <td>VPN client software</td>
+        <td>SSH/RDP client</td>
+        <td><strong>Browser only</strong></td>
+    </tr>
+    <tr>
+        <td>Attack Surface</td>
+        <td>VPN endpoint</td>
+        <td>High (exposed ports)</td>
+        <td><strong>Minimal</strong></td>
+    </tr>
+    <tr>
+        <td>Cost</td>
+        <td>~$140/month</td>
+        <td>~$5/month</td>
+        <td><strong>~$140/month (when on)</strong></td>
+    </tr>
+    <tr>
+        <td>On-demand</td>
+        <td>No (always on)</td>
+        <td>Yes</td>
+        <td><strong>Yes (can destroy)</strong></td>
+    </tr>
+</table>
+
+<h3>Consequences</h3>
+
+<h4>Positive</h4>
+<ul>
+    <li><strong>No public IPs on VMs</strong> - VMs only have private IPs</li>
+    <li><strong>No client software</strong> - Works from any browser</li>
+    <li><strong>Azure AD integration</strong> - Uses existing identity</li>
+    <li><strong>Session recording</strong> - Can enable for audit</li>
+    <li><strong>Cost control</strong> - Can deploy/destroy on demand via workflow</li>
+</ul>
+
+<h4>Negative</h4>
+<ul>
+    <li><strong>Azure Portal dependency</strong> - Must use Azure UI or CLI</li>
+    <li><strong>File transfer limitations</strong> - No native SCP/SFTP</li>
+    <li><strong>Latency</strong> - Browser-based adds some lag</li>
+</ul>
+
+<h3>References</h3>
+<ul>
+    <li><a href="https://learn.microsoft.com/en-us/azure/bastion/bastion-overview">Azure Bastion Documentation</a></li>
+    <li><a href="https://learn.microsoft.com/en-us/azure/bastion/bastion-connect-vm-ssh-linux">Connect to Linux VM via Bastion</a></li>
+    <li><a href="diagrams.html#network-environments">Network Environments Diagram</a></li>
+</ul>
+
+</div>
+</details>
+
+<details class="adr" id="adr-004">
+<summary>
+    <span class="adr-title">ADR-004: Private Endpoints for All Azure Services</span>
+    <span class="adr-status"><span class="badge badge-gold">Accepted</span></span>
+</summary>
+<div class="adr-content">
+
+<div class="grid grid-4" style="margin-bottom: 1rem;">
+    <div><strong>Status:</strong> Accepted</div>
+    <div><strong>Date:</strong> 2025-01</div>
+    <div><strong>Driver:</strong> <span class="badge badge-blue">Policy Required</span></div>
+    <div><strong>Category:</strong> Networking</div>
+</div>
+
+<h3>Context</h3>
+
+<div class="alert alert-warning">
+    <span class="alert-icon">🏛️</span>
+    <div>
+        <strong>Policy Driver:</strong> BC Gov security policy mandates that all Azure PaaS services must be accessed via Private Endpoints only. Public endpoints must be disabled. This ensures all traffic stays within the Azure backbone and private networks.
+    </div>
+</div>
+
+<p>Azure PaaS services (Storage Accounts, Key Vaults, Databases, etc.) by default have public endpoints accessible from the internet. BC Gov policy requires these to be locked down.</p>
+
+<h3>Policy Requirements</h3>
+
+<div class="card" style="border-left-color: #ef4444;">
+    <h4 style="margin-top: 0;">What Policy Prohibits</h4>
+    <ul style="margin-bottom: 0;">
+        <li>Public endpoints on any Azure service</li>
+        <li>Key Vaults with public network access</li>
+        <li>Databases with public connectivity</li>
+        <li>Any service reachable without VNet integration</li>
+    </ul>
+</div>
+
+<div class="card" style="border-left-color: #22c55e;">
+    <h4 style="margin-top: 0;">What Policy Requires</h4>
+    <ul style="margin-bottom: 0;">
+        <li>Private Endpoints for all PaaS services</li>
+        <li>Private DNS zones for name resolution <em>(managed by Platform Services)</em></li>
+        <li>VNet integration for all access</li>
+        <li>Network Security Groups controlling traffic</li>
+        <li>"Deny public access" enabled on all services</li>
+    </ul>
+</div>
+
+<h3>Implementation</h3>
+
+<div class="alert alert-info" style="margin-bottom: 1rem;">
+    <span class="alert-icon">&#128274;</span>
+    <div>
+        <strong>DNS Management:</strong> All private DNS zones are managed centrally by Platform Services. The AI Hub team does not manage DNS - we only create private endpoints that link to the existing DNS zones.
+    </div>
+</div>
+
+<table>
+    <tr>
+        <th>Service</th>
+        <th>Private Endpoint</th>
+        <th>DNS Zone (Platform Services)</th>
+    </tr>
+    <tr>
+        <td>Key Vault (if used)</td>
+        <td><code>privateEndpoint-vault</code></td>
+        <td><code>privatelink.vaultcore.azure.net</code></td>
+    </tr>
+    <tr>
+        <td>Container Registry (if used)</td>
+        <td><code>privateEndpoint-acr</code></td>
+        <td><code>privatelink.azurecr.io</code></td>
+    </tr>
+</table>
+
+<h3>Client Connectivity Model</h3>
+
+<div class="card" style="border-left-color: var(--bc-gold);">
+    <h4 style="margin-top: 0;">ExpressRoute + App Gateway + APIM</h4>
+    <p>BC Gov has ExpressRoute connectivity to Azure, but AI Hub clients will <strong>not</strong> access services directly via ExpressRoute. Instead:</p>
+    <ul>
+        <li><strong>App Gateway:</strong> Provides ingress, WAF protection, and SSL termination</li>
+        <li><strong>APIM:</strong> API management layer for authentication, rate limiting, and routing</li>
+        <li><strong>Private Endpoints:</strong> Backend services (AI models, storage) remain fully private</li>
+    </ul>
+    <p style="margin-bottom: 0;"><strong>Client flow:</strong> Client → App Gateway → APIM → Private Endpoint → Azure Service</p>
+</div>
+
+<h3>Consequences</h3>
+
+<h4>Challenges</h4>
+<ul>
+    <li><strong>GitHub Actions cannot reach private endpoints directly</strong> - Requires self-hosted runners inside the VNet (see <a href="#adr-001">ADR-001</a>)</li>
+    <li><strong>Local development complexity</strong> - Developers cannot access resources without VPN/Bastion</li>
+    <li><strong>DNS resolution</strong> - Must configure private DNS zones correctly</li>
+    <li><strong>Debugging difficulty</strong> - Cannot easily test from outside the network</li>
+</ul>
+
+<h4>Workarounds</h4>
+<ul>
+    <li><strong>Terraform State:</strong> Use self-hosted runners inside the VNet which can access the private storage endpoint directly. The <code>use_azuread_auth = true</code> setting enables Azure AD authentication for state access.</li>
+    <li><strong>Development:</strong> Use Bastion + Jumpbox for all Azure resource access (see <a href="#adr-003">ADR-003</a>)</li>
+    <li><strong>CI/CD:</strong> Use self-hosted runners in the VNet for full private access (see <a href="#adr-001">ADR-001</a>)</li>
+</ul>
+
+<h3>References</h3>
+<ul>
+    <li><a href="https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-overview">Azure Private Endpoint Documentation</a></li>
+    <li><a href="diagrams.html#network-arch">Network Architecture Diagram</a></li>
+</ul>
+
+</div>
+</details>
+
+<details class="adr" id="adr-005">
+<summary>
+    <span class="adr-title">ADR-005: Zero-Dependency Documentation System</span>
+    <span class="adr-status"><span class="badge badge-gold">Accepted</span></span>
+</summary>
+<div class="adr-content">
+
+<div class="grid grid-4" style="margin-bottom: 1rem;">
+    <div><strong>Status:</strong> Accepted</div>
+    <div><strong>Date:</strong> 2025-12</div>
+    <div><strong>Driver:</strong> <span class="badge" style="background:#22c55e;color:white;">Choice</span></div>
+    <div><strong>Category:</strong> Documentation</div>
+</div>
+
+<h3>Context</h3>
+
+<p>We needed a documentation site for the project. Options considered:</p>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h4 style="margin-top: 0;">Static Site Generators</h4>
+        <ul>
+            <li>Jekyll (Ruby)</li>
+            <li>Hugo (Go)</li>
+            <li>Docusaurus (Node.js)</li>
+            <li>MkDocs (Python)</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #22c55e;">
+        <h4 style="margin-top: 0;">Custom Bash Build</h4>
+        <ul>
+            <li>Header/footer partials</li>
+            <li>Variable substitution</li>
+            <li>~60 lines of shell script</li>
+            <li>Zero external dependencies</li>
+        </ul>
+    </div>
+</div>
+
+<h3>Decision</h3>
+
+<p><strong>We built a custom Bash-based static site generator.</strong></p>
+
+<h3>Rationale</h3>
+
+<ul>
+    <li><strong>Portability:</strong> Runs anywhere with Bash (Linux, Mac, WSL, CI)</li>
+    <li><strong>No dependency management:</strong> No npm, gem, pip, go install required</li>
+    <li><strong>Simplicity:</strong> Anyone can understand the 60-line build script</li>
+    <li><strong>Speed:</strong> Builds in milliseconds</li>
+    <li><strong>GitHub Pages native:</strong> No special plugins or build configurations</li>
+    <li><strong>AI-friendly:</strong> HTML generation is trivial for AI assistants</li>
+</ul>
+
+<h3>Consequences</h3>
+
+<h4>Positive</h4>
+<ul>
+    <li>Zero build dependencies to maintain or update</li>
+    <li>Works in any environment without setup</li>
+    <li>Easy to understand and modify</li>
+    <li>No security vulnerabilities from npm packages</li>
+</ul>
+
+<h4>Negative</h4>
+<ul>
+    <li>No built-in Markdown support (write HTML directly)</li>
+    <li>No automatic table of contents generation</li>
+    <li>No built-in search (added custom client-side solution)</li>
+</ul>
+
+<h4>Mitigations</h4>
+<ul>
+    <li>Created template page with all components for easy copy-paste</li>
+    <li>AI assistants generate HTML as easily as Markdown</li>
+    <li>Added custom SVG viewer for diagrams</li>
+</ul>
+
+</div>
+</details>
+
+<details class="adr" id="adr-006">
+<summary>
+    <span class="adr-title">ADR-006: Terraform as Infrastructure as Code (IaC)</span>
+    <span class="adr-status"><span class="badge badge-gold">Accepted</span></span>
+</summary>
+<div class="adr-content">
+
+<div class="grid grid-4" style="margin-bottom: 1rem;">
+    <div><strong>Status:</strong> Accepted</div>
+    <div><strong>Date:</strong> 2025-12</div>
+    <div><strong>Driver:</strong> <span class="badge" style="background:#22c55e;color:white;">Choice</span></div>
+    <div><strong>Category:</strong> Infrastructure</div>
+</div>
+
+<h3>Context</h3>
+
+<p>This repo needs a repeatable, auditable way to provision and update Azure infrastructure (networking, private endpoints, RBAC, diagnostics, and PaaS services) under BC Government policy constraints.</p>
+
+<p>Given the Landing Zone design (private endpoints, limited portal use, and CI/CD execution from within the VNet), we need Infrastructure as Code that supports:</p>
+<ul>
+    <li>Idempotent, reviewable changes (pull requests as the change record)</li>
+    <li>Policy-driven patterns (private endpoints, NSGs, diagnostics settings)</li>
+    <li>Composable modules (prefer Azure Verified Modules where possible)</li>
+    <li>Automation via GitHub Actions using OIDC and self-hosted runners</li>
+</ul>
+
+<h3>Options Considered</h3>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #22c55e;">
+        <h4 style="margin-top: 0;">Terraform (selected)</h4>
+        <ul style="margin-bottom: 0;">
+            <li>Large ecosystem and Azure provider support</li>
+            <li>Strong module approach (including AVM for Terraform)</li>
+            <li>Works well in CI/CD and supports multi-environment workflows</li>
+        </ul>
+    </div>
+    <div class="card">
+        <h4 style="margin-top: 0;">Alternatives</h4>
+        <ul style="margin-bottom: 0;">
+            <li>Bicep / ARM templates</li>
+            <li>Pulumi</li>
+            <li>Portal-based configuration (click-ops)</li>
+        </ul>
+    </div>
+</div>
+
+<h3>Decision</h3>
+
+<p><strong>We use Terraform as the primary Infrastructure as Code (IaC) tool for this repo.</strong></p>
+
+<h3>Rationale</h3>
+
+<ul>
+    <li><strong>Fits Landing Zone operations:</strong> Terraform runs cleanly on self-hosted runners inside the VNet, allowing data-plane access to private endpoints when required.</li>
+    <li><strong>Standardization via modules:</strong> We can prefer Azure Verified Modules (AVM) for consistent, policy-aligned deployments.</li>
+    <li><strong>Auditable change control:</strong> Plans and applies can be gated by pull request review and CI checks.</li>
+    <li><strong>Multi-environment support:</strong> Variables and modules make it straightforward to deploy dev/test/prod consistently.</li>
+    <li><strong>Sustainability:</strong> Terraform's widespread adoption ensures long-term community and vendor support. Team members working across AWS, Azure, and OpenShift can use one IaC tool consistently across the stack</li>
+</ul>
+
+<h3>Consequences</h3>
+
+<h4>Positive</h4>
+<ul>
+    <li><strong>Repeatable deployments</strong> - Same inputs produce the same infrastructure</li>
+    <li><strong>Versioned infrastructure</strong> - Git history becomes the change log</li>
+    <li><strong>Policy-aligned defaults</strong> - Modules can encode private endpoint and logging patterns</li>
+</ul>
+
+<h4>Negative</h4>
+<ul>
+    <li><strong>Learning curve</strong> - Contributors must understand Terraform workflows</li>
+    <li><strong>State management</strong> - Requires careful backend configuration and access controls</li>
+    <li><strong>Upgrades</strong> - Provider/module version bumps require ongoing maintenance</li>
+</ul>
+
+<h4>Mitigations</h4>
+<ul>
+    <li>Use pinned module versions and keep provider versions explicit</li>
+    <li>Use CI to run <code>terraform fmt</code>, <code>terraform validate</code>, and plans</li>
+    <li>Prefer AVM modules over custom resources where feasible</li>
+</ul>
+
+<h3>References</h3>
+<ul>
+    <li><a href="terraform.html">Terraform Guide</a> - How this repo uses Terraform</li>
+    <li><a href="terraform-reference.html">Terraform Reference</a> - Conventions and examples</li>
+    <li><a href="https://developer.hashicorp.com/terraform">Terraform Documentation</a></li>
+    <li><a href="https://azure.github.io/Azure-Verified-Modules/indexes/terraform/">Azure Verified Modules (Terraform index)</a></li>
+</ul>
+
+</div>
+</details>
+
+
+
+<details class="adr pending" id="adr-007">
+<summary>
+    <span class="adr-title">ADR-007: Client Connectivity via App Gateway + APIM</span>
+    <span class="adr-status"><span class="badge" style="background:#f59e0b;color:white;">Pending Platform/MS</span></span>
+</summary>
+<div class="adr-content">
+
+<div class="grid grid-4" style="margin-bottom: 1rem;">
+    <div><strong>Status:</strong> <span class="badge" style="background:#f59e0b;color:white;">Pending Platform/MS</span></div>
+    <div><strong>Date:</strong> 2025-12</div>
+    <div><strong>Driver:</strong> <span class="badge badge-blue">Policy Required</span></div>
+    <div><strong>Category:</strong> Networking</div>
+</div>
+
+<h3>Context</h3>
+
+<div class="alert alert-warning">
+    <span class="alert-icon">🏛️</span>
+    <div>
+        <strong>Platform Context:</strong> BC Gov Platform Services provides ExpressRoute connectivity to Azure for private, high-bandwidth access. ExpressRoute is <strong>available</strong>, not denied. However, for this multi-tenant AI Hub platform, we <strong>recommend</strong> all clients connect through App Gateway + APIM to ensure consistent security controls across all tenants.
+    </div>
+</div>
+
+<p>BC Government Platform Services has established ExpressRoute connectivity between on-premises networks and Azure. For this AI Hub Landing Zone, the question arose: should ministry applications connect directly to AI services via ExpressRoute, or through a managed ingress layer?</p>
+
+<h3>Options Considered</h3>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #f59e0b;">
+        <h4 style="margin-top: 0;">Option A: Direct ExpressRoute Access</h4>
+        <p>Clients connect directly to private endpoints via ExpressRoute.</p>
+        <ul>
+            <li>Lowest latency (no middlemen)</li>
+            <li>Simpler architecture for single-tenant</li>
+            <li>ExpressRoute is provided by Platform Services</li>
+        </ul>
+        <p style="color:#f59e0b;margin-bottom:0;"><strong>Case-by-Case:</strong> Available upon request with justification. Requires separate security review as it bypasses WAF, rate limiting, and centralized audit logging.</p>
+    </div>
+    <div class="card" style="border-left-color: #22c55e;">
+        <h4 style="margin-top: 0;">Option B: App Gateway + APIM (Recommended)</h4>
+        <p>All traffic flows through App Gateway and APIM before reaching backends.</p>
+        <ul>
+            <li>WAF protection at ingress</li>
+            <li>Centralized authentication</li>
+            <li>Rate limiting and quotas per tenant</li>
+            <li>Complete audit trail</li>
+            <li>Consistent multi-tenant isolation</li>
+        </ul>
+        <p style="color:#22c55e;margin-bottom:0;"><strong>Recommended:</strong> Standard path for all AI Hub clients</p>
+    </div>
+</div>
+
+<h3>Decision</h3>
+
+<p><strong>For a clear multi-tenant platform, we recommend all clients connect through App Gateway → APIM → Private Endpoints.</strong></p>
+
+<p>ExpressRoute connectivity is provided by Platform Services and is available. However, to support consistent security controls, audit logging, and fair resource allocation across multiple ministries, we recommend the App Gateway + APIM path as the standard connectivity model.</p>
+
+<div class="alert alert-info">
+    <span class="alert-icon">💡</span>
+    <div>
+        <strong>Direct ExpressRoute Access:</strong> If a client has a specific requirement for direct ExpressRoute access to backend services (e.g., extremely latency-sensitive workloads), this can be analyzed on a case-by-case basis. Such requests require justification and a separate security review.
+    </div>
+</div>
+
+<h3>Traffic Flow</h3>
+
+<div class="card" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);">
+<pre style="background: var(--bc-blue-dark); margin: 0;">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        CLIENT CONNECTIVITY MODEL                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   On-Premises                    │         Azure Landing Zone               │
+│   (Ministry Apps)                │                                          │
+│                                  │                                          │
+│   ┌──────────────┐              │    ┌─────────────────────────────────┐   │
+│   │ Ministry App │              │    │         App Gateway              │   │
+│   │ (Health)     │──────────────────▶│  • SSL Termination              │   │
+│   └──────────────┘   Express    │    │  • WAF Protection               │   │
+│                      Route      │    │  • DDoS Mitigation              │   │
+│   ┌──────────────┐              │    └──────────────┬──────────────────┘   │
+│   │ Ministry App │              │                   │                       │
+│   │ (SDPR)       │──────────────────▶               ▼                       │
+│   └──────────────┘              │    ┌─────────────────────────────────┐   │
+│                                 │    │            APIM                  │   │
+│   ┌──────────────┐              │    │  • Authentication (API Keys)    │   │
+│   │ Ministry App │              │    │  • Rate Limiting                │   │
+│   │ (Justice)    │──────────────────▶│  • Request Validation           │   │
+│   └──────────────┘              │    │  • Ministry Routing             │   │
+│                                 │    │  • Audit Logging                │   │
+│                                 │    └──────────────┬──────────────────┘   │
+│                                 │                   │                       │
+│                                 │                   ▼                       │
+│                                 │    ┌─────────────────────────────────┐   │
+│                                 │    │      Private Endpoints          │   │
+│                                 │    │  • AI Foundry                   │   │
+│                                 │    │  • Azure OpenAI                 │   │
+│                                 │    │  • AI Search                    │   │
+│                                 │    │  • Storage (RAG docs)           │   │
+│                                 │    └─────────────────────────────────┘   │
+│                                 │                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+
+<h3>Security Controls at Each Layer</h3>
+
+<table>
+    <tr>
+        <th>Layer</th>
+        <th>Security Control</th>
+        <th>Purpose</th>
+    </tr>
+    <tr>
+        <td><strong>App Gateway</strong></td>
+        <td>Web Application Firewall (WAF)</td>
+        <td>Block OWASP top 10, SQL injection, XSS</td>
+    </tr>
+    <tr>
+        <td><strong>App Gateway</strong></td>
+        <td>SSL/TLS Termination</td>
+        <td>Enforce HTTPS, manage certificates</td>
+    </tr>
+    <tr>
+        <td><strong>App Gateway</strong></td>
+        <td>DDoS Protection</td>
+        <td>Mitigate volumetric attacks</td>
+    </tr>
+    <tr>
+        <td><strong>APIM</strong></td>
+        <td>Subscription Keys</td>
+        <td>Identify and authenticate ministry</td>
+    </tr>
+    <tr>
+        <td><strong>APIM</strong></td>
+        <td>Rate Limiting</td>
+        <td>Prevent abuse, ensure fair usage</td>
+    </tr>
+    <tr>
+        <td><strong>APIM</strong></td>
+        <td>Request Validation</td>
+        <td>Validate payload structure</td>
+    </tr>
+    <tr>
+        <td><strong>APIM</strong></td>
+        <td>Audit Logging</td>
+        <td>Track all requests with ministry context</td>
+    </tr>
+    <tr>
+        <td><strong>Private Endpoints</strong></td>
+        <td>Network Isolation</td>
+        <td>Backend services unreachable from internet</td>
+    </tr>
+</table>
+
+<h3>Consequences</h3>
+
+<h4>Positive</h4>
+<ul>
+    <li><strong>Defense in depth</strong> - Multiple security layers before reaching backends</li>
+    <li><strong>Centralized policy</strong> - All clients subject to same rules</li>
+    <li><strong>Audit compliance</strong> - Every request logged with full context</li>
+    <li><strong>Flexibility</strong> - Can update policies without changing backends</li>
+    <li><strong>Cost attribution</strong> - Can track usage per ministry via APIM metrics</li>
+</ul>
+
+<h4>Negative</h4>
+<ul>
+    <li><strong>Added latency</strong> - Two extra hops (App Gateway + APIM)</li>
+    <li><strong>Cost</strong> - App Gateway and APIM have significant monthly costs</li>
+    <li><strong>Complexity</strong> - More components to configure and maintain</li>
+</ul>
+
+<h4>Mitigations</h4>
+<ul>
+    <li>Latency is typically &lt;10ms additional per hop</li>
+    <li>Costs are shared across all ministries (per <a href="#adr-010">ADR-010</a>)</li>
+    <li>Infrastructure-as-code manages complexity</li>
+</ul>
+
+<h3>References</h3>
+<ul>
+    <li><a href="diagrams.html#data-flow">AI Request Data Flow Diagram</a></li>
+    <li><a href="diagrams.html#full-stack">Full Stack Architecture Diagram</a></li>
+    <li><a href="https://learn.microsoft.com/en-us/azure/api-management/api-management-key-concepts">Azure API Management Overview</a></li>
+    <li><a href="https://learn.microsoft.com/en-us/azure/application-gateway/overview">Azure Application Gateway Overview</a></li>
+</ul>
+
+</div>
+</details>
+
+<details class="adr pending" id="adr-008">
+<summary>
+    <span class="adr-title">ADR-008: No Azure Portal or Foundry Studio UI Access</span>
+    <span class="adr-status"><span class="badge" style="background:#f59e0b;color:white;">Pending Platform/MS</span></span>
+</summary>
+<div class="adr-content">
+
+<div class="grid grid-4" style="margin-bottom: 1rem;">
+    <div><strong>Status:</strong> <span class="badge" style="background:#f59e0b;color:white;">Pending Platform/MS</span></div>
+    <div><strong>Date:</strong> 2025-12</div>
+    <div><strong>Driver:</strong> <span class="badge badge-blue">Policy Required</span></div>
+    <div><strong>Category:</strong> Operations</div>
+</div>
+
+<h3>Context</h3>
+
+<div class="alert alert-warning">
+    <span class="alert-icon">🏛️</span>
+    <div>
+        <strong>Policy Driver:</strong> BC Gov requires all Azure services to use private endpoints only, with no public network access. Azure Portal, AI Foundry Studio, and other browser-based management tools require public endpoints to function. This creates a fundamental incompatibility.
+    </div>
+</div>
+
+<p>Microsoft's standard approach to AI Landing Zones assumes users will manage resources through:</p>
+<ul>
+    <li>Azure Portal (portal.azure.com)</li>
+    <li>AI Foundry Studio (ai.azure.com)</li>
+    <li>Azure Machine Learning Studio</li>
+</ul>
+
+<p>All of these require public endpoint access to the Azure services being managed.</p>
+
+<h3>The Problem: UI Requires Public Endpoints</h3>
+
+<div class="card" style="background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-left-color: #ef4444;">
+<pre style="background: #1e1e1e; margin: 0; font-size: 12px;">
+User Browser (Public Internet)
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  ai.azure.com / portal.azure.com (Public Endpoint)              │
+│                                                                  │
+│  "To manage your AI Foundry project, we need to reach           │
+│   your Azure resources over the public internet"                │
+│                                                                  │
+│        │                                                        │
+│        ▼                                                        │
+│  ┌─────────────────────────────────────────────────┐           │
+│  │  Your AI Foundry / Storage / Search             │           │
+│  │                                                  │           │
+│  │  ❌ PUBLIC ENDPOINT REQUIRED                    │           │
+│  │     BC Gov Policy: DENIED                       │           │
+│  └─────────────────────────────────────────────────┘           │
+└─────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+
+<h3>Decision</h3>
+
+<p><strong>No browser-based UI access is supported for tenant management.</strong></p>
+
+<p>All resource provisioning and management must occur through:</p>
+<ul>
+    <li><strong>Terraform/AVM modules</strong> - Infrastructure as Code</li>
+    <li><strong>Azure CLI</strong> - Via self-hosted runners or Jumpbox (admin only)</li>
+    <li><strong>REST APIs</strong> - Via APIM with subscription keys</li>
+</ul>
+
+<h3>What This Means for Tenants</h3>
+
+<div class="alert alert-info" style="margin-bottom: 1rem;">
+    <span class="alert-icon">👁️</span>
+    <div>
+        <strong>Important Clarification:</strong> Tenants <strong>CAN</strong> navigate to Azure Portal and AI Foundry Studio. They can <strong>see</strong> their resources, browse the UI, and view configurations. However, <strong>operations that require the UI to communicate with Azure services will fail</strong> because those services have no public endpoints. The UI is read-only at best, non-functional at worst.
+    </div>
+</div>
+
+<div class="grid grid-3">
+    <div class="card" style="border-left-color: #22c55e;">
+        <h4 style="margin-top: 0; color: #22c55e;">Can Do (View Only)</h4>
+        <ul style="margin-bottom: 0;">
+            <li>Browse to portal.azure.com</li>
+            <li>See resource groups and resources</li>
+            <li>View configurations (read-only)</li>
+            <li>Navigate AI Foundry Studio UI</li>
+            <li>See project structure</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #ef4444;">
+        <h4 style="margin-top: 0; color: #ef4444;">Cannot Do (UI Blocked)</h4>
+        <ul style="margin-bottom: 0;">
+            <li>Create/modify resources via Portal</li>
+            <li>Upload documents in Foundry Studio</li>
+            <li>Test models in Foundry playground</li>
+            <li>Configure settings via web forms</li>
+            <li>Any operation requiring service connection</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: var(--bc-gold);">
+        <h4 style="margin-top: 0; color: var(--bc-gold);">Supported Methods</h4>
+        <ul style="margin-bottom: 0;">
+            <li>Request resources via Terraform PR</li>
+            <li>Upload documents via API (APIM)</li>
+            <li>Query AI models via API (APIM)</li>
+            <li>Automate via CLI in pipelines</li>
+            <li>Use SDK from within VNet</li>
+        </ul>
+    </div>
+</div>
+
+<div class="card" style="border-left-color: #f59e0b; margin-top: 1rem;">
+    <h4 style="margin-top: 0;">Why Does This Happen?</h4>
+    <p>When you click "Upload Document" in Foundry Studio, the browser (on public internet) tries to connect directly to your Storage Account. But your Storage Account has <strong>no public endpoint</strong> - it only accepts connections from within the VNet via Private Endpoint.</p>
+    <pre style="background: #1e1e1e; font-size: 11px; margin: 0.5rem 0;">
+Browser (Public) → Storage Account (Private Only) = ❌ Connection Refused
+Pipeline (VNet)  → Storage Account (Private EP)   = ✅ Works
+    </pre>
+    <p style="margin-bottom: 0;">The UI shows the resource exists, but can't actually interact with it.</p>
+</div>
+
+<h3>Why Not Provide Bastion Access to Everyone?</h3>
+
+<div class="card" style="border-left-color: #f59e0b;">
+    <h4 style="margin-top: 0;">This was considered and rejected:</h4>
+    <table>
+        <tr>
+            <th>Approach</th>
+            <th>Problem</th>
+        </tr>
+        <tr>
+            <td>Bastion + VM per tenant</td>
+            <td>Not scalable (20 ministries = 20 VMs = $$$), security nightmare</td>
+        </tr>
+        <tr>
+            <td>Shared Jumpbox for all</td>
+            <td>Multi-tenant isolation violated, credential management chaos</td>
+        </tr>
+        <tr>
+            <td>VPN per tenant</td>
+            <td>Massive operational overhead, not self-service</td>
+        </tr>
+    </table>
+    <p style="margin-bottom: 0;"><strong>Result:</strong> Bastion/Jumpbox is for platform team administration only. Tenants interact via API.</p>
+</div>
+
+<h3>AVM Module Requirement</h3>
+
+<p>Because all management must be IaC-based, <strong>only services with Azure Verified Modules (AVM) are supported</strong>.</p>
+
+<div class="card" style="border-left-color: var(--bc-blue);">
+    <h4 style="margin-top: 0;">Supported AVM Modules</h4>
+    <div class="grid grid-3" style="font-size: 0.85rem;">
+        <div>
+            <strong>AI Services:</strong>
+            <ul style="margin: 0.25rem 0;">
+                <li>cognitiveservices-account</li>
+                <li>machinelearningservices-workspace</li>
+                <li>search-searchservice</li>
+            </ul>
+        </div>
+        <div>
+            <strong>Data:</strong>
+            <ul style="margin: 0.25rem 0;">
+                <li>storage-storageaccount</li>
+                <li>documentdb-databaseaccount</li>
+                <li>keyvault-vault</li>
+            </ul>
+        </div>
+        <div>
+            <strong>Compute:</strong>
+            <ul style="margin: 0.25rem 0;">
+                <li>containerservice-managedcluster</li>
+                <li>containerregistry-registry</li>
+                <li>apimanagement-service</li>
+            </ul>
+        </div>
+    </div>
+    <p style="margin-bottom: 0; margin-top: 0.5rem;"><strong>Full catalog:</strong> <a href="https://azure.github.io/Azure-Verified-Modules/indexes/terraform/">azure.github.io/Azure-Verified-Modules</a></p>
+</div>
+
+<h3>Consequences</h3>
+
+<h4>Positive</h4>
+<ul>
+    <li><strong>Policy compliant</strong> - No public endpoints ever exposed</li>
+    <li><strong>Reproducible</strong> - All infrastructure is code, auditable, version controlled</li>
+    <li><strong>Scalable</strong> - Onboard 100 tenants with same process as 1</li>
+    <li><strong>Secure</strong> - No browser-based attack surface</li>
+</ul>
+
+<h4>Negative</h4>
+<ul>
+    <li><strong>Steeper learning curve</strong> - Tenants must use IaC, not click-ops</li>
+    <li><strong>No visual management</strong> - Can't "see" resources in Portal</li>
+    <li><strong>Debugging harder</strong> - Must use CLI/API, not browser dev tools</li>
+    <li><strong>Microsoft disconnect</strong> - Their guidance assumes UI access</li>
+</ul>
+
+<h3>References</h3>
+<ul>
+    <li><a href="diagrams.html#ms-vs-bcgov">Microsoft vs BC Gov Comparison Diagram</a></li>
+    <li><a href="diagrams.html#whats-included">What's Included / Not Included Infographic</a></li>
+    <li><a href="https://azure.github.io/Azure-Verified-Modules/">Azure Verified Modules Catalog</a></li>
+</ul>
+
+</div>
+</details>
+
+<details class="adr pending" id="adr-009">
+<summary>
+    <span class="adr-title">ADR-009: Why AI Landing Zone vs Custom Solution</span>
+    <span class="adr-status"><span class="badge" style="background:#f59e0b;color:white;">Pending Platform/MS</span></span>
+</summary>
+<div class="adr-content">
+
+<div class="grid grid-4" style="margin-bottom: 1rem;">
+    <div><strong>Status:</strong> <span class="badge" style="background:#f59e0b;color:white;">Pending Platform/MS</span></div>
+    <div><strong>Date:</strong> 2025-12</div>
+    <div><strong>Driver:</strong> <span class="badge" style="background:#22c55e;color:white;">Choice</span></div>
+    <div><strong>Category:</strong> Architecture</div>
+</div>
+
+<h3>Context</h3>
+
+<p>A valid question arises: <strong>If we're customizing everything for BC Gov requirements anyway, why use Microsoft's AI Landing Zone at all? Why not just build our own custom solution from scratch?</strong></p>
+
+<p>This ADR explains what value the AI Landing Zone and Azure Verified Modules (AVM) actually provide, even when we can't use Microsoft's default assumptions.</p>
+
+<h3>What AI Landing Zone Actually Provides</h3>
+
+<div class="alert alert-info">
+    <span class="alert-icon">💡</span>
+    <div>
+        <strong>Key Insight:</strong> We're not using Microsoft's AI Landing Zone as a turnkey solution. We're using it as a <strong>reference architecture</strong> and leveraging the <strong>Azure Verified Modules (AVM)</strong> it's built on. The value is in the tested, maintained, modular components - not the out-of-box configuration.
+    </div>
+</div>
+
+<h3>The Real Value: AVM Modules</h3>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #ef4444;">
+        <h4 style="margin-top: 0; color: #ef4444;">Building From Scratch</h4>
+        <p>If we wrote our own Terraform modules:</p>
+        <ul style="margin-bottom: 0;">
+            <li>Write 1000+ lines of Terraform per service</li>
+            <li>Handle every Azure API change ourselves</li>
+            <li>Debug edge cases Microsoft already solved</li>
+            <li>Maintain security patches ourselves</li>
+            <li>No community validation or review</li>
+            <li>Reinvent private endpoint patterns</li>
+            <li>Figure out RBAC configurations</li>
+            <li>Test against every Azure region</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #22c55e;">
+        <h4 style="margin-top: 0; color: #22c55e;">Using AVM Modules</h4>
+        <p>With Azure Verified Modules:</p>
+        <ul style="margin-bottom: 0;">
+            <li>~50 lines of Terraform to deploy a service</li>
+            <li>Microsoft maintains API compatibility</li>
+            <li>Edge cases handled by module maintainers</li>
+            <li>Security updates pushed automatically</li>
+            <li>Community tested, Microsoft validated</li>
+            <li>Private endpoint patterns built-in</li>
+            <li>RBAC best practices included</li>
+            <li>Tested across all Azure regions</li>
+        </ul>
+    </div>
+</div>
+
+<h3>What We Get From AI Landing Zone Reference</h3>
+
+<table>
+    <tr>
+        <th>Component</th>
+        <th>What Microsoft Provides</th>
+        <th>What We Customize</th>
+    </tr>
+    <tr>
+        <td><strong>Network Topology</strong></td>
+        <td>Hub-spoke pattern, subnet sizing guidance, NSG rule templates</td>
+        <td>IP ranges, Canada regions, Platform Services DNS integration</td>
+    </tr>
+    <tr>
+        <td><strong>AI Foundry Setup</strong></td>
+        <td>AVM module for workspace, project structure, compute patterns</td>
+        <td>Disable public access, multi-tenant project isolation</td>
+    </tr>
+    <tr>
+        <td><strong>Private Endpoints</strong></td>
+        <td>Patterns for connecting services privately, DNS zone integration</td>
+        <td>Link to Platform Services DNS, IP allocation per tenant</td>
+    </tr>
+    <tr>
+        <td><strong>APIM Integration</strong></td>
+        <td>AVM module, backend pool patterns, policy templates</td>
+        <td>Subscription per tenant, OpenAPI routing, rate limits</td>
+    </tr>
+    <tr>
+        <td><strong>Security Baseline</strong></td>
+        <td>RBAC templates, managed identity patterns, Key Vault integration</td>
+        <td>BC Gov RBAC requirements, ministry-level isolation</td>
+    </tr>
+</table>
+
+<h3>AVM Module Maturity - Honest Assessment</h3>
+
+<div class="alert alert-warning">
+    <span class="alert-icon">⚠️</span>
+    <div>
+        <strong>Important:</strong> Not all AVM modules are equally mature. AI Foundry modules are newer and still evolving. We must be realistic about what's production-ready vs what's in development.
+    </div>
+</div>
+
+<table>
+    <tr>
+        <th>Module</th>
+        <th>Status</th>
+        <th>Maturity</th>
+        <th>Notes</th>
+    </tr>
+    <tr>
+        <td><code>avm-res-storage-storageaccount</code></td>
+        <td><span class="badge" style="background:#22c55e;color:white;">Released</span></td>
+        <td>Production Ready</td>
+        <td>Mature, well-tested</td>
+    </tr>
+    <tr>
+        <td><code>avm-res-keyvault-vault</code></td>
+        <td><span class="badge" style="background:#22c55e;color:white;">Released</span></td>
+        <td>Production Ready</td>
+        <td>Mature, well-tested</td>
+    </tr>
+    <tr>
+        <td><code>avm-res-network-virtualnetwork</code></td>
+        <td><span class="badge" style="background:#22c55e;color:white;">Released</span></td>
+        <td>Production Ready</td>
+        <td>Mature, well-tested</td>
+    </tr>
+    <tr>
+        <td><code>avm-res-network-applicationgateway</code></td>
+        <td><span class="badge" style="background:#22c55e;color:white;">Released</span></td>
+        <td>Production Ready</td>
+        <td>Mature, well-tested</td>
+    </tr>
+    <tr>
+        <td><code>avm-res-network-bastionhost</code></td>
+        <td><span class="badge" style="background:#22c55e;color:white;">Released</span></td>
+        <td>Production Ready</td>
+        <td>Mature, well-tested</td>
+    </tr>
+    <tr>
+        <td><code>avm-res-documentdb-databaseaccount</code></td>
+        <td><span class="badge" style="background:#22c55e;color:white;">Released</span></td>
+        <td>Production Ready</td>
+        <td>Cosmos DB - mature</td>
+    </tr>
+    <tr>
+        <td><code>avm-res-apimanagement-service</code></td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">Pending</span></td>
+        <td>Early Release</td>
+        <td>v0.0.5 - may need custom work</td>
+    </tr>
+    <tr>
+        <td><code>avm-res-cognitiveservices-account</code></td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">Pending</span></td>
+        <td>Maturing</td>
+        <td>OpenAI, Doc Intel - verify features</td>
+    </tr>
+    <tr>
+        <td><code>avm-res-search-searchservice</code></td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">Pending</span></td>
+        <td>Maturing</td>
+        <td>AI Search - verify private EP support</td>
+    </tr>
+    <tr>
+        <td><code>avm-res-machinelearningservices-workspace</code></td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">Pending</span></td>
+        <td>Maturing</td>
+        <td>Core resource for Foundry Hub/Project</td>
+    </tr>
+    <tr>
+        <td><code>avm-ptn-aiml-ai-foundry</code></td>
+        <td><span class="badge" style="background:#ef4444;color:white;">In Development</span></td>
+        <td>Not Production Ready</td>
+        <td>Pattern module - active development</td>
+    </tr>
+    <tr>
+        <td><code>avm-ptn-ai-foundry-enterprise</code></td>
+        <td><span class="badge" style="background:#666;color:white;">Archived</span></td>
+        <td>Abandoned</td>
+        <td>Was archived July 2025 - do not use</td>
+    </tr>
+    <tr>
+        <td><code>avm-res-containerservice-managedcluster</code></td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">Pending</span></td>
+        <td>Pre-release</td>
+        <td>AKS - v0.4.0-pre2</td>
+    </tr>
+</table>
+
+<h4>What This Means</h4>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #22c55e;">
+        <h4 style="margin-top: 0; color: #22c55e;">Safe to Use AVM</h4>
+        <ul style="margin-bottom: 0;">
+            <li>Virtual Networks, Subnets, NSGs</li>
+            <li>Storage Accounts</li>
+            <li>Key Vault</li>
+            <li>Bastion Host</li>
+            <li>App Gateway</li>
+            <li>Cosmos DB</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #f59e0b;">
+        <h4 style="margin-top: 0; color: #f59e0b;">Evaluate / May Need Custom</h4>
+        <ul style="margin-bottom: 0;">
+            <li>AI Foundry (use resource module, not pattern)</li>
+            <li>APIM (early version, test thoroughly)</li>
+            <li>Cognitive Services (verify private EP)</li>
+            <li>AI Search (verify features needed)</li>
+            <li>AKS (pre-release)</li>
+        </ul>
+    </div>
+</div>
+
+<div class="alert alert-info" style="margin-top: 1rem;">
+    <span class="alert-icon">💡</span>
+    <div>
+        <strong>Our Strategy:</strong> Use mature AVM modules for infrastructure (networking, storage, security). For AI Foundry, start with the core <code>machinelearningservices-workspace</code> resource module rather than the pattern modules. Be prepared to write custom Terraform for AI-specific configurations that AVM doesn't yet support.
+    </div>
+</div>
+
+<h3>Concrete Example: Storage Account</h3>
+
+<div class="card" style="border-left-color: var(--bc-blue);">
+    <h4 style="margin-top: 0;">Without AVM (Custom from scratch)</h4>
+    <pre style="background: #1e1e1e; font-size: 11px; margin: 0;">
+# ~200 lines of Terraform to handle:
+resource "azurerm_storage_account" "main" { ... }
+resource "azurerm_storage_account_network_rules" "main" { ... }
+resource "azurerm_private_endpoint" "blob" { ... }
+resource "azurerm_private_endpoint" "file" { ... }
+resource "azurerm_private_endpoint" "queue" { ... }
+resource "azurerm_private_dns_zone_virtual_network_link" "blob" { ... }
+resource "azurerm_role_assignment" "contributor" { ... }
+resource "azurerm_role_assignment" "reader" { ... }
+resource "azurerm_monitor_diagnostic_setting" "main" { ... }
+# Plus encryption, lifecycle policies, soft delete, versioning...
+# Plus handling for every Azure API version change...
+    </pre>
+</div>
+
+<div class="card" style="border-left-color: #22c55e; margin-top: 1rem;">
+    <h4 style="margin-top: 0;">With AVM Module</h4>
+    <pre style="background: #1e1e1e; font-size: 11px; margin: 0;">
+module "storage" {
+  source  = "Azure/avm-res-storage-storageaccount/azurerm"
+  version = "0.6.7"
+
+  name                = "ministryhealthstorage"
+  resource_group_name = azurerm_resource_group.ministry.name
+  location            = "canadacentral"
+
+  # Private endpoints - one line enables the pattern
+  private_endpoints = {
+    blob = { subnet_id = module.network.subnet_ids["private-endpoints"] }
+  }
+
+  # All the security, RBAC, monitoring handled by module
+  tags = var.common_tags
+}
+    </pre>
+    <p style="margin-bottom: 0;"><strong>Result:</strong> Same outcome, 10x less code, maintained by Microsoft.</p>
+</div>
+
+<h3>Why Not 100% Custom?</h3>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #f59e0b;">
+        <h4 style="margin-top: 0;">Custom = Maintenance Burden</h4>
+        <ul style="margin-bottom: 0;">
+            <li>Azure releases ~100 API changes/month</li>
+            <li>Each change could break custom modules</li>
+            <li>Security vulnerabilities need patching</li>
+            <li>New features require manual implementation</li>
+            <li>Team turnover = knowledge loss</li>
+            <li><strong>Who maintains this in 3 years?</strong></li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #22c55e;">
+        <h4 style="margin-top: 0;">AVM = Shared Maintenance</h4>
+        <ul style="margin-bottom: 0;">
+            <li>Microsoft + community maintain modules</li>
+            <li>API changes handled upstream</li>
+            <li>Security patches published as versions</li>
+            <li>New features added automatically</li>
+            <li>Documentation maintained centrally</li>
+            <li><strong>Sustainable long-term</strong></li>
+        </ul>
+    </div>
+</div>
+
+<h3>What We're Actually Doing</h3>
+
+<div class="card" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left-color: #22c55e;">
+    <h4 style="margin-top: 0; color: #166534;">Our Approach: AVM + BC Gov Customization Layer</h4>
+    <pre style="background: #1e1e1e; font-size: 12px; margin: 0.5rem 0;">
+┌─────────────────────────────────────────────────────────────────────┐
+│                    BC Gov AI Hub Architecture                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │  BC Gov Customization Layer (Our Code)                      │   │
+│   │  • Multi-tenant resource group structure                    │   │
+│   │  • APIM subscription per ministry                           │   │
+│   │  • IP allocation policies                                   │   │
+│   │  • Platform Services DNS integration                        │   │
+│   │  • Canada data residency enforcement                        │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+│                              │                                       │
+│                              ▼                                       │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │  Azure Verified Modules (Microsoft Maintained)              │   │
+│   │  • avm-res-cognitiveservices-account                        │   │
+│   │  • avm-res-machinelearningservices-workspace                │   │
+│   │  • avm-res-storage-storageaccount                           │   │
+│   │  • avm-res-network-virtualnetwork                           │   │
+│   │  • avm-res-apimanagement-service                            │   │
+│   │  • ... 100+ more modules                                    │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+│                              │                                       │
+│                              ▼                                       │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │  Azure Resource Manager APIs                                │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+    </pre>
+    <p style="margin-bottom: 0;"><strong>We write the thin customization layer. Microsoft maintains the heavy lifting.</strong></p>
+</div>
+
+<h3>Decision</h3>
+
+<p><strong>We use AI Landing Zone reference architecture and AVM modules as our foundation, with a BC Gov customization layer on top.</strong></p>
+
+<p>We do NOT use Microsoft's default configuration. We use their:</p>
+<ul>
+    <li><strong>Reference patterns</strong> - How to wire services together</li>
+    <li><strong>AVM modules</strong> - Tested, maintained infrastructure components</li>
+    <li><strong>Best practices</strong> - Security, networking, RBAC patterns</li>
+</ul>
+
+<h3>Consequences</h3>
+
+<h4>Positive</h4>
+<ul>
+    <li><strong>Reduced maintenance</strong> - Microsoft maintains 90% of the code</li>
+    <li><strong>Faster development</strong> - Use proven patterns instead of inventing</li>
+    <li><strong>Security updates</strong> - Get patches via module version bumps</li>
+    <li><strong>Community support</strong> - Issues/bugs reported and fixed by others</li>
+    <li><strong>Audit trail</strong> - Using "official" modules helps with compliance</li>
+</ul>
+
+<h4>Negative</h4>
+<ul>
+    <li><strong>Module constraints</strong> - Can only do what AVM modules support</li>
+    <li><strong>Version management</strong> - Must track and update module versions</li>
+    <li><strong>Abstraction leakage</strong> - Sometimes need to understand module internals</li>
+</ul>
+
+<h3>References</h3>
+<ul>
+    <li><a href="https://azure.github.io/Azure-Verified-Modules/">Azure Verified Modules (AVM)</a></li>
+    <li><a href="https://github.com/Azure/terraform-azurerm-avm-ptn-aiml-landing-zone">AI/ML Landing Zone Pattern Module</a></li>
+    <li><a href="https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/landing-zone/">Azure Landing Zone Concepts</a></li>
+    <li><a href="diagrams.html#architecture-layers">Architecture Layers Diagram</a></li>
+</ul>
+
+</div>
+</details>
+<details class="adr pending" id="adr-010">
+<summary>
+    <span class="adr-title">ADR-010: Multi-Tenant Isolation Model</span>
+    <span class="adr-status"><span class="badge" style="background:#f59e0b;color:white;">Pending Platform/MS</span></span>
+</summary>
+<div class="adr-content">
+
+<div class="grid grid-4" style="margin-bottom: 1rem;">
+    <div><strong>Status:</strong> <span class="badge" style="background:#f59e0b;color:white;">Pending Platform/MS</span></div>
+    <div><strong>Date:</strong> 2025-12</div>
+    <div><strong>Driver:</strong> <span class="badge badge-blue">Policy Required</span></div>
+    <div><strong>Category:</strong> Architecture</div>
+</div>
+
+<h3>Context</h3>
+
+<div class="alert alert-warning">
+    <span class="alert-icon">🏛️</span>
+    <div>
+        <strong>Policy Driver:</strong> BC Gov requires strict data isolation between ministries. Each ministry's data must be logically separated, with access controls preventing cross-ministry data exposure. The AI Hub serves multiple ministries (Health, SDPR, Justice, etc.) from shared infrastructure.
+    </div>
+</div>
+
+<p>The AI Hub Landing Zone is designed to serve multiple BC Government ministries from a single shared infrastructure deployment. This creates a multi-tenancy challenge: how do we provide cost-efficient shared services while ensuring strict data isolation between ministries?</p>
+
+<h3>The Problem: Shared Infrastructure, Isolated Data</h3>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #ef4444;">
+        <h4 style="margin-top: 0;">What We Cannot Do</h4>
+        <ul style="margin-bottom: 0;">
+            <li>Allow Ministry A to access Ministry B's documents</li>
+            <li>Share AI search indexes across ministries</li>
+            <li>Use single storage accounts for all ministry data</li>
+            <li>Allow cross-ministry API access without authorization</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #22c55e;">
+        <h4 style="margin-top: 0;">What We Can Share</h4>
+        <ul style="margin-bottom: 0;">
+            <li>Network infrastructure (VNets, Bastion, NSGs)</li>
+            <li>Compute resources (AI Foundry, AKS clusters)</li>
+            <li>Ingress layer (App Gateway, APIM)</li>
+            <li>Monitoring and logging infrastructure</li>
+        </ul>
+    </div>
+</div>
+
+<h3>Decision</h3>
+
+<p><strong>We implement a four-layer isolation model:</strong></p>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: var(--bc-gold);">
+        <h4 style="margin-top: 0;">1. Storage Isolation</h4>
+        <p><strong>Separate storage accounts per ministry</strong></p>
+        <ul style="margin-bottom: 0;">
+            <li>Each ministry gets dedicated blob containers</li>
+            <li>Azure RBAC restricts access to ministry principals</li>
+            <li>Private endpoints per storage account</li>
+            <li>Encryption keys can be ministry-specific (CMK)</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: var(--bc-gold);">
+        <h4 style="margin-top: 0;">2. AI Search Index Isolation</h4>
+        <p><strong>Separate search indexes per ministry</strong></p>
+        <ul style="margin-bottom: 0;">
+            <li>Each ministry's documents indexed separately</li>
+            <li>RAG queries scoped to ministry index only</li>
+            <li>No cross-index queries permitted</li>
+            <li>Index-level access control via Azure RBAC</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: var(--bc-blue);">
+        <h4 style="margin-top: 0;">3. API Isolation (APIM)</h4>
+        <p><strong>APIM subscriptions per ministry</strong></p>
+        <ul style="margin-bottom: 0;">
+            <li>Unique subscription keys per ministry</li>
+            <li>Rate limiting scoped to subscription</li>
+            <li>API policies enforce ministry context</li>
+            <li>Audit logging includes ministry identifier</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: var(--bc-blue);">
+        <h4 style="margin-top: 0;">4. Network Isolation (NSGs)</h4>
+        <p><strong>Network policies enforce boundaries</strong></p>
+        <ul style="margin-bottom: 0;">
+            <li>NSG rules restrict subnet-to-subnet traffic</li>
+            <li>Private endpoints isolated by ministry where needed</li>
+            <li>No direct cross-ministry network paths</li>
+            <li>All traffic routed through controlled ingress</li>
+        </ul>
+    </div>
+</div>
+
+<h3>Implementation Architecture</h3>
+
+<div class="card" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);">
+<pre style="background: var(--bc-blue-dark); margin: 0;">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      MULTI-TENANT ISOLATION MODEL                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   Ministry Health        Ministry SDPR         Ministry Justice             │
+│   ┌─────────────┐       ┌─────────────┐       ┌─────────────┐              │
+│   │ APIM Sub: H │       │ APIM Sub: S │       │ APIM Sub: J │              │
+│   └──────┬──────┘       └──────┬──────┘       └──────┬──────┘              │
+│          │                     │                     │                      │
+│          ▼                     ▼                     ▼                      │
+│   ┌─────────────────────────────────────────────────────────────┐          │
+│   │              Shared APIM (Policy Enforcement)                │          │
+│   │         (validates subscription → routes to ministry)        │          │
+│   └─────────────────────────────────────────────────────────────┘          │
+│          │                     │                     │                      │
+│          ▼                     ▼                     ▼                      │
+│   ┌─────────────┐       ┌─────────────┐       ┌─────────────┐              │
+│   │ Storage: H  │       │ Storage: S  │       │ Storage: J  │              │
+│   │ Index: H    │       │ Index: S    │       │ Index: J    │              │
+│   └─────────────┘       └─────────────┘       └─────────────┘              │
+│                                                                              │
+│   ════════════════════════════════════════════════════════════════          │
+│                    Shared Infrastructure Layer                               │
+│        (VNet, Bastion, AI Foundry Compute, Monitoring)                      │
+│   ════════════════════════════════════════════════════════════════          │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+
+<h3>Consequences</h3>
+
+<h4>Positive</h4>
+<ul>
+    <li><strong>Strong data isolation</strong> - Ministry data never co-mingled</li>
+    <li><strong>Cost efficiency</strong> - Shared compute and network infrastructure</li>
+    <li><strong>Audit compliance</strong> - Clear ministry attribution in all logs</li>
+    <li><strong>Scalable onboarding</strong> - New ministries get isolated resources automatically</li>
+    <li><strong>Flexible isolation levels</strong> - Can increase isolation (dedicated compute) if needed</li>
+</ul>
+
+<h4>Negative</h4>
+<ul>
+    <li><strong>Resource multiplication</strong> - Each ministry needs separate storage/indexes</li>
+    <li><strong>Complexity</strong> - More resources to manage and monitor</li>
+    <li><strong>Cost per ministry</strong> - Base cost increases with each ministry onboarded</li>
+</ul>
+
+<h3>Cost Tracking</h3>
+
+<p>Multi-tenant isolation also enables per-tenant cost tracking and chargeback. See the detailed cost allocation strategy:</p>
+
+<div class="img-container">
+    <a href="cost.html">
+        <img src="assets/cost-tracking-architecture.svg" alt="Multi-Tenant Cost Tracking Architecture" style="max-width: 100%; cursor: pointer;">
+    </a>
+    <p style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 0.5rem;">Click diagram to view full Cost Tracking documentation</p>
+</div>
+
+<h3>References</h3>
+<ul>
+    <li><a href="cost.html">Cost Tracking Documentation</a> - Full cost allocation strategy</li>
+    <li><a href="diagrams.html#multi-tenant">Multi-Tenant Isolation Diagram</a></li>
+    <li><a href="https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/overview">Azure Multi-Tenant Architecture Guide</a></li>
+    <li><a href="diagrams.html#data-flow">AI Request Data Flow Diagram</a></li>
+</ul>
+
+</div>
+</details>
+
+<details class="adr" id="adr-011">
+<summary>
+    <span class="adr-title">ADR-011: Control Plane vs Data Plane Access & Chisel Tunnel</span>
+    <span class="adr-status"><span class="badge badge-blue">Pending</span></span>
+</summary>
+<div class="adr-content">
+
+<div class="grid grid-4" style="margin-bottom: 1rem;">
+    <div><strong>Status:</strong> Pending</div>
+    <div><strong>Date:</strong> 2026-01</div>
+    <div><strong>Driver:</strong> <span class="badge badge-blue">Policy Required</span></div>
+    <div><strong>Category:</strong> Architecture</div>
+</div>
+
+<div class="alert alert-success">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    </div>
+    <div>
+        <strong>This ADR explains a fundamental Azure concept</strong> that drives many architecture decisions: the difference between Control Plane and Data Plane access, why OIDC works for one but not the other, and how Chisel provides data plane access for platform maintainers.
+    </div>
+</div>
+
+<h3>Context</h3>
+
+<p>Azure services have <strong>two distinct access paths</strong> that are often confused:</p>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #22c55e;">
+        <h4 style="margin-top: 0; color: #22c55e;">Control Plane (ARM APIs)</h4>
+        <p><strong>What:</strong> Managing Azure resources - create, update, delete, configure</p>
+        <p><strong>Endpoint:</strong> <code>management.azure.com</code> (always public)</p>
+        <p><strong>Authentication:</strong> OIDC tokens, Service Principals, Managed Identity</p>
+        <p><strong>Examples:</strong></p>
+        <ul style="margin-bottom: 0;">
+            <li>Creating a Key Vault</li>
+            <li>Configuring a Storage Account</li>
+            <li>Setting up Private Endpoints</li>
+            <li>RBAC role assignments</li>
+            <li>Azure Portal UI (viewing resources)</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #ef4444;">
+        <h4 style="margin-top: 0; color: #ef4444;">Data Plane (Service-specific APIs)</h4>
+        <p><strong>What:</strong> Accessing data <em>inside</em> resources</p>
+        <p><strong>Endpoint:</strong> <code>*.vault.azure.net</code>, <code>*.blob.core.windows.net</code>, etc.</p>
+        <p><strong>Authentication:</strong> Same tokens, BUT requires network access</p>
+        <p><strong>Examples:</strong></p>
+        <ul style="margin-bottom: 0;">
+            <li>Reading/writing Key Vault secrets</li>
+            <li>Reading/writing Storage blobs</li>
+            <li>Querying databases (PostgreSQL, CosmosDB)</li>
+            <li>Calling Azure OpenAI APIs</li>
+            <li>Terraform state file read/write</li>
+        </ul>
+    </div>
+</div>
+
+<h3>The Problem: Private Endpoints Block Data Plane</h3>
+
+<div class="alert alert-warning">
+    <span class="alert-icon">🔒</span>
+    <div>
+        <strong>BC Gov Policy:</strong> All Azure services must use private endpoints. This blocks data plane access from the public internet - even with valid OIDC credentials!
+    </div>
+</div>
+
+<div class="card" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);">
+<pre style="background: var(--bc-blue-dark); margin: 0; padding: 1rem; overflow-x: auto; font-size: 11px;">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    WHAT WORKS vs WHAT'S BLOCKED                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   From Public Internet (GitHub Actions, Azure Portal, Your Laptop):          │
+│                                                                              │
+│   ✅ CONTROL PLANE (management.azure.com)                                    │
+│      • Create Key Vault                    → ARM API → Works                 │
+│      • Create Storage Account              → ARM API → Works                 │
+│      • View resource properties in Portal  → ARM API → Works                 │
+│      • OIDC authentication                 → Azure AD → Works                │
+│                                                                              │
+│   ❌ DATA PLANE (*.vault.azure.net, *.blob.core.windows.net)                 │
+│      • Read Key Vault secret               → Private Endpoint → BLOCKED      │
+│      • Write Storage blob                  → Private Endpoint → BLOCKED      │
+│      • "View Secret Value" in Portal       → Private Endpoint → BLOCKED      │
+│      • Terraform state read/write          → Private Endpoint → BLOCKED      │
+│                                                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   From Inside VNet (Self-hosted Runners, Jumpbox, Chisel Tunnel):            │
+│                                                                              │
+│   ✅ CONTROL PLANE → Still works (ARM is public)                             │
+│   ✅ DATA PLANE    → Works via Private Endpoints (network path exists)       │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+
+<h3>Why Azure Portal Shows Resources But Not Data</h3>
+
+<p>The <strong>Azure Portal is a Control Plane UI</strong>. When you browse to a Key Vault in the portal:</p>
+
+<ul>
+    <li>✅ You can see the vault exists (control plane: list resources)</li>
+    <li>✅ You can see its configuration (control plane: read properties)</li>
+    <li>❌ You CANNOT click "Show Secret Value" (data plane: blocked by private endpoint)</li>
+</ul>
+
+<p>This is why <a href="#adr-008">ADR-008</a> states "No Azure Portal or Foundry Studio UI Access" for data operations - the portal physically cannot reach private data plane endpoints from your browser.</p>
+
+<h3>Why OIDC Is Used for Control Plane</h3>
+
+<p>OIDC (OpenID Connect) federation provides <strong>passwordless authentication</strong> from GitHub Actions to Azure:</p>
+
+<div class="card" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);">
+<pre style="background: var(--bc-blue-dark); margin: 0; padding: 1rem; overflow-x: auto; font-size: 11px;">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        OIDC AUTHENTICATION FLOW                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   1. GitHub Actions workflow starts                                          │
+│           ↓                                                                  │
+│   2. GitHub OIDC Provider issues JWT token                                   │
+│      (claims: repo, branch, environment, workflow)                           │
+│           ↓                                                                  │
+│   3. Token sent to Azure AD                                                  │
+│           ↓                                                                  │
+│   4. Azure AD validates against Federated Credential                         │
+│      (checks: issuer=GitHub, subject=repo:bcgov/ai-hub-tracking:...)        │
+│           ↓                                                                  │
+│   5. Azure AD issues Access Token (valid ~1 hour)                            │
+│           ↓                                                                  │
+│   6. Access Token used for ARM API calls (Control Plane)                     │
+│           ↓                                                                  │
+│   ✅ terraform plan/apply (resource management)                              │
+│   ✅ az cli commands (control plane operations)                              │
+│   ✅ No secrets stored in GitHub!                                            │
+│                                                                              │
+│   BUT: OIDC gives credentials, NOT network access.                           │
+│        Data plane still blocked without VNet connectivity.                   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+
+<h3>Decision: Multiple Access Methods for Different Needs</h3>
+
+<p>We provide <strong>four toggleable access mechanisms</strong> via Terraform, each serving a different use case:</p>
+
+<table>
+    <tr>
+        <th>Access Method</th>
+        <th>Terraform Toggle</th>
+        <th>Who Uses It</th>
+        <th>Use Case</th>
+        <th>Plane Access</th>
+    </tr>
+    <tr>
+        <td><strong>Self-Hosted Runners</strong></td>
+        <td><code>github_runners_aca_enabled</code></td>
+        <td>CI/CD Automation</td>
+        <td>Terraform deployments that need data plane (state, secrets)</td>
+        <td>Control + Data</td>
+    </tr>
+    <tr>
+        <td><strong>Bastion + Jumpbox</strong></td>
+        <td><code>enable_bastion</code>, <code>enable_jumpbox</code></td>
+        <td>Platform Maintainers</td>
+        <td>Emergency debugging, manual admin tasks</td>
+        <td>Control + Data</td>
+    </tr>
+    <tr>
+        <td><strong>Chisel Tunnel</strong></td>
+        <td><code>enable_azure_proxy</code></td>
+        <td>Platform Maintainers</td>
+        <td>Local dev access to private databases/APIs</td>
+        <td>Control + Data</td>
+    </tr>
+    <tr>
+        <td><strong>Public GitHub Runners</strong></td>
+        <td>(default)</td>
+        <td>CI/CD (limited)</td>
+        <td>Control plane only operations</td>
+        <td>Control only</td>
+    </tr>
+</table>
+
+<h3>Chisel Tunnel: Data Plane Access for Platform Maintainers</h3>
+
+<div class="alert alert-info">
+    <span class="alert-icon">🔧</span>
+    <div>
+        <strong>Chisel is for Platform Maintainers ONLY</strong> - not for tenant/project developers. Tenants access AI services through APIM/App Gateway (the designed public entry point).
+    </div>
+</div>
+
+<p><strong>What is Chisel?</strong> A fast TCP/UDP tunnel over HTTP that creates a secure reverse proxy from your local machine into the Azure VNet.</p>
+
+<div class="card" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);">
+<pre style="background: var(--bc-blue-dark); margin: 0; padding: 1rem; overflow-x: auto; font-size: 11px;">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        CHISEL TUNNEL ARCHITECTURE                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   Platform Maintainer's Laptop                                               │
+│   ┌─────────────────────────────┐                                            │
+│   │  Chisel Client (Docker)     │                                            │
+│   │  Listens on localhost:5432  │                                            │
+│   └──────────────┬──────────────┘                                            │
+│                  │ HTTPS (encrypted)                                         │
+│                  ▼                                                            │
+│   ┌─────────────────────────────────────────────────────────────────────┐    │
+│   │                    Azure App Service (Chisel Server)                │    │
+│   │                    Inside VNet (app-service-subnet)                 │    │
+│   │                    Random auth: tunnel:XXXXXXXX                     │    │
+│   └──────────────┬──────────────────────────────────────────────────────┘    │
+│                  │ VNet Integration (Private Network)                        │
+│                  ▼                                                            │
+│   ┌─────────────────────────────────────────────────────────────────────┐    │
+│   │                    Private Endpoints                                │    │
+│   │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │    │
+│   │  │  PostgreSQL  │  │   Key Vault  │  │   CosmosDB   │              │    │
+│   │  │  :5432       │  │   :443       │  │   :443       │              │    │
+│   │  └──────────────┘  └──────────────┘  └──────────────┘              │    │
+│   └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│   Result: psql -h localhost -p 5432 → tunnels to private PostgreSQL          │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+
+<h3>What Terraform Operations Need Data Plane?</h3>
+
+<p>Most Terraform operations are control plane only. <strong>Data plane is only needed when:</strong></p>
+
+<table>
+    <tr>
+        <th>Resource/Operation</th>
+        <th>Plane</th>
+        <th>Works from Public?</th>
+        <th>Example</th>
+    </tr>
+    <tr>
+        <td><code>azurerm_key_vault</code> (create)</td>
+        <td>Control</td>
+        <td>✅ Yes</td>
+        <td>Creating the vault itself</td>
+    </tr>
+    <tr>
+        <td><code>azurerm_key_vault_secret</code> (write)</td>
+        <td><strong>Data</strong></td>
+        <td>❌ No</td>
+        <td>Writing secrets INTO the vault</td>
+    </tr>
+    <tr>
+        <td><code>data "azurerm_key_vault_secret"</code></td>
+        <td><strong>Data</strong></td>
+        <td>❌ No</td>
+        <td>Reading secrets FROM the vault</td>
+    </tr>
+    <tr>
+        <td>Terraform state backend (Storage)</td>
+        <td><strong>Data</strong></td>
+        <td>❌ No</td>
+        <td>Reading/writing .tfstate blob</td>
+    </tr>
+    <tr>
+        <td><code>azurerm_storage_account</code> (create)</td>
+        <td>Control</td>
+        <td>✅ Yes</td>
+        <td>Creating the account</td>
+    </tr>
+    <tr>
+        <td><code>azurerm_storage_blob</code> (upload)</td>
+        <td><strong>Data</strong></td>
+        <td>❌ No</td>
+        <td>Uploading files to storage</td>
+    </tr>
+    <tr>
+        <td><code>azurerm_private_endpoint</code></td>
+        <td>Control</td>
+        <td>✅ Yes</td>
+        <td>Creating the private endpoint</td>
+    </tr>
+    <tr>
+        <td>RBAC role assignments</td>
+        <td>Control</td>
+        <td>✅ Yes</td>
+        <td>Granting permissions</td>
+    </tr>
+</table>
+
+<h3>Access Model Summary</h3>
+
+<div class="card" style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);">
+<pre style="background: var(--bc-blue-dark); margin: 0; padding: 1rem; overflow-x: auto; font-size: 11px;">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        COMPLETE ACCESS MODEL                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  TENANT DEVELOPERS (Ministry Teams)                                          │
+│  ┌─────────────┐      ┌──────────────┐      ┌─────────────────┐             │
+│  │ Their Apps  │─────▶│ App Gateway  │─────▶│ APIM (rate      │─────▶ AI    │
+│  │             │      │ + WAF        │      │ limited, metered)│      APIs   │
+│  └─────────────┘      └──────────────┘      └─────────────────┘             │
+│                              ▲                                               │
+│                              │ Public endpoint (by design)                   │
+│                              │ No direct private endpoint access             │
+│                                                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  PLATFORM MAINTAINERS (This Team)                                            │
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │ Method              │ Toggle Variable              │ Use Case          │ │
+│  ├────────────────────────────────────────────────────────────────────────┤ │
+│  │ Self-hosted Runners │ github_runners_aca_enabled   │ CI/CD automation  │ │
+│  │ Bastion + Jumpbox   │ enable_bastion/jumpbox       │ Admin access      │ │
+│  │ Chisel Tunnel       │ enable_azure_proxy           │ Local dev access  │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+│  All three provide: Control Plane + Data Plane access                        │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+
+<h3>Consequences</h3>
+
+<h4>Positive</h4>
+<ul>
+    <li><strong>Clear mental model</strong> - Understanding control vs data plane explains "why" behind many decisions</li>
+    <li><strong>Flexible access</strong> - Enable only what you need (cost optimization)</li>
+    <li><strong>Policy compliant</strong> - No public data plane endpoints ever</li>
+    <li><strong>Secure tenant isolation</strong> - Tenants use APIM, never touch private endpoints directly</li>
+</ul>
+
+<h4>Negative</h4>
+<ul>
+    <li><strong>Complexity</strong> - Must understand two planes, not just "Azure access"</li>
+    <li><strong>Runner dependency</strong> - Most Terraform needs self-hosted runners (state is data plane)</li>
+    <li><strong>Portal limitations</strong> - Can't "see" data in Portal even with permissions</li>
+</ul>
+
+<h3>References</h3>
+<ul>
+    <li><a href="playbooks.html#chisel-tunnel">Playbook: Using Chisel Tunnel for Local Development</a></li>
+    <li><a href="terraform.html">Terraform Module: azure-proxy (Chisel)</a></li>
+    <li><a href="#adr-001">ADR-001: Shared Landing Zone</a></li>
+    <li><a href="#adr-002">ADR-002: OIDC Authentication</a></li>
+    <li><a href="#adr-008">ADR-008: No Azure Portal UI Access</a></li>
+    <li><a href="https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/control-plane-and-data-plane">Microsoft Docs: Control Plane and Data Plane</a></li>
+</ul>
+
+</div>
+</details>
+
+<details class="adr" id="adr-012">
+<summary>
+    <span class="adr-title">ADR-012: Hybrid Cost Allocation & Usage Monitoring Strategy</span>
+    <span class="adr-status"><span class="badge badge-blue">Proposed</span></span>
+</summary>
+<div class="adr-content">
+
+    <div class="grid grid-4" style="margin-bottom: 1rem;">
+        <div><strong>Status:</strong> Proposed</div>
+        <div><strong>Date:</strong> 2026-01</div>
+        <div><strong>Deciders:</strong> Platform Team</div>
+        <div><strong>Category:</strong> <span class="badge badge-blue">Observability</span></div>
+    </div>
+
+    <h3 style="color: var(--bc-blue); margin-top: 1.5rem;">Context</h3>
+    <p>The AI Services Hub operates as a multi-tenant platform serving multiple ministries. This shared infrastructure creates a financial governance challenge: we must accurately allocate costs to specific tenants to ensure accountability and cost recovery.</p>
+    <p>The architecture includes two types of resources:</p>
+    <ul>
+        <li><strong>Tenant-Dedicated:</strong> Resources used exclusively by one tenant (e.g., Azure OpenAI instances, Document Intelligence, Cosmos DB).</li>
+        <li><strong>Shared Infrastructure:</strong> Resources serving all tenants simultaneously (e.g., APIM, App Gateway, Application Insights).</li>
+    </ul>
+    <p>We need a standardized strategy to track consumption and generate accurate chargeback invoices that account for both resource types across our dual-region deployment (Canada Central & East).</p>
+
+    <h3 style="color: var(--bc-blue); margin-top: 1.5rem;">Decision</h3>
+    <p>We will adopt a <strong>Hybrid Cost Allocation Model</strong> that combines native Azure billing with custom usage tracking:</p>
+    <ol>
+        <li><strong>Direct Attribution (90% of costs):</strong> We will isolate high-cost resources (AI Foundry Projects, Document Intelligence) into tenant-specific resource groups. These will be billed directly to tenants using Azure Cost Management tags (<code>tenant-id</code>), requiring no manual calculation.</li>
+        <li><strong>Proportional Allocation (10% of costs):</strong> We will split the cost of shared infrastructure (APIM, App Gateway) based on actual usage metrics.
+            <ul>
+                <li>APIM & Gateway costs split by <strong>API Request Volume</strong>.</li>
+                <li>Monitoring costs split by <strong>Log Ingestion Volume</strong>.</li>
+            </ul>
+        </li>
+        <li><strong>Centralized Tracking via APIM:</strong> Azure API Management will serve as the single source of truth for usage metrics. All traffic must flow through APIM to ensure consistent tenant identification and logging.</li>
+        <li><strong>Custom Egress Calculation:</strong> We will implement a custom calculation pipeline using App Gateway logs to track and charge for cross-region network egress (between Canada Central and Canada East).</li>
+    </ol>
+
+    <h3 style="color: var(--bc-blue); margin-top: 1.5rem;">Rationale</h3>
+    <ul>
+        <li><strong>Minimizes Operational Overhead:</strong> By using Direct Attribution for the most expensive resources (OpenAI tokens, Search), we rely on Azure's native billing engine for the vast majority of chargebacks. We only maintain custom logic for the shared platform components.</li>
+        <li><strong>Fairness:</strong> A flat fee for shared infrastructure would be unfair to smaller tenants. Proportional allocation based on request volume ensures ministries only pay for the platform capacity they actually consume.</li>
+        <li><strong>Granular Visibility:</strong> Using APIM as the central logging point allows us to capture operational metrics (latency, errors, token usage) alongside billing data without adding sidecar proxies to every service.</li>
+    </ul>
+
+    <h3 style="color: var(--bc-blue); margin-top: 1.5rem;">Consequences</h3>
+    
+    <h4>Positive</h4>
+    <ul>
+        <li><strong>Transparency:</strong> Tenants can verify their direct Azure costs in the portal using their tenant tag.</li>
+        <li><strong>Scalability:</strong> New tenants can be onboarded simply by adding tags; the cost model adjusts automatically.</li>
+        <li><strong>Cost Recovery:</strong> Ensures the Platform Team fully recovers infrastructure costs rather than absorbing the overhead of shared services.</li>
+    </ul>
+
+    <h4>Negative</h4>
+    <ul>
+        <li><strong>Complexity of Egress:</strong> Cross-region data transfer is billed at the subscription level and is difficult to attribute. We accept the tradeoff of maintaining a custom Kusto query to calculate this specific cost.</li>
+        <li><strong>Maintenance:</strong> The logic for splitting shared costs (Python functions/Kusto queries) is custom code that must be maintained and verified monthly against Azure invoices.</li>
+    </ul>
+
+</div>
+</details>
+
+
+<h2>ADR Template</h2>
+
+<p>Use this template when adding new ADRs:</p>
+
+<div class="card" style="background: var(--bg-light);">
+<pre style="background: transparent; box-shadow: none; margin: 0; color: var(--text-primary);">## ADR-XXX: [Title]
+
+**Status:** [Proposed | Accepted | Deprecated | Superseded]
+**Date:** YYYY-MM
+**Deciders:** [Team/People]
+**Category:** [Security | Networking | Infrastructure | Documentation | etc.]
+
+### Context
+[What is the issue? What forces are at play?]
+
+### Decision
+[What is the decision? Be specific.]
+
+### Rationale
+[Why this decision over alternatives?]
+
+### Consequences
+#### Positive
+- [Good outcomes]
+
+#### Negative
+- [Tradeoffs accepted]
+
+### References
+- [Links to relevant docs, diagrams, discussions]</pre>
+</div>
+    </main>
+    <footer class="site-footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <h4>AI Hub Tracking</h4>
+                <p>Infrastructure as Code for Azure Landing Zone deployments</p>
+            </div>
+            <div class="footer-links">
+                <h4>Resources</h4>
+                <ul>
+                    <li><a href="https://github.com/bcgov/ai-hub-tracking">GitHub Repository</a></li>
+                    <li><a href="assets/azure-oidc-complete-guide.svg" target="_blank">Architecture Diagram</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>BC Government</h4>
+                <ul>
+                    <li><a href="https://www2.gov.bc.ca">gov.bc.ca</a></li>
+                    <li><a href="https://digital.gov.bc.ca">Digital Office</a></li>
+                </ul>
+            </div>
+            <div class="footer-copyright">
+                <p>&copy; 2026 Province of British Columbia</p>
+                <p class="footer-meta">Built with zero dependencies</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        (function () {
+            function scrollToWithHeaderOffset(el) {
+                if (!el) return;
+                const header = document.querySelector('.bc-header');
+                const offset = (header ? header.getBoundingClientRect().height : 0) + 16;
+
+                const top = el.getBoundingClientRect().top + window.scrollY - offset;
+                window.scrollTo({ top: Math.max(0, top) });
+            }
+
+            function openDetailsFromHash() {
+                const hash = window.location.hash;
+                if (!hash || hash.length < 2) return;
+
+                const id = hash.substring(1);
+                const el = document.getElementById(id);
+                if (el && el.tagName && el.tagName.toLowerCase() === 'details') {
+                    el.open = true;
+                    // Opening can change layout; adjust scroll after paint so the
+                    // sticky header doesn't cover the <summary> title.
+                    requestAnimationFrame(function () {
+                        requestAnimationFrame(function () {
+                            scrollToWithHeaderOffset(el);
+                        });
+                    });
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                openDetailsFromHash();
+            });
+
+            window.addEventListener('hashchange', function () {
+                openDetailsFromHash();
+            });
+
+            // If user clicks the same #hash twice, hashchange won't fire.
+            // This ensures ADR links always expand.
+            document.addEventListener('click', function (e) {
+                const link = e.target.closest && e.target.closest('a[href^="#"]');
+                if (!link) return;
+
+                const href = link.getAttribute('href');
+                if (!href || href.length < 2) return;
+
+                const id = href.substring(1);
+                const el = document.getElementById(id);
+                if (el && el.tagName && el.tagName.toLowerCase() === 'details') {
+                    el.open = true;
+                    requestAnimationFrame(function () {
+                        requestAnimationFrame(function () {
+                            scrollToWithHeaderOffset(el);
+                        });
+                    });
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

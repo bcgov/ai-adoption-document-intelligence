@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ | AI Hub Tracking</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <style>
+        :root {
+            --bc-blue: #003366;
+            --bc-gold: #fcba19;
+            --bc-blue-dark: #002244;
+            --bc-blue-light: #1a5a96;
+            --text-primary: #313132;
+            --text-secondary: #606060;
+            --bg-light: #f2f2f2;
+            --white: #ffffff;
+            --gradient-hero: linear-gradient(135deg, #003366 0%, #1a5a96 50%, #003366 100%);
+            --shadow-sm: 0 2px 4px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.12);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.16);
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'BC Sans', 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: var(--bg-light);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .bc-header {
+            background: var(--gradient-hero);
+            border-bottom: 4px solid var(--bc-gold);
+            padding: 0.5rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: var(--shadow-md);
+        }
+
+        .bc-header-brand {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            text-decoration: none;
+        }
+
+        .bc-header-logo {
+            height: 36px;
+            width: auto;
+            border-radius: 4px;
+        }
+
+        .bc-header-title {
+            color: var(--white);
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .bc-header-subtitle {
+            color: var(--bc-gold);
+            font-size: 0.875rem;
+        }
+
+        /* Navigation with Dropdowns */
+        .bc-nav {
+            display: flex;
+            gap: 0.25rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .bc-nav > a,
+        .nav-dropdown > .nav-trigger {
+            color: var(--white);
+            text-decoration: none;
+            padding: 0.6rem 1rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            border: none;
+            background: transparent;
+            font-family: inherit;
+        }
+
+        .bc-nav > a:hover,
+        .nav-dropdown:hover > .nav-trigger {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .bc-nav > a.active {
+            background: var(--bc-gold);
+            color: var(--bc-blue);
+            font-weight: 600;
+        }
+
+        /* Dropdown */
+        .nav-dropdown {
+            position: relative;
+        }
+
+        .nav-trigger::after {
+            content: '';
+            border: solid currentColor;
+            border-width: 0 2px 2px 0;
+            display: inline-block;
+            padding: 3px;
+            transform: rotate(45deg);
+            margin-top: -3px;
+            transition: transform 0.2s;
+        }
+
+        .nav-dropdown:hover .nav-trigger::after {
+            transform: rotate(-135deg);
+            margin-top: 3px;
+        }
+
+        .nav-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: var(--white);
+            border-radius: 8px;
+            box-shadow: var(--shadow-lg);
+            min-width: 220px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: var(--transition);
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .nav-dropdown:hover .nav-dropdown-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .nav-dropdown-menu a {
+            display: block;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: var(--transition);
+            border-left: 3px solid transparent;
+        }
+
+        .nav-dropdown-menu a:hover {
+            background: var(--bg-light);
+            border-left-color: var(--bc-gold);
+            color: var(--bc-blue);
+        }
+
+        .nav-dropdown-menu a small {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            margin-top: 0.2rem;
+        }
+
+        /* Main Content */
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            flex: 1;
+            width: 100%;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: var(--gradient-hero);
+            color: var(--white);
+            padding: 3rem 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            text-align: center;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .hero h1 {
+            color: var(--white);
+            border: none;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Typography */
+        h1 {
+            color: var(--bc-blue);
+            font-size: 2.25rem;
+            margin-bottom: 1rem;
+            border-bottom: 3px solid var(--bc-gold);
+            padding-bottom: 0.5rem;
+        }
+
+        h2 {
+            color: var(--bc-blue);
+            font-size: 1.5rem;
+            margin: 2rem 0 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        h2::before {
+            content: '';
+            width: 4px;
+            height: 1.5rem;
+            background: var(--bc-gold);
+            border-radius: 2px;
+        }
+
+        h3 {
+            color: var(--bc-blue-light);
+            font-size: 1.25rem;
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+        }
+
+        /* Cards - Enhanced */
+        .card {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            border-left: 4px solid var(--bc-blue);
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .card-gold {
+            border-left-color: var(--bc-gold);
+        }
+
+        .card h3 {
+            margin-top: 0;
+        }
+
+        /* Clickable Cards */
+        a.card-link {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        a.card-link .card {
+            cursor: pointer;
+        }
+
+        a.card-link .card:hover {
+            border-left-width: 6px;
+        }
+
+        .card-arrow {
+            color: var(--bc-blue-light);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            transition: var(--transition);
+        }
+
+        a.card-link:hover .card-arrow {
+            gap: 0.75rem;
+            color: var(--bc-blue);
+        }
+
+        /* Feature Cards */
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-icon.gold { background: rgba(252, 186, 25, 0.15); }
+        .feature-icon.blue { background: rgba(0, 51, 102, 0.1); }
+        .feature-icon.green { background: rgba(34, 197, 94, 0.1); }
+        .feature-icon.purple { background: rgba(139, 92, 246, 0.1); }
+
+        /* Stats */
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--bc-gold);
+            line-height: 1;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Code blocks */
+        pre {
+            background: var(--bc-blue-dark);
+            color: #e2e8f0;
+            padding: 1.25rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1rem 0;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 0.875rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        code {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            background: #e2e8f0;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: var(--white);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        th {
+            background: var(--bc-blue);
+            color: var(--white);
+            padding: 0.875rem 1rem;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 0.875rem 1rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        tr:hover {
+            background: #f8fafc;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Lists */
+        ul, ol {
+            margin: 1rem 0;
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        /* Links */
+        a {
+            color: var(--bc-blue-light);
+            transition: var(--transition);
+        }
+
+        a:hover {
+            color: var(--bc-blue);
+        }
+
+        /* Grid */
+        .grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .grid-3 {
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        }
+
+        .grid-4 {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+
+        .alert > * {
+            min-width: 0;
+        }
+
+        .alert-icon {
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .alert-info {
+            background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+            border-left: 4px solid #0ea5e9;
+        }
+
+        .alert-warning {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid var(--bc-gold);
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+            border-left: 4px solid #22c55e;
+        }
+
+        /* Image containers */
+        .img-container {
+            margin: 1.5rem 0;
+            text-align: center;
+        }
+
+        .img-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-gold {
+            background: var(--bc-gold);
+            color: var(--bc-blue);
+        }
+
+        .badge-blue {
+            background: var(--bc-blue);
+            color: var(--white);
+        }
+
+        /* Accordion / Collapsible */
+        details {
+            background: var(--white);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            box-shadow: var(--shadow-sm);
+            border-left: 4px solid var(--bc-blue);
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        details:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        details[open] {
+            border-left-color: var(--bc-gold);
+        }
+
+        summary {
+            padding: 1rem 1.25rem;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--bc-blue);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            list-style: none;
+            user-select: none;
+            transition: var(--transition);
+        }
+
+        summary::-webkit-details-marker {
+            display: none;
+        }
+
+        summary::after {
+            content: '';
+            border: solid var(--bc-blue-light);
+            border-width: 0 2px 2px 0;
+            display: inline-block;
+            padding: 4px;
+            transform: rotate(-45deg);
+            transition: transform 0.2s ease;
+            flex-shrink: 0;
+            margin-left: 1rem;
+        }
+
+        details[open] summary::after {
+            transform: rotate(45deg);
+        }
+
+        summary:hover {
+            background: var(--bg-light);
+        }
+
+        details[open] summary {
+            border-bottom: 1px solid #e2e8f0;
+            background: var(--bg-light);
+        }
+
+        .accordion-content {
+            padding: 1rem 1.25rem;
+        }
+
+        .accordion-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Accordion with badge */
+        summary .badge {
+            margin-left: auto;
+            margin-right: 1rem;
+        }
+
+        /* Accordion group */
+        .accordion-group {
+            margin: 1rem 0;
+        }
+
+        .accordion-group details:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Footer */
+        .site-footer {
+            background: var(--bc-blue);
+            color: var(--white);
+            padding: 3rem 2rem;
+            margin-top: auto;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+        }
+
+        .footer-brand h4,
+        .footer-links h4 {
+            color: var(--bc-gold);
+            margin-bottom: 0.75rem;
+            font-size: 1rem;
+        }
+
+        .footer-brand p {
+            color: #94a3b8;
+            font-size: 0.875rem;
+            margin: 0;
+        }
+
+        .footer-links ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .footer-links li {
+            margin-bottom: 0.5rem;
+        }
+
+        .footer-links a {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: var(--transition);
+        }
+
+        .footer-links a:hover {
+            color: var(--bc-gold);
+        }
+
+        .footer-copyright {
+            text-align: right;
+        }
+
+        .footer-copyright p {
+            color: #64748b;
+            font-size: 0.75rem;
+            margin: 0;
+        }
+
+        .footer-meta {
+            margin-top: 0.5rem !important;
+            opacity: 0.7;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .bc-header {
+                flex-direction: column;
+                text-align: center;
+                padding: 1rem;
+            }
+
+            .bc-nav {
+                justify-content: center;
+            }
+
+            .nav-dropdown-menu {
+                position: fixed;
+                left: 1rem;
+                right: 1rem;
+                width: auto;
+            }
+
+            main {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 1.75rem;
+            }
+
+            .hero {
+                padding: 2rem 1rem;
+            }
+
+            .hero h1 {
+                font-size: 1.75rem;
+            }
+
+            .footer-content {
+                text-align: center;
+            }
+
+            .footer-copyright {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="bc-header">
+        <a href="index.html" class="bc-header-brand">
+            <img src="assets/bc_citz_logo.jpg" alt="BC Government" class="bc-header-logo">
+            <div>
+                <div class="bc-header-title">AI Hub Tracking</div>
+                <div class="bc-header-subtitle">Azure Landing Zone Infrastructure</div>
+            </div>
+        </a>
+        <nav class="bc-nav">
+            <a href="index.html" class="">Home</a>
+            <div class="nav-dropdown">
+                <span class="nav-trigger">Guides</span>
+                <div class="nav-dropdown-menu">
+                    <a href="oidc-setup.html">
+                        OIDC Setup
+                        <small>GitHub to Azure authentication</small>
+                    </a>
+                    <a href="terraform.html">
+                        Terraform Modules
+                        <small>Network, Bastion, Runners, Proxy</small>
+                    </a>
+                    <a href="language-service-pii.html">
+                        Language Service PII
+                        <small>ML-based PII detection & APIM</small>
+                    </a>
+                    <a href="document-intelligence.html">
+                        Document Intelligence
+                        <small>SDK configuration & APIM integration</small>
+                    </a>
+                    <a href="workflows.html">
+                        GitHub Workflows
+                        <small>CI/CD automation</small>
+                    </a>
+                    <a href="terraform-reference.html">
+                        TF Reference
+                        <small>Auto-generated from code</small>
+                    </a>
+                </div>
+            </div>
+            <a href="diagrams.html" class="">Diagrams</a>
+            <a href="playbooks.html" class="">Playbooks</a>
+            <a href="decisions.html" class="">ADRs</a>
+            <a href="cost.html" class="">Cost</a>
+            <a href="faq.html" class="">FAQ</a>
+        </nav>
+    </header>
+    <main>
+
+<h1>Frequently Asked Questions</h1>
+
+<p>Common questions about the AI Services Hub Landing Zone, network architecture, and onboarding process.</p>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M12 16v-4"/><path d="M12 8h.01"/><circle cx="12" cy="12" r="10"/></svg>
+    </div>
+    <div>
+        <strong>Questions pending answers are marked with</strong> <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+    </div>
+</div>
+
+<h2>Network & Subscription Setup</h2>
+
+<div class="card">
+    <h3 style="margin-top:0;">What network sizes were allocated for the AI Hub?</h3>
+    <span class="badge badge-gold">Answered</span>
+    <table style="margin-top: 1rem;">
+        <tr>
+            <th>Environment</th>
+            <th>VNet Size</th>
+            <th>Usable IPs</th>
+        </tr>
+        <tr>
+            <td><strong>da4cf6-prod</strong></td>
+            <td>4x /24 (= /22)</td>
+            <td>~1,020</td>
+        </tr>
+        <tr>
+            <td><strong>da4cf6-test</strong></td>
+            <td>2x /24 (= /23)</td>
+            <td>~508</td>
+        </tr>
+        <tr>
+            <td><strong>da4cf6-dev</strong></td>
+            <td>1x /24</td>
+            <td>~251</td>
+        </tr>
+        <tr>
+            <td><strong>da4cf6-tools</strong></td>
+            <td>1x /24</td>
+            <td>~251</td>
+        </tr>
+    </table>
+    <p style="margin-top: 1rem; color: var(--text-secondary);"><em>Confirmed by Platform Services Team on Dec 11, 2025</em></p>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Why does the AI Hub need larger VNets than standard /24?</h3>
+    <span class="badge badge-gold">Answered</span>
+    <p>The AI Hub will run multiple Azure services that each require significant IP allocation:</p>
+    <table style="margin-top: 1rem;">
+        <tr>
+            <th>Service</th>
+            <th>Min Size</th>
+            <th>Recommended</th>
+        </tr>
+        <tr>
+            <td>API Management (APIM)</td>
+            <td>/26</td>
+            <td>/24</td>
+        </tr>
+        <tr>
+            <td>App Gateway</td>
+            <td>/26</td>
+            <td>/24</td>
+        </tr>
+        <tr>
+            <td>AI Foundry</td>
+            <td>/25</td>
+            <td>/24</td>
+        </tr>
+        <tr>
+            <td>PrivateLink Subnet</td>
+            <td>/27</td>
+            <td>/27</td>
+        </tr>
+        <tr>
+            <td>AKS</td>
+            <td>Variable</td>
+            <td>Variable</td>
+        </tr>
+    </table>
+    <p style="margin-top: 1rem;"><strong>Total:</strong> This exceeds the standard /24 (256 IPs), requiring at least a /22 for production.</p>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">What is the non-routable IP range for Canada East?</h3>
+    <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+    <p>Non-prod resources in Canada East will use a portion of the non-routable IP range (10.10.x.x). PrivateLink will be used to access these resources over the routable network.</p>
+    <div class="alert alert-warning" style="margin-top: 1rem;">
+        <div class="alert-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div>
+            <strong>Open Questions:</strong>
+            <ul style="margin-bottom: 0;">
+                <li>What specific 10.10.x.x range will be assigned?</li>
+                <li>How will PrivateLink routing be configured?</li>
+                <li>What's the process to request additional IP blocks if needed?</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<h2>Control Plane vs Data Plane</h2>
+
+<div class="card">
+    <h3 style="margin-top:0;">What's the difference between control plane and data plane?</h3>
+    <span class="badge badge-gold">Answered</span>
+    <p>Azure has two distinct access paths:</p>
+    <table style="margin-top: 1rem;">
+        <tr>
+            <th>Aspect</th>
+            <th>Control Plane</th>
+            <th>Data Plane</th>
+        </tr>
+        <tr>
+            <td><strong>What</strong></td>
+            <td>Managing resources (create, configure, delete)</td>
+            <td>Accessing data inside resources</td>
+        </tr>
+        <tr>
+            <td><strong>Endpoint</strong></td>
+            <td><code>management.azure.com</code></td>
+            <td><code>*.vault.azure.net</code>, <code>*.blob.core.windows.net</code></td>
+        </tr>
+        <tr>
+            <td><strong>OIDC Works?</strong></td>
+            <td style="color: #22c55e;">Yes - always</td>
+            <td style="color: #ef4444;">No - blocked by private endpoints</td>
+        </tr>
+        <tr>
+            <td><strong>Examples</strong></td>
+            <td>Create Key Vault, assign RBAC roles</td>
+            <td>Read secrets, write blobs, query databases</td>
+        </tr>
+    </table>
+    <p style="margin-top: 1rem;">See <a href="decisions.html#adr-011">ADR-011</a> and <a href="diagrams.html#control-data-plane">Control vs Data Plane Diagram</a> for details.</p>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Why can't I see Key Vault secrets in the Azure Portal?</h3>
+    <span class="badge badge-gold">Answered</span>
+    <p>The Azure Portal is a <strong>control plane UI</strong>. When you browse to a Key Vault:</p>
+    <ul>
+        <li><strong>&#10003; You can see</strong> the vault exists (control plane: list resources)</li>
+        <li><strong>&#10003; You can see</strong> its configuration (control plane: read properties)</li>
+        <li><strong>&#10007; You CANNOT click</strong> "Show Secret Value" (data plane: blocked by private endpoint)</li>
+    </ul>
+    <p style="margin-bottom: 0;">To view secrets, use <a href="playbooks.html#chisel-tunnel">Chisel tunnel</a> or connect through the <a href="playbooks.html#bastion-access">Jumpbox via Bastion</a>.</p>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Do tenant developers get Chisel access?</h3>
+    <span class="badge badge-gold">Answered</span>
+    <p><strong>No.</strong> Chisel is for <strong>platform maintainers only</strong>. Tenant/project developers access AI services through the designed public entry points:</p>
+    <ul>
+        <li><strong>App Gateway + APIM</strong>: Public-facing API endpoints</li>
+        <li><strong>Their own applications</strong>: Which call APIM endpoints</li>
+    </ul>
+    <p style="margin-bottom: 0;">This separation ensures proper isolation and metering. Tenants don't need (or get) direct access to private endpoints.</p>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Which access method should I use?</h3>
+    <span class="badge badge-gold">Answered</span>
+    <table style="margin-top: 1rem;">
+        <tr>
+            <th>If you need...</th>
+            <th>Use this</th>
+        </tr>
+        <tr>
+            <td>CI/CD with data plane (secrets, state)</td>
+            <td>Self-hosted runners (<code>github_runners_aca_enabled</code>)</td>
+        </tr>
+        <tr>
+            <td>Admin access, debugging, CLI tools</td>
+            <td>Bastion + Jumpbox</td>
+        </tr>
+        <tr>
+            <td>Local dev access to private databases</td>
+            <td>Chisel tunnel (<code>enable_azure_proxy</code>)</td>
+        </tr>
+        <tr>
+            <td>Resource-only deployments</td>
+            <td>Public GitHub runners (default)</td>
+        </tr>
+    </table>
+    <p style="margin-top: 1rem;">See <a href="terraform.html#choosing-your-access-method">Choosing Your Access Method</a> and <a href="diagrams.html#access-methods">Access Methods Diagram</a>.</p>
+</div>
+
+<h2>Onboarding & Access</h2>
+
+<div class="card">
+    <h3 style="margin-top:0;">How do other teams onboard to the AI Hub?</h3>
+    <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+    <p>The onboarding process for other BC Gov teams to use the AI Hub is being developed.</p>
+    <div class="alert alert-warning" style="margin-top: 1rem;">
+        <div class="alert-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div>
+            <strong>Open Questions:</strong>
+            <ul style="margin-bottom: 0;">
+                <li>What's the intake process for new teams?</li>
+                <li>What prerequisites must teams meet?</li>
+                <li>How are resources allocated per team?</li>
+                <li>What's the cost model (chargeback)?</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">What's the 3-6-9 month roadmap?</h3>
+    <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+    <p>A planning/whiteboarding session was proposed with the following agenda:</p>
+    <ul>
+        <li>Roles Overview</li>
+        <li>Technical capabilities - first 3 months to showcase value</li>
+        <li>Services onboarding enablers</li>
+        <li>3-6-9 months baseline roadmap/milestones</li>
+        <li>WBS tracker (Azure DevOps/GitHub)</li>
+        <li>Regular cadences</li>
+    </ul>
+    <div class="alert alert-warning" style="margin-top: 1rem;">
+        <div class="alert-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div>
+            <strong>Status:</strong> Planning session with Microsoft to be scheduled. Date TBD.
+        </div>
+    </div>
+</div>
+
+<h2>Technical Architecture</h2>
+
+<div class="card">
+    <h3 style="margin-top:0;">Why can't GitHub Actions run Terraform directly?</h3>
+    <span class="badge badge-gold">Answered</span>
+    <p>See <a href="decisions.html#adr-001">ADR-001: Shared Landing Zone</a> for the full explanation.</p>
+    <p><strong>Short answer:</strong> BC Gov policy requires all Azure services to use private endpoints. GitHub-hosted runners are on the public internet and cannot reach private endpoints. Self-hosted runners inside the VNet are required.</p>
+    <p style="margin-bottom: 0;"><strong>Cost note:</strong> Runner compute is primarily usage-based (Container Apps job runtime) because the runners are configured to scale to zero when idle. See <a href="cost.html#cicd-runner-costs">Cost Tracking: CI/CD Runner Costs</a>.</p>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">What Azure services will the AI Hub provide?</h3>
+    <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+    <p>The AI Hub is intended to provide shared AI services for BC Gov teams. Services under consideration:</p>
+    <ul>
+        <li>Azure AI Foundry</li>
+        <li>API Management (APIM) for model access</li>
+        <li>Azure Kubernetes Service (AKS)</li>
+        <li>App Gateway for ingress</li>
+    </ul>
+    <div class="alert alert-warning" style="margin-top: 1rem;">
+        <div class="alert-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div>
+            <strong>Open Questions:</strong>
+            <ul style="margin-bottom: 0;">
+                <li>Which AI models will be available?</li>
+                <li>What's the governance model for model usage?</li>
+                <li>How will prompt logging/auditing work?</li>
+                <li>What data residency requirements apply?</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">How does VNet peering work between environments?</h3>
+    <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+    <p>Non-prod environments (dev, test, tools) will use VNet peering.</p>
+    <div class="alert alert-warning" style="margin-top: 1rem;">
+        <div class="alert-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div>
+            <strong>Open Questions:</strong>
+            <ul style="margin-bottom: 0;">
+                <li>Will dev/test/tools be peered together or separate?</li>
+                <li>What's the traffic flow between environments?</li>
+                <li>Are there NSG rules restricting cross-environment access?</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<h2>Questions for Microsoft</h2>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <div>
+        <strong>Post kick-off questions for Microsoft regarding Azure AI Application Zone</strong> (Dec 2025)<br>
+        <small>Click any question to expand details</small>
+    </div>
+</div>
+
+<h3>Repository & Deployment Strategy</h3>
+
+<div class="accordion-group">
+    <details>
+        <summary>
+            1. Should we use a forked repo or overlay repo approach?
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>The upstream <a href="https://github.com/Azure/AI-Landing-Zones">Azure AI Landing Zones</a> repo may become archived. What's the recommended approach for maintaining our customizations?</p>
+            <p><strong>Context:</strong> We need to decide whether to fork the entire repo and maintain our own copy, or create an overlay that references the upstream modules.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            2. What's the long-term support outlook for AI Landing Zones?
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>Given the archival risk, what's Microsoft's commitment to maintaining the upstream reference architecture?</p>
+            <p><strong>Concern:</strong> If the repo is archived, we need a plan for ongoing security patches and feature updates.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            3. Fork sync strategy
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>If we fork, how should we handle syncing upstream changes while preserving BC Gov customizations?</p>
+            <p><strong>Options to discuss:</strong></p>
+            <ul>
+                <li>Git submodules</li>
+                <li>Regular merge from upstream</li>
+                <li>Cherry-pick specific commits</li>
+                <li>Terragrunt wrapper</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            4. Policy overlay management
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>How do we layer BC Gov-specific Azure policies on top of the base landing zone without conflicts?</p>
+            <p><strong>Considerations:</strong> BC Gov has specific compliance requirements (data residency, encryption) that may need custom policies.</p>
+        </div>
+    </details>
+</div>
+
+<h3>Access & Security</h3>
+
+<div class="accordion-group">
+    <details>
+        <summary>
+            5. User access model for AI Foundry
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>How will end users (data scientists, developers) access AI Foundry? What's the authentication/authorization model?</p>
+            <p><strong>Questions:</strong></p>
+            <ul>
+                <li>Direct portal access vs API-only?</li>
+                <li>IDIR integration?</li>
+                <li>Guest access for contractors?</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            6. RBAC model
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>What RBAC roles are needed for different user personas (platform admins, team leads, developers, data scientists)?</p>
+            <p><strong>Personas to define:</strong></p>
+            <ul>
+                <li>Platform Admin - full control</li>
+                <li>Team Lead - manage team resources</li>
+                <li>Developer - deploy models, run experiments</li>
+                <li>Data Scientist - read-only model access</li>
+                <li>Auditor - view logs and compliance</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            7. Governance automation
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>How can we automate governance policies (data classification, model approval, prompt logging)?</p>
+            <p><strong>Areas needing automation:</strong></p>
+            <ul>
+                <li>Data classification enforcement</li>
+                <li>Model deployment approval workflows</li>
+                <li>Prompt/response logging for audit</li>
+                <li>PII detection and masking</li>
+            </ul>
+        </div>
+    </details>
+</div>
+
+<h3>Infrastructure & Cost</h3>
+
+<div class="accordion-group">
+    <details>
+        <summary>
+            8. Cost-effective IaC deployment without Bastion+VM
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>Running Bastion ($140/month) + Jumpbox just for Terraform deployments is expensive. Are there cheaper alternatives that still meet private endpoint requirements?</p>
+            <p><strong>Alternatives to explore:</strong></p>
+            <ul>
+                <li>Azure Container Instances with VNet injection</li>
+                <li>Ephemeral VMs spun up only during deployments</li>
+                <li>Azure DevOps self-hosted agents</li>
+                <li>GitHub Actions with Azure Arc-enabled runners</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            9. GitHub self-hosted runners vs Azure DevOps
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>What's the recommended CI/CD approach for private endpoint deployments? Self-hosted GitHub runners in VNet vs Azure DevOps agents?</p>
+            <p><strong>Trade-offs:</strong></p>
+            <ul>
+                <li>GitHub: Better integration with existing repos, but runner management overhead</li>
+                <li>Azure DevOps: Native Azure integration, but separate system to manage</li>
+            </ul>
+            <div class="alert alert-info" style="margin-top: 1rem;">
+                <span class="alert-icon">💰</span>
+                <div>
+                    <strong>Cost drivers (GitHub self-hosted runners on Container Apps):</strong>
+                    <ul style="margin: 0.5rem 0 0;">
+                        <li><strong>Runner compute:</strong> billed on runtime (scale-to-zero when idle)</li>
+                        <li><strong>Sizing knobs:</strong> <code>container_cpu</code>, <code>container_memory</code>, and <code>max_runners</code> (concurrency cap)</li>
+                        <li><strong>Supporting costs:</strong> Log Analytics ingestion + ACR Premium base cost (fixed) + storage/transfer <em>(ACR private endpoints require Premium)</em></li>
+                    </ul>
+                    <p style="margin: 0.75rem 0 0;"><strong>Sample calculation (module defaults):</strong></p>
+                    <pre style="margin: 0.5rem 0 0;">Assumptions: 20 jobs/day, 10 min/job, avg concurrency = 1.5
+Monthly runner hours = 30 * 20 * (10/60) * 1.5 = 150 hours
+Total seconds = 150 * 3600 = 540,000 seconds
+
+Canada Central rates (Container Apps):
+vCPU-seconds: $0.0000480/sec
+GiB-seconds:  $0.0000057/sec
+Requests:     $0.565 per million
+
+vCPU cost = 540,000 * 1 vCPU * 0.0000480 = $25.92
+Memory cost = 540,000 * 2 GiB * 0.0000057 = $6.16
+Request cost (example 1M req/mo) = $0.57
+
+Estimated runner compute total ≈ $32.65/mo
+ACR Premium base cost = $2.351/day ≈ $70.53/mo (30-day month)
+Estimated compute + ACR base ≈ $103.18/mo (excludes Log Analytics)
+
+Assumes a single-region ACR Premium registry with no geo-replication and no connected registry</pre>
+                    <p style="margin: 0.75rem 0 0;">See <a href="cost.html#cicd-runner-costs">Cost Tracking: CI/CD Runner Costs</a> for the full breakdown.</p>
+                </div>
+            </div>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            10. Shared vs dedicated resources per team
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>Which resources should be shared across teams (APIM, AI models) vs dedicated per team (compute, storage)?</p>
+            <p><strong>Proposed split:</strong></p>
+            <table>
+                <tr><th>Shared</th><th>Dedicated</th></tr>
+                <tr><td>APIM gateway</td><td>Compute quotas</td></tr>
+                <tr><td>AI model deployments</td><td>Storage accounts</td></tr>
+                <tr><td>Networking (VNet, NSG)</td><td>Key Vault</td></tr>
+                <tr><td>Monitoring infrastructure</td><td>Resource groups</td></tr>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            11. Cost allocation and chargeback
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>How do we track and allocate costs to individual teams/projects using shared AI services?</p>
+            <p><strong>Mechanisms needed:</strong></p>
+            <ul>
+                <li>Tagging strategy for cost attribution</li>
+                <li>APIM subscription-based metering</li>
+                <li>Monthly cost reports per team</li>
+                <li>Budget alerts</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            12. Telemetry and tagging strategy
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>What tagging conventions and telemetry should be implemented for cost tracking and observability?</p>
+            <p><strong>Required tags:</strong></p>
+            <ul>
+                <li><code>cost-center</code> - ministry/team billing code</li>
+                <li><code>project</code> - project identifier</li>
+                <li><code>environment</code> - dev/test/prod</li>
+                <li><code>owner</code> - responsible team</li>
+                <li><code>data-classification</code> - public/protected/confidential</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            13. Noisy neighbor mitigation
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>How do we prevent one team's workload from impacting others in a shared environment (rate limiting, quotas)?</p>
+            <p><strong>Mitigation strategies:</strong></p>
+            <ul>
+                <li>APIM rate limiting per subscription</li>
+                <li>Resource quotas per resource group</li>
+                <li>Kubernetes resource limits/requests</li>
+                <li>AI model TPM (tokens per minute) limits</li>
+            </ul>
+        </div>
+    </details>
+</div>
+
+<h3>Onboarding & Operations</h3>
+
+<div class="accordion-group">
+    <details>
+        <summary>
+            14. Project namespace concept
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>How should we isolate team workloads? Resource groups per team? Subscriptions? Kubernetes namespaces?</p>
+            <p><strong>Options:</strong></p>
+            <ul>
+                <li><strong>Resource Groups:</strong> Simple but limited isolation</li>
+                <li><strong>Subscriptions:</strong> Strong isolation but management overhead</li>
+                <li><strong>K8s Namespaces:</strong> Good for container workloads</li>
+                <li><strong>Hybrid:</strong> Shared subscription + RG per team + K8s namespaces</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            15. Non-Foundry services governance
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>How do we govern teams that want to deploy their own AI services (Ollama, vLLM) outside of AI Foundry?</p>
+            <p><strong>Considerations:</strong></p>
+            <ul>
+                <li>Security review process for custom deployments</li>
+                <li>Approved container images list</li>
+                <li>Network isolation requirements</li>
+                <li>Logging/monitoring requirements</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            16. Onboarding journey
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>What's the end-to-end flow for a new team to request access, get approved, and start using AI services?</p>
+            <p><strong>Proposed flow:</strong></p>
+            <ol>
+                <li>Intake form submission</li>
+                <li>Security/privacy assessment</li>
+                <li>Resource allocation approval</li>
+                <li>Technical onboarding session</li>
+                <li>Sandbox environment provisioning</li>
+                <li>Production access (after validation)</li>
+            </ol>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            17. Runbooks and playbooks
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>What operational runbooks are needed for Day 2 operations (incident response, scaling, maintenance)?</p>
+            <p><strong>Required runbooks:</strong></p>
+            <ul>
+                <li>Incident response (outage, security breach)</li>
+                <li>Scaling up/down AI model deployments</li>
+                <li>Certificate rotation</li>
+                <li>Disaster recovery</li>
+                <li>Cost spike investigation</li>
+            </ul>
+        </div>
+    </details>
+
+    <details>
+        <summary>
+            18. SDPR OCR scope
+            <span class="badge" style="background:#ef4444;color:white;">Pending</span>
+        </summary>
+        <div class="accordion-content">
+            <p>What's the scope of SDPR's OCR (Document Intelligence) requirements and how does it fit into the shared platform?</p>
+            <p><strong>Questions for SDPR:</strong></p>
+            <ul>
+                <li>Volume of documents to process?</li>
+                <li>Document types (forms, invoices, letters)?</li>
+                <li>Data classification of documents?</li>
+                <li>Integration with existing systems?</li>
+                <li>Real-time vs batch processing?</li>
+            </ul>
+        </div>
+    </details>
+</div>
+
+<h2>Pending Decisions</h2>
+
+<div class="alert alert-warning">
+    <span class="alert-icon">📝</span>
+    <div>
+        <strong>Items requiring team discussion or decisions:</strong>
+    </div>
+</div>
+
+<table>
+    <tr>
+        <th>#</th>
+        <th>Question</th>
+        <th>Owner</th>
+        <th>Status</th>
+    </tr>
+    <tr>
+        <td>1</td>
+        <td>Canada East non-routable IP range assignment</td>
+        <td>Platform Team</td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">Waiting</span></td>
+    </tr>
+    <tr>
+        <td>2</td>
+        <td>Team onboarding process documentation</td>
+        <td>Product Management</td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">In Progress</span></td>
+    </tr>
+    <tr>
+        <td>3</td>
+        <td>3-6-9 month roadmap</td>
+        <td>Microsoft</td>
+        <td><span class="badge" style="background:#f59e0b;color:white;">In Progress</span></td>
+    </tr>
+    <tr>
+        <td>4</td>
+        <td>Cost model / chargeback for AI services</td>
+        <td>Executive Sponsor</td>
+        <td><span class="badge" style="background:#ef4444;color:white;">Not Started</span></td>
+    </tr>
+    <tr>
+        <td>5</td>
+        <td>Self-hosted runner setup in VNet</td>
+        <td>Platform Team</td>
+        <td><span class="badge" style="background:#ef4444;color:white;">Not Started</span></td>
+    </tr>
+    <tr>
+        <td>6</td>
+        <td>AI model governance policy</td>
+        <td>TBD</td>
+        <td><span class="badge" style="background:#ef4444;color:white;">Not Started</span></td>
+    </tr>
+</table>
+    </main>
+    <footer class="site-footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <h4>AI Hub Tracking</h4>
+                <p>Infrastructure as Code for Azure Landing Zone deployments</p>
+            </div>
+            <div class="footer-links">
+                <h4>Resources</h4>
+                <ul>
+                    <li><a href="https://github.com/bcgov/ai-hub-tracking">GitHub Repository</a></li>
+                    <li><a href="assets/azure-oidc-complete-guide.svg" target="_blank">Architecture Diagram</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>BC Government</h4>
+                <ul>
+                    <li><a href="https://www2.gov.bc.ca">gov.bc.ca</a></li>
+                    <li><a href="https://digital.gov.bc.ca">Digital Office</a></li>
+                </ul>
+            </div>
+            <div class="footer-copyright">
+                <p>&copy; 2026 Province of British Columbia</p>
+                <p class="footer-meta">Built with zero dependencies</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        (function () {
+            function scrollToWithHeaderOffset(el) {
+                if (!el) return;
+                const header = document.querySelector('.bc-header');
+                const offset = (header ? header.getBoundingClientRect().height : 0) + 16;
+
+                const top = el.getBoundingClientRect().top + window.scrollY - offset;
+                window.scrollTo({ top: Math.max(0, top) });
+            }
+
+            function openDetailsFromHash() {
+                const hash = window.location.hash;
+                if (!hash || hash.length < 2) return;
+
+                const id = hash.substring(1);
+                const el = document.getElementById(id);
+                if (el && el.tagName && el.tagName.toLowerCase() === 'details') {
+                    el.open = true;
+                    // Opening can change layout; adjust scroll after paint so the
+                    // sticky header doesn't cover the <summary> title.
+                    requestAnimationFrame(function () {
+                        requestAnimationFrame(function () {
+                            scrollToWithHeaderOffset(el);
+                        });
+                    });
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                openDetailsFromHash();
+            });
+
+            window.addEventListener('hashchange', function () {
+                openDetailsFromHash();
+            });
+
+            // If user clicks the same #hash twice, hashchange won't fire.
+            // This ensures ADR links always expand.
+            document.addEventListener('click', function (e) {
+                const link = e.target.closest && e.target.closest('a[href^="#"]');
+                if (!link) return;
+
+                const href = link.getAttribute('href');
+                if (!href || href.length < 2) return;
+
+                const id = href.substring(1);
+                const el = document.getElementById(id);
+                if (el && el.tagName && el.tagName.toLowerCase() === 'details') {
+                    el.open = true;
+                    requestAnimationFrame(function () {
+                        requestAnimationFrame(function () {
+                            scrollToWithHeaderOffset(el);
+                        });
+                    });
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

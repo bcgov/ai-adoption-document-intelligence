@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{PAGE_TITLE}} | AI Hub Tracking</title>
+    <title>APIReference | AI Hub Tracking</title>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <style>
         :root {
@@ -701,8 +701,8 @@
             </div>
         </a>
         <nav class="bc-nav">
-            <a href="index.html" class="{{NAV_INDEX}}">Home</a>
-            <a href="api-reference.html" class="{{NAV_API}}">API Reference</a>
+            <a href="index.html" class="">Home</a>
+            <a href="api-reference.html" class="active">API Reference</a>
             <div class="nav-dropdown">
                 <span class="nav-trigger">Guides</span>
                 <div class="nav-dropdown-menu">
@@ -732,11 +732,166 @@
                     </a>
                 </div>
             </div>
-            <a href="diagrams.html" class="{{NAV_DIAGRAMS}}">Diagrams</a>
-            <a href="playbooks.html" class="{{NAV_PLAYBOOKS}}">Playbooks</a>
-            <a href="decisions.html" class="{{NAV_DECISIONS}}">ADRs</a>
-            <a href="cost.html" class="{{NAV_COST}}">Cost</a>
-            <a href="faq.html" class="{{NAV_FAQ}}">FAQ</a>
+            <a href="diagrams.html" class="">Diagrams</a>
+            <a href="playbooks.html" class="">Playbooks</a>
+            <a href="decisions.html" class="">ADRs</a>
+            <a href="cost.html" class="">Cost</a>
+            <a href="faq.html" class="">FAQ</a>
         </nav>
     </header>
     <main>
+
+<h1>API Reference</h1>
+
+<p>Complete REST API documentation for the Document Intelligence Platform. All endpoints support Bearer token authentication (Keycloak SSO) or API key authentication.</p>
+
+<div class="alert alert-info" style="margin-bottom: 2rem;">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Authentication</strong><br>
+        This API supports two authentication methods: Bearer tokens (JWT from Keycloak SSO) or API keys passed via the <code>x-api-key</code> header.
+    </div>
+</div>
+
+<div class="card" style="margin-bottom: 2rem;">
+    <h3 style="margin-top: 0;">API Endpoints Overview</h3>
+    <ul>
+        <li><strong>Documents</strong> - Document management, OCR results, and metadata operations</li>
+        <li><strong>Upload</strong> - Multipart file upload with workflow execution</li>
+        <li><strong>Workflow</strong> - Graph-based workflow configuration and monitoring</li>
+        <li><strong>Labeling</strong> - Document labeling projects and annotation management</li>
+        <li><strong>Training</strong> - Custom model training and evaluation</li>
+        <li><strong>HITL</strong> - Human-in-the-loop review queue operations</li>
+        <li><strong>API Keys</strong> - API key lifecycle management</li>
+        <li><strong>OCR</strong> - OCR model information and capabilities</li>
+    </ul>
+</div>
+
+<div id="redoc-container"></div>
+
+<script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+<script>
+  Redoc.init(
+    'assets/openapi.json',
+    {
+      scrollYOffset: 80,
+      hideDownloadButton: false,
+      theme: {
+        colors: {
+          primary: {
+            main: '#003366' // BC Blue
+          },
+          success: {
+            main: '#2E8540' // BC Green
+          },
+          warning: {
+            main: '#FCBA19' // BC Gold
+          }
+        },
+        typography: {
+          fontSize: '16px',
+          fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif',
+          headings: {
+            fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif'
+          }
+        },
+        sidebar: {
+          backgroundColor: '#f8f9fa',
+          textColor: '#003366'
+        }
+      }
+    },
+    document.getElementById('redoc-container')
+  );
+</script>
+    </main>
+    <footer class="site-footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <h4>AI Hub Tracking</h4>
+                <p>Infrastructure as Code for Azure Landing Zone deployments</p>
+            </div>
+            <div class="footer-links">
+                <h4>Resources</h4>
+                <ul>
+                    <li><a href="https://github.com/bcgov/ai-hub-tracking">GitHub Repository</a></li>
+                    <li><a href="assets/azure-oidc-complete-guide.svg" target="_blank">Architecture Diagram</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>BC Government</h4>
+                <ul>
+                    <li><a href="https://www2.gov.bc.ca">gov.bc.ca</a></li>
+                    <li><a href="https://digital.gov.bc.ca">Digital Office</a></li>
+                </ul>
+            </div>
+            <div class="footer-copyright">
+                <p>&copy; 2026 Province of British Columbia</p>
+                <p class="footer-meta">Built with zero dependencies</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        (function () {
+            function scrollToWithHeaderOffset(el) {
+                if (!el) return;
+                const header = document.querySelector('.bc-header');
+                const offset = (header ? header.getBoundingClientRect().height : 0) + 16;
+
+                const top = el.getBoundingClientRect().top + window.scrollY - offset;
+                window.scrollTo({ top: Math.max(0, top) });
+            }
+
+            function openDetailsFromHash() {
+                const hash = window.location.hash;
+                if (!hash || hash.length < 2) return;
+
+                const id = hash.substring(1);
+                const el = document.getElementById(id);
+                if (el && el.tagName && el.tagName.toLowerCase() === 'details') {
+                    el.open = true;
+                    // Opening can change layout; adjust scroll after paint so the
+                    // sticky header doesn't cover the <summary> title.
+                    requestAnimationFrame(function () {
+                        requestAnimationFrame(function () {
+                            scrollToWithHeaderOffset(el);
+                        });
+                    });
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                openDetailsFromHash();
+            });
+
+            window.addEventListener('hashchange', function () {
+                openDetailsFromHash();
+            });
+
+            // If user clicks the same #hash twice, hashchange won't fire.
+            // This ensures ADR links always expand.
+            document.addEventListener('click', function (e) {
+                const link = e.target.closest && e.target.closest('a[href^="#"]');
+                if (!link) return;
+
+                const href = link.getAttribute('href');
+                if (!href || href.length < 2) return;
+
+                const id = href.substring(1);
+                const el = document.getElementById(id);
+                if (el && el.tagName && el.tagName.toLowerCase() === 'details') {
+                    el.open = true;
+                    requestAnimationFrame(function () {
+                        requestAnimationFrame(function () {
+                            scrollToWithHeaderOffset(el);
+                        });
+                    });
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

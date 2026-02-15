@@ -543,7 +543,7 @@ Verify environment variables:
 
 Test connectivity:
 ```bash
-curl -X GET "$AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT/formrecognizer/documentModels?api-version=2023-10-31-preview" \
+curl -X GET "$AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT/documentintelligence/documentModels?api-version=2023-10-31-preview" \
   -H "Ocp-Apim-Subscription-Key: $AZURE_DOCUMENT_INTELLIGENCE_KEY"
 ```
 
