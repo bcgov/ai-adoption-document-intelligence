@@ -1,4 +1,16 @@
-import { Badge, Card, Code, Group, Stack, Table, Title } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Card,
+  Code,
+  Group,
+  Stack,
+  Table,
+  Title,
+} from "@mantine/core";
+import { IconPlayerPlay } from "@tabler/icons-react";
+import { useNavigate } from "react-router-dom";
+import { useStartRun } from "../hooks/useRuns";
 
 interface DatasetVersionInfo {
   id: string;
@@ -52,6 +64,17 @@ interface DefinitionDetailViewProps {
 export function DefinitionDetailView({
   definition,
 }: DefinitionDetailViewProps) {
+  const navigate = useNavigate();
+  const { startRun, isStarting } = useStartRun(
+    definition.projectId,
+    definition.id,
+  );
+
+  const handleStartRun = async () => {
+    const run = await startRun({});
+    navigate(`/benchmarking/projects/${definition.projectId}/runs/${run.id}`);
+  };
+
   const getStatusBadgeColor = (status: string) => {
     switch (status.toLowerCase()) {
       case "completed":
@@ -74,6 +97,13 @@ export function DefinitionDetailView({
           <Group justify="space-between">
             <Title order={3}>{definition.name}</Title>
             <Group gap="xs">
+              <Button
+                leftSection={<IconPlayerPlay size={16} />}
+                onClick={handleStartRun}
+                loading={isStarting}
+              >
+                Start Run
+              </Button>
               {definition.immutable && <Badge color="gray">Immutable</Badge>}
               <Badge>Revision {definition.revision}</Badge>
             </Group>

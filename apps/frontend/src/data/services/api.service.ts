@@ -92,10 +92,7 @@ class ApiService {
     return this.request<T>("PUT", endpoint, data);
   }
 
-  async patch<T>(
-    endpoint: string,
-    data: unknown,
-  ): Promise<ApiResponse<T>> {
+  async patch<T>(endpoint: string, data: unknown): Promise<ApiResponse<T>> {
     return this.request<T>("PATCH", endpoint, data);
   }
 

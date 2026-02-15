@@ -420,7 +420,6 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
           </Stack>
         </Tabs.Panel>
 
-
         <Tabs.Panel value="export" pt="md">
           <ExportPanel
             projectId={projectId}
