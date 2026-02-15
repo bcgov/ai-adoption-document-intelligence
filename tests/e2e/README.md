@@ -4,6 +4,37 @@ This directory contains end-to-end tests for the AI OCR application using Playwr
 
 **📖 [How to Write New Tests](./WRITING_TESTS.md)** - Start here to create new tests!
 
+## 🤖 Automated Testing Workflow
+
+We have a complete automated workflow for generating, running, and healing tests using Claude Code skills:
+
+### Available Skills
+
+1. **`/test-planner`** - Converts feature requirements into structured test plans
+2. **`/playwright-explorer`** - Explores the app with Playwright and documents pages
+3. **`/test-generator`** - Generates test code from plans and exploration data
+4. **`/test-healer`** - Runs tests and automatically fixes failures
+
+### Quick Workflow
+
+```bash
+# 1. Generate test plans from requirements
+/test-planner feature-docs/003-benchmarking-system/
+
+# 2. Explore the application (requires app running)
+/playwright-explorer feature-docs/003-benchmarking-system/
+
+# 3. Generate test code
+/test-generator feature-docs/003-benchmarking-system/
+
+# 4. Run and auto-heal tests
+/test-healer tests/e2e/benchmarking/ feature-docs/003-benchmarking-system/
+```
+
+**Key Principle**: Tests are generated from `requirements.md` and `user-stories/`, not from application behavior. If the app doesn't match requirements, tests will flag the discrepancy.
+
+See [`.claude/skills/config/playwright-workflow.md`](../../.claude/skills/config/playwright-workflow.md) for detailed workflow documentation.
+
 ## Setup
 
 1. Ensure the backend and frontend are running:
