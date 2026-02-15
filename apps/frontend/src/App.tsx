@@ -45,6 +45,7 @@ import {
   ProjectListPage as BenchmarkProjectListPage,
   DatasetDetailPage,
   DatasetListPage,
+  RunComparisonPage,
   RunDetailPage,
 } from "./features/benchmarking/pages";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -359,6 +360,10 @@ function AppContent(): JSX.Element {
               <Route
                 path="/benchmarking/projects/:id/runs/:runId"
                 element={<RunDetailPage />}
+              />
+              <Route
+                path="/benchmarking/projects/:id/compare"
+                element={<RunComparisonPage />}
               />
 
               {/* Default Route - Legacy State-Based Navigation */}

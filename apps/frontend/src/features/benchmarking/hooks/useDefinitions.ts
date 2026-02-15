@@ -54,6 +54,9 @@ interface DefinitionDetails {
   immutable: boolean;
   revision: number;
   runHistory: RunHistorySummary[];
+  scheduleEnabled: boolean;
+  scheduleCron?: string;
+  scheduleTimezone?: string;
   createdAt: string;
   updatedAt: string;
 }

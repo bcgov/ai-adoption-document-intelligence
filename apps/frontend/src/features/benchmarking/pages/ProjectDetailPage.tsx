@@ -3,6 +3,7 @@ import {
   Button,
   Card,
   Center,
+  Checkbox,
   Group,
   Loader,
   Modal,
@@ -11,7 +12,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { IconPlus } from "@tabler/icons-react";
+import { IconGitCompare, IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -82,6 +83,7 @@ export function ProjectDetailPage() {
     string | null
   >(null);
   const [detailDialogOpened, setDetailDialogOpened] = useState(false);
+  const [selectedRunIds, setSelectedRunIds] = useState<string[]>([]);
 
   const { definition, isLoading: isLoadingDefinition } = useDefinition(
     projectId,
@@ -100,6 +102,20 @@ export function ProjectDetailPage() {
   const handleCloseDetail = () => {
     setDetailDialogOpened(false);
     setSelectedDefinitionId(null);
+  };
+
+  const handleToggleRunSelection = (runId: string) => {
+    setSelectedRunIds((prev) =>
+      prev.includes(runId)
+        ? prev.filter((id) => id !== runId)
+        : [...prev, runId],
+    );
+  };
+
+  const handleCompare = () => {
+    if (selectedRunIds.length < 2) return;
+    const runIdsParam = selectedRunIds.join(",");
+    navigate(`/benchmarking/projects/${projectId}/compare?runs=${runIdsParam}`);
   };
 
   if (isLoadingProject) {
@@ -208,6 +224,14 @@ export function ProjectDetailPage() {
         <Stack gap="md">
           <Group justify="space-between">
             <Title order={3}>Recent Runs</Title>
+            {selectedRunIds.length >= 2 && (
+              <Button
+                leftSection={<IconGitCompare size={16} />}
+                onClick={handleCompare}
+              >
+                Compare ({selectedRunIds.length})
+              </Button>
+            )}
           </Group>
 
           {isLoadingRuns ? (
@@ -222,6 +246,7 @@ export function ProjectDetailPage() {
             <Table striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
+                  <Table.Th>Select</Table.Th>
                   <Table.Th>Status</Table.Th>
                   <Table.Th>Definition</Table.Th>
                   <Table.Th>Started</Table.Th>
@@ -231,32 +256,68 @@ export function ProjectDetailPage() {
               </Table.Thead>
               <Table.Tbody>
                 {runs.map((run) => (
-                  <Table.Tr
-                    key={run.id}
-                    style={{ cursor: "pointer" }}
-                    onClick={() =>
-                      navigate(
-                        `/benchmarking/projects/${projectId}/runs/${run.id}`,
-                      )
-                    }
-                  >
+                  <Table.Tr key={run.id}>
                     <Table.Td>
+                      <Checkbox
+                        checked={selectedRunIds.includes(run.id)}
+                        onChange={() => handleToggleRunSelection(run.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </Table.Td>
+                    <Table.Td
+                      style={{ cursor: "pointer" }}
+                      onClick={() =>
+                        navigate(
+                          `/benchmarking/projects/${projectId}/runs/${run.id}`,
+                        )
+                      }
+                    >
                       <Badge color={getStatusColor(run.status)}>
                         {run.status}
                       </Badge>
                     </Table.Td>
-                    <Table.Td>{run.definitionName}</Table.Td>
-                    <Table.Td>
+                    <Table.Td
+                      style={{ cursor: "pointer" }}
+                      onClick={() =>
+                        navigate(
+                          `/benchmarking/projects/${projectId}/runs/${run.id}`,
+                        )
+                      }
+                    >
+                      {run.definitionName}
+                    </Table.Td>
+                    <Table.Td
+                      style={{ cursor: "pointer" }}
+                      onClick={() =>
+                        navigate(
+                          `/benchmarking/projects/${projectId}/runs/${run.id}`,
+                        )
+                      }
+                    >
                       {run.startedAt
                         ? new Date(run.startedAt).toLocaleString()
                         : "-"}
                     </Table.Td>
-                    <Table.Td>
+                    <Table.Td
+                      style={{ cursor: "pointer" }}
+                      onClick={() =>
+                        navigate(
+                          `/benchmarking/projects/${projectId}/runs/${run.id}`,
+                        )
+                      }
+                    >
                       {run.status === "running" || run.status === "pending"
                         ? getElapsedTime(run.startedAt)
                         : formatDuration(run.durationMs)}
                     </Table.Td>
-                    <Table.Td>
+                    <Table.Td
+                      style={{ cursor: "pointer" }}
+                      onClick={() =>
+                        navigate(
+                          `/benchmarking/projects/${projectId}/runs/${run.id}`,
+                        )
+                      }
+                    >
                       {run.headlineMetrics
                         ? Object.entries(run.headlineMetrics)
                             .slice(0, 2)
