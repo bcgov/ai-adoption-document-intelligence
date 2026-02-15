@@ -28,17 +28,21 @@ Get started with automated test generation in 4 simple steps.
 /test-planner feature-docs/003-benchmarking-system/
 ```
 **What it does**: Reads `requirements.md` and `user-stories/` to create test scenarios
-**Output**: `feature-docs/003-benchmarking-system/playwright/test-plans.md`
+**Output**:
+- `feature-docs/003-benchmarking-system/playwright/test-plans/README.md` (overview)
+- `feature-docs/003-benchmarking-system/playwright/test-plans/US-*.md` (one per user story)
 
 ### Step 2: Explore 🔍
 ```
 /playwright-explorer feature-docs/003-benchmarking-system/
 ```
-**What it does**: Opens the app in Playwright, documents pages and selectors
+**What it does**: Opens the app in Playwright, documents pages, and adds `data-testid` selectors to code
 **Output**:
 - `*.page-doc.md` files with page documentation
 - `*.selectors.md` files with element selectors
+- `selector-changes.md` with log of code modifications
 - Screenshots in `screenshots/` directory
+- **Modified source files** with added `data-testid` attributes
 
 ### Step 3: Generate 🤖
 ```
@@ -80,9 +84,13 @@ cat feature-docs/003-benchmarking-system/playwright/test-results.md
 ```
 feature-docs/003-benchmarking-system/
 └── playwright/
-    ├── test-plans.md          # Step 1 output
+    ├── test-plans/            # Step 1 output
+    │   ├── README.md         # Overview
+    │   ├── US-001.md         # Per user story
+    │   └── US-002.md
     ├── datasets.page-doc.md   # Step 2 output
     ├── datasets.selectors.md  # Step 2 output
+    ├── selector-changes.md    # Step 2 output (code mods)
     ├── screenshots/           # Step 2 output
     ├── healing-log.md         # Step 4 output
     └── test-results.md        # Step 4 output

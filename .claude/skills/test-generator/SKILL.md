@@ -12,9 +12,10 @@ Generate production-ready Playwright tests from test plans and page exploration 
 - Feature directory (e.g., `feature-docs/003-benchmarking-system/`)
 
 ## Process
-1. Read `{feature-dir}/playwright/test-plans.md`
-2. Read all `*.page-doc.md` and `*.selectors.md` files
-3. For each test scenario in the plan:
+1. Read all test plan files from `{feature-dir}/playwright/test-plans/` directory
+2. Read all `*.page-doc.md` and `*.selectors.md` files from `{feature-dir}/playwright/`
+3. Read `selector-changes.md` to understand which `data-testid` attributes were added
+4. For each test scenario in the plan:
    - Create TypeScript test file in `tests/e2e/{feature-name}/`
    - Generate Page Object Models in `tests/e2e/pages/`
    - Use documented selectors from exploration

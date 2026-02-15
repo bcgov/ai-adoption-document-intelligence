@@ -10,9 +10,13 @@ project-root/
 │   │   │   ├── US-001.md
 │   │   │   └── US-002.md
 │   │   └── playwright/
-│   │       ├── test-plans.md
+│   │       ├── test-plans/
+│   │       │   ├── README.md
+│   │       │   ├── US-001.md
+│   │       │   └── US-002.md
 │   │       ├── *.page-doc.md
 │   │       ├── *.selectors.md
+│   │       ├── selector-changes.md
 │   │       ├── screenshots/
 │   │       ├── healing-log.md
 │   │       └── test-results.md
@@ -115,7 +119,9 @@ test.describe('Feature Name', () => {
 # Use the test-planner skill
 /test-planner feature-docs/003-benchmarking-system/
 ```
-This creates `feature-docs/003-benchmarking-system/playwright/test-plans.md`
+This creates:
+- `feature-docs/003-benchmarking-system/playwright/test-plans/README.md` (overview)
+- `feature-docs/003-benchmarking-system/playwright/test-plans/US-*.md` (one per user story)
 
 ### Step 2: Explore Application
 ```bash
@@ -125,7 +131,9 @@ This creates `feature-docs/003-benchmarking-system/playwright/test-plans.md`
 This creates:
 - `*.page-doc.md` files (human-readable page documentation)
 - `*.selectors.md` files (machine-readable selector lists)
+- `selector-changes.md` (log of data-testid attributes added to code)
 - Screenshots in `screenshots/` directory
+- **Modified source files** with added `data-testid` attributes
 
 ### Step 3: Generate Tests
 ```bash
