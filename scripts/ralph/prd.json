@@ -468,8 +468,8 @@
         "Scenario 7"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented dataset list page with table, create dialog, empty/loading states, and navigation. All components follow existing frontend patterns (React Query, Mantine UI). Linter auto-formatting applied.",
       "file": "feature-docs/003-benchmarking-system/user-stories/US-027-dataset-list-create-ui.md"
     },
     {

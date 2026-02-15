@@ -165,3 +165,24 @@ Started: 2026-02-14
   - Icons from @tabler/icons-react: IconChartBar, IconDatabase, IconFolderOpen, IconPlayerPlay
 ---
 
+
+## 2026-02-14 - US-027
+- What was implemented: Dataset List & Create UI
+- Files changed:
+  - apps/frontend/src/features/benchmarking/hooks/useDatasets.ts (new)
+  - apps/frontend/src/features/benchmarking/components/CreateDatasetDialog.tsx (new)
+  - apps/frontend/src/features/benchmarking/pages/DatasetListPage.tsx (updated)
+- **Learnings for future iterations:**
+  - Frontend hooks use @tanstack/react-query for data fetching with useQuery and useMutation
+  - API integration via apiService singleton with get/post/put/delete methods
+  - Hook pattern: query for read, mutation for write, queryClient.invalidateQueries on success
+  - Mantine UI components: Table (striped, highlightOnHover), Modal, TextInput, Textarea, Button, Card, Stack, Group, Center, Loader
+  - Empty states use Card with centered Stack, icon, text, and CTA button
+  - Loading states use Center with Loader component
+  - Form validation: track error state, clear on change, show error prop on input
+  - Metadata as key-value pairs: track as Record<string, string>, add/remove UI
+  - Navigation uses react-router-dom useNavigate hook
+  - Table row click: style={{ cursor: "pointer" }} and onClick handler
+  - Icons from @tabler/icons-react (IconPlus, IconDatabase)
+  - Biome linter auto-formats code - always run lint:fix before commit
+---

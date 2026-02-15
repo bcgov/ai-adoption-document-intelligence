@@ -126,7 +126,7 @@ Run `git add .` and `git commit -m ... --no-verify` after every user story.
 
 ### Phase 8 -- Frontend (Phase 1)
 - [x] **US-026** (Benchmarking Navigation & Routing) -- depends on backend APIs from Phases 3-5
-- [ ] **US-027** (Dataset List & Create UI) -- depends on US-026, US-006
+- [x] **US-027** (Dataset List & Create UI) -- depends on US-026, US-006
 - [ ] **US-028** (Dataset Version & Sample Preview UI) -- depends on US-027, US-007, US-008, US-009
 - [ ] **US-029** (Benchmark Definition CRUD UI) -- depends on US-026, US-011
 - [ ] **US-030** (Run List, Start/Cancel, Progress UI) -- depends on US-026, US-012
