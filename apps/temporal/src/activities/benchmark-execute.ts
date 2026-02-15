@@ -46,6 +46,9 @@ export interface BenchmarkExecuteInput {
 
   /** Timeout for the child workflow execution in milliseconds */
   timeoutMs?: number;
+
+  /** Task queue to route the child workflow to (defaults to benchmark-processing) */
+  taskQueue?: string;
 }
 
 export interface BenchmarkExecuteOutput {
@@ -103,6 +106,7 @@ export async function benchmarkExecuteWorkflow(
     outputBaseDir,
     sampleMetadata,
     timeoutMs = DEFAULT_TIMEOUT_MS,
+    taskQueue = BENCHMARK_TASK_QUEUE,
   } = params;
 
   const parentWorkflowId = workflowInfo().workflowId;
@@ -112,7 +116,7 @@ export async function benchmarkExecuteWorkflow(
     event: 'start',
     sampleId,
     parentWorkflowId,
-    taskQueue: BENCHMARK_TASK_QUEUE,
+    taskQueue,
     timestamp: new Date().toISOString()
   }));
 
@@ -133,10 +137,10 @@ export async function benchmarkExecuteWorkflow(
       parentWorkflowId,
     };
 
-    // Execute the graphWorkflow as a child workflow on the benchmark queue
+    // Execute the graphWorkflow as a child workflow on the specified task queue
     const childResult = (await executeChild('graphWorkflow', {
       args: [childWorkflowInput],
-      taskQueue: BENCHMARK_TASK_QUEUE,
+      taskQueue,
       workflowId: `benchmark-${parentWorkflowId}-${sampleId}`,
       workflowExecutionTimeout: timeoutMs,
     })) as GraphWorkflowResult;

@@ -91,14 +91,17 @@ type BenchmarkActivities = {
   }) => Promise<void>;
 };
 
-const activities = proxyActivities<BenchmarkActivities>({
+// Default activity options for benchmark activities
+const DEFAULT_ACTIVITY_OPTIONS = {
   startToCloseTimeout: '30 minutes',
   retry: {
     initialInterval: '1s',
     maximumInterval: '30s',
     maximumAttempts: 3,
   },
-});
+};
+
+const activities = proxyActivities<BenchmarkActivities>(DEFAULT_ACTIVITY_OPTIONS);
 
 // ---------------------------------------------------------------------------
 // Workflow Types
@@ -170,6 +173,15 @@ export interface BenchmarkRunWorkflowInput {
   runtimeSettings: {
     maxParallelDocuments?: number;
     timeoutPerDocumentMs?: number;
+    useProductionQueue?: boolean;
+    activityTimeout?: {
+      startToCloseTimeout?: string;
+    };
+    activityRetry?: {
+      initialInterval?: string;
+      maximumInterval?: string;
+      maximumAttempts?: number;
+    };
   };
 
   /** Artifact policy ('full', 'failures_only', 'sampled') */
@@ -297,6 +309,18 @@ export async function benchmarkRunWorkflow(
     artifactPolicy,
   } = input;
 
+  // Create activity proxy with configurable timeouts and retries (US-023 Scenario 4 & 5)
+  const customActivityOptions = {
+    startToCloseTimeout: runtimeSettings.activityTimeout?.startToCloseTimeout || DEFAULT_ACTIVITY_OPTIONS.startToCloseTimeout,
+    retry: {
+      initialInterval: runtimeSettings.activityRetry?.initialInterval || DEFAULT_ACTIVITY_OPTIONS.retry.initialInterval,
+      maximumInterval: runtimeSettings.activityRetry?.maximumInterval || DEFAULT_ACTIVITY_OPTIONS.retry.maximumInterval,
+      maximumAttempts: runtimeSettings.activityRetry?.maximumAttempts ?? DEFAULT_ACTIVITY_OPTIONS.retry.maximumAttempts,
+    },
+  };
+
+  const customActivities = proxyActivities<BenchmarkActivities>(customActivityOptions);
+
   let materializedPath: string | undefined;
   const outputPaths: string[] = [];
   let aggregatedMetrics: Record<string, number> = {};
@@ -311,7 +335,7 @@ export async function benchmarkRunWorkflow(
 
   try {
     // Update run status to running
-    await activities['benchmark.updateRunStatus']({
+    await customActivities['benchmark.updateRunStatus']({
       runId,
       status: 'running',
     });
@@ -322,13 +346,13 @@ export async function benchmarkRunWorkflow(
     currentPhase = 'materializing';
 
     const { materializedPath: matPath } =
-      await activities['benchmark.materializeDataset']({
+      await customActivities['benchmark.materializeDataset']({
         datasetVersionId,
       });
     materializedPath = matPath;
 
     // Load manifest via activity
-    const { manifest } = await activities['benchmark.loadDatasetManifest']({
+    const { manifest } = await customActivities['benchmark.loadDatasetManifest']({
       materializedPath,
     });
 
@@ -357,6 +381,10 @@ export async function benchmarkRunWorkflow(
 
     const maxParallel = runtimeSettings.maxParallelDocuments || 10;
     const timeoutMs = runtimeSettings.timeoutPerDocumentMs || 300000; // 5 min default
+
+    // Determine task queue routing (US-023 Scenario 6 & 7)
+    const useProductionQueue = runtimeSettings.useProductionQueue === true;
+    const childTaskQueue = useProductionQueue ? 'ocr-processing' : 'benchmark-processing';
 
     const evaluationResults: EvaluationResult[] = [];
     const executionOutputs: BenchmarkExecuteOutput[] = [];
@@ -400,6 +428,7 @@ export async function benchmarkRunWorkflow(
                 outputBaseDir,
                 sampleMetadata: sample.metadata,
                 timeoutMs,
+                taskQueue: childTaskQueue,
               };
 
               const executeOutput = await benchmarkExecuteWorkflow(executeInput);
@@ -448,7 +477,7 @@ export async function benchmarkRunWorkflow(
         // Only evaluate if execution succeeded
         if (executeOutput.success) {
           try {
-            const evaluationResult = await activities['benchmark.evaluate']({
+            const evaluationResult = await customActivities['benchmark.evaluate']({
               sampleId: sample.id,
               inputPaths,
               predictionPaths: executeOutput.outputPaths,
@@ -504,7 +533,7 @@ export async function benchmarkRunWorkflow(
 
       // Clean up temporary files
       if (materializedPath) {
-        await activities['benchmark.cleanup']({
+        await customActivities['benchmark.cleanup']({
           materializedDatasetPaths: [materializedPath],
           temporaryOutputPaths: outputPaths,
           preserveCachedDatasets: true,
@@ -512,7 +541,7 @@ export async function benchmarkRunWorkflow(
       }
 
       // Update run status
-      await activities['benchmark.updateRunStatus']({
+      await customActivities['benchmark.updateRunStatus']({
         runId,
         status: 'cancelled',
         completedAt: new Date(),
@@ -532,7 +561,7 @@ export async function benchmarkRunWorkflow(
     // ---------------------------------------------------------------------------
     currentPhase = 'aggregating';
 
-    const aggregateResult = await activities['benchmark.aggregate']({
+    const aggregateResult = await customActivities['benchmark.aggregate']({
       results: evaluationResults,
       metadata: { splitId },
     });
@@ -585,7 +614,7 @@ export async function benchmarkRunWorkflow(
     }
     // For 'sampled', we could implement sampling logic here
 
-    await activities['benchmark.logToMlflow']({
+    await customActivities['benchmark.logToMlflow']({
       mlflowRunId,
       params,
       metrics: aggregatedMetrics,
@@ -597,7 +626,7 @@ export async function benchmarkRunWorkflow(
     // ---------------------------------------------------------------------------
     // Phase 6: Update BenchmarkRun Status
     // ---------------------------------------------------------------------------
-    await activities['benchmark.updateRunStatus']({
+    await customActivities['benchmark.updateRunStatus']({
       runId,
       status: 'completed',
       metrics: aggregatedMetrics,
@@ -609,7 +638,7 @@ export async function benchmarkRunWorkflow(
     // ---------------------------------------------------------------------------
     currentPhase = 'cleanup';
 
-    await activities['benchmark.cleanup']({
+    await customActivities['benchmark.cleanup']({
       materializedDatasetPaths: [], // Keep cached datasets
       temporaryOutputPaths: outputPaths,
       preserveCachedDatasets: true,
@@ -632,7 +661,7 @@ export async function benchmarkRunWorkflow(
 
       // Clean up temporary files
       if (materializedPath) {
-        await activities['benchmark.cleanup']({
+        await customActivities['benchmark.cleanup']({
           materializedDatasetPaths: [],
           temporaryOutputPaths: outputPaths,
           preserveCachedDatasets: true,
@@ -640,7 +669,7 @@ export async function benchmarkRunWorkflow(
       }
 
       // Update run status
-      await activities['benchmark.updateRunStatus']({
+      await customActivities['benchmark.updateRunStatus']({
         runId,
         status: 'cancelled',
         completedAt: new Date(),
@@ -662,7 +691,7 @@ export async function benchmarkRunWorkflow(
 
     // Clean up temporary files
     if (materializedPath) {
-      await activities['benchmark.cleanup']({
+      await customActivities['benchmark.cleanup']({
         materializedDatasetPaths: [],
         temporaryOutputPaths: outputPaths,
         preserveCachedDatasets: true,
@@ -690,7 +719,7 @@ export async function benchmarkRunWorkflow(
         tags.worker_image_digest = workerImageDigest;
       }
 
-      await activities['benchmark.logToMlflow']({
+      await customActivities['benchmark.logToMlflow']({
         mlflowRunId,
         params,
         metrics: aggregatedMetrics,
@@ -703,7 +732,7 @@ export async function benchmarkRunWorkflow(
     }
 
     // Update run status
-    await activities['benchmark.updateRunStatus']({
+    await customActivities['benchmark.updateRunStatus']({
       runId,
       status: 'failed',
       error: errorMessage,
