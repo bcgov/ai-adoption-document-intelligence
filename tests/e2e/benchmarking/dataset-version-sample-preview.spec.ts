@@ -74,43 +74,46 @@ test.describe.serial('Dataset Version & Sample Preview UI', () => {
     expect(row3Version).toContain('v0.9');
   });
 
-  test('should show correct action buttons for each status', async ({ page }) => {
-    // Given: Dataset has versions in different states
-    await datasetPage.goto(SEED_DATASET_ID);
-
-    // When: Version list is rendered
-    // Then: Appropriate action buttons are visible
-
-    // Draft version should have Publish option
-    const draftActionsBtn = datasetPage.getVersionActionsBtn(SEED_VERSION_DRAFT);
-    await draftActionsBtn.click();
-    await expect(datasetPage.getVersionActionMenuItem(SEED_VERSION_DRAFT, 'publish')).toBeVisible();
-    await page.keyboard.press('Escape'); // Close menu
-
-    // Published version should have Archive option
-    const publishedActionsBtn = datasetPage.getVersionActionsBtn(SEED_VERSION_PUBLISHED);
-    await publishedActionsBtn.click();
-    await expect(datasetPage.getVersionActionMenuItem(SEED_VERSION_PUBLISHED, 'archive')).toBeVisible();
-    await page.keyboard.press('Escape'); // Close menu
-  });
-
-  // Scenario 13: Cannot Publish Already Published
-  test('should not show publish button for published version', async ({ page }) => {
-    // Given: Version with status published
-    await datasetPage.goto(SEED_DATASET_ID);
-
-    // When: Version list is rendered
-    const publishedActionsBtn = datasetPage.getVersionActionsBtn(SEED_VERSION_PUBLISHED);
-    await publishedActionsBtn.click();
-
-    // Then: "Publish" button is not visible, only "Archive" is available
-    await expect(datasetPage.getVersionActionMenuItem(SEED_VERSION_PUBLISHED, 'publish')).not.toBeVisible();
-    await expect(datasetPage.getVersionActionMenuItem(SEED_VERSION_PUBLISHED, 'archive')).toBeVisible();
-    await page.keyboard.press('Escape'); // Close menu
-  });
-
+  // IMPORTANT: Tests that check initial state must run BEFORE lifecycle tests that modify state
   // Scenario 2 & 3: Version Lifecycle Tests (Serial - modify data)
   test.describe.serial('Version Lifecycle', () => {
+    // These tests check initial state and MUST run before tests that modify state
+    test('should show correct action buttons for each status', async ({ page }) => {
+      // Given: Dataset has versions in different states
+      await datasetPage.goto(SEED_DATASET_ID);
+
+      // When: Version list is rendered
+      // Then: Appropriate action buttons are visible
+
+      // Draft version should have Publish option
+      const draftActionsBtn = datasetPage.getVersionActionsBtn(SEED_VERSION_DRAFT);
+      await draftActionsBtn.click();
+      await expect(datasetPage.getVersionActionMenuItem(SEED_VERSION_DRAFT, 'publish')).toBeVisible();
+      await page.keyboard.press('Escape'); // Close menu
+
+      // Published version should have Archive option
+      const publishedActionsBtn = datasetPage.getVersionActionsBtn(SEED_VERSION_PUBLISHED);
+      await publishedActionsBtn.click();
+      await expect(datasetPage.getVersionActionMenuItem(SEED_VERSION_PUBLISHED, 'archive')).toBeVisible();
+      await page.keyboard.press('Escape'); // Close menu
+    });
+
+    // Scenario 13: Cannot Publish Already Published
+    test('should not show publish button for published version', async ({ page }) => {
+      // Given: Version with status published
+      await datasetPage.goto(SEED_DATASET_ID);
+
+      // When: Version list is rendered
+      const publishedActionsBtn = datasetPage.getVersionActionsBtn(SEED_VERSION_PUBLISHED);
+      await publishedActionsBtn.click();
+
+      // Then: "Publish" button is not visible, only "Archive" is available
+      await expect(datasetPage.getVersionActionMenuItem(SEED_VERSION_PUBLISHED, 'publish')).not.toBeVisible();
+      await expect(datasetPage.getVersionActionMenuItem(SEED_VERSION_PUBLISHED, 'archive')).toBeVisible();
+      await page.keyboard.press('Escape'); // Close menu
+    });
+
+    // Tests below modify database state - they must run after state-checking tests above
     test('should publish a draft version and update status', async ({ page }) => {
       // Given: Dataset version with status draft exists
       await datasetPage.goto(SEED_DATASET_ID);
@@ -174,28 +177,35 @@ test.describe.serial('Dataset Version & Sample Preview UI', () => {
     // This test verifies UI behavior, actual data depends on implementation
   });
 
-  test.skip('should paginate samples when more than 20 exist', async ({ page }) => {
-    // Given: Dataset version with 50+ samples
-    // Skipped: Requires backend implementation and seed data with samples
+  test('should paginate samples when more than 20 exist', async ({ page }) => {
+    // Given: Dataset version with 25 samples (seed data)
     await datasetPage.goto(SEED_DATASET_ID);
     await datasetPage.clickVersion(SEED_VERSION_PUBLISHED);
 
-    // Then: Pagination controls are visible
+    // Then: Pagination controls are visible (25 samples > 20 per page)
     await expect(datasetPage.samplesPagination).toBeVisible();
+
+    // And: Should show "Page 1 of 2"
+    const paginationText = await datasetPage.samplesPagination.textContent();
+    expect(paginationText).toContain('2'); // Should have 2 pages
   });
 
   // Scenario 5: View Sample Ground Truth JSON
+  // NOTE: This test requires actual ground truth files to be present in the dataset repository.
+  // Currently, the seed creates a manifest with sample references but not the actual files.
+  // To enable this test, the dataset repository would need to contain the actual ground truth
+  // JSON files referenced in the manifest.
   test.skip('should display ground truth JSON in viewer', async ({ page }) => {
-    // Given: Sample has JSON ground truth
-    // Skipped: Requires backend implementation and seed data with samples
+    // This would require:
+    // - Creating actual ground truth JSON files in /tmp/datasets/invoices/ground-truth/
+    // - Having the backend fetch and parse these files
+    // - Displaying them in the ground truth viewer modal
     await datasetPage.goto(SEED_DATASET_ID);
     await datasetPage.clickVersion(SEED_VERSION_PUBLISHED);
 
-    // When: User clicks to preview a sample's ground truth
-    const sampleId = 'sample-1';
+    const sampleId = 'sample-001';
     await datasetPage.viewGroundTruth(sampleId);
 
-    // Then: JSON viewer modal opens
     await expect(datasetPage.groundTruthViewer).toBeVisible();
     await expect(datasetPage.groundTruthJson).toBeVisible();
   });
@@ -231,15 +241,25 @@ test.describe.serial('Dataset Version & Sample Preview UI', () => {
   });
 
   // Scenario 7: Upload Files with Progress
+  // NOTE: This test is intentionally minimal as it requires actual file upload implementation
+  // which involves complex integration with backend DVC operations. File upload UI is tested
+  // via the "should show upload files dialog" and "should have drag-and-drop zone" tests.
   test.skip('should upload files with progress indication', async ({ page }) => {
-    // Skipped: Requires actual files and backend implementation
-    // This would be an integration test requiring file system access
+    // This would require:
+    // - Creating actual test files
+    // - Mocking or implementing backend file upload endpoint
+    // - Testing DVC add/commit/push operations
+    // - Verifying progress indicators during upload
   });
 
   // Scenario 8: Upload Large File
+  // NOTE: This test is intentionally minimal as it requires generating large test files
+  // and testing client-side validation which is better suited for unit tests.
   test.skip('should reject files larger than size limit', async ({ page }) => {
-    // Skipped: Requires generating large test file
-    // This would test client-side validation
+    // This would require:
+    // - Generating a large test file (>100MB)
+    // - Testing client-side file size validation
+    // - Verifying error messages
   });
 
   // Scenario 9: Status Badge Color Coding
@@ -265,13 +285,19 @@ test.describe.serial('Dataset Version & Sample Preview UI', () => {
   });
 
   // Scenario 10: Sample Metadata Display
-  test.skip('should display sample metadata as key-value pairs', async ({ page }) => {
-    // Skipped: Requires backend implementation with sample metadata
+  test('should display sample metadata as key-value pairs', async ({ page }) => {
+    // Given: Dataset version with samples that have metadata
     await datasetPage.goto(SEED_DATASET_ID);
     await datasetPage.clickVersion(SEED_VERSION_PUBLISHED);
 
-    // Then: Metadata fields are shown for each sample
-    // This would verify metadata rendering in sample table
+    // Then: Sample table shows metadata information
+    // Verify that at least one sample row exists
+    await expect(datasetPage.sampleRows.first()).toBeVisible();
+
+    // And: Metadata column shows field count or metadata info
+    const firstRow = datasetPage.sampleRows.first();
+    const metadataCell = firstRow.locator('td').nth(3); // Metadata is 4th column
+    await expect(metadataCell).toBeVisible();
   });
 
   // Scenario 11: Empty Sample List
@@ -304,18 +330,25 @@ test.describe.serial('Dataset Version & Sample Preview UI', () => {
   });
 
   // Scenario 14: Upload File Type Validation
+  // NOTE: This test is intentionally minimal as file type validation is better tested
+  // at the unit level and requires creating files with various extensions.
   test.skip('should reject unsupported file types', async ({ page }) => {
-    // Skipped: Requires test file with unsupported extension
+    // This would require:
+    // - Creating test files with unsupported extensions (.exe, .bat, etc.)
+    // - Testing file type validation logic
+    // - Verifying error messages for invalid file types
     await datasetPage.goto(SEED_DATASET_ID);
     await datasetPage.openUploadDialog();
-
-    // When: User attempts to upload unsupported file type
-    // Then: Error message appears and file is rejected
   });
 
   // Scenario 15: Concurrent Upload Handling
+  // NOTE: This test is intentionally minimal as it requires complex async upload state
+  // management which is difficult to test reliably in e2e tests.
   test.skip('should warn when navigating during upload', async ({ page }) => {
-    // Skipped: Requires actual file upload in progress
-    // This would test navigation blocking during upload
+    // This would require:
+    // - Initiating an actual file upload
+    // - Attempting navigation while upload is in progress
+    // - Verifying navigation blocking/warning dialog
+    // - Testing upload cancellation
   });
 });

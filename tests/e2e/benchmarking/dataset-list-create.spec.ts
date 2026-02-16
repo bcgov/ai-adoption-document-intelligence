@@ -380,6 +380,16 @@ test.describe('Dataset List & Create UI', () => {
  * Test Group: Empty State Scenarios
  * These tests require an empty database to verify empty state behavior
  */
+// NOTE: Empty state tests are intentionally skipped because they require a clean database
+// with no seed data. These tests verify important UX behavior when the system is first set up,
+// but cannot run alongside other tests that depend on seed data.
+//
+// To run these tests:
+// 1. Comment out the benchmarking seed data in apps/shared/prisma/seed.ts
+// 2. Run: PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="yes" npx prisma migrate reset --force
+// 3. Run: npx playwright test tests/e2e/benchmarking/dataset-list-create.spec.ts
+//
+// Or create a separate CI job that runs empty state tests with a clean database.
 test.describe('Dataset List - Empty State', () => {
   const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3002';
   const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';

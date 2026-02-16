@@ -10,6 +10,9 @@ import {
   BenchmarkRunStatus,
 } from "../../backend-services/src/generated/client";
 import { getPrismaPgOptions } from "../../backend-services/src/utils/database-url";
+import { execSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg(getPrismaPgOptions(process.env.DATABASE_URL)),
@@ -162,6 +165,89 @@ const SEED_RUN_ID_COMPLETED = "seed-run-completed-001";
 const SEED_RUN_ID_RUNNING = "seed-run-running-002";
 const SEED_RUN_ID_FAILED = "seed-run-failed-003";
 
+/**
+ * Create a test dataset repository with manifest and sample data
+ * @returns The actual git commit hash of the created manifest
+ */
+async function createTestDatasetRepo(
+  repoPath: string,
+  manifestPath: string,
+  sampleCount: number,
+): Promise<string> {
+  // Create directory if it doesn't exist
+  if (!fs.existsSync(repoPath)) {
+    fs.mkdirSync(repoPath, { recursive: true });
+  }
+
+  // Initialize Git repository
+  try {
+    execSync("git init", { cwd: repoPath, stdio: "ignore" });
+    execSync('git config user.email "seed@test.com"', {
+      cwd: repoPath,
+      stdio: "ignore",
+    });
+    execSync('git config user.name "Seed Script"', {
+      cwd: repoPath,
+      stdio: "ignore",
+    });
+  } catch (error) {
+    // Repo might already exist, continue
+  }
+
+  // Create manifest with samples
+  const manifest = {
+    schemaVersion: "1.0",
+    samples: Array.from({ length: sampleCount }, (_, i) => ({
+      id: `sample-${String(i + 1).padStart(3, "0")}`,
+      inputs: [
+        {
+          path: `inputs/document_${String(i + 1).padStart(3, "0")}.pdf`,
+          mimeType: "application/pdf",
+        },
+      ],
+      groundTruth: [
+        {
+          path: `ground-truth/data_${String(i + 1).padStart(3, "0")}.json`,
+          format: "json",
+        },
+      ],
+      metadata: {
+        docType: i % 3 === 0 ? "invoice" : i % 3 === 1 ? "receipt" : "form",
+        pageCount: Math.floor(Math.random() * 5) + 1,
+        language: "en",
+        source: "synthetic",
+      },
+    })),
+  };
+
+  // Write manifest file
+  const manifestFullPath = path.join(repoPath, manifestPath);
+  const manifestDir = path.dirname(manifestFullPath);
+  if (!fs.existsSync(manifestDir)) {
+    fs.mkdirSync(manifestDir, { recursive: true });
+  }
+  fs.writeFileSync(manifestFullPath, JSON.stringify(manifest, null, 2));
+
+  // Commit manifest
+  try {
+    execSync(`git add "${manifestPath}"`, { cwd: repoPath, stdio: "ignore" });
+    execSync(`git commit -m "Add manifest with ${sampleCount} samples"`, {
+      cwd: repoPath,
+      stdio: "ignore",
+    });
+  } catch (error) {
+    // Commit might already exist, continue
+  }
+
+  // Get the current commit hash
+  const commitHash = execSync("git rev-parse HEAD", {
+    cwd: repoPath,
+    encoding: "utf-8",
+  }).trim();
+
+  return commitHash;
+}
+
 async function seedBenchmarkingData() {
   // Create a workflow if it doesn't exist
   const workflow = await prisma.workflow.upsert({
@@ -202,6 +288,14 @@ async function seedBenchmarkingData() {
       version: 1,
     },
   });
+
+  // Create test dataset repositories with sample data
+  // This enables e2e tests that require actual samples
+  const invoiceRepoCommitHash = await createTestDatasetRepo(
+    "/tmp/datasets/invoices",
+    "data/invoices/manifest.json",
+    25, // Create 25 samples to test pagination (>20)
+  );
 
   // Create datasets
   const dataset = await prisma.dataset.upsert({
@@ -272,9 +366,9 @@ async function seedBenchmarkingData() {
     where: { id: SEED_DATASET_VERSION_ID },
     update: {
       version: "v1.0",
-      gitRevision: "abc123def456",
+      gitRevision: invoiceRepoCommitHash,
       manifestPath: "data/invoices/manifest.json",
-      documentCount: 150,
+      documentCount: 25, // Matches the actual sample count created
       groundTruthSchema: {
         fields: ["invoice_number", "total_amount", "date", "vendor"],
       },
@@ -286,9 +380,9 @@ async function seedBenchmarkingData() {
       id: SEED_DATASET_VERSION_ID,
       datasetId: dataset.id,
       version: "v1.0",
-      gitRevision: "abc123def456",
+      gitRevision: invoiceRepoCommitHash,
       manifestPath: "data/invoices/manifest.json",
-      documentCount: 150,
+      documentCount: 25, // Matches the actual sample count created
       groundTruthSchema: {
         fields: ["invoice_number", "total_amount", "date", "vendor"],
       },
