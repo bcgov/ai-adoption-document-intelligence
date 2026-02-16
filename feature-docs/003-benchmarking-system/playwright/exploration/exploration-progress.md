@@ -3,7 +3,7 @@
 - [x] US-026-benchmarking-navigation-routing.md - Completed 2026-02-15
 - [x] US-027-dataset-list-create-ui.md - Completed 2026-02-15
 - [x] US-028-dataset-version-sample-preview-ui.md - Completed 2026-02-16
-- [ ] US-029-benchmark-definition-crud-ui.md
+- [x] US-029-benchmark-definition-crud-ui.md - Completed 2026-02-16
 - [ ] US-030-run-list-start-cancel-progress-ui.md
 - [ ] US-031-results-summary-mlflow-deeplinks-ui.md
 - [ ] US-032-dataset-quality-checks-validation.md
@@ -14,5 +14,5 @@
 - [ ] US-038-slicing-filtering-drilldown-ui.md
 - [ ] US-039-in-app-artifact-viewer.md
 
-**Status**: 3/13 test plans explored
-**Last Updated**: 2026-02-16 1:48 AM
+**Status**: 4/13 test plans explored
+**Last Updated**: 2026-02-16 7:50 AM

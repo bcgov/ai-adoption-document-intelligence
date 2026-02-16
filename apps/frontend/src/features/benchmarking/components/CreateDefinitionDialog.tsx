@@ -178,6 +178,7 @@ export function CreateDefinitionDialog({
           }}
           error={nameError}
           required
+          data-testid="definition-name-input"
         />
 
         <Select
@@ -189,6 +190,7 @@ export function CreateDefinitionDialog({
           disabled={isLoadingVersions}
           searchable
           required
+          data-testid="dataset-version-select"
         />
 
         <Select
@@ -199,6 +201,7 @@ export function CreateDefinitionDialog({
           onChange={(value) => setSplitId(value || "")}
           disabled={!datasetVersionId || splits.length === 0}
           required
+          data-testid="split-select"
         />
 
         <Select
@@ -210,6 +213,7 @@ export function CreateDefinitionDialog({
           disabled={isLoadingWorkflows}
           searchable
           required
+          data-testid="workflow-select"
         />
 
         <Select
@@ -218,6 +222,7 @@ export function CreateDefinitionDialog({
           value={evaluatorType}
           onChange={(value) => setEvaluatorType(value || "schema-aware")}
           required
+          data-testid="evaluator-type-select"
         />
 
         <Textarea
@@ -230,6 +235,7 @@ export function CreateDefinitionDialog({
           }}
           error={evaluatorConfigError}
           minRows={3}
+          data-testid="evaluator-config-textarea"
         />
 
         <Text size="sm" fw={500}>
@@ -244,6 +250,7 @@ export function CreateDefinitionDialog({
           }
           min={1}
           max={100}
+          data-testid="max-parallel-documents-input"
         />
 
         <NumberInput
@@ -254,16 +261,18 @@ export function CreateDefinitionDialog({
           }
           min={1000}
           step={1000}
+          data-testid="per-document-timeout-input"
         />
 
         <Radio.Group
           label="Use Production Queue"
           value={useProductionQueue ? "true" : "false"}
           onChange={(value) => setUseProductionQueue(value === "true")}
+          data-testid="production-queue-radio"
         >
           <Group mt="xs">
-            <Radio value="false" label="No (Benchmark Queue)" />
-            <Radio value="true" label="Yes (Production Queue)" />
+            <Radio value="false" label="No (Benchmark Queue)" data-testid="production-queue-no" />
+            <Radio value="true" label="Yes (Production Queue)" data-testid="production-queue-yes" />
           </Group>
         </Radio.Group>
 
@@ -271,11 +280,12 @@ export function CreateDefinitionDialog({
           label="Artifact Policy"
           value={artifactPolicyMode}
           onChange={setArtifactPolicyMode}
+          data-testid="artifact-policy-radio"
         >
           <Stack mt="xs" gap="xs">
-            <Radio value="full" label="Full (all outputs)" />
-            <Radio value="failures_only" label="Failures Only" />
-            <Radio value="sampled" label="Sampled" />
+            <Radio value="full" label="Full (all outputs)" data-testid="artifact-policy-full" />
+            <Radio value="failures_only" label="Failures Only" data-testid="artifact-policy-failures" />
+            <Radio value="sampled" label="Sampled" data-testid="artifact-policy-sampled" />
           </Stack>
         </Radio.Group>
 
@@ -293,10 +303,10 @@ export function CreateDefinitionDialog({
         )}
 
         <Group justify="flex-end">
-          <Button variant="default" onClick={handleClose}>
+          <Button variant="default" onClick={handleClose} data-testid="cancel-definition-btn">
             Cancel
           </Button>
-          <Button onClick={handleSubmit} loading={isCreating}>
+          <Button onClick={handleSubmit} loading={isCreating} data-testid="submit-definition-btn">
             Create
           </Button>
         </Group>

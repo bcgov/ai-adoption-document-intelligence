@@ -255,7 +255,7 @@ async function seedBenchmarkingData() {
     update: {
       name: "Standard OCR Workflow",
       description: "Standard OCR processing workflow for testing",
-      user_id: "seed-user",
+      user_id: "test-user",
       config: {
         nodes: [
           { id: "start", type: "start" },
@@ -273,7 +273,7 @@ async function seedBenchmarkingData() {
       id: SEED_WORKFLOW_ID,
       name: "Standard OCR Workflow",
       description: "Standard OCR processing workflow for testing",
-      user_id: "seed-user",
+      user_id: "test-user",
       config: {
         nodes: [
           { id: "start", type: "start" },
@@ -306,7 +306,7 @@ async function seedBenchmarkingData() {
       metadata: { documentType: "invoice", language: "en" },
       repositoryUrl: "file:///tmp/datasets/invoices",
       dvcRemote: "local",
-      createdBy: "seed-user",
+      createdBy: "test-user",
     },
     create: {
       id: SEED_DATASET_ID,
@@ -315,7 +315,7 @@ async function seedBenchmarkingData() {
       metadata: { documentType: "invoice", language: "en" },
       repositoryUrl: "file:///tmp/datasets/invoices",
       dvcRemote: "local",
-      createdBy: "seed-user",
+      createdBy: "test-user",
     },
   });
 
@@ -482,14 +482,14 @@ async function seedBenchmarkingData() {
       name: "Invoice Extraction Benchmark",
       description: "Benchmarking OCR accuracy on invoice documents",
       mlflowExperimentId: "1",
-      createdBy: "seed-user",
+      createdBy: "test-user",
     },
     create: {
       id: SEED_PROJECT_ID,
       name: "Invoice Extraction Benchmark",
       description: "Benchmarking OCR accuracy on invoice documents",
       mlflowExperimentId: "1",
-      createdBy: "seed-user",
+      createdBy: "test-user",
     },
   });
 
