@@ -144,6 +144,7 @@ export function RootLayout() {
               color="red"
               leftSection={<IconLogout size={16} />}
               onClick={() => logout()}
+              data-testid="logout-btn"
             >
               Logout
             </Button>
@@ -157,6 +158,7 @@ export function RootLayout() {
           size="sm"
           aria-label={navbarOpened ? "Collapse sidebar" : "Expand sidebar"}
           onClick={toggleNavbar}
+          data-testid="sidebar-toggle-btn"
           style={{
             position: "absolute",
             top: "50%",
@@ -218,6 +220,7 @@ export function RootLayout() {
               color={isBenchmarkingRoute ? "blue" : "gray"}
               childrenOffset={28}
               defaultOpened={isBenchmarkingRoute}
+              data-testid="benchmarking-nav"
             >
               {benchmarkingNavItems.map((item) => {
                 const Icon = item.icon;
@@ -233,6 +236,7 @@ export function RootLayout() {
                     variant={active ? "filled" : "subtle"}
                     color={active ? "blue" : "gray"}
                     onClick={() => navigate(item.path)}
+                    data-testid={`${item.label.toLowerCase()}-nav-link`}
                   />
                 );
               })}
@@ -246,6 +250,7 @@ export function RootLayout() {
                 radius="md"
                 onClick={() => navigate("/benchmarking/datasets")}
                 aria-label="Benchmarking"
+                data-testid="benchmarking-nav-collapsed"
               >
                 <IconChartBar size={18} />
               </ActionIcon>

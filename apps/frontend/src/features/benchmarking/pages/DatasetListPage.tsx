@@ -30,7 +30,7 @@ export function DatasetListPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
+      <Group justify="space-between" data-testid="datasets-header">
         <Stack gap={2}>
           <Title order={2}>Datasets</Title>
           <Text c="dimmed" size="sm">
@@ -40,13 +40,14 @@ export function DatasetListPage() {
         <Button
           leftSection={<IconPlus size={18} />}
           onClick={() => setCreateDialogOpened(true)}
+          data-testid="create-dataset-btn"
         >
           Create Dataset
         </Button>
       </Group>
 
       {datasets.length === 0 ? (
-        <Card withBorder p="xl">
+        <Card withBorder p="xl" data-testid="datasets-empty-state">
           <Center>
             <Stack align="center" gap="md">
               <IconDatabase size={48} stroke={1.5} color="gray" />
@@ -59,6 +60,7 @@ export function DatasetListPage() {
               <Button
                 leftSection={<IconPlus size={18} />}
                 onClick={() => setCreateDialogOpened(true)}
+                data-testid="create-dataset-empty-btn"
               >
                 Create Dataset
               </Button>
@@ -67,7 +69,7 @@ export function DatasetListPage() {
         </Card>
       ) : (
         <Card withBorder p={0}>
-          <Table striped highlightOnHover>
+          <Table striped highlightOnHover data-testid="datasets-table">
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Name</Table.Th>
@@ -84,6 +86,7 @@ export function DatasetListPage() {
                     navigate(`/benchmarking/datasets/${dataset.id}`)
                   }
                   style={{ cursor: "pointer" }}
+                  data-testid={`dataset-row-${dataset.id}`}
                 >
                   <Table.Td>
                     <Text fw={600}>{dataset.name}</Text>

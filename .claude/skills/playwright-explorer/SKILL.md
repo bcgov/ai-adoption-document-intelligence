@@ -239,10 +239,9 @@ Modified React/TypeScript component files with added `data-testid` attributes.
 3. For each page: Navigate with Playwright, take snapshot/screenshot
 4. Identify elements needing selectors
 5. Find and modify source files to add `data-testid`
-6. Document changes in selector-changes.md
-7. Create page-doc.md and selectors.md
-8. Mark test plan as complete in exploration-progress.md
-9. Confirm with user before proceeding to next test plan
+6. Create page-doc.md and selectors.md
+7. Mark test plan as complete in exploration-progress.md
+8. Confirm with user before proceeding to next test plan
 
 ## Important References
 

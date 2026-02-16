@@ -12,6 +12,7 @@ import {
   ResultsDrillDownPage,
   RunComparisonPage,
   RunDetailPage,
+  RunListPage,
 } from "./features/benchmarking/pages";
 import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
 import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWorkspacePage";
@@ -68,6 +69,7 @@ const router = createBrowserRouter([
         path: "benchmarking/projects/:id",
         element: <BenchmarkProjectDetailPage />,
       },
+      { path: "benchmarking/runs", element: <RunListPage /> },
       {
         path: "benchmarking/projects/:id/runs/:runId",
         element: <RunDetailPage />,
