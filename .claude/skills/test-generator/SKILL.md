@@ -12,13 +12,34 @@ Generate production-ready Playwright tests from test plans and page exploration 
 - Feature directory (e.g., `feature-docs/003-benchmarking-system/`)
 
 ## Process
-1. Read all test plan files from `{feature-dir}/playwright/test-plans/` directory
-2. Read all `*.page-doc.md` and `*.selectors.md` files from `{feature-dir}/playwright/exploration/`
-4. For each test scenario in the plan:
+1. Read all test plan files from `{feature-dir}/playwright/test-plans/` directory (all .md files except README.md)
+2. Check `{feature-dir}/playwright/test-generation/generation-progress.md` for already completed test plans
+3. **Process ONE test plan at a time** (first uncompleted one)
+4. Read all `*.page-doc.md` and `*.selectors.md` files from `{feature-dir}/playwright/exploration/` relevant to that test plan
+5. For each test scenario in that test plan:
    - Create TypeScript test file in `tests/e2e/{feature-name}/`
    - Generate Page Object Models in `tests/e2e/pages/`
    - Use documented selectors from exploration
    - Include proper waits and assertions
+6. Mark test plan as complete in `{feature-dir}/playwright/test-generation/generation-progress.md`
+7. Confirm with user before proceeding to next test plan
+
+## Progress Tracking
+
+Create/update `{feature-dir}/playwright/test-generation/generation-progress.md`:
+
+```markdown
+# Test Generation Progress
+
+- [x] US-001.md - Completed 2026-02-15
+- [x] US-003.md - Completed 2026-02-15
+- [ ] US-004.md - In progress
+- [ ] US-006.md
+- [ ] US-008.md
+
+**Status**: 2/5 test plans generated
+**Last Updated**: 2026-02-15 3:42 PM
+```
 
 ## Output Structure
 
@@ -252,6 +273,16 @@ tests/e2e/
     {feature-name}-details.spec.ts   # Detail page test
     {feature-name}-forms.spec.ts     # Form interactions
 ```
+
+## Workflow
+
+**Process one test plan at a time**:
+
+1. Read next uncompleted test plan from `generation-progress.md`
+2. Read corresponding exploration files (`*.page-doc.md` and `*.selectors.md`)
+3. Generate test files and Page Object Models for that test plan only
+4. Mark test plan as complete in `generation-progress.md`
+5. Confirm with user before proceeding to next test plan
 
 ## Important References
 - **ALWAYS** refer to the feature's `requirements.md` when generating tests to ensure correct expected behavior
