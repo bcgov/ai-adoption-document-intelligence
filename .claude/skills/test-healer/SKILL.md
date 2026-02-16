@@ -21,7 +21,7 @@ Run all Playwright tests and fix failures:
 
 #### 1. Run All Tests
 ```bash
-npx playwright test --headed --reporter=list
+npx playwright test --reporter=list
 ```
 
 #### 2. Analyze Failures
@@ -35,7 +35,7 @@ Parse test output for:
 
 **CRITICAL**: Before applying any fix, consult these sources in order:
 
-1. **First Priority**: Read `{feature-dir}/requirements.md`
+1. **First Priority**: Read `{feature-dir}/REQUIREMENTS.md`
    - Verify what the EXPECTED behavior should be
    - This is the source of truth for correct behavior
 
@@ -66,8 +66,8 @@ Does implementation match requirements?
 
 | Error Type | Investigation Steps | Fix Strategy |
 |------------|---------------------|--------------|
-| **Locator not found** | 1. Check requirements.md for expected element<br>2. Re-explore page with Playwright MCP<br>3. Find actual selector | If element should exist per requirements but doesn't: fix implementation<br>If selector is outdated: update test & Page Object |
-| **Assertion failed** | 1. Read requirements.md for expected value<br>2. Read user-stories for acceptance criteria<br>3. Verify which is correct: test or app | If requirements say X but app shows Y: fix the implementation to match requirements<br>If test expectation is wrong: fix the test |
+| **Locator not found** | 1. Check REQUIREMENTS.md for expected element<br>2. Re-explore page with Playwright MCP<br>3. Find actual selector | If element should exist per requirements but doesn't: fix implementation<br>If selector is outdated: update test & Page Object |
+| **Assertion failed** | 1. Read REQUIREMENTS.md for expected value<br>2. Read user-stories for acceptance criteria<br>3. Verify which is correct: test or app | If requirements say X but app shows Y: fix the implementation to match requirements<br>If test expectation is wrong: fix the test |
 | **Timeout exceeded** | 1. Check requirements for async operations<br>2. Explore page for loading states | If app is slow: investigate and fix performance issue<br>If test timing is wrong: add explicit waitFor or increase timeout |
 | **Navigation failed** | 1. Check requirements for navigation flow<br>2. Verify URL patterns in user stories | If navigation is broken: fix implementation routing<br>If test navigation is incorrect: add waitForLoadState('networkidle') |
 | **Element not visible** | 1. Check requirements for UI state<br>2. Explore page for conditional rendering | If element should be visible per requirements: fix implementation<br>If test timing is wrong: add waitFor({ state: 'visible' }) |
@@ -95,7 +95,7 @@ Continue until test passes or max attempts reached.
 
 ## Critical Rules for Corrections
 
-1. **ALWAYS** check requirements.md and user stories BEFORE making any fix
+1. **ALWAYS** check REQUIREMENTS.md and user stories BEFORE making any fix
 2. **FIX IMPLEMENTATION** when it doesn't match requirements - don't just change the test
 3. **FIX TEST** when the test expectation is incorrect or outdated
 4. **NEVER** make a test pass by removing assertions or changing expectations without verifying requirements
