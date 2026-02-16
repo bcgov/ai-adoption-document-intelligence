@@ -47,7 +47,13 @@ export function FileUploadDialog({
   };
 
   return (
-    <Modal opened={opened} onClose={handleClose} title="Upload Files" size="lg">
+    <Modal
+      opened={opened}
+      onClose={handleClose}
+      title="Upload Files"
+      size="lg"
+      data-testid="upload-files-dialog"
+    >
       <Stack gap="md">
         {!isSuccess && (
           <>
@@ -55,6 +61,7 @@ export function FileUploadDialog({
               onDrop={handleDrop}
               maxSize={100 * 1024 * 1024}
               disabled={isUploading}
+              data-testid="file-dropzone"
             >
               <Group
                 justify="center"
@@ -105,12 +112,12 @@ export function FileUploadDialog({
             </Dropzone>
 
             {selectedFiles.length > 0 && (
-              <Stack gap="xs">
+              <Stack gap="xs" data-testid="selected-files-list">
                 <Text size="sm" fw={500}>
                   Selected Files ({selectedFiles.length})
                 </Text>
                 {selectedFiles.map((file, index) => (
-                  <Group key={index} justify="space-between">
+                  <Group key={index} justify="space-between" data-testid={`file-item-${index}`}>
                     <Text size="sm" truncate>
                       {file.name} ({(file.size / 1024).toFixed(2)} KB)
                     </Text>
@@ -120,6 +127,7 @@ export function FileUploadDialog({
                       color="red"
                       onClick={() => handleRemoveFile(index)}
                       disabled={isUploading}
+                      data-testid={`remove-file-btn-${index}`}
                     >
                       Remove
                     </Button>
@@ -128,18 +136,23 @@ export function FileUploadDialog({
               </Stack>
             )}
 
-            {isUploading && <Progress value={100} animated />}
+            {isUploading && <Progress value={100} animated data-testid="upload-progress" />}
           </>
         )}
 
         {isSuccess && (
-          <Text c="green" size="sm">
+          <Text c="green" size="sm" data-testid="upload-success-message">
             Files uploaded successfully!
           </Text>
         )}
 
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={handleClose} disabled={isUploading}>
+          <Button
+            variant="subtle"
+            onClick={handleClose}
+            disabled={isUploading}
+            data-testid="upload-cancel-btn"
+          >
             {isSuccess ? "Close" : "Cancel"}
           </Button>
           {!isSuccess && (
@@ -147,6 +160,7 @@ export function FileUploadDialog({
               onClick={handleUpload}
               disabled={selectedFiles.length === 0 || isUploading}
               loading={isUploading}
+              data-testid="upload-submit-btn"
             >
               Upload
             </Button>

@@ -104,6 +104,7 @@ Create/update `{feature-dir}/playwright/exploration/exploration-progress.md`:
    - For run detail pages: Need projects with definitions and runs
 3. **If test data is missing or incomplete**:
    - Update `apps/shared/prisma/seed.ts` to add needed test data
+   - Run `cd apps/backend-services && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="yes" npx prisma migrate reset --force` to reset database
    - Run `cd apps/backend-services && npm run db:seed` to populate database
    - Use consistent IDs (e.g., `seed-project-id`) for predictable testing
 4. **Document the test data IDs** in your exploration notes for easy reference in tests

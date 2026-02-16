@@ -17,9 +17,12 @@ export function GroundTruthViewer({
       onClose={onClose}
       title="Ground Truth JSON"
       size="xl"
+      data-testid="ground-truth-viewer"
     >
       <ScrollArea h={500}>
-        <Code block>{JSON.stringify(groundTruth, null, 2)}</Code>
+        <Code block data-testid="ground-truth-json">
+          {JSON.stringify(groundTruth, null, 2)}
+        </Code>
       </ScrollArea>
     </Modal>
   );

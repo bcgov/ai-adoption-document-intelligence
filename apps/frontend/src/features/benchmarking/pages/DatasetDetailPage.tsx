@@ -208,7 +208,10 @@ export function DatasetDetailPage() {
                     >
                       <Table.Td>{version.version}</Table.Td>
                       <Table.Td>
-                        <Badge color={getStatusBadgeColor(version.status)}>
+                        <Badge
+                          color={getStatusBadgeColor(version.status)}
+                          data-testid={`version-status-badge-${version.id}`}
+                        >
                           {version.status}
                         </Badge>
                       </Table.Td>
@@ -233,12 +236,14 @@ export function DatasetDetailPage() {
                             <Menu.Item
                               leftSection={<IconEye size={16} />}
                               onClick={() => setSelectedVersionId(version.id)}
+                              data-testid={`view-samples-menu-item-${version.id}`}
                             >
                               View Samples
                             </Menu.Item>
                             <Menu.Item
                               leftSection={<IconShieldCheck size={16} />}
                               onClick={() => handleValidate(version.id)}
+                              data-testid={`validate-menu-item-${version.id}`}
                             >
                               Validate
                             </Menu.Item>
@@ -246,6 +251,7 @@ export function DatasetDetailPage() {
                               <Menu.Item
                                 leftSection={<IconCheck size={16} />}
                                 onClick={() => handlePublish(version.id)}
+                                data-testid={`publish-menu-item-${version.id}`}
                               >
                                 Publish
                               </Menu.Item>
@@ -254,6 +260,7 @@ export function DatasetDetailPage() {
                               <Menu.Item
                                 leftSection={<IconArchive size={16} />}
                                 onClick={() => handleArchive(version.id)}
+                                data-testid={`archive-menu-item-${version.id}`}
                               >
                                 Archive
                               </Menu.Item>

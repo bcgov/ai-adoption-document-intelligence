@@ -153,6 +153,8 @@ const SEED_DATASET_ID = "seed-dataset-invoices";
 const SEED_DATASET_ID_2 = "seed-dataset-receipts";
 const SEED_DATASET_ID_3 = "seed-dataset-forms";
 const SEED_DATASET_VERSION_ID = "seed-dataset-version-v1.0";
+const SEED_DATASET_VERSION_ID_DRAFT = "seed-dataset-version-v2.0-draft";
+const SEED_DATASET_VERSION_ID_ARCHIVED = "seed-dataset-version-v0.9-archived";
 const SEED_SPLIT_ID = "seed-split-train";
 const SEED_PROJECT_ID = "seed-project-invoice-extraction";
 const SEED_DEFINITION_ID = "seed-definition-baseline";
@@ -265,7 +267,7 @@ async function seedBenchmarkingData() {
     },
   });
 
-  // Create a dataset version
+  // Create a dataset version - published
   const datasetVersion = await prisma.datasetVersion.upsert({
     where: { id: SEED_DATASET_VERSION_ID },
     update: {
@@ -291,6 +293,64 @@ async function seedBenchmarkingData() {
       },
       status: DatasetVersionStatus.published,
       publishedAt: new Date("2026-01-15"),
+    },
+  });
+
+  // Create a draft version
+  await prisma.datasetVersion.upsert({
+    where: { id: SEED_DATASET_VERSION_ID_DRAFT },
+    update: {
+      version: "v2.0-draft",
+      gitRevision: "def789ghi012",
+      manifestPath: "data/invoices/manifest-v2.json",
+      documentCount: 200,
+      groundTruthSchema: {
+        fields: ["invoice_number", "total_amount", "date", "vendor", "line_items"],
+      },
+      status: DatasetVersionStatus.draft,
+      publishedAt: null,
+    },
+    create: {
+      id: SEED_DATASET_VERSION_ID_DRAFT,
+      datasetId: dataset.id,
+      version: "v2.0-draft",
+      gitRevision: "def789ghi012",
+      manifestPath: "data/invoices/manifest-v2.json",
+      documentCount: 200,
+      groundTruthSchema: {
+        fields: ["invoice_number", "total_amount", "date", "vendor", "line_items"],
+      },
+      status: DatasetVersionStatus.draft,
+      publishedAt: null,
+    },
+  });
+
+  // Create an archived version
+  await prisma.datasetVersion.upsert({
+    where: { id: SEED_DATASET_VERSION_ID_ARCHIVED },
+    update: {
+      version: "v0.9",
+      gitRevision: "xyz456abc789",
+      manifestPath: "data/invoices/manifest-v0.9.json",
+      documentCount: 100,
+      groundTruthSchema: {
+        fields: ["invoice_number", "total_amount", "date"],
+      },
+      status: DatasetVersionStatus.archived,
+      publishedAt: new Date("2025-12-01"),
+    },
+    create: {
+      id: SEED_DATASET_VERSION_ID_ARCHIVED,
+      datasetId: dataset.id,
+      version: "v0.9",
+      gitRevision: "xyz456abc789",
+      manifestPath: "data/invoices/manifest-v0.9.json",
+      documentCount: 100,
+      groundTruthSchema: {
+        fields: ["invoice_number", "total_amount", "date"],
+      },
+      status: DatasetVersionStatus.archived,
+      publishedAt: new Date("2025-12-01"),
     },
   });
 
@@ -518,7 +578,7 @@ async function seedBenchmarkingData() {
   });
 
   console.log("✅ Benchmarking seed data created successfully");
-  console.log(`  - Dataset: ${dataset.name} (${datasetVersion.version})`);
+  console.log(`  - Dataset: ${dataset.name} (3 versions: v0.9 archived, v1.0 published, v2.0 draft)`);
   console.log(`  - Dataset: ${dataset2.name}`);
   console.log(`  - Dataset: ${dataset3.name}`);
   console.log(`  - Project: ${project.name}`);

@@ -1,12 +1,9 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
-    "model": "sonnet",
     "allow": [
       "Bash(npm run typecheck)",
       "Bash(npm run test)",
       "Bash(npm run db:generate)",
-
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git checkout *)",
@@ -14,9 +11,11 @@
       "Bash(git status)",
       "Bash(git diff *)",
       "Bash(git log *)",
-
       "Bash(cd apps/*)",
-      "Bash(cd scripts/*)"
-    ]
+      "Bash(cd scripts/*)",
+      "mcp__playwright__browser_press_key"
+    ],
+    "defaultMode": "acceptEdits",
+    "model": "sonnet"
   }
 }
