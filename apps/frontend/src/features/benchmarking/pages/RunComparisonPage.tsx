@@ -24,6 +24,7 @@ interface ComparisonData {
     metrics: Record<string, unknown>;
     params: Record<string, unknown>;
     tags: Record<string, unknown>;
+    isBaseline: boolean;
   }>;
   metricNames: string[];
   paramNames: string[];
@@ -90,6 +91,7 @@ export function RunComparisonPage() {
       metrics: run.metrics || {},
       params: run.params || {},
       tags: run.tags || {},
+      isBaseline: run.isBaseline,
     })),
     metricNames: Array.from(
       new Set(runs.flatMap((r) => Object.keys(r.metrics || {}))),
@@ -196,16 +198,17 @@ export function RunComparisonPage() {
   }
 
   return (
-    <Stack gap="lg">
+    <Stack gap="lg" data-testid="run-comparison-page">
       <Group justify="space-between">
         <div>
-          <Title order={2}>Run Comparison</Title>
+          <Title order={2} data-testid="comparison-title">Run Comparison</Title>
           <Text c="dimmed" size="sm">
             Comparing {runs.length} run{runs.length !== 1 ? "s" : ""}
           </Text>
         </div>
         <Group>
           <Button
+            data-testid="export-csv-btn"
             leftSection={<IconDownload size={16} />}
             variant="default"
             onClick={handleExportCSV}
@@ -213,6 +216,7 @@ export function RunComparisonPage() {
             Export CSV
           </Button>
           <Button
+            data-testid="export-json-btn"
             leftSection={<IconDownload size={16} />}
             variant="default"
             onClick={handleExportJSON}
@@ -220,6 +224,7 @@ export function RunComparisonPage() {
             Export JSON
           </Button>
           <Button
+            data-testid="back-to-project-btn"
             onClick={() => navigate(`/benchmarking/projects/${projectId}`)}
           >
             Back to Project
@@ -227,15 +232,39 @@ export function RunComparisonPage() {
         </Group>
       </Group>
 
-      <Card>
+      <Card data-testid="run-info-card">
         <Stack gap="md">
           <Title order={3}>Run Information</Title>
-          <Table striped highlightOnHover>
+          <Table data-testid="run-info-table" striped highlightOnHover>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Property</Table.Th>
                 {comparisonData.runs.map((run) => (
-                  <Table.Th key={run.id}>Run {run.id.slice(0, 8)}...</Table.Th>
+                  <Table.Th key={run.id}>
+                    <Group gap="xs">
+                      <Text
+                        component="a"
+                        href={`/benchmarking/projects/${projectId}/runs/${run.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        c="blue"
+                        td="underline"
+                        style={{ cursor: "pointer" }}
+                        data-testid={`run-header-link-${run.id}`}
+                      >
+                        Run {run.id.slice(0, 8)}...
+                      </Text>
+                      {run.isBaseline && (
+                        <Badge
+                          size="xs"
+                          color="cyan"
+                          data-testid={`baseline-badge-${run.id}`}
+                        >
+                          Baseline
+                        </Badge>
+                      )}
+                    </Group>
+                  </Table.Th>
                 ))}
               </Table.Tr>
             </Table.Thead>
@@ -272,16 +301,38 @@ export function RunComparisonPage() {
       </Card>
 
       {comparisonData.metricNames.length > 0 && (
-        <Card>
+        <Card data-testid="metrics-comparison-card">
           <Stack gap="md">
             <Title order={3}>Metrics Comparison</Title>
-            <Table striped highlightOnHover>
+            <Table data-testid="metrics-comparison-table" striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Metric Name</Table.Th>
                   {comparisonData.runs.map((run, idx) => (
                     <Table.Th key={run.id}>
-                      {idx === 0 ? "Baseline" : `Run ${idx + 1}`}
+                      <Group gap="xs">
+                        <Text
+                          component="a"
+                          href={`/benchmarking/projects/${projectId}/runs/${run.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          c="blue"
+                          td="underline"
+                          style={{ cursor: "pointer" }}
+                          data-testid={`metrics-run-header-link-${run.id}`}
+                        >
+                          {idx === 0 ? "Baseline" : `Run ${idx + 1}`}
+                        </Text>
+                        {run.isBaseline && (
+                          <Badge
+                            size="xs"
+                            color="cyan"
+                            data-testid={`metrics-baseline-badge-${run.id}`}
+                          >
+                            Baseline
+                          </Badge>
+                        )}
+                      </Group>
                     </Table.Th>
                   ))}
                   {comparisonData.runs.length >= 2 && (
@@ -362,10 +413,10 @@ export function RunComparisonPage() {
       )}
 
       {comparisonData.paramNames.length > 0 && (
-        <Card>
+        <Card data-testid="parameters-comparison-card">
           <Stack gap="md">
             <Title order={3}>Parameters Comparison</Title>
-            <Table striped>
+            <Table data-testid="parameters-comparison-table" striped>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Parameter</Table.Th>
@@ -412,10 +463,10 @@ export function RunComparisonPage() {
       )}
 
       {comparisonData.tagNames.length > 0 && (
-        <Card>
+        <Card data-testid="tags-comparison-card">
           <Stack gap="md">
             <Title order={3}>Tags Comparison</Title>
-            <Table striped>
+            <Table data-testid="tags-comparison-table" striped>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Tag</Table.Th>

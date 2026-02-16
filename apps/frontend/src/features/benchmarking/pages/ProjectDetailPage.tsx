@@ -263,15 +263,26 @@ export function ProjectDetailPage() {
             <Title order={3} data-testid="runs-heading">
               Recent Runs
             </Title>
-            {selectedRunIds.length >= 2 && (
+            <Group gap="sm">
+              {selectedRunIds.length > 0 && selectedRunIds.length < 2 && (
+                <Text size="sm" c="dimmed">
+                  Select at least 2 runs to compare
+                </Text>
+              )}
+              {selectedRunIds.length > 5 && (
+                <Text size="sm" c="red" data-testid="compare-limit-error">
+                  Please select no more than 5 runs
+                </Text>
+              )}
               <Button
                 leftSection={<IconGitCompare size={16} />}
                 onClick={handleCompare}
+                disabled={selectedRunIds.length < 2 || selectedRunIds.length > 5}
                 data-testid="compare-runs-btn"
               >
                 Compare ({selectedRunIds.length})
               </Button>
-            )}
+            </Group>
           </Group>
 
           {isLoadingRuns ? (
