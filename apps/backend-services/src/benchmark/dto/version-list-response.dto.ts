@@ -1,3 +1,10 @@
+export class SplitListItemDto {
+  id: string;
+  name: string;
+  type: string;
+  sampleCount: number;
+}
+
 export class VersionListItemDto {
   id: string;
   version: string;
@@ -6,6 +13,7 @@ export class VersionListItemDto {
   gitRevision: string;
   publishedAt: Date | null;
   createdAt: Date;
+  splits?: SplitListItemDto[];
 }
 
 export class VersionListResponseDto {

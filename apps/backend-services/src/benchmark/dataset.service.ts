@@ -422,9 +422,19 @@ export class DatasetService {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    // Get all versions for this dataset
+    // Get all versions for this dataset, including splits
     const versions = await this.prisma.datasetVersion.findMany({
       where: { datasetId: datasetId },
+      include: {
+        splits: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            sampleIds: true,
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
 
@@ -436,6 +446,12 @@ export class DatasetService {
       gitRevision: v.gitRevision,
       publishedAt: v.publishedAt,
       createdAt: v.createdAt,
+      splits: v.splits.map((s) => ({
+        id: s.id,
+        name: s.name,
+        type: s.type,
+        sampleCount: Array.isArray(s.sampleIds) ? s.sampleIds.length : 0,
+      })),
     }));
 
     return { versions: versionList };

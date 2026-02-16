@@ -97,4 +97,36 @@ export class ProjectDetailPage {
   getRunCheckbox(runId: string): Locator {
     return this.page.locator(`[data-testid="run-checkbox-${runId}"]`);
   }
+
+  /**
+   * Click the create definition button
+   */
+  async clickCreateDefinition() {
+    await this.createDefinitionBtn.click();
+    await this.page.waitForLoadState('networkidle');
+  }
+
+  /**
+   * Click on a definition row to view details
+   * @param definitionId - The ID of the definition to click
+   */
+  async clickDefinition(definitionId: string) {
+    const row = this.page.locator(`[data-testid="definition-row-${definitionId}"]`);
+    await row.click();
+    await this.page.waitForLoadState('networkidle');
+  }
+
+  /**
+   * Get definition row by ID
+   */
+  getDefinitionRow(definitionId: string): Locator {
+    return this.page.locator(`[data-testid="definition-row-${definitionId}"]`);
+  }
+
+  /**
+   * Get definition row by name
+   */
+  getDefinitionRowByName(definitionName: string): Locator {
+    return this.definitionRows.filter({ hasText: definitionName });
+  }
 }
