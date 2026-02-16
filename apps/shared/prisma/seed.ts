@@ -621,8 +621,9 @@ async function seedBenchmarkingData() {
 
     perSampleResults.push({
       sampleId: `sample-${String(i + 1).padStart(3, "0")}`,
-      metricName: "field_accuracy",
-      metricValue: 0.75 + Math.random() * 0.25,
+      metrics: {
+        field_accuracy: 0.75 + Math.random() * 0.25,
+      },
       metadata: {
         docType,
         language,
