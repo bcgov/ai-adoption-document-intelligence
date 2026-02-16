@@ -73,12 +73,42 @@
       }
     },
     {
+      "label": "wait: minio ready",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "until [ \"$(docker inspect -f \"{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}\" ai-doc-intelligence-minio 2>/dev/null)\" = \"healthy\" ]; do echo \"waiting for minio to become healthy...\"; sleep 2; done; echo \"minio is healthy\""
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "wait: mlflow ready",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "until [ \"$(docker inspect -f \"{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}\" ai-doc-intelligence-mlflow 2>/dev/null)\" = \"healthy\" ]; do echo \"waiting for mlflow to become healthy...\"; sleep 2; done; echo \"mlflow is healthy\""
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
       "label": "Dev: prerequisites",
       "dependsOn": [
         "temporal: docker up",
         "wait: temporal ready",
         "backend-services: docker up",
-        "wait: backend postgres ready"
+        "wait: backend postgres ready",
+        "wait: minio ready",
+        "wait: mlflow ready"
       ],
       "dependsOrder": "sequence",
       "problemMatcher": []
