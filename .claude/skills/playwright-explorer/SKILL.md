@@ -263,7 +263,7 @@ Modified React/TypeScript component files with added `data-testid` attributes.
 3. Identify elements needing selectors
 4. Find and modify source files to add `data-testid`
 5. Create page-doc.md and selectors.md
-6. Mark test plan as complete in exploration-progress.md
+6. Mark test plan as complete in exploration-progress.md (do not add any extra information, just mark as complete)
 7. Confirm with user before proceeding to next test plan
 
 ## Important References

@@ -40,7 +40,7 @@ Before running any tests, execute these commands:
 cd apps/backend-services
 
 # Reset database (drops all data)
-npm run db:reset
+npx prisma migrate reset --force
 
 # Run migrations
 npm run db:migrate

@@ -1,6 +1,6 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
+    "defaultMode": "bypassPermissions",
     "model": "sonnet",
     "allow": [
       "Bash(npm run typecheck)",
