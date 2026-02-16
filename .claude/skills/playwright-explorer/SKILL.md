@@ -17,7 +17,7 @@ Systematically explore a web application to document its structure, elements, an
 
 **IMPORTANT**: The application requires authentication. Before exploring, set up mock authentication using the pattern from `tests/e2e/helpers/auth.ts`:
 
-1. **Setup API Key Auth**: Get TEST_API_KEY from environment (should be set in `.env`)
+1. **Setup API Key Auth**: Get TEST_API_KEY from environment (should be set in `.env`, you'll need to run `cat` command to read it)
 2. **Navigate to app**: Go to the frontend URL (default: http://localhost:3000)
 3. **Inject mock auth**: Use page.evaluate to inject fake JWT tokens into localStorage:
 
