@@ -24,7 +24,7 @@ Generate production-ready Playwright tests from test plans and page exploration 
 6. **Reset and seed database** before running tests (see Database Management section)
 7. **Run the generated tests** to verify they work
 8. **If tests fail**, fix the issues (see Test Verification & Fixing section)
-9. Mark test plan as complete in `{feature-dir}/playwright/test-generation/generation-progress.md`
+9. Mark test plan as complete in `{feature-dir}/playwright/test-generation/generation-progress.md` (do not add any other information, just mark as complete)
 10. Confirm with user before proceeding to next test plan
 
 ## Database Management
@@ -54,9 +54,8 @@ npm run db:seed
 cd apps/backend-services && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="yes" npx prisma migrate reset --force && npm run db:seed
 ```
 
-When running prisma migrate reset or other destructive Prisma commands, 
-always use: PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="yes" 
-before the command in development environments.
+NOTE: switch back to project root after resetting database.
+
 
 ### Seed Data Requirements
 

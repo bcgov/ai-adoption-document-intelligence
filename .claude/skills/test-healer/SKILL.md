@@ -41,9 +41,7 @@ npm run db:seed
 cd apps/backend-services && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="yes" npx prisma migrate reset --force && npm run db:seed
 ```
 
-When running prisma migrate reset or other destructive Prisma commands,
-always use: PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="yes"
-before the command in development environments.
+NOTE: switch back to project root after resetting database.
 
 ## Process
 
@@ -56,6 +54,8 @@ cd apps/backend-services && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="yes" np
 ```
 
 This ensures test failures aren't caused by stale data from previous runs.
+
+NOTE: switch back to project root after resetting database.
 
 #### 1. Run All Tests
 ```bash

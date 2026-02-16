@@ -109,6 +109,8 @@ Create/update `{feature-dir}/playwright/exploration/exploration-progress.md`:
    - Use consistent IDs (e.g., `seed-project-id`) for predictable testing
 4. **Document the test data IDs** in your exploration notes for easy reference in tests
 
+NOTE: switch back to project root after resetting database.
+
 ### Seed Data Best Practices:
 - Use descriptive IDs with `seed-` prefix (e.g., `seed-dataset-invoices`)
 - Create entities in various states (draft/published, pending/running/completed, etc.)
