@@ -1,6 +1,6 @@
 import { Stack, Text, Title } from "@mantine/core";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import { useAuth } from "./auth/AuthContext";
+import { useAuth } from "./auth/useAuth";
 import "./App.css";
 import { Login } from "./components";
 import {

@@ -71,6 +71,14 @@ npm run db:seed
 
 Note: the seed file is at apps/shared/prisma/seed.ts
 
+## Backend Logging
+
+**On API failures (4xx/5xx)**: Read `apps/backend-services/backend.log` for error details and stack traces.
+
+```bash
+tail -n 50 apps/backend-services/backend.log
+```
+
 ## Process
 
 ### 1. Initialize Progress Tracking
@@ -143,6 +151,8 @@ Parse test output for:
 - Missing API endpoints (404, 500 errors)
 - Database constraint violations
 - Missing UI components or routes
+
+**API Failure Protocol**: On 4xx/5xx errors, read backend log (`tail -n 50 apps/backend-services/backend.log`), identify root cause, fix backend implementation per requirements, then re-run test.
 
 **Special Case - Unskipped Tests:**
 If a test was just unskipped, failures are likely due to:
@@ -334,6 +344,8 @@ page.on('response', response => {
   }
 });
 ```
+
+**On API errors**: Read backend log with `tail -n 50 apps/backend-services/backend.log` to see error stack traces and fix root cause.
 
 ### Other
 - Add console logging code to front end, read it with playwright mcp to see what is going on. Clean up after

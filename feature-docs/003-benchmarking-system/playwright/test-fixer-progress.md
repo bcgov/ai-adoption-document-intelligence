@@ -3,15 +3,6 @@
 ## Test Files
 - [x] advanced-features.spec.ts (✅ Passed)
 - [x] artifact-viewer.spec.ts (✅ All 10 tests passed)
-  - Fixed: BigInt serialization error in artifacts API (DTO + Service)
-  - Fixed: process.env usage in ArtifactViewer (changed to import.meta.env.VITE_*)
-  - Fixed: Mantine Drawer visibility detection (wait for inner elements)
-  - Fixed: JSON content display (handle axios auto-parsing)
-  - Fixed: Image blob creation fallback for mocked responses
-  - Fixed: JsonInput textarea locator (component IS the textarea)
-  - Fixed: Undefined checkResponse function call
-  - Fixed: apiService.get() config parameter support
-  - Fixed: Error handling by checking response.success field
 - [ ] baseline-comparison.spec.ts
 - [ ] baseline-promotion.spec.ts
 - [ ] baseline-ui-display.spec.ts

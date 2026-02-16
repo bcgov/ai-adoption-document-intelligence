@@ -29,7 +29,7 @@ import {
 } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../auth/useAuth";
 
 const NAV_EXPANDED = 240;
 const NAV_COLLAPSED = 72;

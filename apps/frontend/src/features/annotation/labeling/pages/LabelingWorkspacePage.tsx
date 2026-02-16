@@ -19,7 +19,7 @@ import {
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { useNavigate, useParams } from "react-router-dom";
-import { useAuth } from "@/auth/AuthContext";
+import { useAuth } from "@/auth/useAuth";
 import {
   colorForFieldKeyWithAlpha,
   colorForFieldKeyWithBorder,

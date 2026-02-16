@@ -2,7 +2,6 @@ import axios from "axios";
 import React, {
   createContext,
   ReactNode,
-  useContext,
   useEffect,
   useRef,
   useState,
@@ -40,7 +39,7 @@ interface AuthUser {
 /**
  * API exposed by the `AuthProvider`. Any component can consume these helpers via `useAuth`.
  */
-interface AuthContextType {
+export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   user: AuthUser | null;
@@ -50,7 +49,7 @@ interface AuthContextType {
   refreshToken: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -290,16 +289,3 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-
-/**
- * Convenience hook for consuming the auth context with built-in guardrails.
- */
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};
-// Backwards compatibility alias for useSSO
-export const useSSO = useAuth;

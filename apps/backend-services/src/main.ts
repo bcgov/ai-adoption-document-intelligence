@@ -3,11 +3,19 @@ import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { json, urlencoded } from "body-parser";
 import { AppModule } from "./app.module";
+import { FileLogger } from "./logger/file-logger.service";
+import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 
+const fileLogger = new FileLogger();
 const logger = new Logger("Bootstrap");
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: fileLogger,
+  });
+
+  // Enable HTTP request/response logging for debugging Playwright tests
+  app.useGlobalInterceptors(new LoggingInterceptor());
 
   // Swagger (OpenAPI) Setup
   const config = new DocumentBuilder()

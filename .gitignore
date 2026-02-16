@@ -11,3 +11,6 @@ playwright-report/
 .playwright-mcp/
 playwright/.cache/
 feature-docs/*/playwright/screenshots/
+
+# Backend logs
+apps/backend-services/backend.log
