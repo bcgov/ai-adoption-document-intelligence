@@ -159,11 +159,16 @@ const SEED_DATASET_VERSION_ID = "seed-dataset-version-v1.0";
 const SEED_DATASET_VERSION_ID_DRAFT = "seed-dataset-version-v2.0-draft";
 const SEED_DATASET_VERSION_ID_ARCHIVED = "seed-dataset-version-v0.9-archived";
 const SEED_SPLIT_ID = "seed-split-train";
+const SEED_SPLIT_ID_VAL = "seed-split-val";
+const SEED_SPLIT_ID_TEST = "seed-split-test";
+const SEED_SPLIT_ID_GOLDEN = "seed-split-golden-unfrozen";
 const SEED_PROJECT_ID = "seed-project-invoice-extraction";
 const SEED_DEFINITION_ID = "seed-definition-baseline";
 const SEED_RUN_ID_COMPLETED = "seed-run-completed-001";
 const SEED_RUN_ID_RUNNING = "seed-run-running-002";
 const SEED_RUN_ID_FAILED = "seed-run-failed-003";
+const SEED_RUN_ID_PASSING = "seed-run-passing-004";
+const SEED_RUN_ID_REGRESSED = "seed-run-regressed-005";
 
 /**
  * Create a test dataset repository with manifest and sample data
@@ -454,7 +459,7 @@ async function seedBenchmarkingData() {
     },
   });
 
-  // Create a split
+  // Create splits for testing
   const split = await prisma.split.upsert({
     where: { id: SEED_SPLIT_ID },
     update: {
@@ -472,6 +477,67 @@ async function seedBenchmarkingData() {
       sampleIds: Array.from({ length: 100 }, (_, i) => `sample-${i + 1}`),
       stratificationRules: { stratifyBy: "vendor" },
       frozen: true,
+      createdAt: new Date("2026-01-05T00:00:00Z"),
+    },
+  });
+
+  // Validation split (unfrozen, for testing edit functionality)
+  await prisma.split.upsert({
+    where: { id: SEED_SPLIT_ID_VAL },
+    update: {
+      name: "validation",
+      type: SplitType.val,
+      sampleIds: Array.from({ length: 30 }, (_, i) => `sample-${i + 101}`),
+      frozen: false,
+    },
+    create: {
+      id: SEED_SPLIT_ID_VAL,
+      datasetVersionId: datasetVersion.id,
+      name: "validation",
+      type: SplitType.val,
+      sampleIds: Array.from({ length: 30 }, (_, i) => `sample-${i + 101}`),
+      frozen: false,
+      createdAt: new Date("2026-01-10T00:00:00Z"),
+    },
+  });
+
+  // Test split (frozen, to test that frozen splits can't be edited)
+  await prisma.split.upsert({
+    where: { id: SEED_SPLIT_ID_TEST },
+    update: {
+      name: "test",
+      type: SplitType.test,
+      sampleIds: Array.from({ length: 50 }, (_, i) => `sample-${i + 131}`),
+      frozen: true,
+    },
+    create: {
+      id: SEED_SPLIT_ID_TEST,
+      datasetVersionId: datasetVersion.id,
+      name: "test",
+      type: SplitType.test,
+      sampleIds: Array.from({ length: 50 }, (_, i) => `sample-${i + 131}`),
+      frozen: true,
+      createdAt: new Date("2026-01-15T00:00:00Z"),
+    },
+  });
+
+  // Golden regression split (unfrozen, for testing freeze functionality)
+  await prisma.split.upsert({
+    where: { id: SEED_SPLIT_ID_GOLDEN },
+    update: {
+      name: "golden-regression-v1",
+      type: SplitType.golden,
+      sampleIds: Array.from({ length: 20 }, (_, i) => `sample-${i + 181}`),
+      frozen: false,
+    },
+    create: {
+      id: SEED_SPLIT_ID_GOLDEN,
+      datasetVersionId: datasetVersion.id,
+      name: "golden-regression-v1",
+      type: SplitType.golden,
+      sampleIds: Array.from({ length: 20 }, (_, i) => `sample-${i + 181}`),
+      frozen: false,
+      createdAt: new Date("2026-01-20T00:00:00Z"),
     },
   });
 
@@ -565,6 +631,11 @@ async function seedBenchmarkingData() {
         version: "v1.0",
       },
       isBaseline: true,
+      baselineThresholds: {
+        field_accuracy: { type: "relative", value: 0.95 },
+        character_accuracy: { type: "relative", value: 0.95 },
+        word_accuracy: { type: "relative", value: 0.95 },
+      },
     },
     create: {
       id: SEED_RUN_ID_COMPLETED,
@@ -590,6 +661,11 @@ async function seedBenchmarkingData() {
         version: "v1.0",
       },
       isBaseline: true,
+      baselineThresholds: {
+        field_accuracy: { type: "relative", value: 0.95 },
+        character_accuracy: { type: "relative", value: 0.95 },
+        word_accuracy: { type: "relative", value: 0.95 },
+      },
     },
   });
 
@@ -677,13 +753,253 @@ async function seedBenchmarkingData() {
     },
   });
 
+  // Create passing run (meets baseline thresholds)
+  await prisma.benchmarkRun.upsert({
+    where: { id: SEED_RUN_ID_PASSING },
+    update: {
+      status: BenchmarkRunStatus.completed,
+      mlflowRunId: "mlflow-run-004",
+      temporalWorkflowId: "temporal-wf-004",
+      workerGitSha: "git-sha-004",
+      startedAt: new Date("2026-02-14T10:00:00Z"),
+      completedAt: new Date("2026-02-14T10:50:00Z"),
+      metrics: {
+        field_accuracy: 0.96,
+        character_accuracy: 0.98,
+        word_accuracy: 0.97,
+      },
+      params: {
+        model: "prebuilt-layout-v2",
+        confidence_threshold: 0.85,
+      },
+      tags: {
+        environment: "test",
+        version: "v1.2",
+      },
+      isBaseline: false,
+      baselineComparison: {
+        baselineRunId: SEED_RUN_ID_COMPLETED,
+        overallPassed: true,
+        regressedMetrics: [],
+        metricComparisons: [
+          {
+            metricName: "field_accuracy",
+            currentValue: 0.96,
+            baselineValue: 0.95,
+            delta: 0.01,
+            deltaPercent: 1.05,
+            passed: true,
+            threshold: { type: "relative", value: 0.95 },
+          },
+          {
+            metricName: "character_accuracy",
+            currentValue: 0.98,
+            baselineValue: 0.98,
+            delta: 0.0,
+            deltaPercent: 0.0,
+            passed: true,
+            threshold: { type: "relative", value: 0.95 },
+          },
+          {
+            metricName: "word_accuracy",
+            currentValue: 0.97,
+            baselineValue: 0.96,
+            delta: 0.01,
+            deltaPercent: 1.04,
+            passed: true,
+            threshold: { type: "relative", value: 0.95 },
+          },
+        ],
+      },
+    },
+    create: {
+      id: SEED_RUN_ID_PASSING,
+      definitionId: definition.id,
+      projectId: project.id,
+      status: BenchmarkRunStatus.completed,
+      mlflowRunId: "mlflow-run-004",
+      temporalWorkflowId: "temporal-wf-004",
+      workerGitSha: "git-sha-004",
+      startedAt: new Date("2026-02-14T10:00:00Z"),
+      completedAt: new Date("2026-02-14T10:50:00Z"),
+      metrics: {
+        field_accuracy: 0.96,
+        character_accuracy: 0.98,
+        word_accuracy: 0.97,
+      },
+      params: {
+        model: "prebuilt-layout-v2",
+        confidence_threshold: 0.85,
+      },
+      tags: {
+        environment: "test",
+        version: "v1.2",
+      },
+      isBaseline: false,
+      baselineComparison: {
+        baselineRunId: SEED_RUN_ID_COMPLETED,
+        overallPassed: true,
+        regressedMetrics: [],
+        metricComparisons: [
+          {
+            metricName: "field_accuracy",
+            currentValue: 0.96,
+            baselineValue: 0.95,
+            delta: 0.01,
+            deltaPercent: 1.05,
+            passed: true,
+            threshold: { type: "relative", value: 0.95 },
+          },
+          {
+            metricName: "character_accuracy",
+            currentValue: 0.98,
+            baselineValue: 0.98,
+            delta: 0.0,
+            deltaPercent: 0.0,
+            passed: true,
+            threshold: { type: "relative", value: 0.95 },
+          },
+          {
+            metricName: "word_accuracy",
+            currentValue: 0.97,
+            baselineValue: 0.96,
+            delta: 0.01,
+            deltaPercent: 1.04,
+            passed: true,
+            threshold: { type: "relative", value: 0.95 },
+          },
+        ],
+      },
+    },
+  });
+
+  // Create regressed run (falls below baseline thresholds)
+  await prisma.benchmarkRun.upsert({
+    where: { id: SEED_RUN_ID_REGRESSED },
+    update: {
+      status: BenchmarkRunStatus.completed,
+      mlflowRunId: "mlflow-run-005",
+      temporalWorkflowId: "temporal-wf-005",
+      workerGitSha: "git-sha-005",
+      startedAt: new Date("2026-02-15T11:00:00Z"),
+      completedAt: new Date("2026-02-15T11:40:00Z"),
+      metrics: {
+        field_accuracy: 0.88,
+        character_accuracy: 0.92,
+        word_accuracy: 0.89,
+      },
+      params: {
+        model: "experimental-model",
+        confidence_threshold: 0.75,
+      },
+      tags: {
+        environment: "test",
+        version: "v2.0-experimental",
+      },
+      isBaseline: false,
+      baselineComparison: {
+        baselineRunId: SEED_RUN_ID_COMPLETED,
+        overallPassed: false,
+        regressedMetrics: ["field_accuracy", "character_accuracy", "word_accuracy"],
+        metricComparisons: [
+          {
+            metricName: "field_accuracy",
+            currentValue: 0.88,
+            baselineValue: 0.95,
+            delta: -0.07,
+            deltaPercent: -7.37,
+            passed: false,
+            threshold: { type: "relative", value: 0.95 },
+          },
+          {
+            metricName: "character_accuracy",
+            currentValue: 0.92,
+            baselineValue: 0.98,
+            delta: -0.06,
+            deltaPercent: -6.12,
+            passed: false,
+            threshold: { type: "relative", value: 0.95 },
+          },
+          {
+            metricName: "word_accuracy",
+            currentValue: 0.89,
+            baselineValue: 0.96,
+            delta: -0.07,
+            deltaPercent: -7.29,
+            passed: false,
+            threshold: { type: "relative", value: 0.95 },
+          },
+        ],
+      },
+    },
+    create: {
+      id: SEED_RUN_ID_REGRESSED,
+      definitionId: definition.id,
+      projectId: project.id,
+      status: BenchmarkRunStatus.completed,
+      mlflowRunId: "mlflow-run-005",
+      temporalWorkflowId: "temporal-wf-005",
+      workerGitSha: "git-sha-005",
+      startedAt: new Date("2026-02-15T11:00:00Z"),
+      completedAt: new Date("2026-02-15T11:40:00Z"),
+      metrics: {
+        field_accuracy: 0.88,
+        character_accuracy: 0.92,
+        word_accuracy: 0.89,
+      },
+      params: {
+        model: "experimental-model",
+        confidence_threshold: 0.75,
+      },
+      tags: {
+        environment: "test",
+        version: "v2.0-experimental",
+      },
+      isBaseline: false,
+      baselineComparison: {
+        baselineRunId: SEED_RUN_ID_COMPLETED,
+        overallPassed: false,
+        regressedMetrics: ["field_accuracy", "character_accuracy", "word_accuracy"],
+        metricComparisons: [
+          {
+            metricName: "field_accuracy",
+            currentValue: 0.88,
+            baselineValue: 0.95,
+            delta: -0.07,
+            deltaPercent: -7.37,
+            passed: false,
+            threshold: { type: "relative", value: 0.95 },
+          },
+          {
+            metricName: "character_accuracy",
+            currentValue: 0.92,
+            baselineValue: 0.98,
+            delta: -0.06,
+            deltaPercent: -6.12,
+            passed: false,
+            threshold: { type: "relative", value: 0.95 },
+          },
+          {
+            metricName: "word_accuracy",
+            currentValue: 0.89,
+            baselineValue: 0.96,
+            delta: -0.07,
+            deltaPercent: -7.29,
+            passed: false,
+            threshold: { type: "relative", value: 0.95 },
+          },
+        ],
+      },
+    },
+  });
+
   console.log("✅ Benchmarking seed data created successfully");
   console.log(`  - Dataset: ${dataset.name} (3 versions: v0.9 archived, v1.0 published, v2.0 draft)`);
   console.log(`  - Dataset: ${dataset2.name}`);
   console.log(`  - Dataset: ${dataset3.name}`);
   console.log(`  - Project: ${project.name}`);
   console.log(`  - Definition: ${definition.name}`);
-  console.log(`  - Runs: 3 (1 completed, 1 running, 1 failed)`);
+  console.log(`  - Runs: 5 (3 completed [1 baseline, 1 passing, 1 regressed], 1 running, 1 failed)`);
 }
 
 async function seedLabelingData() {

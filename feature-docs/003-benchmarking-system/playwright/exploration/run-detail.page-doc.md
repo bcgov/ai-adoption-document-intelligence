@@ -6,9 +6,14 @@
 
 ### Header Section
 - **Run Definition Name**: `[data-testid="run-definition-name"]` - Title showing definition name
+- **Baseline Badge**: `[data-testid="baseline-badge"]` - Prominent yellow badge with trophy icon showing "BASELINE" (conditional: only for baseline runs)
 - **Run ID Text**: `[data-testid="run-id-text"]` - Displays the unique run identifier
 - **Cancel Button**: `[data-testid="cancel-run-btn"]` - Cancels running/pending run (conditional)
-- **Promote Baseline Button**: `[data-testid="promote-baseline-btn"]` - Promotes completed run to baseline (conditional)
+- **Promote Baseline Button**: `[data-testid="promote-baseline-btn"]` - Opens threshold configuration dialog (conditional: only for non-baseline runs)
+  - Always visible for non-baseline runs but disabled for non-completed runs
+  - Tooltip appears on disabled button explaining: "Only completed runs can be promoted to baseline. Current status: {status}"
+  - `[data-testid="promote-baseline-tooltip"]` - Tooltip wrapper
+- **Edit Thresholds Button**: `[data-testid="edit-thresholds-btn"]` - Opens threshold editing dialog (conditional: only for baseline runs with existing thresholds)
 - **Re-run Button**: `[data-testid="rerun-btn"]` - Creates new run with same definition (conditional on completed/failed)
 - **View Regression Report Button**: `[data-testid="view-regression-report-btn"]` - Opens detailed regression analysis (conditional)
 
@@ -98,6 +103,7 @@
 - **Action Buttons**: Visibility based on run status
   - Cancel: Only for running/pending runs
   - Promote to Baseline: Only for completed non-baseline runs
+  - Edit Thresholds: Only for baseline runs with existing thresholds
   - Re-run: Only for completed/failed runs
   - View Regression Report: Only when baselineComparison exists
 

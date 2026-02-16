@@ -27,6 +27,21 @@ interface RunHistorySummary {
   completedAt: string | null;
 }
 
+interface MetricThreshold {
+  metricName: string;
+  type: "absolute" | "relative";
+  value: number;
+}
+
+interface BaselineRunSummary {
+  id: string;
+  status: string;
+  mlflowRunId: string;
+  metrics: Record<string, number>;
+  baselineThresholds: MetricThreshold[];
+  completedAt: string | null;
+}
+
 interface DefinitionSummary {
   id: string;
   name: string;
@@ -54,6 +69,7 @@ interface DefinitionDetails {
   immutable: boolean;
   revision: number;
   runHistory: RunHistorySummary[];
+  baselineRun?: BaselineRunSummary;
   scheduleEnabled: boolean;
   scheduleCron?: string;
   scheduleTimezone?: string;

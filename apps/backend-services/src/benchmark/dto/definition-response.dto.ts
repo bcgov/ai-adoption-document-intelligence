@@ -95,6 +95,44 @@ export class RunHistorySummary {
   completedAt: Date | null;
 }
 
+// Import MetricThreshold from promote-baseline.dto.ts to avoid duplication
+import type { MetricThreshold } from "./promote-baseline.dto";
+
+/**
+ * Baseline run summary for definition detail
+ */
+export class BaselineRunSummary {
+  /**
+   * Baseline run ID
+   */
+  id: string;
+
+  /**
+   * Run status
+   */
+  status: string;
+
+  /**
+   * MLflow run ID
+   */
+  mlflowRunId: string;
+
+  /**
+   * Aggregated metrics from the baseline run
+   */
+  metrics: Record<string, number>;
+
+  /**
+   * Baseline thresholds for regression detection
+   */
+  baselineThresholds: MetricThreshold[];
+
+  /**
+   * Completion timestamp
+   */
+  completedAt: Date | null;
+}
+
 /**
  * Benchmark definition response (list view)
  */
@@ -233,6 +271,11 @@ export class DefinitionDetailsDto {
    * Run history
    */
   runHistory: RunHistorySummary[];
+
+  /**
+   * Current baseline run for this definition (if any)
+   */
+  baselineRun?: BaselineRunSummary;
 
   /**
    * Creation timestamp

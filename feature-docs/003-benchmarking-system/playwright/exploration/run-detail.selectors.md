@@ -2,11 +2,14 @@
 
 ## Header Elements
 RUN_DEFINITION_NAME|[data-testid="run-definition-name"]
+BASELINE_BADGE_HEADER|[data-testid="baseline-badge"]
 RUN_ID_TEXT|[data-testid="run-id-text"]
 
 ## Action Buttons
 CANCEL_RUN_BTN|[data-testid="cancel-run-btn"]
 PROMOTE_BASELINE_BTN|[data-testid="promote-baseline-btn"]
+PROMOTE_BASELINE_TOOLTIP|[data-testid="promote-baseline-tooltip"]
+EDIT_THRESHOLDS_BTN|[data-testid="edit-thresholds-btn"]
 RERUN_BTN|[data-testid="rerun-btn"]
 VIEW_REGRESSION_REPORT_BTN|[data-testid="view-regression-report-btn"]
 

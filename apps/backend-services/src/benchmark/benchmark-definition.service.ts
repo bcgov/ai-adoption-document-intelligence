@@ -20,10 +20,12 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { getPrismaPgOptions } from "@/utils/database-url";
 import { computeConfigHash } from "@/workflow/config-hash";
 import {
+  BaselineRunSummary,
   CreateDefinitionDto,
   DatasetVersionInfo,
   DefinitionDetailsDto,
   DefinitionSummaryDto,
+  MetricThreshold,
   RunHistorySummary,
   ScheduleConfigDto,
   ScheduleInfoDto,
@@ -265,7 +267,23 @@ export class BenchmarkDefinitionService {
       );
     }
 
-    return this.mapToDefinitionDetails(definition);
+    // Fetch baseline run separately if it exists
+    const baselineRun = await this.prisma.benchmarkRun.findFirst({
+      where: {
+        definitionId,
+        isBaseline: true,
+      },
+      select: {
+        id: true,
+        status: true,
+        mlflowRunId: true,
+        metrics: true,
+        baselineThresholds: true,
+        completedAt: true,
+      },
+    });
+
+    return this.mapToDefinitionDetails(definition, baselineRun);
   }
 
   /**
@@ -537,47 +555,57 @@ export class BenchmarkDefinitionService {
   /**
    * Map Prisma result to DefinitionDetailsDto
    */
-  private mapToDefinitionDetails(definition: {
-    id: string;
-    projectId: string;
-    name: string;
-    workflowConfigHash: string;
-    evaluatorType: string;
-    evaluatorConfig: unknown;
-    runtimeSettings: unknown;
-    artifactPolicy: unknown;
-    immutable: boolean;
-    revision: number;
-    scheduleEnabled: boolean;
-    scheduleCron: string | null;
-    scheduleId: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-    datasetVersion: {
+  private mapToDefinitionDetails(
+    definition: {
       id: string;
-      version: string;
-      dataset: {
-        name: string;
+      projectId: string;
+      name: string;
+      workflowConfigHash: string;
+      evaluatorType: string;
+      evaluatorConfig: unknown;
+      runtimeSettings: unknown;
+      artifactPolicy: unknown;
+      immutable: boolean;
+      revision: number;
+      scheduleEnabled: boolean;
+      scheduleCron: string | null;
+      scheduleId: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+      datasetVersion: {
+        id: string;
+        version: string;
+        dataset: {
+          name: string;
+        };
       };
-    };
-    split: {
-      id: string;
-      name: string;
-      type: string;
-    };
-    workflow: {
-      id: string;
-      name: string;
-      version: number;
-    };
-    benchmarkRuns: Array<{
+      split: {
+        id: string;
+        name: string;
+        type: string;
+      };
+      workflow: {
+        id: string;
+        name: string;
+        version: number;
+      };
+      benchmarkRuns: Array<{
+        id: string;
+        status: string;
+        mlflowRunId: string;
+        startedAt: Date | null;
+        completedAt: Date | null;
+      }>;
+    },
+    baselineRun?: {
       id: string;
       status: string;
       mlflowRunId: string;
-      startedAt: Date | null;
+      metrics: unknown;
+      baselineThresholds: unknown;
       completedAt: Date | null;
-    }>;
-  }): DefinitionDetailsDto {
+    } | null,
+  ): DefinitionDetailsDto {
     const datasetVersion: DatasetVersionInfo = {
       id: definition.datasetVersion.id,
       datasetName: definition.datasetVersion.dataset.name,
@@ -606,6 +634,26 @@ export class BenchmarkDefinitionService {
       }),
     );
 
+    // Map baseline run if it exists
+    let baselineRunSummary: BaselineRunSummary | undefined;
+    if (baselineRun) {
+      const metrics = baselineRun.metrics as Record<string, number>;
+      const thresholds = baselineRun.baselineThresholds as Array<{
+        metricName: string;
+        type: "relative" | "absolute";
+        value: number;
+      }>;
+
+      baselineRunSummary = {
+        id: baselineRun.id,
+        status: baselineRun.status,
+        mlflowRunId: baselineRun.mlflowRunId,
+        metrics,
+        baselineThresholds: thresholds,
+        completedAt: baselineRun.completedAt,
+      };
+    }
+
     return {
       id: definition.id,
       projectId: definition.projectId,
@@ -624,6 +672,7 @@ export class BenchmarkDefinitionService {
       scheduleCron: definition.scheduleCron ?? undefined,
       scheduleId: definition.scheduleId ?? undefined,
       runHistory,
+      baselineRun: baselineRunSummary,
       createdAt: definition.createdAt,
       updatedAt: definition.updatedAt,
     };

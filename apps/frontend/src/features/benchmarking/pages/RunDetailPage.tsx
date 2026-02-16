@@ -13,6 +13,7 @@ import {
   Table,
   Text,
   Title,
+  Tooltip,
 } from "@mantine/core";
 import {
   IconAlertCircle,
@@ -24,6 +25,7 @@ import {
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArtifactViewer } from "../components/ArtifactViewer";
+import { BaselineThresholdDialog } from "../components/BaselineThresholdDialog";
 import { useProject } from "../hooks/useProjects";
 import {
   useArtifacts,
@@ -89,6 +91,8 @@ export function RunDetailPage() {
     mimeType: string;
     createdAt: string;
   } | null>(null);
+  const [thresholdDialogOpened, setThresholdDialogOpened] = useState(false);
+  const [isEditingThresholds, setIsEditingThresholds] = useState(false);
 
   // Enable polling for non-terminal states
   const { run, isLoading, cancelRun, isCancelling } = useRun(
@@ -122,7 +126,27 @@ export function RunDetailPage() {
   };
 
   const handlePromoteBaseline = () => {
-    promoteToBaseline({});
+    setIsEditingThresholds(false);
+    setThresholdDialogOpened(true);
+  };
+
+  const handleEditThresholds = () => {
+    setIsEditingThresholds(true);
+    setThresholdDialogOpened(true);
+  };
+
+  const handleThresholdSubmit = (
+    thresholds: Array<{ metricName: string; type: "absolute" | "relative"; value: number }>
+  ) => {
+    promoteToBaseline(
+      { thresholds },
+      {
+        onSuccess: () => {
+          setThresholdDialogOpened(false);
+          setIsEditingThresholds(false);
+        },
+      }
+    );
   };
 
   if (isLoading) {
@@ -143,7 +167,7 @@ export function RunDetailPage() {
 
   const canCancel = run.status === "running" || run.status === "pending";
   const canRerun = run.status === "completed" || run.status === "failed";
-  const canPromoteBaseline = run.status === "completed" && !run.isBaseline;
+  const canEditThresholds = run.isBaseline && run.baselineThresholds && run.baselineThresholds.length > 0;
   const temporalUrl = `http://localhost:8088/namespaces/default/workflows/${run.temporalWorkflowId}`;
   const mlflowUrl = project?.mlflowExperimentId
     ? `http://localhost:5000/#/experiments/${project.mlflowExperimentId}/runs/${run.mlflowRunId}`
@@ -166,9 +190,22 @@ export function RunDetailPage() {
       <Stack gap={2}>
         <Group justify="space-between">
           <div>
-            <Title order={2} data-testid="run-definition-name">
-              {run.definitionName}
-            </Title>
+            <Group gap="sm" align="center">
+              <Title order={2} data-testid="run-definition-name">
+                {run.definitionName}
+              </Title>
+              {run.isBaseline && (
+                <Badge
+                  size="lg"
+                  color="yellow"
+                  variant="filled"
+                  leftSection={<IconTrophy size={14} />}
+                  data-testid="baseline-badge"
+                >
+                  BASELINE
+                </Badge>
+              )}
+            </Group>
             <Text c="dimmed" size="sm" data-testid="run-id-text">
               Run ID: {run.id}
             </Text>
@@ -185,15 +222,38 @@ export function RunDetailPage() {
                 Cancel
               </Button>
             )}
-            {canPromoteBaseline && (
+            {!run.isBaseline && (
+              <Tooltip
+                label={
+                  run.status !== "completed"
+                    ? `Only completed runs can be promoted to baseline. Current status: ${run.status}`
+                    : ""
+                }
+                disabled={run.status === "completed"}
+                data-testid="promote-baseline-tooltip"
+              >
+                <Button
+                  color="yellow"
+                  leftSection={<IconTrophy size={16} />}
+                  onClick={handlePromoteBaseline}
+                  loading={isPromoting}
+                  disabled={run.status !== "completed"}
+                  data-testid="promote-baseline-btn"
+                >
+                  Promote to Baseline
+                </Button>
+              </Tooltip>
+            )}
+            {canEditThresholds && (
               <Button
+                variant="light"
                 color="yellow"
                 leftSection={<IconTrophy size={16} />}
-                onClick={handlePromoteBaseline}
+                onClick={handleEditThresholds}
                 loading={isPromoting}
-                data-testid="promote-baseline-btn"
+                data-testid="edit-thresholds-btn"
               >
-                Promote to Baseline
+                Edit Thresholds
               </Button>
             )}
             {canRerun && (
@@ -708,6 +768,22 @@ export function RunDetailPage() {
         mlflowRunId={run?.mlflowRunId}
         onClose={() => setSelectedArtifact(null)}
       />
+
+      {/* Baseline Threshold Dialog */}
+      {run.metrics && (
+        <BaselineThresholdDialog
+          opened={thresholdDialogOpened}
+          onClose={() => {
+            setThresholdDialogOpened(false);
+            setIsEditingThresholds(false);
+          }}
+          metrics={(run.metrics as Record<string, number>)}
+          onSubmit={handleThresholdSubmit}
+          isPromoting={isPromoting}
+          existingThresholds={isEditingThresholds ? run.baselineThresholds || undefined : undefined}
+          isEditing={isEditingThresholds}
+        />
+      )}
     </Stack>
   );
 }

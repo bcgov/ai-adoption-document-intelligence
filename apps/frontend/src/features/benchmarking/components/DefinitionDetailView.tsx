@@ -6,6 +6,7 @@ import {
   Group,
   Stack,
   Table,
+  Text,
   Title,
 } from "@mantine/core";
 import { IconPlayerPlay } from "@tabler/icons-react";
@@ -39,6 +40,21 @@ interface RunHistorySummary {
   completedAt: string | null;
 }
 
+interface MetricThreshold {
+  metricName: string;
+  type: "absolute" | "relative";
+  value: number;
+}
+
+interface BaselineRunSummary {
+  id: string;
+  status: string;
+  mlflowRunId: string;
+  metrics: Record<string, number>;
+  baselineThresholds: MetricThreshold[];
+  completedAt: string | null;
+}
+
 interface DefinitionDetails {
   id: string;
   projectId: string;
@@ -57,6 +73,7 @@ interface DefinitionDetails {
   scheduleCron?: string;
   scheduleId?: string;
   runHistory: RunHistorySummary[];
+  baselineRun?: BaselineRunSummary;
   createdAt: string;
   updatedAt: string;
 }
@@ -157,6 +174,129 @@ export function DefinitionDetailView({
           </Table>
         </Stack>
       </Card>
+
+      {definition.baselineRun && (
+        <Card data-testid="baseline-info-card">
+          <Stack gap="md">
+            <Stack gap="xs">
+              <Group justify="space-between">
+                <Title order={4} data-testid="baseline-info-heading">
+                  Current Baseline
+                </Title>
+                <Button
+                  variant="light"
+                  size="sm"
+                  onClick={() =>
+                    navigate(
+                      `/benchmarking/projects/${definition.projectId}/runs/${definition.baselineRun!.id}`,
+                    )
+                  }
+                  data-testid="view-baseline-run-btn"
+                >
+                  View Baseline Run
+                </Button>
+              </Group>
+              <Text size="sm" c="dimmed" data-testid="baseline-promoted-info">
+                Promoted on{" "}
+                {definition.baselineRun.completedAt
+                  ? new Date(definition.baselineRun.completedAt).toLocaleString()
+                  : "unknown date"}
+                . For complete baseline change history, check audit logs for <Code>baseline_promoted</Code> events.
+              </Text>
+            </Stack>
+
+            <Table data-testid="baseline-info-table">
+              <Table.Tbody>
+                <Table.Tr>
+                  <Table.Td fw={500}>Run ID</Table.Td>
+                  <Table.Td>
+                    <Code data-testid="baseline-run-id">
+                      {definition.baselineRun.id.substring(0, 12)}...
+                    </Code>
+                  </Table.Td>
+                </Table.Tr>
+                <Table.Tr>
+                  <Table.Td fw={500}>Status</Table.Td>
+                  <Table.Td>
+                    <Badge
+                      color={getStatusBadgeColor(definition.baselineRun.status)}
+                      data-testid="baseline-status-badge"
+                    >
+                      {definition.baselineRun.status}
+                    </Badge>
+                  </Table.Td>
+                </Table.Tr>
+                <Table.Tr>
+                  <Table.Td fw={500}>Completed At</Table.Td>
+                  <Table.Td data-testid="baseline-completed-at">
+                    {definition.baselineRun.completedAt
+                      ? new Date(definition.baselineRun.completedAt).toLocaleString()
+                      : "—"}
+                  </Table.Td>
+                </Table.Tr>
+              </Table.Tbody>
+            </Table>
+
+            <Stack gap="xs">
+              <Title order={5} data-testid="baseline-metrics-heading">
+                Key Metrics
+              </Title>
+              <Table striped data-testid="baseline-metrics-table">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Metric</Table.Th>
+                    <Table.Th>Value</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {Object.entries(definition.baselineRun.metrics).map(([key, value]) => (
+                    <Table.Tr key={key}>
+                      <Table.Td>{key}</Table.Td>
+                      <Table.Td>
+                        <Code>{value.toFixed(4)}</Code>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Stack>
+
+            <Stack gap="xs">
+              <Title order={5} data-testid="baseline-thresholds-heading">
+                Regression Thresholds
+              </Title>
+              <Table striped data-testid="baseline-thresholds-table">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Metric</Table.Th>
+                    <Table.Th>Type</Table.Th>
+                    <Table.Th>Threshold</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {definition.baselineRun.baselineThresholds.map((threshold) => (
+                    <Table.Tr key={threshold.metricName}>
+                      <Table.Td>{threshold.metricName}</Table.Td>
+                      <Table.Td>
+                        <Badge variant="light" data-testid={`threshold-type-${threshold.metricName}`}>
+                          {threshold.type === "relative" ? "Relative (%)" : "Absolute"}
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td>
+                        <Code data-testid={`threshold-value-${threshold.metricName}`}>
+                          {threshold.type === "relative"
+                            ? `${(threshold.value * 100).toFixed(0)}%`
+                            : threshold.value.toFixed(4)}
+                        </Code>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Stack>
+          </Stack>
+        </Card>
+      )}
 
       <Card>
         <Stack gap="md">
