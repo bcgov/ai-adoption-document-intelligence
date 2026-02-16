@@ -44,10 +44,10 @@ test.describe('Dataset List & Create UI', () => {
 
     // Then: Table is displayed with columns: name, description, version count, created date
     await expect(datasetsPage.datasetsTable).toBeVisible();
-    await expect(page.getByText('Name')).toBeVisible();
-    await expect(page.getByText('Description')).toBeVisible();
-    await expect(page.getByText('Version Count')).toBeVisible();
-    await expect(page.getByText('Created Date')).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Description' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Version Count' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Created Date' })).toBeVisible();
 
     // And: All dataset data is correctly displayed
     const seedDatasetRow = datasetsPage.getDatasetRow(SEED_DATASET_ID);
@@ -316,11 +316,11 @@ test.describe('Dataset List & Create UI', () => {
 
     const uniqueName = `Remote Dataset ${Date.now()}`;
 
-    // When: User enters repositoryUrl as https://github.com/org/datasets.git and submits
+    // When: User enters repositoryUrl as file:// URL and submits
     await datasetsPage.createDataset({
       name: uniqueName,
       description: 'Dataset with remote repository',
-      repositoryUrl: 'https://github.com/org/datasets.git',
+      repositoryUrl: 'file://~/test-datasets/remote-test',
     });
 
     // Then: Dataset is created successfully

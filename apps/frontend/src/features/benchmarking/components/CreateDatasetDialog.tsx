@@ -7,7 +7,7 @@ import {
   Textarea,
   TextInput,
 } from "@mantine/core";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface CreateDatasetDialogProps {
   opened: boolean;
@@ -35,6 +35,7 @@ export function CreateDatasetDialog({
   const [metadata, setMetadata] = useState<Record<string, string>>({});
   const [nameError, setNameError] = useState("");
   const [repositoryUrlError, setRepositoryUrlError] = useState("");
+  const wasCreating = useRef(false);
 
   const handleClose = () => {
     setName("");
@@ -47,6 +48,24 @@ export function CreateDatasetDialog({
     setRepositoryUrlError("");
     onClose();
   };
+
+  // Close dialog when mutation completes successfully
+  useEffect(() => {
+    if (wasCreating.current && !isCreating) {
+      // Clear form state
+      setName("");
+      setDescription("");
+      setRepositoryUrl("");
+      setMetadataKey("");
+      setMetadataValue("");
+      setMetadata({});
+      setNameError("");
+      setRepositoryUrlError("");
+      // Close dialog
+      onClose();
+    }
+    wasCreating.current = isCreating;
+  }, [isCreating, onClose]);
 
   const handleAddMetadata = () => {
     if (metadataKey.trim() && metadataValue.trim()) {
@@ -90,7 +109,7 @@ export function CreateDatasetDialog({
       repositoryUrl: repositoryUrl.trim(),
     });
 
-    handleClose();
+    // Don't close immediately - let the useEffect handle closing after mutation succeeds
   };
 
   return (
@@ -115,6 +134,7 @@ export function CreateDatasetDialog({
           error={nameError}
           required
           data-testid="dataset-name-input"
+          data-autofocus
         />
 
         <Textarea
