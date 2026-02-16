@@ -38,12 +38,18 @@ Example: `feature-docs/003-benchmarking-system/playwright/test-fixer-progress.md
 # Test Fixer Progress
 
 ## Test Files
-- [ ] dataset-list-create.spec.ts
+- [ ] dataset-list-create.spec.ts (⏭️ Has skipped tests)
 - [x] results-metrics.spec.ts (✅ Passed)
-- [ ] validation-errors.spec.ts (🔧 In Progress - Attempt 3/10)
+- [ ] validation-errors.spec.ts (🔧 In Progress - Attempt 3/10 - Unskipped, implementing features)
 - [x] baseline-ui-display.spec.ts (✅ Passed)
 
 ```
+
+**Status Indicators:**
+- `⏭️ Has skipped tests` - Test file contains `.skip()` directives
+- `🔧 In Progress` - Currently working on this test
+- `✅ Passed` - Test passed successfully
+- `Unskipped, implementing features` - Removed .skip() and implementing missing functionality
 
 
 ## Database Management
@@ -76,8 +82,10 @@ npm run db:seed
 
 **First time or if tracking file doesn't exist:**
 1. Find all `*.spec.ts` files in `tests/e2e/{folder}/`
-2. Create tracking file at `{feature-dir}/playwright/test-fixer-progress.md`
-3. List all test files with `[ ]` checkboxes
+2. Scan each test file for skipped tests (`.skip()` or `test.skip()` or `describe.skip()`)
+3. Create tracking file at `{feature-dir}/playwright/test-fixer-progress.md`
+4. List all test files with `[ ]` checkboxes
+5. Mark files with skipped tests: `[ ] file.spec.ts (⏭️ Has skipped tests)`
 
 **If tracking file exists:**
 1. Read existing progress
@@ -93,14 +101,34 @@ Mark file as in progress:
 - [ ] dataset-list-create.spec.ts (🔧 In Progress - Attempt 1/10)
 ```
 
-#### 2b. Run Test
+#### 2b. Handle Skipped Tests
+
+**Before running the test**, check if the file contains skipped tests:
+- Search for `.skip()`, `test.skip()`, `describe.skip()`, or `it.skip()`
+- If found:
+  1. **Remove ALL skip directives** from the test file
+  2. **Read requirements and user stories** to understand what features need to be implemented
+  3. **Identify missing implementation** (frontend components, backend endpoints, database models, etc.)
+  4. **Implement the missing features** step by step
+  5. Continue to test run phase
+
+**Why tests are skipped:**
+- Missing features not yet implemented
+- Incomplete backend endpoints
+- Missing database schema
+- Incomplete UI components
+- External dependencies not available
+
+**Your job**: Implement whatever is needed to make the test pass legitimately.
+
+#### 2c. Run Test
 ```bash
 npm run test:file tests/e2e/benchmarking/dataset-list-create.spec.ts
 ```
 
 **Note**: Database is automatically reset by globalSetup before tests run.
 
-#### 2c. Analyze Result
+#### 2d. Analyze Result
 
 **If test passes:**
 - Mark as passed: `[x] dataset-list-create.spec.ts (✅ Passed)`
@@ -121,6 +149,18 @@ Parse test output for:
 - Navigation issues
 - Authentication errors
 - Missing test data
+- Missing API endpoints (404, 500 errors)
+- Database constraint violations
+- Missing UI components or routes
+
+**Special Case - Unskipped Tests:**
+If a test was just unskipped, failures are likely due to:
+- Missing backend endpoints that need to be created
+- Missing database tables/columns that need migration
+- Missing UI components that need to be built
+- Incomplete feature implementation
+
+In these cases, implement the missing pieces rather than just fixing selectors or timing.
 
 ### 4. Apply Fixes
 
@@ -142,6 +182,14 @@ Parse test output for:
 **Decision Tree: What to Fix?**
 
 ```
+Test was skipped → Check requirements
+    ↓
+    REMOVE .skip() → Identify missing features
+    ↓
+    IMPLEMENT MISSING FEATURES (backend API, frontend UI, database schema, etc.)
+    ↓
+    Run test
+
 Test fails → Check requirements
     ↓
 Does implementation match requirements?
@@ -164,25 +212,74 @@ When fixing implementation (not just tests):
 
 Read the relevant implementation files and modify them to match requirements.
 
-### 6. Re-run Test
+### 6. Implementing Missing Features (For Skipped Tests)
+
+When a test was skipped due to missing implementation, follow this systematic approach:
+
+#### Step 1: Understand Requirements
+1. Read `{feature-dir}/requirements.md` thoroughly
+2. Read relevant user stories in `{feature-dir}/user-stories/`
+3. Understand the full feature scope and acceptance criteria
+
+#### Step 2: Identify Missing Pieces
+Analyze what the test expects and determine what's missing:
+- **Database**: Missing tables, columns, or relationships?
+- **Backend**: Missing API endpoints, services, or validation?
+- **Frontend**: Missing UI components, forms, or pages?
+- **Integration**: Missing data flow between layers?
+
+#### Step 3: Implement Bottom-Up (Database → Backend → Frontend)
+
+**Database Layer (if needed):**
+1. Update Prisma schema in `apps/shared/prisma/schema.prisma`
+2. Create migration: `cd apps/backend-services && npx prisma migrate dev --name feature_name`
+3. Run `npm run db:generate` from `apps/backend-services`
+4. Update seed data if needed in `apps/backend-services/prisma/seed.ts`
+
+**Backend Layer (if needed):**
+1. Create/update DTOs in `apps/backend-services/src/*/dto/`
+2. Create/update services in `apps/backend-services/src/*/services/`
+3. Create/update controllers in `apps/backend-services/src/*/controllers/`
+4. **Create/update tests** in `apps/backend-services/src/*/*.spec.ts`
+5. Run backend tests: `cd apps/backend-services && npm test`
+
+**Frontend Layer (if needed):**
+1. Create/update API client calls
+2. Create/update React components in `apps/frontend/src/components/`
+3. Create/update pages in `apps/frontend/src/pages/`
+4. Update routing if needed
+5. Ensure proper TypeScript types
+
+#### Step 4: Verify Integration
+1. Start the full stack locally if needed
+2. Manually test the feature flow
+3. Verify the E2E test can now run
+
+**IMPORTANT**: Do NOT skip this test again. The goal is to make it pass legitimately.
+
+### 7. Re-run Test
 
 Follow this iterative process:
 
-1. **Run failing test**: `npm run test:file path/to/test.spec.ts` (DB auto-resets)
-2. **Identify root cause** from error message and test output
-3. **Apply fix** (update test, add seed data, fix implementation, etc.)
+1. **Run test**: `npm run test:file path/to/test.spec.ts` (DB auto-resets)
+2. **If it fails**, identify root cause from error message and test output
+3. **Apply fix** (implement missing features, update test, add seed data, fix implementation, etc.)
 4. **Increment attempt** in progress file
 5. **Re-run test** to verify fix
+6. **Repeat until test passes** (up to 10 attempts per test file)
 
 ## Critical Rules for Corrections
 
-1. **ALWAYS** check requirements.md and user stories BEFORE making any fix
-2. **FIX IMPLEMENTATION** when it doesn't match requirements - don't just change the test
-3. **FIX TEST** when the test expectation is incorrect or outdated
-4. **NEVER** make a test pass by removing assertions or changing expectations without verifying requirements
-5. When fixing implementation code, ensure the fix aligns with requirements and user stories
-6. Document non-obvious fixes with comments explaining the requirement being satisfied
-7. **UPDATE PROGRESS FILE** after each attempt/completion
+1. **SKIPPED TESTS**: When encountering `.skip()`, remove it and implement the missing features - never leave tests skipped
+2. **ALWAYS** check requirements.md and user stories BEFORE making any fix
+3. **FIX IMPLEMENTATION** when it doesn't match requirements - don't just change the test
+4. **FIX TEST** when the test expectation is incorrect or outdated
+5. **NEVER** make a test pass by removing assertions or changing expectations without verifying requirements
+6. **NEVER** skip a test as a "fix" - if a test was skipped, your job is to make it pass
+7. When fixing implementation code, ensure the fix aligns with requirements and user stories
+8. When implementing missing features for skipped tests, follow the full implementation stack (DB → Backend → Frontend)
+9. Document non-obvious fixes with comments explaining the requirement being satisfied
+10. **UPDATE PROGRESS FILE** after each attempt/completion
 
 
 ## Debugging Tips Integration
@@ -217,10 +314,13 @@ page.on('response', response => {
 
 # Skill execution:
 # 1. Find test files in tests/e2e/benchmarking/
-# 2. Create/read progress tracking file
-# 3. For each test file (in alphabetical order):
+# 2. Scan for skipped tests in each file
+# 3. Create/read progress tracking file
+# 4. For each test file (in alphabetical order):
 #    a. Mark as in progress
-#    b. Run: npm run test:file tests/e2e/benchmarking/[filename]
-#    c. If fails: analyze, fix, re-run (up to 10 times)
-#    d. Update progress: passed or failed
+#    b. Check for .skip() directives - remove if found
+#    c. If was skipped: implement missing features per requirements
+#    d. Run: npm run test:file tests/e2e/benchmarking/[filename]
+#    e. If fails: analyze, fix, re-run (up to 10 times)
+#    f. Update progress: passed or failed
 ```
