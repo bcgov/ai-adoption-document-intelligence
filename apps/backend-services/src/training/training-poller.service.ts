@@ -89,8 +89,7 @@ export class TrainingPollerService {
 
     try {
       // Find all jobs that are actively training
-      // Access Prisma client through DatabaseService private property
-      const prisma = this.db["prisma"];
+      const prisma = this.db.prisma;
       if (!prisma) {
         this.logger.error("Prisma client not available");
         return;
