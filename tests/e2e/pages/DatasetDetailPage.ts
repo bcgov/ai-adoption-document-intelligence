@@ -232,4 +232,15 @@ export class DatasetDetailPage {
     // Wait for upload to complete
     await this.uploadSuccessMessage.waitFor({ state: 'visible' });
   }
+
+  /**
+   * Trigger validation for a dataset version
+   * @param versionId - The ID of the version to validate
+   */
+  async triggerValidation(versionId: string) {
+    await this.getVersionActionsBtn(versionId).click();
+    const menuItem = this.getVersionActionMenuItem(versionId, 'validate');
+    await menuItem.waitFor({ state: 'visible' });
+    await menuItem.click();
+  }
 }
