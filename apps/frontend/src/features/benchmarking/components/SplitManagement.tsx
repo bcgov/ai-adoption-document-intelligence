@@ -58,20 +58,21 @@ export function SplitManagement({
   }
 
   return (
-    <Stack gap="md">
+    <Stack gap="md" data-testid="split-management-container">
       <Group justify="space-between">
-        <Title order={3}>Dataset Splits</Title>
+        <Title order={3} data-testid="splits-title">Dataset Splits</Title>
         <Button
           leftSection={<IconPlus size={16} />}
           onClick={() => setCreateDialogOpen(true)}
+          data-testid="create-split-btn"
         >
           Create Split
         </Button>
       </Group>
 
       {splits && splits.length > 0 ? (
-        <Card withBorder>
-          <Table striped highlightOnHover>
+        <Card withBorder data-testid="splits-table-card">
+          <Table striped highlightOnHover data-testid="splits-table">
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Name</Table.Th>
@@ -84,8 +85,8 @@ export function SplitManagement({
             </Table.Thead>
             <Table.Tbody>
               {splits.map((split: Split) => (
-                <Table.Tr key={split.id}>
-                  <Table.Td>{split.name}</Table.Td>
+                <Table.Tr key={split.id} data-testid={`split-row-${split.id}`}>
+                  <Table.Td data-testid={`split-name-${split.id}`}>{split.name}</Table.Td>
                   <Table.Td>
                     <Badge
                       color={
@@ -97,17 +98,21 @@ export function SplitManagement({
                               ? "grape"
                               : "yellow"
                       }
+                      data-testid={`split-type-badge-${split.id}`}
                     >
                       {split.type}
                     </Badge>
                   </Table.Td>
-                  <Table.Td>{split.sampleCount}</Table.Td>
+                  <Table.Td data-testid={`split-sample-count-${split.id}`}>{split.sampleCount}</Table.Td>
                   <Table.Td>
-                    <Badge color={split.frozen ? "gray" : "green"}>
+                    <Badge
+                      color={split.frozen ? "gray" : "green"}
+                      data-testid={`split-status-badge-${split.id}`}
+                    >
                       {split.frozen ? "Frozen" : "Editable"}
                     </Badge>
                   </Table.Td>
-                  <Table.Td>
+                  <Table.Td data-testid={`split-created-${split.id}`}>
                     {new Date(split.createdAt).toLocaleDateString()}
                   </Table.Td>
                   <Table.Td>
@@ -117,6 +122,7 @@ export function SplitManagement({
                           size="xs"
                           variant="light"
                           onClick={() => setEditingSplit(split)}
+                          data-testid={`edit-split-btn-${split.id}`}
                         >
                           Edit
                         </Button>
@@ -136,13 +142,14 @@ export function SplitManagement({
           </Table>
         </Card>
       ) : (
-        <Card withBorder>
+        <Card withBorder data-testid="splits-empty-state">
           <Stack align="center" gap="md" py="xl">
             <IconLockOpen size={48} style={{ opacity: 0.5 }} />
-            <Text c="dimmed">No splits defined yet</Text>
+            <Text c="dimmed" data-testid="no-splits-message">No splits defined yet</Text>
             <Button
               leftSection={<IconPlus size={16} />}
               onClick={() => setCreateDialogOpen(true)}
+              data-testid="create-first-split-btn"
             >
               Create First Split
             </Button>
@@ -228,7 +235,13 @@ function CreateSplitDialog({
   };
 
   return (
-    <Modal opened={open} onClose={onClose} title="Create Split" size="lg">
+    <Modal
+      opened={open}
+      onClose={onClose}
+      title="Create Split"
+      size="lg"
+      data-testid="create-split-dialog"
+    >
       <Stack gap="md">
         <TextInput
           label="Split Name"
@@ -240,6 +253,7 @@ function CreateSplitDialog({
           }}
           error={error && !name.trim() ? error : ""}
           required
+          data-testid="split-name-input"
         />
 
         <Select
@@ -253,6 +267,7 @@ function CreateSplitDialog({
             { value: "golden", label: "Golden Regression" },
           ]}
           required
+          data-testid="split-type-select"
         />
 
         <MultiSelect
@@ -268,23 +283,32 @@ function CreateSplitDialog({
               : ""
           }
           required
+          data-testid="split-samples-multiselect"
         />
 
-        <Text size="sm" c="dimmed">
+        <Text size="sm" c="dimmed" data-testid="selected-samples-count">
           Selected {selectedSampleIds.length} of {samples.length} samples
         </Text>
 
         {error && !(!name.trim() || selectedSampleIds.length === 0) && (
-          <Text c="red" size="sm">
+          <Text c="red" size="sm" data-testid="create-split-error">
             {error}
           </Text>
         )}
 
         <Group justify="flex-end" gap="sm">
-          <Button variant="subtle" onClick={onClose}>
+          <Button
+            variant="subtle"
+            onClick={onClose}
+            data-testid="create-split-cancel-btn"
+          >
             Cancel
           </Button>
-          <Button onClick={handleCreate} loading={createMutation.isPending}>
+          <Button
+            onClick={handleCreate}
+            loading={createMutation.isPending}
+            data-testid="create-split-submit-btn"
+          >
             Create Split
           </Button>
         </Group>
@@ -351,6 +375,7 @@ function EditSplitDialog({
       onClose={onClose}
       title={`Edit Split: ${split.name}`}
       size="lg"
+      data-testid="edit-split-dialog"
     >
       <Stack gap="md">
         <Group>
@@ -364,10 +389,11 @@ function EditSplitDialog({
                     ? "grape"
                     : "yellow"
             }
+            data-testid="edit-split-type-badge"
           >
             {split.type}
           </Badge>
-          <Text size="sm" c="dimmed">
+          <Text size="sm" c="dimmed" data-testid="edit-split-current-count">
             Current: {split.sampleCount} samples
           </Text>
         </Group>
@@ -385,23 +411,32 @@ function EditSplitDialog({
               : ""
           }
           required
+          data-testid="edit-split-samples-multiselect"
         />
 
-        <Text size="sm" c="dimmed">
+        <Text size="sm" c="dimmed" data-testid="edit-split-selected-count">
           Selected {selectedSampleIds.length} of {samples.length} samples
         </Text>
 
         {error && selectedSampleIds.length > 0 && (
-          <Text c="red" size="sm">
+          <Text c="red" size="sm" data-testid="edit-split-error">
             {error}
           </Text>
         )}
 
         <Group justify="flex-end" gap="sm">
-          <Button variant="subtle" onClick={onClose}>
+          <Button
+            variant="subtle"
+            onClick={onClose}
+            data-testid="edit-split-cancel-btn"
+          >
             Cancel
           </Button>
-          <Button onClick={handleUpdate} loading={updateMutation.isPending}>
+          <Button
+            onClick={handleUpdate}
+            loading={updateMutation.isPending}
+            data-testid="edit-split-submit-btn"
+          >
             Update Split
           </Button>
         </Group>
@@ -437,6 +472,7 @@ function FreezeButton({ datasetId, versionId, splitId }: FreezeButtonProps) {
       leftSection={<IconLock size={14} />}
       onClick={handleFreeze}
       loading={freezeMutation.isPending}
+      data-testid={`freeze-split-btn-${splitId}`}
     >
       Freeze
     </Button>

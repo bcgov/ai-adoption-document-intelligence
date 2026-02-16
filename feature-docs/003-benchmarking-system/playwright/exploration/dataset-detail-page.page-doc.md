@@ -86,6 +86,63 @@
 - **To**: Splits Management → Click "Splits" tab after selecting version
 - **To**: Upload Dialog → Click "Upload Files" button
 
+### Validation Dialog
+Triggered by clicking "Validate" in the version actions menu:
+
+#### Dialog Structure
+- **Dialog**: Modal dialog with title "Dataset Validation Report" and xl size
+- **Loading State**: Center-aligned loader shown while validation is running
+- **No Results Message**: "No validation results available" - shown when validation fails or hasn't run yet
+
+#### Validation Report Component
+Displayed when validation completes successfully:
+
+**Overall Status Card**:
+- **Status Card**: `[data-testid="validation-status-card"]` - card with border
+- **Result Title**: `[data-testid="validation-result-title"]` - h4 heading "Validation Result"
+- **Sample Info**: `[data-testid="validation-sample-info"]` - dimmed text showing "Sampled N of M samples" (only if sampled validation)
+- **Status Badge**: `[data-testid="validation-status-badge"]` - large badge with icon
+  - Valid: green badge with checkmark icon, text "Valid"
+  - Invalid: red badge with X icon, text "Invalid"
+
+**Issue Summary Table**:
+- **Summary Card**: `[data-testid="validation-issue-summary-card"]` - card with border
+- **Summary Title**: `[data-testid="issue-summary-title"]` - h5 heading "Issue Summary"
+- **Summary Table**: `[data-testid="issue-summary-table"]` - striped table with hover highlighting
+  - **Schema Violations Row**: `[data-testid="schema-violations-row"]`
+    - Count Badge: `[data-testid="schema-violations-count"]` - red if >0, gray if 0
+  - **Missing Ground Truth Row**: `[data-testid="missing-ground-truth-row"]`
+    - Count Badge: `[data-testid="missing-ground-truth-count"]` - red if >0, gray if 0
+  - **Duplicates Row**: `[data-testid="duplicates-row"]`
+    - Count Badge: `[data-testid="duplicates-count"]` - yellow if >0, gray if 0
+  - **Corruption Row**: `[data-testid="corruption-row"]`
+    - Count Badge: `[data-testid="corruption-count"]` - red if >0, gray if 0
+  - **Total Issues Row**: `[data-testid="total-issues-row"]`
+    - Count Badge: `[data-testid="total-issues-count"]` - red if >0, green if 0
+
+**Detailed Issues List** (shown only when issues exist):
+- **Detailed Issues Card**: `[data-testid="validation-detailed-issues-card"]` - card with border
+- **Detailed Issues Title**: `[data-testid="detailed-issues-title"]` - h5 heading "Detailed Issues"
+- **Issues List**: `[data-testid="issues-list"]` - stack container with small gap
+- **Issue Card**: `[data-testid="issue-card-{index}"]` - individual issue card with border
+  - **Sample ID**: `[data-testid="issue-sample-id-{index}"]` - bold text showing sample identifier
+  - **Category Badge**: `[data-testid="issue-category-{index}"]` - small badge showing category
+    - Categories: "Schema Violation" (red), "Missing Ground Truth" (orange), "Duplicate" (yellow), "Corruption" (red)
+  - **Severity Badge**: `[data-testid="issue-severity-{index}"]` - small badge
+    - Error: red badge
+    - Warning: yellow badge
+  - **Message**: `[data-testid="issue-message-{index}"]` - small text with error message
+  - **File Path**: `[data-testid="issue-file-path-{index}"]` - dimmed text with code element (shown if filePath exists)
+  - **Details**: `[data-testid="issue-details-{index}"]` - code block with JSON details (shown if details exist)
+
+#### Validation States
+- **Pre-validation**: Dialog not shown
+- **During validation**: Dialog open with loading spinner
+- **Validation Success**: Dialog shows ValidationReport component with all sections
+- **Validation Failure**: Dialog shows "No validation results available" message
+- **After close**: Dialog dismissed, can be reopened to re-validate
+
 ## Known Issues
+- Validation endpoint returns 500 when dataset repository doesn't exist or is not properly initialized
 - Sample endpoints return 404 (not implemented) - shows empty state correctly
 - Split endpoints return 404 (not implemented) - shows empty state correctly

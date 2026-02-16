@@ -49,6 +49,7 @@ export function DatasetDetailPage() {
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(
     null,
   );
+  const [activeTab, setActiveTab] = useState<string>("versions");
   const [samplePage, setSamplePage] = useState(1);
   const [groundTruthViewerOpen, setGroundTruthViewerOpen] = useState(false);
   const [selectedGroundTruth, setSelectedGroundTruth] = useState<Record<
@@ -150,13 +151,21 @@ export function DatasetDetailPage() {
         </Stack>
 
         <Tabs
-          value={selectedVersionId || "versions"}
+          value={activeTab}
           onChange={(value) => {
+            setActiveTab(value || "versions");
             if (value !== "versions") {
-              setSelectedVersionId(value);
-              setSamplePage(1);
+              // Extract versionId from tab value (handle "splits-" prefix)
+              const versionId = value?.startsWith("splits-")
+                ? value.substring(7)
+                : value;
+              if (versionId && versionId !== selectedVersionId) {
+                setSelectedVersionId(versionId);
+                setSamplePage(1);
+              }
             } else {
               setSelectedVersionId(null);
+              setSamplePage(1);
             }
           }}
         >
@@ -206,7 +215,10 @@ export function DatasetDetailPage() {
                     <Table.Tr
                       key={version.id}
                       style={{ cursor: "pointer" }}
-                      onClick={() => setSelectedVersionId(version.id)}
+                      onClick={() => {
+                        setSelectedVersionId(version.id);
+                        setActiveTab(version.id);
+                      }}
                       data-testid={`version-row-${version.id}`}
                     >
                       <Table.Td>{version.version}</Table.Td>
@@ -238,7 +250,10 @@ export function DatasetDetailPage() {
                           <Menu.Dropdown>
                             <Menu.Item
                               leftSection={<IconEye size={16} />}
-                              onClick={() => setSelectedVersionId(version.id)}
+                              onClick={() => {
+                                setSelectedVersionId(version.id);
+                                setActiveTab(version.id);
+                              }}
                               data-testid={`view-samples-menu-item-${version.id}`}
                             >
                               View Samples

@@ -10,9 +10,12 @@ export class ScheduleConfigDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(\*|([0-5]?\d))\s+(\*|([01]?\d|2[0-3]))\s+(\*|([0-2]?\d|3[01]))\s+(\*|([1-9]|1[0-2]))\s+(\*|([0-6]))$/, {
-    message:
-      "Invalid cron expression. Must be a valid cron format (e.g., '0 2 * * *' for 2 AM daily)",
-  })
+  @Matches(
+    /^(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(\*|([0-5]?\d))\s+(\*|([01]?\d|2[0-3]))\s+(\*|([0-2]?\d|3[01]))\s+(\*|([1-9]|1[0-2]))\s+(\*|([0-6]))$/,
+    {
+      message:
+        "Invalid cron expression. Must be a valid cron format (e.g., '0 2 * * *' for 2 AM daily)",
+    },
+  )
   cron?: string;
 }

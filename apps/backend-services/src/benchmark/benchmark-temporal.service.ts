@@ -230,7 +230,9 @@ export class BenchmarkTemporalService {
         `Creating schedule for definition ${definitionId} with cron: ${cron}`,
       );
 
-      const scheduleClient = new ScheduleClient({ connection: this.connection! });
+      const scheduleClient = new ScheduleClient({
+        connection: this.connection!,
+      });
 
       await scheduleClient.create({
         scheduleId,
@@ -285,7 +287,9 @@ export class BenchmarkTemporalService {
     try {
       this.logger.log(`Deleting schedule: ${scheduleId}`);
 
-      const scheduleClient = new ScheduleClient({ connection: this.connection! });
+      const scheduleClient = new ScheduleClient({
+        connection: this.connection!,
+      });
       const handle = scheduleClient.getHandle(scheduleId);
       await handle.delete();
 
@@ -308,14 +312,28 @@ export class BenchmarkTemporalService {
     await this.ensureClient();
 
     try {
-      const scheduleClient = new ScheduleClient({ connection: this.connection! });
+      const scheduleClient = new ScheduleClient({
+        connection: this.connection!,
+      });
       const handle = scheduleClient.getHandle(scheduleId);
       const description = await handle.describe();
 
       // Access nested properties safely with type assertions
-      const spec = (description as unknown as { spec?: { calendars?: { cronString?: string }[] } }).spec;
-      const info = (description as unknown as { info?: { nextActionTimes?: Date[]; recentActions?: { scheduledAt?: Date }[] } }).info;
-      const state = (description as unknown as { state?: { paused?: boolean } }).state;
+      const spec = (
+        description as unknown as {
+          spec?: { calendars?: { cronString?: string }[] };
+        }
+      ).spec;
+      const info = (
+        description as unknown as {
+          info?: {
+            nextActionTimes?: Date[];
+            recentActions?: { scheduledAt?: Date }[];
+          };
+        }
+      ).info;
+      const state = (description as unknown as { state?: { paused?: boolean } })
+        .state;
 
       // Try to extract cron from different possible locations
       let cron = "";

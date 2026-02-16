@@ -19,6 +19,7 @@ import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getPrismaPgOptions } from "@/utils/database-url";
 import { computeConfigHash } from "@/workflow/config-hash";
+import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import {
   BaselineRunSummary,
   CreateDefinitionDto,
@@ -34,7 +35,6 @@ import {
   WorkflowInfo,
 } from "./dto";
 import { EvaluatorRegistryService } from "./evaluator-registry.service";
-import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 
 @Injectable()
 export class BenchmarkDefinitionService {
@@ -752,8 +752,14 @@ export class BenchmarkDefinitionService {
           workflowId: definition.workflowId,
           workflowConfigHash: definition.workflowConfigHash,
           evaluatorType: definition.evaluatorType,
-          evaluatorConfig: definition.evaluatorConfig as Record<string, unknown>,
-          runtimeSettings: definition.runtimeSettings as Record<string, unknown>,
+          evaluatorConfig: definition.evaluatorConfig as Record<
+            string,
+            unknown
+          >,
+          runtimeSettings: definition.runtimeSettings as Record<
+            string,
+            unknown
+          >,
           artifactPolicy: definition.artifactPolicy as Record<string, unknown>,
         },
       );

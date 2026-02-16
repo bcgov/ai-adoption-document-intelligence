@@ -58,16 +58,19 @@ await page.evaluate(() => {
 2. Check `{feature-dir}/playwright/exploration/exploration-progress.md` for already completed test plans
 3. **Process ONE test plan at a time** (first uncompleted one)
 4. Extract page references and user flows from that test plan
-5. **Set up authentication** (see Authentication Setup section above)
-6. For each unique page in that test plan:
+5. Check if files for those pages already exist in `{feature-dir}/playwright/exploration/` (e.g., `dataset-list.page-doc.md`, `dataset-detail.page-doc.md`, etc.)
+   - If they exist, skip exploration for that page and move to next one
+   - If they don't exist, proceed to explore that page using Playwright MCP in headed mode
+6. **Set up authentication** (see Authentication Setup section above)
+7. For each unique page in that test plan:
    - Navigate using Playwright MCP in headed mode
    - Document all interactive elements with selectors
    - Identify elements lacking robust selectors (using only text, CSS classes, etc.)
    - **Add `data-testid` attributes to those elements in the source code**
    - Note async behaviors (loading states, animations, API calls)
    - Test navigation paths
-7. Mark test plan as complete in `exploration/exploration-progress.md`
-8. Confirm with user before proceeding to next test plan
+8. Mark test plan as complete in `exploration/exploration-progress.md`
+9. Confirm with user before proceeding to next test plan
 
 ## Progress Tracking
 

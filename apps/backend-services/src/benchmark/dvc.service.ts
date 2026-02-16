@@ -11,8 +11,8 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { exec } from "child_process";
-import { promisify } from "util";
 import { homedir } from "os";
+import { promisify } from "util";
 
 const execAsync = promisify(exec);
 

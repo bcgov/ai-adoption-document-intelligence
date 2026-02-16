@@ -32,7 +32,7 @@ export function useValidateDataset(datasetId: string, versionId: string) {
   return useMutation({
     mutationFn: async (sampleSize?: number) => {
       const response = await apiService.post<ValidationResponse>(
-        `/api/benchmark/datasets/${datasetId}/versions/${versionId}/validate`,
+        `/benchmark/datasets/${datasetId}/versions/${versionId}/validate`,
         sampleSize ? { sampleSize } : {},
       );
       return response;

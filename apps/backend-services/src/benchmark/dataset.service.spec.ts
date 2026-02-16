@@ -1598,7 +1598,9 @@ describe("DatasetService", () => {
           stratificationRules: { field: "docType" },
         };
 
-        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(
+          mockVersion,
+        );
         mockPrismaClient.split.create.mockResolvedValue({
           id: splitId,
           datasetVersionId: versionId,
@@ -1647,7 +1649,9 @@ describe("DatasetService", () => {
 
     describe("listSplits", () => {
       it("lists all splits for a version", async () => {
-        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(
+          mockVersion,
+        );
         mockPrismaClient.split.findMany.mockResolvedValue([
           {
             id: "split-1",
@@ -1691,7 +1695,9 @@ describe("DatasetService", () => {
 
     describe("getSplit", () => {
       it("gets a single split with full details", async () => {
-        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(
+          mockVersion,
+        );
         mockPrismaClient.split.findFirst.mockResolvedValue({
           id: splitId,
           datasetVersionId: versionId,
@@ -1711,7 +1717,9 @@ describe("DatasetService", () => {
       });
 
       it("throws NotFoundException when split not found", async () => {
-        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(
+          mockVersion,
+        );
         mockPrismaClient.split.findFirst.mockResolvedValue(null);
 
         await expect(
@@ -1724,7 +1732,9 @@ describe("DatasetService", () => {
       it("updates an unfrozen split successfully", async () => {
         const updateDto = { sampleIds: ["s1", "s2", "s4"] };
 
-        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(
+          mockVersion,
+        );
         mockPrismaClient.split.findFirst.mockResolvedValue({
           id: splitId,
           datasetVersionId: versionId,
@@ -1759,7 +1769,9 @@ describe("DatasetService", () => {
       });
 
       it("throws BadRequestException when split is frozen", async () => {
-        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(
+          mockVersion,
+        );
         mockPrismaClient.split.findFirst.mockResolvedValue({
           id: splitId,
           datasetVersionId: versionId,
@@ -1785,7 +1797,9 @@ describe("DatasetService", () => {
 
     describe("freezeSplit", () => {
       it("freezes a split successfully", async () => {
-        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(
+          mockVersion,
+        );
         mockPrismaClient.split.findFirst.mockResolvedValue({
           id: splitId,
           datasetVersionId: versionId,
@@ -1815,7 +1829,9 @@ describe("DatasetService", () => {
       });
 
       it("throws NotFoundException when split not found", async () => {
-        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+        mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(
+          mockVersion,
+        );
         mockPrismaClient.split.findFirst.mockResolvedValue(null);
 
         await expect(

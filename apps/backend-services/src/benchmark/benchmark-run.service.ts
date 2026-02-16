@@ -354,8 +354,11 @@ export class BenchmarkRunService {
       tags: run.tags as Record<string, unknown>,
       error: run.error,
       isBaseline: run.isBaseline,
-      baselineThresholds: run.baselineThresholds as unknown as MetricThreshold[] | null,
-      baselineComparison: run.baselineComparison as unknown as BaselineComparison | null,
+      baselineThresholds: run.baselineThresholds as unknown as
+        | MetricThreshold[]
+        | null,
+      baselineComparison:
+        run.baselineComparison as unknown as BaselineComparison | null,
       createdAt: run.createdAt,
     };
   }
@@ -536,9 +539,7 @@ export class BenchmarkRunService {
       where: { id: runId },
       data: {
         isBaseline: true,
-        baselineThresholds: dto.thresholds
-          ? (dto.thresholds as never)
-          : null,
+        baselineThresholds: dto.thresholds ? (dto.thresholds as never) : null,
       },
     });
 
@@ -588,9 +589,7 @@ export class BenchmarkRunService {
 
     // No baseline exists yet
     if (!baseline) {
-      this.logger.debug(
-        `No baseline found for definition ${run.definitionId}`,
-      );
+      this.logger.debug(`No baseline found for definition ${run.definitionId}`);
       return null;
     }
 
@@ -602,7 +601,8 @@ export class BenchmarkRunService {
 
     const currentMetrics = run.metrics as Record<string, unknown>;
     const baselineMetrics = baseline.metrics as Record<string, unknown>;
-    const thresholds = (baseline.baselineThresholds as unknown as MetricThreshold[]) || [];
+    const thresholds =
+      (baseline.baselineThresholds as unknown as MetricThreshold[]) || [];
 
     const metricComparisons: MetricComparison[] = [];
     const regressedMetrics: string[] = [];

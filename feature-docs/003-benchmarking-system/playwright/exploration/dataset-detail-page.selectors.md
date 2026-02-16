@@ -46,3 +46,36 @@ UPLOAD_SUBMIT_BTN|[data-testid="upload-submit-btn"]
 ## Ground Truth Viewer
 GROUND_TRUTH_VIEWER|[data-testid="ground-truth-viewer"]
 GROUND_TRUTH_JSON|[data-testid="ground-truth-json"]
+
+## Validation Report - Overall Status
+VALIDATION_STATUS_CARD|[data-testid="validation-status-card"]
+VALIDATION_RESULT_TITLE|[data-testid="validation-result-title"]
+VALIDATION_SAMPLE_INFO|[data-testid="validation-sample-info"]
+VALIDATION_STATUS_BADGE|[data-testid="validation-status-badge"]
+
+## Validation Report - Issue Summary
+VALIDATION_ISSUE_SUMMARY_CARD|[data-testid="validation-issue-summary-card"]
+ISSUE_SUMMARY_TITLE|[data-testid="issue-summary-title"]
+ISSUE_SUMMARY_TABLE|[data-testid="issue-summary-table"]
+SCHEMA_VIOLATIONS_ROW|[data-testid="schema-violations-row"]
+SCHEMA_VIOLATIONS_COUNT|[data-testid="schema-violations-count"]
+MISSING_GROUND_TRUTH_ROW|[data-testid="missing-ground-truth-row"]
+MISSING_GROUND_TRUTH_COUNT|[data-testid="missing-ground-truth-count"]
+DUPLICATES_ROW|[data-testid="duplicates-row"]
+DUPLICATES_COUNT|[data-testid="duplicates-count"]
+CORRUPTION_ROW|[data-testid="corruption-row"]
+CORRUPTION_COUNT|[data-testid="corruption-count"]
+TOTAL_ISSUES_ROW|[data-testid="total-issues-row"]
+TOTAL_ISSUES_COUNT|[data-testid="total-issues-count"]
+
+## Validation Report - Detailed Issues
+VALIDATION_DETAILED_ISSUES_CARD|[data-testid="validation-detailed-issues-card"]
+DETAILED_ISSUES_TITLE|[data-testid="detailed-issues-title"]
+ISSUES_LIST|[data-testid="issues-list"]
+ISSUE_CARD|[data-testid="issue-card-{index}"]
+ISSUE_SAMPLE_ID|[data-testid="issue-sample-id-{index}"]
+ISSUE_CATEGORY|[data-testid="issue-category-{index}"]
+ISSUE_SEVERITY|[data-testid="issue-severity-{index}"]
+ISSUE_MESSAGE|[data-testid="issue-message-{index}"]
+ISSUE_FILE_PATH|[data-testid="issue-file-path-{index}"]
+ISSUE_DETAILS|[data-testid="issue-details-{index}"]

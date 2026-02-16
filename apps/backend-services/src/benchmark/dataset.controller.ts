@@ -456,7 +456,8 @@ export class DatasetController {
   @KeycloakSSOAuth()
   @ApiOperation({
     summary: "Get a single split with full details",
-    description: "Returns complete split details including the full sampleIds array.",
+    description:
+      "Returns complete split details including the full sampleIds array.",
   })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiParam({ name: "versionId", description: "Version ID (UUID)" })

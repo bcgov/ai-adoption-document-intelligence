@@ -672,8 +672,8 @@ describe("BenchmarkRunService", () => {
       };
 
       (prisma.benchmarkRun.findFirst as jest.Mock)
-        .mockResolvedValueOnce(completedRun)  // First call: get the run to promote
-        .mockResolvedValueOnce(null);  // Second call: find previous baseline (none exists)
+        .mockResolvedValueOnce(completedRun) // First call: get the run to promote
+        .mockResolvedValueOnce(null); // Second call: find previous baseline (none exists)
       (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
         ...completedRun,
         isBaseline: true,
@@ -953,7 +953,7 @@ describe("BenchmarkRunService", () => {
             {
               sampleId: "sample-003",
               metadata: { docType: "invoice", language: "fr" },
-              metrics: { accuracy: 0.92, f1: 0.90 },
+              metrics: { accuracy: 0.92, f1: 0.9 },
             },
           ],
         },

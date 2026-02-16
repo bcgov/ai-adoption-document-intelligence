@@ -105,10 +105,7 @@ describe("DvcService", () => {
     it("does not modify paths without tilde", async () => {
       mockSuccessfulExec("", "Cloning into 'repo'...");
 
-      await service.cloneRepository(
-        "file:///absolute/path/repo",
-        "/tmp/repo",
-      );
+      await service.cloneRepository("file:///absolute/path/repo", "/tmp/repo");
 
       expect(mockExec).toHaveBeenCalledWith(
         'git clone "file:///absolute/path/repo" "/tmp/repo"',

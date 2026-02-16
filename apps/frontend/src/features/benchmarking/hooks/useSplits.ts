@@ -50,7 +50,7 @@ export function useSplits(
         throw new Error("Dataset ID and Version ID are required");
       }
       const response = await apiService.get<{ splits: Split[] }>(
-        `/api/benchmark/datasets/${datasetId}/versions/${versionId}/splits`,
+        `/benchmark/datasets/${datasetId}/versions/${versionId}/splits`,
       );
       return response.data?.splits || [];
     },
@@ -73,7 +73,7 @@ export function useSplit(
         throw new Error("Dataset ID, Version ID, and Split ID are required");
       }
       return apiService.get<SplitDetail>(
-        `/api/benchmark/datasets/${datasetId}/versions/${versionId}/splits/${splitId}`,
+        `/benchmark/datasets/${datasetId}/versions/${versionId}/splits/${splitId}`,
       );
     },
     enabled: !!datasetId && !!versionId && !!splitId,
@@ -89,7 +89,7 @@ export function useCreateSplit(datasetId: string, versionId: string) {
   return useMutation({
     mutationFn: async (data: CreateSplitRequest) => {
       return apiService.post<Split>(
-        `/api/benchmark/datasets/${datasetId}/versions/${versionId}/splits`,
+        `/benchmark/datasets/${datasetId}/versions/${versionId}/splits`,
         data,
       );
     },
@@ -114,7 +114,7 @@ export function useUpdateSplit(
   return useMutation({
     mutationFn: async (data: UpdateSplitRequest) => {
       return apiService.patch<Split>(
-        `/api/benchmark/datasets/${datasetId}/versions/${versionId}/splits/${splitId}`,
+        `/benchmark/datasets/${datasetId}/versions/${versionId}/splits/${splitId}`,
         data,
       );
     },
@@ -149,7 +149,7 @@ export function useFreezeSplit(
   return useMutation({
     mutationFn: async () => {
       return apiService.post<Split>(
-        `/api/benchmark/datasets/${datasetId}/versions/${versionId}/splits/${splitId}/freeze`,
+        `/benchmark/datasets/${datasetId}/versions/${versionId}/splits/${splitId}/freeze`,
         {},
       );
     },

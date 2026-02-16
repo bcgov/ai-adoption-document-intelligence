@@ -5,14 +5,14 @@
 - [x] US-028-dataset-version-sample-preview-ui.md - Completed 2026-02-16
 - [x] US-029-benchmark-definition-crud-ui.md - Completed 2026-02-16
 - [x] US-030-run-list-start-cancel-progress-ui.md - Completed 2026-02-16
-- [ ] US-031-results-summary-mlflow-deeplinks-ui.md
-- [ ] US-032-dataset-quality-checks-validation.md
-- [ ] US-033-split-management-ui.md
-- [ ] US-034-baseline-management.md
+- [x] US-031-results-summary-mlflow-deeplinks-ui.md - Completed 2026-02-16
+- [x] US-032-dataset-quality-checks-validation.md - Completed 2026-02-16
+- [x] US-033-split-management-ui.md - Completed 2026-02-16
+- [x] US-034-baseline-management.md - Completed 2026-02-16
 - [ ] US-036-side-by-side-run-comparison-ui.md
 - [ ] US-037-regression-reports-ui.md
 - [ ] US-038-slicing-filtering-drilldown-ui.md
 - [ ] US-039-in-app-artifact-viewer.md
 
-**Status**: 5/13 test plans explored
-**Last Updated**: 2026-02-16 8:35 AM
+**Status**: 9/13 test plans explored
+**Last Updated**: 2026-02-16 8:45 PM
