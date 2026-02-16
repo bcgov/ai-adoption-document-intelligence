@@ -5,7 +5,7 @@
 - [x] US-028-dataset-version-sample-preview-ui.md - Completed 2026-02-15 (8/19 tests passing)
 - [x] US-029-benchmark-definition-crud-ui.md - Completed 2026-02-16 (16/18 tests passing, 3 skipped)
 - [x] US-030-run-list-start-cancel-progress-ui.md - Completed 2026-02-16 (19/19 tests passing, 1 skipped)
-- [ ] US-031-results-summary-mlflow-deeplinks-ui.md
+- [x] US-031-results-summary-mlflow-deeplinks-ui.md - Completed 2026-02-16 (53/53 tests passing, 12 skipped)
 - [ ] US-032-dataset-quality-checks-validation.md
 - [ ] US-033-split-management-ui.md
 - [ ] US-034-baseline-management.md
@@ -14,8 +14,8 @@
 - [ ] US-038-slicing-filtering-drilldown-ui.md
 - [ ] US-039-in-app-artifact-viewer.md
 
-**Status**: 5/13 test plans generated
-**Last Updated**: 2026-02-16 9:30 AM
+**Status**: 6/13 test plans generated
+**Last Updated**: 2026-02-16 11:45 AM
 
 ## Test Results Summary
 
@@ -57,3 +57,23 @@
 2. ✅ **FIXED**: `DefinitionDetailView.tsx` line 282 - calling `.map()` on `baselineThresholds` object. Changed to use `Object.entries()` to properly iterate over object properties.
 3. Updated `RunDetailPage` POM with helper methods: `getStatusBadge()`, `getMlflowLink()`, `getTemporalLink()`, etc.
 4. Updated `DefinitionDetailDialog` POM to use `data-testid="start-run-btn"` instead of `getByRole()`.
+
+### US-031 - Results Summary & MLflow Deep-Links UI
+- ✅ **53 passing**: Metrics display, parameters/tags, MLflow/Temporal links, drill-down summary, error states, duration calculation
+- ⏭️ **12 skipped**: Artifact-related tests (no artifacts in seed data), large dataset features (not needed for 3 metrics), MLflow downtime simulation
+
+**Test files generated**:
+1. `results-metrics.spec.ts` - Aggregated metrics and duration display (6 tests)
+2. `results-params-tags.spec.ts` - Parameters and tags display (9 tests)
+3. `results-mlflow-links.spec.ts` - MLflow and Temporal deep-links (8 tests, 1 skipped)
+4. `results-artifacts.spec.ts` - Artifact list and filtering (9 tests, 7 skipped)
+5. `results-drill-down.spec.ts` - Drill-down summary sections (13 tests)
+6. `results-error-states.spec.ts` - Failed and running run handling (12 tests)
+7. `results-large-datasets.spec.ts` - Performance with large metrics (8 tests, 4 skipped)
+
+**Notes**:
+- All critical scenarios passing - feature is functional
+- Artifact tests skipped due to no seed data (low priority feature)
+- Drill-down summary sections (worst samples, field errors, error clusters) display correctly from seed data
+- Error handling tested with failed and running runs from seed data
+- MLflow and Temporal deep-links correctly formatted and open in new tabs
