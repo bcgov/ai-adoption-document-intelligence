@@ -150,6 +150,8 @@ const SDPR_MONTHLY_REPORT_FIELDS: SeedFieldDefinition[] = [
 
 const SEED_WORKFLOW_ID = "seed-workflow-standard-ocr";
 const SEED_DATASET_ID = "seed-dataset-invoices";
+const SEED_DATASET_ID_2 = "seed-dataset-receipts";
+const SEED_DATASET_ID_3 = "seed-dataset-forms";
 const SEED_DATASET_VERSION_ID = "seed-dataset-version-v1.0";
 const SEED_SPLIT_ID = "seed-split-train";
 const SEED_PROJECT_ID = "seed-project-invoice-extraction";
@@ -199,7 +201,7 @@ async function seedBenchmarkingData() {
     },
   });
 
-  // Create a dataset
+  // Create datasets
   const dataset = await prisma.dataset.upsert({
     where: { id: SEED_DATASET_ID },
     update: {
@@ -217,6 +219,48 @@ async function seedBenchmarkingData() {
       metadata: { documentType: "invoice", language: "en" },
       repositoryUrl: "file:///tmp/datasets/invoices",
       dvcRemote: "local",
+      createdBy: "seed-user",
+    },
+  });
+
+  const dataset2 = await prisma.dataset.upsert({
+    where: { id: SEED_DATASET_ID_2 },
+    update: {
+      name: "Receipt Test Dataset",
+      description: "Sample receipt dataset for testing point-of-sale OCR",
+      metadata: { documentType: "receipt", language: "en" },
+      repositoryUrl: "~/datasets/receipts",
+      dvcRemote: "local",
+      createdBy: "seed-user",
+    },
+    create: {
+      id: SEED_DATASET_ID_2,
+      name: "Receipt Test Dataset",
+      description: "Sample receipt dataset for testing point-of-sale OCR",
+      metadata: { documentType: "receipt", language: "en" },
+      repositoryUrl: "~/datasets/receipts",
+      dvcRemote: "local",
+      createdBy: "seed-user",
+    },
+  });
+
+  const dataset3 = await prisma.dataset.upsert({
+    where: { id: SEED_DATASET_ID_3 },
+    update: {
+      name: "Government Forms Dataset",
+      description: "Dataset for evaluating structured form extraction",
+      metadata: { documentType: "government-form", language: "en" },
+      repositoryUrl: "https://github.com/example/gov-forms-dataset.git",
+      dvcRemote: "origin",
+      createdBy: "seed-user",
+    },
+    create: {
+      id: SEED_DATASET_ID_3,
+      name: "Government Forms Dataset",
+      description: "Dataset for evaluating structured form extraction",
+      metadata: { documentType: "government-form", language: "en" },
+      repositoryUrl: "https://github.com/example/gov-forms-dataset.git",
+      dvcRemote: "origin",
       createdBy: "seed-user",
     },
   });
@@ -475,6 +519,8 @@ async function seedBenchmarkingData() {
 
   console.log("✅ Benchmarking seed data created successfully");
   console.log(`  - Dataset: ${dataset.name} (${datasetVersion.version})`);
+  console.log(`  - Dataset: ${dataset2.name}`);
+  console.log(`  - Dataset: ${dataset3.name}`);
   console.log(`  - Project: ${project.name}`);
   console.log(`  - Definition: ${definition.name}`);
   console.log(`  - Runs: 3 (1 completed, 1 running, 1 failed)`);
