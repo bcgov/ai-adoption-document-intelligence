@@ -94,6 +94,28 @@ Create/update `{feature-dir}/playwright/exploration/exploration-progress.md`:
 **Last Updated**: 2026-02-15 3:42 PM
 ```
 
+## Issue Detection & Fixing
+
+When exploring a page, check if core functionality works as expected per requirements:
+- Page doesn't load / shows errors
+- Critical buttons/forms don't work or are missing
+- Expected elements from requirements are absent
+- Placeholder/stub pages (e.g., "Coming soon", "TODO", empty content)
+- Broken navigation or 404s
+- API calls failing that prevent page from working
+
+**If issues detected**:
+
+1. **Stop exploration** of that page
+2. **Read requirements**: `{feature-dir}/requirements.md` or `{feature-dir}/REQUIREMENTS.md`
+3. **Read user story**: The user story file from `{feature-dir}/user-stories/` for this page
+4. **Fix the issue**: 
+   - Create/update component files to meet requirements
+   - Fix broken API calls or handlers
+   - Implement missing functionality
+   - Follow existing code patterns in the project
+   - Add `data-testid` attributes from the start
+
 
 ## Adding Test Selectors to Code
 
