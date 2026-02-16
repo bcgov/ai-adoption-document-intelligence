@@ -19,10 +19,9 @@
     "prepare": "husky",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:api-auth": "playwright test tests/e2e/api-key-auth.spec.ts",
-    "test:frontend-mock": "playwright test tests/e2e/frontend-with-mock-auth.spec.ts",
-    "test:training-labels": "playwright test tests/e2e/training-labels-with-api-key.spec.ts",
-    "setup:test-api-key": "node scripts/create-test-api-key.js"
+    "test:file": "playwright test",
+    "test:dir": "playwright test",
+    "test:db:reset": "cd apps/backend-services && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\" npx prisma migrate reset --force && npm run db:seed"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

@@ -5,6 +5,11 @@ import * as path from 'path';
 // Load environment variables from backend .env file
 dotenv.config({ path: path.resolve(__dirname, 'apps/backend-services/.env') });
 
+// Set default TEST_API_KEY if not provided (matches seed.ts default)
+if (!process.env.TEST_API_KEY) {
+  process.env.TEST_API_KEY = '69OrdcwUk4qrB6Pl336PGsloa0L084HFp7X7aX7sSTY';
+}
+
 /**
  * Playwright configuration for API and E2E tests
  */
@@ -15,6 +20,9 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
+
+  // Global setup: Reset database before all tests
+  globalSetup: require.resolve('./tests/global-setup.ts'),
 
   use: {
     baseURL: process.env.FRONTEND_URL || 'http://localhost:3000',
