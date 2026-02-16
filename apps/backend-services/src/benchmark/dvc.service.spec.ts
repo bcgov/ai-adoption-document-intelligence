@@ -80,6 +80,41 @@ describe("DvcService", () => {
       );
     });
 
+    it("expands tilde in file:// URLs", async () => {
+      mockSuccessfulExec("", "Cloning into 'repo'...");
+      const homeDir = require("os").homedir();
+
+      await service.cloneRepository("file://~/datasets/repo", "/tmp/repo");
+
+      expect(mockExec).toHaveBeenCalledWith(
+        `git clone "file://${homeDir}/datasets/repo" "/tmp/repo"`,
+      );
+    });
+
+    it("expands tilde in direct paths", async () => {
+      mockSuccessfulExec("", "Cloning into 'repo'...");
+      const homeDir = require("os").homedir();
+
+      await service.cloneRepository("~/datasets/repo", "/tmp/repo");
+
+      expect(mockExec).toHaveBeenCalledWith(
+        `git clone "${homeDir}/datasets/repo" "/tmp/repo"`,
+      );
+    });
+
+    it("does not modify paths without tilde", async () => {
+      mockSuccessfulExec("", "Cloning into 'repo'...");
+
+      await service.cloneRepository(
+        "file:///absolute/path/repo",
+        "/tmp/repo",
+      );
+
+      expect(mockExec).toHaveBeenCalledWith(
+        'git clone "file:///absolute/path/repo" "/tmp/repo"',
+      );
+    });
+
     it("throws error when clone fails", async () => {
       mockFailedExec(new Error("Repository not found"));
 

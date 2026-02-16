@@ -224,10 +224,88 @@
 **Data Requirements**: 50+ datasets
 **Prerequisites**: User logged in
 
+### Scenario 14: Create Dataset with Tilde Path
+- **Type**: Happy Path
+- **Priority**: High
+
+**Given**: Create dataset dialog is open
+**When**: User enters repositoryUrl as `~/Github/datasets-repo` and submits
+**Then**:
+- POST request includes the tilde path in repositoryUrl field
+- Backend expands tilde to user's home directory
+- Dataset is created successfully
+- Dataset list shows the new dataset
+- RepositoryUrl is stored with tilde for portability
+
+**Affected Pages**: Dataset list page (dialog)
+**Data Requirements**: Valid tilde path, temporary test repository created via `createTempDatasetRepo()`
+**Prerequisites**: User logged in, test helpers available
+**Note**: E2E test should use `createTempDatasetRepo()` utility to create isolated test repository
+
+### Scenario 15: Create Dataset with file:// URL
+- **Type**: Happy Path
+- **Priority**: Medium
+
+**Given**: Create dataset dialog is open
+**When**: User enters repositoryUrl as `file://~/Github/datasets-repo` and submits
+**Then**:
+- POST request includes the file:// URL with tilde
+- Backend expands tilde and processes file:// protocol
+- Dataset is created successfully
+- Both `~/path` and `file://~/path` formats work equivalently
+
+**Affected Pages**: Dataset list page (dialog)
+**Data Requirements**: Valid file:// URL with tilde
+**Prerequisites**: User logged in
+
+### Scenario 16: Create Dataset with Remote Repository
+- **Type**: Happy Path
+- **Priority**: Medium
+
+**Given**: Create dataset dialog is open
+**When**: User enters repositoryUrl as `https://github.com/org/datasets.git` and submits
+**Then**:
+- POST request includes the remote URL unchanged
+- Backend does not modify remote URLs
+- Dataset is created successfully with remote repository
+- Credential injection works if DATASET_GIT_USERNAME/PASSWORD are configured
+
+**Affected Pages**: Dataset list page (dialog)
+**Data Requirements**: Valid remote repository URL
+**Prerequisites**: User logged in, optional git credentials configured
+
 ## Coverage Analysis
 - ✅ Happy path covered (list display, create, navigate)
 - ✅ Edge cases covered (validation, long names, duplicates)
 - ✅ Error handling covered (API errors, required fields)
 - ✅ Empty and loading states covered
+- ✅ Repository URL formats covered (tilde expansion, file://, remote URLs)
 - ⚠️ Missing: Concurrent user creation scenarios
 - ⚠️ Missing: Performance with very large dataset lists (1000+)
+
+## Test Implementation Notes
+
+**Using Test Utilities for Repository URLs**:
+```typescript
+import { createTempDatasetRepo } from '../../../apps/backend-services/src/testUtils/datasetTestHelpers';
+
+// In test setup
+let repo: TempDatasetRepo;
+beforeAll(async () => {
+  repo = await createTempDatasetRepo('e2e-dataset-');
+});
+
+afterAll(async () => {
+  await repo.cleanup();
+});
+
+// In test
+await page.fill('[name="repositoryUrl"]', repo.url);
+// Uses file:///tmp/dataset-test-xyz (no hardcoded username)
+```
+
+**Benefits**:
+- Tests are portable across different developer machines
+- No hardcoded usernames or paths
+- Automatic cleanup of temporary repositories
+- Isolated test data prevents conflicts

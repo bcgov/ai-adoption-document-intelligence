@@ -45,6 +45,12 @@
     - **When** `cloneRepository(repositoryUrl, targetPath)` is called
     - **Then** the repository is cloned to the target path using configured Git credentials from environment variables
 
+- [x] **Scenario 9**: Expand tilde in repository URLs
+    - **Given** a repository URL containing tilde (~) for home directory
+    - **When** `cloneRepository("~/path/to/repo", targetPath)` or `cloneRepository("file://~/path/to/repo", targetPath)` is called
+    - **Then** the tilde is expanded to the user's home directory (e.g., `/home/username/path/to/repo`) before cloning
+    - **And** remote repository URLs (https://, git@) are not affected by tilde expansion
+
 ## Priority
 - [x] High (Must Have)
 - [ ] Medium (Should Have)
@@ -54,8 +60,10 @@
 - File: `apps/backend-services/src/benchmark/dvc.service.ts`
 - All DVC/Git operations execute against the dedicated dataset repository, NOT the main application repository
 - Uses `child_process` (exec/spawn) to invoke `dvc` and `git` CLI commands
-- DVC and Git must be available on the backend service container (add to Dockerfile if needed)
+- DVC and Git must be available on the backend service container (added to Dockerfile)
 - Git credentials managed via environment variables (`DATASET_GIT_USERNAME`, `DATASET_GIT_PASSWORD` or SSH key)
 - MinIO credentials for DVC remote: reuses `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_ENDPOINT`
+- **Tilde expansion**: Supports `~` in repository URLs for portability across developer machines (e.g., `~/Github/datasets-repo` or `file://~/Github/datasets-repo`)
+- **Test utilities**: `createTempDatasetRepo()` helper available in `apps/backend-services/src/testUtils/datasetTestHelpers.ts` for creating isolated temporary repositories in tests
 - See Requirements Section 3.1 (Storage Architecture), Section 3.2 (Dataset Upload & DVC Automation), Section 3.3 (Dataset Materialization)
-- Tests: `apps/backend-services/src/benchmark/dvc.service.spec.ts`
+- Tests: `apps/backend-services/src/benchmark/dvc.service.spec.ts`, `apps/backend-services/src/testUtils/datasetTestHelpers.spec.ts`

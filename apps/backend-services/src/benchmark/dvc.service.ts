@@ -12,6 +12,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { homedir } from "os";
 
 const execAsync = promisify(exec);
 
@@ -44,6 +45,29 @@ export class DvcService {
   }
 
   /**
+   * Expand tilde (~) in file:// URLs to the user's home directory.
+   * Also handles paths that start with ~ directly.
+   */
+  private expandTildePath(path: string): string {
+    // Handle file:// URLs
+    if (path.startsWith("file://")) {
+      const filePath = path.slice(7); // Remove "file://"
+      if (filePath.startsWith("~/") || filePath === "~") {
+        const expandedPath = filePath.replace(/^~/, homedir());
+        return `file://${expandedPath}`;
+      }
+      return path;
+    }
+
+    // Handle direct paths starting with ~
+    if (path.startsWith("~/") || path === "~") {
+      return path.replace(/^~/, homedir());
+    }
+
+    return path;
+  }
+
+  /**
    * Clone a dataset Git repository.
    */
   async cloneRepository(
@@ -51,14 +75,17 @@ export class DvcService {
     targetPath: string,
   ): Promise<void> {
     try {
+      // Expand tilde in repository URL if present
+      const expandedUrl = this.expandTildePath(repositoryUrl);
+
       // If credentials are provided, inject them into the URL
-      let cloneUrl = repositoryUrl;
+      let cloneUrl = expandedUrl;
       if (
         this.gitUsername &&
         this.gitPassword &&
-        repositoryUrl.startsWith("http")
+        expandedUrl.startsWith("http")
       ) {
-        const url = new URL(repositoryUrl);
+        const url = new URL(expandedUrl);
         url.username = this.gitUsername;
         url.password = this.gitPassword;
         cloneUrl = url.toString();

@@ -188,6 +188,29 @@ This flow is exposed through the Dataset APIs and orchestrated by the `DvcServic
 - Materialization methods: `dvc pull` in a checked-out revision of the dataset repo, or `dvc get` for registry-style downloads.
 - Materialized datasets are cached on the worker filesystem to avoid redundant fetches across runs.
 
+### 3.3a Repository URL Portability & Testing
+
+To support portable configuration across development environments and automated testing:
+
+**Tilde Expansion**:
+- Repository URLs support tilde (`~`) expansion to the user's home directory
+- Formats: `~/path/to/repo` or `file://~/path/to/repo`
+- Example: `~/Github/datasets-repo` expands to `/home/username/Github/datasets-repo`
+- Remote URLs (`https://`, `git@`) are not affected by tilde expansion
+- Environment variable `DEFAULT_DATASET_REPOSITORY_PATH` can provide a default location with tilde support
+
+**Test Utilities**:
+- Helper functions for creating temporary, isolated dataset repositories in automated tests
+- `createTempDatasetRepo()` creates a fully initialized Git repository in `/tmp` with auto-cleanup
+- Enables portable e2e tests without hardcoded usernames or paths
+- Located in `apps/backend-services/src/testUtils/datasetTestHelpers.ts`
+
+**Benefits**:
+- Developers don't need to hardcode usernames in dataset URLs
+- Tests run reliably across different machines and CI environments
+- Production deployments can use environment-specific paths
+- Supports local file:// URLs, remote HTTPS URLs, and SSH URLs uniformly
+
 ### 3.4 Dataset Manifest Format
 
 The storage primitive is **arbitrary files + manifest**. The manifest is a JSON file in the dataset repo that describes all samples:
