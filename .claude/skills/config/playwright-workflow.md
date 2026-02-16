@@ -16,8 +16,6 @@ project-root/
 │   │       │   └── US-002.md
 │   │       ├── *.page-doc.md
 │   │       ├── *.selectors.md
-│   │       ├── selector-changes.md
-│   │       ├── screenshots/
 │   │       ├── healing-log.md
 │   │       └── test-results.md
 │   ├── 002-better-template-labelling/
@@ -131,8 +129,6 @@ This creates:
 This creates:
 - `*.page-doc.md` files (human-readable page documentation)
 - `*.selectors.md` files (machine-readable selector lists)
-- `selector-changes.md` (log of data-testid attributes added to code)
-- Screenshots in `screenshots/` directory
 - **Modified source files** with added `data-testid` attributes
 
 ### Step 3: Generate Tests

@@ -141,13 +141,15 @@ export function ProjectDetailPage() {
   return (
     <Stack gap="lg">
       <Stack gap={2}>
-        <Title order={2}>{project.name}</Title>
+        <Title order={2} data-testid="project-name-title">
+          {project.name}
+        </Title>
         {project.description && (
-          <Text c="dimmed" size="sm">
+          <Text c="dimmed" size="sm" data-testid="project-description">
             {project.description}
           </Text>
         )}
-        <Text c="dimmed" size="xs">
+        <Text c="dimmed" size="xs" data-testid="mlflow-experiment-id">
           MLflow Experiment: {project.mlflowExperimentId}
         </Text>
       </Stack>
@@ -155,10 +157,13 @@ export function ProjectDetailPage() {
       <Card>
         <Stack gap="md">
           <Group justify="space-between">
-            <Title order={3}>Benchmark Definitions</Title>
+            <Title order={3} data-testid="definitions-heading">
+              Benchmark Definitions
+            </Title>
             <Button
               leftSection={<IconPlus size={16} />}
               onClick={() => setCreateDialogOpened(true)}
+              data-testid="create-definition-btn"
             >
               Create Definition
             </Button>
@@ -171,17 +176,20 @@ export function ProjectDetailPage() {
           ) : definitions.length === 0 ? (
             <Center h={200}>
               <Stack gap="xs" align="center">
-                <Text c="dimmed">No definitions yet</Text>
+                <Text c="dimmed" data-testid="no-definitions-message">
+                  No definitions yet
+                </Text>
                 <Button
                   variant="subtle"
                   onClick={() => setCreateDialogOpened(true)}
+                  data-testid="create-first-definition-btn"
                 >
                   Create your first definition
                 </Button>
               </Stack>
             </Center>
           ) : (
-            <Table striped highlightOnHover>
+            <Table striped highlightOnHover data-testid="definitions-table">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
@@ -198,6 +206,7 @@ export function ProjectDetailPage() {
                     key={def.id}
                     style={{ cursor: "pointer" }}
                     onClick={() => handleViewDetails(def.id)}
+                    data-testid={`definition-row-${def.id}`}
                   >
                     <Table.Td>{def.name}</Table.Td>
                     <Table.Td>
@@ -227,11 +236,14 @@ export function ProjectDetailPage() {
       <Card>
         <Stack gap="md">
           <Group justify="space-between">
-            <Title order={3}>Recent Runs</Title>
+            <Title order={3} data-testid="runs-heading">
+              Recent Runs
+            </Title>
             {selectedRunIds.length >= 2 && (
               <Button
                 leftSection={<IconGitCompare size={16} />}
                 onClick={handleCompare}
+                data-testid="compare-runs-btn"
               >
                 Compare ({selectedRunIds.length})
               </Button>
@@ -244,10 +256,12 @@ export function ProjectDetailPage() {
             </Center>
           ) : runs.length === 0 ? (
             <Center h={200}>
-              <Text c="dimmed">No runs yet</Text>
+              <Text c="dimmed" data-testid="no-runs-message">
+                No runs yet
+              </Text>
             </Center>
           ) : (
-            <Table striped highlightOnHover>
+            <Table striped highlightOnHover data-testid="runs-table">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Select</Table.Th>
@@ -260,12 +274,13 @@ export function ProjectDetailPage() {
               </Table.Thead>
               <Table.Tbody>
                 {runs.map((run) => (
-                  <Table.Tr key={run.id}>
+                  <Table.Tr key={run.id} data-testid={`run-row-${run.id}`}>
                     <Table.Td>
                       <Checkbox
                         checked={selectedRunIds.includes(run.id)}
                         onChange={() => handleToggleRunSelection(run.id)}
                         onClick={(e) => e.stopPropagation()}
+                        data-testid={`run-checkbox-${run.id}`}
                       />
                     </Table.Td>
                     <Table.Td

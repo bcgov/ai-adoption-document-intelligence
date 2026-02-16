@@ -166,8 +166,10 @@ export function RunDetailPage() {
       <Stack gap={2}>
         <Group justify="space-between">
           <div>
-            <Title order={2}>{run.definitionName}</Title>
-            <Text c="dimmed" size="sm">
+            <Title order={2} data-testid="run-definition-name">
+              {run.definitionName}
+            </Title>
+            <Text c="dimmed" size="sm" data-testid="run-id-text">
               Run ID: {run.id}
             </Text>
           </div>
@@ -178,6 +180,7 @@ export function RunDetailPage() {
                 leftSection={<IconX size={16} />}
                 onClick={() => cancelRun()}
                 loading={isCancelling}
+                data-testid="cancel-run-btn"
               >
                 Cancel
               </Button>
@@ -188,12 +191,17 @@ export function RunDetailPage() {
                 leftSection={<IconTrophy size={16} />}
                 onClick={handlePromoteBaseline}
                 loading={isPromoting}
+                data-testid="promote-baseline-btn"
               >
                 Promote to Baseline
               </Button>
             )}
             {canRerun && (
-              <Button onClick={handleRerun} loading={isStarting}>
+              <Button
+                onClick={handleRerun}
+                loading={isStarting}
+                data-testid="rerun-btn"
+              >
                 Re-run
               </Button>
             )}
@@ -205,6 +213,7 @@ export function RunDetailPage() {
                     `/benchmarking/projects/${projectId}/runs/${runId}/regression`,
                   )
                 }
+                data-testid="view-regression-report-btn"
               >
                 View Regression Report
               </Button>
@@ -214,7 +223,12 @@ export function RunDetailPage() {
       </Stack>
 
       {run.error && (
-        <Alert icon={<IconAlertCircle size={16} />} color="red" title="Error">
+        <Alert
+          icon={<IconAlertCircle size={16} />}
+          color="red"
+          title="Error"
+          data-testid="run-error-alert"
+        >
           {run.error}
         </Alert>
       )}
@@ -234,6 +248,7 @@ export function RunDetailPage() {
               ? "Baseline Comparison: PASSED"
               : "Baseline Comparison: REGRESSION DETECTED"
           }
+          data-testid="baseline-comparison-alert"
         >
           {run.baselineComparison.overallPassed ? (
             <Text>
@@ -262,8 +277,10 @@ export function RunDetailPage() {
 
       <Card>
         <Stack gap="md">
-          <Title order={3}>Run Information</Title>
-          <Table>
+          <Title order={3} data-testid="run-info-heading">
+            Run Information
+          </Title>
+          <Table data-testid="run-info-table">
             <Table.Tbody>
               <Table.Tr>
                 <Table.Td fw={500}>Status</Table.Td>
@@ -361,12 +378,14 @@ export function RunDetailPage() {
       {run.status === "completed" && run.baselineComparison && (
         <Card>
           <Stack gap="md">
-            <Title order={3}>Baseline Comparison</Title>
+            <Title order={3} data-testid="baseline-comparison-heading">
+              Baseline Comparison
+            </Title>
             <Text c="dimmed" size="sm">
               Comparing against baseline run:{" "}
               <Code>{run.baselineComparison.baselineRunId}</Code>
             </Text>
-            <Table striped highlightOnHover>
+            <Table striped highlightOnHover data-testid="baseline-comparison-table">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Metric</Table.Th>
@@ -431,8 +450,10 @@ export function RunDetailPage() {
       {run.status === "completed" && run.metrics && (
         <Card>
           <Stack gap="md">
-            <Title order={3}>Aggregated Metrics</Title>
-            <Table striped highlightOnHover>
+            <Title order={3} data-testid="aggregated-metrics-heading">
+              Aggregated Metrics
+            </Title>
+            <Table striped highlightOnHover data-testid="aggregated-metrics-table">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Metric Name</Table.Th>
@@ -461,11 +482,13 @@ export function RunDetailPage() {
       {run.status === "completed" && (run.params || run.tags) && (
         <Card>
           <Stack gap="md">
-            <Title order={3}>Run Parameters & Tags</Title>
+            <Title order={3} data-testid="params-tags-heading">
+              Run Parameters & Tags
+            </Title>
             {run.params && Object.keys(run.params).length > 0 && (
               <Stack gap="xs">
                 <Text fw={500}>Parameters</Text>
-                <Table striped>
+                <Table striped data-testid="params-table">
                   <Table.Tbody>
                     {Object.entries(run.params).map(([key, value]) => (
                       <Table.Tr key={key}>
@@ -482,7 +505,7 @@ export function RunDetailPage() {
             {run.tags && Object.keys(run.tags).length > 0 && (
               <Stack gap="xs">
                 <Text fw={500}>Tags</Text>
-                <Table striped>
+                <Table striped data-testid="tags-table">
                   <Table.Tbody>
                     {Object.entries(run.tags).map(([key, value]) => (
                       <Table.Tr key={key}>
@@ -504,7 +527,7 @@ export function RunDetailPage() {
         <Card>
           <Stack gap="md">
             <Group justify="space-between">
-              <Title order={3}>
+              <Title order={3} data-testid="artifacts-heading">
                 Artifacts ({totalArtifacts} total
                 {artifactTypeFilter
                   ? `, filtered by ${artifactTypeFilter}`
@@ -524,9 +547,10 @@ export function RunDetailPage() {
                 onChange={(value) => setArtifactTypeFilter(value || null)}
                 clearable
                 style={{ width: 200 }}
+                data-testid="artifact-type-filter"
               />
             </Group>
-            <Table striped highlightOnHover>
+            <Table striped highlightOnHover data-testid="artifacts-table">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Type</Table.Th>
@@ -542,6 +566,7 @@ export function RunDetailPage() {
                     key={artifact.id}
                     style={{ cursor: "pointer" }}
                     onClick={() => setSelectedArtifact(artifact)}
+                    data-testid={`artifact-row-${artifact.id}`}
                   >
                     <Table.Td>
                       <Badge>{artifact.type}</Badge>
@@ -568,7 +593,9 @@ export function RunDetailPage() {
         <Card>
           <Stack gap="md">
             <Group justify="space-between">
-              <Title order={3}>Drill-Down Summary</Title>
+              <Title order={3} data-testid="drill-down-heading">
+                Drill-Down Summary
+              </Title>
               <Button
                 variant="light"
                 size="sm"
@@ -577,6 +604,7 @@ export function RunDetailPage() {
                     `/benchmarking/projects/${projectId}/runs/${runId}/drill-down`,
                   )
                 }
+                data-testid="view-all-samples-btn"
               >
                 View All Samples
               </Button>
@@ -587,7 +615,7 @@ export function RunDetailPage() {
                 <Text fw={500}>
                   Top {drillDown.worstSamples.length} Worst-Performing Samples
                 </Text>
-                <Table striped highlightOnHover>
+                <Table striped highlightOnHover data-testid="worst-samples-table">
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>Sample ID</Table.Th>
@@ -624,7 +652,7 @@ export function RunDetailPage() {
               drillDown.fieldErrorBreakdown.length > 0 && (
                 <Stack gap="xs">
                   <Text fw={500}>Per-Field Error Breakdown</Text>
-                  <Table striped highlightOnHover>
+                  <Table striped highlightOnHover data-testid="field-error-breakdown-table">
                     <Table.Thead>
                       <Table.Tr>
                         <Table.Th>Field Name</Table.Th>
@@ -652,7 +680,7 @@ export function RunDetailPage() {
             {Object.keys(drillDown.errorClusters).length > 0 && (
               <Stack gap="xs">
                 <Text fw={500}>Error Cluster Tags</Text>
-                <Table striped>
+                <Table striped data-testid="error-clusters-table">
                   <Table.Tbody>
                     {Object.entries(drillDown.errorClusters).map(
                       ([tag, count]) => (

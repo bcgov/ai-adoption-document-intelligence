@@ -15,7 +15,7 @@
 - [ ] US-039-in-app-artifact-viewer.md
 
 **Status**: 1/13 test plans explored
-**Last Updated**: 2026-02-15
+**Last Updated**: 2026-02-15 4:15 PM
 
 ## US-026 Summary
 
@@ -24,6 +24,9 @@
 - ✅ Datasets List Page (`/benchmarking/datasets`) - Fully implemented with backend integration
 - ✅ Projects List Page (`/benchmarking/projects`) - **IMPLEMENTED** (was placeholder, now fully functional)
 - ✅ Runs List Page (`/benchmarking/runs`) - **IMPLEMENTED** as informational/wayfinding page
+- ✅ Dataset Detail Page (`/benchmarking/datasets/:id`) - **DOCUMENTED** with 11 test IDs added
+- ✅ Project Detail Page (`/benchmarking/projects/:id`) - **DOCUMENTED** with 15 test IDs added
+- ✅ Run Detail Page (`/benchmarking/projects/:projectId/runs/:runId`) - **DOCUMENTED** with 26 test IDs added
 
 **Implementation Work**:
 1. **ProjectListPage.tsx** - Implemented from placeholder:
@@ -45,21 +48,22 @@
 2. ProjectListPage was placeholder - Now fully functional with backend integration
 3. RunListPage was simple placeholder - Now informational wayfinding page with better UX
 
-**Test IDs Added**: 22 data-testid attributes across 4 files
+**Test IDs Added**: 74 data-testid attributes across 7 files
 - DatasetListPage: 6 selectors
 - RootLayout: 7 selectors
 - ProjectListPage: 6 selectors
 - RunListPage: 3 selectors
-
-**Screenshots**: 6 screenshots captured
-- sidebar-benchmarking-expanded.png
-- datasets-list-empty.png
-- projects-list-placeholder.png (old)
-- projects-list-empty.png (new)
-- runs-list-placeholder.png (old)
-- runs-list-improved.png (new)
+- DatasetDetailPage: 11 selectors
+- ProjectDetailPage: 15 selectors
+- RunDetailPage: 26 selectors
 
 **Documentation Created/Updated**:
-- 4 page documentation files (.page-doc.md) - All updated with implementation details
-- 4 selector files (.selectors.md) - All updated with new selectors
-- 1 selector changes log (selector-changes.md) - Updated with implementation summary
+- 7 page documentation files (.page-doc.md):
+  - datasets-list.page-doc.md
+  - projects-list.page-doc.md
+  - runs-list.page-doc.md
+  - sidebar-navigation.page-doc.md
+  - dataset-detail.page-doc.md
+  - project-detail.page-doc.md
+  - run-detail.page-doc.md
+- 7 selector files (.selectors.md) - Complete machine-readable selector references

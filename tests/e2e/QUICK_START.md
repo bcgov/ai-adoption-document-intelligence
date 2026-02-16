@@ -40,8 +40,6 @@ Get started with automated test generation in 4 simple steps.
 **Output**:
 - `*.page-doc.md` files with page documentation
 - `*.selectors.md` files with element selectors
-- `selector-changes.md` with log of code modifications
-- Screenshots in `screenshots/` directory
 - **Modified source files** with added `data-testid` attributes
 
 ### Step 3: Generate 🤖
