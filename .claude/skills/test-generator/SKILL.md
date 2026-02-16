@@ -21,8 +21,50 @@ Generate production-ready Playwright tests from test plans and page exploration 
    - Generate Page Object Models in `tests/e2e/pages/`
    - Use documented selectors from exploration
    - Include proper waits and assertions
-6. Mark test plan as complete in `{feature-dir}/playwright/test-generation/generation-progress.md`
-7. Confirm with user before proceeding to next test plan
+6. **Reset and seed database** before running tests (see Database Management section)
+7. **Run the generated tests** to verify they work
+8. **If tests fail**, fix the issues (see Test Verification & Fixing section)
+9. Mark test plan as complete in `{feature-dir}/playwright/test-generation/generation-progress.md`
+10. Confirm with user before proceeding to next test plan
+
+## Database Management
+
+**CRITICAL**: Reset and seed the database before running tests to ensure consistent starting state.
+
+### Reset & Seed Process
+
+Before running any tests, execute these commands:
+
+```bash
+# From apps/backend-services directory
+cd apps/backend-services
+
+# Reset database (drops all data)
+npm run db:reset
+
+# Run migrations
+npm run db:migrate
+
+# Seed test data
+npm run db:seed
+```
+
+**OR** use the combined reset command:
+```bash
+cd apps/backend-services && npm run db:reset && npm run db:seed
+```
+
+### Seed Data Requirements
+
+1. **Verify seed file**: Read `apps/shared/prisma/seed.ts` to understand available test data
+2. **Check coverage**: Ensure seed data covers all scenarios in the test plan
+3. **Document IDs**: Note the seed data IDs used in tests (e.g., `seed-project-id`, `seed-dataset-invoices`)
+4. **If seed data is missing**:
+   - Update `apps/shared/prisma/seed.ts` to add needed test entities
+   - Use descriptive IDs with `seed-` prefix
+   - Create entities in various states (draft/published, pending/completed, etc.)
+   - Include realistic sample data and relationships
+   - Run `npm run db:seed` to populate
 
 ## Progress Tracking
 
@@ -249,6 +291,7 @@ test('should create a new project', async ({ page }) => {
 ## Best Practices
 
 ### ✅ DO
+- **Reset and seed database before running tests** to ensure consistent state
 - Use the `setupAuthenticatedTest` helper for consistency
 - Wait for `networkidle` after navigation
 - Use `.first()` when multiple elements match
@@ -257,6 +300,8 @@ test('should create a new project', async ({ page }) => {
 - Make tests independent (don't rely on test order)
 - Include Given/When/Then comments for clarity
 - Add requirement traceability comments (e.g., `// REQ-003: User can create events`)
+- **Run tests after generation** to verify they work
+- **Fix broken features** if tests correctly identify implementation issues
 
 ### ❌ DON'T
 - Don't hardcode URLs (use environment variables)
@@ -264,6 +309,8 @@ test('should create a new project', async ({ page }) => {
 - Don't forget to wait for loading states
 - Don't use `page.locator('#id')` unless necessary
 - Don't commit test screenshots to git
+- **Don't skip database reset** - tests may fail due to stale data
+- **Don't mark tests complete without running them** - always verify they pass
 
 ## File Naming Convention
 ```
@@ -281,8 +328,100 @@ tests/e2e/
 1. Read next uncompleted test plan from `generation-progress.md`
 2. Read corresponding exploration files (`*.page-doc.md` and `*.selectors.md`)
 3. Generate test files and Page Object Models for that test plan only
-4. Mark test plan as complete in `generation-progress.md`
-5. Confirm with user before proceeding to next test plan
+4. Reset and seed database
+5. Run tests to verify they work
+6. Fix any failures (see Test Verification & Fixing section)
+7. Mark test plan as complete in `generation-progress.md`
+8. Confirm with user before proceeding to next test plan
+
+## Test Verification & Fixing
+
+After generating tests, **ALWAYS verify they work** by running them.
+
+### Running Tests
+
+```bash
+# Run specific test file
+npx playwright test tests/e2e/{feature-name}/{test-file}.spec.ts
+
+# Run all tests for a feature
+npx playwright test tests/e2e/{feature-name}/
+
+# Run with UI mode for debugging
+npx playwright test --ui
+
+# Run in headed mode to see browser
+npx playwright test --headed
+```
+
+### Handling Test Failures
+
+When tests fail, identify the root cause:
+
+#### 1. **Selector Issues**
+- **Symptom**: Element not found, timeout waiting for element
+- **Cause**: Selector changed, `data-testid` missing, element not rendered
+- **Fix**:
+  - Check if element exists in the page (use Playwright inspector or headed mode)
+  - Verify selector in exploration files is still accurate
+  - Update selector in Page Object Model if needed
+  - Add missing `data-testid` to source component if needed
+
+#### 2. **Missing Test Data**
+- **Symptom**: Empty lists, "Not found" pages, missing entities
+- **Cause**: Seed data doesn't exist or doesn't match test expectations
+- **Fix**:
+  - Update `apps/shared/prisma/seed.ts` to add required test data
+  - Run `cd apps/backend-services && npm run db:seed`
+  - Re-run tests
+
+#### 3. **Broken Feature Implementation**
+- **Symptom**: Test correctly identifies that feature doesn't work as expected
+- **Cause**: Feature is not implemented, partially implemented, or has bugs
+- **Fix**:
+  - Read `{feature-dir}/requirements.md` to understand expected behavior
+  - Read corresponding user story from `{feature-dir}/user-stories/`
+  - Fix the implementation in frontend/backend code:
+    - Update React components if UI is missing/broken
+    - Fix API endpoints if backend calls fail
+    - Add missing functionality
+    - Follow existing code patterns
+  - Add `data-testid` attributes if missing
+  - Re-run tests to verify fix
+
+#### 4. **Timing/Race Condition Issues**
+- **Symptom**: Intermittent failures, "element is not visible", "element is detached"
+- **Cause**: Test interacts with elements before they're ready, async state updates
+- **Fix**:
+  - Add proper waits: `await page.waitForLoadState('networkidle')`
+  - Wait for specific elements: `await element.waitFor({ state: 'visible' })`
+  - Use Playwright auto-waiting: prefer `page.getByRole()` over `page.locator()`
+  - Add waits after navigation or form submission
+
+#### 5. **Authentication Issues**
+- **Symptom**: 403 errors, redirects to login, unauthorized API calls
+- **Cause**: `setupAuthenticatedTest` not called or not working correctly
+- **Fix**:
+  - Ensure `setupAuthenticatedTest` is called in `beforeEach`
+  - Verify `TEST_API_KEY` environment variable is set
+  - Check that auth helper is correctly setting up both frontend and backend auth
+  - Verify backend API calls include `x-api-key` header
+
+### Iterative Fix Process
+
+1. **Reset database**: `cd apps/backend-services && npm run db:reset && npm run db:seed`
+2. **Run failing test**: `npx playwright test path/to/test.spec.ts`
+3. **Identify root cause** from error message and test output
+4. **Apply fix** (update test, add data, fix feature, etc.)
+5. **Re-run test** to verify fix
+6. **Repeat** until all tests pass
+
+### When to Stop and Ask User
+
+- If feature implementation requires significant architectural changes
+- If requirements are unclear or contradictory
+- If multiple test plans are failing for the same underlying issue
+- If you've attempted 3+ fixes without success
 
 ## Important References
 - **ALWAYS** refer to the feature's `requirements.md` when generating tests to ensure correct expected behavior
