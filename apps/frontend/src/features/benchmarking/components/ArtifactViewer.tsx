@@ -192,39 +192,40 @@ export function ArtifactViewer({
       onClose={onClose}
       position="right"
       size="xl"
+      data-testid="artifact-viewer-drawer"
       title={
         <Group justify="space-between" style={{ flex: 1, marginRight: 16 }}>
           <Stack gap={0}>
-            <Text fw={600} size="lg">
+            <Text fw={600} size="lg" data-testid="artifact-viewer-title">
               Artifact Viewer
             </Text>
-            <Code size="xs">{artifact.path}</Code>
+            <Code size="xs" data-testid="artifact-path-display">{artifact.path}</Code>
           </Stack>
         </Group>
       }
     >
       <Stack gap="md" h="calc(100vh - 80px)">
         {/* Artifact Metadata */}
-        <Card withBorder>
+        <Card withBorder data-testid="artifact-metadata-card">
           <Stack gap="xs">
             <Group>
               <Text size="sm" fw={500}>
                 Type:
               </Text>
-              <Code size="sm">{artifact.type}</Code>
+              <Code size="sm" data-testid="artifact-type-value">{artifact.type}</Code>
             </Group>
             <Group>
               <Text size="sm" fw={500}>
                 MIME Type:
               </Text>
-              <Code size="sm">{artifact.mimeType}</Code>
+              <Code size="sm" data-testid="artifact-mime-type-value">{artifact.mimeType}</Code>
             </Group>
             {artifact.sampleId && (
               <Group>
                 <Text size="sm" fw={500}>
                   Sample ID:
                 </Text>
-                <Code size="sm">{artifact.sampleId}</Code>
+                <Code size="sm" data-testid="artifact-sample-id-value">{artifact.sampleId}</Code>
               </Group>
             )}
             {artifact.nodeId && (
@@ -232,7 +233,7 @@ export function ArtifactViewer({
                 <Text size="sm" fw={500}>
                   Node ID:
                 </Text>
-                <Code size="sm">{artifact.nodeId}</Code>
+                <Code size="sm" data-testid="artifact-node-id-value">{artifact.nodeId}</Code>
               </Group>
             )}
           </Stack>
@@ -244,6 +245,7 @@ export function ArtifactViewer({
             leftSection={<IconDownload size={16} />}
             variant="light"
             onClick={handleDownload}
+            data-testid="download-artifact-btn"
           >
             Download
           </Button>
@@ -255,6 +257,7 @@ export function ArtifactViewer({
               href={mlflowUrl}
               target="_blank"
               rel="noopener noreferrer"
+              data-testid="open-mlflow-btn"
             >
               Open in MLflow
             </Button>
@@ -262,16 +265,17 @@ export function ArtifactViewer({
         </Group>
 
         {/* Content Viewer */}
-        <Card withBorder style={{ flex: 1, overflow: "hidden" }}>
+        <Card withBorder style={{ flex: 1, overflow: "hidden" }} data-testid="artifact-content-card">
           {loading ? (
             <Center h={300}>
-              <Loader />
+              <Loader data-testid="artifact-loading-spinner" />
             </Center>
           ) : error ? (
             <Alert
               color="red"
               title="Error Loading Artifact"
               icon={<IconAlertCircle />}
+              data-testid="artifact-error-alert"
             >
               {error}
             </Alert>
@@ -281,6 +285,7 @@ export function ArtifactViewer({
                 src={imageUrl}
                 alt={artifact.path}
                 style={{ maxWidth: "100%", height: "auto" }}
+                data-testid="artifact-image-viewer"
               />
             </ScrollArea>
           ) : isJson && content ? (
@@ -291,6 +296,7 @@ export function ArtifactViewer({
                 autosize
                 minRows={10}
                 maxRows={50}
+                data-testid="artifact-json-viewer"
               />
             </ScrollArea>
           ) : isText && content ? (
@@ -307,10 +313,16 @@ export function ArtifactViewer({
                     fontSize: "12px",
                   },
                 }}
+                data-testid="artifact-text-viewer"
               />
             </ScrollArea>
           ) : isPdf ? (
-            <Alert color="blue" title="PDF Viewer" icon={<IconAlertCircle />}>
+            <Alert
+              color="blue"
+              title="PDF Viewer"
+              icon={<IconAlertCircle />}
+              data-testid="artifact-pdf-alert"
+            >
               PDF viewing is not yet implemented. Please download the file or
               open it in MLflow.
             </Alert>
@@ -319,6 +331,7 @@ export function ArtifactViewer({
               color="blue"
               title="Preview Not Available"
               icon={<IconAlertCircle />}
+              data-testid="artifact-unsupported-alert"
             >
               This artifact type cannot be previewed in the browser. Please
               download the file or open it in MLflow.

@@ -12,7 +12,15 @@
 - [x] US-036-side-by-side-run-comparison-ui.md - Completed 2026-02-16 (Implementation issues found and fixed, tests generated, debugging incomplete)
 - [x] US-037-regression-reports-ui.md - Completed 2026-02-16
 - [x] US-038-slicing-filtering-drilldown-ui.md - Completed 2026-02-16 (2/7 tests passing, 3 skipped, 5 failing - filter interaction issues)
-- [ ] US-039-in-app-artifact-viewer.md
+- [ ] US-039-in-app-artifact-viewer.md - In progress (tests generated, debugging required)
 
 **Status**: 12/13 test plans generated
-**Last Updated**: 2026-02-16 3:45 PM
+**Last Updated**: 2026-02-16 5:30 PM
+
+**Current Issue (US-039):**
+- Artifact viewer tests have been generated with proper Page Object Model and mocking
+- Seed data created for 4 artifact types (JSON, image, text, unsupported)
+- Test-id attributes added to ArtifactViewer component
+- Tests failing because artifacts table not visible on run detail page
+- Requires debugging to determine why artifacts section isn't rendering
+- Possible causes: API endpoint issues, run status conditions, or page load timing

@@ -169,6 +169,10 @@ const SEED_RUN_ID_RUNNING = "seed-run-running-002";
 const SEED_RUN_ID_FAILED = "seed-run-failed-003";
 const SEED_RUN_ID_PASSING = "seed-run-passing-004";
 const SEED_RUN_ID_REGRESSED = "seed-run-regressed-005";
+const SEED_ARTIFACT_ID_JSON = "seed-artifact-json-001";
+const SEED_ARTIFACT_ID_IMAGE = "seed-artifact-image-001";
+const SEED_ARTIFACT_ID_TEXT = "seed-artifact-text-001";
+const SEED_ARTIFACT_ID_UNSUPPORTED = "seed-artifact-unsupported-001";
 
 /**
  * Create a test dataset repository with manifest and sample data
@@ -1045,6 +1049,9 @@ async function seedBenchmarkingData() {
     },
   });
 
+  // Create test artifacts for the passing run (which has baseline comparison and won't crash the UI)
+  await seedBenchmarkArtifacts(project.id, SEED_RUN_ID_PASSING);
+
   console.log("✅ Benchmarking seed data created successfully");
   console.log(`  - Dataset: ${dataset.name} (3 versions: v0.9 archived, v1.0 published, v2.0 draft)`);
   console.log(`  - Dataset: ${dataset2.name}`);
@@ -1052,6 +1059,158 @@ async function seedBenchmarkingData() {
   console.log(`  - Project: ${project.name}`);
   console.log(`  - Definition: ${definition.name}`);
   console.log(`  - Runs: 5 (3 completed [1 baseline, 1 passing, 1 regressed], 1 running, 1 failed)`);
+  console.log(`  - Artifacts: 4 test artifacts created for artifact viewer testing`);
+}
+
+/**
+ * Seed benchmark artifacts for testing the artifact viewer
+ * Creates JSON, image, text, and unsupported file type artifacts
+ */
+async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RUN_ID_COMPLETED) {
+  console.log("  📦 Creating test artifacts...");
+
+  // Sample JSON artifact content (evaluation report)
+  const jsonContent = JSON.stringify({
+    evaluationId: "eval-001",
+    runId,
+    metrics: {
+      field_accuracy: 0.95,
+      character_accuracy: 0.98,
+      word_accuracy: 0.96,
+    },
+    perFieldResults: [
+      {
+        fieldName: "invoice_number",
+        accuracy: 0.92,
+        errorCount: 4,
+      },
+      {
+        fieldName: "total_amount",
+        accuracy: 0.97,
+        errorCount: 2,
+      },
+    ],
+    timestamp: "2026-02-10T10:45:00Z",
+  }, null, 2);
+
+  // Sample text artifact content (error log)
+  const textContent = `[2026-02-10 10:30:15] INFO: Starting evaluation for run ${runId}
+[2026-02-10 10:30:16] INFO: Loading dataset version ${SEED_DATASET_VERSION_ID}
+[2026-02-10 10:30:17] INFO: Processing sample-001
+[2026-02-10 10:30:18] INFO: Processing sample-002
+[2026-02-10 10:30:19] WARN: Low confidence score for field 'invoice_number' in sample-003
+[2026-02-10 10:30:20] INFO: Processing sample-004
+[2026-02-10 10:30:21] ERROR: Field extraction failed for 'vendor_name' in sample-005
+[2026-02-10 10:30:22] INFO: Processing complete. Total samples: 50
+[2026-02-10 10:30:23] INFO: Aggregated metrics calculated
+[2026-02-10 10:45:00] INFO: Evaluation completed successfully`;
+
+  // Sample image artifact (1x1 red pixel PNG as base64)
+  // This is a minimal valid PNG file
+  const pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+  const imageBuffer = Buffer.from(pngBase64, "base64");
+
+  // Sample unsupported file (binary data)
+  const unsupportedContent = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+
+  // Create artifacts in database
+  // Note: In production, these would be uploaded to MinIO via the backend service
+  // For seed purposes, we create database records only
+  // E2E tests should mock MinIO responses or run with MinIO available
+
+  await prisma.benchmarkArtifact.upsert({
+    where: { id: SEED_ARTIFACT_ID_JSON },
+    update: {
+      runId,
+      type: "evaluation_report",
+      path: `${runId}/evaluation_report/eval-report-1707563100000.json`,
+      sampleId: null,
+      nodeId: null,
+      sizeBytes: BigInt(jsonContent.length),
+      mimeType: "application/json",
+    },
+    create: {
+      id: SEED_ARTIFACT_ID_JSON,
+      runId,
+      type: "evaluation_report",
+      path: `${runId}/evaluation_report/eval-report-1707563100000.json`,
+      sampleId: null,
+      nodeId: null,
+      sizeBytes: BigInt(jsonContent.length),
+      mimeType: "application/json",
+    },
+  });
+
+  await prisma.benchmarkArtifact.upsert({
+    where: { id: SEED_ARTIFACT_ID_IMAGE },
+    update: {
+      runId,
+      type: "per_doc_output",
+      path: `${runId}/per_doc_output/sample-001-output-1707563100001.png`,
+      sampleId: "sample-001",
+      nodeId: "ocr-node",
+      sizeBytes: BigInt(imageBuffer.length),
+      mimeType: "image/png",
+    },
+    create: {
+      id: SEED_ARTIFACT_ID_IMAGE,
+      runId,
+      type: "per_doc_output",
+      path: `${runId}/per_doc_output/sample-001-output-1707563100001.png`,
+      sampleId: "sample-001",
+      nodeId: "ocr-node",
+      sizeBytes: BigInt(imageBuffer.length),
+      mimeType: "image/png",
+    },
+  });
+
+  await prisma.benchmarkArtifact.upsert({
+    where: { id: SEED_ARTIFACT_ID_TEXT },
+    update: {
+      runId,
+      type: "error_log",
+      path: `${runId}/error_log/run-log-1707563100002.log`,
+      sampleId: null,
+      nodeId: null,
+      sizeBytes: BigInt(textContent.length),
+      mimeType: "text/plain",
+    },
+    create: {
+      id: SEED_ARTIFACT_ID_TEXT,
+      runId,
+      type: "error_log",
+      path: `${runId}/error_log/run-log-1707563100002.log`,
+      sampleId: null,
+      nodeId: null,
+      sizeBytes: BigInt(textContent.length),
+      mimeType: "text/plain",
+    },
+  });
+
+  await prisma.benchmarkArtifact.upsert({
+    where: { id: SEED_ARTIFACT_ID_UNSUPPORTED },
+    update: {
+      runId,
+      type: "intermediate_node_output",
+      path: `${runId}/intermediate_node_output/model-weights-1707563100003.bin`,
+      sampleId: null,
+      nodeId: null,
+      sizeBytes: BigInt(unsupportedContent.length),
+      mimeType: "application/octet-stream",
+    },
+    create: {
+      id: SEED_ARTIFACT_ID_UNSUPPORTED,
+      runId,
+      type: "intermediate_node_output",
+      path: `${runId}/intermediate_node_output/model-weights-1707563100003.bin`,
+      sampleId: null,
+      nodeId: null,
+      sizeBytes: BigInt(unsupportedContent.length),
+      mimeType: "application/octet-stream",
+    },
+  });
+
+  console.log("    ✓ Created 4 test artifacts (JSON, image, text, unsupported)");
 }
 
 async function seedLabelingData() {
