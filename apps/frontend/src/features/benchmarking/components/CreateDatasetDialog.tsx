@@ -99,6 +99,7 @@ export function CreateDatasetDialog({
       onClose={handleClose}
       title="Create New Dataset"
       size="md"
+      data-testid="create-dataset-dialog"
     >
       <Stack gap="md">
         <TextInput
@@ -113,6 +114,7 @@ export function CreateDatasetDialog({
           }}
           error={nameError}
           required
+          data-testid="dataset-name-input"
         />
 
         <Textarea
@@ -121,6 +123,7 @@ export function CreateDatasetDialog({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
+          data-testid="dataset-description-input"
         />
 
         <TextInput
@@ -135,14 +138,15 @@ export function CreateDatasetDialog({
           }}
           error={repositoryUrlError}
           required
+          data-testid="dataset-repository-url-input"
         />
 
-        <Stack gap="xs">
+        <Stack gap="xs" data-testid="dataset-metadata-section">
           <Text size="sm" fw={500}>
             Metadata (optional)
           </Text>
           {Object.entries(metadata).map(([key, value]) => (
-            <Group key={key} justify="space-between">
+            <Group key={key} justify="space-between" data-testid={`metadata-item-${key}`}>
               <Text size="sm">
                 <strong>{key}:</strong> {value}
               </Text>
@@ -151,6 +155,7 @@ export function CreateDatasetDialog({
                 size="xs"
                 color="red"
                 onClick={() => handleRemoveMetadata(key)}
+                data-testid={`remove-metadata-${key}-btn`}
               >
                 Remove
               </Button>
@@ -163,6 +168,7 @@ export function CreateDatasetDialog({
               onChange={(e) => setMetadataKey(e.target.value)}
               style={{ flex: 1 }}
               size="sm"
+              data-testid="metadata-key-input"
             />
             <TextInput
               placeholder="Value"
@@ -170,12 +176,14 @@ export function CreateDatasetDialog({
               onChange={(e) => setMetadataValue(e.target.value)}
               style={{ flex: 1 }}
               size="sm"
+              data-testid="metadata-value-input"
             />
             <Button
               variant="light"
               size="sm"
               onClick={handleAddMetadata}
               disabled={!metadataKey.trim() || !metadataValue.trim()}
+              data-testid="add-metadata-btn"
             >
               Add
             </Button>
@@ -183,10 +191,10 @@ export function CreateDatasetDialog({
         </Stack>
 
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={handleClose} disabled={isCreating}>
+          <Button variant="subtle" onClick={handleClose} disabled={isCreating} data-testid="cancel-dataset-btn">
             Cancel
           </Button>
-          <Button onClick={handleSubmit} loading={isCreating}>
+          <Button onClick={handleSubmit} loading={isCreating} data-testid="submit-dataset-btn">
             Create Dataset
           </Button>
         </Group>
