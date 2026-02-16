@@ -132,6 +132,29 @@ export const useRun = (projectId: string, runId: string, polling = false) => {
   };
 };
 
+export const useMultipleRuns = (projectId: string, runIds: string[]) => {
+  const runsQuery = useQuery({
+    queryKey: ["benchmark-multiple-runs", projectId, ...runIds.sort()],
+    queryFn: async () => {
+      // Fetch all runs in parallel
+      const promises = runIds.map((runId) =>
+        apiService.get<RunDetails>(
+          `/benchmark/projects/${projectId}/runs/${runId}`,
+        ),
+      );
+      const responses = await Promise.all(promises);
+      return responses.map((r) => r.data);
+    },
+    enabled: !!projectId && runIds.length > 0,
+  });
+
+  return {
+    runs: runsQuery.data || [],
+    isLoading: runsQuery.isLoading,
+    error: runsQuery.error,
+  };
+};
+
 export const useStartRun = (projectId: string, definitionId: string) => {
   const queryClient = useQueryClient();
 

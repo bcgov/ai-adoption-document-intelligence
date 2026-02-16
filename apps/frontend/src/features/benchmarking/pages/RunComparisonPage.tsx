@@ -13,7 +13,7 @@ import {
 } from "@mantine/core";
 import { IconDownload } from "@tabler/icons-react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useRun } from "../hooks/useRuns";
+import { useMultipleRuns } from "../hooks/useRuns";
 
 interface ComparisonData {
   runs: Array<{
@@ -73,13 +73,7 @@ export function RunComparisonPage() {
   const runIds = searchParams.get("runs")?.split(",") || [];
 
   // Fetch all runs
-  const runQueries = runIds.map((runId) =>
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useRun(projectId, runId, false),
-  );
-
-  const isLoading = runQueries.some((q) => q.isLoading);
-  const runs = runQueries.map((q) => q.run).filter((r) => r !== undefined);
+  const { runs, isLoading } = useMultipleRuns(projectId, runIds);
 
   // Prepare comparison data
   const comparisonData: ComparisonData = {
