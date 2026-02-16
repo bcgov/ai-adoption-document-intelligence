@@ -3,7 +3,8 @@ import { setupAuthenticatedTest } from '../helpers/auth';
 import { DatasetDetailPage } from '../pages/DatasetDetailPage';
 
 // REQ: US-028 - Dataset Version & Sample Preview UI
-test.describe('Dataset Version & Sample Preview UI', () => {
+// Using serial mode because some tests mutate database state
+test.describe.serial('Dataset Version & Sample Preview UI', () => {
   const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3002';
   const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
   const TEST_API_KEY = process.env.TEST_API_KEY;
@@ -89,6 +90,21 @@ test.describe('Dataset Version & Sample Preview UI', () => {
     // Published version should have Archive option
     const publishedActionsBtn = datasetPage.getVersionActionsBtn(SEED_VERSION_PUBLISHED);
     await publishedActionsBtn.click();
+    await expect(datasetPage.getVersionActionMenuItem(SEED_VERSION_PUBLISHED, 'archive')).toBeVisible();
+    await page.keyboard.press('Escape'); // Close menu
+  });
+
+  // Scenario 13: Cannot Publish Already Published
+  test('should not show publish button for published version', async ({ page }) => {
+    // Given: Version with status published
+    await datasetPage.goto(SEED_DATASET_ID);
+
+    // When: Version list is rendered
+    const publishedActionsBtn = datasetPage.getVersionActionsBtn(SEED_VERSION_PUBLISHED);
+    await publishedActionsBtn.click();
+
+    // Then: "Publish" button is not visible, only "Archive" is available
+    await expect(datasetPage.getVersionActionMenuItem(SEED_VERSION_PUBLISHED, 'publish')).not.toBeVisible();
     await expect(datasetPage.getVersionActionMenuItem(SEED_VERSION_PUBLISHED, 'archive')).toBeVisible();
     await page.keyboard.press('Escape'); // Close menu
   });
@@ -198,7 +214,7 @@ test.describe('Dataset Version & Sample Preview UI', () => {
     await expect(datasetPage.uploadSubmitBtn).toBeVisible();
 
     // Check that the modal title is visible
-    await expect(page.getByText('Upload Files')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Upload Files' })).toBeVisible();
   });
 
   test('should have drag-and-drop zone and file picker in upload dialog', async ({ page }) => {
@@ -285,20 +301,6 @@ test.describe('Dataset Version & Sample Preview UI', () => {
     const revisionText = await gitRevisionCell.textContent();
 
     expect(revisionText?.trim().length).toBeLessThanOrEqual(8);
-  });
-
-  // Scenario 13: Cannot Publish Already Published
-  test('should not show publish button for published version', async ({ page }) => {
-    // Given: Version with status published
-    await datasetPage.goto(SEED_DATASET_ID);
-
-    // When: Version list is rendered
-    const publishedActionsBtn = datasetPage.getVersionActionsBtn(SEED_VERSION_PUBLISHED);
-    await publishedActionsBtn.click();
-
-    // Then: "Publish" button is not visible, only "Archive" is available
-    await expect(datasetPage.getVersionActionMenuItem(SEED_VERSION_PUBLISHED, 'publish')).not.toBeVisible();
-    await expect(datasetPage.getVersionActionMenuItem(SEED_VERSION_PUBLISHED, 'archive')).toBeVisible();
   });
 
   // Scenario 14: Upload File Type Validation

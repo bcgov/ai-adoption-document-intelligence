@@ -1,0 +1,147 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - heading "Document intelligence" [level=3] [ref=e7]
+        - generic [ref=e9]: Live OCR
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - paragraph [ref=e12]: Test User
+          - paragraph [ref=e13]: test@example.com
+        - generic [ref=e15]: T
+        - button "Logout" [ref=e16] [cursor=pointer]:
+          - generic [ref=e17]:
+            - img [ref=e19]
+            - generic [ref=e23]: Logout
+  - navigation [ref=e24]:
+    - button "Collapse sidebar" [ref=e25] [cursor=pointer]:
+      - img [ref=e27]
+    - generic [ref=e29]:
+      - generic [ref=e30] [cursor=pointer]:
+        - img [ref=e32]
+        - generic [ref=e35]:
+          - text: Upload
+          - generic [ref=e36]: Send new files
+      - generic [ref=e37] [cursor=pointer]:
+        - img [ref=e39]
+        - generic [ref=e40]:
+          - text: Processing queue
+          - generic [ref=e41]: Track statuses
+      - generic [ref=e42] [cursor=pointer]:
+        - img [ref=e44]
+        - generic [ref=e47]:
+          - text: Training Labels
+          - generic [ref=e48]: Create datasets
+      - generic [ref=e49] [cursor=pointer]:
+        - img [ref=e51]
+        - generic [ref=e55]:
+          - text: HITL Review
+          - generic [ref=e56]: Validate OCR results
+      - generic [ref=e57] [cursor=pointer]:
+        - img [ref=e59]
+        - generic [ref=e61]:
+          - text: Workflows
+          - generic [ref=e62]: Manage workflows
+      - generic [ref=e63] [cursor=pointer]:
+        - img [ref=e65]
+        - generic [ref=e68]:
+          - text: Settings
+          - generic [ref=e69]: API key management
+      - generic [ref=e70] [cursor=pointer]:
+        - img [ref=e72]
+        - generic [ref=e76]:
+          - text: Benchmarking
+          - generic [ref=e77]: Benchmark management
+        - img [ref=e79]
+      - generic [ref=e82]:
+        - generic [ref=e83] [cursor=pointer]:
+          - img [ref=e85]
+          - generic [ref=e89]:
+            - text: Datasets
+            - generic [ref=e90]: Manage benchmark datasets
+        - generic [ref=e91] [cursor=pointer]:
+          - img [ref=e93]
+          - generic [ref=e95]:
+            - text: Projects
+            - generic [ref=e96]: Benchmark projects
+        - generic [ref=e97] [cursor=pointer]:
+          - img [ref=e99]
+          - generic [ref=e101]:
+            - text: Runs
+            - generic [ref=e102]: Benchmark runs
+  - main [ref=e103]:
+    - generic [ref=e107]:
+      - generic [ref=e108]:
+        - heading "Invoice Extraction Benchmark" [level=2] [ref=e109]
+        - paragraph [ref=e110]: Benchmarking OCR accuracy on invoice documents
+        - paragraph [ref=e111]: "MLflow Experiment: 1"
+      - generic [ref=e113]:
+        - generic [ref=e114]:
+          - heading "Benchmark Definitions" [level=3] [ref=e115]
+          - button "Create Definition" [ref=e116] [cursor=pointer]:
+            - generic [ref=e117]:
+              - img [ref=e119]
+              - generic [ref=e120]: Create Definition
+        - table [ref=e121]:
+          - rowgroup [ref=e122]:
+            - row "Name Dataset Version Workflow Evaluator Status Revision" [ref=e123]:
+              - columnheader "Name" [ref=e124]
+              - columnheader "Dataset Version" [ref=e125]
+              - columnheader "Workflow" [ref=e126]
+              - columnheader "Evaluator" [ref=e127]
+              - columnheader "Status" [ref=e128]
+              - columnheader "Revision" [ref=e129]
+          - rowgroup [ref=e130]:
+            - row "Baseline OCR Model Invoice Test Dataset vv1.0 Standard OCR Workflow v1 field-accuracy Mutable 1" [ref=e131] [cursor=pointer]:
+              - cell "Baseline OCR Model" [ref=e132]
+              - cell "Invoice Test Dataset vv1.0" [ref=e133]
+              - cell "Standard OCR Workflow v1" [ref=e134]
+              - cell "field-accuracy" [ref=e135]
+              - cell "Mutable" [ref=e136]:
+                - generic [ref=e138]: Mutable
+              - cell "1" [ref=e139]
+      - generic [ref=e141]:
+        - heading "Recent Runs" [level=3] [ref=e143]
+        - table [ref=e144]:
+          - rowgroup [ref=e145]:
+            - row "Select Status Definition Started Duration Metrics" [ref=e146]:
+              - columnheader "Select" [ref=e147]
+              - columnheader "Status" [ref=e148]
+              - columnheader "Definition" [ref=e149]
+              - columnheader "Started" [ref=e150]
+              - columnheader "Duration" [ref=e151]
+              - columnheader "Metrics" [ref=e152]
+          - rowgroup [ref=e153]:
+            - row "running Baseline OCR Model 2/15/2026, 1:00:00 AM 22h 14m -" [ref=e154]:
+              - cell [ref=e155]:
+                - generic [ref=e158]:
+                  - checkbox [ref=e159]
+                  - img
+              - cell "running" [ref=e160] [cursor=pointer]:
+                - generic [ref=e163]: running
+              - cell "Baseline OCR Model" [ref=e164] [cursor=pointer]
+              - cell "2/15/2026, 1:00:00 AM" [ref=e165] [cursor=pointer]
+              - cell "22h 14m" [ref=e166] [cursor=pointer]
+              - cell "-" [ref=e167] [cursor=pointer]
+            - row "failed Baseline OCR Model 2/12/2026, 6:00:00 AM 5m 0s -" [ref=e168]:
+              - cell [ref=e169]:
+                - generic [ref=e172]:
+                  - checkbox [ref=e173]
+                  - img
+              - cell "failed" [ref=e174] [cursor=pointer]:
+                - generic [ref=e177]: failed
+              - cell "Baseline OCR Model" [ref=e178] [cursor=pointer]
+              - cell "2/12/2026, 6:00:00 AM" [ref=e179] [cursor=pointer]
+              - cell "5m 0s" [ref=e180] [cursor=pointer]
+              - cell "-" [ref=e181] [cursor=pointer]
+            - 'row "completed Baseline OCR Model 2/10/2026, 2:00:00 AM 45m 0s word_accuracy: 0.96, field_accuracy: 0.95" [ref=e182]':
+              - cell [ref=e183]:
+                - generic [ref=e186]:
+                  - checkbox [ref=e187]
+                  - img
+              - cell "completed" [ref=e188] [cursor=pointer]:
+                - generic [ref=e191]: completed
+              - cell "Baseline OCR Model" [ref=e192] [cursor=pointer]
+              - cell "2/10/2026, 2:00:00 AM" [ref=e193] [cursor=pointer]
+              - cell "45m 0s" [ref=e194] [cursor=pointer]
+              - 'cell "word_accuracy: 0.96, field_accuracy: 0.95" [ref=e195] [cursor=pointer]'

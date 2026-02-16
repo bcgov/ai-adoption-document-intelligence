@@ -267,7 +267,7 @@ async function seedBenchmarkingData() {
     },
   });
 
-  // Create a dataset version - published
+  // Create a dataset version - published (middle creation date)
   const datasetVersion = await prisma.datasetVersion.upsert({
     where: { id: SEED_DATASET_VERSION_ID },
     update: {
@@ -280,6 +280,7 @@ async function seedBenchmarkingData() {
       },
       status: DatasetVersionStatus.published,
       publishedAt: new Date("2026-01-15"),
+      createdAt: new Date("2026-01-10T00:00:00Z"),
     },
     create: {
       id: SEED_DATASET_VERSION_ID,
@@ -293,10 +294,11 @@ async function seedBenchmarkingData() {
       },
       status: DatasetVersionStatus.published,
       publishedAt: new Date("2026-01-15"),
+      createdAt: new Date("2026-01-10T00:00:00Z"),
     },
   });
 
-  // Create a draft version
+  // Create a draft version (newest creation date)
   await prisma.datasetVersion.upsert({
     where: { id: SEED_DATASET_VERSION_ID_DRAFT },
     update: {
@@ -309,6 +311,7 @@ async function seedBenchmarkingData() {
       },
       status: DatasetVersionStatus.draft,
       publishedAt: null,
+      createdAt: new Date("2026-02-01T00:00:00Z"),
     },
     create: {
       id: SEED_DATASET_VERSION_ID_DRAFT,
@@ -322,10 +325,11 @@ async function seedBenchmarkingData() {
       },
       status: DatasetVersionStatus.draft,
       publishedAt: null,
+      createdAt: new Date("2026-02-01T00:00:00Z"),
     },
   });
 
-  // Create an archived version
+  // Create an archived version (oldest creation date)
   await prisma.datasetVersion.upsert({
     where: { id: SEED_DATASET_VERSION_ID_ARCHIVED },
     update: {
@@ -338,6 +342,7 @@ async function seedBenchmarkingData() {
       },
       status: DatasetVersionStatus.archived,
       publishedAt: new Date("2025-12-01"),
+      createdAt: new Date("2026-01-01T00:00:00Z"),
     },
     create: {
       id: SEED_DATASET_VERSION_ID_ARCHIVED,
@@ -351,6 +356,7 @@ async function seedBenchmarkingData() {
       },
       status: DatasetVersionStatus.archived,
       publishedAt: new Date("2025-12-01"),
+      createdAt: new Date("2026-01-01T00:00:00Z"),
     },
   });
 
