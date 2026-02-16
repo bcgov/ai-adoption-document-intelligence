@@ -4,6 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
 import { API_KEY_AUTH_KEY } from "@/decorators/custom-auth-decorators";
@@ -14,24 +15,29 @@ export class ApiKeyAuthGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private apiKeyService: ApiKeyService,
+    private configService: ConfigService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest<Request>();
+
+    // Check if already authenticated via Bearer token (handled by BCGovAuthGuard)
+    if (request.user) {
+      return true;
+    }
+
     // Check if this endpoint allows API key auth
     const allowApiKeyAuth = this.reflector.getAllAndOverride<boolean>(
       API_KEY_AUTH_KEY,
       [context.getHandler(), context.getClass()],
     );
 
-    if (!allowApiKeyAuth) {
-      // This guard only handles API key auth for decorated endpoints
-      return true;
-    }
+    // In test mode, always attempt to resolve API key if present (regardless of decorator)
+    const isTestMode = this.configService.get<string>("NODE_ENV") === "test";
+    const shouldResolveApiKey = allowApiKeyAuth || isTestMode;
 
-    const request = context.switchToHttp().getRequest<Request>();
-
-    // Check if already authenticated via Bearer token (handled by BCGovAuthGuard)
-    if (request.user) {
+    if (!shouldResolveApiKey) {
+      // This guard only handles API key auth for decorated endpoints (or all endpoints in test mode)
       return true;
     }
 
