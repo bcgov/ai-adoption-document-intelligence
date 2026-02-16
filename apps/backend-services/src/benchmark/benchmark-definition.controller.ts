@@ -18,6 +18,10 @@ import {
   Post,
   Put,
 } from "@nestjs/common";
+import {
+  ApiKeyAuth,
+  KeycloakSSOAuth,
+} from "@/decorators/custom-auth-decorators";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import {
   CreateDefinitionDto,
@@ -43,6 +47,8 @@ export class BenchmarkDefinitionController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async createDefinition(
     @Param("projectId") projectId: string,
     @Body() createDefinitionDto: CreateDefinitionDto,
@@ -62,6 +68,8 @@ export class BenchmarkDefinitionController {
    * GET /api/benchmark/projects/:projectId/definitions
    */
   @Get()
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async listDefinitions(
     @Param("projectId") projectId: string,
   ): Promise<DefinitionSummaryDto[]> {
@@ -75,6 +83,8 @@ export class BenchmarkDefinitionController {
    * GET /api/benchmark/projects/:projectId/definitions/:definitionId
    */
   @Get(":definitionId")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async getDefinitionById(
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,
@@ -94,6 +104,8 @@ export class BenchmarkDefinitionController {
    * PUT /api/benchmark/projects/:projectId/definitions/:definitionId
    */
   @Put(":definitionId")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async updateDefinition(
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,
@@ -115,6 +127,8 @@ export class BenchmarkDefinitionController {
    * POST /api/benchmark/projects/:projectId/definitions/:definitionId/schedule
    */
   @Post(":definitionId/schedule")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async configureSchedule(
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,
@@ -136,6 +150,8 @@ export class BenchmarkDefinitionController {
    * GET /api/benchmark/projects/:projectId/definitions/:definitionId/schedule
    */
   @Get(":definitionId/schedule")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async getScheduleInfo(
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,

@@ -130,15 +130,18 @@ export function DatasetDetailPage() {
       <Stack gap="lg">
         <Stack gap={2}>
           <Group justify="space-between">
-            <Title order={2}>{dataset.name}</Title>
+            <Title order={2} data-testid="dataset-name-title">
+              {dataset.name}
+            </Title>
             <Button
               leftSection={<IconUpload size={16} />}
               onClick={() => setUploadDialogOpen(true)}
+              data-testid="upload-files-btn"
             >
               Upload Files
             </Button>
           </Group>
-          <Text c="dimmed" size="sm">
+          <Text c="dimmed" size="sm" data-testid="dataset-description">
             {dataset.description || "No description"}
           </Text>
         </Stack>
@@ -155,12 +158,18 @@ export function DatasetDetailPage() {
           }}
         >
           <Tabs.List>
-            <Tabs.Tab value="versions">Versions ({versions.length})</Tabs.Tab>
+            <Tabs.Tab value="versions" data-testid="versions-tab">
+              Versions ({versions.length})
+            </Tabs.Tab>
             {selectedVersionId && (
-              <Tabs.Tab value={selectedVersionId}>Sample Preview</Tabs.Tab>
+              <Tabs.Tab value={selectedVersionId} data-testid="sample-preview-tab">
+                Sample Preview
+              </Tabs.Tab>
             )}
             {selectedVersionId && (
-              <Tabs.Tab value={`splits-${selectedVersionId}`}>Splits</Tabs.Tab>
+              <Tabs.Tab value={`splits-${selectedVersionId}`} data-testid="splits-tab">
+                Splits
+              </Tabs.Tab>
             )}
           </Tabs.List>
 
@@ -169,7 +178,7 @@ export function DatasetDetailPage() {
               <Card>
                 <Center>
                   <Stack align="center" gap="md">
-                    <Text c="dimmed">No versions yet</Text>
+                    <Text c="dimmed" data-testid="no-versions-message">No versions yet</Text>
                     <Text size="sm" c="dimmed">
                       Upload files to create a new version
                     </Text>
@@ -177,7 +186,7 @@ export function DatasetDetailPage() {
                 </Center>
               </Card>
             ) : (
-              <Table striped highlightOnHover>
+              <Table striped highlightOnHover data-testid="versions-table">
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Version</Table.Th>
@@ -195,6 +204,7 @@ export function DatasetDetailPage() {
                       key={version.id}
                       style={{ cursor: "pointer" }}
                       onClick={() => setSelectedVersionId(version.id)}
+                      data-testid={`version-row-${version.id}`}
                     >
                       <Table.Td>{version.version}</Table.Td>
                       <Table.Td>
@@ -215,7 +225,7 @@ export function DatasetDetailPage() {
                       <Table.Td onClick={(e) => e.stopPropagation()}>
                         <Menu position="bottom-end">
                           <Menu.Target>
-                            <Button size="xs" variant="subtle">
+                            <Button size="xs" variant="subtle" data-testid={`version-actions-btn-${version.id}`}>
                               <IconDotsVertical size={16} />
                             </Button>
                           </Menu.Target>
@@ -268,12 +278,12 @@ export function DatasetDetailPage() {
                 ) : samples.length === 0 ? (
                   <Card>
                     <Center>
-                      <Text c="dimmed">No samples found</Text>
+                      <Text c="dimmed" data-testid="no-samples-message">No samples found</Text>
                     </Center>
                   </Card>
                 ) : (
                   <>
-                    <Table striped highlightOnHover>
+                    <Table striped highlightOnHover data-testid="samples-table">
                       <Table.Thead>
                         <Table.Tr>
                           <Table.Th>Sample ID</Table.Th>
@@ -285,7 +295,7 @@ export function DatasetDetailPage() {
                       </Table.Thead>
                       <Table.Tbody>
                         {samples.map((sample) => (
-                          <Table.Tr key={sample.id}>
+                          <Table.Tr key={sample.id} data-testid={`sample-row-${sample.id}`}>
                             <Table.Td>{sample.id}</Table.Td>
                             <Table.Td>
                               {sample.inputs.map((input, idx) => (
@@ -316,6 +326,7 @@ export function DatasetDetailPage() {
                                 variant="subtle"
                                 leftSection={<IconEye size={14} />}
                                 onClick={() => handleViewGroundTruth(sample.id)}
+                                data-testid={`view-ground-truth-btn-${sample.id}`}
                               >
                                 View
                               </Button>
@@ -331,6 +342,7 @@ export function DatasetDetailPage() {
                           value={samplePage}
                           onChange={setSamplePage}
                           total={totalPages}
+                          data-testid="samples-pagination"
                         />
                       </Center>
                     )}

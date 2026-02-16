@@ -28,6 +28,15 @@ class ApiService {
         ) {
           config.headers.Authorization = `Bearer ${this.authToken}`;
         }
+
+        // Add x-api-key header for test/development mode
+        // This allows the backend's ApiKeyAuthGuard to authenticate requests
+        // when NODE_ENV=test on the backend
+        const testApiKey = import.meta.env.VITE_TEST_API_KEY;
+        if (testApiKey && config.headers) {
+          config.headers["x-api-key"] = testApiKey;
+        }
+
         return config;
       },
       (error) => Promise.reject(error),

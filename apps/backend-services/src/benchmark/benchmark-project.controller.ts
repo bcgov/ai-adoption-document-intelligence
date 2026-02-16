@@ -18,6 +18,10 @@ import {
   Post,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import {
+  ApiKeyAuth,
+  KeycloakSSOAuth,
+} from "@/decorators/custom-auth-decorators";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { CreateProjectDto, ProjectDetailsDto, ProjectSummaryDto } from "./dto";
 
@@ -36,6 +40,8 @@ export class BenchmarkProjectController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async createProject(
     @Body() createProjectDto: CreateProjectDto,
   ): Promise<ProjectDetailsDto> {
@@ -61,6 +67,8 @@ export class BenchmarkProjectController {
    * GET /api/benchmark/projects
    */
   @Get()
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async listProjects(): Promise<ProjectSummaryDto[]> {
     this.logger.log("GET /api/benchmark/projects");
     return this.benchmarkProjectService.listProjects();
@@ -72,6 +80,8 @@ export class BenchmarkProjectController {
    * GET /api/benchmark/projects/:id
    */
   @Get(":id")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async getProjectById(@Param("id") id: string): Promise<ProjectDetailsDto> {
     this.logger.log(`GET /api/benchmark/projects/${id}`);
     return this.benchmarkProjectService.getProjectById(id);

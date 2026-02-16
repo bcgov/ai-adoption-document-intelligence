@@ -94,6 +94,34 @@ Create/update `{feature-dir}/playwright/exploration/exploration-progress.md`:
 **Last Updated**: 2026-02-15 3:42 PM
 ```
 
+## Database Test Data
+
+**BEFORE STARTING EXPLORATION**: Check if test data exists in the database for the pages you're exploring.
+
+### Common Issues:
+- **Detail pages showing "Not found"** - No test entities in database
+- **List pages always empty** - No test data seeded
+- **Pages can't be tested properly** - Missing related data (projects without runs, datasets without versions, etc.)
+
+### Check & Seed Process:
+
+1. **Check Prisma seed file**: Read `apps/shared/prisma/seed.ts` to see what test data is available
+2. **Verify data matches your needs**: Ensure seed data covers all pages in the test plan
+   - For dataset detail pages: Need datasets with versions and samples
+   - For project detail pages: Need projects with definitions
+   - For run detail pages: Need projects with definitions and runs
+3. **If test data is missing or incomplete**:
+   - Update `apps/shared/prisma/seed.ts` to add needed test data
+   - Run `cd apps/backend-services && npm run db:seed` to populate database
+   - Use consistent IDs (e.g., `seed-project-id`) for predictable testing
+4. **Document the test data IDs** in your exploration notes for easy reference in tests
+
+### Seed Data Best Practices:
+- Use descriptive IDs with `seed-` prefix (e.g., `seed-dataset-invoices`)
+- Create entities in various states (draft/published, pending/running/completed, etc.)
+- Include realistic sample data (names, descriptions, metrics)
+- Add relationships (projects with definitions, definitions with runs)
+
 ## Issue Detection & Fixing
 
 When exploring a page, check if core functionality works as expected per requirements:
@@ -103,14 +131,18 @@ When exploring a page, check if core functionality works as expected per require
 - Placeholder/stub pages (e.g., "Coming soon", "TODO", empty content)
 - Broken navigation or 404s
 - API calls failing that prevent page from working
+- **Empty detail pages or "Not found" errors** - Check if test data exists (see Database Test Data section)
+- **List pages always showing empty state** - Run db:seed to populate test data
 
 **If issues detected**:
 
 1. **Stop exploration** of that page
-2. **Read requirements**: `{feature-dir}/requirements.md` or `{feature-dir}/REQUIREMENTS.md`
-3. **Read user story**: The user story file from `{feature-dir}/user-stories/` for this page
-4. **Fix the issue**: 
-   - Create/update component files to meet requirements
+2. **Check database**: If it's a data issue, verify seed data exists and run `npm run db:seed` if needed
+3. **Read requirements**: `{feature-dir}/requirements.md` or `{feature-dir}/REQUIREMENTS.md`
+4. **Read user story**: The user story file from `{feature-dir}/user-stories/` for this page
+5. **Fix the issue**:
+   - If missing test data: Update seed file and run db:seed
+   - If missing implementation: Create/update component files to meet requirements
    - Fix broken API calls or handlers
    - Implement missing functionality
    - Follow existing code patterns in the project

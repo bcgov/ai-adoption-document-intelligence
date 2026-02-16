@@ -1,9 +1,13 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
+import * as bcrypt from "bcrypt";
 import {
   FieldType,
   PrismaClient,
   ProjectStatus,
+  DatasetVersionStatus,
+  SplitType,
+  BenchmarkRunStatus,
 } from "../../backend-services/src/generated/client";
 import { getPrismaPgOptions } from "../../backend-services/src/utils/database-url";
 
@@ -142,7 +146,341 @@ const SDPR_MONTHLY_REPORT_FIELDS: SeedFieldDefinition[] = [
   { fieldKey: "spouse_income_of_dependent_children", fieldType: FieldType.number },
 ];
 
-async function main() {
+// ========== BENCHMARKING SEED DATA ==========
+
+const SEED_WORKFLOW_ID = "seed-workflow-standard-ocr";
+const SEED_DATASET_ID = "seed-dataset-invoices";
+const SEED_DATASET_VERSION_ID = "seed-dataset-version-v1.0";
+const SEED_SPLIT_ID = "seed-split-train";
+const SEED_PROJECT_ID = "seed-project-invoice-extraction";
+const SEED_DEFINITION_ID = "seed-definition-baseline";
+const SEED_RUN_ID_COMPLETED = "seed-run-completed-001";
+const SEED_RUN_ID_RUNNING = "seed-run-running-002";
+const SEED_RUN_ID_FAILED = "seed-run-failed-003";
+
+async function seedBenchmarkingData() {
+  // Create a workflow if it doesn't exist
+  const workflow = await prisma.workflow.upsert({
+    where: { id: SEED_WORKFLOW_ID },
+    update: {
+      name: "Standard OCR Workflow",
+      description: "Standard OCR processing workflow for testing",
+      user_id: "seed-user",
+      config: {
+        nodes: [
+          { id: "start", type: "start" },
+          { id: "ocr", type: "activity", activityType: "document.ocr" },
+          { id: "end", type: "end" },
+        ],
+        edges: [
+          { from: "start", to: "ocr" },
+          { from: "ocr", to: "end" },
+        ],
+      },
+      version: 1,
+    },
+    create: {
+      id: SEED_WORKFLOW_ID,
+      name: "Standard OCR Workflow",
+      description: "Standard OCR processing workflow for testing",
+      user_id: "seed-user",
+      config: {
+        nodes: [
+          { id: "start", type: "start" },
+          { id: "ocr", type: "activity", activityType: "document.ocr" },
+          { id: "end", type: "end" },
+        ],
+        edges: [
+          { from: "start", to: "ocr" },
+          { from: "ocr", to: "end" },
+        ],
+      },
+      version: 1,
+    },
+  });
+
+  // Create a dataset
+  const dataset = await prisma.dataset.upsert({
+    where: { id: SEED_DATASET_ID },
+    update: {
+      name: "Invoice Test Dataset",
+      description: "Sample invoice dataset for benchmarking OCR accuracy",
+      metadata: { documentType: "invoice", language: "en" },
+      repositoryUrl: "file:///tmp/datasets/invoices",
+      dvcRemote: "local",
+      createdBy: "seed-user",
+    },
+    create: {
+      id: SEED_DATASET_ID,
+      name: "Invoice Test Dataset",
+      description: "Sample invoice dataset for benchmarking OCR accuracy",
+      metadata: { documentType: "invoice", language: "en" },
+      repositoryUrl: "file:///tmp/datasets/invoices",
+      dvcRemote: "local",
+      createdBy: "seed-user",
+    },
+  });
+
+  // Create a dataset version
+  const datasetVersion = await prisma.datasetVersion.upsert({
+    where: { id: SEED_DATASET_VERSION_ID },
+    update: {
+      version: "v1.0",
+      gitRevision: "abc123def456",
+      manifestPath: "data/invoices/manifest.json",
+      documentCount: 150,
+      groundTruthSchema: {
+        fields: ["invoice_number", "total_amount", "date", "vendor"],
+      },
+      status: DatasetVersionStatus.published,
+      publishedAt: new Date("2026-01-15"),
+    },
+    create: {
+      id: SEED_DATASET_VERSION_ID,
+      datasetId: dataset.id,
+      version: "v1.0",
+      gitRevision: "abc123def456",
+      manifestPath: "data/invoices/manifest.json",
+      documentCount: 150,
+      groundTruthSchema: {
+        fields: ["invoice_number", "total_amount", "date", "vendor"],
+      },
+      status: DatasetVersionStatus.published,
+      publishedAt: new Date("2026-01-15"),
+    },
+  });
+
+  // Create a split
+  const split = await prisma.split.upsert({
+    where: { id: SEED_SPLIT_ID },
+    update: {
+      name: "train",
+      type: SplitType.train,
+      sampleIds: Array.from({ length: 100 }, (_, i) => `sample-${i + 1}`),
+      stratificationRules: { stratifyBy: "vendor" },
+      frozen: true,
+    },
+    create: {
+      id: SEED_SPLIT_ID,
+      datasetVersionId: datasetVersion.id,
+      name: "train",
+      type: SplitType.train,
+      sampleIds: Array.from({ length: 100 }, (_, i) => `sample-${i + 1}`),
+      stratificationRules: { stratifyBy: "vendor" },
+      frozen: true,
+    },
+  });
+
+  // Create a benchmark project
+  const project = await prisma.benchmarkProject.upsert({
+    where: { id: SEED_PROJECT_ID },
+    update: {
+      name: "Invoice Extraction Benchmark",
+      description: "Benchmarking OCR accuracy on invoice documents",
+      mlflowExperimentId: "1",
+      createdBy: "seed-user",
+    },
+    create: {
+      id: SEED_PROJECT_ID,
+      name: "Invoice Extraction Benchmark",
+      description: "Benchmarking OCR accuracy on invoice documents",
+      mlflowExperimentId: "1",
+      createdBy: "seed-user",
+    },
+  });
+
+  // Create a benchmark definition
+  const definition = await prisma.benchmarkDefinition.upsert({
+    where: { id: SEED_DEFINITION_ID },
+    update: {
+      name: "Baseline OCR Model",
+      workflowConfigHash: "hash-abc123",
+      evaluatorType: "field-accuracy",
+      evaluatorConfig: {
+        metrics: ["field_accuracy", "character_accuracy", "word_accuracy"],
+      },
+      runtimeSettings: {
+        timeout: 300,
+        retries: 3,
+      },
+      artifactPolicy: {
+        saveOutputs: true,
+        saveIntermediateResults: false,
+      },
+      immutable: false,
+      revision: 1,
+      scheduleEnabled: false,
+    },
+    create: {
+      id: SEED_DEFINITION_ID,
+      projectId: project.id,
+      name: "Baseline OCR Model",
+      datasetVersionId: datasetVersion.id,
+      splitId: split.id,
+      workflowId: workflow.id,
+      workflowConfigHash: "hash-abc123",
+      evaluatorType: "field-accuracy",
+      evaluatorConfig: {
+        metrics: ["field_accuracy", "character_accuracy", "word_accuracy"],
+      },
+      runtimeSettings: {
+        timeout: 300,
+        retries: 3,
+      },
+      artifactPolicy: {
+        saveOutputs: true,
+        saveIntermediateResults: false,
+      },
+      immutable: false,
+      revision: 1,
+      scheduleEnabled: false,
+    },
+  });
+
+  // Create completed run
+  await prisma.benchmarkRun.upsert({
+    where: { id: SEED_RUN_ID_COMPLETED },
+    update: {
+      status: BenchmarkRunStatus.completed,
+      mlflowRunId: "mlflow-run-001",
+      temporalWorkflowId: "temporal-wf-001",
+      workerGitSha: "git-sha-001",
+      startedAt: new Date("2026-02-10T10:00:00Z"),
+      completedAt: new Date("2026-02-10T10:45:00Z"),
+      metrics: {
+        field_accuracy: 0.95,
+        character_accuracy: 0.98,
+        word_accuracy: 0.96,
+      },
+      params: {
+        model: "prebuilt-layout",
+        confidence_threshold: 0.8,
+      },
+      tags: {
+        environment: "test",
+        version: "v1.0",
+      },
+      isBaseline: true,
+    },
+    create: {
+      id: SEED_RUN_ID_COMPLETED,
+      definitionId: definition.id,
+      projectId: project.id,
+      status: BenchmarkRunStatus.completed,
+      mlflowRunId: "mlflow-run-001",
+      temporalWorkflowId: "temporal-wf-001",
+      workerGitSha: "git-sha-001",
+      startedAt: new Date("2026-02-10T10:00:00Z"),
+      completedAt: new Date("2026-02-10T10:45:00Z"),
+      metrics: {
+        field_accuracy: 0.95,
+        character_accuracy: 0.98,
+        word_accuracy: 0.96,
+      },
+      params: {
+        model: "prebuilt-layout",
+        confidence_threshold: 0.8,
+      },
+      tags: {
+        environment: "test",
+        version: "v1.0",
+      },
+      isBaseline: true,
+    },
+  });
+
+  // Create running run
+  await prisma.benchmarkRun.upsert({
+    where: { id: SEED_RUN_ID_RUNNING },
+    update: {
+      status: BenchmarkRunStatus.running,
+      mlflowRunId: "mlflow-run-002",
+      temporalWorkflowId: "temporal-wf-002",
+      workerGitSha: "git-sha-002",
+      startedAt: new Date("2026-02-15T09:00:00Z"),
+      params: {
+        model: "prebuilt-layout",
+        confidence_threshold: 0.85,
+      },
+      tags: {
+        environment: "test",
+        version: "v1.1",
+      },
+      isBaseline: false,
+    },
+    create: {
+      id: SEED_RUN_ID_RUNNING,
+      definitionId: definition.id,
+      projectId: project.id,
+      status: BenchmarkRunStatus.running,
+      mlflowRunId: "mlflow-run-002",
+      temporalWorkflowId: "temporal-wf-002",
+      workerGitSha: "git-sha-002",
+      startedAt: new Date("2026-02-15T09:00:00Z"),
+      params: {
+        model: "prebuilt-layout",
+        confidence_threshold: 0.85,
+      },
+      tags: {
+        environment: "test",
+        version: "v1.1",
+      },
+      isBaseline: false,
+    },
+  });
+
+  // Create failed run
+  await prisma.benchmarkRun.upsert({
+    where: { id: SEED_RUN_ID_FAILED },
+    update: {
+      status: BenchmarkRunStatus.failed,
+      mlflowRunId: "mlflow-run-003",
+      temporalWorkflowId: "temporal-wf-003",
+      workerGitSha: "git-sha-003",
+      startedAt: new Date("2026-02-12T14:00:00Z"),
+      completedAt: new Date("2026-02-12T14:05:00Z"),
+      error: "Dataset loading failed: File not found",
+      params: {
+        model: "custom-model",
+        confidence_threshold: 0.9,
+      },
+      tags: {
+        environment: "test",
+        version: "v1.0-beta",
+      },
+      isBaseline: false,
+    },
+    create: {
+      id: SEED_RUN_ID_FAILED,
+      definitionId: definition.id,
+      projectId: project.id,
+      status: BenchmarkRunStatus.failed,
+      mlflowRunId: "mlflow-run-003",
+      temporalWorkflowId: "temporal-wf-003",
+      workerGitSha: "git-sha-003",
+      startedAt: new Date("2026-02-12T14:00:00Z"),
+      completedAt: new Date("2026-02-12T14:05:00Z"),
+      error: "Dataset loading failed: File not found",
+      params: {
+        model: "custom-model",
+        confidence_threshold: 0.9,
+      },
+      tags: {
+        environment: "test",
+        version: "v1.0-beta",
+      },
+      isBaseline: false,
+    },
+  });
+
+  console.log("✅ Benchmarking seed data created successfully");
+  console.log(`  - Dataset: ${dataset.name} (${datasetVersion.version})`);
+  console.log(`  - Project: ${project.name}`);
+  console.log(`  - Definition: ${definition.name}`);
+  console.log(`  - Runs: 3 (1 completed, 1 running, 1 failed)`);
+}
+
+async function seedLabelingData() {
   const project = await prisma.labelingProject.upsert({
     where: { id: SDPR_TEMPLATE_PROJECT_ID },
     update: {
@@ -195,6 +533,45 @@ async function main() {
       }),
     ),
   );
+
+  console.log("✅ Labeling project seed data created successfully");
+  console.log(`  - Project: ${project.name}`);
+  console.log(`  - Fields: ${SDPR_MONTHLY_REPORT_FIELDS.length}`);
+}
+
+async function seedTestApiKey() {
+  console.log("🔑 Seeding test API key...");
+
+  const TEST_API_KEY = process.env.TEST_API_KEY || "69OrdcwUk4qrB6Pl336PGsloa0L084HFp7X7aX7sSTY";
+  const keyPrefix = TEST_API_KEY.substring(0, 8);
+  const keyHash = await bcrypt.hash(TEST_API_KEY, 10);
+
+  await prisma.apiKey.upsert({
+    where: { user_id: "test-user" },
+    update: {
+      key_hash: keyHash,
+      key_prefix: keyPrefix,
+      user_email: "test@example.com",
+    },
+    create: {
+      user_id: "test-user",
+      user_email: "test@example.com",
+      key_hash: keyHash,
+      key_prefix: keyPrefix,
+    },
+  });
+
+  console.log(`  ✓ Test API key created (prefix: ${keyPrefix})`);
+}
+
+async function main() {
+  console.log("🌱 Starting database seed...\n");
+
+  await seedTestApiKey();
+  await seedLabelingData();
+  await seedBenchmarkingData();
+
+  console.log("\n✅ All seed data created successfully!");
 }
 
 main()

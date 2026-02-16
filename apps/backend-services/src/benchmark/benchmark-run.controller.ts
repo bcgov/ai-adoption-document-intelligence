@@ -23,6 +23,10 @@ import {
   StreamableFile,
 } from "@nestjs/common";
 import { Response } from "express";
+import {
+  ApiKeyAuth,
+  KeycloakSSOAuth,
+} from "@/decorators/custom-auth-decorators";
 import { BenchmarkArtifactService } from "./benchmark-artifact.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import {
@@ -73,6 +77,8 @@ export class BenchmarkRunController {
    * GET /api/benchmark/projects/:projectId/runs
    */
   @Get("runs")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async listRuns(
     @Param("projectId") projectId: string,
   ): Promise<RunSummaryDto[]> {
@@ -86,6 +92,8 @@ export class BenchmarkRunController {
    * GET /api/benchmark/projects/:projectId/runs/:runId
    */
   @Get("runs/:runId")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async getRunById(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
