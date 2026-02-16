@@ -1,6 +1,6 @@
 ***
 name: test-healer
-description: Runs Playwright tests and automatically fixes failures iteratively
+description: Runs Playwright tests and automatically fixes failures in both tests AND implementation code iteratively
 allowed-tools: [Bash, Read, Glob, Grep, Edit, Write, mcp__playwright__*]
 ***
 
@@ -8,8 +8,10 @@ allowed-tools: [Bash, Read, Glob, Grep, Edit, Write, mcp__playwright__*]
 
 Run Playwright tests iteratively and fix failures automatically until all tests pass or max attempts reached.
 
+**Purpose**: Fix BOTH test code and implementation code to make tests pass while adhering to requirements.
+
 ## Input
-- Optional: Feature directory for documentation (e.g., `feature-docs/003-benchmarking-system/`)
+- Feature directory for documentation (e.g., `feature-docs/003-benchmarking-system/`)
 - Max attempts per test (default: 10)
 
 ## Process
@@ -35,8 +37,7 @@ Parse test output for:
 
 1. **First Priority**: Read `{feature-dir}/requirements.md`
    - Verify what the EXPECTED behavior should be
-   - Check if the test expectation is correct
-   - Confirm the feature specification
+   - This is the source of truth for correct behavior
 
 2. **Second Priority**: Read relevant files in `{feature-dir}/user-stories/`
    - Check acceptance criteria
@@ -46,37 +47,60 @@ Parse test output for:
 3. **Third Priority**: Explore the actual page behavior
    - Use Playwright MCP to inspect the current page
    - Compare actual vs. expected behavior from requirements
-   - Document discrepancies
+
+**Decision Tree: What to Fix?**
+
+```
+Test fails → Check requirements
+    ↓
+Does implementation match requirements?
+    ├─ NO → FIX IMPLEMENTATION CODE (app, backend, frontend)
+    │        Then re-run test
+    ↓
+    └─ YES → Does test expect correct behavior per requirements?
+               ├─ NO → FIX TEST CODE
+               └─ YES → FIX TEST SYNCHRONIZATION (waits, selectors)
+```
 
 **Common Fix Patterns**:
 
 | Error Type | Investigation Steps | Fix Strategy |
 |------------|---------------------|--------------|
-| **Locator not found** | 1. Check requirements.md for expected element<br>2. Re-explore page with Playwright MCP<br>3. Find actual selector | Update test & Page Object with correct selector |
-| **Assertion failed** | 1. Read requirements.md for expected value<br>2. Read user-stories for acceptance criteria<br>3. Verify which is correct: test or app | If requirements say X but app shows Y, flag for clarification<br>If test expectation is wrong, fix the test |
-| **Timeout exceeded** | 1. Check requirements for async operations<br>2. Explore page for loading states | Add explicit waitFor or increase timeout |
-| **Navigation failed** | 1. Check requirements for navigation flow<br>2. Verify URL patterns in user stories | Add waitForLoadState('networkidle') |
-| **Element not visible** | 1. Check requirements for UI state<br>2. Explore page for conditional rendering | Add waitFor({ state: 'visible' }) |
-| **Element detached** | 1. Review requirements for dynamic content | Use waitForSelector before interaction |
+| **Locator not found** | 1. Check requirements.md for expected element<br>2. Re-explore page with Playwright MCP<br>3. Find actual selector | If element should exist per requirements but doesn't: fix implementation<br>If selector is outdated: update test & Page Object |
+| **Assertion failed** | 1. Read requirements.md for expected value<br>2. Read user-stories for acceptance criteria<br>3. Verify which is correct: test or app | If requirements say X but app shows Y: fix the implementation to match requirements<br>If test expectation is wrong: fix the test |
+| **Timeout exceeded** | 1. Check requirements for async operations<br>2. Explore page for loading states | If app is slow: investigate and fix performance issue<br>If test timing is wrong: add explicit waitFor or increase timeout |
+| **Navigation failed** | 1. Check requirements for navigation flow<br>2. Verify URL patterns in user stories | If navigation is broken: fix implementation routing<br>If test navigation is incorrect: add waitForLoadState('networkidle') |
+| **Element not visible** | 1. Check requirements for UI state<br>2. Explore page for conditional rendering | If element should be visible per requirements: fix implementation<br>If test timing is wrong: add waitFor({ state: 'visible' }) |
+| **Element detached** | 1. Review requirements for dynamic content | If DOM manipulation is buggy: fix implementation<br>If test needs better synchronization: use waitForSelector before interaction |
 
-#### 6. Re-run Test
+#### 4. Identify Files to Fix
+
+When fixing implementation (not just tests):
+- **Frontend**: Components in `apps/frontend/src/`
+- **Backend**: Controllers, services in `apps/backend-services/src/`
+- **Temporal**: Workflows, activities in `apps/temporal/src/`
+- **Page Objects**: Test helpers in `tests/e2e/pages/`
+- **Test Code**: The actual test files in `tests/e2e/`
+
+Read the relevant implementation files and modify them to match requirements.
+
+#### 5. Re-run Test
 Continue until test passes or max attempts reached.
 
 
 ## Exit Conditions
 - ✅ **All tests passing**: Success
-- ❌ **Max attempts reached**: Report unfixable tests
-- ⚠️ **Requirements mismatch**: Document and flag for manual review
+- ❌ **Max attempts reached**: Report unfixable tests with details
 - ⚠️ **Critical error**: Stop and report
 
 ## Critical Rules for Corrections
 
-1. **NEVER** modify a test expectation without first checking requirements.md
-2. **ALWAYS** document which requirement section was consulted
-3. **NEVER** make a test pass by changing it to match incorrect application behavior
-4. If requirements and application disagree, **KEEP TEST FAILING** and document the mismatch
-5. Include requirement IDs in all fix documentation
-6. Cross-reference user stories to verify acceptance criteria
+1. **ALWAYS** check requirements.md and user stories BEFORE making any fix
+2. **FIX IMPLEMENTATION** when it doesn't match requirements - don't just change the test
+3. **FIX TEST** when the test expectation is incorrect or outdated
+4. **NEVER** make a test pass by removing assertions or changing expectations without verifying requirements
+5. When fixing implementation code, ensure the fix aligns with requirements and user stories
+6. Document non-obvious fixes with comments explaining the requirement being satisfied
 
 ## Debugging Tips Integration
 
