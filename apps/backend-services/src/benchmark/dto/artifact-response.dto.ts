@@ -14,7 +14,7 @@ export interface ArtifactResponseDto {
   path: string;
   sampleId: string | null;
   nodeId: string | null;
-  sizeBytes: bigint;
+  sizeBytes: string;
   mimeType: string;
   createdAt: Date;
 }

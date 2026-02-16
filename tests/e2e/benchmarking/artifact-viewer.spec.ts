@@ -150,8 +150,8 @@ test.describe('Artifact Viewer - Basic Viewing', () => {
     expect(jsonContent).toMatch(/\s+"field_accuracy"/); // Check for indentation
 
     // Then: Viewer is read-only (JsonInput component is readonly by default)
-    const textarea = artifactViewer.jsonViewer.locator('textarea');
-    await expect(textarea).toHaveAttribute('readonly');
+    // Note: jsonViewer IS the textarea element (Mantine JsonInput renders as textarea)
+    await expect(artifactViewer.jsonViewer).toHaveAttribute('readonly');
   });
 
   test('Scenario 2: View JSON Artifact Metadata', async ({ page }) => {
@@ -251,8 +251,8 @@ test.describe('Artifact Viewer - Basic Viewing', () => {
     expect(textContent).toContain('ERROR');
 
     // Then: Textarea is read-only
-    const textarea = artifactViewer.textViewer.locator('textarea');
-    await expect(textarea).toHaveAttribute('readonly');
+    // Note: textViewer IS the textarea element (Mantine Textarea)
+    await expect(artifactViewer.textViewer).toHaveAttribute('readonly');
 
     // Then: Metadata shows text type
     const mimeType = await artifactViewer.getMimeType();
@@ -406,6 +406,12 @@ test.describe('Artifact Viewer - Error Handling', () => {
   const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
   const TEST_API_KEY = process.env.TEST_API_KEY;
 
+  let runDetailPage: RunDetailPage;
+  let artifactViewer: ArtifactViewerDrawer;
+
+  const PROJECT_ID = 'seed-project-invoice-extraction';
+  const RUN_ID = 'seed-run-passing-004';
+
   test.beforeAll(() => {
     if (!TEST_API_KEY) {
       throw new Error('TEST_API_KEY environment variable is not set');
@@ -415,19 +421,96 @@ test.describe('Artifact Viewer - Error Handling', () => {
   test('Scenario 9: Artifact Loading Error', async ({ page }) => {
     // REQ-039-S18: Handle artifact fetch errors gracefully
 
-    // This test would require mocking a network error or using a non-existent artifact ID.
-    // For now, we'll skip implementation until we have proper mocking setup.
-    // Potential implementation:
-    // - Intercept the artifact content API call
-    // - Return a 404 or 500 error
-    // - Verify error alert is displayed with appropriate message
+    // Setup authentication and page
+    await setupAuthenticatedTest(page, {
+      apiKey: TEST_API_KEY!,
+      backendUrl: BACKEND_URL,
+      frontendUrl: FRONTEND_URL,
+    });
 
-    test.skip();
+    // Mock artifact content API to return a 500 error - only for content endpoint
+    let contentRequested = false;
+    await page.route('**/artifacts/*/content', async (route) => {
+      contentRequested = true;
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Internal server error' }),
+      });
+    });
+
+    runDetailPage = new RunDetailPage(page);
+    artifactViewer = new ArtifactViewerDrawer(page);
+
+    await page.goto(`/benchmarking/projects/${PROJECT_ID}/runs/${RUN_ID}`);
+    await page.waitForLoadState('networkidle');
+
+    // Given: Artifact list is displayed
+    await expect(runDetailPage.artifactsTable).toBeVisible();
+
+    // Wait for artifact rows to appear
+    await page.waitForSelector('[data-testid^="artifact-row-"]', { timeout: 10000 });
+
+    // When: User clicks on a JSON artifact (which will trigger content fetch)
+    const jsonRow = page.locator('[data-testid^="artifact-row-"]').filter({
+      has: page.locator('text="evaluation_report"'),
+    });
+    await jsonRow.click();
+
+    // Then: Drawer opens
+    await artifactViewer.waitForDrawerToOpen();
+
+    // Then: Content request was made and error alert is displayed
+    expect(contentRequested).toBe(true);
+    await expect(artifactViewer.errorAlert).toBeVisible();
+    await expect(artifactViewer.errorAlert).toContainText('Error Loading Artifact');
   });
 
   test('Scenario 10: Non-Existent Artifact Handling', async ({ page }) => {
     // Test that attempting to view a deleted or non-existent artifact shows an error
 
-    test.skip();
+    // Setup authentication and page
+    await setupAuthenticatedTest(page, {
+      apiKey: TEST_API_KEY!,
+      backendUrl: BACKEND_URL,
+      frontendUrl: FRONTEND_URL,
+    });
+
+    // Mock artifact content API to return a 404 error - only for content endpoint
+    let contentRequested = false;
+    await page.route('**/artifacts/*/content', async (route) => {
+      contentRequested = true;
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Artifact not found' }),
+      });
+    });
+
+    runDetailPage = new RunDetailPage(page);
+    artifactViewer = new ArtifactViewerDrawer(page);
+
+    await page.goto(`/benchmarking/projects/${PROJECT_ID}/runs/${RUN_ID}`);
+    await page.waitForLoadState('networkidle');
+
+    // Given: Artifact list is displayed
+    await expect(runDetailPage.artifactsTable).toBeVisible();
+
+    // Wait for artifact rows to appear
+    await page.waitForSelector('[data-testid^="artifact-row-"]', { timeout: 10000 });
+
+    // When: User clicks on a JSON artifact (which will trigger content fetch)
+    const jsonRow = page.locator('[data-testid^="artifact-row-"]').filter({
+      has: page.locator('text="evaluation_report"'),
+    });
+    await jsonRow.click();
+
+    // Then: Drawer opens
+    await artifactViewer.waitForDrawerToOpen();
+
+    // Then: Content request was made and error alert is displayed
+    expect(contentRequested).toBe(true);
+    await expect(artifactViewer.errorAlert).toBeVisible();
+    await expect(artifactViewer.errorAlert).toContainText('Error Loading Artifact');
   });
 });

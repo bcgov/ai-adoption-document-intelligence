@@ -107,7 +107,7 @@ export class BenchmarkArtifactService {
       path: artifact.path,
       sampleId: artifact.sampleId,
       nodeId: artifact.nodeId,
-      sizeBytes: artifact.sizeBytes,
+      sizeBytes: artifact.sizeBytes.toString(),
       mimeType: artifact.mimeType,
       createdAt: artifact.createdAt,
     };
@@ -165,7 +165,7 @@ export class BenchmarkArtifactService {
         path: artifact.path,
         sampleId: artifact.sampleId,
         nodeId: artifact.nodeId,
-        sizeBytes: artifact.sizeBytes,
+        sizeBytes: artifact.sizeBytes.toString(),
         mimeType: artifact.mimeType,
         createdAt: artifact.createdAt,
       })),

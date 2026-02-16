@@ -75,13 +75,31 @@ export function ArtifactViewer({
 
         // Handle images
         if (mimeType.startsWith("image/")) {
-          // For images, we'll use a blob URL
+          // For images, we'll use a blob URL or data URL
           const response = await apiService.get(
             `/benchmark/projects/${projectId}/runs/${artifact.runId}/artifacts/${artifact.id}/content`,
             { responseType: "blob" },
           );
-          const url = URL.createObjectURL(response.data);
-          setImageUrl(url);
+
+          // Check for API errors
+          if (!response.success) {
+            throw new Error(response.message || "Failed to load artifact");
+          }
+
+          // Convert to object URL or data URL depending on response type
+          try {
+            if (response.data instanceof Blob) {
+              const url = URL.createObjectURL(response.data);
+              setImageUrl(url);
+            } else {
+              // Fallback for mocked responses: convert to data URL
+              const blob = new Blob([response.data], { type: mimeType });
+              const url = URL.createObjectURL(blob);
+              setImageUrl(url);
+            }
+          } catch (err) {
+            throw new Error(`Failed to create image URL: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          }
         }
         // Handle JSON
         else if (
@@ -92,12 +110,26 @@ export function ArtifactViewer({
             `/benchmark/projects/${projectId}/runs/${artifact.runId}/artifacts/${artifact.id}/content`,
             { responseType: "text" },
           );
-          // Try to format JSON
-          try {
-            const parsed = JSON.parse(response.data);
-            setContent(JSON.stringify(parsed, null, 2));
-          } catch {
-            setContent(response.data);
+
+          // Check for API errors
+          if (!response.success) {
+            throw new Error(response.message || "Failed to load artifact");
+          }
+
+          // Handle both auto-parsed objects and string responses
+          // Axios automatically parses JSON when Content-Type is application/json
+          const data = response.data;
+          if (typeof data === "object") {
+            setContent(JSON.stringify(data, null, 2));
+          } else if (typeof data === "string") {
+            try {
+              const parsed = JSON.parse(data);
+              setContent(JSON.stringify(parsed, null, 2));
+            } catch {
+              setContent(data);
+            }
+          } else {
+            setContent(String(data));
           }
         }
         // Handle text-based files
@@ -111,6 +143,12 @@ export function ArtifactViewer({
             `/benchmark/projects/${projectId}/runs/${artifact.runId}/artifacts/${artifact.id}/content`,
             { responseType: "text" },
           );
+
+          // Check for API errors
+          if (!response.success) {
+            throw new Error(response.message || "Failed to load artifact");
+          }
+
           setContent(response.data);
         }
         // Default: show download option
@@ -145,6 +183,11 @@ export function ArtifactViewer({
         { responseType: "blob" },
       );
 
+      // Check for API errors
+      if (!response.success) {
+        throw new Error(response.message || "Failed to download artifact");
+      }
+
       const url = URL.createObjectURL(response.data);
       const link = document.createElement("a");
       link.href = url;
@@ -164,7 +207,7 @@ export function ArtifactViewer({
     if (!mlflowExperimentId || !mlflowRunId || !artifact) return null;
 
     // MLflow artifact deep-link format
-    const mlflowUrl = process.env.MLFLOW_URL || "http://localhost:5000";
+    const mlflowUrl = import.meta.env.VITE_MLFLOW_URL || "http://localhost:5000";
     return `${mlflowUrl}/#/experiments/${mlflowExperimentId}/runs/${mlflowRunId}/artifacts/${artifact.path}`;
   };
 

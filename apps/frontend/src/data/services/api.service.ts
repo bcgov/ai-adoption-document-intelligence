@@ -85,8 +85,11 @@ class ApiService {
     }
   }
 
-  async get<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>("GET", endpoint);
+  async get<T>(
+    endpoint: string,
+    config?: Record<string, unknown>,
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>("GET", endpoint, undefined, config);
   }
 
   async post<T>(

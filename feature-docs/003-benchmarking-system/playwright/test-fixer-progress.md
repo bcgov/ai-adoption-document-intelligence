@@ -1,0 +1,54 @@
+# Test Fixer Progress
+
+## Test Files
+- [x] advanced-features.spec.ts (✅ Passed)
+- [x] artifact-viewer.spec.ts (✅ All 10 tests passed)
+  - Fixed: BigInt serialization error in artifacts API (DTO + Service)
+  - Fixed: process.env usage in ArtifactViewer (changed to import.meta.env.VITE_*)
+  - Fixed: Mantine Drawer visibility detection (wait for inner elements)
+  - Fixed: JSON content display (handle axios auto-parsing)
+  - Fixed: Image blob creation fallback for mocked responses
+  - Fixed: JsonInput textarea locator (component IS the textarea)
+  - Fixed: Undefined checkResponse function call
+  - Fixed: apiService.get() config parameter support
+  - Fixed: Error handling by checking response.success field
+- [ ] baseline-comparison.spec.ts
+- [ ] baseline-promotion.spec.ts
+- [ ] baseline-ui-display.spec.ts
+- [ ] dataset-list-create.spec.ts
+- [ ] dataset-version-sample-preview.spec.ts (⏭️ Has skipped tests)
+- [ ] definition-create-validation.spec.ts
+- [ ] definition-form-display.spec.ts
+- [ ] definition-list-detail.spec.ts
+- [ ] drill-down-panel.spec.ts
+- [ ] filtering.spec.ts
+- [ ] metrics-breakdown.spec.ts
+- [ ] navigation-routing.spec.ts
+- [ ] regression-report-advanced.spec.ts
+- [ ] regression-report-display.spec.ts
+- [ ] regression-report-edge-cases.spec.ts
+- [ ] regression-report-exports.spec.ts
+- [ ] regression-report-run-list.spec.ts
+- [ ] regression-report-trends.spec.ts
+- [ ] results-artifacts.spec.ts
+- [ ] results-drill-down.spec.ts
+- [ ] results-error-states.spec.ts
+- [ ] results-large-datasets.spec.ts
+- [ ] results-metrics.spec.ts
+- [ ] results-mlflow-links.spec.ts
+- [ ] results-params-tags.spec.ts
+- [ ] run-comparison-export.spec.ts
+- [ ] run-comparison-metrics.spec.ts
+- [ ] run-comparison-multiple-baseline.spec.ts
+- [ ] run-comparison-navigation.spec.ts
+- [ ] run-comparison-params-tags.spec.ts
+- [ ] run-comparison-selection.spec.ts
+- [ ] run-management.spec.ts
+- [ ] split-create.spec.ts
+- [ ] split-edge-cases.spec.ts
+- [ ] split-edit.spec.ts
+- [ ] split-freeze.spec.ts
+- [ ] split-list-display.spec.ts
+- [ ] validation-edge-cases.spec.ts
+- [ ] validation-errors.spec.ts
+- [ ] validation-trigger.spec.ts

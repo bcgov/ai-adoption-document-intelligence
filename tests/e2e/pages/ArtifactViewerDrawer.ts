@@ -69,17 +69,33 @@ export class ArtifactViewerDrawer {
 
   /**
    * Wait for the drawer to be visible
+   * Note: We wait for the title instead of the drawer root because Mantine's
+   * Drawer component uses CSS transitions that may make the root element
+   * appear "hidden" to Playwright even when content is visible
    */
   async waitForDrawerToOpen() {
-    await this.drawer.waitFor({ state: 'visible' });
+    await this.title.waitFor({ state: 'visible', timeout: 10000 });
   }
 
   /**
    * Close the drawer by clicking the close button
    */
   async close() {
-    // Mantine Drawer has a close button with aria-label="Close drawer"
-    await this.page.getByLabel('Close drawer').click();
+    // Mantine Drawer close button - try multiple selectors
+    // First try the aria-label
+    const closeByLabel = this.page.getByLabel('Close drawer');
+    const closeByLabelAlt = this.page.getByLabel(/close/i);
+
+    // Also try finding the close button by its position in the drawer header
+    const closeBySelector = this.drawer.locator('button').first();
+
+    if (await closeByLabel.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await closeByLabel.click();
+    } else if (await closeByLabelAlt.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await closeByLabelAlt.click();
+    } else {
+      await closeBySelector.click();
+    }
   }
 
   /**
@@ -156,14 +172,19 @@ export class ArtifactViewerDrawer {
    * Get the JSON content
    */
   async getJsonContent(): Promise<string> {
-    // JsonInput is a textarea in Mantine
-    return await this.jsonViewer.locator('textarea').inputValue();
+    // Wait for JSON viewer to be visible first
+    await this.jsonViewer.waitFor({ state: 'visible' });
+    // Mantine JsonInput IS a textarea, not a wrapper containing one
+    return await this.jsonViewer.inputValue();
   }
 
   /**
    * Get the text content
    */
   async getTextContent(): Promise<string> {
-    return await this.textViewer.locator('textarea').inputValue();
+    // Wait for text viewer to be visible first
+    await this.textViewer.waitFor({ state: 'visible' });
+    // Mantine Textarea IS a textarea element
+    return await this.textViewer.inputValue();
   }
 }

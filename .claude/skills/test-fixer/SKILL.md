@@ -6,7 +6,7 @@ allowed-tools: [Bash, Read, Glob, Grep, Edit, Write, mcp__playwright__*]
 
 # Test Fixer - Progressive Test Runner & Fixer
 
-Run Playwright tests one at a time from a specified folder, track progress, and fix failures automatically until all tests pass.
+Run Playwright tests one at a time from a specified folder, track progress, and fix failures automatically until all tests pass. Only run one test file. Do not automatically proceed to the next test file (user will resume the next step manually on their own).
 
 **Purpose**: Fix BOTH test code and implementation code to make tests pass while adhering to requirements.
 
@@ -24,7 +24,7 @@ This will:
 2. Create/update progress tracking file
 3. Run each test one at a time
 4. Fix failures iteratively
-5. Track progress with checkboxes
+5. Track progress with checkboxes (Do not check unless 100% passing, if you can fix, leave it unchecked)
 
 ## Progress Tracking
 
@@ -38,19 +38,12 @@ Example: `feature-docs/003-benchmarking-system/playwright/test-fixer-progress.md
 # Test Fixer Progress
 
 ## Test Files
-- [ ] dataset-list-create.spec.ts (⏭️ Has skipped tests)
 - [x] results-metrics.spec.ts (✅ Passed)
-- [ ] validation-errors.spec.ts (🔧 In Progress - Attempt 3/10 - Unskipped, implementing features)
 - [x] baseline-ui-display.spec.ts (✅ Passed)
+- [ ] dataset-list-create.spec.ts (⏭️ Has skipped tests)
+- [ ] validation-errors.spec.ts
 
 ```
-
-**Status Indicators:**
-- `⏭️ Has skipped tests` - Test file contains `.skip()` directives
-- `🔧 In Progress` - Currently working on this test
-- `✅ Passed` - Test passed successfully
-- `Unskipped, implementing features` - Removed .skip() and implementing missing functionality
-
 
 ## Database Management
 
@@ -76,6 +69,8 @@ npx prisma migrate reset --force &&
 npm run db:seed
 ```
 
+Note: the seed file is at apps/shared/prisma/seed.ts
+
 ## Process
 
 ### 1. Initialize Progress Tracking
@@ -93,15 +88,7 @@ npm run db:seed
 
 ### 2. Test Iteration Loop (Per File)
 
-For each test file:
-
-#### 2a. Update Progress: In Progress
-Mark file as in progress:
-```markdown
-- [ ] dataset-list-create.spec.ts (🔧 In Progress - Attempt 1/10)
-```
-
-#### 2b. Handle Skipped Tests
+#### 2a. Handle Skipped Tests
 
 **Before running the test**, check if the file contains skipped tests:
 - Search for `.skip()`, `test.skip()`, `describe.skip()`, or `it.skip()`
@@ -112,6 +99,10 @@ Mark file as in progress:
   4. **Implement the missing features** step by step
   5. Continue to test run phase
 
+NOTE: if the backend is returning an error, return the error from the API (put code in try-catch) and read the error message to understand what is missing. Clean up after. You call a specific endpoint like this:
+
+`curl -s -H "x-api-key: 69OrdcwUk4qrB6Pl336PGsloa0L084HFp7X7aX7sSTY" http://localhost:3002/api...`
+
 **Why tests are skipped:**
 - Missing features not yet implemented
 - Incomplete backend endpoints
@@ -121,14 +112,14 @@ Mark file as in progress:
 
 **Your job**: Implement whatever is needed to make the test pass legitimately.
 
-#### 2c. Run Test
+#### 2b. Run Test
 ```bash
 npm run test:file tests/e2e/benchmarking/dataset-list-create.spec.ts
 ```
 
 **Note**: Database is automatically reset by globalSetup before tests run.
 
-#### 2d. Analyze Result
+#### 2c. Analyze Result
 
 **If test passes:**
 - Mark as passed: `[x] dataset-list-create.spec.ts (✅ Passed)`
@@ -234,7 +225,7 @@ Analyze what the test expects and determine what's missing:
 1. Update Prisma schema in `apps/shared/prisma/schema.prisma`
 2. Create migration: `cd apps/backend-services && npx prisma migrate dev --name feature_name`
 3. Run `npm run db:generate` from `apps/backend-services`
-4. Update seed data if needed in `apps/backend-services/prisma/seed.ts`
+4. Update seed data if needed in `apps/backend-services/prisma/seed.ts`. When updating the seed data, check any other tests that may get affected by the change and update them accordingly.
 
 **Backend Layer (if needed):**
 1. Create/update DTOs in `apps/backend-services/src/*/dto/`
@@ -284,6 +275,44 @@ Follow this iterative process:
 
 ## Debugging Tips Integration
 
+**For Playwright Exploration**:
+1. **Navigate to app**: Go to the frontend URL (default: http://localhost:3000)
+2. **Inject mock auth**: Use page.evaluate to inject fake JWT tokens into localStorage for frontend routing:
+
+```javascript
+await page.evaluate(() => {
+  const createFakeJWT = (payload) => {
+    const header = { alg: 'none', typ: 'JWT' };
+    const base64UrlEncode = (obj) => {
+      const json = JSON.stringify(obj);
+      const base64 = btoa(json);
+      return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    };
+    return `${base64UrlEncode(header)}.${base64UrlEncode(payload)}.fake-signature`;
+  };
+
+  const fakeIdToken = createFakeJWT({
+    name: 'Test User',
+    preferred_username: 'testuser',
+    email: 'test@example.com',
+    sub: 'test-user',
+  });
+
+  const mockAuthTokens = {
+    access_token: 'mock-access-token',
+    refresh_token: 'mock-refresh-token',
+    id_token: fakeIdToken,
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+  };
+
+  localStorage.setItem('auth_tokens', JSON.stringify(mockAuthTokens));
+});
+```
+
+3. **Reload page**: Reload so auth context picks up the tokens
+4. **Wait for load**: Wait for networkidle state
+
 When tests fail, progressively add debugging:
 
 ### 1. Log Network Requests
@@ -305,6 +334,9 @@ page.on('response', response => {
   }
 });
 ```
+
+### Other
+- Add console logging code to front end, read it with playwright mcp to see what is going on. Clean up after
 
 ## Example Workflow
 
