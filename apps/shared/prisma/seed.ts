@@ -607,7 +607,32 @@ async function seedBenchmarkingData() {
     },
   });
 
-  // Create completed run
+  // Create completed run with drill-down data
+  const perSampleResults = [];
+  const docTypes = ["invoice", "form", "receipt", "contract"];
+  const languages = ["en", "fr", "es"];
+  const sources = ["scan", "digital", "mobile"];
+
+  for (let i = 0; i < 50; i++) {
+    const docType = docTypes[i % docTypes.length];
+    const language = languages[Math.floor(i / docTypes.length) % languages.length];
+    const source = sources[Math.floor(i / (docTypes.length * languages.length)) % sources.length];
+    const pageCount = Math.floor(Math.random() * 10) + 1;
+
+    perSampleResults.push({
+      sampleId: `sample-${String(i + 1).padStart(3, "0")}`,
+      metricName: "field_accuracy",
+      metricValue: 0.75 + Math.random() * 0.25,
+      metadata: {
+        docType,
+        language,
+        source,
+        pageCount,
+        customField: `custom-${i % 3}`,
+      },
+    });
+  }
+
   await prisma.benchmarkRun.upsert({
     where: { id: SEED_RUN_ID_COMPLETED },
     update: {
@@ -621,6 +646,19 @@ async function seedBenchmarkingData() {
         field_accuracy: 0.95,
         character_accuracy: 0.98,
         word_accuracy: 0.96,
+        perSampleResults,
+        fieldErrorBreakdown: [
+          { fieldName: "invoice_number", errorCount: 5, errorRate: 0.1 },
+          { fieldName: "total_amount", errorCount: 3, errorRate: 0.06 },
+          { fieldName: "vendor_name", errorCount: 8, errorRate: 0.16 },
+          { fieldName: "invoice_date", errorCount: 2, errorRate: 0.04 },
+        ],
+        errorClusters: {
+          "low_confidence": 12,
+          "missing_field": 8,
+          "format_mismatch": 5,
+          "ocr_error": 7,
+        },
       },
       params: {
         model: "prebuilt-layout",
@@ -651,6 +689,19 @@ async function seedBenchmarkingData() {
         field_accuracy: 0.95,
         character_accuracy: 0.98,
         word_accuracy: 0.96,
+        perSampleResults,
+        fieldErrorBreakdown: [
+          { fieldName: "invoice_number", errorCount: 5, errorRate: 0.1 },
+          { fieldName: "total_amount", errorCount: 3, errorRate: 0.06 },
+          { fieldName: "vendor_name", errorCount: 8, errorRate: 0.16 },
+          { fieldName: "invoice_date", errorCount: 2, errorRate: 0.04 },
+        ],
+        errorClusters: {
+          "low_confidence": 12,
+          "missing_field": 8,
+          "format_mismatch": 5,
+          "ocr_error": 7,
+        },
       },
       params: {
         model: "prebuilt-layout",

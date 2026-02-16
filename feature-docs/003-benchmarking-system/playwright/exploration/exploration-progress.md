@@ -11,8 +11,8 @@
 - [x] US-034-baseline-management.md - Completed 2026-02-16
 - [x] US-036-side-by-side-run-comparison-ui.md - Completed 2026-02-16
 - [x] US-037-regression-reports-ui.md - Completed 2026-02-16
-- [ ] US-038-slicing-filtering-drilldown-ui.md
+- [x] US-038-slicing-filtering-drilldown-ui.md - Completed 2026-02-16
 - [ ] US-039-in-app-artifact-viewer.md
 
-**Status**: 11/13 test plans explored
+**Status**: 12/13 test plans explored
 **Last Updated**: 2026-02-16

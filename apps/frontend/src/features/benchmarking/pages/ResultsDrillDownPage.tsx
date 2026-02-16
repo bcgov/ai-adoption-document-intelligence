@@ -320,6 +320,7 @@ export default function ResultsDrillDownPage() {
               `/benchmarking/projects/${projectId}/runs/${runId}`,
             )
           }
+          data-testid="back-to-run-details-btn"
         >
           Back to Run Details
         </Button>
@@ -333,7 +334,7 @@ export default function ResultsDrillDownPage() {
               <IconFilter size={20} />
               <Text fw={600}>Filters</Text>
               {activeFilterCount > 0 && (
-                <Badge size="sm" circle>
+                <Badge size="sm" circle data-testid="active-filter-count">
                   {activeFilterCount}
                 </Badge>
               )}
@@ -344,6 +345,7 @@ export default function ResultsDrillDownPage() {
                 size="xs"
                 leftSection={<IconX size={14} />}
                 onClick={clearFilters}
+                data-testid="clear-all-filters-btn"
               >
                 Clear All
               </Button>
@@ -372,6 +374,7 @@ export default function ResultsDrillDownPage() {
                     }
                     onChange={(value) => handleFilterChange(dimension, value)}
                     clearable
+                    data-testid={`filter-${dimension}`}
                   />
                 </Grid.Col>
               ))}
@@ -383,7 +386,7 @@ export default function ResultsDrillDownPage() {
       {/* Results Summary */}
       <Card withBorder>
         <Group justify="space-between">
-          <Text size="sm" fw={500}>
+          <Text size="sm" fw={500} data-testid="sample-count">
             Showing {results.length} of {total} samples
           </Text>
           {totalPages > 1 && (
@@ -392,6 +395,7 @@ export default function ResultsDrillDownPage() {
               value={page}
               onChange={setPage}
               size="sm"
+              data-testid="top-pagination"
             />
           )}
         </Group>
@@ -407,13 +411,18 @@ export default function ResultsDrillDownPage() {
           Failed to load results: {String(error)}
         </Alert>
       ) : results.length === 0 ? (
-        <Alert color="blue" title="No Results" icon={<IconAlertCircle />}>
+        <Alert
+          color="blue"
+          title="No Results"
+          icon={<IconAlertCircle />}
+          data-testid="empty-results-alert"
+        >
           No samples match the selected filters.
         </Alert>
       ) : (
         <Card withBorder>
           <ScrollArea>
-            <Table striped highlightOnHover>
+            <Table striped highlightOnHover data-testid="samples-table">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Sample ID</Table.Th>
@@ -457,6 +466,7 @@ export default function ResultsDrillDownPage() {
                       <ActionIcon
                         variant="subtle"
                         onClick={() => setSelectedSample(result)}
+                        data-testid={`view-sample-${result.sampleId}`}
                       >
                         <IconChevronRight size={16} />
                       </ActionIcon>
@@ -472,7 +482,12 @@ export default function ResultsDrillDownPage() {
       {/* Pagination Footer */}
       {totalPages > 1 && (
         <Group justify="center">
-          <Pagination total={totalPages} value={page} onChange={setPage} />
+          <Pagination
+            total={totalPages}
+            value={page}
+            onChange={setPage}
+            data-testid="bottom-pagination"
+          />
         </Group>
       )}
 
@@ -487,6 +502,7 @@ export default function ResultsDrillDownPage() {
             Sample Details: {selectedSample?.sampleId || ""}
           </Text>
         }
+        data-testid="sample-detail-drawer"
       >
         {selectedSample && (
           <ScrollArea h="calc(100vh - 80px)">

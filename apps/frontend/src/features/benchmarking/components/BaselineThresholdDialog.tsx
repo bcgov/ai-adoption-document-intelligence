@@ -141,12 +141,13 @@ export function BaselineThresholdDialog({
         <Stack gap="sm">
           {thresholds.map((threshold) => {
             const currentValue = metrics[threshold.metricName];
+            const formattedValue = typeof currentValue === "number" ? currentValue.toFixed(4) : "N/A";
             return (
               <Stack key={threshold.metricName} gap="xs">
                 <Text size="sm" fw={500}>
                   {threshold.metricName}
                   <Text span c="dimmed" ml="xs">
-                    (current: {currentValue?.toFixed(4) || "N/A"})
+                    (current: {formattedValue})
                   </Text>
                 </Text>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
