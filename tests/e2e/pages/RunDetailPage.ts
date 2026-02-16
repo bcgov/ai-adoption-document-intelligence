@@ -10,8 +10,11 @@ export class RunDetailPage {
   // Header elements
   readonly runDefinitionName: Locator;
   readonly runIdText: Locator;
+  readonly baselineBadge: Locator;
   readonly cancelRunBtn: Locator;
   readonly promoteBaselineBtn: Locator;
+  readonly promoteBaselineTooltip: Locator;
+  readonly editThresholdsBtn: Locator;
   readonly rerunBtn: Locator;
   readonly viewRegressionReportBtn: Locator;
 
@@ -58,8 +61,11 @@ export class RunDetailPage {
     // Header
     this.runDefinitionName = page.locator('[data-testid="run-definition-name"]');
     this.runIdText = page.locator('[data-testid="run-id-text"]');
+    this.baselineBadge = page.locator('[data-testid="baseline-badge"]');
     this.cancelRunBtn = page.locator('[data-testid="cancel-run-btn"]');
     this.promoteBaselineBtn = page.locator('[data-testid="promote-baseline-btn"]');
+    this.promoteBaselineTooltip = page.locator('[data-testid="promote-baseline-tooltip"]');
+    this.editThresholdsBtn = page.locator('[data-testid="edit-thresholds-btn"]');
     this.rerunBtn = page.locator('[data-testid="rerun-btn"]');
     this.viewRegressionReportBtn = page.locator('[data-testid="view-regression-report-btn"]');
 
@@ -159,6 +165,34 @@ export class RunDetailPage {
   async clickRerun() {
     await this.rerunBtn.click();
     await this.page.waitForLoadState('networkidle');
+  }
+
+  /**
+   * Click the promote to baseline button
+   */
+  async clickPromoteBaseline() {
+    await this.promoteBaselineBtn.click();
+  }
+
+  /**
+   * Click the edit thresholds button
+   */
+  async clickEditThresholds() {
+    await this.editThresholdsBtn.click();
+  }
+
+  /**
+   * Get regressed metrics from the baseline comparison alert
+   */
+  getRegressedMetrics(): Locator {
+    return this.baselineComparisonAlert.locator('[class*="Badge"][color="red"]');
+  }
+
+  /**
+   * Get the "Is Baseline" value from run info table
+   */
+  getIsBaselineValue(): Locator {
+    return this.runInfoTable.locator('text=/Is Baseline/').locator('xpath=..').locator('td').nth(1);
   }
 
   /**

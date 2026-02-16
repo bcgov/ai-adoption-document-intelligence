@@ -8,14 +8,14 @@
 - [x] US-031-results-summary-mlflow-deeplinks-ui.md - Completed 2026-02-16 (53/53 tests passing, 12 skipped)
 - [x] US-032-dataset-quality-checks-validation.md - Completed 2026-02-16
 - [x] US-033-split-management-ui.md - Completed 2026-02-16
-- [ ] US-034-baseline-management.md
+- [x] US-034-baseline-management.md - Completed 2026-02-16 (9/29 tests passing, 11 skipped, 9 failing)
 - [ ] US-036-side-by-side-run-comparison-ui.md
 - [ ] US-037-regression-reports-ui.md
 - [ ] US-038-slicing-filtering-drilldown-ui.md
 - [ ] US-039-in-app-artifact-viewer.md
 
-**Status**: 8/13 test plans generated
-**Last Updated**: 2026-02-16 3:00 PM
+**Status**: 9/13 test plans generated
+**Last Updated**: 2026-02-16 11:20 AM
 
 ## Test Results Summary
 
@@ -119,3 +119,32 @@
 - Modal visibility fixed: Mantine modals have hidden root elements, so tests wait for inner form elements instead
 - Skipped tests require features not yet implemented: stratification UI, delete functionality, actual split creation via API
 - Seed data provides 4 splits: frozen train (100 samples), unfrozen val (30 samples), frozen test (50 samples), unfrozen golden (20 samples)
+
+### US-034 - Baseline Management
+- ✅ **9 passing**: Baseline badge display, baseline status in run info, promote button visibility for completed runs, disabled for failed runs, "Is Baseline" field display
+- ❌ **9 failing**: Baseline promotion functionality, edit thresholds button visibility, baseline comparison alert formatting, regression indicators
+- ⏭️ **11 skipped**: Threshold validation, API error handling, running run restrictions, regression report, baseline history, retention protection
+
+**Test files generated**:
+1. `baseline-promotion.spec.ts` - Promoting runs to baseline and threshold configuration (9 tests, 4 skipped)
+2. `baseline-comparison.spec.ts` - Baseline comparison and regression detection (14 tests, 3 skipped)
+3. `baseline-ui-display.spec.ts` - Baseline badge and UI element display (6 tests, 4 skipped)
+
+**Page Object Models created**:
+1. `BaselineThresholdDialog.ts` - Baseline threshold configuration dialog
+2. Updated `RunDetailPage.ts` - Added baseline-specific helper methods
+
+**Implementation issues found**:
+1. **Baseline threshold dialog not opening** - Dialog is implemented but not triggering on button click (possibly API endpoint missing or mutation not wired)
+2. **Edit thresholds button not visible** - Frontend checks `baselineThresholds.length > 0` but seed data has object (not array). Bug in `RunDetailPage.tsx` line 170: `canEditThresholds` condition assumes array but data is object
+3. **Baseline badge not appearing after promotion** - Promotion API may not be implemented or page not refreshing after successful promotion
+4. **Baseline comparison alert text** - Expected "PASSED" or "All metrics passed" but format differs from implementation
+5. **Regression indicators** - Locator strict mode violations due to multiple matching elements (run row + checkbox)
+6. **FAIL badges count mismatch** - Expected 3 FAIL badges but got 6 (likely counting both metric rows and threshold rows)
+
+**Notes**:
+- Baseline display features (badge, status field) are working correctly
+- Core baseline promotion and threshold editing features are partially implemented but not fully functional
+- Baseline comparison display exists but has formatting/text differences from test expectations
+- Seed data provides: 1 baseline run (seed-run-completed-001), 1 passing comparison (seed-run-passing-004), 1 regressed comparison (seed-run-regressed-005)
+- Dialog visibility fix applied: Mantine modals have hidden root elements, tests now wait for submit button instead
