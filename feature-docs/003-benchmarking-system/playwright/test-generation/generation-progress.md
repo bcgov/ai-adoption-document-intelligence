@@ -4,7 +4,7 @@
 - [x] US-027-dataset-list-create-ui.md - Completed 2026-02-15 (8/14 tests passing)
 - [x] US-028-dataset-version-sample-preview-ui.md - Completed 2026-02-15 (8/19 tests passing)
 - [x] US-029-benchmark-definition-crud-ui.md - Completed 2026-02-16 (16/18 tests passing, 3 skipped)
-- [ ] US-030-run-list-start-cancel-progress-ui.md
+- [x] US-030-run-list-start-cancel-progress-ui.md - Completed 2026-02-16 (19/19 tests passing, 1 skipped)
 - [ ] US-031-results-summary-mlflow-deeplinks-ui.md
 - [ ] US-032-dataset-quality-checks-validation.md
 - [ ] US-033-split-management-ui.md
@@ -14,8 +14,8 @@
 - [ ] US-038-slicing-filtering-drilldown-ui.md
 - [ ] US-039-in-app-artifact-viewer.md
 
-**Status**: 4/13 test plans generated
-**Last Updated**: 2026-02-16 12:30 AM
+**Status**: 5/13 test plans generated
+**Last Updated**: 2026-02-16 9:30 AM
 
 ## Test Results Summary
 
@@ -47,3 +47,13 @@
 1. ✅ **FIXED**: Split dropdown remained disabled after selecting dataset version - backend wasn't including splits in version list response. Updated `DatasetService.listVersions()` to include splits.
 2. Dropdown selection issues with Mantine components - fixed by using `role=option` selectors
 3. Strict mode violations in locators - fixed by making selectors more specific
+
+### US-030 - Run List, Start/Cancel, Progress UI
+- ✅ **19 passing**: All scenarios covering run list display, status badges, run actions (cancel/re-run), navigation, temporal/MLflow links, and run information display
+- ⏭️ **1 skipped**: Empty run list test (requires project with no runs, not in seed data)
+
+**Implementation issues found and fixed**:
+1. ✅ **FIXED**: `DefinitionDetailView.tsx` line 256 - calling `.toFixed()` on non-numeric metric values (like `perSampleResults` array). Added type check to filter out non-numeric values.
+2. ✅ **FIXED**: `DefinitionDetailView.tsx` line 282 - calling `.map()` on `baselineThresholds` object. Changed to use `Object.entries()` to properly iterate over object properties.
+3. Updated `RunDetailPage` POM with helper methods: `getStatusBadge()`, `getMlflowLink()`, `getTemporalLink()`, etc.
+4. Updated `DefinitionDetailDialog` POM to use `data-testid="start-run-btn"` instead of `getByRole()`.

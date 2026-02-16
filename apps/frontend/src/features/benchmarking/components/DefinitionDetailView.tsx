@@ -249,14 +249,19 @@ export function DefinitionDetailView({
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {Object.entries(definition.baselineRun.metrics).map(([key, value]) => (
-                    <Table.Tr key={key}>
-                      <Table.Td>{key}</Table.Td>
-                      <Table.Td>
-                        <Code>{value.toFixed(4)}</Code>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
+                  {Object.entries(definition.baselineRun.metrics).map(([key, value]) => {
+                    // Skip non-numeric metrics (like perSampleResults, fieldErrorBreakdown, etc.)
+                    if (typeof value !== 'number') return null;
+
+                    return (
+                      <Table.Tr key={key}>
+                        <Table.Td>{key}</Table.Td>
+                        <Table.Td>
+                          <Code>{value.toFixed(4)}</Code>
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
                 </Table.Tbody>
               </Table>
             </Stack>
@@ -274,16 +279,16 @@ export function DefinitionDetailView({
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {definition.baselineRun.baselineThresholds.map((threshold) => (
-                    <Table.Tr key={threshold.metricName}>
-                      <Table.Td>{threshold.metricName}</Table.Td>
+                  {Object.entries(definition.baselineRun.baselineThresholds).map(([metricName, threshold]) => (
+                    <Table.Tr key={metricName}>
+                      <Table.Td>{metricName}</Table.Td>
                       <Table.Td>
-                        <Badge variant="light" data-testid={`threshold-type-${threshold.metricName}`}>
+                        <Badge variant="light" data-testid={`threshold-type-${metricName}`}>
                           {threshold.type === "relative" ? "Relative (%)" : "Absolute"}
                         </Badge>
                       </Table.Td>
                       <Table.Td>
-                        <Code data-testid={`threshold-value-${threshold.metricName}`}>
+                        <Code data-testid={`threshold-value-${metricName}`}>
                           {threshold.type === "relative"
                             ? `${(threshold.value * 100).toFixed(0)}%`
                             : threshold.value.toFixed(4)}

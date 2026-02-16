@@ -110,4 +110,69 @@ export class RunDetailPage {
     await this.page.goto(`/benchmarking/projects/${projectId}/runs/${runId}`);
     await this.page.waitForLoadState('networkidle');
   }
+
+  /**
+   * Get the status badge
+   */
+  getStatusBadge(): Locator {
+    return this.runInfoTable.locator('[class*="Badge"]').first();
+  }
+
+  /**
+   * Get the status text from run info table
+   */
+  getStatusText(): Locator {
+    return this.runInfoTable.locator('text=/Status/').locator('xpath=..').locator('td').nth(1);
+  }
+
+  /**
+   * Get the duration text from run info table
+   */
+  getDuration(): Locator {
+    return this.runInfoTable.locator('text=/Duration/').locator('xpath=..').locator('td').nth(1);
+  }
+
+  /**
+   * Get the MLflow Run link
+   */
+  getMlflowLink(): Locator {
+    return this.runInfoTable.locator('a[href*="mlflow"]');
+  }
+
+  /**
+   * Get the Temporal Workflow link
+   */
+  getTemporalLink(): Locator {
+    return this.runInfoTable.locator('a[href*="temporal"]');
+  }
+
+  /**
+   * Click the cancel button
+   */
+  async clickCancel() {
+    await this.cancelRunBtn.click();
+  }
+
+  /**
+   * Click the re-run button
+   */
+  async clickRerun() {
+    await this.rerunBtn.click();
+    await this.page.waitForLoadState('networkidle');
+  }
+
+  /**
+   * Wait for status to change from current status
+   * Useful for polling scenarios
+   */
+  async waitForStatusChange(fromStatus: string, timeoutMs: number = 30000) {
+    await this.page.waitForFunction(
+      (status) => {
+        const statusElement = document.querySelector('[data-testid="run-info-table"]');
+        return statusElement && !statusElement.textContent?.includes(status);
+      },
+      fromStatus,
+      { timeout: timeoutMs }
+    );
+  }
 }

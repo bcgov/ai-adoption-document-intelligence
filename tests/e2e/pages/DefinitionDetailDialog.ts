@@ -53,7 +53,7 @@ export class DefinitionDetailDialog {
     // Header
     // Use a more specific selector - the first h3 inside the dialog after the dialog title
     this.definitionName = page.locator('[role="dialog"]').getByRole('heading', { level: 3 }).first();
-    this.startRunBtn = page.getByRole('button', { name: 'Start Run' });
+    this.startRunBtn = page.locator('[data-testid="start-run-btn"]');
     this.revisionBadge = page.locator('text=/Revision \\d+/');
 
     // Configuration table

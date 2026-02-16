@@ -129,4 +129,46 @@ export class ProjectDetailPage {
   getDefinitionRowByName(definitionName: string): Locator {
     return this.definitionRows.filter({ hasText: definitionName });
   }
+
+  /**
+   * Get status badge for a run
+   * @param runId - The ID of the run
+   */
+  getRunStatusBadge(runId: string): Locator {
+    return this.getRunRow(runId).locator('[class*="Badge"]').first();
+  }
+
+  /**
+   * Get duration/elapsed time for a run
+   * @param runId - The ID of the run
+   */
+  getRunDuration(runId: string): Locator {
+    return this.getRunRow(runId).locator('td').nth(4); // Duration is typically the 5th column
+  }
+
+  /**
+   * Get headline metrics for a run
+   * @param runId - The ID of the run
+   */
+  getRunMetrics(runId: string): Locator {
+    return this.getRunRow(runId).locator('td').nth(5); // Metrics are typically the 6th column
+  }
+
+  /**
+   * Select multiple runs for comparison
+   * @param runIds - Array of run IDs to select
+   */
+  async selectRunsForComparison(runIds: string[]) {
+    for (const runId of runIds) {
+      await this.getRunCheckbox(runId).check();
+    }
+  }
+
+  /**
+   * Click the compare runs button
+   */
+  async clickCompareRuns() {
+    await this.compareRunsBtn.click();
+    await this.page.waitForLoadState('networkidle');
+  }
 }
