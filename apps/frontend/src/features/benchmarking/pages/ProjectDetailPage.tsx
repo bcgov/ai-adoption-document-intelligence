@@ -17,7 +17,7 @@ import {
   IconGitCompare,
   IconPlus,
 } from "@tabler/icons-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   CreateDefinitionDialog,
@@ -73,7 +73,7 @@ export function ProjectDetailPage() {
   const projectId = id || "";
   const navigate = useNavigate();
 
-  const { project, isLoading: isLoadingProject } = useProject(projectId);
+  const { project, isLoading: isLoadingProject, error: projectError } = useProject(projectId);
   const {
     definitions,
     isLoading: isLoadingDefinitions,
@@ -93,6 +93,15 @@ export function ProjectDetailPage() {
     projectId,
     selectedDefinitionId || "",
   );
+
+  const previousIsCreatingRef = useRef(isCreating);
+
+  useEffect(() => {
+    if (previousIsCreatingRef.current && !isCreating) {
+      setCreateDialogOpened(false);
+    }
+    previousIsCreatingRef.current = isCreating;
+  }, [isCreating]);
 
   const handleCreateDefinition = (data: CreateDefinitionFormData) => {
     createDefinition(data);
@@ -130,10 +139,25 @@ export function ProjectDetailPage() {
     );
   }
 
+  if (projectError) {
+    return (
+      <Center h={400}>
+        <Stack align="center" gap="sm">
+          <Text c="red">Failed to load project</Text>
+          <Text size="sm" c="dimmed">{projectError.message || 'Unknown error'}</Text>
+          {projectId && <Text size="xs" c="dimmed">ID: {projectId}</Text>}
+        </Stack>
+      </Center>
+    );
+  }
+
   if (!project) {
     return (
       <Center h={400}>
-        <Text c="dimmed">Project not found</Text>
+        <Stack align="center" gap="sm">
+          <Text c="dimmed">Project not found</Text>
+          {projectId && <Text size="sm" c="dimmed">ID: {projectId}</Text>}
+        </Stack>
       </Center>
     );
   }

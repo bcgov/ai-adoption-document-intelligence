@@ -83,7 +83,10 @@ export function DatasetDetailPage() {
   if (!dataset) {
     return (
       <Center h={400}>
-        <Text c="dimmed">Dataset not found</Text>
+        <Stack align="center" gap="sm">
+          <Text c="dimmed">Dataset not found</Text>
+          {id && <Text size="sm" c="dimmed">ID: {id}</Text>}
+        </Stack>
       </Center>
     );
   }

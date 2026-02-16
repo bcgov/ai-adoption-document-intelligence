@@ -141,7 +141,20 @@ export class CreateDefinitionFormDialog {
   }
 
   async clickCreate() {
+    const createRequestPromise = this.page.waitForResponse(
+      response => response.url().includes('/definitions') && response.request().method() === 'POST',
+      { timeout: 10000 }
+    );
+
     await this.createBtn.click();
+
+    // Wait for the POST request to complete
+    const createResponse = await createRequestPromise;
+
+    // Wait a bit for the refetch to complete
+    await this.page.waitForLoadState('networkidle');
+
+    return createResponse;
   }
 
   async clickCancel() {

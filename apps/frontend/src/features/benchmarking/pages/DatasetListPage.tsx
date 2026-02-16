@@ -16,7 +16,7 @@ import { CreateDatasetDialog } from "../components/CreateDatasetDialog";
 import { useDatasets } from "../hooks/useDatasets";
 
 export function DatasetListPage() {
-  const { datasets, isLoading, createDataset, isCreating } = useDatasets();
+  const { datasets, isLoading, error, createDataset, isCreating } = useDatasets();
   const [createDialogOpened, setCreateDialogOpened] = useState(false);
   const navigate = useNavigate();
 
@@ -24,6 +24,17 @@ export function DatasetListPage() {
     return (
       <Center h="70vh">
         <Loader size="lg" />
+      </Center>
+    );
+  }
+
+  if (error) {
+    return (
+      <Center h="70vh">
+        <Stack align="center" gap="md">
+          <Text c="red">Failed to load datasets</Text>
+          <Text size="sm" c="dimmed">{error.message || 'Unknown error'}</Text>
+        </Stack>
       </Center>
     );
   }

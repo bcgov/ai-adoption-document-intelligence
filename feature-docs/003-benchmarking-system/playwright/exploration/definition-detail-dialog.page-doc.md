@@ -9,13 +9,15 @@
 - **Close Button**: `button` - Close dialog (X icon)
 
 ### Definition Header
-- **Definition Name**: `heading[level=3]` - Name of the definition (e.g., "Baseline OCR Model")
-- **Start Run Button**: `button` - "Start Run" button with play icon
+- **Definition Name**: `[data-testid="definition-name-title"]` - Name of the definition (e.g., "Baseline OCR Model")
+- **Start Run Button**: `[data-testid="start-run-btn"]` - "Start Run" button with play icon
   - Triggers a new benchmark run for this definition
-- **Revision Badge**: `generic` - "Revision {number}" (e.g., "Revision 1")
+  - **CRITICAL**: This is the primary action for starting benchmark runs (US-030 Scenario 2)
+- **Immutable Badge**: `[data-testid="immutable-badge"]` - Shows "Immutable" if definition is locked (conditional)
+- **Revision Badge**: `[data-testid="revision-badge"]` - "Revision {number}" (e.g., "Revision 1")
 
 ### Configuration Table
-**Table structure** showing key-value pairs:
+**Table**: `[data-testid="definition-info-table"]` showing key-value pairs:
 - **Dataset Version**: `row` - "{dataset name} v{version}" (e.g., "Invoice Test Dataset vv1.0")
 - **Split**: `row` - "{name} ({type})" (e.g., "train (train)")
 - **Workflow**: `row` - "{workflow name} v{version}" (e.g., "Standard OCR Workflow v1")
@@ -25,22 +27,22 @@
 ### Configuration Sections
 
 #### Evaluator Configuration
-- **Heading**: `heading[level=4]` - "Evaluator Configuration"
-- **JSON Display**: `generic` - Formatted JSON string
+- **Heading**: `[data-testid="evaluator-config-heading"]` - "Evaluator Configuration"
+- **JSON Display**: `[data-testid="evaluator-config-json"]` - Formatted JSON string
   - Example: `{ "metrics": [ "field_accuracy", "character_accuracy", "word_accuracy" ] }`
 
 #### Runtime Settings
-- **Heading**: `heading[level=4]` - "Runtime Settings"
-- **JSON Display**: `generic` - Formatted JSON string
+- **Heading**: `[data-testid="runtime-settings-heading"]` - "Runtime Settings"
+- **JSON Display**: `[data-testid="runtime-settings-json"]` - Formatted JSON string
   - Example: `{ "retries": 3, "timeout": 300 }`
 
 #### Artifact Policy
-- **Heading**: `heading[level=4]` - "Artifact Policy"
-- **JSON Display**: `generic` - Formatted JSON string
+- **Heading**: `[data-testid="artifact-policy-heading"]` - "Artifact Policy"
+- **JSON Display**: `[data-testid="artifact-policy-json"]` - Formatted JSON string
   - Example: `{ "saveOutputs": true, "saveIntermediateResults": false }`
 
 ### Schedule Configuration
-- **Heading**: `heading[level=4]` - "Schedule Configuration"
+- **Heading**: `[data-testid="schedule-config-heading"]` - "Schedule Configuration"
 - **Icon**: "Scheduled Runs" icon
 - **Toggle Switch**: `switch` - "Enable automatic scheduled runs"
   - Allows enabling/disabling scheduled runs for this definition
@@ -48,11 +50,12 @@
   - **BUG NOTE**: API endpoint not implemented (GET `/api/benchmark/projects/{projectId}/definitions/{definitionId}/schedule` returns 404)
 
 ### Run History
-- **Heading**: `heading[level=4]` - "Run History"
-- **Table**: Shows all runs associated with this definition
+- **Heading**: `[data-testid="run-history-heading"]` - "Run History"
+- **Table**: `[data-testid="run-history-table"]` - Shows all runs associated with this definition
   - Columns: MLflow Run ID, Status, Started, Completed
+  - **Run History Row**: `[data-testid="run-history-row-{runId}"]` - Each run in the history
   - **MLflow Run ID**: `code` element - Truncated run ID (e.g., "mlflow-r")
-  - **Status Badge**: `generic` - "running", "failed", or "completed"
+  - **Status Badge**: `[data-testid="run-status-badge-{runId}"]` - "running", "failed", or "completed"
   - **Started**: Formatted date/time
   - **Completed**: Formatted date/time or "—" for ongoing runs
 

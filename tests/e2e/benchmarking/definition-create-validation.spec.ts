@@ -67,8 +67,16 @@ test.describe('Definition Form - Create and Validation', () => {
     // Fill evaluator config (valid JSON)
     await formDialog.fillEvaluatorConfig('{"metrics": ["accuracy"]}');
 
-    // Submit the form
+    // Submit the form and wait for both POST and GET requests
+    const getRequestPromise = page.waitForResponse(
+      response => response.url().includes(`/projects/${SEED_PROJECT_ID}/definitions`) && response.request().method() === 'GET',
+      { timeout: 15000 }
+    );
+
     await formDialog.clickCreate();
+
+    // Wait for the refetch to complete
+    await getRequestPromise;
 
     // Then: Success notification appears, form closes, definition list refreshes
     await page.waitForLoadState('networkidle');

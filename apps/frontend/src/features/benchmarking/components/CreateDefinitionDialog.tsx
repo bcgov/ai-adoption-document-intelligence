@@ -118,8 +118,6 @@ export function CreateDefinitionDialog({
       runtimeSettings,
       artifactPolicy,
     });
-
-    handleClose();
   };
 
   const handleClose = () => {

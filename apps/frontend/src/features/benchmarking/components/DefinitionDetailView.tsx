@@ -99,21 +99,30 @@ export function DefinitionDetailView({
       <Card>
         <Stack gap="md">
           <Group justify="space-between">
-            <Title order={3}>{definition.name}</Title>
+            <Title order={3} data-testid="definition-name-title">
+              {definition.name}
+            </Title>
             <Group gap="xs">
               <Button
                 leftSection={<IconPlayerPlay size={16} />}
                 onClick={handleStartRun}
                 loading={isStarting}
+                data-testid="start-run-btn"
               >
                 Start Run
               </Button>
-              {definition.immutable && <Badge color="gray">Immutable</Badge>}
-              <Badge>Revision {definition.revision}</Badge>
+              {definition.immutable && (
+                <Badge color="gray" data-testid="immutable-badge">
+                  Immutable
+                </Badge>
+              )}
+              <Badge data-testid="revision-badge">
+                Revision {definition.revision}
+              </Badge>
             </Group>
           </Group>
 
-          <Table>
+          <Table data-testid="definition-info-table">
             <Table.Tbody>
               <Table.Tr>
                 <Table.Td fw={500}>Dataset Version</Table.Td>
@@ -151,8 +160,10 @@ export function DefinitionDetailView({
 
       <Card>
         <Stack gap="md">
-          <Title order={4}>Evaluator Configuration</Title>
-          <Code block>
+          <Title order={4} data-testid="evaluator-config-heading">
+            Evaluator Configuration
+          </Title>
+          <Code block data-testid="evaluator-config-json">
             {JSON.stringify(definition.evaluatorConfig, null, 2)}
           </Code>
         </Stack>
@@ -160,8 +171,10 @@ export function DefinitionDetailView({
 
       <Card>
         <Stack gap="md">
-          <Title order={4}>Runtime Settings</Title>
-          <Code block>
+          <Title order={4} data-testid="runtime-settings-heading">
+            Runtime Settings
+          </Title>
+          <Code block data-testid="runtime-settings-json">
             {JSON.stringify(definition.runtimeSettings, null, 2)}
           </Code>
         </Stack>
@@ -169,8 +182,10 @@ export function DefinitionDetailView({
 
       <Card>
         <Stack gap="md">
-          <Title order={4}>Artifact Policy</Title>
-          <Code block>
+          <Title order={4} data-testid="artifact-policy-heading">
+            Artifact Policy
+          </Title>
+          <Code block data-testid="artifact-policy-json">
             {JSON.stringify(definition.artifactPolicy, null, 2)}
           </Code>
         </Stack>
@@ -178,7 +193,9 @@ export function DefinitionDetailView({
 
       <Card>
         <Stack gap="md">
-          <Title order={4}>Schedule Configuration</Title>
+          <Title order={4} data-testid="schedule-config-heading">
+            Schedule Configuration
+          </Title>
           <ScheduleConfig
             projectId={definition.projectId}
             definitionId={definition.id}
@@ -191,8 +208,10 @@ export function DefinitionDetailView({
       {definition.runHistory.length > 0 && (
         <Card>
           <Stack gap="md">
-            <Title order={4}>Run History</Title>
-            <Table striped highlightOnHover>
+            <Title order={4} data-testid="run-history-heading">
+              Run History
+            </Title>
+            <Table striped highlightOnHover data-testid="run-history-table">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>MLflow Run ID</Table.Th>
@@ -203,12 +222,15 @@ export function DefinitionDetailView({
               </Table.Thead>
               <Table.Tbody>
                 {definition.runHistory.map((run) => (
-                  <Table.Tr key={run.id}>
+                  <Table.Tr key={run.id} data-testid={`run-history-row-${run.id}`}>
                     <Table.Td>
                       <Code>{run.mlflowRunId.substring(0, 8)}</Code>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={getStatusBadgeColor(run.status)}>
+                      <Badge
+                        color={getStatusBadgeColor(run.status)}
+                        data-testid={`run-status-badge-${run.id}`}
+                      >
                         {run.status}
                       </Badge>
                     </Table.Td>

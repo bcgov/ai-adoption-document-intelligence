@@ -86,6 +86,53 @@ Create/update `{feature-dir}/playwright/test-generation/generation-progress.md`:
 **Last Updated**: 2026-02-15 3:42 PM
 ```
 
+## Key Design Principles
+
+To run Playwright tests in parallel without interference, you need to ensure **test isolation** – each test must run independently without sharing state. Playwright creates separate browser contexts for each test by default, but tests can still interact if they share external resources like databases, files, or API state.[^1][^2][^3]
+
+
+**Ensure Complete Test Independence**
+Each test should have its own:
+
+- Browser context (provided automatically by Playwright)[^2]
+- Test data (unique usernames, email addresses, etc.)
+- Storage state (cookies, local storage, session storage)[^1]
+- External resources (separate database records, unique file paths)
+
+**Avoid Shared State**
+Common causes of test interference include:
+
+- Tests modifying the same database records
+- Sharing login sessions or authentication tokens
+- Writing to the same files or directories
+- Depending on execution order
+- Using hardcoded test data that multiple tests reference[^4]
+
+
+## Configuration Options
+
+**Control Specific Test Groups**
+For tests that must run sequentially (like database setup/teardown):
+
+```typescript
+// Mark specific files to run sequentially
+test.describe.configure({ mode: 'serial' });
+
+test('Test 1', async ({ page }) => { /* ... */ });
+test('Test 2', async ({ page }) => { /* ... */ });
+```
+
+
+## Best Practices
+
+- **Use unique identifiers**: Generate random IDs, timestamps, or UUIDs for test data to prevent collisions[^4]
+- **Isolate test environments**: Use separate test databases or API mocking for each test
+- **Leverage browser contexts**: Each test automatically gets a fresh context – don't share pages between tests[^3]
+- **Clean up properly**: Use `afterEach()` hooks to remove test data, but prefer starting fresh over cleanup[^3]
+- **Run in headless mode**: Reduces resource consumption during parallel execution[^4]
+- **Limit workers**: Set workers based on available CPU/memory to prevent resource exhaustion[^4]
+
+
 ## Output Structure
 
 ### Page Object Model: `tests/e2e/pages/{PageName}Page.ts`
