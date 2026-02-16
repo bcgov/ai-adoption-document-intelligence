@@ -15,11 +15,9 @@ Systematically explore a web application to document its structure, elements, an
 
 ## Authentication Setup
 
-**IMPORTANT**: The application requires authentication. Before exploring, set up mock authentication using the pattern from `tests/e2e/helpers/auth.ts`:
-
-1. **Setup API Key Auth**: Get TEST_API_KEY from environment (should be set in `.env`, you'll need to run `cat` command to read it)
-2. **Navigate to app**: Go to the frontend URL (default: http://localhost:3000)
-3. **Inject mock auth**: Use page.evaluate to inject fake JWT tokens into localStorage:
+**For Playwright Exploration**:
+1. **Navigate to app**: Go to the frontend URL (default: http://localhost:3000)
+2. **Inject mock auth**: Use page.evaluate to inject fake JWT tokens into localStorage for frontend routing:
 
 ```javascript
 await page.evaluate(() => {
@@ -52,13 +50,8 @@ await page.evaluate(() => {
 });
 ```
 
-4. **Reload page**: Reload so auth context picks up the tokens
-5. **Wait for load**: Wait for networkidle state
-
-**Environment Variables** (from `apps/backend-services/.env`):
-- `TEST_API_KEY`: API key for backend authentication
-- `BACKEND_URL`: Backend URL (default: http://localhost:3002)
-- `FRONTEND_URL`: Frontend URL (default: http://localhost:3000)
+3. **Reload page**: Reload so auth context picks up the tokens
+4. **Wait for load**: Wait for networkidle state
 
 ## Process
 1. Read test plans from `{feature-dir}/playwright/test-plans/` directory (all .md files except README.md)
@@ -68,7 +61,6 @@ await page.evaluate(() => {
 5. **Set up authentication** (see Authentication Setup section above)
 6. For each unique page in that test plan:
    - Navigate using Playwright MCP in headed mode
-   - Take screenshot and save to `{feature-dir}/playwright/screenshots/{page-name}.png`
    - Document all interactive elements with selectors
    - Identify elements lacking robust selectors (using only text, CSS classes, etc.)
    - **Add `data-testid` attributes to those elements in the source code**
@@ -268,12 +260,11 @@ Modified React/TypeScript component files with added `data-testid` attributes.
 
 1. Read next uncompleted test plan from exploration-progress.md
 2. Extract pages from that test plan only
-3. For each page: Navigate with Playwright, take snapshot/screenshot
-4. Identify elements needing selectors
-5. Find and modify source files to add `data-testid`
-6. Create page-doc.md and selectors.md
-7. Mark test plan as complete in exploration-progress.md
-8. Confirm with user before proceeding to next test plan
+3. Identify elements needing selectors
+4. Find and modify source files to add `data-testid`
+5. Create page-doc.md and selectors.md
+6. Mark test plan as complete in exploration-progress.md
+7. Confirm with user before proceeding to next test plan
 
 ## Important References
 
