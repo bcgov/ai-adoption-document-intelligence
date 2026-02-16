@@ -10,3 +10,4 @@ test-results/
 playwright-report/
 .playwright-mcp/
 playwright/.cache/
+feature-docs/*/playwright/screenshots/

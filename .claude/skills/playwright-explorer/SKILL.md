@@ -13,12 +13,60 @@ Systematically explore a web application to document its structure, elements, an
 - Application URL (default: `http://localhost:3000`)
 - Option to add selectors to code (default: `true`)
 
+## Authentication Setup
+
+**IMPORTANT**: The application requires authentication. Before exploring, set up mock authentication using the pattern from `tests/e2e/helpers/auth.ts`:
+
+1. **Setup API Key Auth**: Get TEST_API_KEY from environment (should be set in `.env`)
+2. **Navigate to app**: Go to the frontend URL (default: http://localhost:3000)
+3. **Inject mock auth**: Use page.evaluate to inject fake JWT tokens into localStorage:
+
+```javascript
+await page.evaluate(() => {
+  const createFakeJWT = (payload) => {
+    const header = { alg: 'none', typ: 'JWT' };
+    const base64UrlEncode = (obj) => {
+      const json = JSON.stringify(obj);
+      const base64 = btoa(json);
+      return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    };
+    return `${base64UrlEncode(header)}.${base64UrlEncode(payload)}.fake-signature`;
+  };
+
+  const fakeIdToken = createFakeJWT({
+    name: 'Test User',
+    preferred_username: 'testuser',
+    email: 'test@example.com',
+    sub: 'test-user',
+  });
+
+  const mockAuthTokens = {
+    access_token: 'mock-access-token',
+    refresh_token: 'mock-refresh-token',
+    id_token: fakeIdToken,
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+  };
+
+  localStorage.setItem('auth_tokens', JSON.stringify(mockAuthTokens));
+});
+```
+
+4. **Reload page**: Reload so auth context picks up the tokens
+5. **Wait for load**: Wait for networkidle state
+
+**Environment Variables** (from `apps/backend-services/.env`):
+- `TEST_API_KEY`: API key for backend authentication
+- `BACKEND_URL`: Backend URL (default: http://localhost:3002)
+- `FRONTEND_URL`: Frontend URL (default: http://localhost:3000)
+
 ## Process
 1. Read test plans from `{feature-dir}/playwright/test-plans/` directory (all .md files except README.md)
-2. Check `{feature-dir}/playwright/exploration-progress.md` for already completed test plans
+2. Check `{feature-dir}/playwright/exploration/exploration-progress.md` for already completed test plans
 3. **Process ONE test plan at a time** (first uncompleted one)
 4. Extract page references and user flows from that test plan
-5. For each unique page in that test plan:
+5. **Set up authentication** (see Authentication Setup section above)
+6. For each unique page in that test plan:
    - Navigate using Playwright MCP in headed mode
    - Take screenshot and save to `{feature-dir}/playwright/screenshots/{page-name}.png`
    - Document all interactive elements with selectors
@@ -26,12 +74,12 @@ Systematically explore a web application to document its structure, elements, an
    - **Add `data-testid` attributes to those elements in the source code**
    - Note async behaviors (loading states, animations, API calls)
    - Test navigation paths
-6. Mark test plan as complete in `exploration-progress.md`
-7. Confirm with user before proceeding to next test plan
+7. Mark test plan as complete in `exploration/exploration-progress.md`
+8. Confirm with user before proceeding to next test plan
 
 ## Progress Tracking
 
-Create/update `{feature-dir}/playwright/exploration-progress.md`:
+Create/update `{feature-dir}/playwright/exploration/exploration-progress.md`:
 
 ```markdown
 # Exploration Progress
@@ -84,28 +132,7 @@ For each interactive element without a robust selector:
 ```
 
 
-### 3. Document Changes
-
-Create `{feature-dir}/playwright/selector-changes.md`:
-
-```markdown
-# Selector Changes
-
-## File: apps/frontend/src/components/BenchmarkForm.tsx
-**Line**: 42
-**Element**: Submit button
-**Change**: Added `data-testid="submit-benchmark-btn"`
-**Reason**: No reliable selector existed (was using text match)
-
-## File: apps/frontend/src/pages/Datasets.tsx
-**Line**: 89
-**Element**: Dataset list item
-**Change**: Added `data-testid="dataset-item"`
-**Reason**: Needed stable selector for list iteration
-```
-
-
-### 4. Prioritize Selector Types
+### 3. Prioritize Selector Types
 
 When exploring, prefer in this order:
 
@@ -116,7 +143,7 @@ When exploring, prefer in this order:
 
 ## Output
 
-For each page, create files in `{feature-dir}/playwright/`:
+For each page, create files in `{feature-dir}/playwright/exploration/`:
 
 ### 1. `{page-name}.page-doc.md` (Human-readable documentation)
 
@@ -176,11 +203,6 @@ EVENT_ROW|[data-testid="event-row"]
 DELETE_BUTTON|[aria-label="Delete"]
 EDIT_BUTTON|[aria-label="Edit"]
 ```
-
-
-### 3. `selector-changes.md` (Code modifications log)
-
-Documents all `data-testid` attributes added to source code during exploration.
 
 ### 4. Updated source code files
 
