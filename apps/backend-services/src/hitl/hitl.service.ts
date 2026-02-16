@@ -200,6 +200,7 @@ export class HitlService {
       throw new NotFoundException(`Review session ${id} not found`);
     }
 
+    const doc = session.document as ReviewSessionWithDocument["document"];
     return {
       id: session.id,
       documentId: session.document_id,
@@ -212,9 +213,8 @@ export class HitlService {
         original_filename: session.document.original_filename,
         storage_path: session.document.file_path,
         ocr_result: {
-          fields:
-            (session.document as ReviewSessionWithDocument["document"])
-              .ocr_result?.keyValuePairs || {},
+          fields: doc.ocr_result?.keyValuePairs || {},
+          enrichment_summary: doc.ocr_result?.enrichment_summary ?? undefined,
         },
       },
       corrections: session.corrections,

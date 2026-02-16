@@ -163,6 +163,51 @@ describe("workflow-validator", () => {
       });
     });
 
+    describe("enrichResults parameters", () => {
+      it("returns invalid when documentType is empty string", () => {
+        const result = validateWorkflowConfig({
+          enrichResults: {
+            enabled: true,
+            parameters: { documentType: "" },
+          },
+        });
+        expect(result.valid).toBe(false);
+        expect(
+          result.errors.some(
+            (e: ValidationError) =>
+              e.stepId === "enrichResults" && e.field === "documentType",
+          ),
+        ).toBe(true);
+      });
+
+      it("returns invalid when confidenceThreshold > 1", () => {
+        const result = validateWorkflowConfig({
+          enrichResults: {
+            enabled: true,
+            parameters: {
+              documentType: "project-1",
+              confidenceThreshold: 1.5,
+            },
+          },
+        });
+        expect(result.valid).toBe(false);
+      });
+
+      it("accepts valid enrichResults parameters", () => {
+        const result = validateWorkflowConfig({
+          enrichResults: {
+            enabled: true,
+            parameters: {
+              documentType: "project-1",
+              confidenceThreshold: 0.85,
+              enableLlmEnrichment: false,
+            },
+          },
+        });
+        expect(result.valid).toBe(true);
+      });
+    });
+
     it("skips step with null/undefined config", () => {
       const result = validateWorkflowConfig({
         prepareFileData: null,

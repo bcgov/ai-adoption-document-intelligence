@@ -165,4 +165,24 @@ describe('pollOCRResults activity', () => {
       expect.any(Object),
     );
   });
+
+  it('strips /documentintelligence from endpoint so SDK does not double it', async () => {
+    process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT =
+      'https://test.aihub.gov.bc.ca/sdpr-invoice-automation/documentintelligence';
+
+    const mockOCRResponse: OCRResponse = {
+      status: 'succeeded',
+      createdDateTime: '2024-01-01T00:00:00Z',
+      lastUpdatedDateTime: '2024-01-01T00:01:00Z',
+    };
+    mockGet.mockResolvedValue({ status: 200, body: mockOCRResponse });
+
+    await pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'abc' });
+
+    expect(documentIntelligenceMock).toHaveBeenCalledWith(
+      'https://test.aihub.gov.bc.ca/sdpr-invoice-automation',
+      expect.any(Object),
+      expect.any(Object),
+    );
+  });
 });

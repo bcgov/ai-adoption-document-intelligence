@@ -16,6 +16,7 @@ interface WorkflowConfig {
     pollOCRResults?: WorkflowStepConfig;
     extractOCRResults?: WorkflowStepConfig;
     postOcrCleanup?: WorkflowStepConfig;
+    enrichResults?: WorkflowStepConfig;
     checkOcrConfidence?: WorkflowStepConfig;
     humanReview?: WorkflowStepConfig;
     storeResults?: WorkflowStepConfig;
@@ -54,7 +55,8 @@ const WORKFLOW_EDGES: Edge[] = [
   // biome-ignore lint/security/noSecrets: These are workflow step identifiers, not secrets
   { from: "extractOCRResults", to: "postOcrCleanup" },
   // biome-ignore lint/security/noSecrets: These are workflow step identifiers, not secrets
-  { from: "postOcrCleanup", to: "checkOcrConfidence" },
+  { from: "postOcrCleanup", to: "enrichResults" },
+  { from: "enrichResults", to: "checkOcrConfidence" },
   { from: "checkOcrConfidence", to: "storeResults" },
   { from: "checkOcrConfidence", to: "humanReview" },
   { from: "humanReview", to: "storeResults" },
@@ -70,6 +72,7 @@ const STEP_LABELS: Record<string, string> = {
   pollOCRResults: "Poll Results",
   extractOCRResults: "Extract Results",
   postOcrCleanup: "Cleanup",
+  enrichResults: "Enrich",
   checkOcrConfidence: "Check Confidence",
   humanReview: "Human Review",
   storeResults: "Store Results",
@@ -80,7 +83,7 @@ export function WorkflowVisualization({ config }: WorkflowVisualizationProps) {
 
   // Fixed viewBox dimensions - this is our coordinate system
   const viewBoxWidth = 400;
-  const viewBoxHeight = 580;
+  const viewBoxHeight = 605;
   const padding = 20;
   const nodeWidth = 140;
   const mainColumnX = padding;
@@ -98,9 +101,10 @@ export function WorkflowVisualization({ config }: WorkflowVisualizationProps) {
       pollOCRResults: { x: mainColumnX, y: 270 },
       extractOCRResults: { x: mainColumnX, y: 320 },
       postOcrCleanup: { x: mainColumnX, y: 370 },
-      checkOcrConfidence: { x: mainColumnX, y: 420 },
-      humanReview: { x: rightColumnX, y: 470 },
-      storeResults: { x: mainColumnX, y: 520 },
+      enrichResults: { x: mainColumnX, y: 415 },
+      checkOcrConfidence: { x: mainColumnX, y: 460 },
+      humanReview: { x: rightColumnX, y: 510 },
+      storeResults: { x: mainColumnX, y: 560 },
     };
 
     Object.keys(STEP_LABELS).forEach((stepId) => {

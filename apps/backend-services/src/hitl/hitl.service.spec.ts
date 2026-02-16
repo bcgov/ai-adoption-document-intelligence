@@ -417,6 +417,7 @@ describe("HitlService", () => {
           storage_path: "/path/to/test.pdf",
           ocr_result: {
             fields: mockOcrResult.keyValuePairs,
+            enrichment_summary: undefined,
           },
         },
         corrections: [],

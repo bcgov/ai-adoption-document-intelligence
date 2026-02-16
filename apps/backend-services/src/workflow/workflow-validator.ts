@@ -114,6 +114,41 @@ export function validateWorkflowConfig(config: WorkflowStepsConfig): {
           });
         }
       }
+
+      if (stepId === "enrichResults") {
+        const params = stepConfig.parameters as {
+          documentType?: string;
+          confidenceThreshold?: number;
+        };
+        if (
+          params.documentType !== undefined &&
+          typeof params.documentType !== "string"
+        ) {
+          errors.push({
+            stepId,
+            field: "documentType",
+            // biome-ignore lint/security/noSecrets: user-facing validation message, not a secret
+            message: "documentType must be a string (LabelingProject ID)",
+          });
+        }
+        if (params.documentType === "") {
+          errors.push({
+            stepId,
+            field: "documentType",
+            message: "documentType must be a non-empty string when provided",
+          });
+        }
+        if (
+          params.confidenceThreshold !== undefined &&
+          (params.confidenceThreshold < 0 || params.confidenceThreshold > 1)
+        ) {
+          errors.push({
+            stepId,
+            field: "confidenceThreshold",
+            message: "confidenceThreshold must be between 0 and 1",
+          });
+        }
+      }
     }
   }
 

@@ -140,6 +140,7 @@ const defaultOcrResult: OcrResult = {
     field1: { type: "string", content: "value1", confidence: 0.95 },
   },
   document_id: "456",
+  enrichment_summary: null,
 };
 
 const analysisResult: AnalysisResult = {

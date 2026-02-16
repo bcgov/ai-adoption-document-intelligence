@@ -5,11 +5,18 @@ import DocumentIntelligence, {
 import type { OCRResponse, PollResult } from '../types';
 
 /**
- * Normalize endpoint URL by removing trailing slash
+ * Normalize endpoint for the Azure SDK. The SDK appends "/documentintelligence" to the
+ * endpoint, so if the env var already includes that path (e.g. APIM), strip it to avoid
+ * double segment and 404.
  */
-function normalizeEndpoint(url: string | undefined): string {
+function normalizeEndpointForSdk(url: string | undefined): string {
   if (!url) return '';
-  return url.endsWith('/') ? url.slice(0, -1) : url;
+  let normalized = url.endsWith('/') ? url.slice(0, -1) : url;
+  const suffix = '/documentintelligence';
+  if (normalized.toLowerCase().endsWith(suffix)) {
+    normalized = normalized.slice(0, -suffix.length);
+  }
+  return normalized;
 }
 
 /**
@@ -104,11 +111,11 @@ export async function pollOCRResults(params: {
     throw new Error('APIM Request ID not available for polling');
   }
 
-  const normalizedEndpoint = normalizeEndpoint(endpoint);
+  const normalizedEndpoint = normalizeEndpointForSdk(endpoint);
   const normalizedModelId = modelId || 'prebuilt-layout';
 
   try {
-    // Initialize Azure Document Intelligence client with APIM-compatible configuration
+    // Initialize Azure Document Intelligence client (SDK appends /documentintelligence to endpoint)
     const client: DocumentIntelligenceClient = DocumentIntelligence(
       normalizedEndpoint,
       { key: apiKey },

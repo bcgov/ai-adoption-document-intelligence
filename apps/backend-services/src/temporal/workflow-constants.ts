@@ -16,6 +16,7 @@ export const VALID_WORKFLOW_STEP_IDS = [
   "extractOCRResults",
   // biome-ignore lint/security/noSecrets: These are workflow step identifiers, not secrets
   "postOcrCleanup",
+  "enrichResults",
   "checkOcrConfidence",
   "humanReview",
   "storeResults",
