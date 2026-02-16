@@ -14,10 +14,48 @@ Run Playwright tests iteratively and fix failures automatically until all tests 
 - Feature directory for documentation (e.g., `feature-docs/003-benchmarking-system/`)
 - Max attempts per test (default: 10)
 
+## Database Management
+
+**CRITICAL**: Reset and seed the database before running tests to ensure consistent starting state.
+
+### Reset & Seed Process
+
+Before running any tests, execute these commands:
+
+```bash
+# From apps/backend-services directory
+cd apps/backend-services
+
+# Reset database (drops all data)
+PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="yes" npx prisma migrate reset --force
+
+# Run migrations
+npm run db:migrate
+
+# Seed test data
+npm run db:seed
+```
+
+**OR** use the combined reset command:
+```bash
+cd apps/backend-services && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="yes" npx prisma migrate reset --force && npm run db:seed
+```
+
+When running prisma migrate reset or other destructive Prisma commands,
+always use: PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="yes"
+before the command in development environments.
+
 ## Process
 
 ### Iteration Loop
-Run all Playwright tests and fix failures:
+
+#### 0. Reset Database (First Step)
+**ALWAYS reset and seed database before running tests:**
+```bash
+cd apps/backend-services && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="yes" npx prisma migrate reset --force && npm run db:seed
+```
+
+This ensures test failures aren't caused by stale data from previous runs.
 
 #### 1. Run All Tests
 ```bash
@@ -72,6 +110,8 @@ Does implementation match requirements?
 | **Navigation failed** | 1. Check requirements for navigation flow<br>2. Verify URL patterns in user stories | If navigation is broken: fix implementation routing<br>If test navigation is incorrect: add waitForLoadState('networkidle') |
 | **Element not visible** | 1. Check requirements for UI state<br>2. Explore page for conditional rendering | If element should be visible per requirements: fix implementation<br>If test timing is wrong: add waitFor({ state: 'visible' }) |
 | **Element detached** | 1. Review requirements for dynamic content | If DOM manipulation is buggy: fix implementation<br>If test needs better synchronization: use waitForSelector before interaction |
+| **Missing test data** | 1. Read `apps/shared/prisma/seed.ts`<br>2. Verify seed data exists for test scenario | If test expects data that doesn't exist: update seed.ts and re-seed<br>If test IDs don't match seed IDs: update test to use correct seed data IDs |
+| **Authentication errors** | 1. Verify `TEST_API_KEY` is set<br>2. Check `setupAuthenticatedTest` is called<br>3. Inspect network requests for `x-api-key` header | If auth setup missing: add `setupAuthenticatedTest` in beforeEach<br>If backend returns 403: verify API key is correct and environment variable is set<br>If frontend not authenticated: check localStorage tokens are injected |
 
 #### 4. Identify Files to Fix
 
@@ -85,7 +125,14 @@ When fixing implementation (not just tests):
 Read the relevant implementation files and modify them to match requirements.
 
 #### 5. Re-run Test
-Continue until test passes or max attempts reached.
+Follow this iterative process:
+
+1. **Reset database**: `cd apps/backend-services && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="yes" npx prisma migrate reset --force && npm run db:seed`
+2. **Run failing test**: `npx playwright test path/to/test.spec.ts`
+3. **Identify root cause** from error message and test output
+4. **Apply fix** (update test, add seed data, fix implementation, etc.)
+5. **Re-run test** to verify fix
+6. **Repeat** until test passes or max attempts reached
 
 
 ## Exit Conditions
