@@ -227,6 +227,7 @@ export function RegressionReportPage() {
         </div>
         <Group>
           <Button
+            data-testid="export-json-btn"
             leftSection={<IconDownload size={16} />}
             variant="default"
             onClick={handleExportJSON}
@@ -234,6 +235,7 @@ export function RegressionReportPage() {
             Export JSON
           </Button>
           <Button
+            data-testid="export-html-btn"
             leftSection={<IconDownload size={16} />}
             variant="default"
             onClick={handleExportHTML}
@@ -241,6 +243,7 @@ export function RegressionReportPage() {
             Export HTML
           </Button>
           <Button
+            data-testid="back-to-run-btn"
             onClick={() =>
               navigate(`/benchmarking/projects/${projectId}/runs/${runId}`)
             }
@@ -251,6 +254,7 @@ export function RegressionReportPage() {
       </Group>
 
       <Alert
+        data-testid="regression-alert"
         icon={
           run.baselineComparison.overallPassed ? (
             <IconCheck size={16} />
@@ -282,7 +286,7 @@ export function RegressionReportPage() {
             </Text>
             <Group gap="xs">
               {run.baselineComparison.regressedMetrics.map((metric) => (
-                <Badge key={metric} color="red" size="lg">
+                <Badge key={metric} data-testid="regressed-metric-badge" color="red" size="lg">
                   {metric}
                 </Badge>
               ))}
@@ -294,7 +298,7 @@ export function RegressionReportPage() {
       <Card>
         <Stack gap="md">
           <Title order={3}>Run Information</Title>
-          <Table>
+          <Table data-testid="run-info-table">
             <Table.Tbody>
               <Table.Tr>
                 <Table.Td fw={500}>Run ID</Table.Td>
@@ -321,6 +325,7 @@ export function RegressionReportPage() {
                   <Table.Td fw={500}>MLflow Run</Table.Td>
                   <Table.Td>
                     <Button
+                      data-testid="mlflow-link"
                       component="a"
                       href={mlflowUrl}
                       target="_blank"
@@ -342,7 +347,7 @@ export function RegressionReportPage() {
       <Card>
         <Stack gap="md">
           <Title order={3}>Metric-by-Metric Analysis</Title>
-          <Table striped highlightOnHover>
+          <Table data-testid="metric-comparison-table" striped highlightOnHover>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Metric</Table.Th>
@@ -363,7 +368,7 @@ export function RegressionReportPage() {
                 );
 
                 return (
-                  <Table.Tr key={comparison.metricName}>
+                  <Table.Tr key={comparison.metricName} data-testid="metric-row">
                     <Table.Td fw={500}>{comparison.metricName}</Table.Td>
                     <Table.Td>
                       <Code>{comparison.currentValue.toFixed(4)}</Code>
@@ -429,7 +434,7 @@ export function RegressionReportPage() {
         </Stack>
       </Card>
 
-      <Card>
+      <Card data-testid="historical-trend-section">
         <Stack gap="md">
           <Title order={3}>Historical Trend</Title>
           <Alert icon={<IconAlertCircle size={16} />} color="blue">

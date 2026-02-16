@@ -10,9 +10,9 @@
 - [x] US-033-split-management-ui.md - Completed 2026-02-16
 - [x] US-034-baseline-management.md - Completed 2026-02-16
 - [x] US-036-side-by-side-run-comparison-ui.md - Completed 2026-02-16
-- [ ] US-037-regression-reports-ui.md
+- [x] US-037-regression-reports-ui.md - Completed 2026-02-16
 - [ ] US-038-slicing-filtering-drilldown-ui.md
 - [ ] US-039-in-app-artifact-viewer.md
 
-**Status**: 10/13 test plans explored
+**Status**: 11/13 test plans explored
 **Last Updated**: 2026-02-16
