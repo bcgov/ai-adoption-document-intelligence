@@ -14,14 +14,11 @@ import {
 import { notifications } from "@mantine/notifications";
 import { IconEdit, IconFlask, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDeleteWorkflow, useWorkflows } from "../data/hooks/useWorkflows";
 
-interface WorkflowListPageProps {
-  onEdit?: (workflowId: string) => void;
-  onCreate?: () => void;
-}
-
-export function WorkflowListPage({ onEdit, onCreate }: WorkflowListPageProps) {
+export function WorkflowListPage() {
+  const navigate = useNavigate();
   const { data: workflows, isLoading, error } = useWorkflows();
   const deleteWorkflowMutation = useDeleteWorkflow();
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -92,11 +89,12 @@ export function WorkflowListPage({ onEdit, onCreate }: WorkflowListPageProps) {
               Create and manage custom OCR processing workflows
             </Text>
           </Stack>
-          {onCreate && (
-            <Button leftSection={<IconPlus size={16} />} onClick={onCreate}>
-              Create Workflow
-            </Button>
-          )}
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => navigate("/workflows/create")}
+          >
+            Create Workflow
+          </Button>
         </Group>
 
         <Card shadow="sm" radius="md" p="xl" withBorder>
@@ -115,15 +113,13 @@ export function WorkflowListPage({ onEdit, onCreate }: WorkflowListPageProps) {
                 parameters
               </Text>
             </Stack>
-            {onCreate && (
-              <Button
-                leftSection={<IconPlus size={16} />}
-                onClick={onCreate}
-                mt="md"
-              >
-                Create Your First Workflow
-              </Button>
-            )}
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={() => navigate("/workflows/create")}
+              mt="md"
+            >
+              Create Your First Workflow
+            </Button>
           </Stack>
         </Card>
       </Stack>
@@ -139,11 +135,12 @@ export function WorkflowListPage({ onEdit, onCreate }: WorkflowListPageProps) {
             Create and manage custom OCR processing workflows
           </Text>
         </Stack>
-        {onCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={onCreate}>
-            Create Workflow
-          </Button>
-        )}
+        <Button
+          leftSection={<IconPlus size={16} />}
+          onClick={() => navigate("/workflows/create")}
+        >
+          Create Workflow
+        </Button>
       </Group>
 
       <Card shadow="sm" radius="md" p="md" withBorder>
@@ -192,17 +189,15 @@ export function WorkflowListPage({ onEdit, onCreate }: WorkflowListPageProps) {
                 </Table.Td>
                 <Table.Td>
                   <Group gap="xs">
-                    {onEdit && (
-                      <Tooltip label="Edit workflow">
-                        <ActionIcon
-                          variant="light"
-                          color="blue"
-                          onClick={() => onEdit(workflow.id)}
-                        >
-                          <IconEdit size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                    )}
+                    <Tooltip label="Edit workflow">
+                      <ActionIcon
+                        variant="light"
+                        color="blue"
+                        onClick={() => navigate(`/workflows/${workflow.id}/edit`)}
+                      >
+                        <IconEdit size={16} />
+                      </ActionIcon>
+                    </Tooltip>
                     <Tooltip label="Delete workflow">
                       <ActionIcon
                         variant="light"

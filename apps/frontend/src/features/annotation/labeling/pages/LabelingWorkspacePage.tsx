@@ -18,6 +18,7 @@ import {
 } from "@tabler/icons-react";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import {
   colorForFieldKeyWithAlpha,
@@ -33,12 +34,6 @@ import { useProjectDocument } from "../hooks/useProjects";
 import { useSuggestions } from "../hooks/useSuggestions";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-
-interface LabelingWorkspacePageProps {
-  projectId: string;
-  documentId: string;
-  onBack: () => void;
-}
 
 interface LabelState {
   field_key: string;
@@ -94,11 +89,22 @@ interface AzureOcrResult {
   analyzeResult?: AnalyzeResult;
 }
 
-export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
-  projectId,
-  documentId,
-  onBack,
-}) => {
+export const LabelingWorkspacePage: FC = () => {
+  const navigate = useNavigate();
+  const { projectId, documentId } = useParams<{
+    projectId: string;
+    documentId: string;
+  }>();
+
+  if (!projectId || !documentId) {
+    return (
+      <Stack align="center" justify="center" mih="70vh">
+        <Text size="sm" c="dimmed">
+          Invalid URL parameters.
+        </Text>
+      </Stack>
+    );
+  }
   const { schema } = useFieldSchema(projectId);
   const { document: projectDocument, isLoading } = useProjectDocument(
     projectId,
@@ -753,7 +759,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           <Button
             variant="subtle"
             leftSection={<IconArrowLeft size={16} />}
-            onClick={onBack}
+            onClick={() => navigate(`/labeling/${projectId}`)}
           >
             Back
           </Button>

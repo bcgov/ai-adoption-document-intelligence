@@ -14,16 +14,12 @@ import {
 } from "@mantine/core";
 import { IconFolder, IconPlus } from "@tabler/icons-react";
 import { FC, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ProjectCard } from "../components/ProjectCard";
 import { useProjects } from "../hooks/useProjects";
 
-interface ProjectListPageProps {
-  onSelectProject?: (projectId: string) => void;
-}
-
-export const ProjectListPage: FC<ProjectListPageProps> = ({
-  onSelectProject,
-}) => {
+export const ProjectListPage: FC = () => {
+  const navigate = useNavigate();
   const { projects, isLoading, createProject, isCreating } = useProjects();
   const [createModalOpened, setCreateModalOpened] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -92,7 +88,7 @@ export const ProjectListPage: FC<ProjectListPageProps> = ({
             <Grid.Col key={project.id} span={{ base: 12, md: 6, lg: 4 }}>
               <ProjectCard
                 project={project}
-                onClick={() => onSelectProject?.(project.id)}
+                onClick={() => navigate(`/labeling/${project.id}`)}
               />
             </Grid.Col>
           ))}

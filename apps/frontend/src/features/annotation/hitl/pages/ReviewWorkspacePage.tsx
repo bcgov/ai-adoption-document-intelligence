@@ -14,6 +14,7 @@ import {
 import { useElementSize } from "@mantine/hooks";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { FC, useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
@@ -25,12 +26,6 @@ import { ConfidenceIndicator } from "../components/ConfidenceIndicator";
 import { CorrectionHistory } from "../components/CorrectionHistory";
 import { ReviewToolbar } from "../components/ReviewToolbar";
 import { useReviewSession } from "../hooks/useReviewSession";
-
-interface ReviewWorkspacePageProps {
-  sessionId: string;
-  onBack: () => void;
-  readOnly?: boolean;
-}
 
 interface OcrField {
   valueString?: string;
@@ -287,7 +282,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
       await submitCorrectionsAsync(payload);
     }
     await approveSessionAsync();
-    onBack();
+    navigate("/review");
   };
 
   const handleEscalate = async () => {
@@ -325,7 +320,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
           <Button
             variant="subtle"
             leftSection={<IconArrowLeft size={16} />}
-            onClick={onBack}
+            onClick={() => navigate("/review")}
           >
             Back
           </Button>
