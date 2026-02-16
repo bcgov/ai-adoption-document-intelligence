@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedTest } from './helpers/auth';
+import { setupAuthenticatedTest } from '../helpers/auth';
 
 /**
  * Test navigating to Training Labels page with API key authentication
