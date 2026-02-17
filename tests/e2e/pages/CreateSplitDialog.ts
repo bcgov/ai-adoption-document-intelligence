@@ -64,18 +64,23 @@ export class CreateSplitDialog {
    * @param sampleIds - Array of sample IDs to select
    */
   async selectSamples(sampleIds: string[]) {
-    // Click multiselect to open dropdown
+    // For Mantine MultiSelect, we need to wait for options to load
+    // then click each option directly
     await this.splitSamplesMultiselect.click();
     await this.page.waitForTimeout(500);
 
-    // Select each sample
+    // Select each sample by clicking on the option
     for (const sampleId of sampleIds) {
+      // Wait for the option to be visible
       const option = this.page.getByRole('option', { name: sampleId, exact: true });
+      await option.waitFor({ state: 'visible', timeout: 5000 });
       await option.click();
+      await this.page.waitForTimeout(200);
     }
 
     // Click outside to close dropdown
     await this.page.keyboard.press('Escape');
+    await this.page.waitForTimeout(200);
   }
 
   /**

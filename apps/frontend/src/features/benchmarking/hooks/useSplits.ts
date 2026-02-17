@@ -88,10 +88,14 @@ export function useCreateSplit(datasetId: string, versionId: string) {
 
   return useMutation({
     mutationFn: async (data: CreateSplitRequest) => {
-      return apiService.post<Split>(
+      const response = await apiService.post<Split>(
         `/benchmark/datasets/${datasetId}/versions/${versionId}/splits`,
         data,
       );
+      if (!response.success) {
+        throw new Error(response.message || "Failed to create split");
+      }
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -113,10 +117,14 @@ export function useUpdateSplit(
 
   return useMutation({
     mutationFn: async (data: UpdateSplitRequest) => {
-      return apiService.patch<Split>(
+      const response = await apiService.patch<Split>(
         `/benchmark/datasets/${datasetId}/versions/${versionId}/splits/${splitId}`,
         data,
       );
+      if (!response.success) {
+        throw new Error(response.message || "Failed to update split");
+      }
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -148,10 +156,14 @@ export function useFreezeSplit(
 
   return useMutation({
     mutationFn: async () => {
-      return apiService.post<Split>(
+      const response = await apiService.post<Split>(
         `/benchmark/datasets/${datasetId}/versions/${versionId}/splits/${splitId}/freeze`,
         {},
       );
+      if (!response.success) {
+        throw new Error(response.message || "Failed to freeze split");
+      }
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

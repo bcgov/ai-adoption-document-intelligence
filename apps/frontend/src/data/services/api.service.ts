@@ -76,11 +76,19 @@ class ApiService {
         success: true,
       };
     } catch (error) {
-      // Error handling - logging removed for lint compliance
+      // Extract error message from axios error response
+      let message = "Unknown error";
+      if (axios.isAxiosError(error) && error.response?.data) {
+        // Backend returns error in format: { message: "error message", ... }
+        message = error.response.data.message || error.message;
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
+
       return {
         data: null as T,
         success: false,
-        message: error instanceof Error ? error.message : "Unknown error",
+        message,
       };
     }
   }

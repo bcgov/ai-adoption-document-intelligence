@@ -1613,6 +1613,20 @@ export class DatasetService {
       );
     }
 
+    // Check for duplicate split name within this version
+    const existingSplit = await this.prisma.split.findFirst({
+      where: {
+        datasetVersionId: versionId,
+        name: createDto.name,
+      },
+    });
+
+    if (existingSplit) {
+      throw new BadRequestException(
+        `A split with name '${createDto.name}' already exists for this dataset version`,
+      );
+    }
+
     // Create the split
     const split = await this.prisma.split.create({
       data: {

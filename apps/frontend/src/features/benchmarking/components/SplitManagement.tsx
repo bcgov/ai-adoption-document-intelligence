@@ -86,8 +86,8 @@ export function SplitManagement({
             </Table.Thead>
             <Table.Tbody>
               {splits.map((split: Split) => (
-                <Table.Tr key={split.id} data-testid={`split-row-${split.name}`}>
-                  <Table.Td data-testid={`split-name-${split.name}`}>{split.name}</Table.Td>
+                <Table.Tr key={split.id} data-testid={`split-row-${split.id}`}>
+                  <Table.Td data-testid={`split-name-${split.id}`}>{split.name}</Table.Td>
                   <Table.Td>
                     <Badge
                       color={
@@ -99,21 +99,21 @@ export function SplitManagement({
                               ? "grape"
                               : "yellow"
                       }
-                      data-testid={`split-type-badge-${split.name}`}
+                      data-testid={`split-type-badge-${split.id}`}
                     >
                       {split.type}
                     </Badge>
                   </Table.Td>
-                  <Table.Td data-testid={`split-sample-count-${split.name}`}>{split.sampleCount}</Table.Td>
+                  <Table.Td data-testid={`split-sample-count-${split.id}`}>{split.sampleCount}</Table.Td>
                   <Table.Td>
                     <Badge
                       color={split.frozen ? "gray" : "green"}
-                      data-testid={`split-status-badge-${split.name}`}
+                      data-testid={`split-status-badge-${split.id}`}
                     >
                       {split.frozen ? "Frozen" : "Editable"}
                     </Badge>
                   </Table.Td>
-                  <Table.Td data-testid={`split-created-${split.name}`}>
+                  <Table.Td data-testid={`split-created-${split.id}`}>
                     {new Date(split.createdAt).toLocaleDateString()}
                   </Table.Td>
                   <Table.Td>
@@ -123,7 +123,7 @@ export function SplitManagement({
                           size="xs"
                           variant="light"
                           onClick={() => setEditingSplit(split)}
-                          data-testid={`edit-split-btn-${split.name}`}
+                          data-testid={`edit-split-btn-${split.id}`}
                         >
                           Edit
                         </Button>

@@ -167,6 +167,8 @@ test.describe('Split Management - Edge Cases', () => {
     await createDialog.submitBtn.click();
 
     // Then: Error notification displays with server message
+    // Wait for error to appear
+    await page.waitForTimeout(1000);
     const hasError = await createDialog.hasError();
     expect(hasError).toBeTruthy();
 
