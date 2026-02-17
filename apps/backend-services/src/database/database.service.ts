@@ -16,9 +16,13 @@ import {
   ReviewSession,
   ReviewStatus,
 } from "@generated/client";
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
+import {
+  ClassifierSource,
+  ClassifierStatus,
+} from "@/azure/dto/classifier-constants.dto";
 import {
   AnalysisResponse,
   DocumentField,
@@ -29,6 +33,25 @@ import {
 type JsonValue = Prisma.JsonValue;
 
 import { getPrismaPgOptions } from "@/utils/database-url";
+
+export type ClassifierConfig = {
+  labels: {
+    label: string;
+    fromFolder: string;
+    blobFolder: string;
+  }[];
+};
+
+interface ClassifierEditableProperties {
+  version?: number;
+  group_id: string;
+  config: ClassifierConfig;
+  description: string;
+  status: ClassifierStatus;
+  source: ClassifierSource;
+  last_used_at?: Date;
+  operation_location?: string;
+}
 
 export type DocumentData = Document;
 export type LabelingProjectData = LabelingProject & {
@@ -897,5 +920,73 @@ export class DatabaseService {
       correctionsByAction,
       averageConfidence: Math.round(averageConfidence * 10000) / 10000, // Round to 4 decimal places
     };
+  }
+
+  async createClassifierModel(
+    classifierName: string,
+    properties: ClassifierEditableProperties,
+    userId: string,
+  ) {
+    return await this.prisma.classifierModel.create({
+      data: {
+        ...properties,
+        created_by: userId,
+        updated_by: userId,
+        name: classifierName,
+      },
+    });
+  }
+
+  async updateClassifierModel(
+    classifierName: string,
+    groupId: string,
+    properties: Partial<ClassifierEditableProperties>,
+    userId: string,
+  ) {
+    return await this.prisma.classifierModel.update({
+      where: {
+        name_group_id: {
+          name: classifierName,
+          group_id: groupId,
+        },
+      },
+      data: {
+        ...properties,
+        created_by: userId,
+        updated_by: userId,
+        name: classifierName,
+      },
+    });
+  }
+
+  async getClassifierModel(classifierName: string, groupId: string) {
+    return await this.prisma.classifierModel.findUnique({
+      where: {
+        name_group_id: {
+          name: classifierName,
+          group_id: groupId,
+        },
+      },
+    });
+  }
+
+  async getUsersGroups(userId: string) {
+    return await this.prisma.userGroup.findMany({
+      where: {
+        user_id: userId,
+      },
+    });
+  }
+
+  async isUserInGroup(userId: string, groupId: string) {
+    const entry = await this.prisma.userGroup.findUnique({
+      where: {
+        user_id_group_id: {
+          user_id: userId,
+          group_id: groupId,
+        },
+      },
+    });
+    return entry != null;
   }
 }
