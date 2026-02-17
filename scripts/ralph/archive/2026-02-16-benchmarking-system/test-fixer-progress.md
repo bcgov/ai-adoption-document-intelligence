@@ -12,7 +12,7 @@
 - [x] definition-form-display.spec.ts (✅ All 8 tests passed)
 - [x] definition-list-detail.spec.ts (✅ All 9 tests passed)
 - [x] drill-down-panel.spec.ts (✅ All 6 tests passed)
-- [x] filtering.spec.ts (✅ All 10 tests passed)
+- [ ] filtering.spec.ts
 - [ ] metrics-breakdown.spec.ts
 - [ ] navigation-routing.spec.ts
 - [ ] regression-report-advanced.spec.ts

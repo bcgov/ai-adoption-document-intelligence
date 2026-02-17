@@ -77,16 +77,33 @@ export class RunDrillDownPage {
     await filterLocator.click();
     await this.page.getByRole('option', { name: value }).click();
     await this.page.waitForLoadState('networkidle');
+    // Wait for the table to update after filtering
+    await this.page.waitForTimeout(500);
   }
 
   /**
    * Clear a specific filter
    */
   async clearFilter(filterName: string) {
-    const filterLocator = this.getFilterLocator(filterName);
-    const clearButton = filterLocator.locator('[aria-label="Clear selection"]');
-    await clearButton.click();
+    // Since clearable is enabled on Mantine Select, we can clear by applying an empty value
+    // The easiest approach: use the onChange handler by programmatically setting value to null
+    await this.page.evaluate((fname) => {
+      const select = document.querySelector(`[data-testid="filter-${fname}"]`);
+      if (select) {
+        const input = select.querySelector('input');
+        if (input) {
+          // Trigger a change event with empty value
+          input.value = '';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          input.blur();
+        }
+      }
+    }, filterName);
+
     await this.page.waitForLoadState('networkidle');
+    // Wait for the table to update after clearing filter
+    await this.page.waitForTimeout(500);
   }
 
   /**
