@@ -183,3 +183,27 @@ export const useAllDatasetVersions = () => {
     error: versionsQuery.error,
   };
 };
+
+export const useAllSamples = (
+  datasetId: string,
+  versionId: string,
+) => {
+  const samplesQuery = useQuery({
+    queryKey: ["benchmark-dataset-all-samples", datasetId, versionId],
+    queryFn: async () => {
+      // Fetch all samples by requesting a large limit
+      const response = await apiService.get<SampleListResponse>(
+        `/benchmark/datasets/${datasetId}/versions/${versionId}/samples?page=1&limit=10000`,
+      );
+      return response.data;
+    },
+    enabled: !!datasetId && !!versionId,
+  });
+
+  return {
+    samples: samplesQuery.data?.samples || [],
+    total: samplesQuery.data?.total || 0,
+    isLoading: samplesQuery.isLoading,
+    error: samplesQuery.error,
+  };
+};

@@ -24,6 +24,7 @@ import {
 import { IconLock, IconLockOpen, IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
 import type { ManifestSample } from "../hooks/useDatasetVersions";
+import { useAllSamples } from "../hooks/useDatasetVersions";
 import {
   type CreateSplitRequest,
   type Split,
@@ -85,8 +86,8 @@ export function SplitManagement({
             </Table.Thead>
             <Table.Tbody>
               {splits.map((split: Split) => (
-                <Table.Tr key={split.id} data-testid={`split-row-${split.id}`}>
-                  <Table.Td data-testid={`split-name-${split.id}`}>{split.name}</Table.Td>
+                <Table.Tr key={split.id} data-testid={`split-row-${split.name}`}>
+                  <Table.Td data-testid={`split-name-${split.name}`}>{split.name}</Table.Td>
                   <Table.Td>
                     <Badge
                       color={
@@ -98,21 +99,21 @@ export function SplitManagement({
                               ? "grape"
                               : "yellow"
                       }
-                      data-testid={`split-type-badge-${split.id}`}
+                      data-testid={`split-type-badge-${split.name}`}
                     >
                       {split.type}
                     </Badge>
                   </Table.Td>
-                  <Table.Td data-testid={`split-sample-count-${split.id}`}>{split.sampleCount}</Table.Td>
+                  <Table.Td data-testid={`split-sample-count-${split.name}`}>{split.sampleCount}</Table.Td>
                   <Table.Td>
                     <Badge
                       color={split.frozen ? "gray" : "green"}
-                      data-testid={`split-status-badge-${split.id}`}
+                      data-testid={`split-status-badge-${split.name}`}
                     >
                       {split.frozen ? "Frozen" : "Editable"}
                     </Badge>
                   </Table.Td>
-                  <Table.Td data-testid={`split-created-${split.id}`}>
+                  <Table.Td data-testid={`split-created-${split.name}`}>
                     {new Date(split.createdAt).toLocaleDateString()}
                   </Table.Td>
                   <Table.Td>
@@ -122,7 +123,7 @@ export function SplitManagement({
                           size="xs"
                           variant="light"
                           onClick={() => setEditingSplit(split)}
-                          data-testid={`edit-split-btn-${split.id}`}
+                          data-testid={`edit-split-btn-${split.name}`}
                         >
                           Edit
                         </Button>
@@ -201,14 +202,30 @@ function CreateSplitDialog({
 
   const createMutation = useCreateSplit(datasetId, versionId);
 
-  const sampleOptions = samples.map((s) => ({
+  // Fetch all samples for the multiselect (not just the paginated view)
+  const { samples: allSamples, isLoading: isLoadingAllSamples } = useAllSamples(datasetId, versionId);
+
+  const sampleOptions = allSamples.map((s) => ({
     value: s.id,
     label: s.id,
   }));
 
+  const validateSplitName = (splitName: string): string | null => {
+    if (!splitName.trim()) {
+      return "Split name is required";
+    }
+    // Allow alphanumeric, hyphens, underscores, and dots
+    const validNamePattern = /^[a-zA-Z0-9\-_.]+$/;
+    if (!validNamePattern.test(splitName.trim())) {
+      return "Split name contains invalid characters. Use only letters, numbers, hyphens, underscores, and dots.";
+    }
+    return null;
+  };
+
   const handleCreate = async () => {
-    if (!name.trim()) {
-      setError("Split name is required");
+    const nameError = validateSplitName(name);
+    if (nameError) {
+      setError(nameError);
       return;
     }
     if (selectedSampleIds.length === 0) {
@@ -240,6 +257,8 @@ function CreateSplitDialog({
       onClose={onClose}
       title="Create Split"
       size="lg"
+      closeOnClickOutside={false}
+      closeOnEscape={false}
       data-testid="create-split-dialog"
     >
       <Stack gap="md">
@@ -277,6 +296,7 @@ function CreateSplitDialog({
           value={selectedSampleIds}
           onChange={setSelectedSampleIds}
           searchable
+          disabled={isLoadingAllSamples}
           error={
             error && selectedSampleIds.length === 0
               ? "At least one sample required"
@@ -287,7 +307,7 @@ function CreateSplitDialog({
         />
 
         <Text size="sm" c="dimmed" data-testid="selected-samples-count">
-          Selected {selectedSampleIds.length} of {samples.length} samples
+          Selected {selectedSampleIds.length} of {allSamples.length} samples
         </Text>
 
         {error && !(!name.trim() || selectedSampleIds.length === 0) && (
@@ -340,6 +360,9 @@ function EditSplitDialog({
 
   const updateMutation = useUpdateSplit(datasetId, versionId, split.id);
 
+  // Fetch all samples for the multiselect (not just the paginated view)
+  const { samples: allSamples, isLoading: isLoadingAllSamples } = useAllSamples(datasetId, versionId);
+
   // Load current sample IDs when dialog opens
   useState(() => {
     if (open && !loaded) {
@@ -349,7 +372,7 @@ function EditSplitDialog({
     }
   });
 
-  const sampleOptions = samples.map((s) => ({
+  const sampleOptions = allSamples.map((s) => ({
     value: s.id,
     label: s.id,
   }));
@@ -405,6 +428,7 @@ function EditSplitDialog({
           value={selectedSampleIds}
           onChange={setSelectedSampleIds}
           searchable
+          disabled={isLoadingAllSamples}
           error={
             error && selectedSampleIds.length === 0
               ? "At least one sample required"
@@ -415,7 +439,7 @@ function EditSplitDialog({
         />
 
         <Text size="sm" c="dimmed" data-testid="edit-split-selected-count">
-          Selected {selectedSampleIds.length} of {samples.length} samples
+          Selected {selectedSampleIds.length} of {allSamples.length} samples
         </Text>
 
         {error && selectedSampleIds.length > 0 && (

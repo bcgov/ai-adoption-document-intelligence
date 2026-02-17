@@ -208,7 +208,7 @@ async function createTestDatasetRepo(
   const manifest = {
     schemaVersion: "1.0",
     samples: Array.from({ length: sampleCount }, (_, i) => ({
-      id: `sample-${String(i + 1).padStart(3, "0")}`,
+      id: `sample-${i + 1}`,
       inputs: [
         {
           path: `inputs/document_${String(i + 1).padStart(3, "0")}.pdf`,

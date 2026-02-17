@@ -48,6 +48,7 @@ import {
   GroundTruthResponseDto,
   PaginatedDatasetResponseDto,
   SampleListResponseDto,
+  CreateSplitDto,
   UploadResponseDto,
   ValidateDatasetRequestDto,
   ValidationResponseDto,
@@ -469,7 +470,7 @@ export class DatasetController {
   async createSplit(
     @Param("id") id: string,
     @Param("versionId") versionId: string,
-    @Body() createDto: any,
+    @Body() createDto: CreateSplitDto,
   ): Promise<any> {
     return this.datasetService.createSplit(id, versionId, createDto);
   }
