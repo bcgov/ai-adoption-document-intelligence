@@ -13,7 +13,7 @@
 - [x] definition-list-detail.spec.ts (✅ All 9 tests passed)
 - [x] drill-down-panel.spec.ts (✅ All 6 tests passed)
 - [x] filtering.spec.ts (✅ All 10 tests passed)
-- [ ] metrics-breakdown.spec.ts
+- [x] metrics-breakdown.spec.ts (✅ All 2 tests passed)
 - [ ] navigation-routing.spec.ts
 - [ ] regression-report-advanced.spec.ts
 - [ ] regression-report-display.spec.ts
