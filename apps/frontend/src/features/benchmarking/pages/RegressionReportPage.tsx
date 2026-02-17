@@ -29,7 +29,8 @@ import {
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useProject } from "../hooks/useProjects";
-import { useRun } from "../hooks/useRuns";
+import { useRun, useHistoricalRuns } from "../hooks/useRuns";
+import { TrendChart } from "../components/TrendChart";
 
 function getSeverityColor(
   deltaPercent: number,
@@ -63,6 +64,10 @@ export function RegressionReportPage() {
 
   const { run, isLoading } = useRun(projectId, runId || "", false);
   const { project } = useProject(projectId);
+  const {
+    historicalRuns,
+    isLoading: isLoadingHistorical,
+  } = useHistoricalRuns(projectId, run?.definitionId || "");
 
   // Advanced features state
   const [showRegressionsOnly, setShowRegressionsOnly] = useState(false);
@@ -582,19 +587,12 @@ export function RegressionReportPage() {
       <Card data-testid="historical-trend-section">
         <Stack gap="md">
           <Title order={3}>Historical Trend</Title>
-          <Alert icon={<IconAlertCircle size={16} />} color="blue">
-            <Text>
-              Historical trend visualization requires installing Recharts
-              library. To enable this feature, run:
-            </Text>
-            <Code block mt="xs">
-              npm install recharts
-            </Code>
-            <Text mt="xs" size="sm" c="dimmed">
-              Once installed, this section will display metric trends across
-              recent runs.
-            </Text>
-          </Alert>
+          <TrendChart
+            historicalRuns={historicalRuns}
+            currentRunId={run.id}
+            baselineComparison={run.baselineComparison}
+            isLoading={isLoadingHistorical}
+          />
         </Stack>
       </Card>
 

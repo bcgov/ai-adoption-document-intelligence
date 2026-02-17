@@ -381,10 +381,73 @@ export const usePerSampleResults = (
   };
 };
 
+// Historical runs for trend charts
+interface HistoricalRunData {
+  id: string;
+  definitionId: string;
+  definitionName: string;
+  status: string;
+  completedAt: string | null;
+  metrics: Record<string, number>;
+  isBaseline: boolean;
+}
+
+export const useHistoricalRuns = (projectId: string, definitionId: string) => {
+  const historicalQuery = useQuery({
+    queryKey: ["benchmark-historical-runs", projectId, definitionId],
+    queryFn: async () => {
+      // First, get all runs for the project
+      const runsResponse = await apiService.get<RunSummary[]>(
+        `/benchmark/projects/${projectId}/runs`,
+      );
+      const allRuns = runsResponse.data || [];
+
+      // Filter runs by definition ID and status
+      const definitionRuns = allRuns.filter(
+        (run) =>
+          run.definitionId === definitionId && run.status === "completed",
+      );
+
+      // Fetch detailed run data for each run (to get metrics)
+      // Limit to the last 50 runs to avoid fetching too much data
+      const recentRuns = definitionRuns.slice(-50);
+      const detailPromises = recentRuns.map((run) =>
+        apiService.get<RunDetails>(
+          `/benchmark/projects/${projectId}/runs/${run.id}`,
+        ),
+      );
+
+      const detailResponses = await Promise.all(detailPromises);
+      const historicalRuns: HistoricalRunData[] = detailResponses.map((response) => {
+        const run = response.data;
+        return {
+          id: run.id,
+          definitionId: run.definitionId,
+          definitionName: run.definitionName,
+          status: run.status,
+          completedAt: run.completedAt,
+          metrics: run.metrics as Record<string, number>,
+          isBaseline: run.isBaseline,
+        };
+      });
+
+      return historicalRuns;
+    },
+    enabled: !!projectId && !!definitionId,
+  });
+
+  return {
+    historicalRuns: historicalQuery.data || [],
+    isLoading: historicalQuery.isLoading,
+    error: historicalQuery.error,
+  };
+};
+
 export type {
   MetricThreshold,
   BaselineComparison,
   MetricComparison,
   PerSampleResult,
   PerSampleResultsData,
+  HistoricalRunData,
 };
