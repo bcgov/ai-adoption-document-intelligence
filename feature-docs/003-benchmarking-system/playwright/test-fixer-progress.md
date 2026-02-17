@@ -24,7 +24,7 @@
 - [x] results-artifacts.spec.ts (✅ All 10 tests passed)
 - [x] results-drill-down.spec.ts (✅ All 11 tests passed)
 - [x] results-error-states.spec.ts (✅ All 13 tests passed)
-- [ ] results-large-datasets.spec.ts
+- [x] results-large-datasets.spec.ts (✅ All 8 tests passed)
 - [ ] results-metrics.spec.ts
 - [ ] results-mlflow-links.spec.ts
 - [ ] results-params-tags.spec.ts
