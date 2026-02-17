@@ -1,36 +1,27 @@
+import ClassifierDetails from "@/components/classification/ClassifierDetails";
 import CreateModelModal from "@/components/classification/CreateClassifierModal";
+import { useClassifier } from "@/data/hooks/useClassifier";
+import { ClassifierStatus, ClassifierSource, ClassifierModel } from "@/shared/types/classifier";
 import { Group, Stack, Title, Text, Paper, Select, Button,} from "@mantine/core";
-import { useState } from "react";
-
-enum ClassifierStatus {
-  PRETRAINING = "PRETRAINING",
-  FAILED = "FAILED",
-  TRAINING = "TRAINING",
-  READY = "READY",
-}
-
-enum ClassifierSource {
-  AZURE = "AZURE",
-}
-
-const sampleModels = [
-  { id: "model-1", name: "Model 1", status: ClassifierStatus.READY, source: ClassifierSource.AZURE },
-  { id: "model-2", name: "Model 2", status: ClassifierStatus.TRAINING, source: ClassifierSource.AZURE },
-  { id: "model-3", name: "Model 3", status: ClassifierStatus.PRETRAINING, source: ClassifierSource.AZURE },
-  { id: "model-4", name: "Model 4", status: ClassifierStatus.PRETRAINING, source: ClassifierSource.AZURE },
-];
+import { useEffect, useState } from "react";
 
 const ClassifierPage = () => {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
-  const [models, setModels] = useState(sampleModels);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
+  const { getClassifiers } = useClassifier();
+  console.log(getClassifiers.data);
+  
   // TODO: replace with real data
   const groupOptions = [
-    { value: "group-1", label: "Group 1" },
-    { value: "group-2", label: "Group 2" },
-    { value: "group-3", label: "Group 3" },
+    { id: "00000000-0000-0000-0000-000000000000", name: "Group 1" },
+    { id: "00000000-0000-0000-0000-000000000001", name: "Group 2" },
   ];
+
+  const groupMap = groupOptions.reduce((acc, group) => {
+    acc[group.id] = group.name;
+    return acc;
+  }, {} as Record<string, string>);
 
   const ModelSelect = () => {
     return <Paper shadow="sm" radius="md" p="lg" withBorder>
@@ -48,7 +39,12 @@ const ClassifierPage = () => {
         <Select
           placeholder="Choose a model"
           value={selectedModel}
-          data={models.map(model => ({ value: model.id, label: model.name }))}
+          data={(getClassifiers.data || [])
+            .filter(model => model && model.name && model.group_id)
+            .map((model) => ({
+              value: `${model.name}::${model.group_id}`,
+              label: `${model.name} (${groupMap[model.group_id]})`
+            }))}
           searchable
           clearable
           onChange={(value) => {
@@ -57,6 +53,13 @@ const ClassifierPage = () => {
         />
       </Stack>
     </Paper>;
+  }
+
+  const selectedModelDetails = selectedModel && getClassifiers.data
+    ? getClassifiers.data.find(m => `${m.name}::${m.group_id}` === selectedModel)
+    : null;
+  if (selectedModel && !selectedModelDetails) {
+    return <Text c="red">Selected model not found</Text>;
   }
 
   return <Stack gap={"lg"}>
@@ -69,7 +72,12 @@ const ClassifierPage = () => {
       </Stack>
     </Group>
     <ModelSelect />
-    <CreateModelModal isOpen={isCreateModalOpen} setIsOpen={setIsCreateModalOpen}  groupOptions={groupOptions} />
+    {selectedModel && selectedModelDetails && (
+      <ClassifierDetails key={selectedModel} classifierModel={selectedModelDetails} />
+    )}
+    <CreateModelModal isOpen={isCreateModalOpen} setIsOpen={setIsCreateModalOpen}  groupOptions={groupOptions} afterSubmit={async () => {
+      await getClassifiers.refetch();
+    }} />
   </Stack>;
 }
 export default ClassifierPage;

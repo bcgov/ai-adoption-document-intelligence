@@ -12,6 +12,7 @@ export enum ClassifierSource {
 export interface ClassifierModel {
   id: string;
   name: string;
+  group_id: string;
   status: ClassifierStatus;
   source: ClassifierSource;
   group?: string;
