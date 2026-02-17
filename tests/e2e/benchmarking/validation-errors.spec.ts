@@ -109,12 +109,16 @@ test.describe('Dataset Validation - Error Detection', () => {
     expect(duplicates).toBeGreaterThan(0);
 
     // And: Duplicate issues show warning severity (not blocking)
-    const duplicateIssues = page.locator(
-      '[data-testid^="issue-category-"]:has-text("Duplicate")'
-    );
-    if (await duplicateIssues.count() > 0) {
-      const firstDuplicateIndex = 0; // Adjust based on actual issue order
-      await expect(validationReport.getIssueSeverity(firstDuplicateIndex)).toContainText(/warning/i);
+    const duplicateIssueCards = page.locator(
+      '[data-testid^="issue-card-"]').filter({
+        has: page.locator('[data-testid^="issue-category-"]:has-text("Duplicate")')
+      });
+
+    if (await duplicateIssueCards.count() > 0) {
+      // Find the severity badge within the first duplicate issue card
+      const firstDuplicateCard = duplicateIssueCards.first();
+      const severityBadge = firstDuplicateCard.locator('[data-testid^="issue-severity-"]');
+      await expect(severityBadge).toContainText(/warning/i);
     }
 
     // And: Duplicate groups list affected sample IDs

@@ -284,6 +284,270 @@ async function createTestDatasetRepo(
   return commitHash;
 }
 
+/**
+ * Create validation error test data in an existing dataset repository
+ * Adds samples with intentional issues for testing validation functionality:
+ * - Schema violations (missing required fields, wrong types)
+ * - Missing ground truth files
+ * - Duplicate samples (by content hash)
+ * - Corrupted files (invalid JSON, unreadable files)
+ *
+ * @returns The git commit hash with validation error test data
+ */
+async function createValidationErrorTestData(
+  repoPath: string,
+  manifestPath: string,
+): Promise<string> {
+  const groundTruthDir = path.join(repoPath, "ground-truth");
+
+  // Create manifest with samples that have validation issues
+  // Order samples so schema violations come first (for test expectations)
+  const manifest = {
+    schemaVersion: "1.0",
+    samples: [
+      // Sample 1: Schema violation - missing required field (processed first)
+      {
+        id: "sample-schema-violation-1",
+        inputs: [
+          {
+            path: "inputs/document_001.pdf",
+            mimeType: "application/pdf",
+          },
+        ],
+        groundTruth: [
+          {
+            path: "ground-truth/data_001.json",
+            format: "json",
+          },
+        ],
+        metadata: {
+          docType: "invoice",
+          pageCount: 1,
+          language: "en",
+          source: "test",
+        },
+      },
+      // Sample 2: Missing ground truth file
+      {
+        id: "sample-missing-gt-1",
+        inputs: [
+          {
+            path: "inputs/document_002.pdf",
+            mimeType: "application/pdf",
+          },
+        ],
+        groundTruth: [], // No ground truth
+        metadata: {
+          docType: "invoice",
+          pageCount: 1,
+          language: "en",
+          source: "test",
+        },
+      },
+      // Sample 3: Valid sample (for baseline)
+      {
+        id: "sample-valid-1",
+        inputs: [
+          {
+            path: "inputs/document_003.pdf",
+            mimeType: "application/pdf",
+          },
+        ],
+        groundTruth: [
+          {
+            path: "ground-truth/data_003.json",
+            format: "json",
+          },
+        ],
+        metadata: {
+          docType: "invoice",
+          pageCount: 1,
+          language: "en",
+          source: "test",
+        },
+      },
+      // Sample 4: Duplicate content (same ground truth as sample 3)
+      {
+        id: "sample-duplicate-1",
+        inputs: [
+          {
+            path: "inputs/document_004.pdf",
+            mimeType: "application/pdf",
+          },
+        ],
+        groundTruth: [
+          {
+            path: "ground-truth/data_004.json",
+            format: "json",
+          },
+        ],
+        metadata: {
+          docType: "invoice",
+          pageCount: 1,
+          language: "en",
+          source: "test",
+        },
+      },
+      // Sample 5: Corrupted JSON file
+      {
+        id: "sample-corrupted-1",
+        inputs: [
+          {
+            path: "inputs/document_005.pdf",
+            mimeType: "application/pdf",
+          },
+        ],
+        groundTruth: [
+          {
+            path: "ground-truth/data_005.json",
+            format: "json",
+          },
+        ],
+        metadata: {
+          docType: "invoice",
+          pageCount: 1,
+          language: "en",
+          source: "test",
+        },
+      },
+      // Sample 6: Schema violation - wrong field type
+      {
+        id: "sample-schema-violation-2",
+        inputs: [
+          {
+            path: "inputs/document_006.pdf",
+            mimeType: "application/pdf",
+          },
+        ],
+        groundTruth: [
+          {
+            path: "ground-truth/data_006.json",
+            format: "json",
+          },
+        ],
+        metadata: {
+          docType: "invoice",
+          pageCount: 1,
+          language: "en",
+          source: "test",
+        },
+      },
+      // Sample 7: Another duplicate (same as sample 4)
+      {
+        id: "sample-duplicate-2",
+        inputs: [
+          {
+            path: "inputs/document_007.pdf",
+            mimeType: "application/pdf",
+          },
+        ],
+        groundTruth: [
+          {
+            path: "ground-truth/data_007.json",
+            format: "json",
+          },
+        ],
+        metadata: {
+          docType: "invoice",
+          pageCount: 1,
+          language: "en",
+          source: "test",
+        },
+      },
+    ],
+  };
+
+  // Write updated manifest
+  const manifestFullPath = path.join(repoPath, manifestPath);
+  fs.writeFileSync(manifestFullPath, JSON.stringify(manifest, null, 2));
+
+  // Create ground truth files with various issues
+  // Files are ordered to match the reordered sample manifest
+
+  // Sample 1: Schema violation - missing required field (no line_items)
+  const schemaViolation1 = {
+    invoice_number: "INV-2024-001",
+    total_amount: 500.00,
+    date: "2024-01-17",
+    vendor: "TechSupply Inc",
+    // Missing line_items field
+  };
+  fs.writeFileSync(
+    path.join(groundTruthDir, "data_001.json"),
+    JSON.stringify(schemaViolation1, null, 2)
+  );
+
+  // Sample 2: No file created (missing ground truth)
+
+  // Sample 3: Valid ground truth
+  const validGroundTruth = {
+    invoice_number: "INV-2024-003",
+    total_amount: 1250.50,
+    date: "2024-01-15",
+    vendor: "Acme Corp",
+    line_items: [
+      { description: "Widget A", quantity: 10, price: 125.05 }
+    ],
+  };
+  fs.writeFileSync(
+    path.join(groundTruthDir, "data_003.json"),
+    JSON.stringify(validGroundTruth, null, 2)
+  );
+
+  // Sample 4: Duplicate content (exact same as sample 3)
+  fs.writeFileSync(
+    path.join(groundTruthDir, "data_004.json"),
+    JSON.stringify(validGroundTruth, null, 2)
+  );
+
+  // Sample 5: Corrupted JSON (invalid syntax)
+  fs.writeFileSync(
+    path.join(groundTruthDir, "data_005.json"),
+    '{ "invoice_number": "INV-2024-005", "total_amount": INVALID_JSON }'
+  );
+
+  // Sample 6: Schema violation - wrong field type (total_amount should be number)
+  const schemaViolation2 = {
+    invoice_number: "INV-2024-006",
+    total_amount: "not a number", // Should be number
+    date: "2024-01-19",
+    vendor: "Office Depot",
+    line_items: [],
+  };
+  fs.writeFileSync(
+    path.join(groundTruthDir, "data_006.json"),
+    JSON.stringify(schemaViolation2, null, 2)
+  );
+
+  // Sample 7: Another duplicate (same as sample 4)
+  fs.writeFileSync(
+    path.join(groundTruthDir, "data_007.json"),
+    JSON.stringify(validGroundTruth, null, 2)
+  );
+
+  // Commit the validation error test data
+  try {
+    execSync(`git add "${manifestPath}" ground-truth/`, {
+      cwd: repoPath,
+      stdio: "ignore",
+    });
+    execSync('git commit -m "Add validation error test data"', {
+      cwd: repoPath,
+      stdio: "ignore",
+    });
+  } catch (error) {
+    // Commit might fail if no changes, continue
+  }
+
+  // Get the current commit hash
+  const commitHash = execSync("git rev-parse HEAD", {
+    cwd: repoPath,
+    encoding: "utf-8",
+  }).trim();
+
+  return commitHash;
+}
+
 async function seedBenchmarkingData() {
   // Create a workflow if it doesn't exist
   const workflow = await prisma.workflow.upsert({
@@ -331,6 +595,12 @@ async function seedBenchmarkingData() {
     "/tmp/datasets/invoices",
     "data/invoices/manifest.json",
     25, // Create 25 samples to test pagination (>20)
+  );
+
+  // Create validation error test data for draft version
+  const validationErrorCommitHash = await createValidationErrorTestData(
+    "/tmp/datasets/invoices",
+    "data/invoices/manifest.json",
   );
 
   // Create datasets
@@ -429,15 +699,24 @@ async function seedBenchmarkingData() {
   });
 
   // Create a draft version (newest creation date)
+  // Uses validation error test data to support validation endpoint tests
   await prisma.datasetVersion.upsert({
     where: { id: SEED_DATASET_VERSION_ID_DRAFT },
     update: {
       version: "v2.0-draft",
-      gitRevision: invoiceRepoCommitHash,
+      gitRevision: validationErrorCommitHash,
       manifestPath: "data/invoices/manifest.json",
-      documentCount: 25,
+      documentCount: 7, // 7 samples with various validation issues
       groundTruthSchema: {
-        fields: ["invoice_number", "total_amount", "date", "vendor", "line_items"],
+        type: "object",
+        required: ["invoice_number", "total_amount", "date", "vendor", "line_items"],
+        properties: {
+          invoice_number: { type: "string" },
+          total_amount: { type: "number" },
+          date: { type: "string" },
+          vendor: { type: "string" },
+          line_items: { type: "array" },
+        },
       },
       status: DatasetVersionStatus.draft,
       publishedAt: null,
@@ -447,11 +726,19 @@ async function seedBenchmarkingData() {
       id: SEED_DATASET_VERSION_ID_DRAFT,
       datasetId: dataset.id,
       version: "v2.0-draft",
-      gitRevision: invoiceRepoCommitHash,
+      gitRevision: validationErrorCommitHash,
       manifestPath: "data/invoices/manifest.json",
-      documentCount: 25,
+      documentCount: 7, // 7 samples with various validation issues
       groundTruthSchema: {
-        fields: ["invoice_number", "total_amount", "date", "vendor", "line_items"],
+        type: "object",
+        required: ["invoice_number", "total_amount", "date", "vendor", "line_items"],
+        properties: {
+          invoice_number: { type: "string" },
+          total_amount: { type: "number" },
+          date: { type: "string" },
+          vendor: { type: "string" },
+          line_items: { type: "array" },
+        },
       },
       status: DatasetVersionStatus.draft,
       publishedAt: null,

@@ -1447,7 +1447,7 @@ export class DatasetService {
         if (sampleIds.length > 1) {
           issues.push({
             category: "duplicate",
-            severity: "error",
+            severity: "warning", // Duplicates are warnings, not blocking errors
             sampleId: sampleIds[0],
             message: `Duplicate ground truth content found in ${sampleIds.length} samples`,
             details: {
