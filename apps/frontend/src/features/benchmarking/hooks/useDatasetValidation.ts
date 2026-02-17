@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { apiService } from "@/data/services/api.service";
+import type { ApiResponse } from "@/shared/types";
 
 export interface ValidationIssue {
   category:
@@ -28,9 +29,13 @@ export interface ValidationResponse {
   issues: ValidationIssue[];
 }
 
-export function useValidateDataset(datasetId: string, versionId: string) {
-  return useMutation({
-    mutationFn: async (sampleSize?: number) => {
+export function useValidateDataset(datasetId: string) {
+  return useMutation<
+    ApiResponse<ValidationResponse>,
+    Error,
+    { versionId: string; sampleSize?: number }
+  >({
+    mutationFn: async ({ versionId, sampleSize }) => {
       const response = await apiService.post<ValidationResponse>(
         `/benchmark/datasets/${datasetId}/versions/${versionId}/validate`,
         sampleSize ? { sampleSize } : {},

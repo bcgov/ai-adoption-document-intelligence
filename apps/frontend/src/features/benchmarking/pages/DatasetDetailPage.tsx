@@ -62,9 +62,6 @@ export function DatasetDetailPage() {
     unknown
   > | null>(null);
   const [validationDialogOpen, setValidationDialogOpen] = useState(false);
-  const [validationVersionId, setValidationVersionId] = useState<string | null>(
-    null,
-  );
 
   const {
     samples,
@@ -76,7 +73,7 @@ export function DatasetDetailPage() {
     mutate: validateDataset,
     data: validationResult,
     isPending: isValidating,
-  } = useValidateDataset(id || "", validationVersionId || "");
+  } = useValidateDataset(id || "");
 
   if (isLoadingDataset || isLoadingVersions) {
     return (
@@ -119,9 +116,8 @@ export function DatasetDetailPage() {
   };
 
   const handleValidate = (versionId: string) => {
-    setValidationVersionId(versionId);
     setValidationDialogOpen(true);
-    validateDataset(undefined);
+    validateDataset({ versionId });
   };
 
   const handleViewGroundTruth = async (sampleId: string) => {
@@ -428,8 +424,8 @@ export function DatasetDetailPage() {
           <Center h={200}>
             <Loader />
           </Center>
-        ) : validationResult?.data ? (
-          <ValidationReport validation={validationResult.data} />
+        ) : validationResult?.data?.data ? (
+          <ValidationReport validation={validationResult.data.data} />
         ) : (
           <Text c="dimmed">No validation results available</Text>
         )}

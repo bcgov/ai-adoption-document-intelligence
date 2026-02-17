@@ -433,9 +433,9 @@ async function seedBenchmarkingData() {
     where: { id: SEED_DATASET_VERSION_ID_DRAFT },
     update: {
       version: "v2.0-draft",
-      gitRevision: "def789ghi012",
-      manifestPath: "data/invoices/manifest-v2.json",
-      documentCount: 200,
+      gitRevision: invoiceRepoCommitHash,
+      manifestPath: "data/invoices/manifest.json",
+      documentCount: 25,
       groundTruthSchema: {
         fields: ["invoice_number", "total_amount", "date", "vendor", "line_items"],
       },
@@ -447,9 +447,9 @@ async function seedBenchmarkingData() {
       id: SEED_DATASET_VERSION_ID_DRAFT,
       datasetId: dataset.id,
       version: "v2.0-draft",
-      gitRevision: "def789ghi012",
-      manifestPath: "data/invoices/manifest-v2.json",
-      documentCount: 200,
+      gitRevision: invoiceRepoCommitHash,
+      manifestPath: "data/invoices/manifest.json",
+      documentCount: 25,
       groundTruthSchema: {
         fields: ["invoice_number", "total_amount", "date", "vendor", "line_items"],
       },
@@ -464,9 +464,9 @@ async function seedBenchmarkingData() {
     where: { id: SEED_DATASET_VERSION_ID_ARCHIVED },
     update: {
       version: "v0.9",
-      gitRevision: "xyz456abc789",
-      manifestPath: "data/invoices/manifest-v0.9.json",
-      documentCount: 100,
+      gitRevision: invoiceRepoCommitHash,
+      manifestPath: "data/invoices/manifest.json",
+      documentCount: 25,
       groundTruthSchema: {
         fields: ["invoice_number", "total_amount", "date"],
       },
@@ -478,9 +478,9 @@ async function seedBenchmarkingData() {
       id: SEED_DATASET_VERSION_ID_ARCHIVED,
       datasetId: dataset.id,
       version: "v0.9",
-      gitRevision: "xyz456abc789",
-      manifestPath: "data/invoices/manifest-v0.9.json",
-      documentCount: 100,
+      gitRevision: invoiceRepoCommitHash,
+      manifestPath: "data/invoices/manifest.json",
+      documentCount: 25,
       groundTruthSchema: {
         fields: ["invoice_number", "total_amount", "date"],
       },
