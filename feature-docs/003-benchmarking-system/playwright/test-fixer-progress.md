@@ -30,7 +30,7 @@
 - [x] results-params-tags.spec.ts (✅ All 9 tests passed)
 - [x] run-comparison-export.spec.ts (✅ All 8 tests passed)
 - [x] run-comparison-metrics.spec.ts (✅ All 10 tests passed)
-- [ ] run-comparison-multiple-baseline.spec.ts
+- [x] run-comparison-multiple-baseline.spec.ts (✅ All 11 tests passed)
 - [ ] run-comparison-navigation.spec.ts
 - [ ] run-comparison-params-tags.spec.ts
 - [ ] run-comparison-selection.spec.ts
