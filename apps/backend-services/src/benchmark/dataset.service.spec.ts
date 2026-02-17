@@ -62,6 +62,7 @@ const mockPrismaClient = {
 
 const mockDvcService = {
   cloneRepository: jest.fn(),
+  createNewRepository: jest.fn(),
   initRepository: jest.fn(),
   commitChanges: jest.fn(),
   checkout: jest.fn(),

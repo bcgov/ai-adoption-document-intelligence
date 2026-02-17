@@ -110,6 +110,40 @@ export class DvcService {
   }
 
   /**
+   * Create and initialize a new Git repository.
+   * Used when creating a new dataset without an existing repository.
+   */
+  async createNewRepository(repoPath: string): Promise<void> {
+    try {
+      this.logger.log(`Creating new Git repository at ${repoPath}`);
+
+      // Initialize git repo
+      await execAsync("git init", { cwd: repoPath });
+      await execAsync('git config user.name "Benchmarking System"', {
+        cwd: repoPath,
+      });
+      await execAsync('git config user.email "benchmark@system.local"', {
+        cwd: repoPath,
+      });
+
+      // Create initial commit
+      await execAsync('echo "# Dataset Repository" > README.md', {
+        cwd: repoPath,
+      });
+      await execAsync("git add README.md", { cwd: repoPath });
+      await execAsync('git commit -m "Initial commit"', { cwd: repoPath });
+
+      this.logger.log(`Created new Git repository at ${repoPath}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to create new repository at ${repoPath}`,
+        error.stack,
+      );
+      throw new Error(`Failed to create new repository: ${error.message}`);
+    }
+  }
+
+  /**
    * Initialize DVC in a repository and configure MinIO remote.
    */
   async initRepository(repoPath: string): Promise<void> {

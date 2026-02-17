@@ -43,6 +43,8 @@ import { DvcService } from "./dvc.service";
 
 const mkdtemp = promisify(fs.mkdtemp);
 const rm = promisify(fs.rm);
+const access = promisify(fs.access);
+const mkdir = promisify(fs.mkdir);
 
 @Injectable()
 export class DatasetService {
@@ -78,15 +80,52 @@ export class DatasetService {
       throw new BadRequestException("Repository URL is required");
     }
 
-    // Create temporary directory for cloning and initializing
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-init-"));
+    let workingDir: string;
+    let isNewRepository = false;
+    let needsCleanup = false;
+
+    // Expand tilde in repository URL if present
+    const expandedUrl = createDto.repositoryUrl.startsWith('~')
+      ? createDto.repositoryUrl.replace(/^~/, os.homedir())
+      : createDto.repositoryUrl;
 
     try {
-      // Clone repository
-      await this.dvcService.cloneRepository(createDto.repositoryUrl, tempDir);
+      // Determine if this is a remote URL or local path
+      const isRemoteUrl =
+        expandedUrl.startsWith('http://') ||
+        expandedUrl.startsWith('https://') ||
+        expandedUrl.startsWith('git@');
+
+      if (isRemoteUrl) {
+        // For remote URLs, clone to temp directory
+        workingDir = await mkdtemp(path.join(os.tmpdir(), "dataset-init-"));
+        needsCleanup = true;
+        await this.dvcService.cloneRepository(createDto.repositoryUrl, workingDir);
+        this.logger.log(`Cloned existing repository: ${createDto.repositoryUrl}`);
+      } else {
+        // For local paths, check if repository exists
+        try {
+          // Try to access the directory
+          await access(expandedUrl);
+          // Directory exists, clone to temp directory
+          workingDir = await mkdtemp(path.join(os.tmpdir(), "dataset-init-"));
+          needsCleanup = true;
+          await this.dvcService.cloneRepository(createDto.repositoryUrl, workingDir);
+          this.logger.log(`Cloned existing repository: ${createDto.repositoryUrl}`);
+        } catch {
+          // Directory doesn't exist, create new repository at the target location
+          this.logger.log(
+            `Creating new repository at ${expandedUrl}`
+          );
+          await mkdir(expandedUrl, { recursive: true });
+          workingDir = expandedUrl;
+          isNewRepository = true;
+          await this.dvcService.createNewRepository(workingDir);
+        }
+      }
 
       // Initialize DVC with MinIO remote
-      await this.dvcService.initRepository(tempDir);
+      await this.dvcService.initRepository(workingDir);
 
       // Create dataset record in database
       const dataset = await this.prisma.dataset.create({
@@ -124,14 +163,16 @@ export class DatasetService {
       );
       throw error;
     } finally {
-      // Clean up temporary directory
-      try {
-        await rm(tempDir, { recursive: true, force: true });
-      } catch (cleanupError) {
-        this.logger.warn(
-          `Failed to clean up temp directory: ${tempDir}`,
-          cleanupError,
-        );
+      // Clean up temporary directory (only if we used one)
+      if (needsCleanup && workingDir) {
+        try {
+          await rm(workingDir, { recursive: true, force: true });
+        } catch (cleanupError) {
+          this.logger.warn(
+            `Failed to clean up temp directory: ${workingDir}`,
+            cleanupError,
+          );
+        }
       }
     }
   }
