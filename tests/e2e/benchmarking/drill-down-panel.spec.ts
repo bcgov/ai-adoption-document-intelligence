@@ -59,9 +59,9 @@ test.describe('US-038: Slicing, Filtering & Drill-Down - Sample Detail Panel', (
   });
 
   // Scenario 9: Field-by-Field Comparison View
-  test.skip('should show field-by-field comparison for schema-aware evaluation', async ({ page }) => {
+  test('should show field-by-field comparison for schema-aware evaluation', async ({ page }) => {
     // REQ-038.9: Field comparison view
-    // ⚠️ SKIPPED: Field-by-field comparison requires schema-aware evaluation data
+    // TODO: Field-by-field comparison requires schema-aware evaluation data
     // The current seed data doesn't include detailed field comparison data
 
     // Given: Drill-down panel for a sample is open (schema-aware evaluation)
@@ -79,9 +79,9 @@ test.describe('US-038: Slicing, Filtering & Drill-Down - Sample Detail Panel', (
   });
 
   // Scenario 10: Navigate Between Samples in Drill-Down
-  test.skip('should navigate between samples without closing panel', async ({ page }) => {
+  test('should navigate between samples without closing panel', async ({ page }) => {
     // REQ-038.10: Navigate between samples in drill-down
-    // ⚠️ SKIPPED: Next/Previous navigation not yet implemented in drawer
+    // TODO: Next/Previous navigation not yet implemented in drawer
 
     // Given: User is viewing a sample drill-down panel
     const firstSampleId = 'sample-001';
@@ -103,9 +103,9 @@ test.describe('US-038: Slicing, Filtering & Drill-Down - Sample Detail Panel', (
   });
 
   // Scenario 14: Input File Preview in Drill-Down
-  test.skip('should show input file preview', async ({ page }) => {
+  test('should show input file preview', async ({ page }) => {
     // REQ-038.14: Input file preview in drill-down
-    // ⚠️ SKIPPED: Input file preview requires actual file storage/serving
+    // TODO: Input file preview requires actual file storage/serving
 
     // Given: Sample has input image files
     const sampleId = 'sample-001';

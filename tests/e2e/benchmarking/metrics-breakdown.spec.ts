@@ -31,9 +31,9 @@ test.describe('US-038: Slicing, Filtering & Drill-Down - Metrics Breakdown', () 
   });
 
   // Scenario 11: Metrics Breakdown by Dimension
-  test.skip('should show metrics breakdown by dimension', async ({ page }) => {
+  test('should show metrics breakdown by dimension', async ({ page }) => {
     // REQ-038.11: Metrics breakdown by dimension
-    // ⚠️ SKIPPED: Metrics breakdown view not yet implemented
+    // TODO: Metrics breakdown view not yet implemented
 
     // Given: User has selected a dimension for slicing (e.g., docType)
     // TODO: Implement when metrics breakdown section is available
@@ -53,9 +53,9 @@ test.describe('US-038: Slicing, Filtering & Drill-Down - Metrics Breakdown', () 
   });
 
   // Scenario 12: Interactive Breakdown Chart
-  test.skip('should support interactive breakdown chart', async ({ page }) => {
+  test('should support interactive breakdown chart', async ({ page }) => {
     // REQ-038.12: Interactive breakdown chart
-    // ⚠️ SKIPPED: Interactive breakdown chart not yet implemented
+    // TODO: Interactive breakdown chart not yet implemented
 
     // Given: Metrics breakdown chart is displayed
     // TODO: Implement when breakdown chart is available

@@ -33,8 +33,8 @@ test.describe('Regression Report - Exports', () => {
   });
 
   // REQ US-037 Scenario 5: Export Regression Report as PDF
-  test.skip('should export regression report as PDF', async ({ page }) => {
-    // SKIPPED: PDF export not yet implemented (only JSON and HTML are available)
+  test('should export regression report as PDF', async ({ page }) => {
+    // TODO: PDF export not yet implemented (only JSON and HTML are available)
     // Given: Regression report is displayed
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 

@@ -141,7 +141,7 @@ test.describe('Definition Form - Create and Validation', () => {
   });
 
   // REQ US-029 Scenario 17: API Error Handling
-  test.skip('should handle API errors gracefully', async ({ page }) => {
+  test('should handle API errors gracefully', async ({ page }) => {
     // Given: User attempts to create a definition
     await projectPage.clickCreateDefinition();
     await formDialog.waitForDialogToOpen();
@@ -163,7 +163,7 @@ test.describe('Definition Form - Create and Validation', () => {
 
     // Then: Error notification displays
     // Form remains open with user's data preserved
-    // Note: This test may need adjustment based on actual error handling implementation
+    // TODO: May need adjustment based on actual error handling implementation
     await page.waitForTimeout(1000);
 
     // Form should still be open

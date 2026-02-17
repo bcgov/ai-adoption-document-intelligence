@@ -82,7 +82,7 @@ test.describe('Split Management - Create Split', () => {
     await expect(createDialog.dialog).not.toBeVisible();
   });
 
-  test.skip('Scenario 3: should create split with manual sample selection', async ({ page }) => {
+  test('Scenario 3: should create split with manual sample selection', async ({ page }) => {
     // Given: Create split dialog is open
     await splitsPage.openCreateDialog();
     await createDialog.waitForDialog();
@@ -141,7 +141,7 @@ test.describe('Split Management - Create Split', () => {
     await page.keyboard.press('Escape');
   });
 
-  test.skip('Scenario 12: should show error when split name is empty', async ({ page }) => {
+  test('Scenario 12: should show error when split name is empty', async ({ page }) => {
     // Given: Create split form is open
     await splitsPage.openCreateDialog();
     await createDialog.waitForDialog();
@@ -162,7 +162,7 @@ test.describe('Split Management - Create Split', () => {
     // Form should not submit (dialog remains open)
   });
 
-  test.skip('Scenario 12: should validate split name for invalid characters', async ({ page }) => {
+  test('Scenario 12: should validate split name for invalid characters', async ({ page }) => {
     // Given: Create split form is open
     await splitsPage.openCreateDialog();
     await createDialog.waitForDialog();
@@ -193,7 +193,7 @@ test.describe('Split Management - Create Split', () => {
     expect(isDialogStillOpen).toBeTruthy();
   });
 
-  test.skip('Scenario 4: should allow searching/filtering samples', async ({ page }) => {
+  test('Scenario 4: should allow searching/filtering samples', async ({ page }) => {
     // Given: Sample selection interface is open
     await splitsPage.openCreateDialog();
     await createDialog.waitForDialog();

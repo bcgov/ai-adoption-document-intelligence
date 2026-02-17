@@ -178,7 +178,7 @@ test.describe('Split Management - List Display', () => {
     await expect(splitsPage.getFreezeSplitBtn(SPLIT_ID_TEST)).not.toBeVisible();
   });
 
-  test.skip('Scenario 11: should show empty state when no splits exist', async ({ page }) => {
+  test('Scenario 11: should show empty state when no splits exist', async ({ page }) => {
     // Given: Dataset version has no splits defined
     await datasetPage.goto(DATASET_ID);
     await datasetPage.clickVersion(DATASET_ID_NO_SPLITS);

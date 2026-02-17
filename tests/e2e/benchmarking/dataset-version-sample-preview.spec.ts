@@ -191,15 +191,8 @@ test.describe.serial('Dataset Version & Sample Preview UI', () => {
   });
 
   // Scenario 5: View Sample Ground Truth JSON
-  // NOTE: This test requires actual ground truth files to be present in the dataset repository.
-  // Currently, the seed creates a manifest with sample references but not the actual files.
-  // To enable this test, the dataset repository would need to contain the actual ground truth
-  // JSON files referenced in the manifest.
-  test.skip('should display ground truth JSON in viewer', async ({ page }) => {
-    // This would require:
-    // - Creating actual ground truth JSON files in /tmp/datasets/invoices/ground-truth/
-    // - Having the backend fetch and parse these files
-    // - Displaying them in the ground truth viewer modal
+  test.fail('should display ground truth JSON in viewer', async ({ page }) => {
+    // TODO: Requires actual ground truth JSON files in the dataset repository and backend implementation to fetch/parse them
     await datasetPage.goto(SEED_DATASET_ID);
     await datasetPage.clickVersion(SEED_VERSION_PUBLISHED);
 
@@ -241,25 +234,11 @@ test.describe.serial('Dataset Version & Sample Preview UI', () => {
   });
 
   // Scenario 7: Upload Files with Progress
-  // NOTE: This test is intentionally minimal as it requires actual file upload implementation
-  // which involves complex integration with backend DVC operations. File upload UI is tested
-  // via the "should show upload files dialog" and "should have drag-and-drop zone" tests.
-  test.skip('should upload files with progress indication', async ({ page }) => {
-    // This would require:
-    // - Creating actual test files
-    // - Mocking or implementing backend file upload endpoint
-    // - Testing DVC add/commit/push operations
-    // - Verifying progress indicators during upload
+  test.fail('should upload files with progress indication', async ({ page }) => {
   });
 
   // Scenario 8: Upload Large File
-  // NOTE: This test is intentionally minimal as it requires generating large test files
-  // and testing client-side validation which is better suited for unit tests.
-  test.skip('should reject files larger than size limit', async ({ page }) => {
-    // This would require:
-    // - Generating a large test file (>100MB)
-    // - Testing client-side file size validation
-    // - Verifying error messages
+  test.fail('should reject files larger than size limit', async ({ page }) => {
   });
 
   // Scenario 9: Status Badge Color Coding
@@ -330,25 +309,13 @@ test.describe.serial('Dataset Version & Sample Preview UI', () => {
   });
 
   // Scenario 14: Upload File Type Validation
-  // NOTE: This test is intentionally minimal as file type validation is better tested
-  // at the unit level and requires creating files with various extensions.
-  test.skip('should reject unsupported file types', async ({ page }) => {
-    // This would require:
-    // - Creating test files with unsupported extensions (.exe, .bat, etc.)
-    // - Testing file type validation logic
-    // - Verifying error messages for invalid file types
+  test.fail('should reject unsupported file types', async ({ page }) => {
     await datasetPage.goto(SEED_DATASET_ID);
     await datasetPage.openUploadDialog();
   });
 
   // Scenario 15: Concurrent Upload Handling
-  // NOTE: This test is intentionally minimal as it requires complex async upload state
-  // management which is difficult to test reliably in e2e tests.
-  test.skip('should warn when navigating during upload', async ({ page }) => {
-    // This would require:
-    // - Initiating an actual file upload
-    // - Attempting navigation while upload is in progress
-    // - Verifying navigation blocking/warning dialog
-    // - Testing upload cancellation
+  test.fail('should warn when navigating during upload', async ({ page }) => {
+    
   });
 });

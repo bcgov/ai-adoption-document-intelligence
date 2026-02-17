@@ -33,8 +33,8 @@ test.describe('Regression Report - Historical Trends', () => {
   });
 
   // REQ US-037 Scenario 8: Historical Trend Chart
-  test.skip('should display historical trend chart with recent runs', async () => {
-    // SKIPPED: Historical trend requires Recharts library installation
+  test('should display historical trend chart with recent runs', async () => {
+    // TODO: Historical trend requires Recharts library installation
     // Given: Multiple runs exist for the same definition
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -66,8 +66,8 @@ test.describe('Regression Report - Historical Trends', () => {
   });
 
   // REQ US-037 Scenario 9: Multi-Metric Trend Visualization
-  test.skip('should support multiple metrics on same trend chart', async () => {
-    // SKIPPED: Requires trend chart implementation with Recharts
+  test('should support multiple metrics on same trend chart', async () => {
+    // TODO: Requires trend chart implementation with Recharts
     // Given: Historical trend chart is displayed
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -91,8 +91,8 @@ test.describe('Regression Report - Historical Trends', () => {
   });
 
   // REQ US-037 Scenario 14: Trend Chart Date Range Selection
-  test.skip('should allow selecting date range for trend chart', async () => {
-    // SKIPPED: Requires trend chart implementation
+  test('should allow selecting date range for trend chart', async () => {
+    // TODO: Requires trend chart implementation
     // Given: Historical trend chart is displayed
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -148,8 +148,8 @@ test.describe('Regression Report - Historical Trends', () => {
   });
 
   // REQ US-037 Scenario 8: Threshold Line Overlay
-  test.skip('should overlay threshold line on trend chart', async () => {
-    // SKIPPED: Requires trend chart implementation
+  test('should overlay threshold line on trend chart', async () => {
+    // TODO: Requires trend chart implementation
     // Given: Trend chart is displayed with a metric
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -163,8 +163,8 @@ test.describe('Regression Report - Historical Trends', () => {
   });
 
   // REQ US-037 Scenario 8: Current Run Highlighting
-  test.skip('should highlight current run in trend chart', async () => {
-    // SKIPPED: Requires trend chart implementation
+  test('should highlight current run in trend chart', async () => {
+    // TODO: Requires trend chart implementation
     // Given: Trend chart shows multiple runs
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -178,8 +178,8 @@ test.describe('Regression Report - Historical Trends', () => {
   });
 
   // REQ US-037 Scenario 9: Metric Toggle in Legend
-  test.skip('should allow toggling metrics in legend', async () => {
-    // SKIPPED: Requires trend chart implementation
+  test('should allow toggling metrics in legend', async () => {
+    // TODO: Requires trend chart implementation
     // Given: Trend chart with multiple metrics
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -197,8 +197,8 @@ test.describe('Regression Report - Historical Trends', () => {
   });
 
   // REQ US-037 Scenario 8: Interactive Chart Features
-  test.skip('should support interactive chart features', async () => {
-    // SKIPPED: Requires trend chart implementation with Recharts
+  test('should support interactive chart features', async () => {
+    // TODO: Requires trend chart implementation with Recharts
     // Given: Trend chart is displayed
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -217,8 +217,8 @@ test.describe('Regression Report - Historical Trends', () => {
   });
 
   // REQ US-037 Scenario 14: Date Range Persistence
-  test.skip('should persist date range selection for session', async () => {
-    // SKIPPED: Requires trend chart implementation
+  test('should persist date range selection for session', async () => {
+    // TODO: Requires trend chart implementation
     // Given: User selects a date range
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 

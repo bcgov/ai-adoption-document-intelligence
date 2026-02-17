@@ -26,7 +26,6 @@ test.describe('Artifact Viewer - Basic Viewing', () => {
   // Seed data IDs
   const PROJECT_ID = 'seed-project-invoice-extraction';
   // Use the passing run which has baseline comparison but won't crash the page
-  // Note: The completed run (001) is the baseline itself and doesn't have baseline comparison
   const RUN_ID = 'seed-run-passing-004';
 
   test.beforeAll(() => {

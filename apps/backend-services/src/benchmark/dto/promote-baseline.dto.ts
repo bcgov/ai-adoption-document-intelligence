@@ -1,3 +1,6 @@
+import { IsArray, IsIn, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
 /**
  * Promote Baseline DTOs
  *
@@ -13,15 +16,17 @@ export type ThresholdType = "absolute" | "relative";
 /**
  * Per-metric threshold configuration
  */
-export interface MetricThreshold {
+export class MetricThreshold {
   /**
    * Metric name
    */
+  @IsString()
   metricName: string;
 
   /**
    * Threshold type (absolute or relative/percentage)
    */
+  @IsIn(["absolute", "relative"])
   type: ThresholdType;
 
   /**
@@ -29,6 +34,7 @@ export interface MetricThreshold {
    * - For absolute: minimum acceptable value (e.g., 0.90 for 90% minimum)
    * - For relative: minimum acceptable ratio relative to baseline (e.g., 0.95 for 95% of baseline)
    */
+  @IsNumber()
   value: number;
 }
 
@@ -39,6 +45,10 @@ export class PromoteBaselineDto {
   /**
    * Per-metric thresholds for regression detection
    */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MetricThreshold)
   thresholds?: MetricThreshold[];
 }
 

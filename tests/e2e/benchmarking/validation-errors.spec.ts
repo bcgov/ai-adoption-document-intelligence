@@ -41,8 +41,8 @@ test.describe('Dataset Validation - Error Detection', () => {
   });
 
   // REQ-032: Scenario 3 - Schema Violations Detection
-  test.skip('should display schema violation details when detected', async ({ page }) => {
-    // NOTE: Skipped - requires seed data with schema violations
+  test('should display schema violation details when detected', async ({ page }) => {
+    // TODO: requires seed data with schema violations
     // To implement: Create a dataset version with ground truth that violates the schema
 
     // Given: Dataset version with schema violations
@@ -69,8 +69,8 @@ test.describe('Dataset Validation - Error Detection', () => {
   });
 
   // REQ-032: Scenario 4 - Missing Ground Truth Detection
-  test.skip('should detect samples without ground truth files', async ({ page }) => {
-    // NOTE: Skipped - requires seed data with missing ground truth
+  test('should detect samples without ground truth files', async ({ page }) => {
+    // TODO: requires seed data with missing ground truth
     // To implement: Create a dataset version with samples missing ground truth
 
     // Given: Dataset version with missing ground truth
@@ -95,8 +95,8 @@ test.describe('Dataset Validation - Error Detection', () => {
   });
 
   // REQ-032: Scenario 5 - Duplicate Detection
-  test.skip('should identify duplicate samples', async ({ page }) => {
-    // NOTE: Skipped - requires seed data with duplicate samples
+  test('should identify duplicate samples', async ({ page }) => {
+    // TODO: requires seed data with duplicate samples
     // To implement: Create a dataset version with duplicate samples (by content hash or metadata)
 
     // Given: Dataset version with duplicate samples
@@ -122,8 +122,8 @@ test.describe('Dataset Validation - Error Detection', () => {
   });
 
   // REQ-032: Scenario 6 - Corruption Check Results
-  test.skip('should detect corrupted files', async ({ page }) => {
-    // NOTE: Skipped - requires seed data with corrupted files
+  test('should detect corrupted files', async ({ page }) => {
+    // TODO: requires seed data with corrupted files
     // To implement: Create a dataset version with corrupted/unreadable files
 
     // Given: Dataset version with corrupted files
@@ -155,8 +155,8 @@ test.describe('Dataset Validation - Error Detection', () => {
   });
 
   // REQ-032: Scenario 3 - Multiple error types in one validation
-  test.skip('should display all error categories when multiple issues exist', async ({ page }) => {
-    // NOTE: Skipped - requires seed data with multiple error types
+  test('should display all error categories when multiple issues exist', async ({ page }) => {
+    // TODO: requires seed data with multiple error types
     // To implement: Create a dataset version with schema violations, missing ground truth, and corruption
 
     // Given: Dataset version with multiple types of issues

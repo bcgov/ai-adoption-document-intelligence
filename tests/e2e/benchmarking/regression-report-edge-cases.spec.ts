@@ -128,8 +128,8 @@ test.describe('Regression Report - Edge Cases', () => {
   });
 
   // REQ US-037 Scenario 13: Prompt to Promote Baseline
-  test.skip('should prompt user to set baseline when none exists', async () => {
-    // SKIPPED: Needs clarification on whether prompt includes promote action or just message
+  test('should prompt user to set baseline when none exists', async () => {
+    // TODO: Needs clarification on whether prompt includes promote action or just message
     // Given: No baseline set for definition
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_FAILED);
 
@@ -151,7 +151,7 @@ test.describe('Regression Report - Edge Cases', () => {
     const gotoPromise = regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_PASSING);
 
     // Then: Loading indicator is shown briefly
-    // Note: This might be too fast to catch in practice
+    // TODO: This might be too fast to catch in practice
     // The loading state exists but may not be visible in test due to speed
 
     await gotoPromise;

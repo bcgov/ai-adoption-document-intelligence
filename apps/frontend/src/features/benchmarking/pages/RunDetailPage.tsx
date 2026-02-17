@@ -15,6 +15,7 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import {
   IconAlertCircle,
   IconCheck,
@@ -27,6 +28,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArtifactViewer } from "../components/ArtifactViewer";
 import { BaselineThresholdDialog } from "../components/BaselineThresholdDialog";
 import { useProject } from "../hooks/useProjects";
+import { useDefinition } from "../hooks/useDefinitions";
 import {
   useArtifacts,
   useDrillDown,
@@ -102,6 +104,7 @@ export function RunDetailPage() {
   );
 
   const { project } = useProject(projectId);
+  const { definition } = useDefinition(projectId, run?.definitionId || "");
   const { drillDown } = useDrillDown(projectId, runId || "");
   const { artifacts, total: totalArtifacts } = useArtifacts(
     projectId,
@@ -144,6 +147,20 @@ export function RunDetailPage() {
         onSuccess: () => {
           setThresholdDialogOpened(false);
           setIsEditingThresholds(false);
+          notifications.show({
+            title: "Success",
+            message: isEditingThresholds
+              ? "Baseline thresholds updated successfully"
+              : "Run promoted to baseline successfully",
+            color: "green",
+          });
+        },
+        onError: (error) => {
+          notifications.show({
+            title: "Error",
+            message: error instanceof Error ? error.message : "Failed to promote run to baseline",
+            color: "red",
+          });
         },
       }
     );
@@ -803,6 +820,14 @@ export function RunDetailPage() {
           metrics={(run.metrics as Record<string, number>)}
           onSubmit={handleThresholdSubmit}
           isPromoting={isPromoting}
+          existingBaseline={
+            !isEditingThresholds && definition?.baselineRun
+              ? {
+                  runId: definition.baselineRun.id,
+                  definitionName: run.definitionName,
+                }
+              : undefined
+          }
           existingThresholds={isEditingThresholds ? run.baselineThresholds || undefined : undefined}
           isEditing={isEditingThresholds}
         />

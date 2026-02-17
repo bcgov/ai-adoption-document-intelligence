@@ -62,8 +62,8 @@ test.describe('Regression Report - Run List Integration', () => {
   });
 
   // REQ US-037 Scenario 10: Regression Count Display
-  test.skip('should show count of regressed metrics in run list', async ({ page }) => {
-    // SKIPPED: Depends on implementation details of run list regression indicators
+  test('should show count of regressed metrics in run list', async ({ page }) => {
+    // TODO: Depends on implementation details of run list regression indicators
     // Given: Run with multiple regressed metrics
     await projectDetailPage.goto(SEED_PROJECT_ID);
 
@@ -76,8 +76,8 @@ test.describe('Regression Report - Run List Integration', () => {
   });
 
   // REQ US-037 Scenario 10: Severity Color Coding in List
-  test.skip('should indicate severity by color in run list', async ({ page }) => {
-    // SKIPPED: Depends on implementation of severity indicators
+  test('should indicate severity by color in run list', async ({ page }) => {
+    // TODO: Depends on implementation of severity indicators
     // Given: Run list with regressions of different severity
     await projectDetailPage.goto(SEED_PROJECT_ID);
 
@@ -94,8 +94,8 @@ test.describe('Regression Report - Run List Integration', () => {
   });
 
   // REQ US-037 Scenario 10: Navigation to Regression Report from List
-  test.skip('should navigate to regression report when clicking indicator', async ({ page }) => {
-    // SKIPPED: Depends on whether indicators are clickable links
+  test('should navigate to regression report when clicking indicator', async ({ page }) => {
+    // TODO: Depends on whether indicators are clickable links
     // Given: Run list displays regression indicator
     await projectDetailPage.goto(SEED_PROJECT_ID);
     await expect(projectDetailPage.runsTable).toBeVisible();

@@ -28,9 +28,9 @@ test.describe('US-031 - Results Summary: Large Datasets', () => {
     runDetailPage = new RunDetailPage(page);
   });
 
-  test.skip('Scenario 16: should organize large metrics into categories', async ({ page }) => {
+  test('Scenario 16: should organize large metrics into categories', async ({ page }) => {
     // REQ US-031: Metrics are organized into categories or collapsible sections
-    // SKIPPED: Seed data only has 3 metrics, not 50+
+    // TODO: Seed data only has 3 metrics, not 50+
 
     // Given: Run has 50+ different metrics (e.g., per-field metrics for many fields)
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
@@ -39,9 +39,9 @@ test.describe('US-031 - Results Summary: Large Datasets', () => {
     // And: Not all metrics are expanded by default
   });
 
-  test.skip('Scenario 16: should support search/filter for large metrics set', async ({ page }) => {
+  test('Scenario 16: should support search/filter for large metrics set', async ({ page }) => {
     // REQ US-031: User can search/filter metrics
-    // SKIPPED: Seed data only has 3 metrics
+    // TODO: Seed data only has 3 metrics
 
     // Given: Run with 50+ metrics
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
@@ -50,9 +50,9 @@ test.describe('US-031 - Results Summary: Large Datasets', () => {
     // Then: Metrics list is filtered to show only matching metrics
   });
 
-  test.skip('Scenario 16: page should remain performant with large metrics', async ({ page }) => {
+  test('Scenario 16: page should remain performant with large metrics', async ({ page }) => {
     // REQ US-031: Page remains performant with many metrics
-    // SKIPPED: Seed data only has 3 metrics, cannot test performance
+    // TODO: Seed data only has 3 metrics, cannot test performance
 
     // Given: Run with 50+ metrics
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
@@ -100,9 +100,9 @@ test.describe('US-031 - Results Summary: Large Datasets', () => {
     }
   });
 
-  test.skip('Scenario 16: collapsed sections should expand on click', async ({ page }) => {
+  test('Scenario 16: collapsed sections should expand on click', async ({ page }) => {
     // REQ US-031: Collapsible sections can be expanded/collapsed
-    // SKIPPED: Implementation not yet available or not needed for small metric sets
+    // TODO: Implementation not yet available or not needed for small metric sets
 
     // Given: Run with metrics organized in collapsible sections
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);

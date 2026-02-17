@@ -28,9 +28,9 @@ test.describe('US-031 - Results Summary: Artifacts', () => {
     runDetailPage = new RunDetailPage(page);
   });
 
-  test.skip('Scenario 5: should display artifact list', async ({ page }) => {
+  test('Scenario 5: should display artifact list', async ({ page }) => {
     // REQ US-031: Artifact table shows columns: type, sample ID, node ID, size, mime type, actions
-    // SKIPPED: No artifacts in seed data
+    // TODO: No artifacts in seed data
 
     // Given: Benchmark run has artifacts of different types
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
@@ -48,9 +48,9 @@ test.describe('US-031 - Results Summary: Artifacts', () => {
     await expect(table).toContainText('MIME Type');
   });
 
-  test.skip('Scenario 5: artifact sizes should be human-readable', async ({ page }) => {
+  test('Scenario 5: artifact sizes should be human-readable', async ({ page }) => {
     // REQ US-031: File sizes are human-readable (KB, MB, GB)
-    // SKIPPED: No artifacts in seed data
+    // TODO: No artifacts in seed data
 
     // Given: Run with artifacts of various sizes
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
@@ -62,9 +62,9 @@ test.describe('US-031 - Results Summary: Artifacts', () => {
     expect(tableText).toMatch(/\d+\s?(B|KB|MB|GB)/i);
   });
 
-  test.skip('Scenario 5: artifacts should have action buttons', async ({ page }) => {
+  test('Scenario 5: artifacts should have action buttons', async ({ page }) => {
     // REQ US-031: Action buttons: View, Download, Open in MLflow
-    // SKIPPED: No artifacts in seed data
+    // TODO: No artifacts in seed data
 
     // Given: Run with artifacts
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
@@ -77,9 +77,9 @@ test.describe('US-031 - Results Summary: Artifacts', () => {
     // Common patterns: Eye icon (view), Download icon, External link icon
   });
 
-  test.skip('Scenario 6: should filter artifacts by type', async ({ page }) => {
+  test('Scenario 6: should filter artifacts by type', async ({ page }) => {
     // REQ US-031: Filter options include: All, per_doc_output, intermediate_node_output, diff_report, evaluation_report, error_log
-    // SKIPPED: No artifacts in seed data
+    // TODO: No artifacts in seed data
 
     // Given: Run has artifacts of multiple types
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
@@ -97,9 +97,9 @@ test.describe('US-031 - Results Summary: Artifacts', () => {
     await expect(heading).toBeVisible();
   });
 
-  test.skip('Scenario 6: artifact filter should persist during page interactions', async ({ page }) => {
+  test('Scenario 6: artifact filter should persist during page interactions', async ({ page }) => {
     // REQ US-031: Filter persists during page interactions
-    // SKIPPED: No artifacts in seed data
+    // TODO: No artifacts in seed data
 
     // Given: User has applied an artifact filter
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
@@ -114,9 +114,9 @@ test.describe('US-031 - Results Summary: Artifacts', () => {
     expect(filterValue).toContain('error_log');
   });
 
-  test.skip('Scenario 14: should download artifact', async ({ page }) => {
+  test('Scenario 14: should download artifact', async ({ page }) => {
     // REQ US-031: File download initiates with correct name and extension
-    // SKIPPED: No artifacts in seed data, and download testing requires special setup
+    // TODO: No artifacts in seed data, and download testing requires special setup
 
     // Given: User is viewing the artifact list
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
@@ -126,7 +126,7 @@ test.describe('US-031 - Results Summary: Artifacts', () => {
     // And: File is saved with correct name and extension
     // And: No errors occur during download
 
-    // Note: Testing actual file downloads in Playwright requires:
+    // TODO: Testing actual file downloads in Playwright requires:
     // - page.waitForEvent('download')
     // - download.path() to verify file
   });
@@ -180,9 +180,9 @@ test.describe('US-031 - Results Summary: Artifacts', () => {
     }
   });
 
-  test.skip('Scenario 6: should show all artifact types in filter dropdown', async ({ page }) => {
+  test('Scenario 6: should show all artifact types in filter dropdown', async ({ page }) => {
     // REQ US-031: Filter options include all artifact types
-    // SKIPPED: No artifacts in seed data to test filter options
+    // TODO: No artifacts in seed data to test filter options
 
     // Given: Run with artifacts
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);

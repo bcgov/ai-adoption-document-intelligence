@@ -85,10 +85,8 @@ tail -n 50 apps/backend-services/backend.log
 
 **First time or if tracking file doesn't exist:**
 1. Find all `*.spec.ts` files in `tests/e2e/{folder}/`
-2. Scan each test file for skipped tests (`.skip()` or `test.skip()` or `describe.skip()`)
-3. Create tracking file at `{feature-dir}/playwright/test-fixer-progress.md`
-4. List all test files with `[ ]` checkboxes
-5. Mark files with skipped tests: `[ ] file.spec.ts (⏭️ Has skipped tests)`
+2. Create tracking file at `{feature-dir}/playwright/test-fixer-progress.md`
+3. List all test files with `[ ]` checkboxes
 
 **If tracking file exists:**
 1. Read existing progress
@@ -96,27 +94,11 @@ tail -n 50 apps/backend-services/backend.log
 
 ### 2. Test Iteration Loop (Per File)
 
-#### 2a. Handle Skipped Tests
-
-**Before running the test**, check if the file contains skipped tests:
-- Search for `.skip()`, `test.skip()`, `describe.skip()`, or `it.skip()`
-- If found:
-  1. **Remove ALL skip directives** from the test file
-  2. **Read requirements and user stories** to understand what features need to be implemented
-  3. **Identify missing implementation** (frontend components, backend endpoints, database models, etc.)
-  4. **Implement the missing features** step by step
-  5. Continue to test run phase
 
 NOTE: if the backend is returning an error, return the error from the API (put code in try-catch) and read the error message to understand what is missing. Clean up after. You call a specific endpoint like this:
 
 `curl -s -H "x-api-key: 69OrdcwUk4qrB6Pl336PGsloa0L084HFp7X7aX7sSTY" http://localhost:3002/api...`
 
-**Why tests are skipped:**
-- Missing features not yet implemented
-- Incomplete backend endpoints
-- Missing database schema
-- Incomplete UI components
-- External dependencies not available
 
 **Your job**: Implement whatever is needed to make the test pass legitimately.
 
@@ -154,15 +136,6 @@ Parse test output for:
 
 **API Failure Protocol**: On 4xx/5xx errors, read backend log (`tail -n 50 apps/backend-services/backend.log`), identify root cause, fix backend implementation per requirements, then re-run test.
 
-**Special Case - Unskipped Tests:**
-If a test was just unskipped, failures are likely due to:
-- Missing backend endpoints that need to be created
-- Missing database tables/columns that need migration
-- Missing UI components that need to be built
-- Incomplete feature implementation
-
-In these cases, implement the missing pieces rather than just fixing selectors or timing.
-
 ### 4. Apply Fixes
 
 **CRITICAL**: Before applying any fix, consult these sources in order:
@@ -183,14 +156,6 @@ In these cases, implement the missing pieces rather than just fixing selectors o
 **Decision Tree: What to Fix?**
 
 ```
-Test was skipped → Check requirements
-    ↓
-    REMOVE .skip() → Identify missing features
-    ↓
-    IMPLEMENT MISSING FEATURES (backend API, frontend UI, database schema, etc.)
-    ↓
-    Run test
-
 Test fails → Check requirements
     ↓
 Does implementation match requirements?
@@ -213,9 +178,9 @@ When fixing implementation (not just tests):
 
 Read the relevant implementation files and modify them to match requirements.
 
-### 6. Implementing Missing Features (For Skipped Tests)
+### 6. Implementing Missing Features
 
-When a test was skipped due to missing implementation, follow this systematic approach:
+When a test is failing due to missing implementation, follow this systematic approach:
 
 #### Step 1: Understand Requirements
 1. Read `{feature-dir}/requirements.md` thoroughly
@@ -271,14 +236,12 @@ Follow this iterative process:
 
 ## Critical Rules for Corrections
 
-1. **SKIPPED TESTS**: When encountering `.skip()`, remove it and implement the missing features - never leave tests skipped
-2. **ALWAYS** check requirements.md and user stories BEFORE making any fix
-3. **FIX IMPLEMENTATION** when it doesn't match requirements - don't just change the test
-4. **FIX TEST** when the test expectation is incorrect or outdated
-5. **NEVER** make a test pass by removing assertions or changing expectations without verifying requirements
-6. **NEVER** skip a test as a "fix" - if a test was skipped, your job is to make it pass
+1. **ALWAYS** check requirements.md and user stories BEFORE making any fix
+2. **FIX IMPLEMENTATION** when it doesn't match requirements - don't just change the test
+3. **FIX TEST** when the test expectation is incorrect or outdated
+4. **NEVER** make a test pass by removing assertions or changing expectations without verifying requirements
 7. When fixing implementation code, ensure the fix aligns with requirements and user stories
-8. When implementing missing features for skipped tests, follow the full implementation stack (DB → Backend → Frontend)
+8. When implementing missing features, follow the full implementation stack (DB → Backend → Frontend)
 9. Document non-obvious fixes with comments explaining the requirement being satisfied
 10. **UPDATE PROGRESS FILE** after each attempt/completion
 
@@ -358,12 +321,11 @@ page.on('response', response => {
 
 # Skill execution:
 # 1. Find test files in tests/e2e/benchmarking/
-# 2. Scan for skipped tests in each file
-# 3. Create/read progress tracking file
-# 4. For each test file (in alphabetical order):
+# 2. Create/read progress tracking file
+# 3. For each test file (in alphabetical order):
 #    a. Mark as in progress
 #    b. Check for .skip() directives - remove if found
-#    c. If was skipped: implement missing features per requirements
+#    c. If missing implementation, implement missing features per requirements
 #    d. Run: npm run test:file tests/e2e/benchmarking/[filename]
 #    e. If fails: analyze, fix, re-run (up to 10 times)
 #    f. Update progress: passed or failed

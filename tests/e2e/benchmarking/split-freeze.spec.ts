@@ -53,7 +53,7 @@ test.describe('Split Management - Freeze Split', () => {
     await expect(splitsPage.getFreezeSplitBtn(SPLIT_ID_GOLDEN)).toBeVisible();
   });
 
-  test.skip('Scenario 9: should show confirmation dialog when freezing split', async ({ page }) => {
+  test('Scenario 9: should show confirmation dialog when freezing split', async ({ page }) => {
     // Given: User initiates freeze action on a split
     await expect(splitsPage.getFreezeSplitBtn(SPLIT_ID_GOLDEN)).toBeVisible();
 
@@ -76,7 +76,7 @@ test.describe('Split Management - Freeze Split', () => {
     await page.waitForTimeout(1000);
   });
 
-  test.skip('Scenario 8: should freeze golden regression split after confirmation', async ({ page }) => {
+  test('Scenario 8: should freeze golden regression split after confirmation', async ({ page }) => {
     // Given: Unfrozen golden split exists
     await expect(splitsPage.getSplitStatusBadge(SPLIT_ID_GOLDEN)).toContainText(/editable/i);
 
@@ -104,7 +104,7 @@ test.describe('Split Management - Freeze Split', () => {
     // Success notification appears (implementation dependent)
   });
 
-  test.skip('Scenario 9: should not freeze split if user cancels confirmation', async ({ page }) => {
+  test('Scenario 9: should not freeze split if user cancels confirmation', async ({ page }) => {
     // Given: User initiates freeze action
     const originalStatus = await splitsPage.getSplitStatusBadge(SPLIT_ID_GOLDEN).textContent();
 

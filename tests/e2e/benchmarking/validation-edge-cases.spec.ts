@@ -42,8 +42,8 @@ test.describe('Dataset Validation - Edge Cases', () => {
   });
 
   // REQ-032: Scenario 7 - Sampled Validation
-  test.skip('should support sampled validation on large datasets', async ({ page }) => {
-    // NOTE: Skipped - requires implementation of sampled validation feature
+  test('should support sampled validation on large datasets', async ({ page }) => {
+    // TODO: requires implementation of sampled validation feature
     // To implement: Add sampleSize parameter to validation endpoint
 
     // Given: Large dataset with 1000+ samples
@@ -79,8 +79,8 @@ test.describe('Dataset Validation - Edge Cases', () => {
   });
 
   // REQ-032: Scenario 9 - Expand/Collapse Error Details
-  test.skip('should support collapsible error sections', async ({ page }) => {
-    // NOTE: Skipped - requires implementation of collapsible sections
+  test('should support collapsible error sections', async ({ page }) => {
+    // TODO: requires implementation of collapsible sections
     // Current UI shows all details expanded
 
     // Given: Validation results contain multiple errors
@@ -116,8 +116,8 @@ test.describe('Dataset Validation - Edge Cases', () => {
   });
 
   // REQ-032: Scenario 11 - Validation History
-  test.skip('should track validation history', async ({ page }) => {
-    // NOTE: Skipped - validation history feature not in Phase 1
+  test('should track validation history', async ({ page }) => {
+    // TODO: validation history feature not in Phase 1
     // To implement: Add validation history tracking and UI
 
     // Given: Dataset version has been validated multiple times
@@ -127,8 +127,8 @@ test.describe('Dataset Validation - Edge Cases', () => {
   });
 
   // REQ-032: Scenario 12 - Export Validation Report
-  test.skip('should allow exporting validation report', async ({ page }) => {
-    // NOTE: Skipped - export feature not in Phase 1
+  test('should allow exporting validation report', async ({ page }) => {
+    // TODO: export feature not in Phase 1
     // To implement: Add export button and download functionality
 
     // Given: Validation has been completed
@@ -141,8 +141,8 @@ test.describe('Dataset Validation - Edge Cases', () => {
   });
 
   // REQ-032: Scenario 13 - Publish Warning for Invalid Dataset
-  test.skip('should prevent or warn when publishing invalid dataset', async ({ page }) => {
-    // NOTE: Skipped - requires seed data with validation errors
+  test('should prevent or warn when publishing invalid dataset', async ({ page }) => {
+    // TODO: requires seed data with validation errors
     // To implement: Create dataset version with errors, test publish action
 
     // Given: Dataset version has validation errors
@@ -158,8 +158,8 @@ test.describe('Dataset Validation - Edge Cases', () => {
   });
 
   // REQ-032: Scenario 14 - Validation Without Schema
-  test.skip('should handle datasets without groundTruthSchema', async ({ page }) => {
-    // NOTE: Skipped - requires dataset version without schema
+  test('should handle datasets without groundTruthSchema', async ({ page }) => {
+    // TODO: requires dataset version without schema
     // To implement: Create dataset version with null groundTruthSchema
 
     // Given: Dataset version has no groundTruthSchema defined

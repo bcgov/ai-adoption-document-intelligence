@@ -130,9 +130,9 @@ test.describe('US-031 - Results Summary: MLflow Deep-Links', () => {
     expect(isDisabled).toBe(false);
   });
 
-  test.skip('Scenario 17: should handle MLflow UI unavailable gracefully', async ({ page }) => {
+  test('Scenario 17: should handle MLflow UI unavailable gracefully', async ({ page }) => {
     // REQ US-031: When MLflow service is unavailable, user sees clear error
-    // Note: This test is skipped because we cannot easily simulate MLflow being down
+    // TODO: we cannot easily simulate MLflow being down
     // In production, the browser would show connection error when opening the link
 
     // Given: MLflow service is stopped/unavailable

@@ -173,9 +173,9 @@ test.describe('US-038: Slicing, Filtering & Drill-Down - Filtering', () => {
   });
 
   // Scenario 7: Page Count Range Filter
-  test.skip('should filter by page count range', async ({ page }) => {
+  test('should filter by page count range', async ({ page }) => {
     // REQ-038.7: Range filter for numeric metadata
-    // ⚠️ SKIPPED: Range filter UI not yet implemented (dropdown only)
+    // TODO: Range filter UI not yet implemented (dropdown only)
 
     // Given: Samples have pageCount metadata
 
@@ -225,9 +225,9 @@ test.describe('US-038: Slicing, Filtering & Drill-Down - Filtering', () => {
   });
 
   // Scenario 16: Performance with Large Sample Sets
-  test.skip('should handle large sample sets performantly', async ({ page }) => {
+  test('should handle large sample sets performantly', async ({ page }) => {
     // REQ-038.16: Performance with large datasets
-    // ⚠️ SKIPPED: Requires dataset with 10,000+ samples
+    // TODO: Requires dataset with 10,000+ samples
 
     // Given: Run has 10,000+ samples
     // TODO: Create large dataset seed or use performance test environment
@@ -241,9 +241,9 @@ test.describe('US-038: Slicing, Filtering & Drill-Down - Filtering', () => {
   });
 
   // Scenario 17: Export Filtered Results
-  test.skip('should export filtered results', async ({ page }) => {
+  test('should export filtered results', async ({ page }) => {
     // REQ-038.17: Export filtered subset
-    // ⚠️ SKIPPED: Export functionality not yet implemented
+    // TODO: Export functionality not yet implemented
 
     // Given: User has applied filters to the results view
     await drillDownPage.applyFilter('docType', 'invoice');

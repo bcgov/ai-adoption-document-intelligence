@@ -34,8 +34,8 @@ test.describe('Regression Report - Advanced Features', () => {
   });
 
   // REQ US-037 Scenario 4: Filter to Regressions Only
-  test.skip('should filter to show only regressed metrics', async () => {
-    // SKIPPED: Filter feature not yet implemented
+  test('should filter to show only regressed metrics', async () => {
+    // TODO: Filter feature not yet implemented
     // Given: Regression report shows all metrics
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -61,8 +61,8 @@ test.describe('Regression Report - Advanced Features', () => {
   });
 
   // REQ US-037 Scenario 11: Regression Details Drill-Down
-  test.skip('should open drill-down panel for metric details', async () => {
-    // SKIPPED: Drill-down feature not yet implemented
+  test('should open drill-down panel for metric details', async () => {
+    // TODO: Drill-down feature not yet implemented
     // Given: User is viewing a specific regressed metric
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -91,8 +91,8 @@ test.describe('Regression Report - Advanced Features', () => {
   });
 
   // REQ US-037 Scenario 11: Navigate to Affected Samples
-  test.skip('should navigate to affected samples from drill-down', async () => {
-    // SKIPPED: Drill-down and sample navigation not yet implemented
+  test('should navigate to affected samples from drill-down', async () => {
+    // TODO: Drill-down and sample navigation not yet implemented
     // Given: Drill-down panel is open for a regressed metric
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -109,8 +109,8 @@ test.describe('Regression Report - Advanced Features', () => {
   });
 
   // REQ US-037 Scenario 15: Regression Annotations
-  test.skip('should allow adding annotations to regression report', async () => {
-    // SKIPPED: Annotations feature not yet implemented
+  test('should allow adding annotations to regression report', async () => {
+    // TODO: Annotations feature not yet implemented
     // Given: User identifies a known cause for a regression
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -138,8 +138,8 @@ test.describe('Regression Report - Advanced Features', () => {
   });
 
   // REQ US-037 Scenario 15: Multiple Annotations
-  test.skip('should support multiple annotations on same report', async () => {
-    // SKIPPED: Annotations feature not yet implemented
+  test('should support multiple annotations on same report', async () => {
+    // TODO: Annotations feature not yet implemented
     // Given: Report already has annotations
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -185,8 +185,8 @@ test.describe('Regression Report - Advanced Features', () => {
   });
 
   // REQ US-037 Scenario 16: Share Button/Copy URL
-  test.skip('should provide share button to copy URL', async ({ page }) => {
-    // SKIPPED: Share button not yet implemented
+  test('should provide share button to copy URL', async ({ page }) => {
+    // TODO: Share button not yet implemented
     // Given: Regression report is displayed
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -195,7 +195,7 @@ test.describe('Regression Report - Advanced Features', () => {
     await shareBtn.click();
 
     // Then: URL is copied to clipboard
-    // Note: Clipboard testing requires special setup
+    // TODO: Clipboard testing requires special setup
     // Alternative: share dialog with copyable link
 
     const shareDialog = page.locator('[data-testid="share-dialog"]');
@@ -226,8 +226,8 @@ test.describe('Regression Report - Advanced Features', () => {
   });
 
   // REQ US-037 Scenario 11: Close Drill-Down Panel
-  test.skip('should allow closing drill-down panel', async () => {
-    // SKIPPED: Drill-down feature not yet implemented
+  test('should allow closing drill-down panel', async () => {
+    // TODO: Drill-down feature not yet implemented
     // Given: Drill-down panel is open
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
@@ -246,8 +246,8 @@ test.describe('Regression Report - Advanced Features', () => {
   });
 
   // REQ US-037 Scenario 4: Filter Indicator
-  test.skip('should clearly indicate when filter is active', async () => {
-    // SKIPPED: Filter feature not yet implemented
+  test('should clearly indicate when filter is active', async () => {
+    // TODO: Filter feature not yet implemented
     // Given: User has applied "Show only regressions" filter
     await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 

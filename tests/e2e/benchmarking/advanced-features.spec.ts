@@ -31,9 +31,9 @@ test.describe('US-038: Slicing, Filtering & Drill-Down - Advanced Features', () 
   });
 
   // Scenario 13: Pluggable Drill-Down Panels
-  test.skip('should support pluggable custom drill-down panels', async ({ page }) => {
+  test('should support pluggable custom drill-down panels', async ({ page }) => {
     // REQ-038.13: Pluggable drill-down panels
-    // ⚠️ SKIPPED: Pluggable panel architecture not yet implemented
+    // TODO: Pluggable panel architecture not yet implemented
 
     // Given: Custom panel components are registered for specific workflow types
     // TODO: Implement custom panel registration system

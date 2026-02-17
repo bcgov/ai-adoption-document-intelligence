@@ -75,7 +75,7 @@ test.describe('Split Management - Edit Split', () => {
     await expect(editDialog.cancelBtn).toBeVisible();
   });
 
-  test.skip('Scenario 6: should update unfrozen split with new sample selection', async ({ page }) => {
+  test('Scenario 6: should update unfrozen split with new sample selection', async ({ page }) => {
     // Given: Edit dialog is open for unfrozen split
     await splitsPage.clickEditSplit(SPLIT_ID_VAL);
     await editDialog.waitForDialog();
@@ -161,13 +161,13 @@ test.describe('Split Management - Edit Split', () => {
     await expect(frozenBadge).toContainText(/frozen/i);
   });
 
-  test.skip('Scenario 7: should return 400 error when attempting to update frozen split via API', async ({ page }) => {
+  test('Scenario 7: should return 400 error when attempting to update frozen split via API', async ({ page }) => {
     // This test would require making a direct API call to test backend validation
     // Given: Frozen split exists
     // When: Direct API call attempts to update frozen split
     // Then: API returns 400 error
 
-    // Note: This is more of a backend test, but could be simulated here
+    // TODO: This is more of a backend test, but could be simulated here
     // by intercepting network requests if the UI accidentally allows it
   });
 });

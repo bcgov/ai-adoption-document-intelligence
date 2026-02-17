@@ -96,7 +96,7 @@ test.describe('US-030: Run Management', () => {
       await expect(definitionDialog.startRunBtn).toBeVisible();
       await expect(definitionDialog.startRunBtn).toBeEnabled();
 
-      // Note: Actually starting a run would create real data
+      // note: Actually starting a run would create real data
       // In a real test environment, we would:
       // await definitionDialog.clickStartRun();
       // await page.waitForURL(/\/benchmarking\/projects\/.*\/runs\/.*/);
@@ -115,7 +115,7 @@ test.describe('US-030: Run Management', () => {
       await expect(runDetailPage.cancelRunBtn).toBeVisible();
       await expect(runDetailPage.cancelRunBtn).toBeEnabled();
 
-      // Note: We don't actually click it to avoid changing test data state
+      // note: We don't actually click it to avoid changing test data state
       // In a real test: await runDetailPage.clickCancel();
       // Confirm in dialog, then verify status changes to 'cancelled'
     });
@@ -164,7 +164,7 @@ test.describe('US-030: Run Management', () => {
       const completedBadge = projectPage.getRunStatusBadge(SEED_RUN_ID_COMPLETED);
       await expect(completedBadge).toBeVisible();
       await expect(completedBadge).toHaveText(/completed/i);
-      // Note: We can't easily test actual color in Playwright, but we can verify the text
+      // note: We can't easily test actual color in Playwright, but we can verify the text
 
       // And: Running run has amber/orange badge
       const runningBadge = projectPage.getRunStatusBadge(SEED_RUN_ID_RUNNING);
@@ -210,7 +210,7 @@ test.describe('US-030: Run Management', () => {
       await expect(runDetailPage.rerunBtn).toBeVisible();
       await expect(runDetailPage.rerunBtn).toBeEnabled();
 
-      // Note: We don't actually click to avoid creating new runs in test
+      // note: We don't actually click to avoid creating new runs in test
       // In a real test: await runDetailPage.clickRerun();
       // Then verify navigation to new run detail page with fresh run ID
     });
@@ -292,9 +292,9 @@ test.describe('US-030: Run Management', () => {
   });
 
   test.describe('Scenario 13: Empty Run List', () => {
-    test.skip('should show empty state when project has no runs', async ({ page }) => {
+    test('should show empty state when project has no runs', async ({ page }) => {
       // REQ-US030-SC13: Empty run list
-      // Note: This requires a project with no runs
+      // TODO: Requires a project with no runs
       // Skipped because seed data doesn't have such a project
       // In a real test environment:
       // - Create a new project without runs

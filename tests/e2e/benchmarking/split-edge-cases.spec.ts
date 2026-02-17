@@ -47,13 +47,13 @@ test.describe('Split Management - Edge Cases', () => {
     await page.waitForLoadState('networkidle');
   });
 
-  test.skip('Scenario 5: should create split with stratification rules', async ({ page }) => {
+  test('Scenario 5: should create split with stratification rules', async ({ page }) => {
     // Given: Create split form is open and samples have metadata
     await splitsPage.openCreateDialog();
     await createDialog.waitForDialog();
 
     // When: User selects stratification by a metadata field
-    // Note: This feature may not be exposed in the UI yet
+    // TODO: This feature may not be exposed in the UI yet
     // Implementation would require:
     // 1. Stratification section in the create dialog
     // 2. Field selector for stratification
@@ -85,13 +85,13 @@ test.describe('Split Management - Edge Cases', () => {
     // Check that split appears in list with stratification indicators
   });
 
-  test.skip('Scenario 13: should show stratification preview', async ({ page }) => {
+  test('Scenario 13: should show stratification preview', async ({ page }) => {
     // Given: User has selected stratification by a metadata field
     await splitsPage.openCreateDialog();
     await createDialog.waitForDialog();
 
     // When: Stratification rule is configured
-    // Note: Requires stratification UI implementation
+    // TODO: Requires stratification UI implementation
 
     // Then: Preview shows sample distribution by field values
     // Example: "docType: invoice (20%), form (30%), receipt (50%)"
@@ -100,12 +100,12 @@ test.describe('Split Management - Edge Cases', () => {
     // Helps verify stratification before creating split
   });
 
-  test.skip('Scenario 14: should allow deleting an unfrozen split', async ({ page }) => {
+  test('Scenario 14: should allow deleting an unfrozen split', async ({ page }) => {
     // Given: Unfrozen split exists
     await expect(splitsPage.getSplitRow(SPLIT_ID_VAL)).toBeVisible();
 
     // When: User clicks "Delete" action
-    // Note: Delete functionality may not be implemented yet
+    // TODO: Delete functionality may not be implemented yet
     // Would require delete button in split row
 
     // const deleteBtn = page.locator(`[data-testid="delete-split-btn-${SPLIT_ID_VAL}"]`);
@@ -122,7 +122,7 @@ test.describe('Split Management - Edge Cases', () => {
     // await expect(splitsPage.getSplitRow(SPLIT_ID_VAL)).not.toBeVisible();
   });
 
-  test.skip('Scenario 14: should not allow deleting a frozen split', async ({ page }) => {
+  test('Scenario 14: should not allow deleting a frozen split', async ({ page }) => {
     // Given: Frozen split exists
     await expect(splitsPage.getSplitRow(SPLIT_ID_TRAIN)).toBeVisible();
     await expect(splitsPage.getSplitStatusBadge(SPLIT_ID_TRAIN)).toContainText(/frozen/i);
@@ -132,7 +132,7 @@ test.describe('Split Management - Edge Cases', () => {
     // await expect(deleteBtn).not.toBeVisible();
   });
 
-  test.skip('Scenario 15: should warn when deleting split used in definitions', async ({ page }) => {
+  test('Scenario 15: should warn when deleting split used in definitions', async ({ page }) => {
     // Given: Split is referenced by one or more benchmark definitions
     // SPLIT_ID_TRAIN is used in SEED_DEFINITION_ID
 
@@ -150,7 +150,7 @@ test.describe('Split Management - Edge Cases', () => {
     // User must confirm understanding before proceeding or deletion is blocked
   });
 
-  test.skip('Scenario 16: should handle API errors gracefully during creation', async ({ page }) => {
+  test('Scenario 16: should handle API errors gracefully during creation', async ({ page }) => {
     // Given: User attempts to create a split
     await splitsPage.openCreateDialog();
     await createDialog.waitForDialog();
@@ -179,7 +179,7 @@ test.describe('Split Management - Edge Cases', () => {
     // Split list does not update
   });
 
-  test.skip('Scenario 16: should handle network errors during update', async ({ page }) => {
+  test('Scenario 16: should handle network errors during update', async ({ page }) => {
     // Given: User attempts to update a split
     // Simulate network error by intercepting API call
 

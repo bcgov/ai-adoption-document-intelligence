@@ -94,8 +94,8 @@ test.describe('Definition List and Detail Views', () => {
   });
 
   // REQ US-029 Scenario 14: Immutable Definition - Revision History
-  test.skip('should display revision history for definitions with multiple revisions', async ({ page }) => {
-    // Note: This test is skipped because the current seed data doesn't include a definition with multiple revisions
+  test('should display revision history for definitions with multiple revisions', async ({ page }) => {
+    // TODO: the current seed data doesn't include a definition with multiple revisions
     // This would need to be tested after implementing revision creation functionality
 
     // Given: Definition has been revised (multiple revisions exist with different revision numbers)
@@ -133,8 +133,8 @@ test.describe('Definition List and Detail Views', () => {
   });
 
   // REQ US-029 Scenario 16: Create New Revision
-  test.skip('should allow creating a new revision from immutable definition', async ({ page }) => {
-    // Note: This test is skipped because it depends on having an immutable definition
+  test('should allow creating a new revision from immutable definition', async ({ page }) => {
+    // TODO: it depends on having an immutable definition
     // and the "Create Revision" action implementation
 
     // Given: Immutable definition exists

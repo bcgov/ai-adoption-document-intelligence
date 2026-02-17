@@ -109,8 +109,8 @@ test.describe('Baseline UI Display', () => {
   });
 
   // REQ US-034 Scenario 3: Baseline Badge Tooltip
-  test.skip('should show tooltip explaining baseline badge', async () => {
-    // SKIPPED: Requires tooltip implementation on baseline badge
+  test('should show tooltip explaining baseline badge', async () => {
+    // TODO: Requires tooltip implementation on baseline badge
     // Given: Baseline run with badge
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
 
@@ -124,8 +124,8 @@ test.describe('Baseline UI Display', () => {
   });
 
   // REQ US-034 Scenario 3: Baseline Badge in Run List
-  test.skip('should display baseline badge in run list table', async ({ page }) => {
-    // SKIPPED: Requires baseline badge column in run list table
+  test('should display baseline badge in run list table', async ({ page }) => {
+    // TODO: Requires baseline badge column in run list table
     // Given: Project with baseline run
     await projectDetailPage.goto(SEED_PROJECT_ID);
 
@@ -144,8 +144,8 @@ test.describe('Baseline UI Display', () => {
   });
 
   // REQ US-034: View Regression Report Button Visibility
-  test.skip('should show regression report button for runs with regressions', async () => {
-    // SKIPPED: Requires regression report feature implementation
+  test('should show regression report button for runs with regressions', async () => {
+    // TODO: Requires regression report feature implementation
     // Given: Run with baseline comparison and regressions
     const SEED_RUN_ID_REGRESSED = 'seed-run-regressed-005';
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
@@ -160,8 +160,8 @@ test.describe('Baseline UI Display', () => {
   });
 
   // REQ US-034 Scenario 9: Baseline Exempt from Retention Indicator
-  test.skip('should indicate baseline runs are protected from retention', async () => {
-    // SKIPPED: Requires retention policy UI implementation
+  test('should indicate baseline runs are protected from retention', async () => {
+    // TODO: Requires retention policy UI implementation
     // Given: Baseline run
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
 
