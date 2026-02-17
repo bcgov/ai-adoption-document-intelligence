@@ -10,6 +10,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -136,6 +137,22 @@ export class DatasetController {
   })
   async getDatasetById(@Param("id") id: string): Promise<DatasetResponseDto> {
     return this.datasetService.getDatasetById(id);
+  }
+
+  @Delete(":id")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Delete a dataset by ID" })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiOkResponse({
+    description: "Dataset deleted successfully",
+  })
+  @ApiNotFoundResponse({
+    description: "Dataset not found",
+  })
+  async deleteDataset(@Param("id") id: string): Promise<void> {
+    return this.datasetService.deleteDataset(id);
   }
 
   @Post(":id/upload")

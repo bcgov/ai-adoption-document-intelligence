@@ -213,6 +213,59 @@ export class DatasetService {
   }
 
   /**
+   * Delete a dataset by ID
+   */
+  async deleteDataset(id: string): Promise<void> {
+    this.logger.debug(`Deleting dataset with ID: ${id}`);
+
+    const dataset = await this.prisma.dataset.findUnique({
+      where: { id },
+      include: {
+        versions: {
+          include: {
+            benchmarkDefinitions: true,
+            splits: true,
+          },
+        },
+      },
+    });
+
+    if (!dataset) {
+      throw new NotFoundException(`Dataset with ID ${id} not found`);
+    }
+
+    // Manually cascade delete to handle foreign key constraints
+    // 1. Delete benchmark runs associated with definitions
+    for (const version of dataset.versions) {
+      for (const definition of version.benchmarkDefinitions) {
+        await this.prisma.benchmarkRun.deleteMany({
+          where: { definitionId: definition.id },
+        });
+      }
+      // 2. Delete benchmark definitions
+      await this.prisma.benchmarkDefinition.deleteMany({
+        where: { datasetVersionId: version.id },
+      });
+      // 3. Delete splits
+      await this.prisma.split.deleteMany({
+        where: { datasetVersionId: version.id },
+      });
+    }
+
+    // 4. Delete versions
+    await this.prisma.datasetVersion.deleteMany({
+      where: { datasetId: id },
+    });
+
+    // 5. Finally delete the dataset
+    await this.prisma.dataset.delete({
+      where: { id },
+    });
+
+    this.logger.log(`Dataset deleted successfully: ${id}`);
+  }
+
+  /**
    * Create a new dataset version
    * Runs DVC add, git commit, DVC push workflow
    */

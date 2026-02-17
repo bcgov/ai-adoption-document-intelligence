@@ -5,7 +5,11 @@ import { DatasetsListPage } from '../pages/DatasetsListPage';
 /**
  * Test Plan: US-027 - Dataset List & Create UI
  * REQ-027: Users can view a list of datasets and create new ones through the UI
+ *
+ * NOTE: This file runs in serial mode because empty state tests delete all datasets
  */
+test.describe.configure({ mode: 'serial' });
+
 test.describe('Dataset List & Create UI', () => {
   const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3002';
   const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -401,6 +405,26 @@ test.describe('Dataset List - Empty State', () => {
     });
 
     datasetsPage = new DatasetsListPage(page);
+
+    // Delete all datasets to ensure empty state
+    const response = await page.request.get(`${BACKEND_URL}/api/benchmark/datasets`, {
+      headers: { 'x-api-key': TEST_API_KEY! },
+    });
+    const datasets = await response.json();
+    if (Array.isArray(datasets)) {
+      for (const dataset of datasets) {
+        await page.request.delete(`${BACKEND_URL}/api/benchmark/datasets/${dataset.id}`, {
+          headers: { 'x-api-key': TEST_API_KEY! },
+        });
+      }
+    } else if (datasets.data && Array.isArray(datasets.data)) {
+      // Handle paginated response
+      for (const dataset of datasets.data) {
+        await page.request.delete(`${BACKEND_URL}/api/benchmark/datasets/${dataset.id}`, {
+          headers: { 'x-api-key': TEST_API_KEY! },
+        });
+      }
+    }
   });
 
   /**
@@ -437,8 +461,8 @@ test.describe('Dataset List - Empty State', () => {
     // When: User clicks create button from empty state
     await datasetsPage.openCreateDialogFromEmptyState();
 
-    // Then: Dialog opens
-    await expect(datasetsPage.createDatasetDialog).toBeVisible();
+    // Then: Dialog opens (openCreateDialogFromEmptyState already waits for dialog to be visible)
+    await expect(datasetsPage.dialogTitle).toBeVisible();
 
     // And: User can create a dataset
     await datasetsPage.fillDatasetForm({
@@ -448,9 +472,17 @@ test.describe('Dataset List - Empty State', () => {
     });
     await datasetsPage.submitCreateForm();
 
-    // Then: Empty state disappears and table is shown
+    // Wait for dialog to close (indicates successful creation)
+    await expect(datasetsPage.dialogTitle).not.toBeVisible({ timeout: 10000 });
+
+    // Wait a bit for React Query to refetch
+    await page.waitForTimeout(1000);
+
+    // Wait for the table to appear (page should auto-refresh)
+    await expect(datasetsPage.datasetsTable).toBeVisible({ timeout: 15000 });
+
+    // Then: Empty state disappears and dataset is shown
     await expect(datasetsPage.emptyStateContainer).not.toBeVisible();
-    await expect(datasetsPage.datasetsTable).toBeVisible();
     await expect(page.getByText('First Dataset')).toBeVisible();
   });
 });

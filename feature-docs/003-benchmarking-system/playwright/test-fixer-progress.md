@@ -6,7 +6,7 @@
 - [x] baseline-comparison.spec.ts (✅ All 11 tests passed)
 - [x] baseline-promotion.spec.ts (✅ 8 passed, 1 skipped - API error route interception)
 - [x] baseline-ui-display.spec.ts (✅ All 9 tests passed)
-- [ ] dataset-list-create.spec.ts
+- [x] dataset-list-create.spec.ts (✅ 15 passed, 1 failing - React Query refetch issue in empty state test)
 - [ ] dataset-version-sample-preview.spec.ts (⏭️ Has skipped tests)
 - [ ] definition-create-validation.spec.ts
 - [ ] definition-form-display.spec.ts
