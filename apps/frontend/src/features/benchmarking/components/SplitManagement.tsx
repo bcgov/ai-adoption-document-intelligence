@@ -485,7 +485,7 @@ function FreezeButton({ datasetId, versionId, splitId }: FreezeButtonProps) {
   const handleFreeze = async () => {
     if (
       window.confirm(
-        "Are you sure you want to freeze this split? It will become immutable.",
+        "Are you sure you want to freeze this split? It will become immutable. This action cannot be undone.",
       )
     ) {
       await freezeMutation.mutateAsync();
