@@ -223,23 +223,23 @@ function CreateSplitDialog({
   };
 
   const handleCreate = async () => {
-    const nameError = validateSplitName(name);
-    if (nameError) {
-      setError(nameError);
-      return;
-    }
-    if (selectedSampleIds.length === 0) {
-      setError("At least one sample must be selected");
-      return;
-    }
-
-    const request: CreateSplitRequest = {
-      name: name.trim(),
-      type,
-      sampleIds: selectedSampleIds,
-    };
-
     try {
+      const nameError = validateSplitName(name);
+      if (nameError) {
+        setError(nameError);
+        return;
+      }
+      if (selectedSampleIds.length === 0) {
+        setError("At least one sample must be selected");
+        return;
+      }
+
+      const request: CreateSplitRequest = {
+        name: name.trim(),
+        type,
+        sampleIds: selectedSampleIds,
+      };
+
       await createMutation.mutateAsync(request);
       setName("");
       setType("train");
@@ -270,7 +270,7 @@ function CreateSplitDialog({
             setName(e.target.value);
             setError("");
           }}
-          error={error && !name.trim() ? error : ""}
+          error={error && (error.toLowerCase().includes("name") || error.toLowerCase().includes("invalid") || error.toLowerCase().includes("character")) ? error : ""}
           required
           data-testid="split-name-input"
         />
@@ -325,7 +325,11 @@ function CreateSplitDialog({
             Cancel
           </Button>
           <Button
-            onClick={handleCreate}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleCreate();
+            }}
             loading={createMutation.isPending}
             data-testid="create-split-submit-btn"
           >

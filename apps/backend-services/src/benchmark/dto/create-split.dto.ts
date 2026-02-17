@@ -12,6 +12,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
 } from "class-validator";
 
 export enum SplitType {
@@ -28,6 +29,9 @@ export class CreateSplitDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Matches(/^[a-zA-Z0-9\-_.]+$/, {
+    message: "Split name can only contain letters, numbers, hyphens, underscores, and dots",
+  })
   name: string;
 
   @ApiProperty({

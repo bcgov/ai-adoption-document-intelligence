@@ -548,6 +548,7 @@ describe("DatasetService", () => {
           gitRevision: "abc123",
           publishedAt: new Date(),
           createdAt: new Date(),
+          splits: [],
         },
         {
           id: "v2",
@@ -557,6 +558,7 @@ describe("DatasetService", () => {
           gitRevision: "def456",
           publishedAt: null,
           createdAt: new Date(),
+          splits: [],
         },
       ];
 
@@ -567,6 +569,16 @@ describe("DatasetService", () => {
 
       expect(mockPrismaClient.datasetVersion.findMany).toHaveBeenCalledWith({
         where: { datasetId: "dataset-123" },
+        include: {
+          splits: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              sampleIds: true,
+            },
+          },
+        },
         orderBy: { createdAt: "desc" },
       });
       expect(result.versions).toHaveLength(2);
