@@ -23,7 +23,7 @@
 - [x] regression-report-trends.spec.ts (✅ All 10 tests passed - chart fully implemented with Recharts)
 - [x] results-artifacts.spec.ts (✅ All 10 tests passed)
 - [x] results-drill-down.spec.ts (✅ All 11 tests passed)
-- [ ] results-error-states.spec.ts
+- [x] results-error-states.spec.ts (✅ All 13 tests passed)
 - [ ] results-large-datasets.spec.ts
 - [ ] results-metrics.spec.ts
 - [ ] results-mlflow-links.spec.ts
