@@ -335,6 +335,29 @@ export function RunDetailPage() {
         </Alert>
       )}
 
+      {run.status === "completed" && !run.baselineComparison && !run.isBaseline && (
+        <Alert
+          icon={<IconAlertCircle size={16} />}
+          color="blue"
+          title="No Baseline Set"
+          data-testid="no-baseline-alert"
+        >
+          <Stack gap="sm">
+            <Text>
+              No baseline has been set for this definition. Promote this run to baseline to enable performance comparisons for future runs.
+            </Text>
+            <Button
+              leftSection={<IconTrophy size={16} />}
+              onClick={handlePromoteBaseline}
+              loading={isPromoting}
+              data-testid="promote-to-baseline-suggestion-btn"
+            >
+              Promote this run to Baseline
+            </Button>
+          </Stack>
+        </Alert>
+      )}
+
       <Card>
         <Stack gap="md">
           <Title order={3} data-testid="run-info-heading">

@@ -8,6 +8,7 @@ import {
   DatasetVersionStatus,
   SplitType,
   BenchmarkRunStatus,
+  AuditAction,
 } from "../../backend-services/src/generated/client";
 import { getPrismaPgOptions } from "../../backend-services/src/utils/database-url";
 import { execSync } from "node:child_process";
@@ -625,9 +626,8 @@ async function seedBenchmarkingData() {
 
     perSampleResults.push({
       sampleId: `sample-${String(i + 1).padStart(3, "0")}`,
-      metrics: {
-        field_accuracy: 0.75 + Math.random() * 0.25,
-      },
+      metricName: "field_accuracy",
+      metricValue: 0.75 + Math.random() * 0.25,
       metadata: {
         docType,
         language,
@@ -674,11 +674,11 @@ async function seedBenchmarkingData() {
         version: "v1.0",
       },
       isBaseline: true,
-      baselineThresholds: {
-        field_accuracy: { type: "relative", value: 0.95 },
-        character_accuracy: { type: "relative", value: 0.95 },
-        word_accuracy: { type: "relative", value: 0.95 },
-      },
+      baselineThresholds: [
+        { metricName: "field_accuracy", type: "relative", value: 0.95 },
+        { metricName: "character_accuracy", type: "relative", value: 0.95 },
+        { metricName: "word_accuracy", type: "relative", value: 0.95 },
+      ],
     },
     create: {
       id: SEED_RUN_ID_COMPLETED,
@@ -717,11 +717,11 @@ async function seedBenchmarkingData() {
         version: "v1.0",
       },
       isBaseline: true,
-      baselineThresholds: {
-        field_accuracy: { type: "relative", value: 0.95 },
-        character_accuracy: { type: "relative", value: 0.95 },
-        word_accuracy: { type: "relative", value: 0.95 },
-      },
+      baselineThresholds: [
+        { metricName: "field_accuracy", type: "relative", value: 0.95 },
+        { metricName: "character_accuracy", type: "relative", value: 0.95 },
+        { metricName: "word_accuracy", type: "relative", value: 0.95 },
+      ],
     },
   });
 
@@ -1211,6 +1211,36 @@ async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RU
   });
 
   console.log("    ✓ Created 4 test artifacts (JSON, image, text, unsupported)");
+
+  // === AUDIT LOGS ===
+  console.log("  📋 Creating audit logs...");
+
+  // Create baseline promotion history - simulate that the baseline was promoted 2 days ago
+  const twoDaysAgo = new Date();
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+  await prisma.benchmarkAuditLog.create({
+    data: {
+      id: "audit-baseline-001",
+      timestamp: twoDaysAgo,
+      userId: "test-user",
+      action: AuditAction.baseline_promoted,
+      entityType: "BenchmarkRun",
+      entityId: SEED_RUN_ID_COMPLETED,
+      metadata: {
+        definitionId: SEED_DEFINITION_ID,
+        projectId: SEED_PROJECT_ID,
+        previousBaselineId: null,
+        thresholds: [
+          { metricName: "field_accuracy", type: "relative", value: 0.95 },
+          { metricName: "character_accuracy", type: "relative", value: 0.95 },
+          { metricName: "word_accuracy", type: "relative", value: 0.95 },
+        ],
+      },
+    },
+  });
+
+  console.log("    ✓ Created baseline promotion audit log");
 }
 
 async function seedLabelingData() {

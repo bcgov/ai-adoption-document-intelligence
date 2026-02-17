@@ -23,7 +23,9 @@ import {
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
+import { AuditLogService } from "./audit-log.service";
 import {
+  BaselinePromotionHistoryDto,
   CreateDefinitionDto,
   DefinitionDetailsDto,
   DefinitionSummaryDto,
@@ -31,6 +33,7 @@ import {
   ScheduleInfoDto,
   UpdateDefinitionDto,
 } from "./dto";
+import { AuditAction } from "@generated/client";
 
 @Controller("api/benchmark/projects/:projectId/definitions")
 export class BenchmarkDefinitionController {
@@ -38,6 +41,7 @@ export class BenchmarkDefinitionController {
 
   constructor(
     private readonly benchmarkDefinitionService: BenchmarkDefinitionService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   /**
@@ -163,5 +167,50 @@ export class BenchmarkDefinitionController {
       projectId,
       definitionId,
     );
+  }
+
+  /**
+   * Get baseline promotion history for a definition
+   *
+   * GET /api/benchmark/projects/:projectId/definitions/:definitionId/baseline-history
+   */
+  @Get(":definitionId/baseline-history")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  async getBaselineHistory(
+    @Param("projectId") projectId: string,
+    @Param("definitionId") definitionId: string,
+  ): Promise<BaselinePromotionHistoryDto[]> {
+    this.logger.log(
+      `GET /api/benchmark/projects/${projectId}/definitions/${definitionId}/baseline-history`,
+    );
+
+    // Query audit logs for baseline_promoted events
+    // Note: audit logs track by run ID (entityId), but we need to filter by definition
+    // We'll query all baseline_promoted events and filter by metadata
+    const auditLogs = await this.auditLogService.queryAuditLogs({
+      action: AuditAction.baseline_promoted,
+      entityType: "BenchmarkRun",
+      limit: 100,
+    });
+
+    // Filter by definition ID from metadata and map to response DTO
+    const history = auditLogs
+      .filter((log) => {
+        const metadata = log.metadata as Record<string, unknown> | null;
+        return metadata && metadata.definitionId === definitionId;
+      })
+      .map((log) => {
+        const metadata = log.metadata as Record<string, unknown> | null;
+        return {
+          promotedAt: log.timestamp,
+          runId: log.entityId,
+          userId: log.userId,
+          definitionId: metadata?.definitionId as string | undefined,
+          projectId: metadata?.projectId as string | undefined,
+        };
+      });
+
+    return history;
   }
 }

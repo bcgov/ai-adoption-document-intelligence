@@ -55,6 +55,16 @@ export class RunSummaryDto {
    * Headline metrics (if completed)
    */
   headlineMetrics: Record<string, unknown> | null;
+
+  /**
+   * Whether this run has a regression compared to baseline
+   */
+  hasRegression?: boolean;
+
+  /**
+   * Number of regressed metrics (if compared against baseline)
+   */
+  regressedMetricCount?: number;
 }
 
 /**

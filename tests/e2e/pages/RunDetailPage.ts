@@ -183,9 +183,10 @@ export class RunDetailPage {
 
   /**
    * Get regressed metrics from the baseline comparison alert
+   * Returns all badges within the alert (these are the regressed metric names)
    */
   getRegressedMetrics(): Locator {
-    return this.baselineComparisonAlert.locator('[class*="Badge"][color="red"]');
+    return this.baselineComparisonAlert.locator('[class*="Badge"]');
   }
 
   /**

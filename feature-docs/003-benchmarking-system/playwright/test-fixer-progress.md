@@ -3,7 +3,7 @@
 ## Test Files
 - [x] advanced-features.spec.ts (✅ Passed)
 - [x] artifact-viewer.spec.ts (✅ All 10 tests passed)
-- [ ] baseline-comparison.spec.ts
+- [x] baseline-comparison.spec.ts (✅ All 11 tests passed)
 - [ ] baseline-promotion.spec.ts
 - [ ] baseline-ui-display.spec.ts
 - [ ] dataset-list-create.spec.ts

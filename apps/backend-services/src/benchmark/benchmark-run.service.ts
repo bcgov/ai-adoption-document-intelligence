@@ -397,6 +397,11 @@ export class BenchmarkRunService {
       const metrics = run.metrics as Record<string, unknown>;
       const headlineMetrics = run.status === "completed" ? metrics : null;
 
+      // Check for regression status
+      const baselineComparison = run.baselineComparison as unknown as BaselineComparison | null;
+      const hasRegression = baselineComparison ? !baselineComparison.overallPassed : undefined;
+      const regressedMetricCount = baselineComparison ? baselineComparison.regressedMetrics.length : undefined;
+
       return {
         id: run.id,
         definitionId: run.definitionId,
@@ -407,6 +412,8 @@ export class BenchmarkRunService {
         completedAt: run.completedAt,
         durationMs,
         headlineMetrics,
+        hasRegression,
+        regressedMetricCount,
       };
     });
   }
@@ -546,6 +553,7 @@ export class BenchmarkRunService {
     // Create audit log
     await this.createAuditLog(runId, "baseline_promoted" as never, {
       definitionId: run.definitionId,
+      projectId: run.projectId,
       previousBaselineId: previousBaseline?.id || null,
       thresholds: dto.thresholds || null,
     });

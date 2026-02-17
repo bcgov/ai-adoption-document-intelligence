@@ -4,14 +4,16 @@ import {
   Card,
   Code,
   Group,
+  Loader,
   Stack,
   Table,
   Text,
   Title,
 } from "@mantine/core";
-import { IconPlayerPlay } from "@tabler/icons-react";
+import { IconPlayerPlay, IconHistory } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import { useStartRun } from "../hooks/useRuns";
+import { useBaselineHistory } from "../hooks/useDefinitions";
 import { ScheduleConfig } from "./ScheduleConfig";
 
 interface DatasetVersionInfo {
@@ -90,6 +92,9 @@ export function DefinitionDetailView({
     definition.projectId,
     definition.id,
   );
+
+  const { history: baselineHistory, isLoading: isLoadingHistory } =
+    useBaselineHistory(definition.projectId, definition.id);
 
   const handleStartRun = async () => {
     const run = await startRun({});
@@ -279,16 +284,16 @@ export function DefinitionDetailView({
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {Object.entries(definition.baselineRun.baselineThresholds).map(([metricName, threshold]) => (
-                    <Table.Tr key={metricName}>
-                      <Table.Td>{metricName}</Table.Td>
+                  {definition.baselineRun.baselineThresholds.map((threshold) => (
+                    <Table.Tr key={threshold.metricName}>
+                      <Table.Td>{threshold.metricName}</Table.Td>
                       <Table.Td>
-                        <Badge variant="light" data-testid={`threshold-type-${metricName}`}>
+                        <Badge variant="light" data-testid={`threshold-type-${threshold.metricName}`}>
                           {threshold.type === "relative" ? "Relative (%)" : "Absolute"}
                         </Badge>
                       </Table.Td>
                       <Table.Td>
-                        <Code data-testid={`threshold-value-${metricName}`}>
+                        <Code data-testid={`threshold-value-${threshold.metricName}`}>
                           {threshold.type === "relative"
                             ? `${(threshold.value * 100).toFixed(0)}%`
                             : threshold.value.toFixed(4)}
@@ -298,6 +303,58 @@ export function DefinitionDetailView({
                   ))}
                 </Table.Tbody>
               </Table>
+            </Stack>
+
+            <Stack gap="xs">
+              <Group gap="xs">
+                <IconHistory size={16} />
+                <Title order={5} data-testid="baseline-history-heading">
+                  Baseline Change History
+                </Title>
+              </Group>
+              {isLoadingHistory ? (
+                <Loader size="sm" />
+              ) : baselineHistory.length === 0 ? (
+                <Text size="sm" c="dimmed" data-testid="no-baseline-history">
+                  No baseline changes recorded yet.
+                </Text>
+              ) : (
+                <Table striped data-testid="baseline-history-table">
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Promoted At</Table.Th>
+                      <Table.Th>Run ID</Table.Th>
+                      <Table.Th>User</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {baselineHistory.map((entry, index) => (
+                      <Table.Tr key={index} data-testid={`baseline-history-row-${index}`}>
+                        <Table.Td data-testid={`baseline-history-date-${index}`}>
+                          {new Date(entry.promotedAt).toLocaleString()}
+                        </Table.Td>
+                        <Table.Td>
+                          <Button
+                            variant="subtle"
+                            size="compact-sm"
+                            onClick={() =>
+                              navigate(
+                                `/benchmarking/projects/${definition.projectId}/runs/${entry.runId}`,
+                              )
+                            }
+                            data-testid={`baseline-history-run-link-${index}`}
+                          >
+                            <Code>{entry.runId.substring(0, 12)}...</Code>
+                          </Button>
+                        </Table.Td>
+                        <Table.Td data-testid={`baseline-history-user-${index}`}>
+                          {entry.userId}
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              )}
             </Stack>
           </Stack>
         </Card>

@@ -183,3 +183,30 @@ export const useDefinition = (projectId: string, definitionId: string) => {
     isUpdating: updateDefinitionMutation.isPending,
   };
 };
+
+export interface BaselinePromotionHistory {
+  promotedAt: string;
+  runId: string;
+  userId: string;
+  definitionId?: string;
+  projectId?: string;
+}
+
+export function useBaselineHistory(projectId: string, definitionId: string) {
+  const historyQuery = useQuery({
+    queryKey: ["baseline-history", projectId, definitionId],
+    queryFn: async () => {
+      const response = await apiService.get<BaselinePromotionHistory[]>(
+        `/benchmark/projects/${projectId}/definitions/${definitionId}/baseline-history`,
+      );
+      return response.data;
+    },
+    enabled: !!projectId && !!definitionId,
+  });
+
+  return {
+    history: historyQuery.data || [],
+    isLoading: historyQuery.isLoading,
+    error: historyQuery.error,
+  };
+}
