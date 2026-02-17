@@ -14,6 +14,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import {
   IconArchive,
   IconCheck,
@@ -52,7 +53,10 @@ export function DatasetDetailPage() {
   );
   const [activeTab, setActiveTab] = useState<string>("versions");
   const [samplePage, setSamplePage] = useState(1);
-  const [groundTruthViewerOpen, setGroundTruthViewerOpen] = useState(false);
+  const [
+    groundTruthViewerOpen,
+    { open: openGroundTruthViewer, close: closeGroundTruthViewer },
+  ] = useDisclosure(false);
   const [selectedGroundTruth, setSelectedGroundTruth] = useState<Record<
     string,
     unknown
@@ -135,7 +139,7 @@ export function DatasetDetailPage() {
         );
 
         setSelectedGroundTruth(response.data.content);
-        setGroundTruthViewerOpen(true);
+        openGroundTruthViewer();
       } catch (error) {
         console.error("Error fetching ground truth:", error);
       }
@@ -411,7 +415,7 @@ export function DatasetDetailPage() {
       <GroundTruthViewer
         groundTruth={selectedGroundTruth}
         opened={groundTruthViewerOpen}
-        onClose={() => setGroundTruthViewerOpen(false)}
+        onClose={closeGroundTruthViewer}
       />
 
       <Modal

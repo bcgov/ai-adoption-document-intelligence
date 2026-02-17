@@ -17,13 +17,17 @@ export function GroundTruthViewer({
       onClose={onClose}
       title="Ground Truth JSON"
       size="xl"
-      data-testid="ground-truth-viewer"
+      withinPortal={true}
+      closeOnClickOutside={true}
+      closeOnEscape={true}
     >
-      <ScrollArea h={500}>
-        <Code block data-testid="ground-truth-json">
-          {JSON.stringify(groundTruth, null, 2)}
-        </Code>
-      </ScrollArea>
+      <div data-testid="ground-truth-viewer">
+        <ScrollArea h={500}>
+          <Code block data-testid="ground-truth-json">
+            {JSON.stringify(groundTruth, null, 2)}
+          </Code>
+        </ScrollArea>
+      </div>
     </Modal>
   );
 }
