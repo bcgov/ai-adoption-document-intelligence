@@ -9,9 +9,9 @@
 - [x] dataset-list-create.spec.ts (✅ All 16 tests passed)
 - [x] dataset-version-sample-preview.spec.ts (✅ 11 tests passed, 1 empty stub passing, 7 skipped)
 - [x] definition-create-validation.spec.ts (✅ 3 passed, 1 skipped - API error test needs rewrite)
-- [x] definition-form-display.spec.ts (✅ All 8 tests passed)
-- [x] definition-list-detail.spec.ts (✅ All 9 tests passed)
-- [ ] drill-down-panel.spec.ts
+- [ ] definition-form-display.spec.ts
+- [ ] definition-list-detail.spec.ts
+- [ ] drill-down-panel.spec.ts (⚠️ BLOCKED - React onClick handlers not firing in Playwright tests - needs investigation)
 - [ ] filtering.spec.ts
 - [ ] metrics-breakdown.spec.ts
 - [ ] navigation-routing.spec.ts
