@@ -177,7 +177,7 @@ test.describe('Benchmarking Navigation & Routing', () => {
     // Given: User is on a project detail page with runs
     await projectDetailPage.goto(SEED_PROJECT_ID);
     await expect(projectDetailPage.projectNameTitle).toBeVisible();
-    await expect(projectDetailPage.runRows).toHaveCount(3); // Should have 3 seed runs
+    await expect(projectDetailPage.runRows).toHaveCount(5); // Should have 5 seed runs
 
     // When: User clicks on a run from the run list
     await projectDetailPage.clickRun(SEED_RUN_ID_COMPLETED);

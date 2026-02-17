@@ -14,7 +14,7 @@
 - [x] drill-down-panel.spec.ts (✅ All 6 tests passed)
 - [x] filtering.spec.ts (✅ All 10 tests passed)
 - [x] metrics-breakdown.spec.ts (✅ All 2 tests passed)
-- [ ] navigation-routing.spec.ts
+- [x] navigation-routing.spec.ts (✅ All 11 tests passed)
 - [ ] regression-report-advanced.spec.ts
 - [ ] regression-report-display.spec.ts
 - [ ] regression-report-edge-cases.spec.ts

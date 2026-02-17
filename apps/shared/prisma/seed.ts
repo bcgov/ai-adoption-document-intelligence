@@ -639,6 +639,7 @@ async function seedBenchmarkingData() {
   });
 
   // Create completed run with drill-down data
+  // Per-sample results are flattened: one entry per sample-metric combination
   const perSampleResults = [];
   const docTypes = ["invoice", "form", "receipt", "contract"];
   const languages = ["en", "fr", "es"];
@@ -649,22 +650,32 @@ async function seedBenchmarkingData() {
     const language = languages[Math.floor(i / docTypes.length) % languages.length];
     const source = sources[Math.floor(i / (docTypes.length * languages.length)) % sources.length];
     const pageCount = Math.floor(Math.random() * 10) + 1;
+    const sampleId = `sample-${String(i + 1).padStart(3, "0")}`;
 
-    perSampleResults.push({
-      sampleId: `sample-${String(i + 1).padStart(3, "0")}`,
-      metadata: {
-        docType,
-        language,
-        source,
-        pageCount,
-        customField: `custom-${i % 3}`,
-      },
-      metrics: {
-        field_accuracy: 0.75 + Math.random() * 0.25,
-        character_accuracy: 0.85 + Math.random() * 0.15,
-        word_accuracy: 0.80 + Math.random() * 0.20,
-      },
-    });
+    const metadata = {
+      docType,
+      language,
+      source,
+      pageCount,
+      customField: `custom-${i % 3}`,
+    };
+
+    // Create one entry per metric for this sample
+    const metrics = {
+      field_accuracy: 0.75 + Math.random() * 0.25,
+      character_accuracy: 0.85 + Math.random() * 0.15,
+      word_accuracy: 0.80 + Math.random() * 0.20,
+    };
+
+    // Flatten into separate entries per metric
+    for (const [metricName, metricValue] of Object.entries(metrics)) {
+      perSampleResults.push({
+        sampleId,
+        metricName,
+        metricValue,
+        metadata,
+      });
+    }
   }
 
   await prisma.benchmarkRun.upsert({
