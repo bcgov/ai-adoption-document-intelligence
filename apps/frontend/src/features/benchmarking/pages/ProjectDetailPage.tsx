@@ -275,14 +275,16 @@ export function ProjectDetailPage() {
                   Please select no more than 5 runs
                 </Text>
               )}
-              <Button
-                leftSection={<IconGitCompare size={16} />}
-                onClick={handleCompare}
-                disabled={selectedRunIds.length < 2 || selectedRunIds.length > 5}
-                data-testid="compare-runs-btn"
-              >
-                Compare ({selectedRunIds.length})
-              </Button>
+              {selectedRunIds.length >= 2 && (
+                <Button
+                  leftSection={<IconGitCompare size={16} />}
+                  onClick={handleCompare}
+                  disabled={selectedRunIds.length > 5}
+                  data-testid="compare-runs-btn"
+                >
+                  Compare ({selectedRunIds.length})
+                </Button>
+              )}
             </Group>
           </Group>
 

@@ -33,7 +33,7 @@
 - [x] run-comparison-multiple-baseline.spec.ts (✅ All 11 tests passed)
 - [x] run-comparison-navigation.spec.ts (✅ All 10 tests passed)
 - [x] run-comparison-params-tags.spec.ts (✅ All 10 tests passed)
-- [ ] run-comparison-selection.spec.ts
+- [x] run-comparison-selection.spec.ts (✅ All 5 tests passed)
 - [ ] run-management.spec.ts
 - [ ] split-create.spec.ts
 - [ ] split-edge-cases.spec.ts
