@@ -141,6 +141,10 @@ export class CreateDefinitionFormDialog {
   }
 
   async clickCreate() {
+    await this.createBtn.click();
+  }
+
+  async clickCreateAndWaitForSubmit() {
     const createRequestPromise = this.page.waitForResponse(
       response => response.url().includes('/definitions') && response.request().method() === 'POST',
       { timeout: 10000 }

@@ -47,8 +47,11 @@ export function CreateDefinitionDialog({
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState("");
   const [datasetVersionId, setDatasetVersionId] = useState("");
+  const [datasetVersionError, setDatasetVersionError] = useState("");
   const [splitId, setSplitId] = useState("");
+  const [splitError, setSplitError] = useState("");
   const [workflowId, setWorkflowId] = useState("");
+  const [workflowError, setWorkflowError] = useState("");
   const [evaluatorType, setEvaluatorType] = useState("schema-aware");
   const [evaluatorConfigJson, setEvaluatorConfigJson] = useState("");
   const [evaluatorConfigError, setEvaluatorConfigError] = useState("");
@@ -65,7 +68,9 @@ export function CreateDefinitionDialog({
 
   const handleVersionChange = (versionId: string | null) => {
     setDatasetVersionId(versionId || "");
+    setDatasetVersionError("");
     setSplitId("");
+    setSplitError("");
 
     if (versionId) {
       const version = versions.find((v) => v.id === versionId);
@@ -80,19 +85,45 @@ export function CreateDefinitionDialog({
   };
 
   const handleSubmit = () => {
+    let hasError = false;
+
+    // Validate name
     if (!name.trim()) {
       setNameError("Name is required");
-      return;
+      hasError = true;
     }
 
+    // Validate dataset version
+    if (!datasetVersionId) {
+      setDatasetVersionError("Dataset version is required");
+      hasError = true;
+    }
+
+    // Validate split
+    if (!splitId) {
+      setSplitError("Split is required");
+      hasError = true;
+    }
+
+    // Validate workflow
+    if (!workflowId) {
+      setWorkflowError("Workflow is required");
+      hasError = true;
+    }
+
+    // Validate evaluator config JSON
     let evaluatorConfig: Record<string, unknown> = {};
     if (evaluatorConfigJson.trim()) {
       try {
         evaluatorConfig = JSON.parse(evaluatorConfigJson);
       } catch {
         setEvaluatorConfigError("Invalid JSON");
-        return;
+        hasError = true;
       }
+    }
+
+    if (hasError) {
+      return;
     }
 
     const runtimeSettings: Record<string, unknown> = {
@@ -124,8 +155,11 @@ export function CreateDefinitionDialog({
     setName("");
     setNameError("");
     setDatasetVersionId("");
+    setDatasetVersionError("");
     setSplitId("");
+    setSplitError("");
     setWorkflowId("");
+    setWorkflowError("");
     setEvaluatorType("schema-aware");
     setEvaluatorConfigJson("");
     setEvaluatorConfigError("");
@@ -188,6 +222,7 @@ export function CreateDefinitionDialog({
           disabled={isLoadingVersions}
           searchable
           required
+          error={datasetVersionError}
           data-testid="dataset-version-select"
         />
 
@@ -196,9 +231,13 @@ export function CreateDefinitionDialog({
           placeholder="Select split"
           data={splitOptions}
           value={splitId}
-          onChange={(value) => setSplitId(value || "")}
+          onChange={(value) => {
+            setSplitId(value || "");
+            setSplitError("");
+          }}
           disabled={!datasetVersionId || splits.length === 0}
           required
+          error={splitError}
           data-testid="split-select"
         />
 
@@ -207,10 +246,14 @@ export function CreateDefinitionDialog({
           placeholder="Select workflow"
           data={workflowOptions}
           value={workflowId}
-          onChange={(value) => setWorkflowId(value || "")}
+          onChange={(value) => {
+            setWorkflowId(value || "");
+            setWorkflowError("");
+          }}
           disabled={isLoadingWorkflows}
           searchable
           required
+          error={workflowError}
           data-testid="workflow-select"
         />
 

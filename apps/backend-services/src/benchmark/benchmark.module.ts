@@ -1,5 +1,5 @@
 import { HttpModule } from "@nestjs/axios";
-import { Module } from "@nestjs/common";
+import { Module, OnModuleInit } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
 import { AuditLogService } from "./audit-log.service";
@@ -16,6 +16,9 @@ import { DatasetService } from "./dataset.service";
 import { DvcService } from "./dvc.service";
 import { EvaluatorRegistryService } from "./evaluator-registry.service";
 import { MLflowClientService } from "./mlflow-client.service";
+import { FieldAccuracyEvaluator } from "./evaluators/field-accuracy.evaluator";
+import { SchemaAwareEvaluator } from "./evaluators/schema-aware.evaluator";
+import { BlackBoxEvaluator } from "./evaluators/black-box.evaluator";
 
 @Module({
   imports: [ConfigModule, HttpModule, BlobStorageModule],
@@ -36,6 +39,9 @@ import { MLflowClientService } from "./mlflow-client.service";
     EvaluatorRegistryService,
     BenchmarkArtifactService,
     AuditLogService,
+    FieldAccuracyEvaluator,
+    SchemaAwareEvaluator,
+    BlackBoxEvaluator,
   ],
   exports: [
     DatasetService,
@@ -50,4 +56,18 @@ import { MLflowClientService } from "./mlflow-client.service";
     AuditLogService,
   ],
 })
-export class BenchmarkModule {}
+export class BenchmarkModule implements OnModuleInit {
+  constructor(
+    private readonly evaluatorRegistry: EvaluatorRegistryService,
+    private readonly fieldAccuracyEvaluator: FieldAccuracyEvaluator,
+    private readonly schemaAwareEvaluator: SchemaAwareEvaluator,
+    private readonly blackBoxEvaluator: BlackBoxEvaluator,
+  ) {}
+
+  onModuleInit() {
+    // Register evaluators on module initialization
+    this.evaluatorRegistry.register(this.fieldAccuracyEvaluator);
+    this.evaluatorRegistry.register(this.schemaAwareEvaluator);
+    this.evaluatorRegistry.register(this.blackBoxEvaluator);
+  }
+}
