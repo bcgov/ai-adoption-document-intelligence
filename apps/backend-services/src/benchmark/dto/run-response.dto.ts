@@ -70,6 +70,11 @@ export class RunSummaryDto {
    * Whether this is the baseline run
    */
   isBaseline?: boolean;
+
+  /**
+   * Run tags (e.g., version, environment)
+   */
+  tags?: Record<string, unknown>;
 }
 
 /**

@@ -14,6 +14,7 @@ interface RunSummary {
   hasRegression?: boolean;
   regressedMetricCount?: number;
   isBaseline?: boolean;
+  tags?: Record<string, unknown>;
 }
 
 interface MetricThreshold {

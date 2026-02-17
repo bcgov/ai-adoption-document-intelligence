@@ -46,19 +46,12 @@ test.describe('Regression Report - Run List Integration', () => {
 
     // Then: Runs with regressions show warning icon ⚠️
     // Find the regressed run row
-    const regressedRunRow = page.locator(`[data-testid*="${SEED_RUN_ID_REGRESSED}"]`).or(
-      projectDetailPage.runsTable.locator('tr').filter({ hasText: 'v2.0-experimental' })
-    );
+    const regressedRunRow = page.locator(`[data-testid="run-row-${SEED_RUN_ID_REGRESSED}"]`);
 
-    // Icon indicates regressed state
-    // Could be status badge, warning icon, or regression count badge
-    // Implementation may vary, so check for common indicators
-    const hasWarningIcon = await regressedRunRow.getByText('⚠️').isVisible().catch(() => false);
-    const hasRegressionBadge = await regressedRunRow.getByText(/regression/i).isVisible().catch(() => false);
-    const hasFailedBadge = await regressedRunRow.getByText(/failed/i).isVisible().catch(() => false);
-
-    // At least one indicator should be present
-    expect(hasWarningIcon || hasRegressionBadge || hasFailedBadge).toBe(true);
+    // Regression indicator badge should be present
+    const regressionIndicator = regressedRunRow.locator('[data-testid="regression-indicator"]');
+    await expect(regressionIndicator).toBeVisible();
+    await expect(regressionIndicator).toContainText(/regressed/i);
   });
 
   // REQ US-037 Scenario 10: Regression Count Display
@@ -71,7 +64,7 @@ test.describe('Regression Report - Run List Integration', () => {
     await expect(projectDetailPage.runsTable).toBeVisible();
 
     // Then: Icon includes count of regressed metrics (e.g., "⚠️ 3")
-    const regressedRunRow = page.locator(`tr:has-text("${SEED_RUN_ID_REGRESSED}")`);
+    const regressedRunRow = page.locator(`[data-testid="run-row-${SEED_RUN_ID_REGRESSED}"]`);
     await expect(regressedRunRow).toContainText(/⚠️\s*3|3\s*regressed/i);
   });
 
@@ -83,7 +76,9 @@ test.describe('Regression Report - Run List Integration', () => {
 
     // When: Run list is rendered
     // Then: Severity is indicated by color (orange for warning, red for critical)
-    const regressedRunRow = page.locator(`tr:has-text("${SEED_RUN_ID_REGRESSED}")`);
+    const regressedRunRow = page.locator(`[data-testid*="${SEED_RUN_ID_REGRESSED}"]`).or(
+      projectDetailPage.runsTable.locator('tr').filter({ hasText: 'v2.0-experimental' })
+    );
 
     // Check for color indicators (implementation dependent)
     const badge = regressedRunRow.locator('[class*="Badge"]').first();
@@ -101,7 +96,10 @@ test.describe('Regression Report - Run List Integration', () => {
     await expect(projectDetailPage.runsTable).toBeVisible();
 
     // When: User clicks the regression icon/indicator
-    const regressionIndicator = page.locator(`tr:has-text("${SEED_RUN_ID_REGRESSED}") [data-testid="regression-indicator"]`);
+    const regressedRunRow = page.locator(`[data-testid*="${SEED_RUN_ID_REGRESSED}"]`).or(
+      projectDetailPage.runsTable.locator('tr').filter({ hasText: 'v2.0-experimental' })
+    );
+    const regressionIndicator = regressedRunRow.locator('[data-testid="regression-indicator"]');
     await regressionIndicator.click();
 
     // Then: Navigates to regression report page
@@ -150,11 +148,11 @@ test.describe('Regression Report - Run List Integration', () => {
     const runCount = await allRunRows.count();
     expect(runCount).toBeGreaterThan(0);
 
-    // Each run should have identifiable status
+    // Each run should have identifiable status badge
     for (let i = 0; i < runCount; i++) {
       const row = allRunRows.nth(i);
-      const hasStatus = await row.locator('[class*="Badge"]').isVisible().catch(() => false);
-      expect(hasStatus).toBe(true);
+      const statusBadge = row.locator('[class*="Badge"]').first();
+      await expect(statusBadge).toBeVisible();
     }
   });
 
@@ -164,12 +162,11 @@ test.describe('Regression Report - Run List Integration', () => {
     await projectDetailPage.goto(SEED_PROJECT_ID);
 
     // When: User clicks on a run with regressions
-    const regressedRunRow = page.locator(`[data-testid*="${SEED_RUN_ID_REGRESSED}"]`).or(
-      projectDetailPage.runsTable.locator('tr').filter({ hasText: 'v2.0-experimental' })
-    );
+    const regressedRunRow = page.locator(`[data-testid="run-row-${SEED_RUN_ID_REGRESSED}"]`);
 
-    // Click on the run row or run ID to navigate to run detail
-    await regressedRunRow.locator('a').first().click();
+    // Click on the status cell to navigate to run detail (cells are clickable via onClick)
+    const statusCell = regressedRunRow.locator('td').nth(1); // Second cell (status column)
+    await statusCell.click();
     await page.waitForLoadState('networkidle');
 
     // Then: From run detail, user can access regression report

@@ -302,6 +302,7 @@ export function ProjectDetailPage() {
                 <Table.Tr>
                   <Table.Th>Select</Table.Th>
                   <Table.Th>Status</Table.Th>
+                  <Table.Th>Run ID / Version</Table.Th>
                   <Table.Th>Definition</Table.Th>
                   <Table.Th>Started</Table.Th>
                   <Table.Th>Duration</Table.Th>
@@ -343,11 +344,31 @@ export function ProjectDetailPage() {
                           <Badge
                             color="red"
                             leftSection={<IconAlertTriangle size={12} />}
+                            style={{ cursor: "pointer" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(
+                                `/benchmarking/projects/${projectId}/runs/${run.id}/regression`,
+                              );
+                            }}
+                            data-testid="regression-indicator"
                           >
                             {run.regressedMetricCount} regressed
                           </Badge>
                         )}
                       </Group>
+                    </Table.Td>
+                    <Table.Td
+                      style={{ cursor: "pointer" }}
+                      onClick={() =>
+                        navigate(
+                          `/benchmarking/projects/${projectId}/runs/${run.id}`,
+                        )
+                      }
+                    >
+                      {run.tags && typeof run.tags === 'object' && 'version' in run.tags
+                        ? run.tags.version
+                        : run.id.substring(0, 8)}
                     </Table.Td>
                     <Table.Td
                       style={{ cursor: "pointer" }}

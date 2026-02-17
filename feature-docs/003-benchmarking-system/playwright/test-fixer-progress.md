@@ -19,7 +19,7 @@
 - [x] regression-report-display.spec.ts (✅ All 9 tests passed)
 - [x] regression-report-edge-cases.spec.ts (✅ All 10 tests passed)
 - [x] regression-report-exports.spec.ts (✅ 7 tests passed, 1 skipped - PDF export not implemented)
-- [ ] regression-report-run-list.spec.ts
+- [x] regression-report-run-list.spec.ts (✅ All 8 tests passed)
 - [ ] regression-report-trends.spec.ts
 - [ ] results-artifacts.spec.ts
 - [ ] results-drill-down.spec.ts
