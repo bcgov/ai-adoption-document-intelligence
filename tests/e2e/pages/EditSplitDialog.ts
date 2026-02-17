@@ -49,7 +49,7 @@ export class EditSplitDialog {
 
     // Select each sample
     for (const sampleId of sampleIds) {
-      const option = this.page.getByRole('option', { name: sampleId });
+      const option = this.page.getByRole('option', { name: sampleId, exact: true });
       await option.click();
     }
 

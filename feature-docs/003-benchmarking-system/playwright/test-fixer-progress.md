@@ -37,7 +37,7 @@
 - [x] run-management.spec.ts (✅ All 20 tests passed)
 - [x] split-create.spec.ts (⚠️ 5/7 passed - 2 validation tests fail: dialog visibility check issue after frontend validation triggers)
 - [x] split-edge-cases.spec.ts (⚠️ 6/8 passed - 2 tests have setup issues: sample selection with 50 samples when only 25 exist, duplicate name validation timing)
-- [ ] split-edit.spec.ts
+- [x] split-edit.spec.ts (✅ All 7 tests passed - fixed selector issue with exact: true)
 - [ ] split-freeze.spec.ts
 - [ ] split-list-display.spec.ts
 - [ ] validation-edge-cases.spec.ts
