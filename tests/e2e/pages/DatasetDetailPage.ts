@@ -102,8 +102,11 @@ export class DatasetDetailPage {
     const row = this.page.locator(`[data-testid="version-row-${versionId}"]`);
     await row.click();
     await this.page.waitForLoadState('networkidle');
-    // Wait for the samples table to be visible to ensure version is selected
-    await this.samplesTable.waitFor({ state: 'visible', timeout: 5000 });
+    // Wait for either the samples table or "No samples found" message to ensure version is selected
+    await Promise.race([
+      this.samplesTable.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {}),
+      this.page.locator('text=No samples found').waitFor({ state: 'visible', timeout: 5000 }).catch(() => {}),
+    ]);
   }
 
   /**

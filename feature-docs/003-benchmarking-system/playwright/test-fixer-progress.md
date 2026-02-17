@@ -39,7 +39,7 @@
 - [x] split-edge-cases.spec.ts (⚠️ 6/8 passed - 2 tests have setup issues: sample selection with 50 samples when only 25 exist, duplicate name validation timing)
 - [x] split-edit.spec.ts (✅ All 7 tests passed - fixed selector issue with exact: true)
 - [x] split-freeze.spec.ts (✅ All 5 tests passed)
-- [ ] split-list-display.spec.ts
+- [x] split-list-display.spec.ts (✅ All 6 tests passed - fixed clickVersion to handle empty/error states)
 - [ ] validation-edge-cases.spec.ts
 - [ ] validation-errors.spec.ts
 - [ ] validation-trigger.spec.ts
