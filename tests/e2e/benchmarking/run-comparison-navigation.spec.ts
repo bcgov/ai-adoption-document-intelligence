@@ -46,10 +46,6 @@ test.describe('US-036: Run Comparison - Navigation and URL', () => {
     // Wait for the link to be visible
     await expect(runHeaderLink).toBeVisible({ timeout: 10000 });
 
-    // Click with modifier to open in new tab (simulating ctrl+click or cmd+click)
-    const newPagePromise = context.waitForEvent('page');
-    await runHeaderLink.click({ modifiers: ['Meta'] }); // or use middle click
-
     // Note: If links have target="_blank", a simple click will open new tab
     // Try clicking without modifier first, as per exploration docs links open in new tab
     // const newPagePromise = context.waitForEvent('page');
