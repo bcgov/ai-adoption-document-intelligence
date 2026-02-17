@@ -245,10 +245,26 @@ export function RegressionReportPage() {
   if (!run.baselineComparison) {
     return (
       <Center h={400}>
-        <Stack align="center" gap="xs">
-          <Text c="dimmed">
+        <Stack align="center" gap="md">
+          <Text c="dimmed" data-testid="no-baseline-message">
             No baseline comparison data available for this run
           </Text>
+          <Stack align="center" gap="xs">
+            <Text size="sm">
+              Promote this run to baseline or select a baseline run to enable regression reports.
+            </Text>
+            <Button
+              component="a"
+              href={`/benchmarking/projects/${projectId}/runs`}
+              variant="light"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(`/benchmarking/projects/${projectId}/runs`);
+              }}
+            >
+              Baseline Management
+            </Button>
+          </Stack>
           <Button
             onClick={() =>
               navigate(`/benchmarking/projects/${projectId}/runs/${runId}`)
