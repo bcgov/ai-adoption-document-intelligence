@@ -6,7 +6,7 @@ allowed-tools: [Bash, Read, Glob, Grep, Edit, Write, mcp__playwright__*]
 
 # Test Fixer - Progressive Test Runner & Fixer
 
-Run Playwright tests one at a time from a specified folder, track progress, and fix failures automatically until all tests pass. Only run one test file. Do not automatically proceed to the next test file (user will resume the next step manually on their own). Commit all changes after each test file is completed with `--no-verify` flag.
+Run Playwright tests one at a time from a specified folder, track progress, and fix failures automatically until all tests pass. Only run one test file. Do not automatically proceed to the next test file (user will resume the next step manually on their own). Commit all changes after each test file is completed with `--no-verify` flag. Run only `git add .` and `git commit` commands for git operations. Do not run any other git commands.
 
 **Purpose**: Fix BOTH test code and implementation code to make tests pass while adhering to requirements.
 
