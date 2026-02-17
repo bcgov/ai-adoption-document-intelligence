@@ -8,7 +8,7 @@
 - [x] baseline-ui-display.spec.ts (✅ All 9 tests passed)
 - [x] dataset-list-create.spec.ts (✅ All 16 tests passed)
 - [x] dataset-version-sample-preview.spec.ts (✅ 11 tests passed, 1 empty stub passing, 7 skipped)
-- [ ] definition-create-validation.spec.ts
+- [x] definition-create-validation.spec.ts (✅ 3 passed, 1 skipped - API error test needs rewrite)
 - [ ] definition-form-display.spec.ts
 - [ ] definition-list-detail.spec.ts
 - [ ] drill-down-panel.spec.ts
