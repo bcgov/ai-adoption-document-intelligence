@@ -2,49 +2,51 @@
 # Test Fixer Mode Configuration
 
 MODE_NAME="test-fixer"
+PRD_FILE="$STATE_DIR/prd.json"
 TEST_FOLDER=""
 FEATURE_DIR=""
 PROGRESS_FILE=""
 
 mode_validate_args() {
-  if [[ ${#MODE_ARGS[@]} -lt 2 ]]; then
-    echo "Error: test-fixer mode requires 2 arguments: <test_folder> <feature_dir>"
-    echo "Usage: ralph.sh --mode test-fixer benchmarking feature-docs/003-benchmarking-system/"
+  if [[ ! -f "$PRD_FILE" ]]; then
+    echo "Error: prd.json not found at $PRD_FILE"
     echo ""
-    echo "Or generate progress file first:"
+    echo "Generate it with:"
+    echo "  1. node scripts/ralph/generate-test-progress.js <test_folder> <feature_dir>"
+    echo "  2. node scripts/ralph/convert-tests-to-progress.js <test_folder> <feature_dir>"
+    echo ""
+    echo "Example:"
+    echo "  node scripts/ralph/generate-test-progress.js benchmarking feature-docs/003-benchmarking-system/"
     echo "  node scripts/ralph/convert-tests-to-progress.js benchmarking feature-docs/003-benchmarking-system/"
     exit 1
   fi
 
-  TEST_FOLDER="${MODE_ARGS[0]}"
-  FEATURE_DIR="${MODE_ARGS[1]}"
-  PROGRESS_FILE="$FEATURE_DIR/playwright/test-fixer-progress.md"
-
-  local test_dir="tests/e2e/$TEST_FOLDER"
-  if [[ ! -d "$test_dir" ]]; then
-    echo "Error: Test directory not found: $test_dir"
+  # Verify it's a test-fixer mode prd.json
+  local mode_type
+  mode_type=$(jq -r '.mode // empty' "$PRD_FILE" 2>/dev/null || echo "")
+  if [[ "$mode_type" != "test-fixer" ]]; then
+    echo "Error: prd.json is not for test-fixer mode (mode='$mode_type')"
+    echo "Convert test progress with:"
+    echo "  node scripts/ralph/convert-tests-to-progress.js <test_folder> <feature_dir>"
     exit 1
   fi
 
-  if [[ ! -d "$FEATURE_DIR" ]]; then
-    echo "Error: Feature directory not found: $FEATURE_DIR"
-    exit 1
-  fi
+  # Extract configuration from prd.json
+  TEST_FOLDER=$(jq -r '.testFolder // empty' "$PRD_FILE")
+  FEATURE_DIR=$(jq -r '.featureDir // empty' "$PRD_FILE")
+  PROGRESS_FILE=$(jq -r '.progressFile // empty' "$PRD_FILE")
 
   # Export for use in prompts
   export TEST_FOLDER
   export FEATURE_DIR
   export PROGRESS_FILE
+  export PRD_FILE
 }
 
 mode_init() {
-  # Progress file should be created by convert-tests-to-progress.js
-  # If it doesn't exist, suggest running that script
-  if [[ ! -f "$PROGRESS_FILE" ]]; then
-    echo "Error: Progress file not found: $PROGRESS_FILE"
-    echo "Run: node scripts/ralph/convert-tests-to-progress.js $TEST_FOLDER $FEATURE_DIR"
-    exit 1
-  fi
+  # prd.json already exists and was validated
+  # No additional initialization needed
+  :
 }
 
 mode_get_prompt_file() {
@@ -56,20 +58,20 @@ mode_get_prompt_file() {
 }
 
 mode_is_complete() {
-  # Check if all tests are checked off
-  local unchecked_count
-  unchecked_count=$(grep -c "^- \[ \]" "$PROGRESS_FILE" 2>/dev/null || echo "0")
-  [[ "$unchecked_count" -eq 0 ]]
+  # Check if all test files have passes: true
+  local incomplete_count
+  incomplete_count=$(jq '[.testFiles[] | select(.passes == false)] | length' "$PRD_FILE")
+  [[ "$incomplete_count" -eq 0 ]]
 }
 
 mode_archive() {
   local archive_folder="$1"
+  [[ -f "$PRD_FILE" ]] && cp "$PRD_FILE" "$archive_folder/"
   [[ -f "$PROGRESS_FILE" ]] && cp "$PROGRESS_FILE" "$archive_folder/"
 }
 
 mode_reset() {
-  # Don't auto-reset test-fixer progress - user should manually clear
-  echo "Warning: test-fixer progress file preserved. Clear manually if needed."
+  echo "Warning: test-fixer prd.json preserved. Re-run convert-tests-to-progress.js if needed."
 }
 
 mode_get_branch_name() {

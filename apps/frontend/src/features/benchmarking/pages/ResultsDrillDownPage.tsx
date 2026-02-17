@@ -27,7 +27,7 @@ import {
   IconFilter,
   IconX,
 } from "@tabler/icons-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useProject } from "../hooks/useProjects";
 import { usePerSampleResults, useRun } from "../hooks/useRuns";
@@ -428,12 +428,12 @@ export default function ResultsDrillDownPage() {
                         )}
                       </Group>
                     </Table.Td>
-                    <Table.Td>
-                      <ActionIcon
-                        variant="subtle"
-                        onClick={() => setSelectedSample(result)}
-                        data-testid={`view-sample-${result.sampleId}`}
-                      >
+                    <Table.Td
+                      onClick={() => setSelectedSample(result)}
+                      data-testid={`view-sample-${result.sampleId}`}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <ActionIcon variant="subtle">
                         <IconChevronRight size={16} />
                       </ActionIcon>
                     </Table.Td>

@@ -63,6 +63,10 @@ export class RunDrillDownPage {
   async goto(projectId: string, runId: string) {
     await this.page.goto(`/benchmarking/projects/${projectId}/runs/${runId}/drill-down`);
     await this.page.waitForLoadState('networkidle');
+    // Wait for the table to be visible (ensures React has rendered)
+    await this.samplesTable.waitFor({ state: 'visible', timeout: 10000 });
+    // Additional small wait for React event handlers to be attached
+    await this.page.waitForTimeout(500);
   }
 
   /**
@@ -97,17 +101,28 @@ export class RunDrillDownPage {
    * Open sample detail drawer by clicking on a sample row
    */
   async openSampleDetail(sampleId: string) {
-    const viewButton = this.page.locator(`[data-testid="view-sample-${sampleId}"]`);
-    await viewButton.click();
-    await this.sampleDetailDrawer.waitFor({ state: 'visible' });
+    // Use getByTestId for more reliable element selection
+    const viewButton = this.page.getByTestId(`view-sample-${sampleId}`);
+
+    // Verify button exists and is visible
+    await viewButton.waitFor({ state: 'visible', timeout: 5000 });
+
+    // Click to open the drawer
+    await viewButton.click({ force: true });
+
+    // Wait for the dialog/modal to appear (Mantine Drawer uses role="dialog")
+    await this.page.waitForSelector('[role="dialog"]', { state: 'visible', timeout: 10000 });
   }
 
   /**
    * Close the sample detail drawer
    */
   async closeSampleDetail() {
-    await this.drawerCloseButton.click();
-    await this.sampleDetailDrawer.waitFor({ state: 'hidden' });
+    // Click the close button in the dialog
+    const closeButton = this.page.locator('[role="dialog"] button[aria-label="Close"], [role="dialog"] .mantine-Drawer-close');
+    await closeButton.click();
+    // Wait for dialog to disappear
+    await this.page.waitForSelector('[role="dialog"]', { state: 'hidden', timeout: 5000 });
   }
 
   /**

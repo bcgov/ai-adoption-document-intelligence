@@ -1,20 +1,35 @@
-# Ralph - Autonomous User Story Implementation
+# Ralph - Multi-Mode Autonomous Agent Loop
 
-Ralph is an autonomous agent loop that implements user stories one-by-one, running tests, committing changes, and tracking progress until all stories are complete.
+Ralph is a flexible autonomous agent framework that supports multiple modes of operation. It runs in iterations, automatically handling tasks until completion.
 
-## Overview
+## Available Modes
 
-Ralph runs in iterations. Each iteration:
-1. Reads `prd.json` to find the next unimplemented story
+### 1. User Story Mode (Default)
+Implements user stories one-by-one from a `prd.json` file, running tests, committing changes, and tracking progress.
+
+### 2. Test Fixer Mode
+Runs Playwright tests one file at a time, fixing failures in both tests AND implementation code by consulting requirements.
+
+## How Ralph Works
+
+Ralph runs in iterations. Each iteration delegates to a mode-specific workflow:
+
+**User Story Mode**:
+1. Reads `state/prd.json` to find the next unimplemented story
 2. Implements that story following acceptance criteria
 3. Runs typechecking and tests
-4. Commits if checks pass (on your current branch)
-5. Updates `prd.json` and `progress.txt`
+4. Commits if checks pass
+5. Updates `state/prd.json` and `state/progress.txt`
 6. Continues to next story
 
-**Important**: Ralph works on whatever branch you're currently on. It does NOT create or switch branches. The `branchName` field in prd.json is for reference only.
+**Test Fixer Mode**:
+1. Reads `{feature-dir}/playwright/test-fixer-progress.md` to find next unchecked test
+2. Runs that ONE test file
+3. If it fails: reads requirements, fixes implementation OR test code
+4. If it passes: marks as complete and commits
+5. Continues to next test file
 
-When all stories have `passes: true`, Ralph outputs `<promise>COMPLETE</promise>` and exits.
+When all tasks are complete, Ralph outputs `<promise>COMPLETE</promise>` and exits.
 
 ## Prerequisites
 
@@ -52,114 +67,187 @@ If you're in WSL under org policy, check `/etc/claude-code/managed-settings.json
 
 ## Setup
 
-### Step 1: Create User Stories
+Choose the setup for your mode:
 
-Use the write-user-stories skill to create user stories from requirements:
+### User Story Mode Setup
+
+**Step 1: Create User Stories**
+
+Use the write-user-stories skill:
 
 ```bash
-# In Claude Code
 /write-user-stories
 ```
 
-This creates a `user_stories/` directory with:
-- Individual story files: `US-001-description.md`, `US-002-description.md`, etc.
-- A `README.md` with checkboxes for tracking
+This creates a `user_stories/` directory with individual story files and a README.md.
 
-### Step 2: Convert Stories to Ralph Format
+**Step 2: Convert to Ralph Format**
 
 ```bash
 node scripts/ralph/convert-stories-to-prd.js <path_to_user_stories> [branch_name]
 ```
 
-**Examples**:
+Example:
 ```bash
-# Basic usage (uses default branch name)
-node scripts/ralph/convert-stories-to-prd.js feature-docs/benchmarking/user_stories
-
-# Specify custom branch name
-node scripts/ralph/convert-stories-to-prd.js feature-docs/benchmarking/user_stories ralph/benchmarking-v2
+node scripts/ralph/convert-stories-to-prd.js feature-docs/benchmarking/user_stories ralph/benchmarking
 ```
 
-This creates `scripts/ralph/prd.json` with:
-- All user stories sorted by ID
-- Priority levels from story files
-- Acceptance criteria extracted
-- All stories marked as `passes: false`
-- Branch name for Ralph to work on
+This creates `scripts/ralph/state/prd.json` with all user stories sorted by ID.
 
-### Step 3: Review prd.json
-
-Check the generated file:
+**Step 3: Review prd.json**
 
 ```bash
-cat scripts/ralph/prd.json | jq '.userStories[] | {id, title, priority, passes}'
+cat scripts/ralph/state/prd.json | jq '.userStories[] | {id, title, priority, passes}'
 ```
 
-Optionally edit priorities or acceptance criteria manually.
+### Test Fixer Mode Setup
+
+**Step 1: Generate Test Progress Markdown**
+
+```bash
+node scripts/ralph/generate-test-progress.js <test_folder> <feature_dir>
+```
+
+Example:
+```bash
+node scripts/ralph/generate-test-progress.js benchmarking feature-docs/003-benchmarking-system/
+```
+
+This scans the test directory and creates `{feature-dir}/playwright/test-fixer-progress.md`.
+
+**Step 2: Convert to Ralph Format**
+
+```bash
+node scripts/ralph/convert-tests-to-progress.js <test_folder> <feature_dir>
+```
+
+Example:
+```bash
+node scripts/ralph/convert-tests-to-progress.js benchmarking feature-docs/003-benchmarking-system/
+```
+
+This reads the markdown and creates `scripts/ralph/state/prd.json`.
+
+**Step 3: Verify prd.json**
+
+```bash
+cat scripts/ralph/state/prd.json | jq '.testFiles[] | {id, passes}'
+```
 
 ## Running Ralph
 
-### Basic Usage
-
-Run up to 25 iterations:
+### User Story Mode (Default)
 
 ```bash
-# Default: Uses amp tool
+# Default mode (backward compatible)
 ./scripts/ralph/ralph.sh 25
 
-# Use Claude Code
-./scripts/ralph/ralph.sh --tool claude 25
+# Explicit mode with Claude tool
+./scripts/ralph/ralph.sh --mode user-story --tool claude 25
 
-# Or use explicit tool flag
-./scripts/ralph/ralph.sh --tool=amp 25
+# With amp tool (default)
+./scripts/ralph/ralph.sh --mode user-story --tool amp 10
 ```
+
+Ralph will:
+- Read `state/prd.json` to find next story
+- Implement stories in dependency order
+- Run tests and typecheck after each story
+- Commit with `--no-verify`
+- Update `state/prd.json`, `state/progress.txt`, and user-stories README.md
+- Stop when all stories have `passes: true`
+
+### Test Fixer Mode
+
+```bash
+# Full form
+./scripts/ralph/ralph.sh --mode test-fixer --tool claude 25
+
+# Shorter (defaults to amp tool)
+./scripts/ralph/ralph.sh --mode test-fixer --tool amp 10
+```
+
+Ralph will:
+- Read `state/prd.json` to find next test with `passes: false`
+- Run ONE test file per iteration
+- Fix implementation OR test code based on requirements
+- Update prd.json (`passes: true`) and markdown when test passes
+- Commit with `--no-verify`
+- Stop when all tests have `passes: true`
 
 **Tools available:**
 - **`amp`** (default): Uses amp tool with `--dangerously-allow-all`
 - **`claude`**: Uses Claude Code (model configured via settings.json)
 
-Ralph will:
-- Work on your current branch (does NOT switch branches)
-- Implement stories in dependency order (from README)
-- Run tests and typecheck after each story
-- Commit successful implementations with `--no-verify`
-- Update tracking files (prd.json, progress.txt, and user-stories README.md)
-- Mark completed stories with `[x]` in the user-stories README.md
-- Stop when all stories pass or max iterations reached
-
 ### Monitoring Progress
 
-**Check story status**:
+**User Story Mode**:
 ```bash
-cat scripts/ralph/prd.json | jq '.userStories[] | {id, title, passes}'
+# Check story status
+cat scripts/ralph/state/prd.json | jq '.userStories[] | {id, title, passes}'
+
+# View recent learnings
+tail -n 50 scripts/ralph/state/progress.txt
+
+# Watch in real-time
+watch -n 2 'cat scripts/ralph/state/prd.json | jq ".userStories[] | {id, title, passes}"'
 ```
 
-**View recent learnings**:
+**Test Fixer Mode**:
 ```bash
-tail -n 50 scripts/ralph/progress.txt
+# Check prd.json status
+cat scripts/ralph/state/prd.json | jq '.testFiles[] | {id, passes}'
+
+# Count remaining tests
+jq '[.testFiles[] | select(.passes == false)] | length' scripts/ralph/state/prd.json
+
+# Check progress markdown (human-readable)
+cat feature-docs/003-benchmarking-system/playwright/test-fixer-progress.md
 ```
 
-**See commits**:
+**Both Modes**:
 ```bash
+# See commits
 git log --oneline -10
-```
-
-**Watch in real-time** (in another terminal):
-```bash
-watch -n 2 'cat scripts/ralph/prd.json | jq ".userStories[] | {id, title, passes}"'
 ```
 
 ## File Structure
 
 ```
 scripts/ralph/
-├── README.md                      # This file
-├── ralph.sh                       # Main loop script
-├── prompt.md                      # Instructions for Claude each iteration
-├── prd.json                       # Generated from user stories (DO NOT EDIT MANUALLY during run)
-├── prd.json.template              # Template showing format
-├── progress.txt                   # Iteration-to-iteration memory
-└── convert-stories-to-prd.js      # Conversion tool
+├── README.md                      # Main documentation
+├── ralph.sh                       # Mode-agnostic main loop
+├── convert-stories-to-prd.js      # User story converter
+├── convert-tests-to-progress.js   # Test progress generator
+├── check-setup.sh                 # Setup checker
+├── status.sh                      # Status viewer
+│
+├── modes/                         # Mode definitions
+│   ├── user-story/                # User Story Mode
+│   │   ├── config.sh              # Mode configuration
+│   │   ├── CLAUDE.md              # Claude tool prompt
+│   │   ├── prompt.md              # Amp tool prompt
+│   │   └── README.md              # Mode docs
+│   │
+│   └── test-fixer/                # Test Fixer Mode
+│       ├── config.sh              # Mode configuration
+│       ├── CLAUDE.md              # Claude tool prompt
+│       ├── prompt.md              # Amp tool prompt
+│       └── README.md              # Mode docs
+│
+├── state/                         # Runtime state (gitignored)
+│   ├── .gitkeep
+│   ├── prd.json                   # User story tracking
+│   ├── progress.txt               # User story progress
+│   └── .last-branch               # Archiving state
+│
+├── lib/                           # Shared libraries
+│   ├── claude-capacity.sh         # Claude capacity checking
+│   ├── archive.sh                 # Archiving logic
+│   └── completion.sh              # Completion detection
+│
+└── archive/                       # Archived runs
+    └── {date}-{branch}/
 ```
 
 ## prd.json Format

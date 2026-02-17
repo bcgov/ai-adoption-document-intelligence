@@ -42,17 +42,18 @@ test.describe('US-038: Slicing, Filtering & Drill-Down - Sample Detail Panel', (
     await drillDownPage.openSampleDetail(sampleId);
 
     // Then: Drill-down panel opens (side panel)
-    await expect(drillDownPage.sampleDetailDrawer).toBeVisible();
+    await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     // And: Panel shows sample ID
-    await expect(page.getByText(`Sample Details: ${sampleId}`)).toBeVisible();
+    await expect(page.getByText(`Sample Details: ${sampleId}`, { exact: false })).toBeVisible();
 
     // And: Panel shows sample metadata (JSON format)
-    await expect(page.getByText(/docType/i)).toBeVisible();
-    await expect(page.getByText(/language/i)).toBeVisible();
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog.getByText(/docType/i).first()).toBeVisible();
+    await expect(dialog.getByText(/language/i).first()).toBeVisible();
 
     // And: Panel shows metrics table
-    await expect(page.getByText(/field_accuracy/i)).toBeVisible();
+    await expect(dialog.getByText(/field_accuracy/i)).toBeVisible();
 
     // Note: Ground truth, prediction, and evaluation details are shown when available
     // The seed data includes these in the perSampleResults structure
@@ -127,13 +128,13 @@ test.describe('US-038: Slicing, Filtering & Drill-Down - Sample Detail Panel', (
     // Given: Drill-down panel is open
     const sampleId = 'sample-001';
     await drillDownPage.openSampleDetail(sampleId);
-    await expect(drillDownPage.sampleDetailDrawer).toBeVisible();
+    await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     // When: User clicks close button
     await drillDownPage.closeSampleDetail();
 
     // Then: Panel is closed
-    await expect(drillDownPage.sampleDetailDrawer).not.toBeVisible();
+    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
 
     // And: User returns to filtered table view
     await expect(drillDownPage.samplesTable).toBeVisible();

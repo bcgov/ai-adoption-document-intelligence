@@ -286,47 +286,8 @@ await page.evaluate(() => {
 3. **Reload page**: Reload so auth context picks up the tokens
 4. **Wait for load**: Wait for networkidle state
 
-When tests fail, progressively add debugging:
-
-### 1. Log Network Requests
-```typescript
-page.on('request', request => {
-  console.log('>>', request.method(), request.url());
-});
-
-page.on('response', response => {
-  console.log('<<', response.status(), response.url());
-});
-```
-
-### 2. Check for API Errors
-```typescript
-page.on('response', response => {
-  if (response.status() >= 400) {
-    console.error('API Error:', response.status(), response.url());
-  }
-});
-```
 
 **On API errors**: Read backend log with `tail -n 50 apps/backend-services/backend.log` to see error stack traces and fix root cause.
 
 ### Other
 - Add console logging code to front end, read it with playwright mcp to see what is going on. Clean up after
-
-## Example Workflow
-
-```bash
-# User invokes skill
-/test-fixer benchmarking feature-docs/003-benchmarking-system/
-
-# Skill execution:
-# 1. Find test files in tests/e2e/benchmarking/
-# 2. Create/read progress tracking file
-# 3. For each test file (in alphabetical order):
-#    a. Mark as in progress
-#    b. Check for .skip() directives - remove if found
-#    c. If missing implementation, implement missing features per requirements
-#    d. Run: npm run test:file tests/e2e/benchmarking/[filename]
-#    e. If fails: analyze, fix, re-run (up to 10 times)
-#    f. Update progress: passed or failed
-```

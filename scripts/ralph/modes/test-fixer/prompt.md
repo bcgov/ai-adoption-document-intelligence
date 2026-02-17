@@ -10,17 +10,18 @@ You are a Test Fixer agent running ONE test file per iteration in Ralph's autono
 
 ## Your Task
 
-1. Read `$PROGRESS_FILE`
-2. Find the FIRST unchecked test (`- [ ]`)
-3. Run that ONE test file: `npm run test:file tests/e2e/$TEST_FOLDER/{filename}`
+1. Read `$PRD_FILE` (scripts/ralph/state/prd.json)
+2. Find the FIRST test with `passes: false`
+3. Run that ONE test file: `npm run test:file {file path from prd.json}`
 4. If it fails:
    - Read `$FEATURE_DIR/REQUIREMENTS.md` and relevant user stories
    - Fix implementation OR test code to match requirements
    - Re-run test (up to 10 attempts)
 5. If it passes:
-   - Mark as complete: `- [x] {filename} (✅ Passed)`
+   - Update prd.json: Set `passes: true` for that test
+   - Update progress markdown: `- [x] {filename} (✅ Passed)`
    - Commit: `git add . && git commit -m "fix: {filename} tests pass\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>" --no-verify`
-6. If ALL tests are checked, output: `<promise>COMPLETE</promise>`
+6. If ALL tests have `passes: true`, output: `<promise>COMPLETE</promise>`
 
 ## Fix Decision Tree
 

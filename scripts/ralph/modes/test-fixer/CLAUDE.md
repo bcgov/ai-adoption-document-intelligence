@@ -12,15 +12,29 @@ You are a Test Fixer agent running ONE test file per iteration in Ralph's autono
 
 ## Workflow
 
-### 1. Read Progress File
+### 1. Read Current State
 
-Read `$PROGRESS_FILE` to see all test files and their status.
+Read `$PRD_FILE` (Ralph's tracking file) to see all test files and their status.
 
-### 2. Find Next Unchecked Test
+The file structure:
+```json
+{
+  "mode": "test-fixer",
+  "testFolder": "benchmarking",
+  "featureDir": "feature-docs/003-benchmarking-system/",
+  "progressFile": "path/to/test-fixer-progress.md",
+  "testFiles": [
+    {"id": "test1.spec.ts", "file": "tests/e2e/.../test1.spec.ts", "passes": false, "notes": ""},
+    {"id": "test2.spec.ts", "file": "tests/e2e/.../test2.spec.ts", "passes": true, "notes": "Test passing"}
+  ]
+}
+```
 
-Find the FIRST `- [ ]` entry (unchecked test file) in the progress file.
+### 2. Find Next Test to Fix
 
-If ALL tests are checked (`- [x]`), output exactly:
+Find the FIRST test file in `testFiles` array where `passes: false`.
+
+If ALL tests have `passes: true`, output exactly:
 ```
 <promise>COMPLETE</promise>
 ```
@@ -138,10 +152,16 @@ Continue fixing and re-running up to 10 attempts per test file.
 
 ### 5. If Test Passes
 
-#### a. Mark as Complete
+#### a. Update Tracking Files
 
-Update the progress file to mark the test as passed:
+**Update prd.json**: Set `passes: true` for the test file:
+```bash
+# Use jq to update the passes field for the specific test
+jq '(.testFiles[] | select(.id == "{filename}") | .passes) = true' $PRD_FILE > /tmp/prd.json && mv /tmp/prd.json $PRD_FILE
+```
 
+**Update progress markdown** (for human readability):
+Update `$PROGRESS_FILE` to mark the test as passed:
 ```markdown
 - [x] {filename} (✅ Passed)
 ```

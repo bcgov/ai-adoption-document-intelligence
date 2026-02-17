@@ -11,7 +11,7 @@
 - [x] definition-create-validation.spec.ts (✅ 3 passed, 1 skipped - API error test needs rewrite)
 - [ ] definition-form-display.spec.ts
 - [ ] definition-list-detail.spec.ts
-- [ ] drill-down-panel.spec.ts (⚠️ BLOCKED - React onClick handlers not firing in Playwright tests - needs investigation)
+- [x] drill-down-panel.spec.ts (✅ All 6 tests passed)
 - [ ] filtering.spec.ts
 - [ ] metrics-breakdown.spec.ts
 - [ ] navigation-routing.spec.ts
