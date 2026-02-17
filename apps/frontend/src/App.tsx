@@ -16,6 +16,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconClipboardCheck,
+  IconFlagQuestion,
   IconFlask,
   IconList,
   IconLogout,
@@ -39,6 +40,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
 import type { Document } from "./shared/types";
+import ClassifierPage from "./pages/ClassifierPage";
 
 type MainView =
   | "upload"
@@ -46,6 +48,7 @@ type MainView =
   | "workflows"
   | "labeling"
   | "review"
+  | "classify"
   | "settings";
 type WorkflowView = "list" | "create" | "edit";
 
@@ -106,6 +109,12 @@ function AppContent(): JSX.Element {
         label: "Workflows",
         description: "Manage workflows",
         icon: IconFlask,
+      },
+      {
+        value: "classify" as MainView,
+        label: "Classify",
+        description: "Build & use classifiers",
+        icon: IconFlagQuestion,
       },
       {
         value: "settings" as MainView,
@@ -323,7 +332,7 @@ function AppContent(): JSX.Element {
                   }}
                 />
               ) : null
-            ) : (
+            ) : activeView == "classify" ? (<ClassifierPage />) : (
               <>
                 <Group justify="space-between">
                   <Stack gap={2}>
