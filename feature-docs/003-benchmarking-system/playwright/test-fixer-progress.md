@@ -26,7 +26,7 @@
 - [x] results-error-states.spec.ts (✅ All 13 tests passed)
 - [x] results-large-datasets.spec.ts (✅ All 8 tests passed)
 - [x] results-metrics.spec.ts (✅ All 6 tests passed)
-- [ ] results-mlflow-links.spec.ts
+- [x] results-mlflow-links.spec.ts (✅ All 8 tests passed)
 - [ ] results-params-tags.spec.ts
 - [ ] run-comparison-export.spec.ts
 - [ ] run-comparison-metrics.spec.ts
