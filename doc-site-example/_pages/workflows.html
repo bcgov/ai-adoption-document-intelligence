@@ -1,0 +1,403 @@
+<!-- TITLE: GitHub Workflows -->
+<!-- NAV: workflows -->
+
+<h1>GitHub Actions Workflows</h1>
+
+<p>This project uses GitHub Actions for automated infrastructure deployments with OIDC authentication to Azure.</p>
+
+<h2>Workflow Overview</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Workflow</th>
+            <th>Trigger</th>
+            <th>Purpose</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>.builds.yml</strong></td>
+            <td>Called by other workflows</td>
+            <td>Reusable container build workflow for azure-proxy images</td>
+        </tr>
+        <tr>
+            <td><strong>.deployer.yml</strong></td>
+            <td>Called by other workflows</td>
+            <td>Reusable Terraform deployment workflow (supports all modules)</td>
+        </tr>
+        <tr>
+            <td><strong>add-or-remove-module.yml</strong></td>
+            <td>Manual (workflow_dispatch)</td>
+            <td>Deploy or destroy infrastructure modules on demand</td>
+        </tr>
+        <tr>
+            <td><strong>pr-open.yml</strong></td>
+            <td>Pull request opened</td>
+            <td>Automated PR checks and validations</td>
+        </tr>
+        <tr>
+            <td><strong>schedule.yml</strong></td>
+            <td>Cron (daily at 5 PM PST)</td>
+            <td>Auto-destroy Bastion for cost savings</td>
+        </tr>
+        <tr>
+            <td><strong>pages.yml</strong></td>
+            <td>Push to main (docs/**)</td>
+            <td>Deploy this documentation site</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+<h2>When Do I Need Self-Hosted Runners?</h2>
+
+<p>GitHub-hosted runners (ubuntu-24.04) work for <strong>most operations</strong> because they only need control plane access. Self-hosted runners are only required when your Terraform code needs <strong>data plane access</strong> to private endpoints.</p>
+
+<div class="alert alert-info">
+    <strong>Understanding the Difference:</strong> See <a href="decisions.html#adr-011">ADR-011: Control Plane vs Data Plane</a> for a detailed explanation of why OIDC works for some operations but not others.
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Operation</th>
+            <th>Plane</th>
+            <th>Public Runner?</th>
+            <th>Example</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Create resources (VMs, VNets, Key Vault)</td>
+            <td style="color: #22c55e;">Control</td>
+            <td style="color: #22c55e;">&#10003; Yes</td>
+            <td><code>azurerm_key_vault</code></td>
+        </tr>
+        <tr>
+            <td>Configure settings, RBAC roles</td>
+            <td style="color: #22c55e;">Control</td>
+            <td style="color: #22c55e;">&#10003; Yes</td>
+            <td><code>azurerm_role_assignment</code></td>
+        </tr>
+        <tr>
+            <td>Deploy private endpoints</td>
+            <td style="color: #22c55e;">Control</td>
+            <td style="color: #22c55e;">&#10003; Yes</td>
+            <td><code>azurerm_private_endpoint</code></td>
+        </tr>
+        <tr>
+            <td><strong>Read/write Key Vault secrets</strong></td>
+            <td style="color: #ef4444;">Data</td>
+            <td style="color: #ef4444;">&#10007; No</td>
+            <td><code>azurerm_key_vault_secret</code></td>
+        </tr>
+        <tr>
+            <td><strong>Read/write Storage blobs</strong></td>
+            <td style="color: #ef4444;">Data</td>
+            <td style="color: #ef4444;">&#10007; No</td>
+            <td><code>azurerm_storage_blob</code></td>
+        </tr>
+        <tr>
+            <td><strong>Terraform state (if private)</strong></td>
+            <td style="color: #ef4444;">Data</td>
+            <td style="color: #ef4444;">&#10007; No</td>
+            <td>Backend storage account</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #22c55e;">
+        <h3 style="margin-top: 0;">Public Runners Work For</h3>
+        <ul style="margin-bottom: 0;">
+            <li>Deploying all infrastructure modules</li>
+            <li>Network, Bastion, Jumpbox, Proxy</li>
+            <li>Any resource that doesn't read secrets</li>
+            <li>Documentation builds (pages.yml)</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #ef4444;">
+        <h3 style="margin-top: 0;">Self-Hosted Required For</h3>
+        <ul style="margin-bottom: 0;">
+            <li>Terraform using <code>azurerm_key_vault_secret</code></li>
+            <li>Private state backend (blocked by PE)</li>
+            <li>Any code that reads secrets at plan time</li>
+            <li>Database migrations, blob uploads</li>
+        </ul>
+    </div>
+</div>
+
+<div class="alert alert-warning">
+    <strong>Cost Tip:</strong> If your Terraform doesn't need data plane access, stick with public runners. Self-hosted runners on Container Apps add cost. Only enable <code>github_runners_aca_enabled</code> if you actually need data plane access in CI/CD.
+</div>
+
+<hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+<h2>.deployer.yml (Reusable Workflow)</h2>
+
+<p>The core Terraform deployment workflow, called by other workflows using <code>workflow_call</code>.</p>
+
+<div class="card">
+    <h3>Inputs</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Input</th>
+                <th>Type</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>environment_name</code></td>
+                <td>string</td>
+                <td>Target environment (tools, dev, prod)</td>
+            </tr>
+            <tr>
+                <td><code>command</code></td>
+                <td>string</td>
+                <td>Terraform command (init, plan, apply, destroy)</td>
+            </tr>
+            <tr>
+                <td><code>target_module</code></td>
+                <td>string</td>
+                <td>Optional module to target (jumpbox, bastion, network, azure_proxy, github_runners_aca, etc.)</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="card card-gold">
+    <h3>Key Features</h3>
+    <ul>
+        <li><strong>OIDC Authentication</strong>: Uses <code>azure/login@v2</code> with federated credentials</li>
+        <li><strong>Environment Isolation</strong>: Each environment has separate secrets and identity</li>
+        <li><strong>Module Targeting</strong>: Deploy specific modules with <code>-target=module.name</code> (supports all modules including azure-proxy)</li>
+        <li><strong>Optional Modules</strong>: Deploy only what you need—all modules except <code>network</code> and <code>monitoring</code> can be toggled on/off</li>
+        <li><strong>ARM_USE_OIDC</strong>: Enabled for Terraform Azure provider</li>
+    </ul>
+</div>
+
+<h3>Required Permissions</h3>
+
+<pre>permissions:
+  id-token: write   # Required for OIDC token generation
+  contents: read    # Required for repository checkout</pre>
+
+<div class="alert alert-warning">
+    <strong>Important:</strong> Without <code>id-token: write</code> permission, the workflow cannot generate the OIDC token needed for Azure authentication.
+</div>
+
+<hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+<h2>.builds.yml (Container Build Workflow)</h2>
+
+<p>Reusable workflow for building and pushing container images to GitHub Container Registry (GHCR). Supports matrix builds for multiple packages including the azure-proxy services.</p>
+
+<div class="card">
+    <h3>Built Packages</h3>
+    <ul>
+        <li><strong>azure-proxy/chisel</strong> - Chisel-based secure tunnel server for private network access</li>
+        <li><strong>azure-proxy/privoxy</strong> - Privoxy HTTP/SOCKS proxy server</li>
+    </ul>
+</div>
+
+<hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+<h2>add-or-remove-module.yml</h2>
+
+<p>Manual workflow for deploying or destroying infrastructure modules on demand. Evolved from the earlier bastion-only workflow to support all optional modules (bastion, jumpbox, azure_proxy, github_runners_aca).</p>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3>When to Use</h3>
+        <ul>
+            <li><strong>Deploy Module</strong>: When you need to provision a specific infrastructure module</li>
+            <li><strong>Destroy Module</strong>: When done, to save costs or clean up resources</li>
+        </ul>
+    </div>
+    <div class="card">
+        <h3>How to Run</h3>
+        <ol>
+            <li>Go to Actions tab in GitHub</li>
+            <li>Select "Deploy or Remove Bastion Host"</li>
+            <li>Click "Run workflow"</li>
+            <li>Choose environment, module, and command</li>
+        </ol>
+    </div>
+</div>
+
+<h3>Workflow Inputs</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Input</th>
+            <th>Options</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>environment_name</code></td>
+            <td>tools, dev, prod</td>
+            <td>Target environment</td>
+        </tr>
+        <tr>
+            <td><code>module</code></td>
+            <td>bastion, jumpbox, azure_proxy, github_runners_aca</td>
+            <td>Module to deploy or destroy</td>
+        </tr>
+        <tr>
+            <td><code>command</code></td>
+            <td>apply, destroy</td>
+            <td>Terraform command to execute</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="alert alert-info">
+    <strong>Cost Optimization:</strong> Azure Bastion has hourly charges (~$0.19/hour for Basic SKU). Deploy only when needed and destroy when done.
+</div>
+
+<hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+<h2>pr-open.yml (Pull Request Checks)</h2>
+
+<p>Automatically runs validation checks when a pull request is opened. Helps catch issues early in the development process before code review.</p>
+
+<div class="card card-gold">
+    <h3>Automated Checks</h3>
+    <ul>
+        <li><strong>Terraform Validation</strong>: Syntax validation and format compliance</li>
+        <li><strong>Code Quality</strong>: Linting and best practices checks</li>
+        <li><strong>Documentation</strong>: Verifies docs are complete and up-to-date</li>
+        <li><strong>Security Scanning</strong>: Detects potential security issues</li>
+    </ul>
+</div>
+
+<div class="alert alert-info">
+    <strong>Note:</strong> The pr-open workflow must pass before a PR can be merged. Address any failures shown in the PR checks.
+</div>
+
+<hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+<h2>schedule.yml (Scheduled Cleanup)</h2>
+
+<p>Automatically destroys Bastion every day at 5 PM PST to prevent unnecessary charges.</p>
+
+<div class="card">
+    <h3>Schedule</h3>
+    <pre># Runs daily at 5 PM PST (1 AM UTC next day)
+on:
+  schedule:
+    - cron: "0 1 * * *"</pre>
+</div>
+
+<div class="card card-gold">
+    <h3>Workflow Logic</h3>
+    <ol>
+        <li><strong>Check if Bastion exists</strong>: Uses Azure CLI to query the Bastion resource</li>
+        <li><strong>Conditional destroy</strong>: Only runs Terraform destroy if Bastion is found</li>
+        <li><strong>Status notification</strong>: Reports whether Bastion was destroyed or already removed</li>
+    </ol>
+</div>
+
+<h3>Jobs Flow</h3>
+
+<pre>check-and-destroy-bastion
+         │
+         ├── bastion_exists=true ──► destroy-bastion ──► notification
+         │
+         └── bastion_exists=false ──────────────────────► notification</pre>
+
+<hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+<h2>pages.yml (Documentation)</h2>
+
+<p>Deploys this documentation site to GitHub Pages when changes are pushed to the <code>docs/</code> folder.</p>
+
+<div class="card">
+    <h3>Triggers</h3>
+    <ul>
+        <li><strong>Push to main</strong>: When files in <code>docs/**</code> are changed</li>
+        <li><strong>Manual</strong>: Can be triggered manually via <code>workflow_dispatch</code></li>
+    </ul>
+</div>
+
+<div class="card">
+    <h3>Deployment Steps</h3>
+    <ol>
+        <li>Checkout repository</li>
+        <li>Run <code>docs/build.sh</code> to generate HTML from templates</li>
+        <li>Configure GitHub Pages</li>
+        <li>Upload <code>docs/</code> folder as artifact</li>
+        <li>Deploy to GitHub Pages</li>
+    </ol>
+</div>
+
+<hr style="margin: 2rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+<h2>Environment Secrets</h2>
+
+<p>Each GitHub environment requires these secrets (created by <code>initial-azure-setup.sh</code>):</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Secret</th>
+            <th>Description</th>
+            <th>Source</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>AZURE_CLIENT_ID</code></td>
+            <td>Managed Identity client ID</td>
+            <td>Created by setup script</td>
+        </tr>
+        <tr>
+            <td><code>AZURE_TENANT_ID</code></td>
+            <td>Azure AD tenant ID</td>
+            <td>Your Azure subscription</td>
+        </tr>
+        <tr>
+            <td><code>AZURE_SUBSCRIPTION_ID</code></td>
+            <td>Target subscription ID</td>
+            <td>Your Azure subscription</td>
+        </tr>
+        <tr>
+            <td><code>VNET_RESOURCE_GROUP_NAME</code></td>
+            <td>Resource group containing VNet</td>
+            <td>Your infrastructure</td>
+        </tr>
+        <tr>
+            <td><code>VNET_NAME</code></td>
+            <td>Existing VNet name</td>
+            <td>Your infrastructure</td>
+        </tr>
+        <tr>
+            <td><code>VNET_ADDRESS_SPACE</code></td>
+            <td>VNet CIDR block</td>
+            <td>Your infrastructure</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2>Running Workflows Locally</h2>
+
+<p>For local development and testing, use the <code>deploy-terraform.sh</code> script:</p>
+
+<pre># Ensure you're logged in
+az login
+
+# Run Terraform commands locally
+./initial-setup/infra/deploy-terraform.sh init
+./initial-setup/infra/deploy-terraform.sh plan
+./initial-setup/infra/deploy-terraform.sh apply</pre>
+
+<div class="alert alert-info">
+    <strong>Note:</strong> Local runs use your Azure CLI credentials instead of OIDC. Make sure you have the required permissions.
+</div>

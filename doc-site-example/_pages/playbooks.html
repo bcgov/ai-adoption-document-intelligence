@@ -1,0 +1,629 @@
+<!-- TITLE: Operational Playbooks -->
+<!-- NAV: playbooks -->
+
+<h1>Operational Playbooks</h1>
+
+<p>Step-by-step procedures for common operational scenarios, troubleshooting, and disaster recovery. These runbooks help operators respond quickly to issues.</p>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+        <strong>Before You Begin</strong><br>
+        Ensure you have the required permissions and have read the relevant documentation. When in doubt, escalate to the platform team.
+    </div>
+</div>
+
+<h2>Quick Reference</h2>
+
+<div class="grid grid-3">
+    <a href="#state-lock" class="card-link">
+        <div class="card" style="border-left-color: #ef4444;">
+            <div class="feature-icon" style="background: rgba(239, 68, 68, 0.1);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h3 style="margin-top: 0;">State Lock Stuck</h3>
+            <p>Terraform state is locked and won't release</p>
+            <div class="card-arrow">View Playbook →</div>
+        </div>
+    </a>
+    <a href="#oidc-failure" class="card-link">
+        <div class="card" style="border-left-color: #f97316;">
+            <div class="feature-icon" style="background: rgba(249, 115, 22, 0.1);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h3 style="margin-top: 0;">OIDC Auth Failing</h3>
+            <p>Token exchange errors between GitHub and Azure</p>
+            <div class="card-arrow">View Playbook →</div>
+        </div>
+    </a>
+    <a href="#rollback" class="card-link">
+        <div class="card" style="border-left-color: #8b5cf6;">
+            <div class="feature-icon purple">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--bc-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h12a5 5 0 0 1 5 5v5"/></svg>
+            </div>
+            <h3 style="margin-top: 0;">Rollback Deployment</h3>
+            <p>Revert to a previous known-good state</p>
+            <div class="card-arrow">View Playbook →</div>
+        </div>
+    </a>
+    <a href="#credential-rotation" class="card-link">
+        <div class="card" style="border-left-color: #22c55e;">
+            <div class="feature-icon green">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+            </div>
+            <h3 style="margin-top: 0;">Rotate Credentials</h3>
+            <p>Update federated credentials if compromised</p>
+            <div class="card-arrow">View Playbook →</div>
+        </div>
+    </a>
+    <a href="#bastion-access" class="card-link">
+        <div class="card" style="border-left-color: #0ea5e9;">
+            <div class="feature-icon blue">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <h3 style="margin-top: 0;">Bastion Access Issues</h3>
+            <p>Cannot connect to VMs via Bastion</p>
+            <div class="card-arrow">View Playbook →</div>
+        </div>
+    </a>
+    <a href="#pipeline-stuck" class="card-link">
+        <div class="card" style="border-left-color: #fcba19;">
+            <div class="feature-icon gold">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            </div>
+            <h3 style="margin-top: 0;">Pipeline Stuck</h3>
+            <p>GitHub Actions workflow hanging or failing</p>
+            <div class="card-arrow">View Playbook →</div>
+        </div>
+    </a>
+    <a href="#chisel-tunnel" class="card-link">
+        <div class="card" style="border-left-color: #8b5cf6;">
+            <div class="feature-icon purple">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
+            </div>
+            <h3 style="margin-top: 0;">Chisel Tunnel Setup</h3>
+            <p>Local access to private Azure resources</p>
+            <div class="card-arrow">View Playbook →</div>
+        </div>
+    </a>
+</div>
+
+<!-- ============================================================================
+     PLAYBOOK: STATE LOCK STUCK
+     ============================================================================ -->
+
+<h2 id="state-lock">Playbook: Terraform State Lock Stuck</h2>
+
+<div class="card" style="border-left-color: #ef4444;">
+    <h3 style="margin-top: 0;">Symptoms</h3>
+    <ul>
+        <li>Terraform commands fail with: <code>Error acquiring the state lock</code></li>
+        <li>Message includes: <code>Lock Info: ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code></li>
+        <li>Previous pipeline run may have crashed or been cancelled</li>
+    </ul>
+</div>
+
+<h3>Diagnosis</h3>
+
+<ol>
+    <li><strong>Check if another operation is running</strong>
+        <p>Look at GitHub Actions for any in-progress Terraform jobs.</p>
+    </li>
+    <li><strong>Check the lock info</strong>
+        <pre>az storage blob show \
+    --account-name &lt;storage_account&gt; \
+    --container-name tfstate \
+    --name terraform.tfstate \
+    --query "properties.lease"</pre>
+    </li>
+</ol>
+
+<h3>Resolution</h3>
+
+<div class="alert alert-warning">
+    <span class="alert-icon">⚠️</span>
+    <div>
+        <strong>Caution:</strong> Only force-unlock if you are CERTAIN no other operation is running. Breaking an active lock can corrupt state.
+    </div>
+</div>
+
+<h4>Option 1: Wait and Retry (Safest)</h4>
+<p>Locks typically auto-release after 15-60 minutes. Wait and retry.</p>
+
+<h4>Option 2: Break the Blob Lease</h4>
+<pre># List current leases
+az storage blob lease show \
+    --account-name &lt;storage_account&gt; \
+    --container-name tfstate \
+    --blob-name terraform.tfstate
+
+# Break the lease (requires Storage Blob Data Owner role)
+az storage blob lease break \
+    --account-name &lt;storage_account&gt; \
+    --container-name tfstate \
+    --blob-name terraform.tfstate</pre>
+
+<h4>Option 3: Force Unlock via Terraform</h4>
+<pre># Get the lock ID from the error message, then:
+terraform force-unlock &lt;LOCK_ID&gt;
+
+# Example:
+terraform force-unlock 12345678-1234-1234-1234-123456789012</pre>
+
+<h3>Prevention</h3>
+<ul>
+    <li>Never cancel Terraform runs mid-operation</li>
+    <li>Use workflow concurrency controls (already configured)</li>
+    <li>Ensure proper timeout settings on pipeline jobs</li>
+</ul>
+
+<!-- ============================================================================
+     PLAYBOOK: OIDC AUTHENTICATION FAILURE
+     ============================================================================ -->
+
+<h2 id="oidc-failure">Playbook: OIDC Authentication Failing</h2>
+
+<div class="card" style="border-left-color: #f97316;">
+    <h3 style="margin-top: 0;">Symptoms</h3>
+    <ul>
+        <li>GitHub Actions fails at <code>azure/login</code> step</li>
+        <li>Error: <code>AADSTS700024: Client assertion is not within its valid time range</code></li>
+        <li>Error: <code>AADSTS70021: No matching federated identity record found</code></li>
+        <li>Error: <code>AADSTS700016: Application with identifier 'xxx' was not found</code></li>
+    </ul>
+</div>
+
+<h3>Diagnosis by Error Code</h3>
+
+<table>
+    <tr>
+        <th>Error</th>
+        <th>Cause</th>
+        <th>Fix</th>
+    </tr>
+    <tr>
+        <td><code>AADSTS700024</code></td>
+        <td>Token timing issue (clock skew)</td>
+        <td>Retry the workflow - usually transient</td>
+    </tr>
+    <tr>
+        <td><code>AADSTS70021</code></td>
+        <td>Subject claim doesn't match federated credential</td>
+        <td>Check branch/environment matches credential config</td>
+    </tr>
+    <tr>
+        <td><code>AADSTS700016</code></td>
+        <td>Client ID doesn't exist or wrong tenant</td>
+        <td>Verify AZURE_CLIENT_ID secret is correct</td>
+    </tr>
+</table>
+
+<h3>Resolution Steps</h3>
+
+<h4>1. Verify GitHub Secrets</h4>
+<pre># These secrets must be set in GitHub repository settings:
+AZURE_CLIENT_ID      # Managed Identity Client ID
+AZURE_TENANT_ID      # Azure AD Tenant ID
+AZURE_SUBSCRIPTION_ID # Target Subscription ID</pre>
+
+<h4>2. Verify Federated Credential Configuration</h4>
+<pre># Check federated credentials on the managed identity
+az ad app federated-credential list \
+    --id &lt;APP_OBJECT_ID&gt; \
+    --query "[].{name:name, subject:subject, issuer:issuer}"</pre>
+
+<p>The <code>subject</code> must match exactly:</p>
+<ul>
+    <li>For environment: <code>repo:bcgov/ai-hub-tracking:environment:dev</code></li>
+    <li>For branch: <code>repo:bcgov/ai-hub-tracking:ref:refs/heads/main</code></li>
+</ul>
+
+<h4>3. Check Token Claims</h4>
+<p>Add this step to your workflow to debug the token:</p>
+<pre>- name: Debug OIDC Token
+  run: |
+    TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+      "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange" | jq -r '.value')
+    echo "Token claims:"
+    echo $TOKEN | cut -d. -f2 | base64 -d 2>/dev/null | jq .</pre>
+
+<h4>4. Recreate Federated Credential</h4>
+<pre># Delete and recreate if misconfigured
+az ad app federated-credential delete \
+    --id &lt;APP_OBJECT_ID&gt; \
+    --federated-credential-id &lt;CREDENTIAL_ID&gt;
+
+# Recreate with correct subject
+./initial-setup/initial-azure-setup.sh \
+    -g "your-rg" -n "your-identity" \
+    -r "bcgov/ai-hub-tracking" -e "dev"</pre>
+
+<!-- ============================================================================
+     PLAYBOOK: ROLLBACK DEPLOYMENT
+     ============================================================================ -->
+
+<h2 id="rollback">Playbook: Rollback Failed Deployment</h2>
+
+<div class="card" style="border-left-color: #8b5cf6;">
+    <h3 style="margin-top: 0;">When to Use</h3>
+    <ul>
+        <li>A deployment broke existing functionality</li>
+        <li>Resources are in an inconsistent state</li>
+        <li>Need to revert to a known-good configuration</li>
+    </ul>
+</div>
+
+<h3>Option 1: Git Revert (Recommended)</h3>
+
+<pre># Find the last good commit
+git log --oneline -10
+
+# Revert the problematic commit(s)
+git revert &lt;BAD_COMMIT_SHA&gt;
+
+# Push to trigger pipeline with reverted code
+git push origin main</pre>
+
+<h3>Option 2: Restore from State Backup</h3>
+
+<p>Azure Blob Storage keeps versions of the state file:</p>
+
+<pre># List state file versions
+az storage blob list \
+    --account-name &lt;storage_account&gt; \
+    --container-name tfstate \
+    --include v \
+    --query "[?name=='terraform.tfstate'].{version:versionId, modified:properties.lastModified}"
+
+# Download a previous version
+az storage blob download \
+    --account-name &lt;storage_account&gt; \
+    --container-name tfstate \
+    --name terraform.tfstate \
+    --version-id &lt;VERSION_ID&gt; \
+    --file terraform.tfstate.backup</pre>
+
+<h3>Option 3: Targeted Destroy and Recreate</h3>
+
+<pre># Destroy specific problematic resources
+terraform destroy -target=azurerm_virtual_machine.jumpbox
+
+# Reapply to recreate with correct config
+terraform apply</pre>
+
+<div class="alert alert-info">
+    <span class="alert-icon">💡</span>
+    <div>
+        <strong>Tip:</strong> Always run <code>terraform plan</code> before <code>apply</code> after a rollback to verify the expected changes.
+    </div>
+</div>
+
+<!-- ============================================================================
+     PLAYBOOK: CREDENTIAL ROTATION
+     ============================================================================ -->
+
+<h2 id="credential-rotation">Playbook: Rotate Federated Credentials</h2>
+
+<div class="card" style="border-left-color: #22c55e;">
+    <h3 style="margin-top: 0;">When to Use</h3>
+    <ul>
+        <li>Suspected credential compromise</li>
+        <li>Security audit requires rotation</li>
+        <li>Changing repository or organization</li>
+    </ul>
+</div>
+
+<div class="alert alert-success">
+    <span class="alert-icon">✅</span>
+    <div>
+        <strong>Good News:</strong> With OIDC, there are no long-lived secrets to rotate! The "credential" is the trust relationship, not a secret key.
+    </div>
+</div>
+
+<h3>To Update the Trust Relationship</h3>
+
+<h4>1. Delete Existing Federated Credential</h4>
+<pre>az ad app federated-credential list --id &lt;APP_OBJECT_ID&gt;
+az ad app federated-credential delete \
+    --id &lt;APP_OBJECT_ID&gt; \
+    --federated-credential-id &lt;CREDENTIAL_ID&gt;</pre>
+
+<h4>2. Create New Federated Credential</h4>
+<pre>./initial-setup/initial-azure-setup.sh \
+    -g "your-rg" \
+    -n "your-identity" \
+    -r "bcgov/new-repo-name" \
+    -e "dev"</pre>
+
+<h4>3. Update GitHub Secrets (if Client ID changed)</h4>
+<ol>
+    <li>Go to Repository Settings → Secrets and variables → Actions</li>
+    <li>Update <code>AZURE_CLIENT_ID</code> with new Managed Identity Client ID</li>
+</ol>
+
+<h4>4. Verify New Configuration</h4>
+<pre># Trigger a test workflow run
+gh workflow run deploy.yml</pre>
+
+<!-- ============================================================================
+     PLAYBOOK: BASTION ACCESS ISSUES
+     ============================================================================ -->
+
+<h2 id="bastion-access">Playbook: Bastion Access Issues</h2>
+
+<div class="card" style="border-left-color: #0ea5e9;">
+    <h3 style="margin-top: 0;">Symptoms</h3>
+    <ul>
+        <li>Cannot connect to VM via Azure Portal Bastion</li>
+        <li>Connection times out</li>
+        <li>"Bastion host not found" error</li>
+    </ul>
+</div>
+
+<h3>Diagnosis</h3>
+
+<h4>1. Check if Bastion is Deployed</h4>
+<pre>az network bastion list \
+    --resource-group &lt;RG_NAME&gt; \
+    --query "[].{name:name, state:provisioningState}"</pre>
+
+<p>If empty, Bastion may be disabled (cost-saving). Deploy it:</p>
+<pre># Via GitHub Actions
+gh workflow run bastion-add-or-remove.yml -f action=add
+
+# Or via manual trigger in GitHub UI</pre>
+
+<h4>2. Check NSG Rules</h4>
+<pre># Bastion subnet requires specific NSG rules
+az network nsg rule list \
+    --resource-group &lt;RG_NAME&gt; \
+    --nsg-name &lt;BASTION_NSG&gt; \
+    --query "[].{name:name, access:access, direction:direction, port:destinationPortRange}"</pre>
+
+<p>Required inbound rules:</p>
+<ul>
+    <li>HTTPS (443) from Internet</li>
+    <li>Gateway Manager from GatewayManager service tag</li>
+    <li>Azure Load Balancer from AzureLoadBalancer service tag</li>
+</ul>
+
+<h4>3. Check VM Status</h4>
+<pre>az vm get-instance-view \
+    --resource-group &lt;RG_NAME&gt; \
+    --name &lt;VM_NAME&gt; \
+    --query "instanceView.statuses[1].displayStatus"</pre>
+
+<p>VM must be in "VM running" state.</p>
+
+<!-- ============================================================================
+     PLAYBOOK: PIPELINE STUCK
+     ============================================================================ -->
+
+<h2 id="pipeline-stuck">Playbook: GitHub Actions Pipeline Stuck</h2>
+
+<div class="card" style="border-left-color: #fcba19;">
+    <h3 style="margin-top: 0;">Symptoms</h3>
+    <ul>
+        <li>Pipeline shows "In progress" for extended time</li>
+        <li>Terraform plan/apply seems to hang</li>
+        <li>No new log output appearing</li>
+    </ul>
+</div>
+
+<h3>Resolution</h3>
+
+<h4>1. Check for Pending Approvals</h4>
+<p>Production environments require approval. Check the workflow run for pending reviews.</p>
+
+<h4>2. Cancel and Retry</h4>
+<pre># Cancel via CLI
+gh run cancel &lt;RUN_ID&gt;
+
+# Retry
+gh workflow run &lt;WORKFLOW_NAME&gt;</pre>
+
+<h4>3. Check for State Lock</h4>
+<p>If Terraform is waiting on state lock, see <a href="#state-lock">State Lock Playbook</a>.</p>
+
+<h4>4. Check Runner Health</h4>
+<pre># View recent workflow runs
+gh run list --limit 10
+
+# Check specific run logs
+gh run view &lt;RUN_ID&gt; --log</pre>
+
+<h4>5. GitHub Status</h4>
+<p>Check <a href="https://www.githubstatus.com/" target="_blank">GitHub Status Page</a> for platform issues.</p>
+
+<!-- ============================================================================
+     PLAYBOOK: CHISEL TUNNEL SETUP
+     ============================================================================ -->
+
+<h2 id="chisel-tunnel">Playbook: Chisel Tunnel for Local Development</h2>
+
+<div class="alert alert-info">
+    <span class="alert-icon">🔧</span>
+    <div>
+        <strong>Platform Maintainers Only:</strong> This playbook is for the platform team to access private Azure resources (databases, Key Vault, etc.) from their local machines. Tenant developers should use the APIM/App Gateway endpoints instead.
+    </div>
+</div>
+
+<div class="alert alert-success">
+    <span class="alert-icon">📖</span>
+    <div>
+        <strong>Looking for the full deployment workflow?</strong> See the comprehensive <a href="https://github.com/bcgov/ai-hub-tracking/tree/main/infra-ai-hub#local-development-deployment">Local Development Deployment Guide</a> for step-by-step instructions on deploying infrastructure from your local machine, including environment switching and integration testing.
+    </div>
+</div>
+
+<div class="card" style="border-left-color: #8b5cf6;">
+    <h3 style="margin-top: 0;">When to Use</h3>
+    <ul>
+        <li>You need to connect to a private PostgreSQL/CosmosDB database from your laptop</li>
+        <li>You need to debug private endpoints locally</li>
+        <li>You need to test API calls to private Azure services</li>
+        <li>Bastion/Jumpbox is overkill for quick data plane access</li>
+    </ul>
+</div>
+
+<h3>Prerequisites</h3>
+
+<ul>
+    <li><strong>Docker</strong> installed on your local machine</li>
+    <li><strong>Chisel credentials</strong> from Terraform output (contact platform team)</li>
+    <li><strong>Azure Proxy deployed</strong> (<code>enable_azure_proxy = true</code> in Terraform)</li>
+</ul>
+
+<h3>Step 1: Get Chisel Credentials</h3>
+
+<p>The Chisel server credentials are stored in Terraform outputs. Contact the platform team or retrieve them yourself:</p>
+
+<pre># From a machine with Terraform access (e.g., Jumpbox)
+cd initial-setup/infra
+terraform output azure_proxy_chisel_auth
+
+# Output format: tunnel:XXXXXXXX</pre>
+
+<p>You'll also need the App Service URL:</p>
+
+<pre>terraform output azure_proxy_url
+
+# Output: https://&lt;app-name&gt;.azurewebsites.net</pre>
+
+<h3>Step 2: Connect to a Private Database</h3>
+
+<p>Example: Connecting to a private PostgreSQL database on port 5432:</p>
+
+<pre># Run Chisel client in Docker
+docker run --rm -it \
+  -p 5432:5432 \
+  jpillora/chisel:latest client \
+  --auth "tunnel:XXXXXXXX" \
+  https://&lt;app-name&gt;.azurewebsites.net \
+  0.0.0.0:5432:&lt;postgres-server&gt;.postgres.database.azure.com:5432
+
+# Now connect locally
+psql -h localhost -p 5432 -U &lt;username&gt; -d &lt;database&gt;</pre>
+
+<div class="alert alert-warning">
+    <span class="alert-icon">⚠️</span>
+    <div>
+        <strong>Port Conflicts:</strong> If port 5432 is already in use locally, map to a different port:
+        <pre style="margin: 0.5rem 0 0;">-p 5462:5432</pre>
+        Then connect with <code>psql -h localhost -p 5462 ...</code>
+    </div>
+</div>
+
+<h3>Step 3: Connect to Multiple Services (SOCKS5 Proxy)</h3>
+
+<p>For accessing multiple private services or browsing private endpoints:</p>
+
+<pre># Run Chisel as SOCKS5 proxy
+docker run --rm -it \
+  -p 1080:1080 \
+  jpillora/chisel:latest client \
+  --auth "tunnel:XXXXXXXX" \
+  https://&lt;app-name&gt;.azurewebsites.net \
+  socks</pre>
+
+<h4>Configure Firefox with SmartProxy Extension</h4>
+
+<ol>
+    <li>Install <a href="https://addons.mozilla.org/en-US/firefox/addon/smartproxy/" target="_blank">SmartProxy extension</a></li>
+    <li>Add a proxy server:
+        <ul>
+            <li>Type: SOCKS5</li>
+            <li>Address: localhost</li>
+            <li>Port: 1080</li>
+        </ul>
+    </li>
+    <li>Add rules for Azure private endpoints:
+        <ul>
+            <li><code>*.vault.azure.net</code></li>
+            <li><code>*.postgres.database.azure.com</code></li>
+            <li><code>*.blob.core.windows.net</code></li>
+        </ul>
+    </li>
+</ol>
+
+<h3>Step 4: Connect to Key Vault</h3>
+
+<pre># Tunnel to Key Vault (port 443)
+docker run --rm -it \
+  -p 8443:443 \
+  jpillora/chisel:latest client \
+  --auth "tunnel:XXXXXXXX" \
+  https://&lt;app-name&gt;.azurewebsites.net \
+  0.0.0.0:443:&lt;keyvault-name&gt;.vault.azure.net:443
+
+# Use Azure CLI with HTTPS_PROXY (alternative method)
+HTTPS_PROXY=socks5://localhost:1080 az keyvault secret list --vault-name &lt;keyvault-name&gt;</pre>
+
+<h3>Troubleshooting</h3>
+
+<table>
+    <tr>
+        <th>Issue</th>
+        <th>Cause</th>
+        <th>Solution</th>
+    </tr>
+    <tr>
+        <td>Connection refused</td>
+        <td>Chisel server not running or wrong URL</td>
+        <td>Verify App Service is running, check URL</td>
+    </tr>
+    <tr>
+        <td>Authentication failed</td>
+        <td>Wrong credentials</td>
+        <td>Get fresh credentials from Terraform output</td>
+    </tr>
+    <tr>
+        <td>Timeout connecting to target</td>
+        <td>Target hostname wrong or not in VNet</td>
+        <td>Verify private endpoint hostname, check VNet peering</td>
+    </tr>
+    <tr>
+        <td>Port already in use</td>
+        <td>Local service using the port</td>
+        <td>Use different local port: <code>-p 5462:5432</code></td>
+    </tr>
+    <tr>
+        <td>DNS resolution failed</td>
+        <td>Private DNS not linked</td>
+        <td>Use IP address instead, or check Private DNS Zone</td>
+    </tr>
+</table>
+
+<h3>Security Notes</h3>
+
+<div class="alert alert-warning">
+    <span class="alert-icon">🔒</span>
+    <div>
+        <ul style="margin: 0;">
+            <li><strong>Credentials:</strong> Chisel auth is randomly generated and stored in App Service settings (encrypted by Azure)</li>
+            <li><strong>Access logging:</strong> All connections are logged in Application Insights</li>
+            <li><strong>Scope:</strong> Chisel can only reach resources within the VNet or peered VNets</li>
+            <li><strong>Not for tenants:</strong> This is platform team tooling, not for ministry developers</li>
+        </ul>
+    </div>
+</div>
+
+<h3>Related Resources</h3>
+<ul>
+    <li><a href="decisions.html#adr-011">ADR-011: Control Plane vs Data Plane Access & Chisel Tunnel</a></li>
+    <li><a href="terraform.html">Terraform Module: azure-proxy</a></li>
+    <li><a href="https://github.com/jpillora/chisel" target="_blank">Chisel GitHub Repository</a></li>
+</ul>
+
+<h2>Emergency Contacts</h2>
+
+<div class="card" style="background: var(--bc-blue); color: white; border-left-color: var(--bc-gold);">
+    <h3 style="color: var(--bc-gold); margin-top: 0;">Escalation Path</h3>
+    <ol style="margin-bottom: 0;">
+        <li><strong>First Response:</strong> Platform Team Slack channel</li>
+        <li><strong>Azure Issues:</strong> Azure Support (if support plan active)</li>
+        <li><strong>GitHub Issues:</strong> GitHub Support</li>
+        <li><strong>Security Incidents:</strong> Security Team immediately</li>
+    </ol>
+</div>

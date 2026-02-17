@@ -1,0 +1,3145 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refreshToken",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns refreshed token if successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshReturnDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "example": "Failed to refresh access token"
+              }
+            }
+          }
+        },
+        "summary": "Refresh provider tokens using a refresh token",
+        "tags": [
+          "Authorization"
+        ]
+      }
+    },
+    "/api/auth/login": {
+      "get": {
+        "operationId": "AuthController_getLoginUrl",
+        "parameters": [],
+        "responses": {
+          "302": {
+            "description": "Redirects to the Keycloak authorization endpoint",
+            "headers": {
+              "Location": {
+                "description": "URL to redirect the client to",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "example": "Failed to generate login URL"
+              }
+            }
+          }
+        },
+        "summary": "Redirect to Keycloak authorization endpoint",
+        "tags": [
+          "Authorization"
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "get": {
+        "operationId": "AuthController_logout",
+        "parameters": [
+          {
+            "name": "id_token_hint",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirects to the Keycloak logout endpoint",
+            "headers": {
+              "Location": {
+                "description": "URL to redirect the client to",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "example": "Failed to generate logout URL"
+              }
+            }
+          }
+        },
+        "summary": "Redirect to Keycloak logout endpoint",
+        "tags": [
+          "Authorization"
+        ]
+      }
+    },
+    "/api/auth/callback": {
+      "get": {
+        "operationId": "AuthController_oauthCallback",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_state",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "iss",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirects to the application with an auth result or error",
+            "headers": {
+              "Location": {
+                "description": "URL to redirect the client to",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Handle Keycloak OAuth callback and redirect to application",
+        "tags": [
+          "Authorization"
+        ]
+      }
+    },
+    "/api/auth/result": {
+      "get": {
+        "operationId": "AuthController_consumeResult",
+        "parameters": [
+          {
+            "name": "result",
+            "required": true,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns the provider tokens for a valid resultId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No stored session was found",
+            "content": {
+              "application/json": {
+                "example": "Auth result expired or invalid"
+              }
+            }
+          }
+        },
+        "summary": "Retrieve provider tokens using a resultId after OAuth flow",
+        "tags": [
+          "Authorization"
+        ]
+      }
+    },
+    "/api/api-key": {
+      "get": {
+        "operationId": "ApiKeyController_getApiKey",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns the user's API key if it exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyInfoWrapperDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get the current user's API key information",
+        "tags": [
+          "API Keys"
+        ]
+      },
+      "post": {
+        "operationId": "ApiKeyController_generateApiKey",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Returns the newly generated API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedApiKeyWrapperDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          },
+          "409": {
+            "description": "User already has an API key. Delete it first or use regenerate."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Generate a new API key for the current user",
+        "tags": [
+          "API Keys"
+        ]
+      },
+      "delete": {
+        "operationId": "ApiKeyController_deleteApiKey",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "API key deleted successfully"
+          },
+          "401": {
+            "description": "User is not authenticated"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Delete the current user's API key",
+        "tags": [
+          "API Keys"
+        ]
+      }
+    },
+    "/api/api-key/regenerate": {
+      "post": {
+        "operationId": "ApiKeyController_regenerateApiKey",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns the newly generated API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedApiKeyWrapperDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Regenerate the current user's API key",
+        "tags": [
+          "API Keys"
+        ]
+      }
+    },
+    "/api/documents": {
+      "get": {
+        "operationId": "DocumentController_getAllDocuments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns a list of all documents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentDataDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get all documents",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/documents/{documentId}/ocr": {
+      "get": {
+        "operationId": "DocumentController_getOcrResult",
+        "parameters": [
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns OCR result and document info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrResultResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid API key"
+          },
+          "404": {
+            "description": "Document or OCR result not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get OCR result for a document by ID",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/documents/{documentId}/download": {
+      "get": {
+        "operationId": "DocumentController_downloadDocument",
+        "parameters": [
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns the document file buffer as a download"
+          },
+          "401": {
+            "description": "User is not authenticated"
+          },
+          "404": {
+            "description": "Document not found or file missing"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Download a document file by ID",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/documents/{documentId}/approve": {
+      "post": {
+        "description": "Sends a human approval signal to the document's workflow. When rejecting, rejectionReason is required.",
+        "operationId": "DocumentController_approveDocument",
+        "parameters": [
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "description": "Document ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Approval decision and optional reviewer info, comments, rejection reason, annotations",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveDocumentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Approval signal sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Document approved successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (e.g. rejection without rejectionReason, or document has no workflow execution)"
+          },
+          "401": {
+            "description": "User is not authenticated"
+          },
+          "404": {
+            "description": "Document not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Approve or reject a document",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/workflows": {
+      "get": {
+        "operationId": "WorkflowController_getWorkflows",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns the list of workflows owned by the authenticated user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowListResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "List all workflows for the current user",
+        "tags": [
+          "Workflow"
+        ]
+      },
+      "post": {
+        "operationId": "WorkflowController_createWorkflow",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Workflow name, optional description, and graph configuration",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Workflow created successfully. Returns the created workflow with id, version, and timestamps.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body or workflow config validation failed"
+          },
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Create a new workflow",
+        "tags": [
+          "Workflow"
+        ]
+      }
+    },
+    "/api/workflows/{id}": {
+      "get": {
+        "operationId": "WorkflowController_getWorkflow",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Workflow ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns the workflow",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid API key"
+          },
+          "404": {
+            "description": "Workflow not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get a workflow by ID",
+        "tags": [
+          "Workflow"
+        ]
+      },
+      "put": {
+        "operationId": "WorkflowController_updateWorkflow",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Workflow ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Partial workflow data (name, description, and/or config). Only provided fields are updated.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Workflow updated successfully. Returns the updated workflow.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body or workflow config validation failed"
+          },
+          "401": {
+            "description": "Invalid API key"
+          },
+          "404": {
+            "description": "Workflow not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Update an existing workflow",
+        "tags": [
+          "Workflow"
+        ]
+      },
+      "delete": {
+        "operationId": "WorkflowController_deleteWorkflow",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Workflow ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Workflow deleted successfully"
+          },
+          "401": {
+            "description": "Invalid API key"
+          },
+          "404": {
+            "description": "Workflow not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Delete a workflow",
+        "tags": [
+          "Workflow"
+        ]
+      }
+    },
+    "/api/models": {
+      "get": {
+        "operationId": "OcrController_getModels",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "default": {
+                    "models": [
+                      "string"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get a list of available OCR models",
+        "tags": [
+          "OCR"
+        ]
+      }
+    },
+    "/api/upload": {
+      "post": {
+        "operationId": "UploadController_uploadDocument",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadDocumentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Document uploaded successfully. Returns document id, title, file info, status, and created_at.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadDocumentResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or upload failed"
+          },
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Upload a new document and start OCR processing",
+        "tags": [
+          "Upload"
+        ]
+      }
+    },
+    "/api/labeling/projects": {
+      "get": {
+        "operationId": "LabelingController_getProjects",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by creator",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get all labeling projects",
+        "tags": [
+          "labeling"
+        ]
+      },
+      "post": {
+        "operationId": "LabelingController_createProject",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Create a new labeling project",
+        "tags": [
+          "labeling"
+        ]
+      }
+    },
+    "/api/labeling/projects/{id}": {
+      "get": {
+        "operationId": "LabelingController_getProject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get project details with field schema",
+        "tags": [
+          "labeling"
+        ]
+      },
+      "put": {
+        "operationId": "LabelingController_updateProject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Update project",
+        "tags": [
+          "labeling"
+        ]
+      },
+      "delete": {
+        "operationId": "LabelingController_deleteProject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Delete project and all associated data",
+        "tags": [
+          "labeling"
+        ]
+      }
+    },
+    "/api/labeling/projects/{id}/fields": {
+      "get": {
+        "operationId": "LabelingController_getFieldSchema",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get field schema for project",
+        "tags": [
+          "labeling"
+        ]
+      },
+      "post": {
+        "operationId": "LabelingController_addField",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFieldDefinitionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Add a field to the project schema",
+        "tags": [
+          "labeling"
+        ]
+      }
+    },
+    "/api/labeling/projects/{id}/fields/{fieldId}": {
+      "put": {
+        "operationId": "LabelingController_updateField",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fieldId",
+            "required": true,
+            "in": "path",
+            "description": "Field ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFieldDefinitionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Update a field definition",
+        "tags": [
+          "labeling"
+        ]
+      },
+      "delete": {
+        "operationId": "LabelingController_deleteField",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fieldId",
+            "required": true,
+            "in": "path",
+            "description": "Field ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Delete a field from schema",
+        "tags": [
+          "labeling"
+        ]
+      }
+    },
+    "/api/labeling/projects/{id}/documents": {
+      "get": {
+        "operationId": "LabelingController_getProjectDocuments",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get all documents in project",
+        "tags": [
+          "labeling"
+        ]
+      },
+      "post": {
+        "operationId": "LabelingController_addDocumentToProject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddDocumentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Add a document to project",
+        "tags": [
+          "labeling"
+        ]
+      }
+    },
+    "/api/labeling/projects/{id}/upload": {
+      "post": {
+        "operationId": "LabelingController_uploadLabelingDocument",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabelingUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Upload a document into a labeling project",
+        "tags": [
+          "labeling"
+        ]
+      }
+    },
+    "/api/labeling/projects/{id}/documents/{docId}": {
+      "get": {
+        "operationId": "LabelingController_getProjectDocument",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "docId",
+            "required": true,
+            "in": "path",
+            "description": "Document ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get document with labels",
+        "tags": [
+          "labeling"
+        ]
+      },
+      "delete": {
+        "operationId": "LabelingController_removeDocumentFromProject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "docId",
+            "required": true,
+            "in": "path",
+            "description": "Document ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Remove document from project",
+        "tags": [
+          "labeling"
+        ]
+      }
+    },
+    "/api/labeling/projects/{id}/documents/{docId}/download": {
+      "get": {
+        "operationId": "LabelingController_downloadLabelingDocument",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "docId",
+            "required": true,
+            "in": "path",
+            "description": "Labeling Document ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Download a labeling document file",
+        "tags": [
+          "labeling"
+        ]
+      }
+    },
+    "/api/labeling/projects/{id}/documents/{docId}/labels": {
+      "get": {
+        "operationId": "LabelingController_getDocumentLabels",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "docId",
+            "required": true,
+            "in": "path",
+            "description": "Document ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get labels for document",
+        "tags": [
+          "labeling"
+        ]
+      },
+      "post": {
+        "operationId": "LabelingController_saveDocumentLabels",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "docId",
+            "required": true,
+            "in": "path",
+            "description": "Document ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveLabelsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Save labels for document",
+        "tags": [
+          "labeling"
+        ]
+      }
+    },
+    "/api/labeling/projects/{id}/documents/{docId}/labels/{labelId}": {
+      "delete": {
+        "operationId": "LabelingController_deleteLabel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "docId",
+            "required": true,
+            "in": "path",
+            "description": "Document ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "labelId",
+            "required": true,
+            "in": "path",
+            "description": "Label ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Delete a specific label",
+        "tags": [
+          "labeling"
+        ]
+      }
+    },
+    "/api/labeling/projects/{id}/documents/{docId}/ocr": {
+      "get": {
+        "operationId": "LabelingController_getDocumentOcr",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "docId",
+            "required": true,
+            "in": "path",
+            "description": "Document ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get OCR data for document",
+        "tags": [
+          "labeling"
+        ]
+      }
+    },
+    "/api/labeling/projects/{id}/export": {
+      "post": {
+        "operationId": "LabelingController_exportProject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Export labeled data for training",
+        "tags": [
+          "labeling"
+        ]
+      }
+    },
+    "/api/hitl/queue": {
+      "get": {
+        "operationId": "HitlController_getQueue",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by document status",
+            "schema": {
+              "default": "completed_ocr",
+              "type": "string",
+              "enum": [
+                "completed_ocr",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "modelId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by model ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "maxConfidence",
+            "required": false,
+            "in": "query",
+            "description": "Maximum confidence threshold (show fields below this)",
+            "schema": {
+              "default": 0.9,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Limit results",
+            "schema": {
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Offset for pagination",
+            "schema": {
+              "default": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "reviewStatus",
+            "required": false,
+            "in": "query",
+            "description": "Filter by review status",
+            "schema": {
+              "default": "pending",
+              "type": "string",
+              "enum": [
+                "pending",
+                "reviewed",
+                "all"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get review queue with filters",
+        "tags": [
+          "hitl"
+        ]
+      }
+    },
+    "/api/hitl/queue/stats": {
+      "get": {
+        "operationId": "HitlController_getQueueStats",
+        "parameters": [
+          {
+            "name": "reviewStatus",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get queue statistics",
+        "tags": [
+          "hitl"
+        ]
+      }
+    },
+    "/api/hitl/sessions": {
+      "post": {
+        "operationId": "HitlController_startSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Start a review session",
+        "tags": [
+          "hitl"
+        ]
+      }
+    },
+    "/api/hitl/sessions/{id}": {
+      "get": {
+        "operationId": "HitlController_getSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Session ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get review session details",
+        "tags": [
+          "hitl"
+        ]
+      }
+    },
+    "/api/hitl/sessions/{id}/corrections": {
+      "post": {
+        "operationId": "HitlController_submitCorrections",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Session ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitCorrectionsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Submit corrections for a session",
+        "tags": [
+          "hitl"
+        ]
+      },
+      "get": {
+        "operationId": "HitlController_getCorrections",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Session ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get correction history for a session",
+        "tags": [
+          "hitl"
+        ]
+      }
+    },
+    "/api/hitl/sessions/{id}/submit": {
+      "post": {
+        "operationId": "HitlController_approveSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Session ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Approve and complete a review session",
+        "tags": [
+          "hitl"
+        ]
+      }
+    },
+    "/api/hitl/sessions/{id}/escalate": {
+      "post": {
+        "operationId": "HitlController_escalateSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Session ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EscalateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Escalate a document for expert review",
+        "tags": [
+          "hitl"
+        ]
+      }
+    },
+    "/api/hitl/sessions/{id}/skip": {
+      "post": {
+        "operationId": "HitlController_skipSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Session ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Skip a review session",
+        "tags": [
+          "hitl"
+        ]
+      }
+    },
+    "/api/hitl/analytics": {
+      "get": {
+        "operationId": "HitlController_getAnalytics",
+        "parameters": [
+          {
+            "name": "startDate",
+            "required": false,
+            "in": "query",
+            "description": "Start date for analytics period",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "endDate",
+            "required": false,
+            "in": "query",
+            "description": "End date for analytics period",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "reviewerId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by reviewer ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get HITL analytics",
+        "tags": [
+          "hitl"
+        ]
+      }
+    },
+    "/api/training/projects/{projectId}/validate": {
+      "get": {
+        "operationId": "TrainingController_validateProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "Training"
+        ]
+      }
+    },
+    "/api/training/projects/{projectId}/train": {
+      "post": {
+        "operationId": "TrainingController_startTraining",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartTrainingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "Training"
+        ]
+      }
+    },
+    "/api/training/projects/{projectId}/jobs": {
+      "get": {
+        "operationId": "TrainingController_getTrainingJobs",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "Training"
+        ]
+      }
+    },
+    "/api/training/jobs/{jobId}": {
+      "get": {
+        "operationId": "TrainingController_getJobStatus",
+        "parameters": [
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "Training"
+        ]
+      },
+      "delete": {
+        "operationId": "TrainingController_cancelJob",
+        "parameters": [
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "Training"
+        ]
+      }
+    },
+    "/api/training/projects/{projectId}/models": {
+      "get": {
+        "operationId": "TrainingController_getTrainedModels",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Invalid API key"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "Training"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Document Intelligence Platform API",
+    "description": "Comprehensive REST API for document processing, OCR, workflow orchestration, model training, and human-in-the-loop review",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Documents",
+      "description": "Document management and OCR results"
+    },
+    {
+      "name": "Upload",
+      "description": "Document upload endpoints"
+    },
+    {
+      "name": "Workflow",
+      "description": "Workflow configuration and execution"
+    },
+    {
+      "name": "labeling",
+      "description": "Document labeling projects and annotations"
+    },
+    {
+      "name": "Training",
+      "description": "Custom model training"
+    },
+    {
+      "name": "hitl",
+      "description": "Human-in-the-loop review queue"
+    },
+    {
+      "name": "API Keys",
+      "description": "API key management"
+    },
+    {
+      "name": "OCR",
+      "description": "OCR model information"
+    }
+  ],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "keycloak-sso": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "api-key": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key"
+      }
+    },
+    "schemas": {
+      "RefreshTokenDto": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ]
+      },
+      "RefreshReturnDto": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string"
+          },
+          "access_token": {
+            "type": "string"
+          },
+          "id_token": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "refresh_token",
+          "access_token",
+          "id_token",
+          "expires_in"
+        ]
+      },
+      "TokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "refresh_token": {
+            "type": "string"
+          },
+          "id_token": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "number"
+          },
+          "token_type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token",
+          "refresh_token",
+          "id_token",
+          "expires_in",
+          "token_type"
+        ]
+      },
+      "ApiKeyInfoDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "keyPrefix": {
+            "type": "string"
+          },
+          "userEmail": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastUsed": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "keyPrefix",
+          "userEmail",
+          "createdAt",
+          "lastUsed"
+        ]
+      },
+      "ApiKeyInfoWrapperDto": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "$ref": "#/components/schemas/ApiKeyInfoDto"
+          }
+        },
+        "required": [
+          "apiKey"
+        ]
+      },
+      "GeneratedApiKeyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "keyPrefix": {
+            "type": "string"
+          },
+          "userEmail": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastUsed": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "keyPrefix",
+          "userEmail",
+          "createdAt",
+          "lastUsed",
+          "key"
+        ]
+      },
+      "GeneratedApiKeyWrapperDto": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "$ref": "#/components/schemas/GeneratedApiKeyDto"
+          }
+        },
+        "required": [
+          "apiKey"
+        ]
+      },
+      "DocumentDataDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "original_filename": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "file_type": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "number"
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pre_ocr",
+              "ongoing_ocr",
+              "completed_ocr",
+              "failed"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "apim_request_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "model_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "original_filename",
+          "file_path",
+          "file_type",
+          "file_size",
+          "source",
+          "status",
+          "created_at",
+          "updated_at",
+          "model_id"
+        ]
+      },
+      "OcrResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "keyValuePairs": {
+            "type": "object",
+            "nullable": true
+          },
+          "processed_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "document_id",
+          "processed_at"
+        ]
+      },
+      "OcrResultResponseDto": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pre_ocr",
+              "ongoing_ocr",
+              "completed_ocr",
+              "failed"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "original_filename": {
+            "type": "string"
+          },
+          "file_type": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "apim_request_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "ocr_result": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OcrResultDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "document_id",
+          "status",
+          "title",
+          "original_filename",
+          "file_type",
+          "file_size",
+          "created_at",
+          "updated_at",
+          "model_id",
+          "ocr_result"
+        ]
+      },
+      "ApproveDocumentDto": {
+        "type": "object",
+        "properties": {
+          "approved": {
+            "type": "boolean",
+            "description": "Whether the document is approved (true) or rejected (false)"
+          },
+          "reviewer": {
+            "type": "string",
+            "description": "Identifier of the reviewer"
+          },
+          "comments": {
+            "type": "string",
+            "description": "Optional comments from the reviewer"
+          },
+          "rejectionReason": {
+            "type": "string",
+            "description": "Required when approved is false. Reason for rejecting the document."
+          },
+          "annotations": {
+            "type": "string",
+            "description": "Optional annotations (e.g. JSON string)"
+          }
+        },
+        "required": [
+          "approved"
+        ]
+      },
+      "WorkflowInfoDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name for the workflow"
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description",
+            "nullable": true
+          },
+          "userId": {
+            "type": "string",
+            "description": "ID of the user who owns the workflow"
+          },
+          "config": {
+            "type": "object",
+            "description": "Graph workflow configuration",
+            "additionalProperties": true
+          },
+          "schemaVersion": {
+            "type": "string",
+            "description": "Schema version for the workflow config"
+          },
+          "version": {
+            "type": "number",
+            "description": "Config version (incremented on config change)"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Creation timestamp"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Last update timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "userId",
+          "config",
+          "schemaVersion",
+          "version",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "WorkflowListResponseDto": {
+        "type": "object",
+        "properties": {
+          "workflows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowInfoDto"
+            }
+          }
+        },
+        "required": [
+          "workflows"
+        ]
+      },
+      "WorkflowResponseDto": {
+        "type": "object",
+        "properties": {
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowInfoDto"
+          }
+        },
+        "required": [
+          "workflow"
+        ]
+      },
+      "CreateWorkflowDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name for the workflow",
+            "example": "Invoice processing"
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description of the workflow",
+            "example": "Extract data from vendor invoices"
+          },
+          "config": {
+            "type": "object",
+            "description": "Graph workflow configuration (GraphWorkflowConfig JSON)."
+          }
+        },
+        "required": [
+          "name",
+          "config"
+        ]
+      },
+      "UploadDocumentDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "file_type": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "image",
+              "scan"
+            ]
+          },
+          "original_filename": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "model_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "file",
+          "file_type",
+          "original_filename",
+          "metadata",
+          "model_id"
+        ]
+      },
+      "UploadDocumentResponseDocumentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "original_filename": {
+            "type": "string"
+          },
+          "file_type": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "original_filename",
+          "file_type",
+          "file_size",
+          "status",
+          "created_at"
+        ]
+      },
+      "UploadDocumentResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "document": {
+            "$ref": "#/components/schemas/UploadDocumentResponseDocumentDto"
+          }
+        },
+        "required": [
+          "success",
+          "document"
+        ]
+      },
+      "CreateProjectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Project name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Project description"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateProjectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Project name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Project description"
+          },
+          "status": {
+            "type": "string",
+            "description": "Project status",
+            "enum": [
+              "active",
+              "archived",
+              "training"
+            ]
+          }
+        }
+      },
+      "CreateFieldDefinitionDto": {
+        "type": "object",
+        "properties": {
+          "field_key": {
+            "type": "string",
+            "description": "Unique field key"
+          },
+          "field_type": {
+            "type": "string",
+            "description": "Field type",
+            "enum": [
+              "string",
+              "number",
+              "date",
+              "selectionMark",
+              "signature"
+            ]
+          },
+          "field_format": {
+            "type": "string",
+            "description": "Field format (e.g., currency, dmy)"
+          },
+          "display_order": {
+            "type": "number",
+            "description": "Display order"
+          }
+        },
+        "required": [
+          "field_key",
+          "field_type"
+        ]
+      },
+      "UpdateFieldDefinitionDto": {
+        "type": "object",
+        "properties": {
+          "field_format": {
+            "type": "string",
+            "description": "Field format"
+          },
+          "display_order": {
+            "type": "number",
+            "description": "Display order"
+          }
+        }
+      },
+      "AddDocumentDto": {
+        "type": "object",
+        "properties": {
+          "labelingDocumentId": {
+            "type": "string",
+            "description": "Labeling document ID to add to project"
+          }
+        },
+        "required": [
+          "labelingDocumentId"
+        ]
+      },
+      "LabelingUploadDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "file_type": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "image",
+              "scan"
+            ]
+          },
+          "original_filename": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "title",
+          "file",
+          "file_type",
+          "original_filename",
+          "metadata"
+        ]
+      },
+      "SpanDto": {
+        "type": "object",
+        "properties": {
+          "offset": {
+            "type": "number",
+            "description": "Offset in the document content"
+          },
+          "length": {
+            "type": "number",
+            "description": "Length of the span"
+          }
+        },
+        "required": [
+          "offset",
+          "length"
+        ]
+      },
+      "BoundingBoxDto": {
+        "type": "object",
+        "properties": {
+          "polygon": {
+            "description": "Polygon points as array of numbers [x1,y1,x2,y2,...]",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pageWidth": {
+            "type": "number",
+            "description": "Page width for coordinate normalization"
+          },
+          "pageHeight": {
+            "type": "number",
+            "description": "Page height for coordinate normalization"
+          },
+          "span": {
+            "description": "Span information from OCR for ordering",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpanDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "polygon"
+        ]
+      },
+      "CreateLabelDto": {
+        "type": "object",
+        "properties": {
+          "field_key": {
+            "type": "string",
+            "description": "Field key this label belongs to"
+          },
+          "label_name": {
+            "type": "string",
+            "description": "Label name (for table cells: field/row/col)"
+          },
+          "value": {
+            "type": "string",
+            "description": "Extracted or labeled value"
+          },
+          "page_number": {
+            "type": "number",
+            "description": "Page number (1-indexed)"
+          },
+          "bounding_box": {
+            "description": "Bounding box coordinates",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoundingBoxDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "field_key",
+          "label_name",
+          "page_number",
+          "bounding_box"
+        ]
+      },
+      "SaveLabelsDto": {
+        "type": "object",
+        "properties": {
+          "labels": {
+            "description": "Array of labels to save",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateLabelDto"
+            }
+          },
+          "replaceAll": {
+            "type": "boolean",
+            "description": "Whether to replace all existing labels"
+          }
+        },
+        "required": [
+          "labels"
+        ]
+      },
+      "ExportDto": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "description": "Export format",
+            "enum": [
+              "json",
+              "azure"
+            ],
+            "default": "azure"
+          },
+          "includeOcrData": {
+            "type": "boolean",
+            "description": "Include OCR data in export"
+          },
+          "documentIds": {
+            "description": "Only export specific document IDs",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "labeledOnly": {
+            "type": "boolean",
+            "description": "Only export documents with status 'labeled'"
+          }
+        },
+        "required": [
+          "format"
+        ]
+      },
+      "ReviewSessionDto": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "Document ID to review"
+          },
+          "minConfidence": {
+            "type": "number",
+            "description": "Minimum confidence threshold"
+          }
+        },
+        "required": [
+          "documentId"
+        ]
+      },
+      "CorrectionDto": {
+        "type": "object",
+        "properties": {
+          "field_key": {
+            "type": "string",
+            "description": "Field key being corrected"
+          },
+          "original_value": {
+            "type": "string",
+            "description": "Original extracted value"
+          },
+          "corrected_value": {
+            "type": "string",
+            "description": "Corrected value"
+          },
+          "original_conf": {
+            "type": "number",
+            "description": "Original confidence score"
+          },
+          "action": {
+            "type": "string",
+            "description": "Action taken on this field",
+            "enum": [
+              "confirmed",
+              "corrected",
+              "flagged",
+              "deleted"
+            ],
+            "default": "confirmed"
+          }
+        },
+        "required": [
+          "field_key",
+          "action"
+        ]
+      },
+      "SubmitCorrectionsDto": {
+        "type": "object",
+        "properties": {
+          "corrections": {
+            "description": "Array of field corrections",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CorrectionDto"
+            }
+          }
+        },
+        "required": [
+          "corrections"
+        ]
+      },
+      "EscalateDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Reason for escalation"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "StartTrainingDto": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  }
+}

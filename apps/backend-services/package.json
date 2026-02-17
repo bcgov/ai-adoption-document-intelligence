@@ -25,7 +25,8 @@
     "db:reset": "prisma migrate reset",
     "db:status": "prisma migrate status",
     "db:studio": "prisma studio",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "generate:openapi": "SSO_AUTH_SERVER_URL=http://localhost:8080/realms/test SSO_REALM=test SSO_CLIENT_ID=test-client SSO_CLIENT_SECRET=test-secret FRONTEND_URL=http://localhost:3000 KEYCLOAK_PUBLIC_KEY=dummy-key DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy BLOB_STORAGE_TYPE=filesystem BLOB_STORAGE_ROOT=/tmp/uploads TEMPORAL_ADDRESS=localhost:7233 TEMPORAL_NAMESPACE=default ts-node -r tsconfig-paths/register generate-openapi.ts"
   },
   "dependencies": {
     "@azure-rest/ai-document-intelligence": "^1.1.0",
