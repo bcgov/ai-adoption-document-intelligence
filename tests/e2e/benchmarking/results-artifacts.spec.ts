@@ -9,6 +9,7 @@ test.describe('US-031 - Results Summary: Artifacts', () => {
 
   const SEED_PROJECT_ID = 'seed-project-invoice-extraction';
   const SEED_RUN_ID_COMPLETED = 'seed-run-completed-001';
+  const SEED_RUN_ID_REGRESSED = 'seed-run-regressed-005'; // Run without artifacts for empty state test
 
   let runDetailPage: RunDetailPage;
 
@@ -110,8 +111,8 @@ test.describe('US-031 - Results Summary: Artifacts', () => {
     await runDetailPage.runInfoTable.scrollIntoViewIfNeeded();
 
     // Then: Filter remains applied
-    const filterValue = await runDetailPage.artifactTypeFilter.textContent();
-    expect(filterValue).toContain('error_log');
+    const filterValue = await runDetailPage.artifactTypeFilter.inputValue();
+    expect(filterValue).toBe('error_log');
   });
 
   test('Scenario 14: should download artifact', async ({ page }) => {
@@ -134,8 +135,8 @@ test.describe('US-031 - Results Summary: Artifacts', () => {
   test('Scenario 15: should show empty state for runs with no artifacts', async ({ page }) => {
     // REQ US-031: Empty state message: "No artifacts stored for this run"
 
-    // Given: Run completed with no artifacts (seed data has no artifacts)
-    await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
+    // Given: Run completed with no artifacts (using regressed run which has no artifacts)
+    await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
     // Then: Artifacts section should either:
     // - Not be visible (if conditionally rendered), OR
@@ -163,8 +164,8 @@ test.describe('US-031 - Results Summary: Artifacts', () => {
     // REQ US-031: Artifact policy is indicated: "Policy: failures_only"
     // Note: Seed data doesn't specify artifact policy in a way that shows in UI
 
-    // Given: Run with no artifacts due to policy
-    await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
+    // Given: Run with no artifacts due to policy (using regressed run which has no artifacts)
+    await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
 
     // Then: If artifacts section is visible, it may explain why no artifacts are present
     const artifactsHeading = runDetailPage.artifactsHeading;

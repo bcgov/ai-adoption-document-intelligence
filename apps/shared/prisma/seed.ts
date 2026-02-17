@@ -1089,8 +1089,10 @@ async function seedBenchmarkingData() {
     },
   });
 
-  // Create test artifacts for the passing run (which has baseline comparison and won't crash the UI)
-  await seedBenchmarkArtifacts(project.id, SEED_RUN_ID_PASSING);
+  // Create test artifacts for the completed run (for artifact viewer testing)
+  await seedBenchmarkArtifacts(project.id, SEED_RUN_ID_COMPLETED, false);
+  // Also create artifacts for the passing run (which has baseline comparison and won't crash the UI)
+  await seedBenchmarkArtifacts(project.id, SEED_RUN_ID_PASSING, true);
 
   console.log("✅ Benchmarking seed data created successfully");
   console.log(`  - Dataset: ${dataset.name} (3 versions: v0.9 archived, v1.0 published, v2.0 draft)`);
@@ -1105,8 +1107,11 @@ async function seedBenchmarkingData() {
 /**
  * Seed benchmark artifacts for testing the artifact viewer
  * Creates JSON, image, text, and unsupported file type artifacts
+ * @param projectId - The project ID
+ * @param runId - The run ID to create artifacts for
+ * @param createAuditLog - Whether to create audit log (only create once)
  */
-async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RUN_ID_COMPLETED) {
+async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RUN_ID_COMPLETED, createAuditLog: boolean = true) {
   console.log("  📦 Creating test artifacts...");
 
   // Sample JSON artifact content (evaluation report)
@@ -1158,8 +1163,14 @@ async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RU
   // For seed purposes, we create database records only
   // E2E tests should mock MinIO responses or run with MinIO available
 
+  // Generate unique IDs based on runId to allow multiple runs to have artifacts
+  const artifactIdJson = `${runId}-artifact-json`;
+  const artifactIdImage = `${runId}-artifact-image`;
+  const artifactIdText = `${runId}-artifact-text`;
+  const artifactIdUnsupported = `${runId}-artifact-unsupported`;
+
   await prisma.benchmarkArtifact.upsert({
-    where: { id: SEED_ARTIFACT_ID_JSON },
+    where: { id: artifactIdJson },
     update: {
       runId,
       type: "evaluation_report",
@@ -1170,7 +1181,7 @@ async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RU
       mimeType: "application/json",
     },
     create: {
-      id: SEED_ARTIFACT_ID_JSON,
+      id: artifactIdJson,
       runId,
       type: "evaluation_report",
       path: `${runId}/evaluation_report/eval-report-1707563100000.json`,
@@ -1182,7 +1193,7 @@ async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RU
   });
 
   await prisma.benchmarkArtifact.upsert({
-    where: { id: SEED_ARTIFACT_ID_IMAGE },
+    where: { id: artifactIdImage },
     update: {
       runId,
       type: "per_doc_output",
@@ -1193,7 +1204,7 @@ async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RU
       mimeType: "image/png",
     },
     create: {
-      id: SEED_ARTIFACT_ID_IMAGE,
+      id: artifactIdImage,
       runId,
       type: "per_doc_output",
       path: `${runId}/per_doc_output/sample-001-output-1707563100001.png`,
@@ -1205,7 +1216,7 @@ async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RU
   });
 
   await prisma.benchmarkArtifact.upsert({
-    where: { id: SEED_ARTIFACT_ID_TEXT },
+    where: { id: artifactIdText },
     update: {
       runId,
       type: "error_log",
@@ -1216,7 +1227,7 @@ async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RU
       mimeType: "text/plain",
     },
     create: {
-      id: SEED_ARTIFACT_ID_TEXT,
+      id: artifactIdText,
       runId,
       type: "error_log",
       path: `${runId}/error_log/run-log-1707563100002.log`,
@@ -1228,7 +1239,7 @@ async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RU
   });
 
   await prisma.benchmarkArtifact.upsert({
-    where: { id: SEED_ARTIFACT_ID_UNSUPPORTED },
+    where: { id: artifactIdUnsupported },
     update: {
       runId,
       type: "intermediate_node_output",
@@ -1239,7 +1250,7 @@ async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RU
       mimeType: "application/octet-stream",
     },
     create: {
-      id: SEED_ARTIFACT_ID_UNSUPPORTED,
+      id: artifactIdUnsupported,
       runId,
       type: "intermediate_node_output",
       path: `${runId}/intermediate_node_output/model-weights-1707563100003.bin`,
@@ -1253,34 +1264,37 @@ async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RU
   console.log("    ✓ Created 4 test artifacts (JSON, image, text, unsupported)");
 
   // === AUDIT LOGS ===
-  console.log("  📋 Creating audit logs...");
+  // Only create audit logs once (for the first run to avoid duplicate key errors)
+  if (createAuditLog) {
+    console.log("  📋 Creating audit logs...");
 
-  // Create baseline promotion history - simulate that the baseline was promoted 2 days ago
-  const twoDaysAgo = new Date();
-  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    // Create baseline promotion history - simulate that the baseline was promoted 2 days ago
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
-  await prisma.benchmarkAuditLog.create({
-    data: {
-      id: "audit-baseline-001",
-      timestamp: twoDaysAgo,
-      userId: "test-user",
-      action: AuditAction.baseline_promoted,
-      entityType: "BenchmarkRun",
-      entityId: SEED_RUN_ID_COMPLETED,
-      metadata: {
-        definitionId: SEED_DEFINITION_ID,
-        projectId: SEED_PROJECT_ID,
-        previousBaselineId: null,
-        thresholds: [
-          { metricName: "field_accuracy", type: "relative", value: 0.95 },
-          { metricName: "character_accuracy", type: "relative", value: 0.95 },
-          { metricName: "word_accuracy", type: "relative", value: 0.95 },
-        ],
+    await prisma.benchmarkAuditLog.create({
+      data: {
+        id: "audit-baseline-001",
+        timestamp: twoDaysAgo,
+        userId: "test-user",
+        action: AuditAction.baseline_promoted,
+        entityType: "BenchmarkRun",
+        entityId: SEED_RUN_ID_COMPLETED,
+        metadata: {
+          definitionId: SEED_DEFINITION_ID,
+          projectId: SEED_PROJECT_ID,
+          previousBaselineId: null,
+          thresholds: [
+            { metricName: "field_accuracy", type: "relative", value: 0.95 },
+            { metricName: "character_accuracy", type: "relative", value: 0.95 },
+            { metricName: "word_accuracy", type: "relative", value: 0.95 },
+          ],
+        },
       },
-    },
-  });
+    });
 
-  console.log("    ✓ Created baseline promotion audit log");
+    console.log("    ✓ Created baseline promotion audit log");
+  }
 }
 
 async function seedLabelingData() {

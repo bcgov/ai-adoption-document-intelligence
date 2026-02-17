@@ -190,10 +190,14 @@ export function RunDetailPage() {
     ? `http://localhost:5000/#/experiments/${project.mlflowExperimentId}/runs/${run.mlflowRunId}`
     : null;
 
-  // Get unique artifact types for filter dropdown
-  const artifactTypes = Array.from(
-    new Set(artifacts.map((a) => a.type)),
-  ).sort();
+  // All possible artifact types (from schema) - should always be available in filter dropdown
+  const allArtifactTypes = [
+    "per_doc_output",
+    "intermediate_node_output",
+    "diff_report",
+    "evaluation_report",
+    "error_log",
+  ];
 
   const formatBytes = (bytes: string): string => {
     const num = Number.parseInt(bytes, 10);
@@ -649,8 +653,8 @@ export function RunDetailPage() {
               <Select
                 placeholder="Filter by type"
                 data={[
-                  { value: "", label: "All types" },
-                  ...artifactTypes.map((type) => ({
+                  { value: "", label: "All" },
+                  ...allArtifactTypes.map((type) => ({
                     value: type,
                     label: type,
                   })),
