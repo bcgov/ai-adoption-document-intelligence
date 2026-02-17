@@ -34,7 +34,7 @@
 - [x] run-comparison-navigation.spec.ts (✅ All 10 tests passed)
 - [x] run-comparison-params-tags.spec.ts (✅ All 10 tests passed)
 - [x] run-comparison-selection.spec.ts (✅ All 5 tests passed)
-- [ ] run-management.spec.ts
+- [x] run-management.spec.ts (✅ All 20 tests passed)
 - [ ] split-create.spec.ts
 - [ ] split-edge-cases.spec.ts
 - [ ] split-edit.spec.ts
