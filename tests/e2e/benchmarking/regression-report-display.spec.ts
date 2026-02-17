@@ -113,8 +113,8 @@ test.describe('Regression Report - Display', () => {
 
     // Then: Severity badges have appropriate colors
     // Note: We can't directly test color, but we can verify badges exist with text
-    const criticalBadges = regressionPage.page.getByRole('generic').filter({ hasText: /Critical/i });
-    const warningBadges = regressionPage.page.getByRole('generic').filter({ hasText: /Warning/i });
+    const criticalBadges = regressionPage.page.getByText(/^Critical$/i);
+    const warningBadges = regressionPage.page.getByText(/^Warning$/i);
 
     // At least one severity badge should be visible
     const hasCritical = await criticalBadges.count() > 0;

@@ -16,7 +16,7 @@
 - [x] metrics-breakdown.spec.ts (✅ All 2 tests passed)
 - [x] navigation-routing.spec.ts (✅ All 11 tests passed)
 - [x] regression-report-advanced.spec.ts (✅ 9/10 tests passed - multiple annotations test needs backend persistence)
-- [ ] regression-report-display.spec.ts
+- [x] regression-report-display.spec.ts (✅ All 9 tests passed)
 - [ ] regression-report-edge-cases.spec.ts
 - [ ] regression-report-exports.spec.ts
 - [ ] regression-report-run-list.spec.ts
