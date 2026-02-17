@@ -106,7 +106,14 @@ export function RegressionReportPage() {
       status: run.status,
       startedAt: run.startedAt,
       completedAt: run.completedAt,
-      baselineComparison: run.baselineComparison,
+      baselineComparison: run.baselineComparison.metricComparisons.map((comparison) => ({
+        metricName: comparison.metricName,
+        currentValue: comparison.currentValue,
+        baselineValue: comparison.baselineValue,
+        delta: comparison.delta,
+        deltaPercent: comparison.deltaPercent,
+        status: comparison.passed ? "PASS" : "FAIL",
+      })),
       generatedAt: new Date().toISOString(),
     };
 
