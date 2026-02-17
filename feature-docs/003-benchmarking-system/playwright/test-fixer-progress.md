@@ -27,7 +27,7 @@
 - [x] results-large-datasets.spec.ts (✅ All 8 tests passed)
 - [x] results-metrics.spec.ts (✅ All 6 tests passed)
 - [x] results-mlflow-links.spec.ts (✅ All 8 tests passed)
-- [ ] results-params-tags.spec.ts
+- [x] results-params-tags.spec.ts (✅ All 9 tests passed)
 - [ ] run-comparison-export.spec.ts
 - [ ] run-comparison-metrics.spec.ts
 - [ ] run-comparison-multiple-baseline.spec.ts
