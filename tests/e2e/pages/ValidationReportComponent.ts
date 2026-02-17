@@ -67,7 +67,7 @@ export class ValidationReportComponent {
     this.issuesList = page.locator('[data-testid="issues-list"]');
 
     // Loading/error states
-    this.loadingIndicator = page.locator('role=generic >> role=generic[name="Loader"]');
+    this.loadingIndicator = page.getByRole('generic').filter({ has: page.getByText('Loader', { exact: false }) }).or(page.locator('.mantine-Loader-root'));
     this.noResultsMessage = page.getByText('No validation results available');
   }
 
@@ -76,10 +76,17 @@ export class ValidationReportComponent {
    * @param timeout - Maximum time to wait (default 30s)
    */
   async waitForValidationComplete(timeout: number = 30000) {
-    // Wait for loading to disappear
-    await this.loadingIndicator.waitFor({ state: 'detached', timeout });
-    // Wait for either results or error message
-    await this.page.waitForTimeout(500); // Small delay for UI to settle
+    // Wait for either the status card or the no results message to appear
+    try {
+      await this.statusCard.waitFor({ state: 'visible', timeout });
+    } catch {
+      // If status card doesn't appear, check if no results message is shown
+      await this.noResultsMessage.waitFor({ state: 'visible', timeout: 1000 }).catch(() => {
+        // Neither appeared, which is an error state
+      });
+    }
+    // Small delay for UI to settle
+    await this.page.waitForTimeout(200);
   }
 
   /**

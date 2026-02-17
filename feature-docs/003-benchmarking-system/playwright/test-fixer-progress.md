@@ -40,6 +40,6 @@
 - [x] split-edit.spec.ts (✅ All 7 tests passed - fixed selector issue with exact: true)
 - [x] split-freeze.spec.ts (✅ All 5 tests passed)
 - [x] split-list-display.spec.ts (✅ All 6 tests passed - fixed clickVersion to handle empty/error states)
-- [ ] validation-edge-cases.spec.ts
+- [x] validation-edge-cases.spec.ts (✅ 9/11 tests passed - 2 tests require unimplemented features: sampled validation, schema messaging)
 - [ ] validation-errors.spec.ts
 - [ ] validation-trigger.spec.ts

@@ -424,8 +424,8 @@ export function DatasetDetailPage() {
           <Center h={200}>
             <Loader />
           </Center>
-        ) : validationResult?.data?.data ? (
-          <ValidationReport validation={validationResult.data.data} />
+        ) : validationResult?.data ? (
+          <ValidationReport validation={validationResult.data} />
         ) : (
           <Text c="dimmed">No validation results available</Text>
         )}

@@ -210,6 +210,44 @@ If ALL tests are checked off (`- [x]`), output exactly:
 3. Use browser snapshot/screenshot tools
 4. Use Playwright MCP to explore page elements
 
+**For Playwright Exploration**:
+1. **Navigate to app**: Go to the frontend URL (default: http://localhost:3000)
+2. **Inject mock auth**: Use page.evaluate to inject fake JWT tokens into localStorage for frontend routing:
+
+```javascript
+await page.evaluate(() => {
+  const createFakeJWT = (payload) => {
+    const header = { alg: 'none', typ: 'JWT' };
+    const base64UrlEncode = (obj) => {
+      const json = JSON.stringify(obj);
+      const base64 = btoa(json);
+      return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    };
+    return `${base64UrlEncode(header)}.${base64UrlEncode(payload)}.fake-signature`;
+  };
+
+  const fakeIdToken = createFakeJWT({
+    name: 'Test User',
+    preferred_username: 'testuser',
+    email: 'test@example.com',
+    sub: 'test-user',
+  });
+
+  const mockAuthTokens = {
+    access_token: 'mock-access-token',
+    refresh_token: 'mock-refresh-token',
+    id_token: fakeIdToken,
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+  };
+
+  localStorage.setItem('auth_tokens', JSON.stringify(mockAuthTokens));
+});
+```
+
+3. **Reload page**: Reload so auth context picks up the tokens
+4. **Wait for load**: Wait for networkidle state
+
 ### For API Failures
 
 - Read backend log: `tail -n 50 apps/backend-services/backend.log`
