@@ -115,14 +115,18 @@ export function RunComparisonPage() {
     for (const metricName of comparisonData.metricNames) {
       const row = [metricName];
       const values = comparisonData.runs.map(
-        (r) => r.metrics[metricName] as number,
+        (r) => r.metrics[metricName],
       );
-      row.push(...values.map((v) => (v !== undefined ? v.toFixed(4) : "-")));
+      row.push(...values.map((v) => {
+        if (v === undefined || v === null) return "-";
+        if (typeof v === "number") return v.toFixed(4);
+        return JSON.stringify(v);
+      }));
 
       if (
         values.length >= 2 &&
-        values[0] !== undefined &&
-        values[1] !== undefined
+        typeof values[0] === "number" &&
+        typeof values[1] === "number"
       ) {
         const delta = computeDelta(values[1], values[0]);
         const deltaPercent = computeDeltaPercent(values[1], values[0]);
@@ -341,20 +345,18 @@ export function RunComparisonPage() {
                 {comparisonData.metricNames.map((metricName) => {
                   const baselineValue = comparisonData.runs[0].metrics[
                     metricName
-                  ] as number | undefined;
+                  ];
                   const compareValue =
                     comparisonData.runs.length >= 2
-                      ? (comparisonData.runs[1].metrics[metricName] as
-                          | number
-                          | undefined)
+                      ? comparisonData.runs[1].metrics[metricName]
                       : undefined;
 
                   const delta =
-                    baselineValue !== undefined && compareValue !== undefined
+                    typeof baselineValue === "number" && typeof compareValue === "number"
                       ? computeDelta(compareValue, baselineValue)
                       : null;
                   const deltaPercent =
-                    baselineValue !== undefined && compareValue !== undefined
+                    typeof baselineValue === "number" && typeof compareValue === "number"
                       ? computeDeltaPercent(compareValue, baselineValue)
                       : null;
 
@@ -362,13 +364,15 @@ export function RunComparisonPage() {
                     <Table.Tr key={metricName}>
                       <Table.Td fw={500}>{metricName}</Table.Td>
                       {comparisonData.runs.map((run) => {
-                        const value = run.metrics[metricName] as
-                          | number
-                          | undefined;
+                        const value = run.metrics[metricName];
                         return (
                           <Table.Td key={run.id}>
                             <Code>
-                              {value !== undefined ? value.toFixed(4) : "-"}
+                              {value === undefined || value === null
+                                ? "-"
+                                : typeof value === "number"
+                                  ? value.toFixed(4)
+                                  : JSON.stringify(value)}
                             </Code>
                           </Table.Td>
                         );
