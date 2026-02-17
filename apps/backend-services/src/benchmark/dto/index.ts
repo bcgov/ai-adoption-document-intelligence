@@ -8,6 +8,7 @@ export * from "./create-split.dto";
 export * from "./create-version.dto";
 export * from "./dataset-response.dto";
 export * from "./definition-response.dto";
+export * from "./ground-truth-response.dto";
 export * from "./manifest-sample.dto";
 export * from "./paginated-dataset-response.dto";
 export * from "./per-sample-result.dto";

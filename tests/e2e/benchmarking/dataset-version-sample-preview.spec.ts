@@ -191,8 +191,7 @@ test.describe.serial('Dataset Version & Sample Preview UI', () => {
   });
 
   // Scenario 5: View Sample Ground Truth JSON
-  test.fail('should display ground truth JSON in viewer', async ({ page }) => {
-    // TODO: Requires actual ground truth JSON files in the dataset repository and backend implementation to fetch/parse them
+  test('should display ground truth JSON in viewer', async ({ page }) => {
     await datasetPage.goto(SEED_DATASET_ID);
     await datasetPage.clickVersion(SEED_VERSION_PUBLISHED);
 

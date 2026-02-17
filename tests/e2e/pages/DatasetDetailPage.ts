@@ -102,6 +102,8 @@ export class DatasetDetailPage {
     const row = this.page.locator(`[data-testid="version-row-${versionId}"]`);
     await row.click();
     await this.page.waitForLoadState('networkidle');
+    // Wait for the samples table to be visible to ensure version is selected
+    await this.samplesTable.waitFor({ state: 'visible', timeout: 5000 });
   }
 
   /**
@@ -192,6 +194,8 @@ export class DatasetDetailPage {
    */
   async viewGroundTruth(sampleId: string) {
     await this.getViewGroundTruthBtn(sampleId).click();
+    // Wait for the API request to complete
+    await this.page.waitForLoadState('networkidle');
     await this.groundTruthViewer.waitFor({ state: 'visible' });
   }
 

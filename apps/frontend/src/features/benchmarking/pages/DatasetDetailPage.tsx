@@ -24,6 +24,7 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
+import { apiService } from "@/data/services/api.service";
 import { FileUploadDialog } from "../components/FileUploadDialog";
 import { GroundTruthViewer } from "../components/GroundTruthViewer";
 import { SplitManagement } from "../components/SplitManagement";
@@ -121,11 +122,23 @@ export function DatasetDetailPage() {
 
   const handleViewGroundTruth = async (sampleId: string) => {
     const sample = samples.find((s) => s.id === sampleId);
-    if (sample?.groundTruth?.[0]?.path) {
-      // For now, we'll show the sample metadata as ground truth preview
-      // In a real implementation, we'd fetch the actual ground truth file
-      setSelectedGroundTruth(sample.metadata || {});
-      setGroundTruthViewerOpen(true);
+    if (sample?.groundTruth?.[0]?.path && selectedVersionId) {
+      try {
+        // Fetch the actual ground truth JSON from the API
+        const response = await apiService.get<{
+          sampleId: string;
+          content: Record<string, unknown>;
+          path: string;
+          format: string;
+        }>(
+          `/benchmark/datasets/${id}/versions/${selectedVersionId}/samples/${sampleId}/ground-truth`,
+        );
+
+        setSelectedGroundTruth(response.data.content);
+        setGroundTruthViewerOpen(true);
+      } catch (error) {
+        console.error("Error fetching ground truth:", error);
+      }
     }
   };
 

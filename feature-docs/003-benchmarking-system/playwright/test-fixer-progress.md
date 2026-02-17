@@ -7,7 +7,7 @@
 - [x] baseline-promotion.spec.ts (✅ 8 passed, 1 skipped - API error route interception)
 - [x] baseline-ui-display.spec.ts (✅ All 9 tests passed)
 - [x] dataset-list-create.spec.ts (✅ All 16 tests passed)
-- [ ] dataset-version-sample-preview.spec.ts (⏭️ Has skipped tests)
+- [ ] dataset-version-sample-preview.spec.ts (🔄 Backend complete, 1 test failing: Mantine modal not opening - needs frontend debugging)
 - [ ] definition-create-validation.spec.ts
 - [ ] definition-form-display.spec.ts
 - [ ] definition-list-detail.spec.ts

@@ -27,6 +27,7 @@ import {
   CreateDatasetDto,
   CreateVersionDto,
   DatasetResponseDto,
+  GroundTruthResponseDto,
   ManifestSampleDto,
   PaginatedDatasetResponseDto,
   SampleListResponseDto,
@@ -824,6 +825,119 @@ export class DatasetService {
       }
       this.logger.error(
         `Failed to list samples for dataset ${datasetId}, version ${versionId}`,
+        error.stack,
+      );
+      throw error;
+    } finally {
+      // Clean up temporary directory
+      try {
+        await rm(tempDir, { recursive: true, force: true });
+      } catch (cleanupError) {
+        this.logger.warn(
+          `Failed to clean up temp directory: ${tempDir}`,
+          cleanupError,
+        );
+      }
+    }
+  }
+
+  /**
+   * Get ground truth JSON content for a specific sample
+   */
+  async getGroundTruth(
+    datasetId: string,
+    versionId: string,
+    sampleId: string,
+  ): Promise<GroundTruthResponseDto> {
+    this.logger.debug(
+      `Getting ground truth for dataset ${datasetId}, version ${versionId}, sample ${sampleId}`,
+    );
+
+    // Get the version
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: {
+        id: versionId,
+        datasetId: datasetId,
+      },
+      include: {
+        dataset: true,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    // Create temporary directory for checking out the dataset
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-gt-"));
+
+    try {
+      // Clone the dataset repository
+      await this.dvcService.cloneRepository(
+        version.dataset.repositoryUrl,
+        tempDir,
+      );
+
+      // Checkout the specific git revision
+      await this.dvcService.checkout(tempDir, version.gitRevision);
+
+      // Load and validate the manifest
+      const manifestPath = path.join(tempDir, version.manifestPath);
+      const manifest = await this.loadAndValidateManifest(manifestPath);
+
+      // Find the sample
+      const sample = manifest.samples.find((s) => s.id === sampleId);
+      if (!sample) {
+        throw new NotFoundException(
+          `Sample with ID ${sampleId} not found in version ${versionId}`,
+        );
+      }
+
+      // Get the first ground truth file (most common case)
+      if (!sample.groundTruth || sample.groundTruth.length === 0) {
+        throw new NotFoundException(
+          `Sample ${sampleId} has no ground truth files`,
+        );
+      }
+
+      const groundTruthFile = sample.groundTruth[0];
+      const groundTruthPath = path.join(tempDir, groundTruthFile.path);
+
+      // Read and parse the ground truth file
+      let content: Record<string, unknown>;
+      try {
+        const fileContent = await fs.promises.readFile(
+          groundTruthPath,
+          "utf-8",
+        );
+        content = JSON.parse(fileContent);
+      } catch (error) {
+        this.logger.error(
+          `Failed to read or parse ground truth file at ${groundTruthFile.path}`,
+          error.stack,
+        );
+        throw new BadRequestException(
+          `Failed to read or parse ground truth file: ${error.message}`,
+        );
+      }
+
+      return {
+        sampleId,
+        content,
+        path: groundTruthFile.path,
+        format: groundTruthFile.format,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to get ground truth for dataset ${datasetId}, version ${versionId}, sample ${sampleId}`,
         error.stack,
       );
       throw error;

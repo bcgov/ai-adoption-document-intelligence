@@ -45,6 +45,7 @@ import {
   CreateDatasetDto,
   CreateVersionDto,
   DatasetResponseDto,
+  GroundTruthResponseDto,
   PaginatedDatasetResponseDto,
   SampleListResponseDto,
   UploadResponseDto,
@@ -375,6 +376,35 @@ export class DatasetController {
     const limitNum = limit ? parseInt(limit, 10) : 20;
 
     return this.datasetService.listSamples(id, versionId, pageNum, limitNum);
+  }
+
+  @Get(":id/versions/:versionId/samples/:sampleId/ground-truth")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Get ground truth JSON content for a sample",
+    description:
+      "Fetches and returns the ground truth JSON content for a specific sample from the dataset repository",
+  })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiParam({ name: "sampleId", description: "Sample ID" })
+  @ApiOkResponse({
+    description: "Returns the ground truth JSON content",
+    type: GroundTruthResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: "Dataset version or sample not found",
+  })
+  @ApiBadRequestResponse({
+    description: "Invalid ground truth file or malformed JSON",
+  })
+  async getGroundTruth(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+    @Param("sampleId") sampleId: string,
+  ): Promise<GroundTruthResponseDto> {
+    return this.datasetService.getGroundTruth(id, versionId, sampleId);
   }
 
   @Post(":id/versions/:versionId/validate")

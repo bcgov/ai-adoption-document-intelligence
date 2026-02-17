@@ -1221,6 +1221,193 @@ describe("DatasetService", () => {
     });
   });
 
+  // -----------------------------------------------------------------------
+  // Scenario: Get ground truth JSON content (US-028, Scenario 5)
+  // -----------------------------------------------------------------------
+  describe("getGroundTruth", () => {
+    const datasetId = "dataset-123";
+    const versionId = "version-123";
+    const sampleId = "sample-001";
+
+    const mockVersion = {
+      id: versionId,
+      datasetId: datasetId,
+      gitRevision: "abc123",
+      manifestPath: "data/manifest.json",
+      dataset: {
+        repositoryUrl: "git@example.com:dataset-repo.git",
+      },
+    };
+
+    const validManifest = {
+      schemaVersion: "1.0",
+      samples: [
+        {
+          id: "sample-001",
+          inputs: [{ path: "inputs/doc_001.pdf", mimeType: "application/pdf" }],
+          groundTruth: [{ path: "ground-truth/data_001.json", format: "json" }],
+          metadata: { docType: "invoice" },
+        },
+      ],
+    };
+
+    const groundTruthContent = {
+      invoice_number: "INV-2024-001",
+      total_amount: 1250.75,
+      date: "2024-01-15",
+      vendor: "Acme Corp",
+    };
+
+    beforeEach(() => {
+      mockPrismaClient.datasetVersion.findFirst.mockReset();
+      mockDvcService.cloneRepository.mockReset();
+      mockDvcService.checkout.mockReset();
+      mockReadFile.mockReset();
+      mockRm.mockReset();
+    });
+
+    it("returns ground truth JSON content for a sample", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+      mockReadFile
+        .mockResolvedValueOnce(JSON.stringify(validManifest)) // manifest read
+        .mockResolvedValueOnce(JSON.stringify(groundTruthContent)); // ground truth file read
+
+      const result = await service.getGroundTruth(
+        datasetId,
+        versionId,
+        sampleId,
+      );
+
+      expect(result).toEqual({
+        sampleId: "sample-001",
+        content: groundTruthContent,
+        path: "ground-truth/data_001.json",
+        format: "json",
+      });
+    });
+
+    it("throws NotFoundException when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getGroundTruth(datasetId, versionId, sampleId),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockDvcService.cloneRepository).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException when sample not found in manifest", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify(validManifest));
+
+      await expect(
+        service.getGroundTruth(datasetId, versionId, "sample-999"),
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        service.getGroundTruth(datasetId, versionId, "sample-999"),
+      ).rejects.toThrow("Sample with ID sample-999 not found");
+    });
+
+    it("throws NotFoundException when sample has no ground truth files", async () => {
+      const manifestWithoutGroundTruth = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "sample-001",
+            inputs: [
+              { path: "inputs/doc_001.pdf", mimeType: "application/pdf" },
+            ],
+            groundTruth: [],
+            metadata: { docType: "invoice" },
+          },
+        ],
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(
+        JSON.stringify(manifestWithoutGroundTruth),
+      );
+
+      await expect(
+        service.getGroundTruth(datasetId, versionId, sampleId),
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        service.getGroundTruth(datasetId, versionId, sampleId),
+      ).rejects.toThrow("Sample sample-001 has no ground truth files");
+    });
+
+    it("throws BadRequestException when ground truth file cannot be parsed", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+      mockReadFile
+        .mockResolvedValueOnce(JSON.stringify(validManifest))
+        .mockResolvedValueOnce("{ invalid json"); // malformed JSON
+
+      await expect(
+        service.getGroundTruth(datasetId, versionId, sampleId),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("clones repository and checks out correct git revision", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+      mockReadFile
+        .mockResolvedValueOnce(JSON.stringify(validManifest))
+        .mockResolvedValueOnce(JSON.stringify(groundTruthContent));
+
+      await service.getGroundTruth(datasetId, versionId, sampleId);
+
+      expect(mockDvcService.cloneRepository).toHaveBeenCalledWith(
+        "git@example.com:dataset-repo.git",
+        "/tmp/dataset-init-test123",
+      );
+      expect(mockDvcService.checkout).toHaveBeenCalledWith(
+        "/tmp/dataset-init-test123",
+        "abc123",
+      );
+    });
+
+    it("cleans up temp directory after successful operation", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+      mockReadFile
+        .mockResolvedValueOnce(JSON.stringify(validManifest))
+        .mockResolvedValueOnce(JSON.stringify(groundTruthContent));
+
+      await service.getGroundTruth(datasetId, versionId, sampleId);
+
+      expect(mockRm).toHaveBeenCalledWith(
+        "/tmp/dataset-init-test123",
+        expect.objectContaining({ recursive: true, force: true }),
+      );
+    });
+
+    it("cleans up temp directory even when error occurs", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+      mockDvcService.checkout.mockResolvedValue(undefined);
+      mockReadFile.mockRejectedValue(new Error("File read error"));
+
+      await expect(
+        service.getGroundTruth(datasetId, versionId, sampleId),
+      ).rejects.toThrow();
+
+      expect(mockRm).toHaveBeenCalledWith(
+        "/tmp/dataset-init-test123",
+        expect.objectContaining({ recursive: true, force: true }),
+      );
+    });
+  });
+
   describe("validateDatasetVersion", () => {
     const datasetId = "dataset-123";
     const versionId = "version-456";

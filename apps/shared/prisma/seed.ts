@@ -238,9 +238,35 @@ async function createTestDatasetRepo(
   }
   fs.writeFileSync(manifestFullPath, JSON.stringify(manifest, null, 2));
 
-  // Commit manifest
+  // Create actual ground truth JSON files
+  const groundTruthDir = path.join(repoPath, "ground-truth");
+  if (!fs.existsSync(groundTruthDir)) {
+    fs.mkdirSync(groundTruthDir, { recursive: true });
+  }
+
+  for (let i = 0; i < sampleCount; i++) {
+    const groundTruthData = {
+      invoice_number: `INV-2024-${String(i + 1).padStart(3, "0")}`,
+      total_amount: Math.round((Math.random() * 5000 + 100) * 100) / 100,
+      date: new Date(2024, 0, i + 1).toISOString().split("T")[0],
+      vendor: ["Acme Corp", "TechSupply Inc", "Office Depot", "Global Services"][
+        i % 4
+      ],
+    };
+
+    const groundTruthPath = path.join(
+      groundTruthDir,
+      `data_${String(i + 1).padStart(3, "0")}.json`,
+    );
+    fs.writeFileSync(groundTruthPath, JSON.stringify(groundTruthData, null, 2));
+  }
+
+  // Commit manifest and ground truth files
   try {
-    execSync(`git add "${manifestPath}"`, { cwd: repoPath, stdio: "ignore" });
+    execSync(`git add "${manifestPath}" ground-truth/`, {
+      cwd: repoPath,
+      stdio: "ignore",
+    });
     execSync(`git commit -m "Add manifest with ${sampleCount} samples"`, {
       cwd: repoPath,
       stdio: "ignore",
