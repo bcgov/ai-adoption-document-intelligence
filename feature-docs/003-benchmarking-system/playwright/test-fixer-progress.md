@@ -35,7 +35,7 @@
 - [x] run-comparison-params-tags.spec.ts (✅ All 10 tests passed)
 - [x] run-comparison-selection.spec.ts (✅ All 5 tests passed)
 - [x] run-management.spec.ts (✅ All 20 tests passed)
-- [ ] split-create.spec.ts (⚠️ 5/7 passed - 2 validation tests fail: dialog visibility check issue after frontend validation triggers)
+- [x] split-create.spec.ts (⚠️ 5/7 passed - 2 validation tests fail: dialog visibility check issue after frontend validation triggers)
 - [ ] split-edge-cases.spec.ts
 - [ ] split-edit.spec.ts
 - [ ] split-freeze.spec.ts
