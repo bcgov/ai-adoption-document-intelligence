@@ -13,6 +13,7 @@ interface RunSummary {
   headlineMetrics: Record<string, unknown> | null;
   hasRegression?: boolean;
   regressedMetricCount?: number;
+  isBaseline?: boolean;
 }
 
 interface MetricThreshold {

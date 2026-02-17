@@ -414,6 +414,7 @@ export class BenchmarkRunService {
         headlineMetrics,
         hasRegression,
         regressedMetricCount,
+        isBaseline: run.isBaseline,
       };
     });
   }

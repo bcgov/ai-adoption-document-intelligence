@@ -212,15 +212,17 @@ export function RunDetailPage() {
                 {run.definitionName}
               </Title>
               {run.isBaseline && (
-                <Badge
-                  size="lg"
-                  color="yellow"
-                  variant="filled"
-                  leftSection={<IconTrophy size={14} />}
-                  data-testid="baseline-badge"
-                >
-                  BASELINE
-                </Badge>
+                <Tooltip label="This run is the baseline for comparison">
+                  <Badge
+                    size="lg"
+                    color="yellow"
+                    variant="filled"
+                    leftSection={<IconTrophy size={14} />}
+                    data-testid="baseline-badge"
+                  >
+                    BASELINE
+                  </Badge>
+                </Tooltip>
               )}
             </Group>
             <Text c="dimmed" size="sm" data-testid="run-id-text">
@@ -470,6 +472,16 @@ export function RunDetailPage() {
                   )}
                 </Table.Td>
               </Table.Tr>
+              {run.isBaseline && (
+                <Table.Tr>
+                  <Table.Td fw={500}>Retention Policy</Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">
+                      Protected from retention - baseline runs are exempt from cleanup
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              )}
             </Table.Tbody>
           </Table>
         </Stack>

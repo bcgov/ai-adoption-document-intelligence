@@ -134,12 +134,10 @@ test.describe('Baseline UI Display', () => {
     await expect(runsTable).toBeVisible();
 
     // Then: Baseline run has badge in its row
-    const baselineRunRow = page.locator(`[data-testid*="${SEED_RUN_ID_COMPLETED}"]`).or(
-      runsTable.locator('tr').filter({ hasText: 'seed-run-completed-001' })
-    );
+    const baselineRunRow = page.locator(`[data-testid="run-row-${SEED_RUN_ID_COMPLETED}"]`);
     await expect(baselineRunRow).toBeVisible();
 
-    const baselineBadge = baselineRunRow.locator('[class*="Badge"]').filter({ hasText: /BASELINE/i });
+    const baselineBadge = baselineRunRow.locator('[class*="Badge"]').filter({ hasText: /BASELINE/i }).first();
     await expect(baselineBadge).toBeVisible();
   });
 

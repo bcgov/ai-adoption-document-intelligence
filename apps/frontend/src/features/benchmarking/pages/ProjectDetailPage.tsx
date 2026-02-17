@@ -16,6 +16,7 @@ import {
   IconAlertTriangle,
   IconGitCompare,
   IconPlus,
+  IconTrophy,
 } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -330,6 +331,14 @@ export function ProjectDetailPage() {
                         <Badge color={getStatusColor(run.status)}>
                           {run.status}
                         </Badge>
+                        {run.isBaseline && (
+                          <Badge
+                            color="yellow"
+                            leftSection={<IconTrophy size={12} />}
+                          >
+                            BASELINE
+                          </Badge>
+                        )}
                         {run.hasRegression && run.regressedMetricCount && (
                           <Badge
                             color="red"

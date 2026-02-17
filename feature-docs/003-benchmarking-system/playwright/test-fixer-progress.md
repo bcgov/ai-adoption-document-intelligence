@@ -5,7 +5,7 @@
 - [x] artifact-viewer.spec.ts (✅ All 10 tests passed)
 - [x] baseline-comparison.spec.ts (✅ All 11 tests passed)
 - [x] baseline-promotion.spec.ts (✅ 8 passed, 1 skipped - API error route interception)
-- [ ] baseline-ui-display.spec.ts
+- [x] baseline-ui-display.spec.ts (✅ All 9 tests passed)
 - [ ] dataset-list-create.spec.ts
 - [ ] dataset-version-sample-preview.spec.ts (⏭️ Has skipped tests)
 - [ ] definition-create-validation.spec.ts

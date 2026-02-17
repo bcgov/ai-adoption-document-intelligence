@@ -65,6 +65,11 @@ export class RunSummaryDto {
    * Number of regressed metrics (if compared against baseline)
    */
   regressedMetricCount?: number;
+
+  /**
+   * Whether this is the baseline run
+   */
+  isBaseline?: boolean;
 }
 
 /**
