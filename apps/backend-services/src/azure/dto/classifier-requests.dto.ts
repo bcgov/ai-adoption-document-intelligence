@@ -20,6 +20,26 @@ export class ClassifierCreationDto {
   group_id: string;
 }
 
+export class UpdateClassifierDto {
+  @ApiProperty()
+  @IsString()
+  name: string;
+
+  @ApiProperty()
+  @IsString()
+  group_id: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiProperty({ enum: ClassifierSource, required: false })
+  @IsOptional()
+  @IsEnum(ClassifierSource)
+  source?: ClassifierSource;
+}
+
 export class UploadClassifierDocumentsDto {
   @ApiProperty()
   @IsString()
@@ -32,6 +52,10 @@ export class UploadClassifierDocumentsDto {
   @ApiProperty()
   @IsString()
   group_id: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  files?: any;
 }
 
 export class DeleteClassifierDocumentsDto {
@@ -45,8 +69,8 @@ export class DeleteClassifierDocumentsDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsArray()
-  folders?: string[];
+  @IsString()
+  folder?: string;
 }
 
 export class GetClassifierDocumentsQueryDto {

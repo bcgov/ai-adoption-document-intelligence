@@ -9,6 +9,7 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  Patch,
   Post,
   Query,
   Request,
@@ -39,6 +40,7 @@ import {
   GetTrainingResultQueryDto,
   RequestClassificationDto,
   RequestClassifierTrainingDto,
+  UpdateClassifierDto,
   UploadClassifierDocumentsDto,
 } from "@/azure/dto/classifier-requests.dto";
 import {
@@ -126,6 +128,56 @@ export class AzureController {
     return creationResult;
   }
 
+  @Patch("classifier")
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Update a classifier",
+    description: "Updates an existing classifier's properties.",
+  })
+  @ApiCreatedResponse({
+    description: "Classifier updated successfully",
+    type: ClassifierModelResponseDto,
+  })
+  @ApiBody({
+    type: UpdateClassifierDto,
+    description: "Classifier update payload",
+  })
+  async updateClassifier(@Request() req, @Body() body: UpdateClassifierDto) {
+    const { name, group_id, description, source } = body;
+    const userId = req.user.sub;
+    
+    if (!(await this.databaseService.isUserInGroup(userId, group_id))) {
+      throw new ForbiddenException("User does not belong to requested group.");
+    }
+
+    // Check if classifier exists
+    const classifier = await this.databaseService.getClassifierModel(
+      name,
+      group_id,
+    );
+    if (classifier == null) {
+      throw new NotFoundException("Classifier not found.");
+    }
+
+    // Build update object with only provided fields
+    const updateData: any = {};
+    if (description !== undefined) {
+      updateData.description = description;
+    }
+    if (source !== undefined) {
+      updateData.source = source;
+    }
+
+    const updateResult = await this.databaseService.updateClassifierModel(
+      name,
+      group_id,
+      updateData,
+      userId,
+    );
+    
+    return updateResult;
+  }
+
   @Post("classifier/documents")
   @KeycloakSSOAuth()
   @ApiOperation({
@@ -145,11 +197,11 @@ export class AzureController {
             format: "binary",
           },
         },
-        classifierName: { type: "string" },
+        name: { type: "string" },
         label: { type: "string" },
         group_id: { type: "string" },
       },
-      required: ["files", "classifierName", "label", "group_id"],
+      required: ["files", "name", "label", "group_id"],
     },
     description: "Upload training documents for a classifier",
   })
@@ -237,16 +289,12 @@ export class AzureController {
     description: "Documents deleted successfully.",
     type: DeleteClassifierDocumentsResponseDto,
   })
-  @ApiBody({
-    type: DeleteClassifierDocumentsDto,
-    description: "Delete classifier documents payload",
-  })
   @HttpCode(204)
   async deleteClassifierDocuments(
     @Request() req,
-    @Body() body: DeleteClassifierDocumentsDto,
+    @Query() query: DeleteClassifierDocumentsDto,
   ): Promise<void> {
-    const { name, group_id, folders } = body;
+    const { name, group_id, folder } = query;
     const userId = req.user.sub;
     if (!(await this.databaseService.isUserInGroup(userId, group_id))) {
       throw new ForbiddenException("User does not belong to requested group.");
@@ -260,18 +308,14 @@ export class AzureController {
       throw new NotFoundException("No existing record of classifier model.");
     }
     try {
-      // If there are folders, only delete those folders
-      if (folders != null) {
-        await Promise.all(
-          folders.map((f) => {
-            const path = this.storageService.getStoragePath(
-              group_id,
-              Operation.CLASSIFICATION,
-              `${name}/${f}`,
-            );
-            this.storageService.deleteFolderRecursive(path);
-          }),
+      // If there is a folder, only delete that folder
+      if (folder != null) {
+        const path = this.storageService.getStoragePath(
+          group_id,
+          Operation.CLASSIFICATION,
+          `${name}/${folder}`,
         );
+        await this.storageService.deleteFolderRecursive(path);
       } else {
         // Delete all document folders for this classifier.
         const path = this.storageService.getStoragePath(
@@ -279,13 +323,13 @@ export class AzureController {
           Operation.CLASSIFICATION,
           name,
         );
-        this.storageService.deleteFolderRecursive(path);
+        await this.storageService.deleteFolderRecursive(path);
       }
       // No return value: 204 No Content
     } catch {
-      this.logger.error("Failed to delete folders: ", folders);
+      this.logger.error("Failed to delete folder: ", folder);
       throw new InternalServerErrorException(
-        "Failed to delete requested folders.",
+        "Failed to delete requested folder.",
       );
     }
   }
