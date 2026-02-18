@@ -1,6 +1,6 @@
 import ClassificationFiles from "@/components/classification/ClassificationFiles";
 import ClassifierDetails from "@/components/classification/ClassifierDetails";
-import CreateModelModal from "@/components/classification/CreateClassifierModal";
+import { CreateClassifierModal } from "@/components/classification/ClassifierModals";
 import { useClassifier } from "@/data/hooks/useClassifier";
 import { Group, Stack, Title, Text, Paper, Select, Button, } from "@mantine/core";
 import { useState } from "react";
@@ -78,7 +78,7 @@ const ClassifierPage = () => {
         <ClassificationFiles groupId={selectedModelDetails.group_id} name={selectedModelDetails.name} />
       </>
     )}
-    <CreateModelModal isOpen={isCreateModalOpen} setIsOpen={setIsCreateModalOpen} groupOptions={groupOptions} afterSubmit={async () => {
+    <CreateClassifierModal isOpen={isCreateModalOpen} setIsOpen={setIsCreateModalOpen} groupOptions={groupOptions} afterSubmit={async () => {
       await getClassifiers.refetch();
     }} />
   </Stack>;
