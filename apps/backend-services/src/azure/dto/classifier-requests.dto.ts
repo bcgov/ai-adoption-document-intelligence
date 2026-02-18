@@ -49,6 +49,16 @@ export class DeleteClassifierDocumentsDto {
   folders?: string[];
 }
 
+export class GetClassifierDocumentsQueryDto {
+  @ApiProperty()
+  @IsString()
+  name: string;
+
+  @ApiProperty()
+  @IsString()
+  group_id: string;
+}
+
 export class RequestClassifierTrainingDto {
   @ApiProperty()
   @IsString()

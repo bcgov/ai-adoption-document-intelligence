@@ -35,6 +35,7 @@ import {
   ClassifierCreationDto,
   DeleteClassifierDocumentsDto,
   GetClassificationResultQueryDto,
+  GetClassifierDocumentsQueryDto,
   GetTrainingResultQueryDto,
   RequestClassificationDto,
   RequestClassifierTrainingDto,
@@ -187,6 +188,43 @@ export class AzureController {
       fileCount: files?.length || 0,
       results: uploadResults,
     };
+  }
+
+  @Get("classifier/documents")
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Get training documents",
+    description: "Get the list of training documents for a classifier.",
+  })
+  @ApiCreatedResponse({
+    description: "Documents retrieved successfully",
+    type: [String],
+  })
+  async getClassifierDocuments(
+    @Request() req,
+    @Query() query: GetClassifierDocumentsQueryDto,
+  ): Promise<string[]> {
+    const { name, group_id } = query;
+    const userId = req.user.sub;
+    if (!(await this.databaseService.isUserInGroup(userId, group_id))) {
+      throw new ForbiddenException("User does not belong to requested group.");
+    }
+
+    const existingModelData = await this.databaseService.getClassifierModel(
+      name,
+      group_id,
+    );
+    if (existingModelData == null) {
+      throw new NotFoundException("No existing record of classifier model.");
+    }
+
+    const path = this.storageService.getStoragePath(
+      group_id,
+      Operation.CLASSIFICATION,
+      name,
+    );
+    const documents = await this.storageService.listBlobsInFolder(path);
+    return documents;
   }
 
   @Delete("classifier/documents")
