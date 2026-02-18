@@ -22,7 +22,6 @@ import {
   IconFolderOpen,
   IconList,
   IconLogout,
-  IconPlayerPlay,
   IconSettings,
   IconTags,
   IconUpload,
@@ -97,12 +96,6 @@ export function RootLayout() {
         label: "Projects",
         description: "Benchmark projects",
         icon: IconFolderOpen,
-      },
-      {
-        path: "/benchmarking/runs",
-        label: "Runs",
-        description: "Benchmark runs",
-        icon: IconPlayerPlay,
       },
     ],
     [],
@@ -224,7 +217,9 @@ export function RootLayout() {
             >
               {benchmarkingNavItems.map((item) => {
                 const Icon = item.icon;
-                const active = location.pathname === item.path;
+                const active =
+                  location.pathname === item.path ||
+                  location.pathname.startsWith(item.path + "/");
 
                 return (
                   <NavLink

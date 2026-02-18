@@ -51,6 +51,19 @@ services:
     entrypoint: /bin/sh
     command: /init-minio.sh
 
+  postgres-init:
+    image: postgres:15
+    container_name: ai-doc-intelligence-postgres-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: postgres
+    volumes:
+      - ./scripts/init-postgres.sh:/init-postgres.sh
+    entrypoint: /bin/bash
+    command: /init-postgres.sh
+
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest
     container_name: ai-doc-intelligence-mlflow
@@ -58,6 +71,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
       minio:
         condition: service_healthy
     environment:
