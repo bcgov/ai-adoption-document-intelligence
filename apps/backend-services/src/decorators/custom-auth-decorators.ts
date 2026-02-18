@@ -5,7 +5,6 @@ import {
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 
-// biome-ignore lint/security/noSecrets: allowApiKeyAuth is a metadata key, not a real secret
 export const API_KEY_AUTH_KEY = "allowApiKeyAuth";
 
 export function KeycloakSSOAuth() {

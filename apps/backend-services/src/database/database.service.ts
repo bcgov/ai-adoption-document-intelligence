@@ -6,6 +6,10 @@ import type {
   ReviewStatus,
 } from "@generated/client";
 import { Injectable } from "@nestjs/common";
+import {
+  ClassifierSource,
+  ClassifierStatus,
+} from "@/azure/dto/classifier-constants.dto";
 import type { AnalysisResponse } from "@/ocr/azure-types";
 import type {
   DocumentData,
@@ -27,6 +31,25 @@ export type {
   LabelingProjectData,
   ReviewSessionData,
 };
+
+export type ClassifierConfig = {
+  labels: {
+    label: string;
+    fromFolder: string;
+    blobFolder: string;
+  }[];
+};
+
+interface ClassifierEditableProperties {
+  version?: number;
+  group_id: string;
+  config: ClassifierConfig;
+  description: string;
+  status: ClassifierStatus;
+  source: ClassifierSource;
+  last_used_at?: Date;
+  operation_location?: string;
+}
 
 @Injectable()
 export class DatabaseService {
@@ -260,5 +283,73 @@ export class DatabaseService {
     reviewerId?: string;
   }) {
     return this.reviewDb.getReviewAnalytics(filters);
+  }
+
+  async createClassifierModel(
+    classifierName: string,
+    properties: ClassifierEditableProperties,
+    userId: string,
+  ) {
+    return await this.prisma.classifierModel.create({
+      data: {
+        ...properties,
+        created_by: userId,
+        updated_by: userId,
+        name: classifierName,
+      },
+    });
+  }
+
+  async updateClassifierModel(
+    classifierName: string,
+    groupId: string,
+    properties: Partial<ClassifierEditableProperties>,
+    userId: string,
+  ) {
+    return await this.prisma.classifierModel.update({
+      where: {
+        name_group_id: {
+          name: classifierName,
+          group_id: groupId,
+        },
+      },
+      data: {
+        ...properties,
+        created_by: userId,
+        updated_by: userId,
+        name: classifierName,
+      },
+    });
+  }
+
+  async getClassifierModel(classifierName: string, groupId: string) {
+    return await this.prisma.classifierModel.findUnique({
+      where: {
+        name_group_id: {
+          name: classifierName,
+          group_id: groupId,
+        },
+      },
+    });
+  }
+
+  async getUsersGroups(userId: string) {
+    return await this.prisma.userGroup.findMany({
+      where: {
+        user_id: userId,
+      },
+    });
+  }
+
+  async isUserInGroup(userId: string, groupId: string) {
+    const entry = await this.prisma.userGroup.findUnique({
+      where: {
+        user_id_group_id: {
+          user_id: userId,
+          group_id: groupId,
+        },
+      },
+    });
+    return entry != null;
   }
 }
