@@ -19,13 +19,13 @@ process.env.SKIP_VALIDATION = 'true';
 
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { AppModule } from './src/app.module';
+import { AppModule } from '../apps/backend-services/src/app.module';
 import * as fs from 'fs';
 import * as path from 'path';
 
 async function generateOpenApiSpec() {
   console.log('Generating OpenAPI specification...');
-  
+
   const app = await NestFactory.create(AppModule, {
     logger: ['error'], // Only show errors
   });
@@ -55,7 +55,7 @@ async function generateOpenApiSpec() {
   const document = SwaggerModule.createDocument(app, config);
 
   // Write to docs-site assets directory
-  const outputDir = path.join(__dirname, '../..', 'docs-site', 'assets');
+  const outputDir = path.join(__dirname, 'assets');
   const outputPath = path.join(outputDir, 'openapi.json');
 
   // Ensure directory exists
@@ -67,11 +67,11 @@ async function generateOpenApiSpec() {
 
   console.log(`✅ OpenAPI spec generated at: ${outputPath}`);
   console.log(`📄 Total endpoints: ${Object.keys(document.paths).length}`);
-  
+
   // Count methods
   let methodCount = 0;
   for (const path of Object.values(document.paths)) {
-    methodCount += Object.keys(path as any).length;
+    methodCount += Object.keys(path as Record<string, unknown>).length;
   }
   console.log(`🔗 Total operations: ${methodCount}`);
 

@@ -181,7 +181,6 @@ The platform is built as a microservices architecture with five main components:
 - **React PDF** - PDF rendering
 - **TanStack Query** - Data fetching and caching
 - **oidc-client-ts** - OpenID Connect authentication
-- **Zustand** - State management
 - **Axios** - HTTP client
 
 ### Workflow Engine

@@ -1664,13 +1664,7 @@
             "in": "query",
             "description": "Filter by review status",
             "schema": {
-              "default": "pending",
-              "type": "string",
-              "enum": [
-                "pending",
-                "reviewed",
-                "all"
-              ]
+              "$ref": "#/components/schemas/ReviewStatusFilter"
             }
           }
         ],
@@ -1699,10 +1693,11 @@
         "parameters": [
           {
             "name": "reviewStatus",
-            "required": true,
+            "required": false,
             "in": "query",
+            "description": "Filter by review status",
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/ReviewStatusFilter"
             }
           }
         ],
@@ -2218,6 +2213,339 @@
         ],
         "tags": [
           "Training"
+        ]
+      }
+    },
+    "/api/azure/classifier": {
+      "post": {
+        "description": "Creates a new classifier for a group.",
+        "operationId": "AzureController_createClassifier",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Classifier creation payload",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassifierCreationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Classifier created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassifierCreationDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Create a new classifier",
+        "tags": [
+          "Azure"
+        ]
+      }
+    },
+    "/api/azure/classifier/documents": {
+      "post": {
+        "description": "Upload training documents for a classifier.",
+        "operationId": "AzureController_uploadClassifierDocuments",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Upload training documents for a classifier",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  },
+                  "classifierName": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "groupId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "files",
+                  "classifierName",
+                  "label",
+                  "groupId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Files uploaded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadClassifierDocumentsResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Upload training documents",
+        "tags": [
+          "Azure"
+        ]
+      },
+      "delete": {
+        "description": "Delete training documents for a classifier.",
+        "operationId": "AzureController_deleteClassifierDocuments",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Delete classifier documents payload",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteClassifierDocumentsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Documents deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteClassifierDocumentsResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Delete training documents",
+        "tags": [
+          "Azure"
+        ]
+      }
+    },
+    "/api/azure/classifier/train": {
+      "post": {
+        "description": "Request training for a classifier.",
+        "operationId": "AzureController_requestClassifierTraining",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Request classifier training payload",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestClassifierTrainingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Training requested successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassifierModelResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Request classifier training",
+        "tags": [
+          "Azure"
+        ]
+      },
+      "get": {
+        "description": "Get the result of a classifier training operation.",
+        "operationId": "AzureController_getTrainingResult",
+        "parameters": [
+          {
+            "name": "classifierName",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Training result retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassifierModelResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get training result",
+        "tags": [
+          "Azure"
+        ]
+      }
+    },
+    "/api/azure/classifier/classify": {
+      "post": {
+        "description": "Request classification for a document using a classifier.",
+        "operationId": "AzureController_requestClassification",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Request classification for a document",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "classifierName": {
+                    "type": "string"
+                  },
+                  "groupId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file",
+                  "classifierName",
+                  "groupId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Classification requested successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassifierResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Request document classification",
+        "tags": [
+          "Azure"
+        ]
+      },
+      "get": {
+        "description": "Get the result of a classification operation.",
+        "operationId": "AzureController_getClassificationResult",
+        "parameters": [
+          {
+            "name": "operationLocation",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Classification result retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassifierResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User is not authenticated"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get classification result",
+        "tags": [
+          "Azure"
         ]
       }
     }
@@ -3057,6 +3385,14 @@
           "format"
         ]
       },
+      "ReviewStatusFilter": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "reviewed",
+          "all"
+        ]
+      },
       "ReviewSessionDto": {
         "type": "object",
         "properties": {
@@ -3139,6 +3475,212 @@
       "StartTrainingDto": {
         "type": "object",
         "properties": {}
+      },
+      "ClassifierCreationDto": {
+        "type": "object",
+        "properties": {
+          "classifierName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "AZURE"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PRETRAINING",
+              "FAILED",
+              "TRAINING",
+              "READY"
+            ]
+          },
+          "groupId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "classifierName",
+          "description",
+          "source",
+          "status",
+          "groupId"
+        ]
+      },
+      "UploadClassifierDocumentsResponseDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Received files and data."
+          },
+          "fileCount": {
+            "type": "number",
+            "example": 2
+          },
+          "results": {
+            "example": [
+              "groupId/classifierName/file.jpg"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "message",
+          "fileCount",
+          "results"
+        ]
+      },
+      "DeleteClassifierDocumentsDto": {
+        "type": "object",
+        "properties": {
+          "classifierName": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "folders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "classifierName",
+          "groupId"
+        ]
+      },
+      "DeleteClassifierDocumentsResponseDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RequestClassifierTrainingDto": {
+        "type": "object",
+        "properties": {
+          "classifierName": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "classifierName",
+          "groupId"
+        ]
+      },
+      "ClassifierModelResponseDto": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "example": "Classifier description"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PRETRAINING",
+              "FAILED",
+              "TRAINING",
+              "READY"
+            ],
+            "example": "READY"
+          },
+          "name": {
+            "type": "string",
+            "example": "classifier-name"
+          },
+          "created_by": {
+            "type": "string",
+            "example": "user-id"
+          },
+          "updated_by": {
+            "type": "string",
+            "example": "user-id"
+          },
+          "group_id": {
+            "type": "string",
+            "example": "group-id"
+          },
+          "config": {
+            "type": "object",
+            "example": {
+              "labels": []
+            }
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_used_at": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "number",
+            "example": 1
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "AZURE"
+            ]
+          },
+          "operation_location": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "description",
+          "status",
+          "name",
+          "created_by",
+          "updated_by",
+          "group_id",
+          "config",
+          "created_at",
+          "updated_at",
+          "last_used_at",
+          "version",
+          "source",
+          "operation_location"
+        ]
+      },
+      "ClassifierResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "Classification complete"
+          },
+          "content": {
+            "type": "string",
+            "example": "result content"
+          },
+          "error": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "status",
+          "content"
+        ]
       }
     }
   }

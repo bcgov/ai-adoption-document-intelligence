@@ -172,7 +172,6 @@ src/
 - **Authentication**: React Context (`AuthContext`)
 - **Server State**: TanStack Query for caching and synchronization
 - **Local UI State**: React hooks (`useState`, `useReducer`)
-- **Component State**: Zustand for complex component state (workflow editor)
 
 ### API Integration
 
@@ -367,7 +366,6 @@ The app uses OpenID Connect (OIDC) with `oidc-client-ts`:
 1. **Local State First** - Use `useState` for component-local state
 2. **React Query** - For server state and caching
 3. **Context Sparingly** - Only for cross-cutting concerns (auth)
-4. **Zustand** - For complex feature state (workflow editor)
 
 ## Development Tips
 

@@ -79,7 +79,6 @@ This is a microservices monorepo containing:
 - **React PDF** - PDF rendering and annotation
 - **TanStack Query** - Data fetching and state management
 - **oidc-client-ts** - OpenID Connect authentication
-- **Zustand** - Lightweight state management
 
 ### Temporal Worker (Node.js/TypeScript)
 - **@temporalio/worker** - Workflow execution engine

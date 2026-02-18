@@ -547,6 +547,60 @@ variable "environment" {
 
 ---
 
+## OpenAPI Spec Generator
+
+The `generate-openapi.ts` script bootstraps the NestJS backend application and exports a fully-resolved OpenAPI (Swagger) JSON file to `docs-site/assets/openapi.json`. This file is consumed by the `api-reference.html` page to render the interactive API documentation.
+
+### How It Works
+
+1. **Bootstraps** the NestJS `AppModule` with dummy environment variables so no real services are required
+2. **Builds** the OpenAPI document using `@nestjs/swagger`'s `DocumentBuilder`
+3. **Writes** the resulting JSON to `docs-site/assets/openapi.json`
+4. **Shuts down** the application immediately after generation
+
+### Usage
+
+Run from the repository root:
+
+```bash
+npm run generate:openapi
+```
+
+The script sets all required environment variables automatically (using safe dummy values), so no `.env` file is needed for generation.
+
+To override any environment variable (e.g. to point at a real server):
+
+```bash
+DATABASE_URL=postgresql://real:real@host:5432/db npm run generate:openapi
+```
+
+### Output
+
+The generated file is written to:
+
+```
+docs-site/assets/openapi.json
+```
+
+After running the script, rebuild the docs site to pick up any changes:
+
+```bash
+cd docs-site
+./build.sh
+```
+
+### When to Regenerate
+
+Regenerate the spec whenever backend API endpoints, request/response shapes, or Swagger decorators change:
+
+```bash
+# From the repo root
+npm run generate:openapi
+cd docs-site && ./build.sh
+```
+
+---
+
 ## GitHub Actions Deployment
 
 The documentation deploys automatically via GitHub Actions:
