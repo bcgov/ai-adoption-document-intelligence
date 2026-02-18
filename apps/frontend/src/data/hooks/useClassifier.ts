@@ -36,6 +36,14 @@ export function useClassifier() {
     },
   });
 
+  const updateClassifier = useMutation({
+    mutationFn: async (data: { name: string; group_id: string; description: string; source: string }) => {
+      const response = await apiService.patch<ClassifierModel>(`/azure/classifier`, data);
+      if (response.success && response.data) return response.data;
+      throw new Error(response.message || "Failed to update classifier");
+    },
+  });
+
   // Query for classifier documents
   const getClassifierDocuments = (groupId: string, name: string) =>
     useQuery({
@@ -82,6 +90,7 @@ export function useClassifier() {
     getClassifiers,
     getClassifier,
     createClassifier,
+    updateClassifier,
     uploadClassifierDocuments,
     getClassifierDocuments,
     deleteClassifierDocuments,

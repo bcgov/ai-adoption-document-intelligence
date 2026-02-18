@@ -1,5 +1,6 @@
-import { ClassifierStatus, ClassifierSource, ClassifierModel } from "@/shared/types/classifier";
-import { Group, Paper, Stack, TextInput, Text, Button } from "@mantine/core";
+import { useClassifier } from "@/data/hooks/useClassifier";
+import { ClassifierModel } from "@/shared/types/classifier";
+import { Group, Paper, Stack, Text, Button, Textarea } from "@mantine/core";
 import { useForm } from "@mantine/form";
 
 interface ClassifierDetailsProps {
@@ -17,34 +18,47 @@ const ClassifierDetails = ({ classifierModel }: ClassifierDetailsProps) => {
     },
   });
 
+  const { updateClassifier } = useClassifier();
+
+  const onSave = (values: typeof form.values) => {
+    updateClassifier.mutate({
+      name: classifierModel.name,
+      description: values.description,
+      group_id: classifierModel.group_id,
+      source: classifierModel.source,
+    });
+  }
+
   return (
     <Stack gap="md">
       <Paper shadow="sm" radius="md" p="lg" withBorder>
         <h2>Classifier Details</h2>
         <form onSubmit={form.onSubmit((values) => {
-          // handle save
+          onSave(values);
         })}>
-          <TextInput
-            label="Classifier Name"
-            placeholder="Enter classifier name"
-            {...form.getInputProps("name")}
-            required
-          />
-          <TextInput
-            label="Description"
-            placeholder="Enter description"
-            {...form.getInputProps("description")}
-          />
+          <Text mt="md">
+            <b>Name:</b> {classifierModel.name}
+          </Text>
+          <Text mt="md">
+            <b>Group Ownership:</b> {classifierModel.group ? classifierModel.group.name : `ID: ${classifierModel.group_id}`}
+          </Text>
           <Text mt="md">
             <b>Status:</b> {classifierModel.status}
           </Text>
-          {classifierModel.group && (
-            <Text mt="md">
-              <b>Group Ownership:</b> {classifierModel.group.name}
-            </Text>
-          )}
+
+          <Text mt="md">
+            <b>Description:</b>
+          </Text>
+          <Textarea
+            component="textarea"
+            minRows={3}
+            // label={"Description"}
+            placeholder="Enter description"
+            mt="xs"
+            {...form.getInputProps("description")}
+          />
           <Group justify="flex-end" mt="md">
-            <Button type="submit">Save</Button>
+            <Button type="submit">Update</Button>
           </Group>
         </form>
       </Paper>
