@@ -72,9 +72,7 @@ export function validateWorkflowConfig(config: WorkflowStepsConfig): {
         ) {
           errors.push({
             stepId,
-            // biome-ignore lint/security/noSecrets: This is a workflow step parameter identifier, not a secret
             field: "waitBeforeFirstPoll",
-            // biome-ignore lint/security/noSecrets: This is a workflow step parameter identifier, not a secret
             message: "waitBeforeFirstPoll must be >= 0",
           });
         }

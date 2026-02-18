@@ -1,5 +1,6 @@
 import {
   BlobServiceClient,
+  ContainerClient,
   ContainerSASPermissions,
   generateBlobSASQueryParameters,
   SASProtocol,
@@ -31,8 +32,8 @@ export interface BlobInfo {
 }
 
 @Injectable()
-export class BlobStorageService {
-  private readonly logger = new Logger(BlobStorageService.name);
+export class BlobService {
+  private readonly logger = new Logger(BlobService.name);
   private blobServiceClient: BlobServiceClient;
   private accountName: string;
   private accountKey: string;
@@ -239,6 +240,115 @@ export class BlobStorageService {
   }
 
   /**
+   * Validate a container SAS URL by attempting to list blobs.
+   */
+  async validateContainerSasUrl(sasUrl: string): Promise<{
+    canList: boolean;
+    error?: string;
+    blobCount?: number;
+    sampleBlobs?: string[];
+  }> {
+    try {
+      const containerClient = new ContainerClient(sasUrl);
+      const sampleBlobs: string[] = [];
+      let count = 0;
+
+      for await (const blob of containerClient.listBlobsFlat()) {
+        count += 1;
+        if (sampleBlobs.length < 5) {
+          sampleBlobs.push(blob.name);
+        }
+      }
+
+      return {
+        canList: true,
+        blobCount: count,
+        sampleBlobs,
+      };
+    } catch (error) {
+      return {
+        canList: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * List all blobs in a container
+   */
+  async listBlobs(containerName: string, prefix?: string): Promise<BlobInfo[]> {
+    try {
+      const containerClient =
+        this.blobServiceClient.getContainerClient(containerName);
+      const blobs: BlobInfo[] = [];
+
+      for await (const blob of containerClient.listBlobsFlat({
+        prefix,
+      })) {
+        blobs.push({
+          name: blob.name,
+          size: blob.properties.contentLength || 0,
+          lastModified: blob.properties.lastModified,
+          contentType: blob.properties.contentType,
+        });
+      }
+
+      this.logger.debug(
+        `Listed ${blobs.length} blobs in container ${containerName}`,
+      );
+      return blobs;
+    } catch (error) {
+      this.logger.error(
+        `Failed to list blobs in container: ${containerName}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a container and all its contents
+   */
+  async deleteContainer(containerName: string): Promise<void> {
+    try {
+      const containerClient =
+        this.blobServiceClient.getContainerClient(containerName);
+      await containerClient.delete();
+      this.logger.log(`Deleted container: ${containerName}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to delete container: ${containerName}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a container if it exists (ignore not found).
+   */
+  async deleteContainerIfExists(containerName: string): Promise<boolean> {
+    try {
+      const containerClient =
+        this.blobServiceClient.getContainerClient(containerName);
+      const result = await containerClient.deleteIfExists();
+      if (result.succeeded) {
+        this.logger.log(`Deleted container: ${containerName}`);
+      } else {
+        this.logger.debug(`Container not found: ${containerName}`);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Failed to delete container: ${containerName}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Delete all blobs in a container without removing the container itself.
    */
   async clearContainerContents(containerName: string): Promise<number> {
@@ -268,5 +378,50 @@ export class BlobStorageService {
 
   private async delay(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Get container client for advanced operations
+   */
+  getContainerClient(containerName: string): ContainerClient {
+    return this.blobServiceClient.getContainerClient(containerName);
+  }
+
+  /**
+   * Generate a SAS URL for a specific blob
+   * @param containerName The name of the container
+   * @param blobName The path/name of the blob
+   * @param expiresInMinutes How long the SAS should be valid (default: 60)
+   */
+  getBlobSasUrl(
+    containerName: string,
+    blobName: string,
+    expiresInMinutes = 60,
+  ): string {
+    if (!this.accountName || !this.accountKey) {
+      throw new Error("Storage account name/key not configured.");
+    }
+    const sharedKeyCredential = new StorageSharedKeyCredential(
+      this.accountName,
+      this.accountKey,
+    );
+    const containerClient =
+      this.blobServiceClient.getContainerClient(containerName);
+    const blobClient = containerClient.getBlobClient(blobName);
+    const now = new Date();
+    const expires = new Date(now.getTime() + expiresInMinutes * 60 * 1000);
+    // Note: Do not use the now time as the start time of this SAS url.
+    // It somehow gets called before the start time somehow.
+    const sas = generateBlobSASQueryParameters(
+      {
+        containerName,
+        blobName,
+        permissions: ContainerSASPermissions.parse("r"),
+        expiresOn: expires,
+        protocol: SASProtocol.Https,
+      },
+      sharedKeyCredential,
+    ).toString();
+    return `${blobClient.url}?${sas}`;
   }
 }
