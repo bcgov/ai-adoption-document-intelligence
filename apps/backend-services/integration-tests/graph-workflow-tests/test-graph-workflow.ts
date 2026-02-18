@@ -7,6 +7,7 @@
  * This test will run until it encounters the current error to help debug the issue.
  */
 
+import { Logger } from "@nestjs/common";
 import {
   Client,
   Connection,
@@ -20,6 +21,8 @@ import * as path from "path";
 
 // Load environment variables from .env file
 dotenv.config();
+
+const logger = new Logger("GraphWorkflowTest");
 
 // --- Configuration ---
 const CONFIG = {
@@ -103,15 +106,15 @@ function log(
     warn: "\x1b[33m", // yellow
   };
   const reset = "\x1b[0m";
-  console.log(
+  logger.log(
     `${colors[type]}${symbols[type]}${reset} [${timestamp}] ${message}`,
   );
 }
 
 function section(title: string): void {
-  console.log("\n" + "=".repeat(80));
-  console.log(`  ${title}`);
-  console.log("=".repeat(80) + "\n");
+  logger.log("\n" + "=".repeat(80));
+  logger.log(`  ${title}`);
+  logger.log("=".repeat(80) + "\n");
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -145,7 +148,7 @@ async function startWorker(): Promise<void> {
       .split("\n")
       .filter((line) => line.trim());
     lines.forEach((line) => {
-      console.log(`\x1b[90m[WORKER]\x1b[0m ${line}`);
+      logger.log(`\x1b[90m[WORKER]\x1b[0m ${line}`);
     });
   });
 
@@ -156,7 +159,7 @@ async function startWorker(): Promise<void> {
       .split("\n")
       .filter((line) => line.trim());
     lines.forEach((line) => {
-      console.log(`\x1b[90m[WORKER]\x1b[0m ${line}`);
+      logger.log(`\x1b[90m[WORKER]\x1b[0m ${line}`);
     });
   });
 
@@ -710,7 +713,7 @@ async function cleanup(): Promise<void> {
 
 // --- Main Test Flow ---
 async function runIntegrationTest(): Promise<void> {
-  console.log("\n");
+  logger.log("\n");
   section("🔍 Integration Test: Graph Workflow Execution");
 
   // Setup signal handlers for graceful shutdown
@@ -784,7 +787,7 @@ async function runIntegrationTest(): Promise<void> {
   } catch (error) {
     log(`Test failed with error: ${error.message}`, "error");
     if (error.stack) {
-      console.error(error.stack);
+      logger.error(error.stack);
     }
 
     // Attempt cleanup even on failure
@@ -801,7 +804,7 @@ async function runIntegrationTest(): Promise<void> {
 // Run the test
 if (require.main === module) {
   runIntegrationTest().catch((error) => {
-    console.error("Unhandled error:", error);
+    logger.error("Unhandled error:", error);
     process.exit(1);
   });
 }
