@@ -75,7 +75,7 @@ const ClassifierPage = () => {
     {selectedModel && selectedModelDetails && (
       <>
         <ClassifierDetails key={selectedModel} classifierModel={selectedModelDetails} />
-        <ClassificationFiles />
+        <ClassificationFiles groupId={selectedModelDetails.group_id} name={selectedModelDetails.name} />
       </>
     )}
     <CreateModelModal isOpen={isCreateModalOpen} setIsOpen={setIsCreateModalOpen} groupOptions={groupOptions} afterSubmit={async () => {

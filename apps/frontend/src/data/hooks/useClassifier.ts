@@ -9,7 +9,6 @@ interface UploadClassifierDocumentsResponse {
 }
 
 export function useClassifier() {
-  // Queries
   const getClassifiers = useQuery({
     queryKey: ["getClassifiers"],
     queryFn: async (): Promise<ClassifierModel[]> => {
@@ -29,7 +28,6 @@ export function useClassifier() {
       },
     });
 
-  // Mutations
   const createClassifier = useMutation({
     mutationFn: async (data: Omit<ClassifierModel, "id" | "status">) => {
       const response = await apiService.post<ClassifierModel>("/azure/classifier", data);
@@ -37,6 +35,17 @@ export function useClassifier() {
       throw new Error(response.message || "Failed to create classifier");
     },
   });
+
+  // Query for classifier documents
+  const getClassifierDocuments = (groupId: string, name: string) =>
+    useQuery({
+      queryKey: ["getClassifierDocuments", groupId, name],
+      queryFn: async (): Promise<string[]> => {
+        const response = await apiService.get<string[]>(`/azure/classifier/documents?group_id=${encodeURIComponent(groupId)}&name=${encodeURIComponent(name)}`);
+        if (response.success && response.data) return response.data;
+        throw new Error(response.message || "Failed to fetch classifier documents");
+      },
+    });
 
   const uploadClassifierDocuments = useMutation({
     mutationFn: async (params: { classifierName: string; groupId: string; label: string; files: FileList }) => {
@@ -57,5 +66,6 @@ export function useClassifier() {
     getClassifier,
     createClassifier,
     uploadClassifierDocuments,
+    getClassifierDocuments,
   };
 }
