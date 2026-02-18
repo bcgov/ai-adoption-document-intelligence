@@ -24,7 +24,7 @@ const CreateModelModal = (props: CreateClassifierModalProps) => {
       group: (value) => value === "" ? "Group is required" : null,
     },
   });
-  const { getClassifiers, getClassifier, createClassifier, uploadClassifierDocuments } = useClassifier();
+  const { createClassifier } = useClassifier();
 
   const onCreate = async (values: typeof form.values) => {
     console.log("Creating classifier with values", values);

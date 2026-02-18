@@ -7,14 +7,16 @@ interface ClassificationFileCardProps {
 }
 
 interface ClassificationFileCardsProps {
-  files: ClassificationFileCardProps[];
+  fileGroups: ClassificationFileCardProps[];
+  onDelete: (label: string) => void;
+  onUpload: (label: string) => void;
 }
 
-const ClassificationFileCards = ({ files }: ClassificationFileCardsProps) => {
+const ClassificationFileCards = ({ fileGroups, onDelete, onUpload }: ClassificationFileCardsProps) => {
   return (
     <Stack gap="xs">
       <Grid>
-        {files.map((file, idx) => (
+        {fileGroups.map((file, idx) => (
           <Grid.Col key={file.label + idx} span={4}>
             <Paper key={file.label + idx} shadow="xs" radius="md" p="sm" withBorder>
               <Group justify="space-between" align="center">
@@ -24,12 +26,12 @@ const ClassificationFileCards = ({ files }: ClassificationFileCardsProps) => {
                 </Group>
                 <Group gap="xs">
                   <Tooltip label="Add files">
-                    <ActionIcon color="blue" variant="light" aria-label="Add files" onClick={() => {/* handle add */ }}>
+                    <ActionIcon color="blue" variant="light" aria-label="Add files" onClick={() => onUpload(file.label)}>
                       <IconUpload size={18} />
                     </ActionIcon>
                   </Tooltip>
                   <Tooltip label="Delete files">
-                    <ActionIcon color="red" variant="light" aria-label="Delete files" onClick={() => {/* handle delete */ }}>
+                    <ActionIcon color="red" variant="light" aria-label="Delete files" onClick={() => onDelete(file.label)}>
                       <IconTrash size={18} />
                     </ActionIcon>
                   </Tooltip>

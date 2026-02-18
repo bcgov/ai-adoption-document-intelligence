@@ -48,18 +48,35 @@ export function useClassifier() {
     });
 
   const uploadClassifierDocuments = useMutation({
-    mutationFn: async (params: { classifierName: string; groupId: string; label: string; files: FileList }) => {
-      const { classifierName, groupId, label, files } = params;
+    mutationFn: async (params: { name: string; group_id: string; label: string; files: FileList }) => {
+      const { name, group_id, label, files } = params;
       const formData = new FormData();
-      Array.from(files).forEach(file => formData.append("files", file));
+      for (let i = 0; i < files.length; i++) {
+        formData.append("files", files[i]);
+      }
       formData.append("label", label);
-      formData.append("classifierName", classifierName);
-      formData.append("groupId", groupId);
+      formData.append("name", name);
+      formData.append("group_id", group_id);
       const response = await apiService.post<UploadClassifierDocumentsResponse>(`/azure/classifier/documents`, formData);
       if (response.success && response.data) return response.data;
       throw new Error(response.message || "Failed to upload documents");
     },
   });
+
+  const deleteClassifierDocuments = useMutation({
+  mutationFn: async (params: { name: string; group_id: string; folder?: string }) => {
+    const query = [
+      `name=${encodeURIComponent(params.name)}`,
+      `group_id=${encodeURIComponent(params.group_id)}`,
+      ...(params.folder ? [`folder=${encodeURIComponent(params.folder)}`] : [])
+    ].join('&');
+    const response = await apiService.delete<any>(
+      `/azure/classifier/documents?${query}`
+    );
+    if (response.success) return response.data;
+    throw new Error(response.message || "Failed to delete classifier");
+  },
+});
 
   return {
     getClassifiers,
@@ -67,5 +84,6 @@ export function useClassifier() {
     createClassifier,
     uploadClassifierDocuments,
     getClassifierDocuments,
+    deleteClassifierDocuments,
   };
 }

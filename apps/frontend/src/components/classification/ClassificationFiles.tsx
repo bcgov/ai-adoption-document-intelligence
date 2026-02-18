@@ -1,6 +1,8 @@
 import { Button, Group, Paper, Stack } from "@mantine/core";
 import ClassificationFileCards from "./ClassificationFileCards";
 import { useClassifier } from "@/data/hooks/useClassifier";
+import { DeleteClassifierModal, UploadClassifierFilesModal } from "./ClassifierModals";
+import { useState } from "react";
 
 interface ClassificationFilesProps {
   groupId: string;
@@ -9,7 +11,7 @@ interface ClassificationFilesProps {
 
 const ClassificationFiles = (props: ClassificationFilesProps) => {
   const { groupId, name } = props;
-  const { getClassifierDocuments } = useClassifier();
+  const { getClassifierDocuments, deleteClassifierDocuments, uploadClassifierDocuments } = useClassifier();
   const docsQuery = getClassifierDocuments(groupId, name);
 
   // Transform API result into label/fileCount objects
@@ -32,19 +34,51 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
     return Object.entries(labelCounts).map(([label, fileCount]) => ({ label, fileCount }));
   })();
 
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; label: string | null }>({ open: false, label: null });
+  const [uploadModal, setUploadModal] = useState<{ open: boolean; label: string | null }>({ open: false, label: null });
+
   return (
     <Stack>
       <Paper shadow="xs" radius="md" p="sm" withBorder>
         <Group justify="space-between" align="center" mb="md">
           <h2>Classification Files</h2>
-          <Button variant="outline" size="xs" onClick={() => {/* handle add files */ }}>
+          <Button variant="outline" size="xs" onClick={() => setUploadModal({ open: true, label: "" })}>
             Add File Group
           </Button>
         </Group>
         {docsQuery.isLoading && <p>Loading files...</p>}
         {docsQuery.isError && <p style={{ color: 'red' }}>Error loading files</p>}
-        <ClassificationFileCards files={files} />
+        <ClassificationFileCards
+          fileGroups={files}
+          onDelete={label => setDeleteModal({ open: true, label })}
+          onUpload={label => setUploadModal({ open: true, label })}
+        />
       </Paper>
+      <DeleteClassifierModal
+        isOpen={deleteModal.open}
+        setIsOpen={open => setDeleteModal(d => ({ ...d, open }))}
+        label={deleteModal.label || undefined}
+        loading={deleteClassifierDocuments.status === 'pending'}
+        onDelete={async () => {
+          if (deleteModal.label) {
+            await deleteClassifierDocuments.mutateAsync({ name, group_id: groupId, folder: deleteModal.label });
+            await docsQuery.refetch();
+          }
+          setDeleteModal({ open: false, label: null });
+        }}
+      />
+      <UploadClassifierFilesModal
+        isOpen={uploadModal.open}
+        setIsOpen={open => setUploadModal(d => ({ ...d, open }))}
+        label={uploadModal.label || ""}
+        labelEditable={uploadModal.label === ""}
+        loading={uploadClassifierDocuments.status === 'pending'}
+        onUpload={async (files, label) => {
+          await uploadClassifierDocuments.mutateAsync({ name, group_id: groupId, label: label, files });
+          await docsQuery.refetch();
+          setUploadModal({ open: false, label: null });
+        }}
+      />
     </Stack>
   );
 }
