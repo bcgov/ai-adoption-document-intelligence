@@ -1,13 +1,11 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { IsArray, IsEnum, IsOptional, IsString } from "class-validator";
-import {
-  ClassifierSource,
-} from "@/azure/dto/classifier-constants.dto";
+import { ClassifierSource } from "@/azure/dto/classifier-constants.dto";
 
 export class ClassifierCreationDto {
   @ApiProperty()
   @IsString()
-  classifierName: string;
+  name: string;
 
   @ApiProperty()
   @IsString()
@@ -19,13 +17,13 @@ export class ClassifierCreationDto {
 
   @ApiProperty()
   @IsString()
-  groupId: string;
+  group_id: string;
 }
 
 export class UploadClassifierDocumentsDto {
   @ApiProperty()
   @IsString()
-  classifierName: string;
+  name: string;
 
   @ApiProperty()
   @IsString()
@@ -33,17 +31,17 @@ export class UploadClassifierDocumentsDto {
 
   @ApiProperty()
   @IsString()
-  groupId: string;
+  group_id: string;
 }
 
 export class DeleteClassifierDocumentsDto {
   @ApiProperty()
   @IsString()
-  classifierName: string;
+  name: string;
 
   @ApiProperty()
   @IsString()
-  groupId: string;
+  group_id: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -54,21 +52,21 @@ export class DeleteClassifierDocumentsDto {
 export class RequestClassifierTrainingDto {
   @ApiProperty()
   @IsString()
-  classifierName: string;
+  name: string;
 
   @ApiProperty()
   @IsString()
-  groupId: string;
+  group_id: string;
 }
 
 export class RequestClassificationDto {
   @ApiProperty()
   @IsString()
-  classifierName: string;
+  name: string;
 
   @ApiProperty()
   @IsString()
-  groupId: string;
+  group_id: string;
 }
 
 export class GetClassificationResultQueryDto {
@@ -80,9 +78,9 @@ export class GetClassificationResultQueryDto {
 export class GetTrainingResultQueryDto {
   @ApiProperty()
   @IsString()
-  classifierName: string;
+  name: string;
 
   @ApiProperty()
   @IsString()
-  groupId: string;
+  group_id: string;
 }

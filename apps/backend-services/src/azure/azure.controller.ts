@@ -62,6 +62,26 @@ export class AzureController {
     private readonly azureService: AzureService,
   ) {}
 
+  @Get("classifier")
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Get classifiers for user groups",
+    description:
+      "Retrieves all classifiers for the groups the user belongs to.",
+  })
+  @ApiCreatedResponse({
+    description: "Classifiers retrieved successfully",
+    type: [ClassifierModelResponseDto],
+  })
+  async getClassifiers(@Request() req) {
+    const userId = req.user.sub;
+    const groups = await this.databaseService.getUsersGroups(userId);
+    const classifiers = await this.databaseService.getClassifierModelsForGroups(
+      groups.map((g) => g.group_id),
+    );
+    return classifiers;
+  }
+
   @Post("classifier")
   @KeycloakSSOAuth()
   @ApiOperation({
@@ -77,28 +97,28 @@ export class AzureController {
     description: "Classifier creation payload",
   })
   async createClassifier(@Request() req, @Body() body: ClassifierCreationDto) {
-    const { classifierName, description, source, groupId } = body;
+    const { name, description, source, group_id } = body;
     const userId = req.user.sub;
-    if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
+    if (!(await this.databaseService.isUserInGroup(userId, group_id))) {
       throw new ForbiddenException("User does not belong to requested group.");
     }
 
     // Does this classifier already exist?
     const classifier = await this.databaseService.getClassifierModel(
-      classifierName,
-      groupId,
+      name,
+      group_id,
     );
     if (classifier != null) {
       throw new ForbiddenException("Classifier with this name already exists.");
     }
     const creationResult = await this.databaseService.createClassifierModel(
-      classifierName,
+      name,
       {
         description,
         source,
         status: ClassifierStatus.PRETRAINING,
         config: { labels: [] },
-        group_id: groupId,
+        group_id: group_id,
       },
       userId,
     );
@@ -126,9 +146,9 @@ export class AzureController {
         },
         classifierName: { type: "string" },
         label: { type: "string" },
-        groupId: { type: "string" },
+        group_id: { type: "string" },
       },
-      required: ["files", "classifierName", "label", "groupId"],
+      required: ["files", "classifierName", "label", "group_id"],
     },
     description: "Upload training documents for a classifier",
   })
@@ -141,24 +161,24 @@ export class AzureController {
     @UploadedFiles() files: Array<Express.Multer.File>,
     @Body() body: UploadClassifierDocumentsDto,
   ): Promise<UploadClassifierDocumentsResponseDto> {
-    const { classifierName, label, groupId } = body;
+    const { name, label, group_id } = body;
     const userId = req.user.sub;
-    if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
+    if (!(await this.databaseService.isUserInGroup(userId, group_id))) {
       throw new ForbiddenException("User does not belong to requested group.");
     }
 
     const existingModelData = await this.databaseService.getClassifierModel(
-      classifierName,
-      groupId,
+      name,
+      group_id,
     );
     if (existingModelData == null) {
       throw new NotFoundException("No existing record of classifier model.");
     }
 
     const path = this.storageService.getStoragePath(
-      groupId,
+      group_id,
       Operation.CLASSIFICATION,
-      `${classifierName}/${label}`,
+      `${name}/${label}`,
     );
     const uploadResults = await this.storageService.saveFilesBulk(files, path);
 
@@ -188,15 +208,15 @@ export class AzureController {
     @Request() req,
     @Body() body: DeleteClassifierDocumentsDto,
   ): Promise<void> {
-    const { classifierName, groupId, folders } = body;
+    const { name, group_id, folders } = body;
     const userId = req.user.sub;
-    if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
+    if (!(await this.databaseService.isUserInGroup(userId, group_id))) {
       throw new ForbiddenException("User does not belong to requested group.");
     }
 
     const existingModelData = await this.databaseService.getClassifierModel(
-      classifierName,
-      groupId,
+      name,
+      group_id,
     );
     if (existingModelData == null) {
       throw new NotFoundException("No existing record of classifier model.");
@@ -207,9 +227,9 @@ export class AzureController {
         await Promise.all(
           folders.map((f) => {
             const path = this.storageService.getStoragePath(
-              groupId,
+              group_id,
               Operation.CLASSIFICATION,
-              `${classifierName}/${f}`,
+              `${name}/${f}`,
             );
             this.storageService.deleteFolderRecursive(path);
           }),
@@ -217,9 +237,9 @@ export class AzureController {
       } else {
         // Delete all document folders for this classifier.
         const path = this.storageService.getStoragePath(
-          groupId,
+          group_id,
           Operation.CLASSIFICATION,
-          classifierName,
+          name,
         );
         this.storageService.deleteFolderRecursive(path);
       }
@@ -250,19 +270,16 @@ export class AzureController {
     @Request() req,
     @Body() body: RequestClassifierTrainingDto,
   ): Promise<ClassifierModelResponseDto> {
-    const { classifierName, groupId } = body;
+    const { name, group_id } = body;
     const userId = req.user.sub;
-    if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
+    if (!(await this.databaseService.isUserInGroup(userId, group_id))) {
       throw new ForbiddenException("User does not belong to requested group.");
     }
 
     try {
       // Upload the documents required for training
       const uploadResults =
-        await this.classifierService.uploadDocumentsForTraining(
-          groupId,
-          classifierName,
-        );
+        await this.classifierService.uploadDocumentsForTraining(group_id, name);
 
       // Create the layout json for them
       const filePaths = uploadResults.map((r) => r.blobPath);
@@ -270,8 +287,8 @@ export class AzureController {
 
       // Start the training process
       const model = await this.classifierService.requestClassifierTraining(
-        classifierName,
-        groupId,
+        name,
+        group_id,
         userId,
       );
       return {
@@ -281,12 +298,12 @@ export class AzureController {
       };
     } catch (e) {
       this.logger.error(
-        `Classification request failed for classifier ${classifierName} in group ${groupId}.`,
+        `Classification request failed for classifier ${name} in group ${group_id}.`,
         e,
       );
       const model = await this.databaseService.updateClassifierModel(
-        classifierName,
-        groupId,
+        name,
+        group_id,
         { status: ClassifierStatus.FAILED },
         userId,
       );
@@ -315,9 +332,9 @@ export class AzureController {
           format: "binary",
         },
         classifierName: { type: "string" },
-        groupId: { type: "string" },
+        group_id: { type: "string" },
       },
-      required: ["file", "classifierName", "groupId"],
+      required: ["file", "classifierName", "group_id"],
     },
     description: "Request classification for a document",
   })
@@ -330,15 +347,15 @@ export class AzureController {
     @Body() body: RequestClassificationDto,
     @UploadedFile() file: Express.Multer.File,
   ): Promise<ClassifierResponseDto> {
-    const { classifierName, groupId } = body;
+    const { name, group_id } = body;
     const userId = req.user.sub;
-    if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
+    if (!(await this.databaseService.isUserInGroup(userId, group_id))) {
       throw new ForbiddenException("User does not belong to requested group.");
     }
     // Is there a classifier trained for this group?
     const classifier = await this.databaseService.getClassifierModel(
-      classifierName,
-      groupId,
+      name,
+      group_id,
     );
     if (classifier == null) {
       throw new NotFoundException("Classifier not found.");
@@ -346,13 +363,13 @@ export class AzureController {
 
     const response = await this.classifierService.requestClassificationFromFile(
       file,
-      classifierName,
-      groupId,
+      name,
+      group_id,
     );
 
     await this.databaseService.updateClassifierModel(
-      classifierName,
-      groupId,
+      name,
+      group_id,
       {
         last_used_at: new Date(),
       },
@@ -404,19 +421,19 @@ export class AzureController {
     @Request() req,
     @Query() query: GetTrainingResultQueryDto,
   ): Promise<ClassifierModelResponseDto> {
-    const { classifierName, groupId } = query;
-    if (classifierName == null || groupId == null) {
+    const { name, group_id } = query;
+    if (name == null || group_id == null) {
       throw new BadRequestException(
-        "Must provide both classifierName and groupId query parameters.",
+        "Must provide both name and group_id query parameters.",
       );
     }
     const userId = req.user.sub;
-    if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
+    if (!(await this.databaseService.isUserInGroup(userId, group_id))) {
       throw new ForbiddenException("User does not belong to requested group.");
     }
     const classifier = await this.databaseService.getClassifierModel(
-      classifierName,
-      groupId,
+      name,
+      group_id,
     );
     if (classifier == null) {
       throw new NotFoundException("No classifier model found.");
@@ -431,8 +448,8 @@ export class AzureController {
       classifier.operation_location,
       async (r) => {
         returnValue = await this.databaseService.updateClassifierModel(
-          classifierName,
-          groupId,
+          name,
+          group_id,
           { status: ClassifierStatus.READY },
           userId,
         );

@@ -333,6 +333,17 @@ export class DatabaseService {
     });
   }
 
+  async getClassifierModelsForGroups(groupIds: string[]) {
+    return await this.prisma.classifierModel.findMany({
+      where: {
+        group_id: { in: groupIds },
+      },
+      include: {
+        group: true,
+      },
+    });
+  }
+
   async getUsersGroups(userId: string) {
     return await this.prisma.userGroup.findMany({
       where: {

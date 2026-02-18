@@ -52,11 +52,11 @@ describe("AzureController", () => {
       databaseService.createClassifierModel.mockResolvedValue({ id: "1" });
       const req = { user: { sub: "user1" } };
       const body = {
-        classifierName: "c1",
+        name: "c1",
         description: "desc",
         source: ClassifierSource.AZURE,
         status: ClassifierStatus.READY,
-        groupId: "g1",
+        group_id: "g1",
       };
       const result = await controller.createClassifier(req, body);
       expect(result).toEqual({ id: "1" });
@@ -66,11 +66,11 @@ describe("AzureController", () => {
       databaseService.isUserInGroup.mockResolvedValue(false);
       const req = { user: { sub: "user1" } };
       const body = {
-        classifierName: "c1",
+        name: "c1",
         description: "desc",
         source: ClassifierSource.AZURE,
         status: ClassifierStatus.READY,
-        groupId: "g1",
+        group_id: "g1",
       };
       await expect(controller.createClassifier(req, body)).rejects.toThrow(
         ForbiddenException,
@@ -81,11 +81,11 @@ describe("AzureController", () => {
       databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
       const req = { user: { sub: "user1" } };
       const body = {
-        classifierName: "c1",
+        name: "c1",
         description: "desc",
         source: ClassifierSource.AZURE,
         status: ClassifierStatus.READY,
-        groupId: "g1",
+        group_id: "g1",
       };
       await expect(controller.createClassifier(req, body)).rejects.toThrow(
         ForbiddenException,
@@ -113,7 +113,7 @@ describe("AzureController", () => {
       storageService.saveFilesBulk.mockResolvedValue(["file1"]);
       const req = { user: { sub: "user1" } };
       const files = [mockFile];
-      const body = { classifierName: "c1", label: "l1", groupId: "g1" };
+      const body = { name: "c1", label: "l1", group_id: "g1" };
       const result = await controller.uploadClassifierDocuments(
         req,
         files,
@@ -130,9 +130,9 @@ describe("AzureController", () => {
       const req = { user: { sub: "user1" } };
       await expect(
         controller.uploadClassifierDocuments(req, [], {
-          classifierName: "c1",
+          name: "c1",
           label: "l1",
-          groupId: "g1",
+          group_id: "g1",
         }),
       ).rejects.toThrow(ForbiddenException);
     });
@@ -142,9 +142,9 @@ describe("AzureController", () => {
       const req = { user: { sub: "user1" } };
       await expect(
         controller.uploadClassifierDocuments(req, [], {
-          classifierName: "c1",
+          name: "c1",
           label: "l1",
-          groupId: "g1",
+          group_id: "g1",
         }),
       ).rejects.toThrow(NotFoundException);
     });
@@ -155,7 +155,7 @@ describe("AzureController", () => {
       databaseService.isUserInGroup.mockResolvedValue(true);
       databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
       const req = { user: { sub: "user1" } };
-      const body = { classifierName: "c1", groupId: "g1", folders: ["f1"] };
+      const body = { name: "c1", group_id: "g1", folders: ["f1"] };
       await expect(
         controller.deleteClassifierDocuments(req, body),
       ).resolves.toBeUndefined();
@@ -165,8 +165,8 @@ describe("AzureController", () => {
       const req = { user: { sub: "user1" } };
       await expect(
         controller.deleteClassifierDocuments(req, {
-          classifierName: "c1",
-          groupId: "g1",
+          name: "c1",
+          group_id: "g1",
         }),
       ).rejects.toThrow(ForbiddenException);
     });
@@ -176,8 +176,8 @@ describe("AzureController", () => {
       const req = { user: { sub: "user1" } };
       await expect(
         controller.deleteClassifierDocuments(req, {
-          classifierName: "c1",
-          groupId: "g1",
+          name: "c1",
+          group_id: "g1",
         }),
       ).rejects.toThrow(NotFoundException);
     });
@@ -195,7 +195,7 @@ describe("AzureController", () => {
         source: "API",
       });
       const req = { user: { sub: "user1" } };
-      const body = { classifierName: "c1", groupId: "g1" };
+      const body = { name: "c1", group_id: "g1" };
       const result = await controller.requestClassifierTraining(req, body);
       expect(result.status).toBeDefined();
       expect(classifierService.uploadDocumentsForTraining).toHaveBeenCalled();
@@ -210,7 +210,7 @@ describe("AzureController", () => {
         source: "API",
       });
       const req = { user: { sub: "user1" } };
-      const body = { classifierName: "c1", groupId: "g1" };
+      const body = { name: "c1", group_id: "g1" };
       const result = await controller.requestClassifierTraining(req, body);
       expect(result.status).toBe("FAILED");
       expect(databaseService.updateClassifierModel).toHaveBeenCalled();
@@ -239,7 +239,7 @@ describe("AzureController", () => {
       databaseService.updateClassifierModel.mockResolvedValue({});
       const req = { user: { sub: "user1" } };
       const file = mockFile;
-      const body = { classifierName: "c1", groupId: "g1" };
+      const body = { name: "c1", group_id: "g1" };
       const result = await controller.requestClassification(req, body, file);
       expect(result).toEqual({ result: "ok" });
     });
@@ -249,7 +249,7 @@ describe("AzureController", () => {
       await expect(
         controller.requestClassification(
           req,
-          { classifierName: "c1", groupId: "g1" },
+          { name: "c1", group_id: "g1" },
           mockFile,
         ),
       ).rejects.toThrow(ForbiddenException);
@@ -261,7 +261,7 @@ describe("AzureController", () => {
       await expect(
         controller.requestClassification(
           req,
-          { classifierName: "c1", groupId: "g1" },
+          { name: "c1", group_id: "g1" },
           mockFile,
         ),
       ).rejects.toThrow(NotFoundException);
@@ -308,7 +308,7 @@ describe("AzureController", () => {
         async (_loc: any, onSuccess: (arg0: {}) => any) => onSuccess({}),
       );
       const req = { user: { sub: "user1" } };
-      const query = { classifierName: "c1", groupId: "g1" };
+      const query = { name: "c1", group_id: "g1" };
       const result = await controller.getTrainingResult(req, query);
       expect(result).toEqual({ status: "READY" });
     });
@@ -316,8 +316,8 @@ describe("AzureController", () => {
       const req = { user: { sub: "user1" } };
       await expect(
         controller.getTrainingResult(req, {
-          classifierName: null,
-          groupId: null,
+          name: null,
+          group_id: null,
         }),
       ).rejects.toThrow();
     });
@@ -326,8 +326,8 @@ describe("AzureController", () => {
       const req = { user: { sub: "user1" } };
       await expect(
         controller.getTrainingResult(req, {
-          classifierName: "c1",
-          groupId: "g1",
+          name: "c1",
+          group_id: "g1",
         }),
       ).rejects.toThrow(ForbiddenException);
     });
@@ -337,8 +337,8 @@ describe("AzureController", () => {
       const req = { user: { sub: "user1" } };
       await expect(
         controller.getTrainingResult(req, {
-          classifierName: "c1",
-          groupId: "g1",
+          name: "c1",
+          group_id: "g1",
         }),
       ).rejects.toThrow(NotFoundException);
     });
@@ -350,8 +350,8 @@ describe("AzureController", () => {
       const req = { user: { sub: "user1" } };
       await expect(
         controller.getTrainingResult(req, {
-          classifierName: "c1",
-          groupId: "g1",
+          name: "c1",
+          group_id: "g1",
         }),
       ).rejects.toThrow();
     });
@@ -372,8 +372,8 @@ describe("AzureController", () => {
       const req = { user: { sub: "user1" } };
       await expect(
         controller.getTrainingResult(req, {
-          classifierName: "c1",
-          groupId: "g1",
+          name: "c1",
+          group_id: "g1",
         }),
       ).rejects.toThrow(
         "Could not retrieve status of classifier. Code: fail. Message: fail",
