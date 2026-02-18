@@ -53,17 +53,6 @@ for page in "$PAGES_DIR"/*.html; do
         
         header="${header//\{\{NAV_INDEX\}\}/}"
         header="${header//\{\{NAV_API\}\}/}"
-        header="${header//\{\{NAV_OIDC\}\}/}"
-        header="${header//\{\{NAV_TERRAFORM\}\}/}"
-        header="${header//\{\{NAV_LANGUAGE-SERVICE-PII\}\}/}"
-        header="${header//\{\{NAV_DOCUMENT-INTELLIGENCE\}\}/}"
-        header="${header//\{\{NAV_WORKFLOWS\}\}/}"
-        header="${header//\{\{NAV_DIAGRAMS\}\}/}"
-        header="${header//\{\{NAV_TERRAFORM-REFERENCE\}\}/}"
-        header="${header//\{\{NAV_PLAYBOOKS\}\}/}"
-        header="${header//\{\{NAV_DECISIONS\}\}/}"
-        header="${header//\{\{NAV_COST\}\}/}"
-        header="${header//\{\{NAV_FAQ\}\}/}"
 
         # Replace date variables in footer
         footer="${footer//\{\{YEAR\}\}/$CURRENT_YEAR}"

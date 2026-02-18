@@ -1,0 +1,89 @@
+sequenceDiagram
+    autonumber
+
+    actor Source as External Source<br/>(User or API)
+    participant FE as Frontend<br/>(React SPA)
+    participant BE as Backend Services<br/>(NestJS :3002)
+    participant Auth as Auth Module<br/>(JWT / API Key)
+    participant Blob as Blob Storage<br/>(local / Azure)
+    participant DB as PostgreSQL<br/>(Prisma)
+    participant TS as Temporal Server<br/>(:7233)
+    participant TW as Temporal Worker<br/>(graphWorkflow)
+    participant ADI as Azure Document<br/>Intelligence
+    participant HITL as HITL Queue
+
+    Note over Source,HITL: DOCUMENT UPLOAD & WORKFLOW TRIGGER
+
+    Source ->> FE: Upload document (browser)
+    Note right of Source: Or: API consumer POSTs<br/>directly to Backend<br/>with x-api-key header
+    FE ->> BE: POST /api/upload<br/>(file + metadata + JWT)
+    BE ->> Auth: Validate JWT or API key
+    Auth -->> BE: Authenticated (user ID)
+    BE ->> Blob: Save file → blobKey<br/>(documents/{id}/original.pdf)
+    BE ->> DB: INSERT Document<br/>(status: pre_ocr,<br/>workflow_config_id, model_id)
+    BE ->> DB: SELECT Workflow config<br/>(GraphWorkflowConfig JSON)
+    BE ->> BE: Compute configHash<br/>(SHA-256 canonical)
+    BE ->> TS: Start graphWorkflow<br/>(graph, initialCtx:{documentId,<br/>blobKey, fileName, modelId},<br/>configHash)
+    TS -->> BE: workflowExecutionId
+    BE ->> DB: UPDATE Document<br/>(workflow_execution_id)
+    BE -->> FE: 201 Created (documentId)
+
+    Note over TS,ADI: STANDARD OCR PATH (Temporal Worker)
+
+    TS ->> TW: Dispatch task
+    TW ->> DB: document.updateStatus<br/>→ ongoing_ocr
+
+    rect rgb(239, 246, 255)
+        Note over TW,ADI: OCR Pipeline
+        TW ->> Blob: file.prepare<br/>(resolve blob path, validate)
+        TW ->> ADI: azureOcr.submit<br/>(POST document for analysis)
+        ADI -->> TW: operationId / apimRequestId
+        TW ->> DB: document.updateStatus<br/>(store apimRequestId)
+
+        loop pollUntil node (interval: 10s, max: 20)
+            TW ->> ADI: azureOcr.poll<br/>(GET operation status)
+            ADI -->> TW: status: running / succeeded
+        end
+
+        TW ->> TW: azureOcr.extract<br/>(parse Azure response)
+        TW ->> TW: ocr.cleanup<br/>(normalize text)
+        TW ->> TW: ocr.checkConfidence<br/>(compute average, flag if below threshold)
+    end
+
+    Note over TW,HITL: CONDITIONAL ROUTING (switch node)
+
+    alt Confidence >= threshold
+        TW ->> DB: ocr.storeResults<br/>(upsert OcrResult with keyValuePairs)
+        TW ->> DB: document.updateStatus<br/>→ completed_ocr
+    else Confidence < threshold
+        rect rgb(254, 243, 199)
+            Note over TW: humanGate node<br/>Registers Temporal signal handler<br/>Waits for human approval
+            TW -->> HITL: Document enters review queue<br/>(GET /api/hitl/queue)
+            Note over HITL: Reviewer creates session<br/>Field-by-field correction<br/>Approve / Escalate / Skip
+            HITL -->> TS: Signal: humanApproval<br/>(approved: true)
+            TS -->> TW: Signal received
+        end
+        TW ->> DB: ocr.storeResults<br/>(upsert OcrResult)
+        TW ->> DB: document.updateStatus<br/>→ completed_ocr
+    end
+
+    Note over TW,ADI: MULTI-PAGE PATH (alternative workflow)
+
+    rect rgb(236, 253, 245)
+        Note over TW,ADI: Multi-page documents use map/join nodes
+        TW ->> Blob: document.split<br/>(qpdf → segments)
+        loop map node (per segment, maxConcurrency)
+            TW ->> TS: childWorkflow<br/>(standard OCR per segment)
+            TS ->> TW: child result
+            TW ->> TW: document.classify<br/>(rule-based segment type)
+        end
+        TW ->> TW: join node<br/>(collect all segment results)
+        TW ->> TW: document.validateFields<br/>(cross-segment validation)
+        TW ->> DB: ocr.storeResults
+    end
+
+    Note over Source,HITL: DOWNSTREAM CONSUMPTION
+
+    Source ->> BE: GET /api/documents/:id
+    BE ->> DB: SELECT Document + OcrResult
+    BE -->> Source: Document with extracted data

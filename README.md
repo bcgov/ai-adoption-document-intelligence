@@ -231,7 +231,7 @@ Before setting up the development environment, ensure you have:
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd ai-adoption-document-intelligence-docu
+cd ai-adoption-document-intelligence
 
 # Install all dependencies
 npm run install:all
@@ -466,7 +466,7 @@ npm run build
 ## Project Structure
 
 ```
-ai-adoption-document-intelligence-docu/
+ai-adoption-document-intelligence/
 ├── apps/
 │   ├── backend-services/          # NestJS REST API
 │   │   ├── src/
