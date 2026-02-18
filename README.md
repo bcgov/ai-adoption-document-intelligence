@@ -12,6 +12,7 @@ This platform is under active development with core capabilities implemented:
 - Graph-based workflow engine (DAG execution)
 - Document labeling workspace
 - Custom model training
+- Document classification (Azure Document Intelligence classifier training and automated document type classification)
 - Human-in-the-loop review queue
 - Multi-mode authentication (Keycloak SSO + API keys)
 - Blob storage abstraction (local/Azure)
@@ -20,7 +21,6 @@ This platform is under active development with core capabilities implemented:
 - Advanced workflow visual editor (read-only visualization currently available)
 - Extended analytics and reporting
 - Additional activity node types
-- Enhanced document classification
 
 ## Architecture
 
@@ -65,6 +65,7 @@ The platform is built as a microservices architecture with five main components:
    - Workflow configuration and execution
    - Labeling project management
    - Custom model training
+   - Document classifier training and classification
    - HITL review queue and session management
    - Authentication (Keycloak SSO + API keys)
 
@@ -276,7 +277,7 @@ DATABASE_URL=postgresql://user:password@localhost:5432/docintell
 
 # Azure Document Intelligence (OCR)
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<your-resource>.cognitiveservices.azure.com/
-AZURE_DOCUMENT_INTELLIGENCE_KEY=<your-api-key>
+AZURE_DOCUMENT_INTELLIGENCE_API_KEY=<your-api-key>
 AZURE_DOC_INTELLIGENCE_MODELS=prebuilt-layout,prebuilt-document,prebuilt-invoice
 
 # Storage (Local Development)
@@ -534,7 +535,6 @@ ai-adoption-document-intelligence-docu/
 │       └── kustomize/           # Kubernetes manifests
 │
 ├── docs/
-│   ├── API.md                   # API documentation
 │   ├── HITL_ARCHITECTURE.md     # HITL system design
 │   ├── TEMPLATE_TRAINING.md     # Training guide
 │   └── graph-workflows/         # Workflow engine docs
@@ -563,10 +563,9 @@ The API includes endpoints for:
 - **Labeling** (`/api/labeling`) - Labeling projects, documents, fields, labels
 - **Training** (`/api/training`) - Model training jobs and validation
 - **HITL** (`/api/hitl`) - Review queue, sessions, corrections, analytics
+- **Azure Classifier** (`/api/azure/classifier`) - Classifier lifecycle management (create, train, classify)
 - **API Keys** (`/api/api-key`) - API key generation and management
 - **Models** (`/api/models`) - Available OCR models
-
-See [docs/API.md](docs/API.md) for detailed endpoint documentation.
 
 ### Authentication
 
@@ -779,7 +778,7 @@ DATABASE_URL=postgresql://user:pass@host:5432/db
 
 # Azure
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://...
-AZURE_DOCUMENT_INTELLIGENCE_KEY=...
+AZURE_DOCUMENT_INTELLIGENCE_API_KEY=...
 AZURE_STORAGE_CONNECTION_STRING=DefaultEndpoints...
 
 # Temporal
@@ -803,7 +802,6 @@ VITE_OIDC_REDIRECT_URI=https://app.example.com
 
 ### Core Documentation
 
-- **[API Reference](docs/API.md)** - Complete API endpoint documentation
 - **[HITL Architecture](docs/HITL_ARCHITECTURE.md)** - Human-in-the-loop system design
 - **[Template Training](docs/TEMPLATE_TRAINING.md)** - Custom model training guide
 

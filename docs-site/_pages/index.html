@@ -4,7 +4,7 @@
 <div class="hero">
     <span class="badge badge-gold">Open Source</span>
     <h1>Document Intelligence Platform</h1>
-    <p>Enterprise-grade document processing platform with OCR, graph-based workflow orchestration, custom model training, and human-in-the-loop review capabilities.</p>
+    <p>Enterprise-grade document processing platform with OCR, graph-based workflow orchestration, document classification, custom model training, and human-in-the-loop review capabilities.</p>
     
     <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center;">
         <a href="api-reference.html" style="text-decoration: none;">
@@ -29,6 +29,7 @@
         <h3 style="margin-top:0;">🚀 Core Features</h3>
         <ul>
             <li><strong>Document Processing</strong> - Multi-format document upload and OCR with Azure Document Intelligence</li>
+            <li><strong>Document Classification</strong> - Train and deploy Azure Document Intelligence classifiers for automated document type routing</li>
             <li><strong>Graph Workflows</strong> - DAG-based workflow engine with 30+ extensible activities powered by Temporal</li>
             <li><strong>Model Training</strong> - Supervised learning with custom model training and versioned deployments</li>
             <li><strong>HITL Review</strong> - Collaborative human-in-the-loop workflows with confidence-based routing</li>
@@ -83,6 +84,11 @@
     <div class="card">
         <h3 style="margin-top:0;">📊 Extensible Activities</h3>
         <p>Developer-friendly activity registry system. Create custom activities by extending base classes and registering them in the workflow engine.</p>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0;">🗂️ Document Classification</h3>
+        <p>Train Azure Document Intelligence classifiers to automatically identify document types. Manage the full lifecycle from training data upload through classifier deployment.</p>
     </div>
 </div>
 
@@ -194,7 +200,7 @@ cd apps/frontend && npm run dev</code></pre>
 
 <div class="card">
     <pre><code>apps/
-├── backend-services/    # NestJS API server (13 modules)
+├── backend-services/    # NestJS API server (14 modules)
 ├── frontend/            # React application
 ├── temporal/            # Temporal workflow workers
 ├── image-service/       # Python image preprocessing tools
@@ -215,7 +221,6 @@ deployments/             # OpenShift/Kubernetes manifests</code></pre>
         <strong>Additional Documentation</strong><br>
         Detailed technical documentation is available in the <code>/docs</code> directory including:
         <ul style="margin-top: 0.5rem; margin-bottom: 0;">
-            <li><strong>API.md:</strong> Detailed API documentation</li>
             <li><strong>HITL_ARCHITECTURE.md:</strong> Human-in-the-loop system design</li>
             <li><strong>TEMPLATE_TRAINING.md:</strong> Model training workflows</li>
             <li><strong>docs/graph-workflows/:</strong> Workflow engine architecture and activity development guides</li>

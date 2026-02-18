@@ -105,6 +105,23 @@ The backend services provide a modular, scalable API for:
 - `GET /api/training/jobs/:jobId` - Get job status
 - `DELETE /api/training/jobs/:jobId` - Delete training job and resources
 
+### Azure Classifier Module
+
+#### `azure/` - Azure Classifier
+- Document classifier management (create, train, classify)
+- Wraps Azure Document Intelligence classifier APIs
+- BlobService for container/blob lifecycle and SAS URL generation
+- Group-scoped classifiers with PRETRAINING → TRAINING → READY lifecycle
+
+**Key Endpoints:**
+- `POST /api/azure/classifier` — Create classifier record
+- `POST /api/azure/classifier/documents` — Upload training documents
+- `DELETE /api/azure/classifier/documents` — Delete training documents (204)
+- `POST /api/azure/classifier/train` — Start training job
+- `GET /api/azure/classifier/train` — Poll training result
+- `POST /api/azure/classifier/classify` — Classify a document
+- `GET /api/azure/classifier/classify` — Poll classification result
+
 ### HITL (Human-in-the-Loop) Module
 
 #### `hitl/` - Review & Correction
@@ -197,11 +214,13 @@ DATABASE_URL=postgresql://user:password@localhost:5432/docintell
 
 # Azure Document Intelligence (OCR)
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<your-resource>.cognitiveservices.azure.com/
-AZURE_DOCUMENT_INTELLIGENCE_KEY=<your-api-key>
+AZURE_DOCUMENT_INTELLIGENCE_API_KEY=<your-api-key>
 AZURE_DOC_INTELLIGENCE_MODELS=prebuilt-layout,prebuilt-document,prebuilt-invoice
 
 # Azure Blob Storage (Optional - for production storage)
 AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=...
+AZURE_STORAGE_ACCOUNT_NAME=<your-account-name>
+AZURE_STORAGE_ACCOUNT_KEY=<your-account-key>
 AZURE_STORAGE_CONTAINER=documents
 AZURE_STORAGE_TRAINING_CONTAINER=training-data
 
@@ -378,6 +397,14 @@ apps/backend-services/
 │   │   ├── api-key.controller.ts
 │   │   ├── api-key.service.ts
 │   │   └── guards/           # API key guard
+│   │
+│   ├── azure/                # Azure Document Intelligence classifier
+│   │   ├── azure.module.ts
+│   │   ├── azure.controller.ts
+│   │   ├── azure.service.ts
+│   │   ├── blob.service.ts
+│   │   ├── classifier.service.ts
+│   │   └── dto/
 │   │
 │   ├── auth/                 # Keycloak SSO authentication
 │   │   ├── auth.controller.ts
