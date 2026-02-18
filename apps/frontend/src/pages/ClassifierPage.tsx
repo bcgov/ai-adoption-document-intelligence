@@ -1,9 +1,9 @@
+import ClassificationFiles from "@/components/classification/ClassificationFiles";
 import ClassifierDetails from "@/components/classification/ClassifierDetails";
 import CreateModelModal from "@/components/classification/CreateClassifierModal";
 import { useClassifier } from "@/data/hooks/useClassifier";
-import { ClassifierStatus, ClassifierSource, ClassifierModel } from "@/shared/types/classifier";
-import { Group, Stack, Title, Text, Paper, Select, Button,} from "@mantine/core";
-import { useEffect, useState } from "react";
+import { Group, Stack, Title, Text, Paper, Select, Button, } from "@mantine/core";
+import { useState } from "react";
 
 const ClassifierPage = () => {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -11,7 +11,7 @@ const ClassifierPage = () => {
 
   const { getClassifiers } = useClassifier();
   console.log(getClassifiers.data);
-  
+
   // TODO: replace with real data
   const groupOptions = [
     { id: "00000000-0000-0000-0000-000000000000", name: "Group 1" },
@@ -24,10 +24,7 @@ const ClassifierPage = () => {
   }, {} as Record<string, string>);
 
   const ModelSelect = () => {
-    return <Paper shadow="sm" radius="md" p="lg" withBorder>
-      {!selectedModel && (<Text c="dimmed" size="sm">
-        No model selected. Please select a model to classify documents or create a new model.
-      </Text>)}
+    return <><Paper shadow="sm" radius="md" p="lg" withBorder>
       <Stack gap="md" mt="md">
         <Group justify="space-between">
           <Title order={3}>Select a model</Title>
@@ -52,7 +49,10 @@ const ClassifierPage = () => {
           }}
         />
       </Stack>
-    </Paper>;
+    </Paper>
+      {!selectedModel && (<Text c="dimmed" size="sm">
+        No model selected. Please select a model or create a new model.
+      </Text>)}</>;
   }
 
   const selectedModelDetails = selectedModel && getClassifiers.data
@@ -73,9 +73,12 @@ const ClassifierPage = () => {
     </Group>
     <ModelSelect />
     {selectedModel && selectedModelDetails && (
-      <ClassifierDetails key={selectedModel} classifierModel={selectedModelDetails} />
+      <>
+        <ClassifierDetails key={selectedModel} classifierModel={selectedModelDetails} />
+        <ClassificationFiles />
+      </>
     )}
-    <CreateModelModal isOpen={isCreateModalOpen} setIsOpen={setIsCreateModalOpen}  groupOptions={groupOptions} afterSubmit={async () => {
+    <CreateModelModal isOpen={isCreateModalOpen} setIsOpen={setIsCreateModalOpen} groupOptions={groupOptions} afterSubmit={async () => {
       await getClassifiers.refetch();
     }} />
   </Stack>;

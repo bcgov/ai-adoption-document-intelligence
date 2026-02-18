@@ -15,6 +15,9 @@ export interface ClassifierModel {
   group_id: string;
   status: ClassifierStatus;
   source: ClassifierSource;
-  group?: string;
+  group?: {
+    id: string;
+    name: string;
+  };
   description?: string;
 }

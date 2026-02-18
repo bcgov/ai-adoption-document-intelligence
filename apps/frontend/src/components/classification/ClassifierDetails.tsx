@@ -20,6 +20,7 @@ const ClassifierDetails = ({ classifierModel }: ClassifierDetailsProps) => {
   return (
     <Stack gap="md">
       <Paper shadow="sm" radius="md" p="lg" withBorder>
+        <h2>Classifier Details</h2>
         <form onSubmit={form.onSubmit((values) => {
           // handle save
         })}>
@@ -39,7 +40,7 @@ const ClassifierDetails = ({ classifierModel }: ClassifierDetailsProps) => {
           </Text>
           {classifierModel.group && (
             <Text mt="md">
-              <b>Group:</b> {classifierModel.group}
+              <b>Group Ownership:</b> {classifierModel.group.name}
             </Text>
           )}
           <Group justify="flex-end" mt="md">
