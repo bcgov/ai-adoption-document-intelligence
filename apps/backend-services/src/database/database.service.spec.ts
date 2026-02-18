@@ -121,6 +121,11 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { JsonValue } from "@prisma/client/runtime/client";
 import { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
 import { DatabaseService } from "./database.service";
+import { DocumentDbService } from "./document-db.service";
+import { LabelingDocumentDbService } from "./labeling-document-db.service";
+import { LabelingProjectDbService } from "./labeling-project-db.service";
+import { PrismaService } from "./prisma.service";
+import { ReviewDbService } from "./review-db.service";
 
 const defaultDocument = {
   title: "Test",
@@ -271,6 +276,11 @@ describe("DatabaseService", () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        PrismaService,
+        DocumentDbService,
+        LabelingDocumentDbService,
+        LabelingProjectDbService,
+        ReviewDbService,
         DatabaseService,
         {
           provide: ConfigService,
@@ -287,7 +297,7 @@ describe("DatabaseService", () => {
     }).compile();
 
     service = module.get<DatabaseService>(DatabaseService);
-    mockPrisma = (service as any).prisma;
+    mockPrisma = service.prisma;
   });
 
   describe("createDocument", () => {

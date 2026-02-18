@@ -93,11 +93,8 @@ export class TrainingService {
     );
   }
 
-  /**
-   * Get Prisma client from DatabaseService
-   */
   private get prisma() {
-    return this.db["prisma"];
+    return this.db.prisma;
   }
 
   /**
