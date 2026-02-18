@@ -77,7 +77,7 @@ export class AzureController {
     description: "Classifier creation payload",
   })
   async createClassifier(@Request() req, @Body() body: ClassifierCreationDto) {
-    const { classifierName, description, source, status, groupId } = body;
+    const { classifierName, description, source, groupId } = body;
     const userId = req.user.sub;
     if (!(await this.databaseService.isUserInGroup(userId, groupId))) {
       throw new ForbiddenException("User does not belong to requested group.");
@@ -96,7 +96,7 @@ export class AzureController {
       {
         description,
         source,
-        status,
+        status: ClassifierStatus.PRETRAINING,
         config: { labels: [] },
         group_id: groupId,
       },
