@@ -1,3 +1,41 @@
+// Classification result response type
+export interface ClassificationResult {
+  status: "succeeded" | "failed" | "running" | string;
+  createdDateTime: string;
+  lastUpdatedDateTime: string;
+  analyzeResult: {
+    apiVersion: string;
+    modelId: string;
+    stringIndexType: string;
+    content: string;
+    pages: Array<{
+      pageNumber: number;
+      angle: number;
+      width: number;
+      height: number;
+      unit: string;
+      words: Array<any>;
+      lines: Array<any>;
+      spans: Array<any>;
+    }>;
+    documents: Array<{
+      docType: string;
+      boundingRegions: Array<{
+        pageNumber: number;
+        polygon: number[];
+      }>;
+      confidence: number;
+      spans: Array<any>;
+    }>;
+    contentFormat: string;
+  };
+}
+// Classification request response type
+export interface ClassificationRequestResponse {
+  status: "success" | "pending" | "failure";
+  content: string;
+  error: Record<string, unknown>;
+}
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiService } from "../services/api.service";
 import { ClassifierModel } from "@/shared/types/classifier";
@@ -94,6 +132,33 @@ export function useClassifier() {
     },
   });
 
+  // Classify a document (multipart form POST)
+  const requestClassification = useMutation<
+    ClassificationRequestResponse,
+    Error,
+    { file: File; name: string; group_id: string }
+  >({
+    mutationFn: async (params) => {
+      const { file, name, group_id } = params;
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("name", name);
+      formData.append("group_id", group_id);
+      const response = await apiService.post<ClassificationRequestResponse>(`/azure/classifier/classify`, formData);
+      if (response.success && response.data) return response.data;
+      throw new Error(response.message || "Failed to classify document");
+    },
+  });
+  
+  // General async function to get classification result (not a hook)
+  const fetchClassificationResult = async (operationLocation: string) => {
+    const response = await apiService.get<ClassificationResult>(
+      `/azure/classifier/classify?operationLocation=${encodeURIComponent(operationLocation)}`
+    );
+    if (response.success && response.data) return response.data;
+    throw new Error(response.message || "Failed to get classification result");
+  };
+
   return {
     getClassifiers,
     getClassifier,
@@ -103,5 +168,7 @@ export function useClassifier() {
     getClassifierDocuments,
     deleteClassifierDocuments,
     requestTraining,
+    requestClassification,
+    fetchClassificationResult,
   };
 }

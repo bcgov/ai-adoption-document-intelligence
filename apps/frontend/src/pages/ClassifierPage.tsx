@@ -1,7 +1,9 @@
 import ClassificationFiles from "@/components/classification/ClassificationFiles";
+import ClassifierAccess from "@/components/classification/ClassifierAccess";
 import ClassifierDetails from "@/components/classification/ClassifierDetails";
 import { CreateClassifierModal } from "@/components/classification/ClassifierModals";
 import { useClassifier } from "@/data/hooks/useClassifier";
+import { ClassifierStatus } from "@/shared/types/classifier";
 import { Group, Stack, Title, Text, Paper, Select, Button, } from "@mantine/core";
 import { useState } from "react";
 
@@ -62,7 +64,7 @@ const ClassifierPage = () => {
     return <Text c="red">Selected model not found</Text>;
   }
 
-  return <Stack gap={"lg"}>
+  return <Stack gap={"lg"} mb="lg">
     <Group justify="space-between">
       <Stack gap={2}>
         <Title order={2}>Classify</Title>
@@ -78,6 +80,9 @@ const ClassifierPage = () => {
         <ClassificationFiles classifierModel={selectedModelDetails} afterTrainingRequested={async () => {
           await getClassifiers.refetch();
         }}/>
+        {selectedModelDetails.status === ClassifierStatus.READY && (
+         <ClassifierAccess model={selectedModelDetails}/>
+        )}
       </>
     )}
     <CreateClassifierModal isOpen={isCreateModalOpen} setIsOpen={setIsCreateModalOpen} groupOptions={groupOptions} afterSubmit={async () => {
