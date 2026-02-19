@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DocumentationHub | BC Gov Document Intelligence</title>
+    <title>IntegrationsGuide | BC Gov Document Intelligence</title>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <style>
         :root {
@@ -701,7 +701,7 @@
             </div>
         </a>
         <nav class="bc-nav">
-            <a href="index.html" class="active">Home</a>
+            <a href="index.html" class="">Home</a>
             <div class="nav-dropdown">
                 <span class="nav-trigger">Guides</span>
                 <div class="nav-dropdown-menu">
@@ -716,233 +716,477 @@
         </nav>
     </header>
     <main>
-<!-- TITLE: Documentation Hub -->
-<!-- NAV: index -->
+<!-- TITLE: Integrations Guide -->
+<!-- NAV: integrations -->
 
-<div class="hero">
-    <span class="badge badge-gold">Open Source</span>
-    <h1>Document Intelligence Platform</h1>
-    <p>Enterprise-grade document processing platform with OCR, graph-based workflow orchestration, document classification, custom model training, and human-in-the-loop review capabilities.</p>
-    
-    <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center;">
-        <a href="api-reference.html" style="text-decoration: none;">
-            <button style="background: var(--bc-gold); color: var(--bc-blue); border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 1rem;">
-                View API Docs →
-            </button>
-        </a>
-        <a href="https://github.com/bcgov/ai-adoption-document-intelligence" style="text-decoration: none;">
-            <button style="background: rgba(255,255,255,0.2); color: white; border: 1px solid white; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 1rem;">
-                View on GitHub ↗
-            </button>
-        </a>
-    </div>
-</div>
+<h1>Integrations Guide</h1>
 
-<h2>Platform Overview</h2>
+<p>This guide covers how to integrate with the Document Intelligence Platform programmatically — sending documents in for processing and retrieving the extracted results.</p>
 
-<p>The Document Intelligence Platform is a comprehensive solution for document processing workflows. It combines OCR services, flexible graph-based workflow orchestration, supervised learning capabilities, and collaborative review tools into a unified platform.</p>
-
-<div class="grid grid-2" style="margin-top: 2rem;">
-    <div class="card" style="border-left-color: #2E8540;">
-        <h3 style="margin-top:0;">🚀 Core Features</h3>
-        <ul>
-            <li><strong>Document Processing</strong> - Multi-format document upload and OCR with Azure Document Intelligence</li>
-            <li><strong>Document Classification</strong> - Train and deploy Azure Document Intelligence classifiers for automated document type routing</li>
-            <li><strong>Graph Workflows</strong> - DAG-based workflow engine with 30+ extensible activities powered by Temporal</li>
-            <li><strong>Model Training</strong> - Supervised learning with custom model training and versioned deployments</li>
-            <li><strong>HITL Review</strong> - Collaborative human-in-the-loop workflows with confidence-based routing</li>
-        </ul>
-    </div>
-
-    <div class="card" style="border-left-color: #003366;">
-        <h3 style="margin-top:0;">🏗️ Architecture</h3>
-        <ul>
-            <li><strong>Backend</strong> - NestJS with Fastify, Prisma ORM, PostgreSQL</li>
-            <li><strong>Frontend</strong> - React with TypeScript, Mantine UI</li>
-            <li><strong>Orchestration</strong> - Temporal workflow engine with durable execution</li>
-            <li><strong>Storage</strong> - Pluggable blob storage (Azure, S3, filesystem)</li>
-        </ul>
-    </div>
-</div>
-
-<h2>Key Capabilities</h2>
-
-<div class="card card-gold" style="margin-bottom: 2rem;">
-    <h3 style="margin-top:0;">Graph-Based Workflow Engine</h3>
-    <p>The platform features a sophisticated DAG (Directed Acyclic Graph) workflow engine that enables complex, multi-step document processing pipelines. Workflows are defined as JSON graphs with nodes representing activities like OCR, validation, training, and review operations.</p>
-    <p><strong>30+ Built-in Activities:</strong> OCR processing, field extraction, validation, confidence filtering, model training, HITL routing, parallel execution, conditional branching, and more.</p>
-</div>
-
-<div class="grid grid-3">
-    <div class="card">
-        <h3 style="margin-top:0;">📄 Document Management</h3>
-        <p>Full lifecycle document management with metadata tagging, versioning, and relationship tracking. Supports PDF, images, and multi-page documents.</p>
-    </div>
-
-    <div class="card">
-        <h3 style="margin-top:0;">🏷️ Labeling & Annotation</h3>
-        <p>Project-based labeling system for ground truth creation. Supports bounding box annotations, field labeling, and batch operations for training data preparation.</p>
-    </div>
-
-    <div class="card">
-        <h3 style="margin-top:0;">🧠 Model Training</h3>
-        <p>End-to-end custom model training pipeline. Train Azure Document Intelligence custom models from labeled data with versioning and deployment management.</p>
-    </div>
-
-    <div class="card">
-        <h3 style="margin-top:0;">👥 Human Review Queue</h3>
-        <p>Collaborative HITL system with assignment management, bulk operations, and confidence-based routing for quality assurance workflows.</p>
-    </div>
-
-    <div class="card">
-        <h3 style="margin-top:0;">🔐 Authentication & Security</h3>
-        <p>Keycloak SSO integration with JWT bearer tokens and API key management. Role-based access control for secure multi-tenant operations.</p>
-    </div>
-
-    <div class="card">
-        <h3 style="margin-top:0;">📊 Extensible Activities</h3>
-        <p>Developer-friendly activity registry system. Create custom activities by extending base classes and registering them in the workflow engine.</p>
-    </div>
-
-    <div class="card">
-        <h3 style="margin-top:0;">🗂️ Document Classification</h3>
-        <p>Train Azure Document Intelligence classifiers to automatically identify document types. Manage the full lifecycle from training data upload through classifier deployment.</p>
-    </div>
-</div>
-
-<h2>Quick Start</h2>
-
-<div class="alert alert-info" style="margin-bottom: 2rem;">
+<div class="alert alert-info">
     <div class="alert-icon">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     </div>
     <div>
-        <strong>Prerequisites</strong><br>
-        Node.js 20+, PostgreSQL 14+, Temporal Server, Azure Document Intelligence resource (for OCR)
+        <strong>Base URL</strong><br>
+        All API endpoints in this guide are relative to your backend service URL (e.g. <code>https://your-host:3002</code>). See the <a href="api-reference.html">API Reference</a> for the full OpenAPI specification.
     </div>
 </div>
 
-<div class="card" style="margin-bottom: 2rem;">
-    <h3 style="margin-top: 0;">1. Install Dependencies</h3>
-    <pre><code>npm install</code></pre>
-</div>
+<!-- ====================================================================== -->
+<h2>Authentication</h2>
 
-<div class="card" style="margin-bottom: 2rem;">
-    <h3 style="margin-top: 0;">2. Configure Environment</h3>
-    <p>Set up environment variables for database, Temporal, Azure services, and authentication:</p>
-    <pre><code>DATABASE_URL=postgresql://user:pass@localhost:5432/docdb
-TEMPORAL_ADDRESS=localhost:7233
-AZURE_DI_ENDPOINT=https://your-instance.cognitiveservices.azure.com/
-AZURE_DI_KEY=your-key
-SSO_AUTH_SERVER_URL=https://your-keycloak.com/realms/your-realm</code></pre>
-</div>
+<p>The platform supports two authentication methods. Use <strong>API Keys</strong> for service-to-service integrations and automated pipelines, or <strong>Bearer Tokens</strong> for user-facing applications that go through the Keycloak SSO login flow.</p>
 
-<div class="card" style="margin-bottom: 2rem;">
-    <h3 style="margin-top: 0;">3. Initialize Database</h3>
-    <pre><code>cd apps/backend-services
-npm run db:migrate
-npm run db:generate</code></pre>
-</div>
-
-<div class="card" style="margin-bottom: 2rem;">
-    <h3 style="margin-top: 0;">4. Start Services</h3>
-    <pre><code># Terminal 1: Backend API
-cd apps/backend-services && npm run start:dev
-
-# Terminal 2: Temporal Worker
-cd apps/temporal && npm run worker
-
-# Terminal 3: Frontend
-cd apps/frontend && npm run dev</code></pre>
-</div>
-
-<div class="card">
-    <h3 style="margin-top: 0;">5. Access the Platform</h3>
-    <ul>
-        <li><strong>Frontend:</strong> http://localhost:3000</li>
-        <li><strong>Backend API:</strong> http://localhost:3002</li>
-        <li><strong>API Docs:</strong> http://localhost:3002/api</li>
-        <li><strong>Temporal UI:</strong> http://localhost:8233</li>
-    </ul>
-</div>
-
-<h2>API Documentation</h2>
-
-<p>Comprehensive REST API documentation is available on the <a href="api-reference.html">API Reference</a> page. The API supports both Bearer token authentication (Keycloak SSO) and API key authentication.</p>
-
-<div class="grid grid-2" style="margin-top: 2rem;">
-    <a href="api-reference.html" class="card-link">
-        <div class="card">
-            <h3 style="margin-top:0;">📚 API Reference</h3>
-            <p>Interactive API documentation with request/response schemas, authentication details, and example requests for all 56 endpoints.</p>
-        </div>
-    </a>
-
-    <a href="https://github.com/bcgov/ai-adoption-document-intelligence" class="card-link">
-        <div class="card">
-            <h3 style="margin-top:0;">💻 GitHub Repository</h3>
-            <p>View source code, report issues, contribute to the project, and access additional documentation.</p>
-        </div>
-    </a>
-</div>
-
-<h2>Technology Stack</h2>
-
-<div class="card">
-    <h3 style="margin-top: 0;">Core Technologies</h3>
-    <div class="grid grid-2">
-        <div>
-            <h4>Backend Services</h4>
-            <ul>
-                <li>NestJS 11 + Fastify</li>
-                <li>Prisma ORM</li>
-                <li>PostgreSQL 14+</li>
-                <li>Temporal Workflow Engine</li>
-                <li>Azure Document Intelligence SDK</li>
-            </ul>
-        </div>
-        <div>
-            <h4>Frontend Application</h4>
-            <ul>
-                <li>React 18 + TypeScript</li>
-                <li>Vite</li>
-                <li>Mantine UI Components</li>
-                <li>React Flow (workflow visualization)</li>
-                <li>Axios + React Query</li>
-            </ul>
-        </div>
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h3 style="margin-top:0;">API Key Authentication</h3>
+        <p>Best for automated pipelines, scripts, and service-to-service calls. Pass your key in the <code>X-API-Key</code> header.</p>
+        <p>Generate a key by logging into the platform with your IDIR and navigating to Settings.</p>
+    </div>
+    <div class="card" style="border-left-color: #8b5cf6;">
+        <h3 style="margin-top:0;">Bearer Token (SSO)</h3>
+        <p>Best for user-facing applications. Uses Keycloak OAuth 2.0 Authorization Code flow. The backend handles all interactions with the identity provider.</p>
+        <p>Tokens are passed in the <code>Authorization: Bearer &lt;token&gt;</code> header.</p>
     </div>
 </div>
 
-<h2>Project Structure</h2>
+<h3>Generating an API Key</h3>
 
-<div class="card">
-    <pre><code>apps/
-├── backend-services/    # NestJS API server (14 modules)
-├── frontend/            # React application
-├── temporal/            # Temporal workflow workers
-├── image-service/       # Python image preprocessing tools
-└── shared/              # Shared Prisma schema
+<ol>
+    <li><strong>Log in with your IDIR</strong> — Open the Document Intelligence frontend and sign in through the Keycloak SSO login page using your IDIR credentials.</li>
+    <li><strong>Navigate to Settings</strong> — Click the <strong>Settings</strong> tab in the left sidebar.</li>
+    <li><strong>Generate API Key</strong> — Click the <strong>Generate API Key</strong> button. Your new key will be displayed in a modal dialog.</li>
+    <li><strong>Copy and store the key</strong> — Copy the key immediately and store it securely. The full key is only shown once at creation time.</li>
+</ol>
 
-docs/                    # Technical documentation
-docs-site/               # This documentation site
-deployments/             # OpenShift/Kubernetes manifests</code></pre>
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+        <strong>One key at a time.</strong> Each user can have one active API key. To get a new key, use <strong>Regenerate Key</strong> on the Settings page (this invalidates the previous key). If a key is compromised, delete it immediately from Settings and generate a new one.
+    </div>
 </div>
 
-<h2>Learn More</h2>
+<div class="accordion-group">
+    <details>
+        <summary>Using your API Key in requests</summary>
+        <div class="accordion-content">
+            <p>Pass your key in the <code>X-API-Key</code> header on all API calls:</p>
+<pre>curl /api/documents \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+        </div>
+    </details>
+</div>
+
+<!-- ====================================================================== -->
+<h2>Sending Documents In</h2>
+
+<p>Documents are submitted via the upload endpoint as base64-encoded payloads. On upload, the platform stores the file, creates a document record, and automatically starts a processing workflow via Temporal.</p>
+
+<div class="card card-gold">
+    <h3 style="margin-top:0;">Upload Endpoint</h3>
+    <p><code>POST /api/upload</code></p>
+    <p>Accepts a JSON body with the document file encoded as a base64 string. Processing begins immediately after upload — no separate "start" call is needed.</p>
+</div>
+
+<h3>Request Fields</h3>
+
+<table>
+    <tr>
+        <th>Field</th>
+        <th>Type</th>
+        <th>Required</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td><code>title</code></td>
+        <td>string</td>
+        <td>Yes</td>
+        <td>Display name for the document</td>
+    </tr>
+    <tr>
+        <td><code>file</code></td>
+        <td>string</td>
+        <td>Yes</td>
+        <td>Base64-encoded file content</td>
+    </tr>
+    <tr>
+        <td><code>file_type</code></td>
+        <td>enum</td>
+        <td>Yes</td>
+        <td><code>pdf</code>, <code>image</code>, or <code>scan</code></td>
+    </tr>
+    <tr>
+        <td><code>model_id</code></td>
+        <td>string</td>
+        <td>Yes</td>
+        <td>Azure Document Intelligence model to use (e.g. <code>prebuilt-layout</code>)</td>
+    </tr>
+    <tr>
+        <td><code>original_filename</code></td>
+        <td>string</td>
+        <td>No</td>
+        <td>Original file name for display purposes</td>
+    </tr>
+    <tr>
+        <td><code>metadata</code></td>
+        <td>object</td>
+        <td>No</td>
+        <td>Arbitrary key-value metadata to attach to the document</td>
+    </tr>
+    <tr>
+        <td><code>workflow_config_id</code></td>
+        <td>string</td>
+        <td>No</td>
+        <td>ID of a workflow configuration to use for processing. If omitted, the default pipeline runs.</td>
+    </tr>
+</table>
+
+<div class="accordion-group">
+    <details>
+        <summary>Upload a PDF document (curl example)</summary>
+        <div class="accordion-content">
+<pre># Encode a file to base64
+FILE_B64=$(base64 -w 0 invoice.pdf)
+
+# Upload the document
+curl -X POST /api/upload \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"title\": \"Invoice Q1-2026\",
+    \"file\": \"$FILE_B64\",
+    \"file_type\": \"pdf\",
+    \"model_id\": \"prebuilt-layout\",
+    \"original_filename\": \"invoice.pdf\",
+    \"metadata\": { \"department\": \"finance\", \"quarter\": \"Q1\" }
+  }"</pre>
+            <p>Response:</p>
+<pre>{
+  "success": true,
+  "document": {
+    "id": "ef2dd8b2-cbed-4b30-a958-3c2484479ca4",
+    "title": "Invoice Q1-2026",
+    "original_filename": "invoice.pdf",
+    "file_type": "pdf",
+    "file_size": 245782,
+    "status": "ongoing_ocr",
+    "created_at": "2026-02-19T10:30:00.000Z"
+  }
+}</pre>
+        </div>
+    </details>
+
+    <details>
+        <summary>Upload an image document (curl example)</summary>
+        <div class="accordion-content">
+<pre>FILE_B64=$(base64 -w 0 receipt.jpg)
+
+curl -X POST /api/upload \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"title\": \"Expense Receipt\",
+    \"file\": \"$FILE_B64\",
+    \"file_type\": \"image\",
+    \"model_id\": \"prebuilt-layout\"
+  }"</pre>
+        </div>
+    </details>
+
+    <details>
+        <summary>List available models</summary>
+        <div class="accordion-content">
+            <p>Query the available OCR models before uploading:</p>
+<pre>curl /api/models \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+            <p>Response:</p>
+<pre>{
+  "models": ["prebuilt-layout", "prebuilt-invoice", "custom-model-v2"]
+}</pre>
+        </div>
+    </details>
+</div>
+
+<h3>Workflow Configuration (Optional)</h3>
+
+<p>For advanced processing pipelines, create a workflow configuration using the Workflows API. Workflows are DAG-based graphs with 30+ built-in activities including OCR, validation, classification, HITL routing, and more. Reference the workflow ID when uploading documents to route them through your custom pipeline.</p>
+
+<div class="accordion-group">
+    <details>
+        <summary>Create a workflow configuration (curl example)</summary>
+        <div class="accordion-content">
+<pre>curl -X POST /api/workflows \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"name\": \"Invoice Processing\",
+    \"description\": \"OCR + validation + review pipeline\",
+    \"config\": {
+      \"nodes\": [...],
+      \"edges\": [...]
+    }
+  }"</pre>
+            <p>Then reference it during upload:</p>
+<pre>curl -X POST /api/upload \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"title\": \"Invoice\",
+    \"file\": \"...\",
+    \"file_type\": \"pdf\",
+    \"model_id\": \"prebuilt-layout\",
+    \"workflow_config_id\": \"&lt;workflow-id&gt;\"
+  }"</pre>
+        </div>
+    </details>
+</div>
+
+<!-- ====================================================================== -->
+<h2>Retrieving Processed Data</h2>
+
+<p>The platform processes documents asynchronously. After uploading, poll the document status until processing completes, then retrieve the extracted data.</p>
+
+<div class="card card-gold">
+    <h3 style="margin-top:0;">Processing Flow</h3>
+    <p>Documents move through the following statuses:</p>
+    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; font-family: monospace; font-size: 0.9rem;">
+        <span class="badge badge-blue">ongoing_ocr</span>
+        <span style="color: var(--text-secondary);">&rarr;</span>
+        <span class="badge badge-gold">completed_ocr</span>
+        <span style="color: var(--text-secondary);">or</span>
+        <span class="badge" style="background: #fee2e2; color: #991b1b;">failed</span>
+    </div>
+    <p style="margin-top: 0.75rem;">If the workflow includes a human review step, documents may enter:</p>
+    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-family: monospace; font-size: 0.9rem;">
+        <span class="badge badge-gold">completed_ocr</span>
+        <span style="color: var(--text-secondary);">&rarr;</span>
+        <span class="badge" style="background: #e0f2fe; color: #0c4a6e;">needs_validation</span>
+        <span style="color: var(--text-secondary);">&rarr;</span>
+        <span class="badge" style="background: #dcfce7; color: #166534;">approved</span>
+    </div>
+</div>
 
 <div class="alert alert-info">
     <div class="alert-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     </div>
     <div>
-        <strong>Additional Documentation</strong><br>
-        Detailed technical documentation is available in the <code>/docs</code> directory including:
-        <ul style="margin-top: 0.5rem; margin-bottom: 0;">
-            <li><strong>HITL_ARCHITECTURE.md:</strong> Human-in-the-loop system design</li>
-            <li><strong>TEMPLATE_TRAINING.md:</strong> Model training workflows</li>
-            <li><strong>docs/graph-workflows/:</strong> Workflow engine architecture and activity development guides</li>
+        <strong>Polling Pattern</strong><br>
+        The platform does not currently support webhooks. Poll <code>GET /api/documents</code> or <code>GET /api/documents/:id/ocr</code> to check when processing completes. A reasonable interval is every 5-10 seconds.
+    </div>
+</div>
+
+<h3>Checking Document Status</h3>
+
+<p>List all documents to see their current processing status.</p>
+
+<div class="accordion-group">
+    <details>
+        <summary>List all documents (curl example)</summary>
+        <div class="accordion-content">
+<pre>curl /api/documents \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+            <p>Response (array of documents):</p>
+<pre>[
+  {
+    "id": "ef2dd8b2-cbed-4b30-a958-3c2484479ca4",
+    "title": "Invoice Q1-2026",
+    "original_filename": "invoice.pdf",
+    "file_type": "pdf",
+    "file_size": 245782,
+    "status": "completed_ocr",
+    "created_at": "2026-02-19T10:30:00.000Z",
+    "updated_at": "2026-02-19T10:31:15.000Z"
+  }
+]</pre>
+        </div>
+    </details>
+</div>
+
+<h3>Retrieving OCR Results</h3>
+
+<p>Once a document reaches <code>completed_ocr</code> status, retrieve the structured extraction data.</p>
+
+<div class="accordion-group">
+    <details>
+        <summary>Get OCR results (curl example)</summary>
+        <div class="accordion-content">
+<pre>curl /api/documents/ef2dd8b2-cbed-4b30-a958-3c2484479ca4/ocr \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+            <p>Response:</p>
+<pre>{
+  "document_id": "ef2dd8b2-cbed-4b30-a958-3c2484479ca4",
+  "status": "completed_ocr",
+  "title": "Invoice Q1-2026",
+  "original_filename": "invoice.pdf",
+  "file_type": "pdf",
+  "file_size": 245782,
+  "created_at": "2026-02-19T10:30:00.000Z",
+  "updated_at": "2026-02-19T10:31:15.000Z",
+  "model_id": "prebuilt-layout",
+  "ocr_result": {
+    "id": "result-uuid",
+    "document_id": "ef2dd8b2-cbed-4b30-a958-3c2484479ca4",
+    "keyValuePairs": {
+      "InvoiceNumber": "INV-2026-001",
+      "Date": "2026-01-15",
+      "Total": "$1,234.56"
+    },
+    "processed_at": "2026-02-19T10:31:15.000Z"
+  }
+}</pre>
+            <p>The <code>keyValuePairs</code> object contains the extracted fields. Its structure depends on the model used — custom models return fields defined during training, while prebuilt models return standard fields for their document type.</p>
+        </div>
+    </details>
+</div>
+
+<h3>Downloading the Original File</h3>
+
+<p>Retrieve the original uploaded file as a binary download.</p>
+
+<div class="accordion-group">
+    <details>
+        <summary>Download original document (curl example)</summary>
+        <div class="accordion-content">
+<pre>curl -o invoice.pdf \
+  /api/documents/ef2dd8b2-cbed-4b30-a958-3c2484479ca4/download \
+  -H "Authorization: Bearer &lt;your-sso-token&gt;"</pre>
+            <p>Returns the file with appropriate <code>Content-Type</code> and <code>Content-Disposition</code> headers.</p>
+        </div>
+    </details>
+</div>
+
+<!-- ====================================================================== -->
+<h2>Human-in-the-Loop Review</h2>
+
+<p>When workflows include confidence-based routing, documents that fall below confidence thresholds are routed to a human review queue. The HITL API enables building custom review interfaces or integrating review into existing tools.</p>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 style="margin-top:0;">Review Queue</h3>
+        <p><code>GET /api/hitl/queue</code></p>
+        <p>Lists documents awaiting review. Supports filtering by status, priority, and assignment.</p>
+    </div>
+    <div class="card">
+        <h3 style="margin-top:0;">Queue Statistics</h3>
+        <p><code>GET /api/hitl/queue/stats</code></p>
+        <p>Returns counts and metrics for the review queue — useful for dashboards and monitoring.</p>
+    </div>
+</div>
+
+<h3>Review Session Lifecycle</h3>
+
+<p>Reviews follow a session-based model:</p>
+
+<ol>
+    <li><strong>Start a session</strong> — <code>POST /api/hitl/sessions</code> with the document ID to begin reviewing</li>
+    <li><strong>Submit corrections</strong> — <code>POST /api/hitl/sessions/:id/corrections</code> to fix extracted fields</li>
+    <li><strong>Complete the review</strong> — choose one of:
+        <ul>
+            <li><code>POST /api/hitl/sessions/:id/submit</code> — approve the document</li>
+            <li><code>POST /api/hitl/sessions/:id/escalate</code> — escalate for expert review</li>
+            <li><code>POST /api/hitl/sessions/:id/skip</code> — skip and return to queue</li>
         </ul>
+    </li>
+</ol>
+
+<div class="accordion-group">
+    <details>
+        <summary>Review session workflow (curl examples)</summary>
+        <div class="accordion-content">
+<pre># 1. Get the review queue
+curl /api/hitl/queue \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"
+
+# 2. Start a review session
+curl -X POST /api/hitl/sessions \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d "{ \"documentId\": \"ef2dd8b2-...\" }"
+
+# 3. Submit corrections
+curl -X POST /api/hitl/sessions/&lt;session-id&gt;/corrections \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"corrections\": [
+      { \"field\": \"InvoiceNumber\", \"value\": \"INV-2026-002\" }
+    ]
+  }"
+
+# 4. Approve the document
+curl -X POST /api/hitl/sessions/&lt;session-id&gt;/submit \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+        </div>
+    </details>
+</div>
+
+<h3>Analytics</h3>
+
+<p>Track review performance and throughput with the analytics endpoint:</p>
+
+<div class="accordion-group">
+    <details>
+        <summary>Get HITL analytics (curl example)</summary>
+        <div class="accordion-content">
+<pre>curl "/api/hitl/analytics?from=2026-01-01&to=2026-02-19" \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+        </div>
+    </details>
+</div>
+
+<!-- ====================================================================== -->
+<h2>End-to-End Example</h2>
+
+<p>A complete integration walkthrough: authenticate, upload a document, wait for processing, and retrieve the results.</p>
+
+<div class="card card-gold">
+    <h3 style="margin-top: 0;">Complete Workflow</h3>
+<pre># 1. Set your API key
+API_KEY="dip_xxxxxxxxxxxxxxxxxxxx"
+BASE_URL="https://your-host:3002"
+
+# 2. Check available models
+curl -s "$BASE_URL/api/models" \
+  -H "X-API-Key: $API_KEY" | jq .
+
+# 3. Upload a document
+FILE_B64=$(base64 -w 0 document.pdf)
+DOC_ID=$(curl -s -X POST "$BASE_URL/api/upload" \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"title\": \"My Document\",
+    \"file\": \"$FILE_B64\",
+    \"file_type\": \"pdf\",
+    \"model_id\": \"prebuilt-layout\"
+  }" | jq -r '.document.id')
+
+echo "Uploaded document: $DOC_ID"
+
+# 4. Poll for completion
+while true; do
+  STATUS=$(curl -s "$BASE_URL/api/documents/$DOC_ID/ocr" \
+    -H "X-API-Key: $API_KEY" | jq -r '.status')
+  echo "Status: $STATUS"
+  if [ "$STATUS" != "ongoing_ocr" ]; then break; fi
+  sleep 5
+done
+
+# 5. Retrieve OCR results
+curl -s "$BASE_URL/api/documents/$DOC_ID/ocr" \
+  -H "X-API-Key: $API_KEY" | jq '.ocr_result.keyValuePairs'</pre>
+</div>
+
+<div class="alert alert-success">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    </div>
+    <div>
+        <strong>That's it!</strong> You now have the extracted data from your document. For the full API specification with all request/response schemas, see the <a href="api-reference.html">API Reference</a>.
     </div>
 </div>
     </main>

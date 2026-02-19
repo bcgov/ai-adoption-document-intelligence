@@ -75,6 +75,7 @@ for page in "$PAGES_DIR"/*.html; do
         header="${header//\{\{NAV_INDEX\}\}/}"
         header="${header//\{\{NAV_API\}\}/}"
         header="${header//\{\{NAV_DIAGRAMS\}\}/}"
+        header="${header//\{\{NAV_INTEGRATIONS\}\}/}"
 
         # Replace date variables in footer
         footer="${footer//\{\{YEAR\}\}/$CURRENT_YEAR}"
