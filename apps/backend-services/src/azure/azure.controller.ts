@@ -358,43 +358,49 @@ export class AzureController {
       throw new ForbiddenException("User does not belong to requested group.");
     }
 
-    try {
-      // Upload the documents required for training
-      const uploadResults =
-        await this.classifierService.uploadDocumentsForTraining(group_id, name);
+    // Respond immediately and run the heavy work in the background
+    let model = await this.databaseService.updateClassifierModel(
+      name,
+      group_id,
+      { status: ClassifierStatus.TRAINING },
+      userId,
+    );
 
-      // Create the layout json for them
-      const filePaths = uploadResults.map((r) => r.blobPath);
-      await this.classifierService.createLayoutJson(filePaths);
+    setImmediate(async () => {
+      try {
+        // Upload the documents required for training
+        const uploadResults =
+          await this.classifierService.uploadDocumentsForTraining(group_id, name);
 
-      // Start the training process
-      const model = await this.classifierService.requestClassifierTraining(
-        name,
-        group_id,
-        userId,
-      );
-      return {
-        ...model,
-        status: ClassifierStatus[model.status as keyof typeof ClassifierStatus],
-        source: ClassifierSource[model.source as keyof typeof ClassifierSource],
-      };
-    } catch (e) {
-      this.logger.error(
-        `Classification request failed for classifier ${name} in group ${group_id}.`,
-        e,
-      );
-      const model = await this.databaseService.updateClassifierModel(
-        name,
-        group_id,
-        { status: ClassifierStatus.FAILED },
-        userId,
-      );
-      return {
-        ...model,
-        status: ClassifierStatus[model.status as keyof typeof ClassifierStatus],
-        source: ClassifierSource[model.source as keyof typeof ClassifierSource],
-      };
-    }
+        // Create the layout json for them
+        const filePaths = uploadResults.map((r) => r.blobPath);
+        await this.classifierService.createLayoutJson(filePaths);
+
+        // Start the training process
+        await this.classifierService.requestClassifierTraining(
+          name,
+          group_id,
+          userId,
+        );
+      } catch (e) {
+        this.logger.error(
+          `Background classification request failed for classifier ${name} in group ${group_id}.`,
+          e,
+        );
+        await this.databaseService.updateClassifierModel(
+          name,
+          group_id,
+          { status: ClassifierStatus.FAILED },
+          userId,
+        );
+      }
+    });
+
+    return {
+      ...model,
+      status: ClassifierStatus[model.status as keyof typeof ClassifierStatus],
+      source: ClassifierSource[model.source as keyof typeof ClassifierSource],
+    };
   }
 
   @Post("classifier/classify")
