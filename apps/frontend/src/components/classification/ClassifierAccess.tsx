@@ -1,20 +1,30 @@
-import { useState, useEffect, useRef } from "react";
-import { Paper, Stack, Text, Button, Group, Code, FileInput, Title } from "@mantine/core";
-import { dropzoneAccept } from "@/shared/utils/upload";
-import { ClassifierModel } from "@/shared/types/classifier";
+import {
+  Button,
+  Code,
+  FileInput,
+  Group,
+  Paper,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
+import { useEffect, useRef, useState } from "react";
 import { useClassifier } from "@/data/hooks/useClassifier";
+import { ClassifierModel } from "@/shared/types/classifier";
+import { dropzoneAccept } from "@/shared/utils/upload";
 
 interface ClassifierAccessProps {
   model: ClassifierModel;
 }
-
 
 const ClassifierAccess = ({ model }: ClassifierAccessProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [operationLocation, setOperationLocation] = useState<string | null>(null);
+  const [operationLocation, setOperationLocation] = useState<string | null>(
+    null,
+  );
   const [polling, setPolling] = useState(false);
   const { requestClassification, fetchClassificationResult } = useClassifier();
 
@@ -32,15 +42,23 @@ const ClassifierAccess = ({ model }: ClassifierAccessProps) => {
     setOperationLocation(null);
     attemptsRef.current = 0;
     try {
-      const response = await requestClassification.mutateAsync({ file, name: model.name, group_id: model.group_id });
+      const response = await requestClassification.mutateAsync({
+        file,
+        name: model.name,
+        group_id: model.group_id,
+      });
       if (response && response.content) {
         setOperationLocation(response.content);
         setPolling(true);
       } else {
         setError("No operation location returned");
       }
-    } catch (e: any) {
-      setError(e.message || "Unknown error");
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        setError(e.message);
+      } else {
+        setError("Unknown error");
+      }
     } finally {
       setLoading(false);
     }
@@ -67,9 +85,13 @@ const ClassifierAccess = ({ model }: ClassifierAccessProps) => {
           setError("Timed out waiting for classification result.");
           setPolling(false);
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!cancelled) {
-          setError(e.message || "Unknown error");
+          if (e instanceof Error) {
+            setError(e.message);
+          } else {
+            setError("Unknown error");
+          }
           setPolling(false);
         }
       }
@@ -87,7 +109,9 @@ const ClassifierAccess = ({ model }: ClassifierAccessProps) => {
     <Paper shadow="xs" radius="md" p="md" withBorder>
       <Stack>
         <Title order={2}>Classifier Test</Title>
-        <Text c="dimmed">This classifier is ready for use. Upload a document to test it below.</Text>
+        <Text c="dimmed">
+          This classifier is ready for use. Upload a document to test it below.
+        </Text>
         <FileInput
           label="Upload document for testing"
           accept={Object.keys(dropzoneAccept).join(",")}
@@ -99,24 +123,32 @@ const ClassifierAccess = ({ model }: ClassifierAccessProps) => {
           style={{ width: "50%" }}
         />
         <Group>
-          <Button onClick={handleSubmit} loading={loading || polling} disabled={!file || loading || polling}>
+          <Button
+            onClick={handleSubmit}
+            loading={loading || polling}
+            disabled={!file || loading || polling}
+          >
             Submit for Classification
           </Button>
         </Group>
         {error && (
-          <Text c="red" size="sm">{error}</Text>
+          <Text c="red" size="sm">
+            {error}
+          </Text>
         )}
         {result && (
           <Paper shadow="xs" radius="md" p="md" withBorder>
-            <Text fw={500} mb={4}>Classification Analyze Result:</Text>
-            <Code block style={{ width: "100%", whiteSpace: "pre-wrap" }}>{result}</Code>
+            <Text fw={500} mb={4}>
+              Classification Analyze Result:
+            </Text>
+            <Code block style={{ width: "100%", whiteSpace: "pre-wrap" }}>
+              {result}
+            </Code>
           </Paper>
         )}
       </Stack>
     </Paper>
   );
 };
-
-
 
 export default ClassifierAccess;

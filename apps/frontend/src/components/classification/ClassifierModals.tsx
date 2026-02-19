@@ -1,6 +1,16 @@
-import { Button, Group, Modal, Stack, Text, TextInput, FileInput, Select, Textarea } from "@mantine/core";
-import { useEffect } from "react";
+import {
+  Button,
+  FileInput,
+  Group,
+  Modal,
+  Select,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+} from "@mantine/core";
 import { useForm } from "@mantine/form";
+import { useEffect } from "react";
 import { useClassifier } from "@/data/hooks/useClassifier";
 import { ClassifierSource } from "@/shared/types/classifier";
 
@@ -12,7 +22,13 @@ interface DeleteClassifierModalProps {
   label?: string;
 }
 
-export const DeleteClassifierModal = ({ isOpen, setIsOpen, onDelete, loading, label }: DeleteClassifierModalProps) => (
+export const DeleteClassifierModal = ({
+  isOpen,
+  setIsOpen,
+  onDelete,
+  loading,
+  label,
+}: DeleteClassifierModalProps) => (
   <Modal
     opened={isOpen}
     onClose={() => setIsOpen(false)}
@@ -20,10 +36,22 @@ export const DeleteClassifierModal = ({ isOpen, setIsOpen, onDelete, loading, la
     centered
   >
     <Stack gap="md">
-      <Text>Are you sure you want to delete{label ? ` files for "${label}"` : " these files"}? This action cannot be undone.</Text>
+      <Text>
+        Are you sure you want to delete
+        {label ? ` files for "${label}"` : " these files"}? This action cannot
+        be undone.
+      </Text>
       <Group justify="flex-end">
-        <Button variant="default" onClick={() => setIsOpen(false)} disabled={loading}>Cancel</Button>
-        <Button color="red" onClick={onDelete} loading={loading}>Delete</Button>
+        <Button
+          variant="default"
+          onClick={() => setIsOpen(false)}
+          disabled={loading}
+        >
+          Cancel
+        </Button>
+        <Button color="red" onClick={onDelete} loading={loading}>
+          Delete
+        </Button>
       </Group>
     </Stack>
   </Modal>
@@ -52,8 +80,9 @@ export const UploadClassifierFilesModal = ({
       files: null as FileList | null,
     },
     validate: {
-      label: (value) => value.trim() === "" ? "Label is required" : null,
-      files: (value) => !value || value.length === 0 ? "At least one file is required" : null,
+      label: (value) => (value.trim() === "" ? "Label is required" : null),
+      files: (value) =>
+        !value || value.length === 0 ? "At least one file is required" : null,
     },
   });
 
@@ -89,14 +118,14 @@ export const UploadClassifierFilesModal = ({
             placeholder="Select files"
             multiple
             required
-            onChange={files => {
+            onChange={(files) => {
               // FileInput returns File[] | null, but our upload expects FileList | null
               if (!files) {
                 form.setFieldValue("files", null);
               } else {
                 // Convert File[] to FileList using DataTransfer
                 const dt = new DataTransfer();
-                files.forEach(file => dt.items.add(file));
+                files.forEach((file) => dt.items.add(file));
                 form.setFieldValue("files", dt.files);
               }
             }}
@@ -104,8 +133,20 @@ export const UploadClassifierFilesModal = ({
             error={form.errors.files}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setIsOpen(false)} disabled={loading}>Cancel</Button>
-            <Button type="submit" loading={loading} disabled={!form.isValid() || !form.values.files}>Upload</Button>
+            <Button
+              variant="default"
+              onClick={() => setIsOpen(false)}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={loading}
+              disabled={!form.isValid() || !form.values.files}
+            >
+              Upload
+            </Button>
           </Group>
         </Stack>
       </form>
@@ -129,8 +170,9 @@ export const CreateClassifierModal = (props: CreateClassifierModalProps) => {
       group: "",
     },
     validate: {
-      name: (value) => value.trim() === "" ? "Classifier name is required" : null,
-      group: (value) => value === "" ? "Group is required" : null,
+      name: (value) =>
+        value.trim() === "" ? "Classifier name is required" : null,
+      group: (value) => (value === "" ? "Group is required" : null),
     },
   });
   const { createClassifier } = useClassifier();
@@ -143,7 +185,7 @@ export const CreateClassifierModal = (props: CreateClassifierModalProps) => {
       group_id: values.group,
       source: ClassifierSource.AZURE,
     });
-  }
+  };
 
   return (
     <Modal
@@ -153,21 +195,26 @@ export const CreateClassifierModal = (props: CreateClassifierModalProps) => {
       }}
       title="Create new classifier"
     >
-      <form onSubmit={form.onSubmit(() => {
-        try {
-          onCreate(form.values);
-          form.reset();
-          setIsOpen(false);
-          props.afterSubmit?.();
-        } catch (error) {
-          console.error("Failed to create classifier", error);
-        }
-      })}>
+      <form
+        onSubmit={form.onSubmit(() => {
+          try {
+            onCreate(form.values);
+            form.reset();
+            setIsOpen(false);
+            props.afterSubmit?.();
+          } catch (error) {
+            console.error("Failed to create classifier", error);
+          }
+        })}
+      >
         <Stack gap="md">
           <Select
             label="Group"
             placeholder="Select a group"
-            data={groupOptions.map(group => ({ value: group.id, label: group.name }))}
+            data={groupOptions.map((group) => ({
+              value: group.id,
+              label: group.name,
+            }))}
             {...form.getInputProps("group")}
             required
           />
@@ -184,10 +231,12 @@ export const CreateClassifierModal = (props: CreateClassifierModalProps) => {
             {...form.getInputProps("description")}
           />
           <Group justify="flex-end">
-            <Button type="submit" disabled={!form.isValid()}>Create</Button>
+            <Button type="submit" disabled={!form.isValid()}>
+              Create
+            </Button>
           </Group>
         </Stack>
       </form>
     </Modal>
   );
-}
+};

@@ -36,11 +36,11 @@ import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWork
 import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/LabelingWorkspacePage";
 import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
 import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
+import ClassifierPage from "./pages/ClassifierPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
 import type { Document } from "./shared/types";
-import ClassifierPage from "./pages/ClassifierPage";
 
 type MainView =
   | "upload"
@@ -332,7 +332,9 @@ function AppContent(): JSX.Element {
                   }}
                 />
               ) : null
-            ) : activeView == "classify" ? (<ClassifierPage />) : (
+            ) : activeView == "classify" ? (
+              <ClassifierPage />
+            ) : (
               <>
                 <Group justify="space-between">
                   <Stack gap={2}>

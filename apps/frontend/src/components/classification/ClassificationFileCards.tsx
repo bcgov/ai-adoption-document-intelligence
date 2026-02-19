@@ -1,4 +1,12 @@
-import { Paper, Stack, Group, Text, ActionIcon, Tooltip, Grid } from "@mantine/core";
+import {
+  ActionIcon,
+  Grid,
+  Group,
+  Paper,
+  Stack,
+  Text,
+  Tooltip,
+} from "@mantine/core";
 import { IconTrash, IconUpload } from "@tabler/icons-react";
 
 interface ClassificationFileCardProps {
@@ -12,26 +20,50 @@ interface ClassificationFileCardsProps {
   onUpload: (label: string) => void;
 }
 
-const ClassificationFileCards = ({ fileGroups, onDelete, onUpload }: ClassificationFileCardsProps) => {
+const ClassificationFileCards = ({
+  fileGroups,
+  onDelete,
+  onUpload,
+}: ClassificationFileCardsProps) => {
   return (
     <Stack gap="xs">
       <Grid>
         {fileGroups.map((file, idx) => (
           <Grid.Col key={file.label + idx} span={4}>
-            <Paper key={file.label + idx} shadow="xs" radius="md" p="sm" withBorder>
+            <Paper
+              key={file.label + idx}
+              shadow="xs"
+              radius="md"
+              p="sm"
+              withBorder
+            >
               <Group justify="space-between" align="center">
                 <Group gap="xs" align="center">
-                  <Text size="sm" style={{ fontWeight: 500 }}>{file.label}</Text>
-                  <Text size="sm" c="dimmed">{file.fileCount} file{file.fileCount === 1 ? "" : "s"}</Text>
+                  <Text size="sm" style={{ fontWeight: 500 }}>
+                    {file.label}
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    {file.fileCount} file{file.fileCount === 1 ? "" : "s"}
+                  </Text>
                 </Group>
                 <Group gap="xs">
                   <Tooltip label="Add files">
-                    <ActionIcon color="blue" variant="light" aria-label="Add files" onClick={() => onUpload(file.label)}>
+                    <ActionIcon
+                      color="blue"
+                      variant="light"
+                      aria-label="Add files"
+                      onClick={() => onUpload(file.label)}
+                    >
                       <IconUpload size={18} />
                     </ActionIcon>
                   </Tooltip>
                   <Tooltip label="Delete files">
-                    <ActionIcon color="red" variant="light" aria-label="Delete files" onClick={() => onDelete(file.label)}>
+                    <ActionIcon
+                      color="red"
+                      variant="light"
+                      aria-label="Delete files"
+                      onClick={() => onDelete(file.label)}
+                    >
                       <IconTrash size={18} />
                     </ActionIcon>
                   </Tooltip>

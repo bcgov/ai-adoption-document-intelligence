@@ -1,10 +1,21 @@
-import { Button, Group, Paper, Stack, Text, Tooltip, Notification } from "@mantine/core";
+import {
+  Button,
+  Group,
+  Notification,
+  Paper,
+  Stack,
+  Text,
+  Tooltip,
+} from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
-import ClassificationFileCards from "./ClassificationFileCards";
-import { useClassifier } from "@/data/hooks/useClassifier";
-import { DeleteClassifierModal, UploadClassifierFilesModal } from "./ClassifierModals";
 import { useState } from "react";
+import { useClassifier } from "@/data/hooks/useClassifier";
 import { ClassifierModel } from "@/shared/types/classifier";
+import ClassificationFileCards from "./ClassificationFileCards";
+import {
+  DeleteClassifierModal,
+  UploadClassifierFilesModal,
+} from "./ClassifierModals";
 
 interface ClassificationFilesProps {
   classifierModel: ClassifierModel;
@@ -14,17 +25,22 @@ interface ClassificationFilesProps {
 const ClassificationFiles = (props: ClassificationFilesProps) => {
   const { classifierModel, afterTrainingRequested } = props;
   const { group_id: groupId, name } = classifierModel;
-  const { getClassifierDocuments, deleteClassifierDocuments, uploadClassifierDocuments, requestTraining } = useClassifier();
+  const {
+    getClassifierDocuments,
+    deleteClassifierDocuments,
+    uploadClassifierDocuments,
+    requestTraining,
+  } = useClassifier();
   const docsQuery = getClassifierDocuments(groupId, name);
 
   // Transform API result into label/fileCount objects
   const files = (() => {
     const data = docsQuery.data || [];
     const labelCounts: Record<string, number> = {};
-    data.forEach(item => {
+    data.forEach((item) => {
       // If item ends with '/', it's a directory label
-      if (item.endsWith('/')) {
-        labelCounts[item.replace(/\/$/, '')] = 0;
+      if (item.endsWith("/")) {
+        labelCounts[item.replace(/\/$/, "")] = 0;
       } else {
         // Extract directory name
         const match = item.match(/^([^/]+)\//);
@@ -34,21 +50,35 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
         }
       }
     });
-    return Object.entries(labelCounts).map(([label, fileCount]) => ({ label, fileCount }));
+    return Object.entries(labelCounts).map(([label, fileCount]) => ({
+      label,
+      fileCount,
+    }));
   })();
 
-  const [deleteModal, setDeleteModal] = useState<{ open: boolean; label: string | null }>({ open: false, label: null });
-  const [uploadModal, setUploadModal] = useState<{ open: boolean; label: string | null }>({ open: false, label: null });
+  const [deleteModal, setDeleteModal] = useState<{
+    open: boolean;
+    label: string | null;
+  }>({ open: false, label: null });
+  const [uploadModal, setUploadModal] = useState<{
+    open: boolean;
+    label: string | null;
+  }>({ open: false, label: null });
 
   // Determine train button label and disabled state
   let trainLabel = "Train";
   if (classifierModel) {
-    if (classifierModel.status === "TRAINING" || classifierModel.status === "READY") {
+    if (
+      classifierModel.status === "TRAINING" ||
+      classifierModel.status === "READY"
+    ) {
       trainLabel = "Retrain";
     }
   }
   const trainDisabled = files.length < 2;
-  const trainTooltip = trainDisabled ? "At least 2 label groups are required to train." : undefined;
+  const trainTooltip = trainDisabled
+    ? "At least 2 label groups are required to train."
+    : undefined;
 
   const [showTrainingNotice, setShowTrainingNotice] = useState(false);
 
@@ -58,7 +88,11 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
         <Group justify="space-between" align="center" mb="xs">
           <h2>Classification Label Training Groups</h2>
           <Group gap={4}>
-            <Button variant="outline" size="xs" onClick={() => setUploadModal({ open: true, label: "" })}>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setUploadModal({ open: true, label: "" })}
+            >
               Add Label Group
             </Button>
             {classifierModel && (
@@ -70,14 +104,17 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
                   color="blue"
                   style={{ marginLeft: 8 }}
                   onClick={() => {
-                    requestTraining.mutate({ name, group_id: groupId }, {
-                      onSuccess: async () => {
-                        setShowTrainingNotice(true);
-                        if (afterTrainingRequested) {
-                          await afterTrainingRequested();
-                        }
-                      }
-                    });
+                    requestTraining.mutate(
+                      { name, group_id: groupId },
+                      {
+                        onSuccess: async () => {
+                          setShowTrainingNotice(true);
+                          if (afterTrainingRequested) {
+                            await afterTrainingRequested();
+                          }
+                        },
+                      },
+                    );
                   }}
                 >
                   {trainLabel}
@@ -94,11 +131,14 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
             onClose={() => setShowTrainingNotice(false)}
             mt="sm"
           >
-            Model training has started. This may take a few minutes. Please check back later to see the updated status.
+            Model training has started. This may take a few minutes. Please
+            check back later to see the updated status.
           </Notification>
         )}
         {docsQuery.isLoading && <p>Loading files...</p>}
-        {docsQuery.isError && <p style={{ color: 'red' }}>Error loading files</p>}
+        {docsQuery.isError && (
+          <p style={{ color: "red" }}>Error loading files</p>
+        )}
         <Text size="sm" c="dimmed" mb="md">
           {files.length === 0
             ? "No files uploaded yet. Use the 'Add Label Group' button to create a new group and upload files."
@@ -106,18 +146,22 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
         </Text>
         <ClassificationFileCards
           fileGroups={files}
-          onDelete={label => setDeleteModal({ open: true, label })}
-          onUpload={label => setUploadModal({ open: true, label })}
+          onDelete={(label) => setDeleteModal({ open: true, label })}
+          onUpload={(label) => setUploadModal({ open: true, label })}
         />
       </Paper>
       <DeleteClassifierModal
         isOpen={deleteModal.open}
-        setIsOpen={open => setDeleteModal(d => ({ ...d, open }))}
+        setIsOpen={(open) => setDeleteModal((d) => ({ ...d, open }))}
         label={deleteModal.label || undefined}
-        loading={deleteClassifierDocuments.status === 'pending'}
+        loading={deleteClassifierDocuments.status === "pending"}
         onDelete={async () => {
           if (deleteModal.label) {
-            await deleteClassifierDocuments.mutateAsync({ name, group_id: groupId, folder: deleteModal.label });
+            await deleteClassifierDocuments.mutateAsync({
+              name,
+              group_id: groupId,
+              folder: deleteModal.label,
+            });
             await docsQuery.refetch();
           }
           setDeleteModal({ open: false, label: null });
@@ -125,18 +169,23 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
       />
       <UploadClassifierFilesModal
         isOpen={uploadModal.open}
-        setIsOpen={open => setUploadModal(d => ({ ...d, open }))}
+        setIsOpen={(open) => setUploadModal((d) => ({ ...d, open }))}
         label={uploadModal.label || ""}
         labelEditable={uploadModal.label === ""}
-        loading={uploadClassifierDocuments.status === 'pending'}
+        loading={uploadClassifierDocuments.status === "pending"}
         onUpload={async (files, label) => {
-          await uploadClassifierDocuments.mutateAsync({ name, group_id: groupId, label: label, files });
+          await uploadClassifierDocuments.mutateAsync({
+            name,
+            group_id: groupId,
+            label: label,
+            files,
+          });
           await docsQuery.refetch();
           setUploadModal({ open: false, label: null });
         }}
       />
     </Stack>
   );
-}
+};
 
 export default ClassificationFiles;

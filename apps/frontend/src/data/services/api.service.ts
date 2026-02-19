@@ -55,7 +55,7 @@ class ApiService {
   ): Promise<ApiResponse<T>> {
     try {
       let headers = undefined;
-      let payload = data;
+      const payload = data;
       // If data is FormData, remove Content-Type so browser/axios sets it correctly
       if (typeof FormData !== "undefined" && data instanceof FormData) {
         headers = { ...this.axiosInstance.defaults.headers.common };

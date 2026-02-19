@@ -1,8 +1,16 @@
+import {
+  Button,
+  Group,
+  Notification,
+  Paper,
+  Stack,
+  Text,
+  Textarea,
+} from "@mantine/core";
+import { useForm } from "@mantine/form";
 import { useState } from "react";
 import { useClassifier } from "@/data/hooks/useClassifier";
 import { ClassifierModel } from "@/shared/types/classifier";
-import { Group, Paper, Stack, Text, Button, Textarea, Notification } from "@mantine/core";
-import { useForm } from "@mantine/form";
 
 interface ClassifierDetailsProps {
   classifierModel: ClassifierModel;
@@ -15,7 +23,7 @@ const ClassifierDetails = ({ classifierModel }: ClassifierDetailsProps) => {
       description: classifierModel.description || "",
     },
     validate: {
-      name: (value) => value.trim() === "" ? "Name is required" : null,
+      name: (value) => (value.trim() === "" ? "Name is required" : null),
     },
   });
 
@@ -37,23 +45,30 @@ const ClassifierDetails = ({ classifierModel }: ClassifierDetailsProps) => {
         onSuccess: () => {
           setShowSuccess(true);
         },
-        onError: (error: any) => {
-          setErrorMsg(error?.message || "Failed to update classifier");
+        onError: (error: unknown) => {
+          if (error instanceof Error) {
+            setErrorMsg(error.message);
+          } else {
+            setErrorMsg("Failed to update classifier");
+          }
         },
-      }
+      },
     );
   };
 
   return (
     <Stack gap="md">
       <Paper shadow="sm" radius="md" p="lg" withBorder>
-
-        <form onSubmit={form.onSubmit((values) => {
-          onSave(values);
-        })}>
+        <form
+          onSubmit={form.onSubmit((values) => {
+            onSave(values);
+          })}
+        >
           <Group justify="space-between">
             <h2>Classifier Details</h2>
-            <Button type="submit" variant="outline" size="xs">Update</Button>
+            <Button type="submit" variant="outline" size="xs">
+              Update
+            </Button>
           </Group>
           {showSuccess && (
             <Notification color="green" onClose={() => setShowSuccess(false)}>
@@ -69,7 +84,10 @@ const ClassifierDetails = ({ classifierModel }: ClassifierDetailsProps) => {
             <b>Name:</b> {classifierModel.name}
           </Text>
           <Text mt="md">
-            <b>Group Ownership:</b> {classifierModel.group ? classifierModel.group.name : `ID: ${classifierModel.group_id}`}
+            <b>Group Ownership:</b>{" "}
+            {classifierModel.group
+              ? classifierModel.group.name
+              : `ID: ${classifierModel.group_id}`}
           </Text>
           <Text mt="md">
             <b>Status:</b> {classifierModel.status}
