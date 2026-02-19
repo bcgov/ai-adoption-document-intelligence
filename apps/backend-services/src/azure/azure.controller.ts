@@ -49,6 +49,7 @@ import {
   DeleteClassifierDocumentsResponseDto,
   UploadClassifierDocumentsResponseDto,
 } from "@/azure/dto/classifier-responses.dto";
+import { ClassificationResultDto } from "@/azure/dto/classification-result.dto";
 import { DatabaseService } from "@/database/database.service";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { Operation, StorageService } from "@/storage/storage.service";
@@ -419,10 +420,10 @@ export class AzureController {
           type: "string",
           format: "binary",
         },
-        classifierName: { type: "string" },
+        name: { type: "string" },
         group_id: { type: "string" },
       },
-      required: ["file", "classifierName", "group_id"],
+      required: ["file", "name", "group_id"],
     },
     description: "Request classification for a document",
   })
@@ -474,11 +475,11 @@ export class AzureController {
   })
   @ApiCreatedResponse({
     description: "Classification result retrieved",
-    type: ClassifierResponseDto,
+    type: ClassificationResultDto,
   })
   async getClassificationResult(
     @Query() query: GetClassificationResultQueryDto,
-  ): Promise<ClassifierResponseDto> {
+  ): Promise<ClassificationResultDto> {
     const { operationLocation } = query;
     let returnValue;
     await this.azureService.pollOperationUntilResolved(
@@ -492,7 +493,7 @@ export class AzureController {
         );
       },
     );
-    return returnValue;
+    return returnValue as ClassificationResultDto;
   }
 
   @Get("classifier/train")
