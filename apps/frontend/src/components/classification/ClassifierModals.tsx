@@ -178,7 +178,6 @@ export const CreateClassifierModal = (props: CreateClassifierModalProps) => {
   const { createClassifier } = useClassifier();
 
   const onCreate = async (values: typeof form.values) => {
-    console.log("Creating classifier with values", values);
     await createClassifier.mutateAsync({
       name: values.name,
       description: values.description,
