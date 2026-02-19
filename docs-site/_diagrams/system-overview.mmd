@@ -1,103 +1,80 @@
-graph TB
-    %% ── External Actors ──────────────────────────────────────────
-    Users["Human Users<br/>(Browser)"]
-    APIConsumers["API Consumers<br/>(Programmatic)"]
+flowchart TD
+    Users(["👤 Human Users (Browser)"]):::external
+    APIConsumers(["🔌 API Consumers"]):::external
+    ImageSvc["🖼️ Image Service\nPython / OpenCV · standalone"]:::standalone
 
-    %% ── External Services ────────────────────────────────────────
-    Keycloak["Keycloak<br/>OIDC / SSO Provider"]
-    AzureDI["Azure Document<br/>Intelligence<br/>(OCR API)"]
-    AzureBlob["Azure Blob Storage<br/>(production)"]
-
-    %% ── Application Services ─────────────────────────────────────
     subgraph Platform ["Document Intelligence Platform"]
         direction TB
 
-        subgraph FE ["Frontend &lpar;React 19 SPA&rpar;"]
-            direction LR
-            DocUpload["Document Upload"]
-            WorkflowEditor["Workflow Editor<br/>(JSON + ReactFlow)"]
-            LabelingWS["Labeling Workspace<br/>(Canvas / Konva)"]
-            HITLReview["HITL Review<br/>Queue + Workspace"]
-            TrainingDash["Training Dashboard"]
-            SettingsPage["Settings / API Keys"]
-        end
-
-        subgraph BE ["Backend Services &lpar;NestJS / Fastify :3002&rpar;"]
-            direction LR
-            UploadMod["Upload<br/>Module"]
-            DocMod["Document<br/>Module"]
-            WorkflowMod["Workflow<br/>Module"]
-            LabelingMod["Labeling<br/>Module"]
-            HITLMod["HITL<br/>Module"]
-            TrainingMod["Training<br/>Module"]
-            AzureMod["Azure<br/>Module"]
-            OcrMod["OCR<br/>Module"]
-            AuthMod["Auth Module<br/>(JWT + API Key)"]
-            DbMod["Database Module<br/>(Prisma)"]
-            BlobMod["Blob Storage<br/>Module"]
-            TemporalClient["Temporal Client<br/>Module"]
-        end
-
-        subgraph TS ["Temporal Server &lpar;:7233 gRPC / :8080 UI&rpar;"]
-            TemporalSrv["Workflow History<br/>Task Dispatch<br/>Signal & Query<br/>Namespace: default<br/>Queue: ocr-processing"]
-        end
-
-        subgraph TW ["Temporal Worker &lpar;apps/temporal&rpar;"]
+        subgraph FE ["🖥️ Frontend — React 19 SPA"]
             direction TB
-            GraphWF["graphWorkflow&lpar;&rpar;<br/>DAG Runner"]
-            ActivityReg["Activity Registry<br/>(15 activities)"]
-            NodeInterp["Node Interpreters<br/>activity | switch | map<br/>join | childWorkflow<br/>pollUntil | humanGate"]
-            ExprEval["Expression<br/>Evaluator"]
+            DocUpload["📄 Document Upload"]
+            WorkflowEditor["⚙️ Workflow Editor (JSON + ReactFlow)"]
+            LabelingWS["🏷️ Labeling Workspace (Canvas / Konva)"]
+            HITLReview["👁️ HITL Review — Queue + Workspace"]
+            TrainingDash["📊 Training Dashboard"]
+            SettingsPage["🔧 Settings / API Keys"]
+        end
+
+        subgraph BE ["🔧 Backend — NestJS :3002"]
+            direction LR
+            UploadMod["Upload"]:::domain ~~~ DocMod["Document"]:::domain ~~~ WorkflowMod["Workflow"]:::domain ~~~ LabelingMod["Labeling"]:::domain ~~~ HITLMod["HITL"]:::domain ~~~ TrainingMod["Training"]:::domain
+            AuthMod["Auth\nJWT + API Key"]:::infra ~~~ AzureMod["Azure"]:::infra ~~~ OcrMod["OCR"]:::infra ~~~ DbMod["DB / Prisma"]:::infra ~~~ BlobMod["Blob Storage"]:::infra ~~~ TemporalClient["Temporal Client"]:::infra
+        end
+
+        subgraph TG ["⏱️ Temporal"]
+            direction LR
+            subgraph TS ["Server :7233 / UI :8080"]
+                TemporalSrv["Workflow History · Task Dispatch\nSignal & Query | Queue: ocr-processing"]
+            end
+            subgraph TW ["Worker — apps/temporal"]
+                direction TB
+                GraphWF["graphWorkflow() — DAG Runner"]
+                ActivityReg["Activity Registry (15 activities)"]
+                NodeInterp["Node Interpreters\nswitch · map · join · childWF · pollUntil · humanGate"]
+                ExprEval["Expression Evaluator"]
+            end
         end
     end
 
-    %% ── Data Stores ──────────────────────────────────────────────
-    PG[("PostgreSQL<br/>(Prisma ORM)")]
-    LocalBlob[("Blob Storage<br/>(local fs / Azure)")]
+    subgraph ExtSvc ["☁️ External Cloud Services"]
+        direction TB
+        Keycloak["🔐 Keycloak — OIDC / SSO"]:::external
+        AzureDI["🔍 Azure Document Intelligence (OCR)"]:::external
+        AzureBlob["📦 Azure Blob Storage (Production)"]:::external
+    end
 
-    %% ── Standalone ───────────────────────────────────────────────
-    ImageSvc["Image Service<br/>(Python / OpenCV)<br/><i>standalone utility</i>"]
+    PG[("🗄️ PostgreSQL — Prisma ORM")]:::datastore
+    LocalBlob[("💾 Blob Storage — local fs / Azure")]:::datastore
 
-    %% ── Connections: External Actors ─────────────────────────────
-    Users -->|"HTTPS"| FE
+    FE ~~~ APIConsumers
+    BE ~~~ ExtSvc
+
+    Users -->|HTTPS| FE
     APIConsumers -->|"HTTPS + x-api-key"| BE
+    FE -->|"HTTP REST (Axios)"| BE
 
-    %% ── Connections: Frontend ↔ Backend ──────────────────────────
-    FE -->|"HTTP REST<br/>(Axios / Vite proxy)"| BE
-
-    %% ── Connections: Backend → External Services ─────────────────
-    AuthMod -->|"JWKS / JWT"| Keycloak
+    AuthMod -.->|"JWKS / JWT"| Keycloak
     AzureMod -->|"REST API"| AzureDI
     AzureMod -->|"Azure SDK"| AzureBlob
-    OcrMod -->|"REST API"| AzureDI
-    TrainingMod -->|"REST API<br/>+ Azure SDK"| AzureDI
-    TrainingMod -->|"Azure SDK"| AzureBlob
 
-    %% ── Connections: Backend → Data Stores ───────────────────────
     DbMod --> PG
     BlobMod --> LocalBlob
-    TemporalClient -->|"gRPC"| TemporalSrv
+    TemporalClient ==>|"gRPC :7233"| TemporalSrv
+    TemporalSrv ==>|"task dispatch"| TW
 
-    %% ── Connections: Temporal Server ↔ Worker ────────────────────
-    TemporalSrv -->|"task dispatch"| TW
+    GraphWF --> ActivityReg & NodeInterp & ExprEval
 
-    %% ── Connections: Worker internals ────────────────────────────
-    GraphWF --> ActivityReg
-    GraphWF --> NodeInterp
-    GraphWF --> ExprEval
-
-    %% ── Connections: Worker → Shared Data Stores ─────────────────
     ActivityReg -->|"Prisma"| PG
-    ActivityReg -->|"filesystem /<br/>Azure SDK"| LocalBlob
+    ActivityReg -->|"fs / Azure SDK"| LocalBlob
     ActivityReg -->|"REST API"| AzureDI
 
-    %% ── Styling ──────────────────────────────────────────────────
     classDef external fill:#f9f0ff,stroke:#7c3aed,stroke-width:2px
-    classDef service fill:#eff6ff,stroke:#2563eb,stroke-width:2px
     classDef datastore fill:#ecfdf5,stroke:#059669,stroke-width:2px
-    classDef standalone fill:#fef3c7,stroke:#d97706,stroke-width:1px,stroke-dasharray:5
+    classDef standalone fill:#fef3c7,stroke:#d97706,stroke-width:1px,stroke-dasharray:5 5
+    classDef domain fill:#eff6ff,stroke:#2563eb,stroke-width:1px
+    classDef infra fill:#f0fdf4,stroke:#16a34a,stroke-width:1px
 
     class Users,APIConsumers,Keycloak,AzureDI,AzureBlob external
-    class FE,BE,TS,TW service
     class PG,LocalBlob datastore
     class ImageSvc standalone

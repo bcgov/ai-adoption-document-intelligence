@@ -4,3 +4,5 @@ node_modules
 # SpecStory
 .specstory/
 /.claude
+
+/docs-test-site

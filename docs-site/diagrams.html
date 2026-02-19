@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APIReference | BC Gov Document Intelligence</title>
+    <title>ArchitectureDiagrams | BC Gov Document Intelligence</title>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <style>
         :root {
@@ -702,8 +702,8 @@
         </a>
         <nav class="bc-nav">
             <a href="index.html" class="">Home</a>
-            <a href="api-reference.html" class="active">API Reference</a>
-            <a href="diagrams.html" class="">Diagrams</a>
+            <a href="api-reference.html" class="">API Reference</a>
+            <a href="diagrams.html" class="active">Diagrams</a>
             <div class="nav-dropdown">
                 <span class="nav-trigger">Guides</span>
                 <div class="nav-dropdown-menu">
@@ -712,74 +712,531 @@
         </nav>
     </header>
     <main>
-<!-- TITLE: API Reference -->
-<!-- NAV: api -->
+<!-- TITLE: Architecture Diagrams -->
+<!-- NAV: diagrams -->
 
-<h1>API Reference</h1>
+<style>
+/* SVG Viewer Styles */
+.diagram-viewer {
+    background: var(--white);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    margin-bottom: 2rem;
+}
 
-<p>Complete REST API documentation for the Document Intelligence Platform. All endpoints support Bearer token authentication (Keycloak SSO) or API key authentication.</p>
+.diagram-toolbar {
+    background: var(--bc-blue);
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
 
-<div class="alert alert-info" style="margin-bottom: 2rem;">
+.diagram-title {
+    color: var(--white);
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.diagram-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.diagram-btn {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: var(--white);
+    padding: 0.4rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.diagram-btn:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.diagram-btn.active {
+    background: var(--bc-gold);
+    color: var(--bc-blue);
+    border-color: var(--bc-gold);
+}
+
+.zoom-display {
+    color: var(--bc-gold);
+    font-size: 0.85rem;
+    min-width: 50px;
+    text-align: center;
+}
+
+.diagram-container {
+    position: relative;
+    overflow: auto;
+    background: linear-gradient(45deg, #f0f0f0 25%, transparent 25%),
+                linear-gradient(-45deg, #f0f0f0 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #f0f0f0 75%),
+                linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    background-color: #fafafa;
+    min-height: 500px;
+    max-height: 80vh;
+}
+
+.diagram-svg-wrapper {
+    transform-origin: top left;
+    transition: transform 0.3s ease;
+    display: inline-block;
+    min-width: 100%;
+}
+
+.diagram-svg-wrapper svg,
+.diagram-svg-wrapper img {
+    display: block;
+    max-width: none;
+}
+
+/* Fullscreen mode */
+.diagram-viewer.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    border-radius: 0;
+    margin: 0;
+}
+
+.diagram-viewer.fullscreen .diagram-container {
+    max-height: calc(100vh - 50px);
+    height: calc(100vh - 50px);
+}
+
+/* Diagram Gallery */
+.diagram-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.diagram-card {
+    background: var(--white);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: var(--transition);
+    border: 2px solid transparent;
+}
+
+.diagram-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-4px);
+}
+
+.diagram-card.active {
+    border-color: var(--bc-gold);
+    box-shadow: 0 0 0 3px rgba(252, 186, 25, 0.3);
+}
+
+.diagram-card-preview {
+    height: 160px;
+    overflow: hidden;
+    background: var(--bg-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.diagram-card-preview img,
+.diagram-card-preview svg {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.diagram-card-info {
+    padding: 1rem;
+    border-top: 3px solid var(--bc-gold);
+}
+
+.diagram-card-info h4 {
+    margin: 0 0 0.5rem 0;
+    color: var(--bc-blue);
+    font-size: 1rem;
+}
+
+.diagram-card-info p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* Keyboard hints */
+.keyboard-hints {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.kbd {
+    background: var(--bg-light);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-family: monospace;
+    border: 1px solid #ddd;
+}
+</style>
+
+<h1>Architecture Diagrams</h1>
+
+<p>Interactive diagrams showing the system architecture, document ingestion flow, deployment topology, and temporal worker internals. Click any diagram to view it in the interactive viewer with zoom and pan controls.</p>
+
+<h2>Select a Diagram</h2>
+
+<div class="diagram-gallery" id="diagramGallery">
+    <div class="diagram-card active" onclick="loadDiagram('system-overview', this)">
+        <div class="diagram-card-preview">
+            <img src="assets/system-overview.svg" alt="System Overview Preview" onerror="this.parentElement.innerHTML='<div style=\'color:#666;font-size:0.9rem;\'>Preview unavailable</div>'">
+        </div>
+        <div class="diagram-card-info">
+            <h4>System Overview</h4>
+            <p>High-level view of all platform components: frontend, backend services, Temporal, and storage</p>
+        </div>
+    </div>
+    <div class="diagram-card" onclick="loadDiagram('document-ingestion', this)">
+        <div class="diagram-card-preview">
+            <img src="assets/document-ingestion.svg" alt="Document Ingestion Preview" onerror="this.parentElement.innerHTML='<div style=\'color:#666;font-size:0.9rem;\'>Preview unavailable</div>'">
+        </div>
+        <div class="diagram-card-info">
+            <h4>Document Ingestion Flow</h4>
+            <p>Sequence diagram of the full document upload, processing, and extraction pipeline</p>
+        </div>
+    </div>
+    <div class="diagram-card" onclick="loadDiagram('deployment', this)">
+        <div class="diagram-card-preview">
+            <img src="assets/deployment.svg" alt="Deployment Preview" onerror="this.parentElement.innerHTML='<div style=\'color:#666;font-size:0.9rem;\'>Preview unavailable</div>'">
+        </div>
+        <div class="diagram-card-info">
+            <h4>Deployment Topology</h4>
+            <p>OpenShift cluster layout, ingress, services, and external dependencies</p>
+        </div>
+    </div>
+</div>
+
+<h2>Interactive Viewer</h2>
+
+<div class="diagram-viewer" id="diagramViewer">
+    <div class="diagram-toolbar">
+        <span class="diagram-title" id="currentDiagramTitle">System Overview</span>
+        <div class="diagram-controls">
+            <button class="diagram-btn" onclick="zoomOut()" title="Zoom Out (-)">
+                <span>−</span> Zoom Out
+            </button>
+            <span class="zoom-display" id="zoomLevel">100%</span>
+            <button class="diagram-btn" onclick="zoomIn()" title="Zoom In (+)">
+                <span>+</span> Zoom In
+            </button>
+            <button class="diagram-btn" onclick="resetZoom()" title="Reset (0)">Reset</button>
+            <button class="diagram-btn" onclick="fitToWidth()" title="Fit Width (W)">Fit Width</button>
+            <button class="diagram-btn" onclick="toggleFullscreen()" id="fullscreenBtn" title="Fullscreen (F)">
+                ⛶ Fullscreen
+            </button>
+            <a class="diagram-btn" id="downloadBtn" href="assets/system-overview.svg" download title="Download SVG">
+                ↓ Download
+            </a>
+        </div>
+    </div>
+    <div class="diagram-container" id="diagramContainer">
+        <div class="diagram-svg-wrapper" id="svgWrapper">
+            <img src="assets/system-overview.svg" alt="System Overview" id="currentDiagram">
+        </div>
+    </div>
+</div>
+
+<div class="keyboard-hints">
+    <span><span class="kbd">+</span> / <span class="kbd">-</span> Zoom</span>
+    <span><span class="kbd">0</span> Reset</span>
+    <span><span class="kbd">W</span> Fit Width</span>
+    <span><span class="kbd">F</span> Fullscreen</span>
+    <span><span class="kbd">Esc</span> Exit Fullscreen</span>
+</div>
+
+<h2>Diagram Descriptions</h2>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: var(--bc-gold);">
+        <h3 style="margin-top: 0;">System Overview</h3>
+        <p>The top-level architecture diagram showing:</p>
+        <ul style="margin-bottom: 0;">
+            <li><strong>Frontend:</strong> React SPA served via OpenShift</li>
+            <li><strong>Backend Services:</strong> REST API and business logic layer</li>
+            <li><strong>Temporal:</strong> Workflow orchestration engine</li>
+            <li><strong>Storage:</strong> Database and object storage connections</li>
+            <li><strong>External integrations:</strong> AI services and downstream APIs</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #8b5cf6;">
+        <h3 style="margin-top: 0;">Document Ingestion Flow</h3>
+        <p>End-to-end sequence showing:</p>
+        <ul style="margin-bottom: 0;">
+            <li>Upload from external source (user or API consumer)</li>
+            <li>Frontend relay to backend REST API</li>
+            <li>Workflow initiation in Temporal</li>
+            <li>Activity execution: extraction, classification, storage</li>
+            <li>Status callbacks and result delivery</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #22c55e;">
+        <h3 style="margin-top: 0;">Deployment Topology</h3>
+        <p>Infrastructure layout showing:</p>
+        <ul style="margin-bottom: 0;">
+            <li>OpenShift cluster boundaries and namespaces</li>
+            <li>Ingress routing and service mesh</li>
+            <li>Internet-facing vs internal traffic paths</li>
+            <li>External service dependencies and endpoints</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #0ea5e9;">
+        <h3 style="margin-top: 0;">Temporal Worker Internals</h3>
+        <p>Worker process structure showing:</p>
+        <ul style="margin-bottom: 0;">
+            <li><code>worker.ts</code> entrypoint and startup sequence</li>
+            <li>gRPC connection to Temporal server on port 7233</li>
+            <li>Activity and workflow registration</li>
+            <li>Task queue polling and execution model</li>
+        </ul>
+    </div>
+</div>
+
+<h2>Using SVG Diagrams</h2>
+
+<div class="alert alert-info">
     <div class="alert-icon">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     </div>
     <div>
-        <strong>Authentication</strong><br>
-        This API supports two authentication methods: Bearer tokens (JWT from Keycloak SSO) or API keys passed via the <code>x-api-key</code> header.
+        <strong>Why SVG?</strong><br>
+        SVG diagrams are vector-based, meaning they scale infinitely without losing quality. You can zoom in to see fine details, search text within the diagram, and download for use in presentations or documentation.
     </div>
 </div>
 
-<div class="card" style="margin-bottom: 2rem;">
-    <h3 style="margin-top: 0;">API Endpoints Overview</h3>
-    <ul>
-        <li><strong>Documents</strong> - Document management, OCR results, and metadata operations</li>
-        <li><strong>Upload</strong> - Multipart file upload with workflow execution</li>
-        <li><strong>Workflow</strong> - Graph-based workflow configuration and monitoring</li>
-        <li><strong>Labeling</strong> - Document labeling projects and annotation management</li>
-        <li><strong>Training</strong> - Custom model training and evaluation</li>
-        <li><strong>HITL</strong> - Human-in-the-loop review queue operations</li>
-        <li><strong>API Keys</strong> - API key lifecycle management</li>
-        <li><strong>OCR</strong> - OCR model information and capabilities</li>
-    </ul>
+<div class="card card-gold">
+    <h3 style="margin-top: 0;">Tips for Working with SVG Diagrams</h3>
+    <div class="grid grid-2" style="margin-top: 1rem;">
+        <div>
+            <h4 style="color: var(--bc-blue); margin: 0 0 0.5rem 0;">In Browser</h4>
+            <ul style="margin: 0;">
+                <li>Use Ctrl+F to search for text within the diagram</li>
+                <li>Right-click → "Open image in new tab" for native zoom</li>
+                <li>Ctrl+Scroll to zoom in the viewer</li>
+            </ul>
+        </div>
+        <div>
+            <h4 style="color: var(--bc-blue); margin: 0 0 0.5rem 0;">Downloaded</h4>
+            <ul style="margin: 0;">
+                <li>Open in VS Code for source editing</li>
+                <li>Use Inkscape for advanced modifications</li>
+                <li>Import into Figma or Miro for presentations</li>
+            </ul>
+        </div>
+    </div>
 </div>
 
-<!-- OpenAPI Documentation rendered by Redoc -->
-<div id="redoc-container"></div>
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+    </div>
+    <div>
+        <strong>Source Files</strong><br>
+        Diagrams are authored as Mermaid files in <code>_diagrams/</code> and compiled to SVG during the build. To update a diagram, edit the corresponding <code>.mmd</code> file and run <code>./build.sh</code>.
+    </div>
+</div>
 
-<script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
 <script>
-  Redoc.init(
-    'assets/openapi.json',
-    {
-      scrollYOffset: 80,
-      hideDownloadButton: false,
-      theme: {
-        colors: {
-          primary: {
-            main: '#003366' // BC Blue
-          },
-          success: {
-            main: '#2E8540' // BC Green
-          },
-          warning: {
-            main: '#FCBA19' // BC Gold
-          }
-        },
-        typography: {
-          fontSize: '16px',
-          fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif',
-          headings: {
-            fontFamily: '"BC Sans", "Noto Sans", Verdana, Arial, sans-serif'
-          }
-        },
-        sidebar: {
-          backgroundColor: '#f8f9fa',
-          textColor: '#003366'
-        }
-      }
+const diagrams = {
+    'system-overview': {
+        title: 'System Overview',
+        src: 'assets/system-overview.svg'
     },
-    document.getElementById('redoc-container')
-  );
+    'document-ingestion': {
+        title: 'Document Ingestion Flow',
+        src: 'assets/document-ingestion.svg'
+    },
+    'deployment': {
+        title: 'Deployment Topology',
+        src: 'assets/deployment.svg'
+    }
+};
+
+let currentZoom = 100;
+const minZoom = 25;
+const maxZoom = 400;
+const zoomStep = 25;
+
+function loadDiagram(id, element) {
+    const diagram = diagrams[id];
+    if (!diagram) return;
+
+    document.querySelectorAll('.diagram-card').forEach(card => card.classList.remove('active'));
+    if (element) element.classList.add('active');
+
+    document.getElementById('currentDiagramTitle').textContent = diagram.title;
+    document.getElementById('currentDiagram').src = diagram.src;
+    document.getElementById('currentDiagram').alt = diagram.title;
+    document.getElementById('downloadBtn').href = diagram.src;
+
+    if (history.replaceState) {
+        history.replaceState(null, null, '#' + id);
+    } else {
+        window.location.hash = id;
+    }
+
+    resetZoom();
+
+    document.getElementById('diagramViewer').scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+    });
+}
+
+function updateZoom() {
+    const wrapper = document.getElementById('svgWrapper');
+    wrapper.style.transform = `scale(${currentZoom / 100})`;
+    document.getElementById('zoomLevel').textContent = currentZoom + '%';
+}
+
+function zoomIn() {
+    if (currentZoom < maxZoom) {
+        currentZoom = Math.min(currentZoom + zoomStep, maxZoom);
+        updateZoom();
+    }
+}
+
+function zoomOut() {
+    if (currentZoom > minZoom) {
+        currentZoom = Math.max(currentZoom - zoomStep, minZoom);
+        updateZoom();
+    }
+}
+
+function resetZoom() {
+    currentZoom = 100;
+    updateZoom();
+    document.getElementById('diagramContainer').scrollTo(0, 0);
+}
+
+function fitToWidth() {
+    const container = document.getElementById('diagramContainer');
+    const img = document.getElementById('currentDiagram');
+    const containerWidth = container.clientWidth - 40;
+    const imgWidth = img.naturalWidth || 1600;
+    currentZoom = Math.round((containerWidth / imgWidth) * 100);
+    currentZoom = Math.max(minZoom, Math.min(maxZoom, currentZoom));
+    updateZoom();
+}
+
+function toggleFullscreen() {
+    const viewer = document.getElementById('diagramViewer');
+    const btn = document.getElementById('fullscreenBtn');
+    if (viewer.classList.contains('fullscreen')) {
+        viewer.classList.remove('fullscreen');
+        btn.innerHTML = '⛶ Fullscreen';
+        document.body.style.overflow = '';
+    } else {
+        viewer.classList.add('fullscreen');
+        btn.innerHTML = '✕ Exit';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    switch(e.key) {
+        case '+':
+        case '=':
+            e.preventDefault();
+            zoomIn();
+            break;
+        case '-':
+            e.preventDefault();
+            zoomOut();
+            break;
+        case '0':
+            e.preventDefault();
+            resetZoom();
+            break;
+        case 'w':
+        case 'W':
+            e.preventDefault();
+            fitToWidth();
+            break;
+        case 'f':
+        case 'F':
+            e.preventDefault();
+            toggleFullscreen();
+            break;
+        case 'Escape':
+            const viewer = document.getElementById('diagramViewer');
+            if (viewer.classList.contains('fullscreen')) {
+                toggleFullscreen();
+            }
+            break;
+    }
+});
+
+document.getElementById('diagramContainer').addEventListener('wheel', function(e) {
+    if (e.ctrlKey) {
+        e.preventDefault();
+        if (e.deltaY < 0) {
+            zoomIn();
+        } else {
+            zoomOut();
+        }
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.location.hash) {
+        const id = window.location.hash.substring(1);
+        if (diagrams[id]) {
+            const card = document.querySelector(`.diagram-card[onclick*="'${id}'"]`);
+            loadDiagram(id, card);
+            return;
+        }
+    }
+    loadDiagram('system-overview', document.querySelector('.diagram-card'));
+});
+
+window.addEventListener('hashchange', function() {
+    if (window.location.hash) {
+        const id = window.location.hash.substring(1);
+        if (diagrams[id]) {
+            const card = document.querySelector(`.diagram-card[onclick*="'${id}'"]`);
+            document.querySelectorAll('.diagram-card').forEach(c => c.classList.remove('active'));
+            if (card) card.classList.add('active');
+            document.getElementById('currentDiagramTitle').textContent = diagrams[id].title;
+            document.getElementById('currentDiagram').src = diagrams[id].src;
+            document.getElementById('downloadBtn').href = diagrams[id].src;
+            resetZoom();
+        }
+    }
+});
 </script>
     </main>
     <footer class="site-footer">
