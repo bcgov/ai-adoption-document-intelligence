@@ -28,6 +28,7 @@ import {
 } from "@nestjs/swagger";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
+import { ClassificationResultDto } from "@/azure/dto/classification-result.dto";
 import {
   ClassifierSource,
   ClassifierStatus,
@@ -49,7 +50,6 @@ import {
   DeleteClassifierDocumentsResponseDto,
   UploadClassifierDocumentsResponseDto,
 } from "@/azure/dto/classifier-responses.dto";
-import { ClassificationResultDto } from "@/azure/dto/classification-result.dto";
 import { DatabaseService } from "@/database/database.service";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { Operation, StorageService } from "@/storage/storage.service";
@@ -146,7 +146,7 @@ export class AzureController {
   async updateClassifier(@Request() req, @Body() body: UpdateClassifierDto) {
     const { name, group_id, description, source } = body;
     const userId = req.user.sub;
-    
+
     if (!(await this.databaseService.isUserInGroup(userId, group_id))) {
       throw new ForbiddenException("User does not belong to requested group.");
     }
@@ -161,7 +161,7 @@ export class AzureController {
     }
 
     // Build update object with only provided fields
-    const updateData: any = {};
+    const updateData: Partial<UpdateClassifierDto> = {};
     if (description !== undefined) {
       updateData.description = description;
     }
@@ -175,7 +175,7 @@ export class AzureController {
       updateData,
       userId,
     );
-    
+
     return updateResult;
   }
 
@@ -360,7 +360,7 @@ export class AzureController {
     }
 
     // Respond immediately and run the heavy work in the background
-    let model = await this.databaseService.updateClassifierModel(
+    const model = await this.databaseService.updateClassifierModel(
       name,
       group_id,
       { status: ClassifierStatus.TRAINING },
@@ -371,7 +371,10 @@ export class AzureController {
       try {
         // Upload the documents required for training
         const uploadResults =
-          await this.classifierService.uploadDocumentsForTraining(group_id, name);
+          await this.classifierService.uploadDocumentsForTraining(
+            group_id,
+            name,
+          );
 
         // Create the layout json for them
         const filePaths = uploadResults.map((r) => r.blobPath);

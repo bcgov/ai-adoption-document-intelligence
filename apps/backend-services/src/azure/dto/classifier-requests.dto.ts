@@ -55,7 +55,7 @@ export class UploadClassifierDocumentsDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  files?: any;
+  files?: Express.Multer.File[];
 }
 
 export class DeleteClassifierDocumentsDto {

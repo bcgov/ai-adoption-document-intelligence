@@ -8,7 +8,12 @@ import { DatabaseModule } from "@/database/database.module";
 import { StorageModule } from "@/storage/storage.module";
 
 @Module({
-  providers: [AzureService, BlobService, ClassifierService, ClassifierPollerService],
+  providers: [
+    AzureService,
+    BlobService,
+    ClassifierService,
+    ClassifierPollerService,
+  ],
   exports: [AzureService],
   imports: [DatabaseModule, StorageModule],
   controllers: [AzureController],

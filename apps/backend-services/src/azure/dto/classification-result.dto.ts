@@ -7,7 +7,7 @@ export class DocumentDto {
   docType: string;
   boundingRegions: BoundingRegionDto[];
   confidence: number;
-  spans: any[];
+  spans: unknown[];
 }
 
 export class PageDto {
@@ -16,9 +16,9 @@ export class PageDto {
   width: number;
   height: number;
   unit: string;
-  words: any[];
-  lines: any[];
-  spans: any[];
+  words: unknown[];
+  lines: unknown[];
+  spans: unknown[];
 }
 
 export class AnalyzeResultDto {
