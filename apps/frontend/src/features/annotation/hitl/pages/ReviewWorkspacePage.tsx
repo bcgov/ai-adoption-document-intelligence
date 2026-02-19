@@ -179,8 +179,8 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         setDocumentUrl(url);
-      } catch (error) {
-        console.error("Failed to load document", error);
+      } catch {
+        // Document load failed; leave URL unset
       }
     };
 

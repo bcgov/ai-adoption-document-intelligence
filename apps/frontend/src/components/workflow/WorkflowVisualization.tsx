@@ -43,11 +43,16 @@ interface Edge {
 // Define workflow step dependencies
 const WORKFLOW_EDGES: Edge[] = [
   { from: "updateStatus", to: "prepareFileData" },
+  // biome-ignore lint/security/noSecrets: These are workflow step identifiers, not secrets
   { from: "prepareFileData", to: "submitToAzureOCR" },
+  // biome-ignore lint/security/noSecrets: These are workflow step identifiers, not secrets
   { from: "submitToAzureOCR", to: "updateApimRequestId" },
+  // biome-ignore lint/security/noSecrets: These are workflow step identifiers, not secrets
   { from: "updateApimRequestId", to: "waitBeforePoll" },
+  // biome-ignore lint/security/noSecrets: These are workflow step identifiers, not secrets
   { from: "waitBeforePoll", to: "pollOCRResults" },
   { from: "pollOCRResults", to: "extractOCRResults" },
+  // biome-ignore lint/security/noSecrets: These are workflow step identifiers, not secrets
   { from: "extractOCRResults", to: "postOcrCleanup" },
   // biome-ignore lint/security/noSecrets: These are workflow step identifiers, not secrets
   { from: "postOcrCleanup", to: "enrichResults" },
