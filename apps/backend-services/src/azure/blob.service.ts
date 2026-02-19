@@ -81,13 +81,10 @@ export class BlobService {
         const statusCode = error.statusCode || error.status;
         const isAlreadyExists =
           statusCode === 409 &&
-          // biome-ignore lint/security/noSecrets: False positive
           (error.code === "ContainerAlreadyExists" ||
-            // biome-ignore lint/security/noSecrets: False positive
             message.includes("ContainerAlreadyExists"));
         const isBeingDeleted =
           statusCode === 409 &&
-          // biome-ignore lint/security/noSecrets: False positive
           (error.code === "ContainerBeingDeleted" ||
             message.includes("being deleted"));
 
