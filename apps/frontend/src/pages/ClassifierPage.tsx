@@ -75,7 +75,9 @@ const ClassifierPage = () => {
     {selectedModel && selectedModelDetails && (
       <>
         <ClassifierDetails key={selectedModel} classifierModel={selectedModelDetails} />
-        <ClassificationFiles groupId={selectedModelDetails.group_id} name={selectedModelDetails.name} />
+        <ClassificationFiles classifierModel={selectedModelDetails} afterTrainingRequested={async () => {
+          await getClassifiers.refetch();
+        }}/>
       </>
     )}
     <CreateClassifierModal isOpen={isCreateModalOpen} setIsOpen={setIsCreateModalOpen} groupOptions={groupOptions} afterSubmit={async () => {

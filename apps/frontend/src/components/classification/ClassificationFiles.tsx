@@ -1,17 +1,20 @@
-import { Button, Group, Paper, Stack } from "@mantine/core";
+import { Button, Group, Paper, Stack, Text, Tooltip, Notification } from "@mantine/core";
+import { IconInfoCircle } from "@tabler/icons-react";
 import ClassificationFileCards from "./ClassificationFileCards";
 import { useClassifier } from "@/data/hooks/useClassifier";
 import { DeleteClassifierModal, UploadClassifierFilesModal } from "./ClassifierModals";
 import { useState } from "react";
+import { ClassifierModel } from "@/shared/types/classifier";
 
 interface ClassificationFilesProps {
-  groupId: string;
-  name: string;
+  classifierModel: ClassifierModel;
+  afterTrainingRequested?: () => Promise<void>;
 }
 
 const ClassificationFiles = (props: ClassificationFilesProps) => {
-  const { groupId, name } = props;
-  const { getClassifierDocuments, deleteClassifierDocuments, uploadClassifierDocuments } = useClassifier();
+  const { classifierModel, afterTrainingRequested } = props;
+  const { group_id: groupId, name } = classifierModel;
+  const { getClassifierDocuments, deleteClassifierDocuments, uploadClassifierDocuments, requestTraining } = useClassifier();
   const docsQuery = getClassifierDocuments(groupId, name);
 
   // Transform API result into label/fileCount objects
@@ -37,17 +40,70 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; label: string | null }>({ open: false, label: null });
   const [uploadModal, setUploadModal] = useState<{ open: boolean; label: string | null }>({ open: false, label: null });
 
+  // Determine train button label and disabled state
+  let trainLabel = "Train";
+  if (classifierModel) {
+    if (classifierModel.status === "TRAINING" || classifierModel.status === "READY") {
+      trainLabel = "Retrain";
+    }
+  }
+  const trainDisabled = files.length < 2;
+  const trainTooltip = trainDisabled ? "At least 2 label groups are required to train." : undefined;
+
+  const [showTrainingNotice, setShowTrainingNotice] = useState(false);
+
   return (
     <Stack>
       <Paper shadow="xs" radius="md" p="sm" withBorder>
-        <Group justify="space-between" align="center" mb="md">
-          <h2>Classification Files</h2>
-          <Button variant="outline" size="xs" onClick={() => setUploadModal({ open: true, label: "" })}>
-            Add File Group
-          </Button>
+        <Group justify="space-between" align="center" mb="xs">
+          <h2>Classification Label Training Groups</h2>
+          <Group gap={4}>
+            <Button variant="outline" size="xs" onClick={() => setUploadModal({ open: true, label: "" })}>
+              Add Label Group
+            </Button>
+            {classifierModel && (
+              <Tooltip label={trainTooltip} disabled={!trainDisabled} withArrow>
+                <Button
+                  variant="filled"
+                  size="xs"
+                  disabled={trainDisabled}
+                  color="blue"
+                  style={{ marginLeft: 8 }}
+                  onClick={() => {
+                    requestTraining.mutate({ name, group_id: groupId }, {
+                      onSuccess: async () => {
+                        setShowTrainingNotice(true);
+                        if (afterTrainingRequested) {
+                          await afterTrainingRequested();
+                        }
+                      }
+                    });
+                  }}
+                >
+                  {trainLabel}
+                </Button>
+              </Tooltip>
+            )}
+          </Group>
         </Group>
+        {showTrainingNotice && (
+          <Notification
+            icon={<IconInfoCircle size={18} />}
+            color="blue"
+            title="Training Started"
+            onClose={() => setShowTrainingNotice(false)}
+            mt="sm"
+          >
+            Model training has started. This may take a few minutes. Please check back later to see the updated status.
+          </Notification>
+        )}
         {docsQuery.isLoading && <p>Loading files...</p>}
         {docsQuery.isError && <p style={{ color: 'red' }}>Error loading files</p>}
+        <Text size="sm" c="dimmed" mb="md">
+          {files.length === 0
+            ? "No files uploaded yet. Use the 'Add Label Group' button to create a new group and upload files."
+            : "Each label represents a group of files used for training. You can add files to an existing label or delete an entire label group."}
+        </Text>
         <ClassificationFileCards
           fileGroups={files}
           onDelete={label => setDeleteModal({ open: true, label })}

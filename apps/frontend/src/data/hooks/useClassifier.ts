@@ -72,19 +72,27 @@ export function useClassifier() {
   });
 
   const deleteClassifierDocuments = useMutation({
-  mutationFn: async (params: { name: string; group_id: string; folder?: string }) => {
-    const query = [
-      `name=${encodeURIComponent(params.name)}`,
-      `group_id=${encodeURIComponent(params.group_id)}`,
-      ...(params.folder ? [`folder=${encodeURIComponent(params.folder)}`] : [])
-    ].join('&');
-    const response = await apiService.delete<any>(
-      `/azure/classifier/documents?${query}`
-    );
-    if (response.success) return response.data;
-    throw new Error(response.message || "Failed to delete classifier");
-  },
-});
+    mutationFn: async (params: { name: string; group_id: string; folder?: string }) => {
+      const query = [
+        `name=${encodeURIComponent(params.name)}`,
+        `group_id=${encodeURIComponent(params.group_id)}`,
+        ...(params.folder ? [`folder=${encodeURIComponent(params.folder)}`] : [])
+      ].join('&');
+      const response = await apiService.delete<any>(
+        `/azure/classifier/documents?${query}`
+      );
+      if (response.success) return response.data;
+      throw new Error(response.message || "Failed to delete classifier");
+    },
+  });
+
+  const requestTraining = useMutation({
+    mutationFn: async (params: { name: string; group_id: string }) => {
+      const response = await apiService.post<any>(`/azure/classifier/train`, params);
+      if (response.success) return response.data;
+      throw new Error(response.message || "Failed to start training");
+    },
+  });
 
   return {
     getClassifiers,
@@ -94,5 +102,6 @@ export function useClassifier() {
     uploadClassifierDocuments,
     getClassifierDocuments,
     deleteClassifierDocuments,
+    requestTraining,
   };
 }
