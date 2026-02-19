@@ -185,7 +185,18 @@ describe("AzureController", () => {
 
   describe("requestClassifierTraining", () => {
     it("should request training and return model", async () => {
+      databaseService.getClassifierModel.mockResolvedValue({
+        id: "1",
+        operation_location: null,
+        status: "READY",
+        source: "API",
+      });
       databaseService.isUserInGroup.mockResolvedValue(true);
+      // The controller returns the result of updateClassifierModel, which is TRAINING immediately
+      databaseService.updateClassifierModel.mockResolvedValue({
+        status: "TRAINING",
+        source: "API",
+      });
       classifierService.uploadDocumentsForTraining.mockResolvedValue([
         { blobPath: "p1" },
       ]);
@@ -197,7 +208,9 @@ describe("AzureController", () => {
       const req = { user: { sub: "user1" } };
       const body = { name: "c1", group_id: "g1" };
       const result = await controller.requestClassifierTraining(req, body);
-      expect(result.status).toBeDefined();
+      expect(result.status).toBe("TRAINING");
+      // Wait for setImmediate to allow background task to run
+      await new Promise((resolve) => setImmediate(resolve));
       expect(classifierService.uploadDocumentsForTraining).toHaveBeenCalled();
     });
     it("should handle error and update model status to FAILED", async () => {
