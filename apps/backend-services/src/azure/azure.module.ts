@@ -3,11 +3,12 @@ import { AzureController } from "@/azure/azure.controller";
 import { AzureService } from "@/azure/azure.service";
 import { BlobService } from "@/azure/blob.service";
 import { ClassifierService } from "@/azure/classifier.service";
+import { ClassifierPollerService } from "@/azure/classifier-poller.service";
 import { DatabaseModule } from "@/database/database.module";
 import { StorageModule } from "@/storage/storage.module";
 
 @Module({
-  providers: [AzureService, BlobService, ClassifierService],
+  providers: [AzureService, BlobService, ClassifierService, ClassifierPollerService],
   exports: [AzureService],
   imports: [DatabaseModule, StorageModule],
   controllers: [AzureController],

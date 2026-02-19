@@ -304,7 +304,7 @@ export class DatabaseService {
     classifierName: string,
     groupId: string,
     properties: Partial<ClassifierEditableProperties>,
-    userId: string,
+    userId?: string,
   ) {
     return await this.prisma.classifierModel.update({
       where: {
