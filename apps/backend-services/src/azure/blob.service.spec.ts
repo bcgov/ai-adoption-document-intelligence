@@ -1,3 +1,11 @@
+import {
+  BlobServiceClient,
+  ContainerClient,
+  ContainerSASPermissions,
+  generateBlobSASQueryParameters,
+  StorageSharedKeyCredential,
+} from "@azure/storage-blob";
+
 // Mock Azure Storage SDK before imports
 jest.mock("@azure/storage-blob", () => ({
   BlobServiceClient: {
@@ -14,12 +22,6 @@ jest.mock("@azure/storage-blob", () => ({
   ContainerClient: jest.fn(),
 }));
 
-import {
-  BlobServiceClient,
-  ContainerSASPermissions,
-  generateBlobSASQueryParameters,
-  StorageSharedKeyCredential,
-} from "@azure/storage-blob";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { BlobService } from "./blob.service";
@@ -473,17 +475,25 @@ describe("BlobStorageService", () => {
       const mockContainerClient = {
         listBlobsFlat: jest.fn().mockReturnValue(mockListBlobs),
       };
-      const { ContainerClient } = require("@azure/storage-blob");
-      (ContainerClient as jest.Mock).mockImplementation(() => mockContainerClient);
+      (ContainerClient as jest.Mock).mockImplementation(
+        () => mockContainerClient,
+      );
       const result = await service.validateContainerSasUrl("sas-url");
       expect(result.canList).toBe(true);
       expect(result.blobCount).toBe(6);
-      expect(result.sampleBlobs).toEqual(["blob1", "blob2", "blob3", "blob4", "blob5"]);
+      expect(result.sampleBlobs).toEqual([
+        "blob1",
+        "blob2",
+        "blob3",
+        "blob4",
+        "blob5",
+      ]);
     });
 
     it("should return canList false and error on failure", async () => {
-      const { ContainerClient } = require("@azure/storage-blob");
-      (ContainerClient as jest.Mock).mockImplementation(() => { throw new Error("bad sas"); });
+      (ContainerClient as jest.Mock).mockImplementation(() => {
+        throw new Error("bad sas");
+      });
       const result = await service.validateContainerSasUrl("bad-url");
       expect(result.canList).toBe(false);
       expect(result.error).toBe("bad sas");
@@ -493,8 +503,22 @@ describe("BlobStorageService", () => {
   describe("listBlobs", () => {
     it("should list blobs and return BlobInfo[]", async () => {
       const mockBlobs = [
-        { name: "blob1", properties: { contentLength: 10, lastModified: new Date("2020-01-01"), contentType: "text/plain" } },
-        { name: "blob2", properties: { contentLength: 20, lastModified: new Date("2020-01-02"), contentType: "image/png" } },
+        {
+          name: "blob1",
+          properties: {
+            contentLength: 10,
+            lastModified: new Date("2020-01-01"),
+            contentType: "text/plain",
+          },
+        },
+        {
+          name: "blob2",
+          properties: {
+            contentLength: 20,
+            lastModified: new Date("2020-01-02"),
+            contentType: "image/png",
+          },
+        },
       ];
       const mockListBlobs = {
         [Symbol.asyncIterator]: async function* () {
@@ -509,7 +533,9 @@ describe("BlobStorageService", () => {
     });
 
     it("should throw error if list fails", async () => {
-      mockContainerClient.listBlobsFlat.mockImplementation(() => { throw new Error("fail"); });
+      mockContainerClient.listBlobsFlat.mockImplementation(() => {
+        throw new Error("fail");
+      });
       await expect(service.listBlobs("test-container")).rejects.toThrow("fail");
     });
   });
@@ -517,34 +543,50 @@ describe("BlobStorageService", () => {
   describe("deleteContainer", () => {
     it("should delete a container", async () => {
       mockContainerClient.delete = jest.fn().mockResolvedValue({});
-      await expect(service.deleteContainer("test-container")).resolves.toBeUndefined();
-      expect(mockBlobServiceClient.getContainerClient).toHaveBeenCalledWith("test-container");
+      await expect(
+        service.deleteContainer("test-container"),
+      ).resolves.toBeUndefined();
+      expect(mockBlobServiceClient.getContainerClient).toHaveBeenCalledWith(
+        "test-container",
+      );
       expect(mockContainerClient.delete).toHaveBeenCalled();
     });
 
     it("should throw error if delete fails", async () => {
-      mockContainerClient.delete = jest.fn().mockRejectedValue(new Error("fail"));
-      await expect(service.deleteContainer("test-container")).rejects.toThrow("fail");
+      mockContainerClient.delete = jest
+        .fn()
+        .mockRejectedValue(new Error("fail"));
+      await expect(service.deleteContainer("test-container")).rejects.toThrow(
+        "fail",
+      );
     });
   });
 
   describe("deleteContainerIfExists", () => {
     it("should return true if container deleted", async () => {
-      mockContainerClient.deleteIfExists = jest.fn().mockResolvedValue({ succeeded: true });
+      mockContainerClient.deleteIfExists = jest
+        .fn()
+        .mockResolvedValue({ succeeded: true });
       const result = await service.deleteContainerIfExists("test-container");
       expect(result).toBe(true);
       expect(mockContainerClient.deleteIfExists).toHaveBeenCalled();
     });
 
     it("should return false if container not found", async () => {
-      mockContainerClient.deleteIfExists = jest.fn().mockResolvedValue({ succeeded: false });
+      mockContainerClient.deleteIfExists = jest
+        .fn()
+        .mockResolvedValue({ succeeded: false });
       const result = await service.deleteContainerIfExists("test-container");
       expect(result).toBe(false);
     });
 
     it("should throw error if deleteIfExists fails", async () => {
-      mockContainerClient.deleteIfExists = jest.fn().mockRejectedValue(new Error("fail"));
-      await expect(service.deleteContainerIfExists("test-container")).rejects.toThrow("fail");
+      mockContainerClient.deleteIfExists = jest
+        .fn()
+        .mockRejectedValue(new Error("fail"));
+      await expect(
+        service.deleteContainerIfExists("test-container"),
+      ).rejects.toThrow("fail");
     });
   });
 
@@ -552,24 +594,37 @@ describe("BlobStorageService", () => {
     it("should return a container client", () => {
       const client = service.getContainerClient("test-container");
       expect(client).toBe(mockContainerClient);
-      expect(mockBlobServiceClient.getContainerClient).toHaveBeenCalledWith("test-container");
+      expect(mockBlobServiceClient.getContainerClient).toHaveBeenCalledWith(
+        "test-container",
+      );
     });
   });
 
   describe("getBlobSasUrl", () => {
     it("should generate a blob SAS URL", () => {
-      (StorageSharedKeyCredential as unknown as jest.Mock).mockImplementation(() => ({}));
-      (generateBlobSASQueryParameters as jest.Mock).mockReturnValue({ toString: () => "sastoken" });
-      mockContainerClient.getBlobClient = jest.fn().mockReturnValue({ url: "https://storage.blob.core.windows.net/container/blob" });
+      (StorageSharedKeyCredential as unknown as jest.Mock).mockImplementation(
+        () => ({}),
+      );
+      (generateBlobSASQueryParameters as jest.Mock).mockReturnValue({
+        toString: () => "sastoken",
+      });
+      mockContainerClient.getBlobClient = jest.fn().mockReturnValue({
+        url: "https://storage.blob.core.windows.net/container/blob",
+      });
       const url = service.getBlobSasUrl("test-container", "blob.txt", 30);
       expect(url).toContain("sastoken");
-      expect(StorageSharedKeyCredential).toHaveBeenCalledWith("testaccount", "testkey==");
+      expect(StorageSharedKeyCredential).toHaveBeenCalledWith(
+        "testaccount",
+        "testkey==",
+      );
       expect(generateBlobSASQueryParameters).toHaveBeenCalled();
     });
 
     it("should throw if credentials are missing", () => {
       service["accountName"] = undefined as any;
-      expect(() => service.getBlobSasUrl("c", "b")).toThrow("Storage account name/key not configured.");
+      expect(() => service.getBlobSasUrl("c", "b")).toThrow(
+        "Storage account name/key not configured.",
+      );
     });
   });
 });

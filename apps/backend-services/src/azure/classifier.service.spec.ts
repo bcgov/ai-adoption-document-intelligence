@@ -150,7 +150,9 @@ describe("ClassifierService", () => {
         path: () => ({
           post: jest.fn().mockResolvedValue({
             status: "202",
-            headers: { "operation-location": "https://mockendpoint/operation/123" },
+            headers: {
+              "operation-location": "https://mockendpoint/operation/123",
+            },
           }),
         }),
       };

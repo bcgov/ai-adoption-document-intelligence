@@ -1,9 +1,8 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { ClassifierPollerService } from "./classifier-poller.service";
-import { AzureService } from "./azure.service";
 import { DatabaseService } from "../database/database.service";
+import { AzureService } from "./azure.service";
+import { ClassifierPollerService } from "./classifier-poller.service";
 import { ClassifierStatus } from "./dto/classifier-constants.dto";
-
 
 const mockDatabaseService = {
   prisma: {
@@ -51,11 +50,25 @@ describe("ClassifierPollerService", () => {
 
     it("should poll and call pollClassifierStatus for each classifier", async () => {
       const classifiers = [
-        { name: "clf1", group_id: "g1", operation_location: "loc1", status: ClassifierStatus.TRAINING },
-        { name: "clf2", group_id: "g2", operation_location: "loc2", status: ClassifierStatus.TRAINING },
+        {
+          name: "clf1",
+          group_id: "g1",
+          operation_location: "loc1",
+          status: ClassifierStatus.TRAINING,
+        },
+        {
+          name: "clf2",
+          group_id: "g2",
+          operation_location: "loc2",
+          status: ClassifierStatus.TRAINING,
+        },
       ];
-      mockDatabaseService.prisma.classifierModel.findMany.mockResolvedValue(classifiers);
-      const pollSpy = jest.spyOn(ClassifierPollerService.prototype as any, "pollClassifierStatus").mockResolvedValue(undefined);
+      mockDatabaseService.prisma.classifierModel.findMany.mockResolvedValue(
+        classifiers,
+      );
+      const pollSpy = jest
+        .spyOn(ClassifierPollerService.prototype as any, "pollClassifierStatus")
+        .mockResolvedValue(undefined);
       await service.pollActiveClassifiers();
       expect(pollSpy).toHaveBeenCalledTimes(2);
       expect(pollSpy).toHaveBeenCalledWith("clf1", "g1", "loc1");
@@ -64,41 +77,53 @@ describe("ClassifierPollerService", () => {
     });
 
     it("should not throw if polling fails", async () => {
-      mockDatabaseService.prisma.classifierModel.findMany.mockRejectedValue(new Error("fail"));
+      mockDatabaseService.prisma.classifierModel.findMany.mockRejectedValue(
+        new Error("fail"),
+      );
       await expect(service.pollActiveClassifiers()).resolves.not.toThrow();
     });
   });
 
   describe("pollClassifierStatus", () => {
     it("should update status to READY if succeeded", async () => {
-      mockAzureService.checkOperationStatus.mockResolvedValue({ json: async () => ({ status: "succeeded" }) });
+      mockAzureService.checkOperationStatus.mockResolvedValue({
+        json: async () => ({ status: "succeeded" }),
+      });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(mockDatabaseService.updateClassifierModel).toHaveBeenCalledWith(
         "clf",
         "gid",
-        { status: ClassifierStatus.READY }
+        { status: ClassifierStatus.READY },
       );
     });
 
     it("should update status to FAILED if failed", async () => {
-      mockAzureService.checkOperationStatus.mockResolvedValue({ json: async () => ({ status: "failed" }) });
+      mockAzureService.checkOperationStatus.mockResolvedValue({
+        json: async () => ({ status: "failed" }),
+      });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(mockDatabaseService.updateClassifierModel).toHaveBeenCalledWith(
         "clf",
         "gid",
-        { status: ClassifierStatus.FAILED }
+        { status: ClassifierStatus.FAILED },
       );
     });
 
     it("should not update if still training", async () => {
-      mockAzureService.checkOperationStatus.mockResolvedValue({ json: async () => ({ status: "running" }) });
+      mockAzureService.checkOperationStatus.mockResolvedValue({
+        json: async () => ({ status: "running" }),
+      });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(mockDatabaseService.updateClassifierModel).not.toHaveBeenCalled();
     });
 
     it("should not throw if polling fails", async () => {
-      mockAzureService.checkOperationStatus.mockRejectedValue(new Error("fail"));
-      await expect((service as any).pollClassifierStatus("clf", "gid", "loc")).resolves.not.toThrow();
+      mockAzureService.checkOperationStatus.mockRejectedValue(
+        new Error("fail"),
+      );
+      await expect(
+        (service as any).pollClassifierStatus("clf", "gid", "loc"),
+      ).resolves.not.toThrow();
     });
   });
 });
