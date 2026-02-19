@@ -1,6 +1,8 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { DatabaseService } from "../database/database.service";
 import { AzureService } from "./azure.service";
+import { BlobService } from "./blob.service";
+import { ClassifierService } from "./classifier.service";
 import { ClassifierPollerService } from "./classifier-poller.service";
 import { ClassifierStatus } from "./dto/classifier-constants.dto";
 
@@ -15,7 +17,12 @@ const mockDatabaseService = {
 const mockAzureService = {
   checkOperationStatus: jest.fn(),
 };
-
+const mockBlobService = {
+  deleteFilesWithPrefix: jest.fn(),
+};
+const mockClassifierService = {
+  classifierContainer: "classification",
+};
 const mockLogger = {
   debug: jest.fn(),
   error: jest.fn(),
@@ -32,6 +39,8 @@ describe("ClassifierPollerService", () => {
         ClassifierPollerService,
         { provide: DatabaseService, useValue: mockDatabaseService },
         { provide: AzureService, useValue: mockAzureService },
+        { provide: BlobService, useValue: mockBlobService },
+        { provide: ClassifierService, useValue: mockClassifierService },
       ],
     }).compile();
 
@@ -85,7 +94,7 @@ describe("ClassifierPollerService", () => {
   });
 
   describe("pollClassifierStatus", () => {
-    it("should update status to READY if succeeded", async () => {
+    it("should update status to READY if succeeded and delete files for classifier", async () => {
       mockAzureService.checkOperationStatus.mockResolvedValue({
         json: async () => ({ status: "succeeded" }),
       });
@@ -94,6 +103,10 @@ describe("ClassifierPollerService", () => {
         "clf",
         "gid",
         { status: ClassifierStatus.READY },
+      );
+      expect(mockBlobService.deleteFilesWithPrefix).toHaveBeenCalledWith(
+        "gid/clf",
+        "classification",
       );
     });
 
