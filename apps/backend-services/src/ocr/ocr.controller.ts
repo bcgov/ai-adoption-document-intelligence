@@ -29,19 +29,18 @@ export class OcrController {
   @ApiOkResponse({ schema: { default: { models: ["string"] } } })
   async getModels(): Promise<{ models: string[] }> {
     const prisma = this.db["prisma"];
-    const trained =
-      prisma &&
-      (await prisma.trainedModel.findMany({
-        select: { model_id: true },
-        distinct: ["model_id"],
-        orderBy: { model_id: "asc" },
-      }));
-    const trainedIds = trained ? trained.map((m) => m.model_id) : [];
-    const prebuiltSet = new Set(this.allowedModels);
-    const combined = [
+    const trained = prisma
+      ? await prisma.trainedModel.findMany({
+          select: { model_id: true },
+          distinct: ["model_id"],
+        })
+      : [];
+    // Pull model_ids into one set for deduplication
+    const combined = new Set([
       ...this.allowedModels,
-      ...trainedIds.filter((id) => !prebuiltSet.has(id)),
-    ];
-    return { models: combined };
+      ...trained.map((m) => m.model_id),
+    ]);
+    // Return sorted result if order matters
+    return { models: Array.from(combined).sort() };
   }
 }
