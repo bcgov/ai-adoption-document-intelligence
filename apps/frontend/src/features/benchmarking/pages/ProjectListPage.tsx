@@ -12,11 +12,14 @@ import {
 import { IconFolderOpen, IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/auth/useAuth";
+import { CreateProjectDialog } from "../components/CreateProjectDialog";
 import { useProjects } from "../hooks/useProjects";
 
 export function ProjectListPage() {
-  const { projects, isLoading } = useProjects();
+  const { projects, isLoading, createProject, isCreating } = useProjects();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [createDialogOpened, setCreateDialogOpened] = useState(false);
 
   if (isLoading) {
@@ -114,7 +117,17 @@ export function ProjectListPage() {
         </Card>
       )}
 
-      {/* TODO: Add CreateProjectDialog component when needed */}
+      <CreateProjectDialog
+        opened={createDialogOpened}
+        onClose={() => setCreateDialogOpened(false)}
+        onCreate={(data) =>
+          createProject({
+            ...data,
+            createdBy: user?.profile?.preferred_username || "unknown",
+          })
+        }
+        isCreating={isCreating}
+      />
     </Stack>
   );
 }
