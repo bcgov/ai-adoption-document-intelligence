@@ -17,8 +17,8 @@
     "build": "npm run build:backend-services && npm run build:frontend",
     "install:all": "npm install && cd apps/backend-services && npm install && cd ../frontend && npm install",
     "prepare": "husky",
-    "generate:openapi": "cd apps/backend-services && SSO_AUTH_SERVER_URL=http://localhost:8080/realms/test SSO_REALM=test SSO_CLIENT_ID=test-client SSO_CLIENT_SECRET=test-secret FRONTEND_URL=http://localhost:3000 KEYCLOAK_PUBLIC_KEY=dummy-key DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy BLOB_STORAGE_TYPE=filesystem BLOB_STORAGE_ROOT=/tmp/uploads TEMPORAL_ADDRESS=localhost:7233 TEMPORAL_NAMESPACE=default TS_NODE_TRANSPILE_ONLY=true node -r ts-node/register -r tsconfig-paths/register ../../docs-site/generate-openapi.ts",
-    "docs:build": "npm run generate:openapi && cd docs-site && bash build.sh"
+    "generate:openapi": "cd apps/backend-services && SSO_AUTH_SERVER_URL=http://localhost:8080/realms/test SSO_REALM=test SSO_CLIENT_ID=test-client SSO_CLIENT_SECRET=test-secret FRONTEND_URL=http://localhost:3000 KEYCLOAK_PUBLIC_KEY=dummy-key DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy BLOB_STORAGE_TYPE=filesystem BLOB_STORAGE_ROOT=/tmp/uploads TEMPORAL_ADDRESS=localhost:7233 TEMPORAL_NAMESPACE=default TS_NODE_TRANSPILE_ONLY=true node -r ts-node/register -r tsconfig-paths/register ../../docs/generate-openapi.ts",
+    "docs:build": "npm run generate:openapi && cd docs && bash build.sh"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

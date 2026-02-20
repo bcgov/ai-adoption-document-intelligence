@@ -78,7 +78,7 @@ WORKFLOW_TEMPLATE=multi-page-report-workflow TEST_FILE=multi-page-sample-1.pdf n
 |----------|---------|-------------|
 | `MANAGE_WORKER` | `false` | Set to `true` to have the test start/stop the worker |
 | `WORKER_STARTUP_DELAY` | `5000` | Milliseconds to wait for worker to initialize (when `MANAGE_WORKER=true`) |
-| `WORKFLOW_TEMPLATE` | `standard-ocr-workflow` | Workflow template to test (from `docs/templates/`) |
+| `WORKFLOW_TEMPLATE` | `standard-ocr-workflow` | Workflow template to test (from `docs-md/templates/`) |
 | `TEST_FILE` | `test-document.jpg` | Test file to upload (from `integration-tests/`) |
 | `BACKEND_URL` | `http://localhost:3002` | Backend API URL |
 | `TEMPORAL_ADDRESS` | `localhost:7233` | Temporal server address |

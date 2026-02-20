@@ -576,8 +576,8 @@ curl -X GET "$AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT/documentintelligence/document
 
 ## Documentation
 
-- [API Documentation](../../docs/API.md)
-- [HITL Architecture](../../docs/HITL_ARCHITECTURE.md)
+- [API Documentation](../../docs-md/API.md)
+- [HITL Architecture](../../docs-md/HITL_ARCHITECTURE.md)
 - [Testing Guide](./TESTING.md)
 - [Migration Guide](./MIGRATIONS.md)
 

@@ -54,7 +54,7 @@ async function generateOpenApiSpec() {
 
   const document = SwaggerModule.createDocument(app, config);
 
-  // Write to docs-site assets directory
+  // Write to docs assets directory
   const outputDir = path.join(__dirname, 'assets');
   const outputPath = path.join(outputDir, 'openapi.json');
 

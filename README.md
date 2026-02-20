@@ -534,7 +534,8 @@ ai-adoption-document-intelligence/
 │   └── openshift/
 │       └── kustomize/           # Kubernetes manifests
 │
-├── docs/
+├── docs/                         # Generated documentation site
+├── docs-md/                      # Technical documentation
 │   ├── HITL_ARCHITECTURE.md     # HITL system design
 │   ├── TEMPLATE_TRAINING.md     # Training guide
 │   └── graph-workflows/         # Workflow engine docs
@@ -543,7 +544,6 @@ ai-adoption-document-intelligence/
 │       └── GRAPH_TYPES.md
 │
 ├── feature-docs/                 # Feature specifications
-├── docs-site/                    # Generated documentation
 ├── CLAUDE.md                     # Development guidelines
 ├── LICENSE                       # Apache 2.0
 └── package.json                  # Root workspace config
@@ -645,7 +645,7 @@ Execute custom document processing workflows as Directed Acyclic Graphs (DAGs):
 4. Save workflow (receives unique ID)
 5. Select workflow during document upload
 
-See [docs/graph-workflows/DAG_WORKFLOW_ENGINE.md](docs/graph-workflows/DAG_WORKFLOW_ENGINE.md) for complete documentation.
+See [docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md](docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md) for complete documentation.
 
 ## Document Labeling & Training
 
@@ -681,7 +681,7 @@ Train custom Azure Document Intelligence models for specialized document types.
    - Select in upload or workflow configuration
    - Higher accuracy for domain-specific fields
 
-See [docs/TEMPLATE_TRAINING.md](docs/TEMPLATE_TRAINING.md) for complete training guide.
+See [docs-md/TEMPLATE_TRAINING.md](docs-md/TEMPLATE_TRAINING.md) for complete training guide.
 
 ## Human-in-the-Loop (HITL)
 
@@ -714,7 +714,7 @@ Validate and correct OCR results through human review.
 - Confidence distribution
 - Correction patterns
 
-See [docs/HITL_ARCHITECTURE.md](docs/HITL_ARCHITECTURE.md) for architecture details.
+See [docs-md/HITL_ARCHITECTURE.md](docs-md/HITL_ARCHITECTURE.md) for architecture details.
 
 ## Deployment
 
@@ -802,14 +802,14 @@ VITE_OIDC_REDIRECT_URI=https://app.example.com
 
 ### Core Documentation
 
-- **[HITL Architecture](docs/HITL_ARCHITECTURE.md)** - Human-in-the-loop system design
-- **[Template Training](docs/TEMPLATE_TRAINING.md)** - Custom model training guide
+- **[HITL Architecture](docs-md/HITL_ARCHITECTURE.md)** - Human-in-the-loop system design
+- **[Template Training](docs-md/TEMPLATE_TRAINING.md)** - Custom model training guide
 
 ### Workflow Documentation
 
-- **[DAG Workflow Engine](docs/graph-workflows/DAG_WORKFLOW_ENGINE.md)** - Workflow engine specification
-- **[Adding Nodes & Activities](docs/graph-workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md)** - Extend workflow capabilities
-- **[Graph Types](docs/graph-workflows/GRAPH_TYPES.md)** - Type definitions
+- **[DAG Workflow Engine](docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md)** - Workflow engine specification
+- **[Adding Nodes & Activities](docs-md/graph-workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md)** - Extend workflow capabilities
+- **[Graph Types](docs-md/graph-workflows/GRAPH_TYPES.md)** - Type definitions
 
 ### Service Documentation
 
@@ -976,5 +976,5 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 For questions, issues, or contributions:
 
 - **Issues:** GitHub Issues
-- **Documentation:** `/docs` directory
+- **Documentation:** `/docs-md` directory
 - **API Documentation:** http://localhost:3002/api (when running)

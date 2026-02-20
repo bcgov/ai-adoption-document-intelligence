@@ -4,7 +4,7 @@
  * This workflow function replaces the legacy hardcoded workflow with a generic
  * data-driven interpreter that can execute any workflow graph definition.
  *
- * See docs/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5
+ * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5
  */
 
 import {

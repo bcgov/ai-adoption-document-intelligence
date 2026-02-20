@@ -277,7 +277,7 @@ See `apps/shared/prisma/schema.prisma` for the complete schema.
 - **Strong typing** - Avoid `any` types, use proper TypeScript typing
 - **Test coverage** - Create/update tests for backend changes, run tests before committing
 - **No placeholders** - Implement complete features, not stubs for future use
-- **Documentation** - Update `/docs` folder when creating/modifying features
+- **Documentation** - Update `/docs-md` folder when creating/modifying features
 - **Generic design** - No document-specific implementations, support arbitrary workloads
 - **Prisma generation** - Use `npm run db:generate` from `apps/backend-services` (writes to both backend and temporal)
 
@@ -287,12 +287,12 @@ See `/deployments/openshift/kustomize/` for Kubernetes/OpenShift deployment conf
 
 ## Documentation
 
-- [API Documentation](../../docs/API.md)
-- [HITL Architecture](../../docs/HITL_ARCHITECTURE.md)
-- [Template Training](../../docs/TEMPLATE_TRAINING.md)
-- [Graph Workflows](../../docs/graph-workflows/)
-- [Adding Nodes & Activities](../../docs/graph-workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md)
-- [DAG Workflow Engine](../../docs/graph-workflows/DAG_WORKFLOW_ENGINE.md)
+- [API Documentation](../../docs-md/API.md)
+- [HITL Architecture](../../docs-md/HITL_ARCHITECTURE.md)
+- [Template Training](../../docs-md/TEMPLATE_TRAINING.md)
+- [Graph Workflows](../../docs-md/graph-workflows/)
+- [Adding Nodes & Activities](../../docs-md/graph-workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md)
+- [DAG Workflow Engine](../../docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md)
 
 ## License
 
