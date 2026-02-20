@@ -17,6 +17,7 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
+import "multer";
 import {
   ApiBody,
   ApiConsumes,

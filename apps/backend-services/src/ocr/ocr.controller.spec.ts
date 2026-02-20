@@ -41,13 +41,13 @@ describe("OcrController", () => {
   describe("getModels", () => {
     it("should return prebuilt models from config when no trained models", async () => {
       const result = await controller.getModels();
+      // Controller returns models sorted alphabetically
       expect(result).toEqual({
-        models: ["prebuilt-layout", "prebuilt-invoice", "prebuilt-receipt"],
+        models: ["prebuilt-invoice", "prebuilt-layout", "prebuilt-receipt"],
       });
       expect(mockPrisma.trainedModel.findMany).toHaveBeenCalledWith({
         select: { model_id: true },
         distinct: ["model_id"],
-        orderBy: { model_id: "asc" },
       });
     });
 
@@ -57,12 +57,13 @@ describe("OcrController", () => {
         { model_id: "my-invoice-model" },
       ]);
       const result = await controller.getModels();
+      // Controller returns models sorted alphabetically
       expect(result.models).toEqual([
-        "prebuilt-layout",
+        "my-invoice-model",
         "prebuilt-invoice",
+        "prebuilt-layout",
         "prebuilt-receipt",
         "sdpr-custom1",
-        "my-invoice-model",
       ]);
     });
 
@@ -71,9 +72,10 @@ describe("OcrController", () => {
         { model_id: "prebuilt-layout" },
       ]);
       const result = await controller.getModels();
+      // Controller returns models sorted alphabetically
       expect(result.models).toEqual([
-        "prebuilt-layout",
         "prebuilt-invoice",
+        "prebuilt-layout",
         "prebuilt-receipt",
       ]);
     });
