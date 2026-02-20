@@ -117,7 +117,15 @@ export const DocumentViewer: FC<DocumentViewerProps> = ({
         />
       )}
 
-      <Grid gutter={0} style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+      <Grid
+        gutter={0}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
+          gridTemplateRows: "1fr",
+        }}
+      >
         {showThumbnails && numPages > 0 && (
           <Grid.Col
             span="auto"
@@ -136,7 +144,12 @@ export const DocumentViewer: FC<DocumentViewerProps> = ({
         <Grid.Col
           ref={containerRef}
           span="auto"
-          style={{ minHeight: 0, overflow: "auto", background: "#f1f3f5" }}
+          style={{
+            minHeight: 0,
+            height: "100%",
+            overflow: "auto",
+            background: "#f1f3f5",
+          }}
         >
           <Box
             style={{

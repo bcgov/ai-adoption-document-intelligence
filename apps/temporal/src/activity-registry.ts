@@ -21,6 +21,7 @@ import {
   upsertOcrResult,
   storeDocumentRejection,
   getWorkflowGraphConfig,
+  enrichResults,
 } from "./activities";
 import { splitDocument } from "./activities/split-document";
 import { classifyDocument } from "./activities/classify-document";
@@ -130,6 +131,14 @@ register({
   defaultTimeout: "30s",
   defaultRetry: { maximumAttempts: 3 },
   description: "Load workflow configuration from database",
+});
+
+register({
+  activityType: "ocr.enrich",
+  activityFn: enrichResults as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "3m",
+  defaultRetry: { maximumAttempts: 2 },
+  description: "Enrich OCR results with field schema and optional LLM",
 });
 
 // -- New activities (implementations in US-017, US-018, US-019) -------------

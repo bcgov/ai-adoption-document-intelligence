@@ -1,5 +1,6 @@
 import { DocumentIntelligenceClient } from "@azure-rest/ai-document-intelligence";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import "multer";
 import * as path from "path";
 import { AzureService } from "@/azure/azure.service";
 import { BlobService } from "@/azure/blob.service";

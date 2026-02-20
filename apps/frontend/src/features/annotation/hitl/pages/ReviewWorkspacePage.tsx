@@ -1,4 +1,5 @@
 import {
+  Accordion,
   Button,
   Group,
   Loader,
@@ -49,6 +50,76 @@ interface ReviewField {
   confidence?: number;
   boundingBox?: BoundingBox;
 }
+
+interface EnrichmentChange {
+  fieldKey: string;
+  originalValue: string;
+  correctedValue: string;
+  reason: string;
+  source: "rule" | "llm";
+}
+
+interface EnrichmentSummary {
+  summary: string;
+  changes: EnrichmentChange[];
+  rulesApplied: string[];
+  llmEnriched: boolean;
+  llmModel?: string;
+  timestamp: string;
+}
+
+const EnrichmentSummaryPanel: FC<{
+  summary: EnrichmentSummary;
+  mb?: string;
+}> = ({ summary, mb = "sm" }) => (
+  <Accordion mb={mb} variant="contained">
+    <Accordion.Item value="enrichment">
+      <Accordion.Control>
+        <Text size="sm" fw={600}>
+          Enrichment summary
+          {summary.llmEnriched && summary.llmModel && (
+            <Text component="span" size="xs" c="dimmed" ml="xs">
+              (LLM: {summary.llmModel})
+            </Text>
+          )}
+        </Text>
+      </Accordion.Control>
+      <Accordion.Panel>
+        <Stack gap="xs">
+          {summary.summary && <Text size="sm">{summary.summary}</Text>}
+          {summary.rulesApplied?.length > 0 && (
+            <Text size="xs" c="dimmed">
+              Rules: {summary.rulesApplied.join(", ")}
+            </Text>
+          )}
+          {summary.changes?.length > 0 && (
+            <Stack gap={4}>
+              <Text size="xs" fw={600}>
+                Changes
+              </Text>
+              {summary.changes.map((c, i) => (
+                <Paper key={i} withBorder p="xs" radius="sm">
+                  <Stack gap={2}>
+                    <Text size="xs" fw={500}>
+                      {c.fieldKey}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {c.originalValue} → {c.correctedValue}
+                    </Text>
+                    <Text size="xs" c="dimmed" fs="italic">
+                      {c.reason}
+                      {c.source === "llm" ? " (LLM)" : " (rule)"}
+                    </Text>
+                  </Stack>
+                </Paper>
+              ))}
+            </Stack>
+          )}
+        </Stack>
+      </Accordion.Panel>
+    </Accordion.Item>
+  </Accordion>
+);
 
 export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   sessionId,
@@ -108,8 +179,8 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         setDocumentUrl(url);
-      } catch (error) {
-        console.error("Failed to load document", error);
+      } catch {
+        // Document load failed; leave URL unset
       }
     };
 
@@ -157,6 +228,18 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
 
     return result;
   }, [session?.document?.ocr_result]);
+
+  const enrichmentCorrectedValues = useMemo(() => {
+    const summary = session?.document?.ocr_result?.enrichment_summary as
+      | EnrichmentSummary
+      | undefined;
+    if (!summary?.changes?.length) return new Map<string, string>();
+    const map = new Map<string, string>();
+    for (const c of summary.changes) {
+      map.set(c.fieldKey, c.correctedValue);
+    }
+    return map;
+  }, [session?.document?.ocr_result?.enrichment_summary]);
 
   const sortedFields = useMemo(
     () => [...fields].sort((a, b) => (a.confidence ?? 1) - (b.confidence ?? 1)),
@@ -348,6 +431,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
             minHeight: 0,
             display: "flex",
             flexDirection: "column",
+            overflow: "hidden",
           }}
           onClick={(e) => {
             // Deselect when clicking on panel background
@@ -356,16 +440,6 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
             }
           }}
         >
-          <Text
-            size="sm"
-            fw={600}
-            mb="sm"
-            onClick={() => setActiveFieldKey(null)}
-            style={{ cursor: "pointer" }}
-          >
-            Fields
-          </Text>
-
           <ScrollArea
             type="auto"
             style={{ flex: 1, minHeight: 0 }}
@@ -385,6 +459,24 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
             }}
           >
             <Stack gap="md">
+              {session?.document?.ocr_result?.enrichment_summary && (
+                <EnrichmentSummaryPanel
+                  summary={
+                    session.document.ocr_result
+                      .enrichment_summary as EnrichmentSummary
+                  }
+                  mb="sm"
+                />
+              )}
+              <Text
+                size="sm"
+                fw={600}
+                mb="sm"
+                onClick={() => setActiveFieldKey(null)}
+                style={{ cursor: "pointer" }}
+              >
+                Fields
+              </Text>
               {sortedFields.map((field) => {
                 const correction = correctionMap[field.fieldKey];
                 const isCorrected =
@@ -430,6 +522,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
                       <TextInput
                         value={
                           correctionMap[field.fieldKey]?.corrected_value ??
+                          enrichmentCorrectedValues.get(field.fieldKey) ??
                           field.value
                         }
                         onChange={(event) =>

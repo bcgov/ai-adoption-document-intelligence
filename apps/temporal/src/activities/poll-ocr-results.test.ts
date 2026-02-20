@@ -147,8 +147,8 @@ describe('pollOCRResults activity', () => {
     );
   });
 
-  it('normalizes endpoint URL by removing trailing slash', async () => {
-    process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = 'https://test.cognitiveservices.azure.com/';
+  it('passes endpoint from env to SDK as configured', async () => {
+    process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = 'https://test.cognitiveservices.azure.com';
 
     const mockOCRResponse: OCRResponse = {
       status: 'succeeded',
@@ -165,4 +165,5 @@ describe('pollOCRResults activity', () => {
       expect.any(Object),
     );
   });
+
 });

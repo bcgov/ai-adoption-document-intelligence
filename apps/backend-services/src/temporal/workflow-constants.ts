@@ -12,6 +12,7 @@ export const VALID_WORKFLOW_STEP_IDS = [
   "pollOCRResults",
   "extractOCRResults",
   "postOcrCleanup",
+  "enrichResults",
   "checkOcrConfidence",
   "humanReview",
   "storeResults",
