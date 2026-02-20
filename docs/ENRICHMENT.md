@@ -127,7 +127,7 @@ When persisting to the database, the stored field object sets **valueString** fr
 
 ## Related files
 
-- **Temporal**: `apps/temporal/src/activities.ts` (exports enrichResults, upsertOcrResult), `apps/temporal/src/activities/enrich-results.ts`, `apps/temporal/src/activities/enrichment-rules.ts`, `apps/temporal/src/activities/enrichment-llm.ts`, `apps/temporal/src/activity-registry.ts` (ocr.enrich), `apps/temporal/src/types.ts`.
+- **Temporal**: `apps/temporal/src/activities.ts` (exports enrichResults, upsertOcrResult), `apps/temporal/src/activities/enrich-results.ts`, `apps/temporal/src/activities/enrich-results.test.ts`, `apps/temporal/src/activities/enrichment-rules.ts`, `apps/temporal/src/activities/enrichment-llm.ts`, `apps/temporal/src/activity-registry.ts` (ocr.enrich), `apps/temporal/src/types.ts`.
 - **Schema**: `apps/shared/prisma/schema.prisma` (OcrResult.enrichment_summary).
 - **Backend**: `apps/backend-services/src/hitl/hitl.service.ts` (session response includes enrichment_summary).
 - **Frontend**: `apps/frontend/src/features/annotation/hitl/pages/ReviewWorkspacePage.tsx` (enrichment summary panel).
