@@ -1,0 +1,229 @@
+<!-- TITLE: Documentation Hub -->
+<!-- NAV: index -->
+
+<div class="hero">
+    <span class="badge badge-gold">Open Source</span>
+    <h1>Document Intelligence Platform</h1>
+    <p>Enterprise-grade document processing platform with OCR, graph-based workflow orchestration, document classification, custom model training, and human-in-the-loop review capabilities.</p>
+    
+    <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center;">
+        <a href="api-reference.html" style="text-decoration: none;">
+            <button style="background: var(--bc-gold); color: var(--bc-blue); border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 1rem;">
+                View API Docs →
+            </button>
+        </a>
+        <a href="https://github.com/bcgov/ai-adoption-document-intelligence" style="text-decoration: none;">
+            <button style="background: rgba(255,255,255,0.2); color: white; border: 1px solid white; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 1rem;">
+                View on GitHub ↗
+            </button>
+        </a>
+    </div>
+</div>
+
+<h2>Platform Overview</h2>
+
+<p>The Document Intelligence Platform is a comprehensive solution for document processing workflows. It combines OCR services, flexible graph-based workflow orchestration, supervised learning capabilities, and collaborative review tools into a unified platform.</p>
+
+<div class="grid grid-2" style="margin-top: 2rem;">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h3 style="margin-top:0;">🚀 Core Features</h3>
+        <ul>
+            <li><strong>Document Processing</strong> - Multi-format document upload and OCR with Azure Document Intelligence</li>
+            <li><strong>Document Classification</strong> - Train and deploy Azure Document Intelligence classifiers for automated document type routing</li>
+            <li><strong>Graph Workflows</strong> - DAG-based workflow engine with 30+ extensible activities powered by Temporal</li>
+            <li><strong>Model Training</strong> - Supervised learning with custom model training and versioned deployments</li>
+            <li><strong>HITL Review</strong> - Collaborative human-in-the-loop workflows with confidence-based routing</li>
+        </ul>
+    </div>
+
+    <div class="card" style="border-left-color: #003366;">
+        <h3 style="margin-top:0;">🏗️ Architecture</h3>
+        <ul>
+            <li><strong>Backend</strong> - NestJS with Fastify, Prisma ORM, PostgreSQL</li>
+            <li><strong>Frontend</strong> - React with TypeScript, Mantine UI</li>
+            <li><strong>Orchestration</strong> - Temporal workflow engine with durable execution</li>
+            <li><strong>Storage</strong> - Pluggable blob storage (Azure, S3, filesystem)</li>
+        </ul>
+    </div>
+</div>
+
+<h2>Key Capabilities</h2>
+
+<div class="card card-gold" style="margin-bottom: 2rem;">
+    <h3 style="margin-top:0;">Graph-Based Workflow Engine</h3>
+    <p>The platform features a sophisticated DAG (Directed Acyclic Graph) workflow engine that enables complex, multi-step document processing pipelines. Workflows are defined as JSON graphs with nodes representing activities like OCR, validation, training, and review operations.</p>
+    <p><strong>30+ Built-in Activities:</strong> OCR processing, field extraction, validation, confidence filtering, model training, HITL routing, parallel execution, conditional branching, and more.</p>
+</div>
+
+<div class="grid grid-3">
+    <div class="card">
+        <h3 style="margin-top:0;">📄 Document Management</h3>
+        <p>Full lifecycle document management with metadata tagging, versioning, and relationship tracking. Supports PDF, images, and multi-page documents.</p>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0;">🏷️ Labeling & Annotation</h3>
+        <p>Project-based labeling system for ground truth creation. Supports bounding box annotations, field labeling, and batch operations for training data preparation.</p>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0;">🧠 Model Training</h3>
+        <p>End-to-end custom model training pipeline. Train Azure Document Intelligence custom models from labeled data with versioning and deployment management.</p>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0;">👥 Human Review Queue</h3>
+        <p>Collaborative HITL system with assignment management, bulk operations, and confidence-based routing for quality assurance workflows.</p>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0;">🔐 Authentication & Security</h3>
+        <p>Keycloak SSO integration with JWT bearer tokens and API key management. Role-based access control for secure multi-tenant operations.</p>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0;">📊 Extensible Activities</h3>
+        <p>Developer-friendly activity registry system. Create custom activities by extending base classes and registering them in the workflow engine.</p>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0;">🗂️ Document Classification</h3>
+        <p>Train Azure Document Intelligence classifiers to automatically identify document types. Manage the full lifecycle from training data upload through classifier deployment.</p>
+    </div>
+</div>
+
+<h2>Quick Start</h2>
+
+<div class="alert alert-info" style="margin-bottom: 2rem;">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Prerequisites</strong><br>
+        Node.js 20+, PostgreSQL 14+, Temporal Server, Azure Document Intelligence resource (for OCR)
+    </div>
+</div>
+
+<div class="card" style="margin-bottom: 2rem;">
+    <h3 style="margin-top: 0;">1. Install Dependencies</h3>
+    <pre><code>npm install</code></pre>
+</div>
+
+<div class="card" style="margin-bottom: 2rem;">
+    <h3 style="margin-top: 0;">2. Configure Environment</h3>
+    <p>Set up environment variables for database, Temporal, Azure services, and authentication:</p>
+    <pre><code>DATABASE_URL=postgresql://user:pass@localhost:5432/docdb
+TEMPORAL_ADDRESS=localhost:7233
+AZURE_DI_ENDPOINT=https://your-instance.cognitiveservices.azure.com/
+AZURE_DI_KEY=your-key
+SSO_AUTH_SERVER_URL=https://your-keycloak.com/realms/your-realm</code></pre>
+</div>
+
+<div class="card" style="margin-bottom: 2rem;">
+    <h3 style="margin-top: 0;">3. Initialize Database</h3>
+    <pre><code>cd apps/backend-services
+npm run db:migrate
+npm run db:generate</code></pre>
+</div>
+
+<div class="card" style="margin-bottom: 2rem;">
+    <h3 style="margin-top: 0;">4. Start Services</h3>
+    <pre><code># Terminal 1: Backend API
+cd apps/backend-services && npm run start:dev
+
+# Terminal 2: Temporal Worker
+cd apps/temporal && npm run worker
+
+# Terminal 3: Frontend
+cd apps/frontend && npm run dev</code></pre>
+</div>
+
+<div class="card">
+    <h3 style="margin-top: 0;">5. Access the Platform</h3>
+    <ul>
+        <li><strong>Frontend:</strong> http://localhost:3000</li>
+        <li><strong>Backend API:</strong> http://localhost:3002</li>
+        <li><strong>API Docs:</strong> http://localhost:3002/api</li>
+        <li><strong>Temporal UI:</strong> http://localhost:8233</li>
+    </ul>
+</div>
+
+<h2>API Documentation</h2>
+
+<p>Comprehensive REST API documentation is available on the <a href="api-reference.html">API Reference</a> page. The API supports both Bearer token authentication (Keycloak SSO) and API key authentication.</p>
+
+<div class="grid grid-2" style="margin-top: 2rem;">
+    <a href="api-reference.html" class="card-link">
+        <div class="card">
+            <h3 style="margin-top:0;">📚 API Reference</h3>
+            <p>Interactive API documentation with request/response schemas, authentication details, and example requests for all 56 endpoints.</p>
+        </div>
+    </a>
+
+    <a href="https://github.com/bcgov/ai-adoption-document-intelligence" class="card-link">
+        <div class="card">
+            <h3 style="margin-top:0;">💻 GitHub Repository</h3>
+            <p>View source code, report issues, contribute to the project, and access additional documentation.</p>
+        </div>
+    </a>
+</div>
+
+<h2>Technology Stack</h2>
+
+<div class="card">
+    <h3 style="margin-top: 0;">Core Technologies</h3>
+    <div class="grid grid-2">
+        <div>
+            <h4>Backend Services</h4>
+            <ul>
+                <li>NestJS 11 + Fastify</li>
+                <li>Prisma ORM</li>
+                <li>PostgreSQL 14+</li>
+                <li>Temporal Workflow Engine</li>
+                <li>Azure Document Intelligence SDK</li>
+            </ul>
+        </div>
+        <div>
+            <h4>Frontend Application</h4>
+            <ul>
+                <li>React 18 + TypeScript</li>
+                <li>Vite</li>
+                <li>Mantine UI Components</li>
+                <li>React Flow (workflow visualization)</li>
+                <li>Axios + React Query</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<h2>Project Structure</h2>
+
+<div class="card">
+    <pre><code>apps/
+├── backend-services/    # NestJS API server (14 modules)
+├── frontend/            # React application
+├── temporal/            # Temporal workflow workers
+├── image-service/       # Python image preprocessing tools
+└── shared/              # Shared Prisma schema
+
+docs-md/                 # Technical documentation
+docs/                    # This documentation site
+deployments/             # OpenShift/Kubernetes manifests</code></pre>
+</div>
+
+<h2>Learn More</h2>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    </div>
+    <div>
+        <strong>Additional Documentation</strong><br>
+        Detailed technical documentation is available in the <code>/docs-md</code> directory including:
+        <ul style="margin-top: 0.5rem; margin-bottom: 0;">
+            <li><strong>HITL_ARCHITECTURE.md:</strong> Human-in-the-loop system design</li>
+            <li><strong>TEMPLATE_TRAINING.md:</strong> Model training workflows</li>
+            <li><strong>docs-md/graph-workflows/:</strong> Workflow engine architecture and activity development guides</li>
+        </ul>
+    </div>
+</div>

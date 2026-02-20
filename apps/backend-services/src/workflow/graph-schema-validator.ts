@@ -6,7 +6,7 @@
  * reachability, switch/map/join cross-references, port bindings,
  * expression validation, and activity type validation.
  *
- * See docs/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 9.2
+ * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 9.2
  */
 
 import { isRegisteredActivityType } from "./activity-registry";

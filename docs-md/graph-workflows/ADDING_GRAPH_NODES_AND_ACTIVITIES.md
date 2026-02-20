@@ -8,8 +8,8 @@ It covers two scenarios:
 2. Add a brand-new node type (new execution semantics in the DAG engine).
 
 References:
-- `docs/graph-workflows/DAG_WORKFLOW_ENGINE.md`
-- `docs/graph-workflows/GRAPH_TYPES.md`
+- `docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md`
+- `docs-md/graph-workflows/GRAPH_TYPES.md`
 
 ---
 
@@ -103,7 +103,7 @@ Use in workflow JSON as:
 - map `inputs`/`outputs` ports to `ctx` keys
 
 Useful places for examples/templates:
-- `docs/templates/*.json` (if maintaining templates)
+- `docs-md/templates/*.json` (if maintaining templates)
 - Workflow configs stored via API/UI
 
 ---
@@ -208,7 +208,7 @@ Relevant implementation:
 - [ ] Update temporal registry tests
 - [ ] Update backend registry tests
 - [ ] Add/update validator tests where relevant
-- [ ] Add/update docs/template graph examples
+- [ ] Add/update docs-md/template graph examples
 
 ### For a new node type
 
@@ -218,7 +218,7 @@ Relevant implementation:
 - [ ] Extend temporal validator
 - [ ] Update frontend graph visualization for new node type
 - [ ] Add node-type-specific tests in temporal/backend/frontend
-- [ ] Update docs (`docs/GRAPH_TYPES.md` and this guide)
+- [ ] Update docs (`docs-md/GRAPH_TYPES.md` and this guide)
 
 ---
 

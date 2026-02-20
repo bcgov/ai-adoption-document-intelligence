@@ -290,7 +290,7 @@ async function loadWorkflowConfig(): Promise<GraphWorkflowConfig> {
   log("Loading workflow configuration from template...");
   const templatePath = path.join(
     __dirname,
-    `../../../docs/templates/${CONFIG.WORKFLOW_TEMPLATE}.json`,
+    `../../../docs-md/templates/${CONFIG.WORKFLOW_TEMPLATE}.json`,
   );
 
   if (!fs.existsSync(templatePath)) {

@@ -3,7 +3,7 @@
  *
  * Implements the main execution loop for the generic graph workflow interpreter.
  *
- * See docs/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5.2
+ * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5.2
  */
 
 import type {

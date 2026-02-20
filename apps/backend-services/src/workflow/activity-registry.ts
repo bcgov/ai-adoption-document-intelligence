@@ -6,7 +6,7 @@
  * temporal worker). It provides the set of valid activity type strings
  * and their descriptions.
  *
- * See docs/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 9.5
+ * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 9.5
  */
 
 export interface RegisteredActivityType {

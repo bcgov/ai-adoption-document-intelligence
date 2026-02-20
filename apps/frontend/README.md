@@ -1,123 +1,453 @@
-# AI OCR Frontend
+# Document Intelligence Platform - Frontend
 
-A modern React application built with Vite, TypeScript, and a clean layered architecture.
+Modern React single-page application for document processing, OCR management, workflow orchestration, document labeling, and human-in-the-loop review.
 
-## Project Structure
+## Overview
 
-This project follows a layered architecture with clear separation of concerns:
+The frontend provides a comprehensive UI for managing the entire document intelligence lifecycle:
 
-```
-src/
-├── components/          # UI Layer - React components
-├── data/                # Data Layer - API services and hooks
-│   ├── services/        # API service classes
-│   └── hooks/           # Custom React hooks for data fetching
-├── shared/              # Shared Layer - Common utilities and types
-│   ├── types/           # TypeScript type definitions
-│   ├── constants/       # Application constants
-│   ├── utils/           # Utility functions
-│   └── styles/          # Global styles
-├── App.tsx              # Main App component
-└── main.tsx             # Application entry point
-```
+- **Document Management** - Upload, view, and track document processing status
+- **Processing Queue** - Real-time status monitoring with OCR progress tracking
+- **Workflow Builder** - Visual graph editor for creating custom processing workflows
+- **Labeling Workspace** - Canvas-based document annotation for training data creation
+- **HITL Review** - Human-in-the-loop validation and correction interface
+- **Settings** - API key generation and management
+
+## Tech Stack
+
+- **React 19** - Modern React with concurrent features
+- **TypeScript** - Full type safety throughout the application
+- **Vite** - Lightning-fast development with hot module replacement
+- **Mantine UI** - Modern component library with dark mode support
+- **React Flow (@xyflow/react)** - Visual workflow graph editor
+- **React Konva** - Canvas-based document labeling and bounding box annotation
+- **React PDF** - PDF rendering and viewing
+- **TanStack Query** - Powerful data fetching and caching
+- **oidc-client-ts** - OpenID Connect authentication
+- **Axios** - HTTP client with interceptors
+- **CodeMirror** - JSON editor for workflow configuration
 
 ## Features
 
-- ⚡ **Vite** - Lightning-fast development with hot module replacement
-- ⚛️ **React 18** - Modern React with concurrent features
-- 🔷 **TypeScript** - Full type safety and better developer experience
-- 🎨 **Clean Architecture** - Organized code with clear separation of concerns
-- 🔧 **ESLint** - Code linting and formatting
+### 1. Document Upload & Management
+
+**Components:**
+- `DocumentUploadPanel` - Drag-and-drop file upload with base64 encoding
+- `DocumentsList` - Document list with status badges
+- `DocumentViewerModal` - Full-screen document viewer with OCR overlay
+
+**Capabilities:**
+- Upload multiple file formats (PDF, images)
+- Attach custom metadata
+- Select OCR model (prebuilt-layout, custom models)
+- Specify custom workflow for processing
+- Real-time upload progress tracking
+
+### 2. Processing Queue
+
+**Components:**
+- `ProcessingQueue` - Real-time document status monitoring
+- Status badges: pre_ocr, ongoing_ocr, completed_ocr, failed
+
+**Capabilities:**
+- View all documents with current processing status
+- Click to view document details and OCR results
+- Automatic status updates via polling
+- Filter and search documents
+
+### 3. Workflow Builder
+
+**Pages:**
+- `WorkflowListPage` - List all user workflows
+- `WorkflowEditorPage` - Visual workflow graph editor
+
+**Components:**
+- `WorkflowEditor` - React Flow-based graph editor
+- `NodeSelector` - Drag-and-drop node palette  (Future development)
+- Node types: Start, OCR, HTTP Request, Azure Blob Read/Write, Conditional, Transform, Join, End
+
+**Capabilities:**
+- Create custom document processing workflows
+- Visual node-based editing with drag-and-drop (Future development)
+- Configure node parameters (OCR models, HTTP endpoints, conditions, transformations) 
+- Workflow validation and execution via Temporal
+- Save and version workflows
+- Execute workflows on document upload
+
+### 4. Labeling Workspace
+
+**Pages:**
+- `ProjectListPage` - Manage labeling projects
+- `ProjectDetailPage` - Project overview with field schema and document list
+- `LabelingWorkspacePage` - Canvas-based labeling interface
+
+**Components:**
+- Canvas-based bounding box drawing
+- Field schema management (string, number, date, signature, selectionMark)
+- Document navigator
+- Label export for training
+
+**Capabilities:**
+- Create labeling projects with custom field definitions
+- Upload documents to projects
+- Draw bounding boxes for fields on images/PDFs
+- Multi-page document support
+- Label validation
+- Export labeled data for Azure Document Intelligence training
+
+### 5. HITL Review Queue
+
+**Pages:**
+- `ReviewQueuePage` - Queue dashboard with filters and statistics
+- `ReviewWorkspacePage` - Field-by-field review and correction interface
+
+**Capabilities:**
+- Review OCR results with confidence scores
+- Correct field values with action tracking (confirmed, corrected, flagged, deleted)
+- Approve or escalate documents
+- Queue filtering by status and document type
+- Analytics and statistics (accuracy rates, review throughput)
+- Session management
+
+### 6. Settings
+
+**Page:**
+- `SettingsPage` - API key management
+
+**Capabilities:**
+- Generate API keys for programmatic access
+- View API key prefix and creation date
+- Revoke API keys
+- Copy API key to clipboard
+
+## Architecture
+
+### Project Structure
+
+```
+src/
+├── auth/                      # Authentication
+│   ├── AuthContext.tsx        # React context for auth state
+│   └── AuthProvider.tsx       # OIDC provider integration
+│
+├── components/                # Reusable UI components
+│   ├── document/              # Document viewing
+│   ├── queue/                 # Processing queue
+│   ├── upload/                # Upload panel
+│   ├── workflow/              # Workflow editor
+│   └── [shared components]
+│
+├── data/                      # Data layer
+│   ├── hooks/                 # React Query hooks
+│   ├── services/              # API service classes
+│   └── queryClient.ts         # TanStack Query client
+│
+├── features/                  # Feature modules
+│   └── annotation/
+│       ├── core/              # Shared annotation components
+│       ├── labeling/          # Labeling workspace
+│       │   ├── components/
+│       │   └── pages/
+│       └── hitl/              # HITL review
+│           ├── components/
+│           └── pages/
+│
+├── pages/                     # Top-level pages
+│   ├── WorkflowListPage.tsx
+│   ├── WorkflowEditorPage.tsx
+│   └── SettingsPage.tsx
+│
+├── shared/                    # Shared utilities
+│   ├── constants/             # App constants
+│   ├── types/                 # TypeScript types
+│   └── utils/                 # Helper functions
+│
+├── types/                     # Global type definitions
+├── App.tsx                    # Main app shell
+└── main.tsx                   # Application entry point
+```
+
+### State Management
+
+- **Authentication**: React Context (`AuthContext`)
+- **Server State**: TanStack Query for caching and synchronization
+- **Local UI State**: React hooks (`useState`, `useReducer`)
+
+### API Integration
+
+All API calls go through a centralized `ApiService` class with:
+- Automatic Bearer token injection
+- Request/response interceptors
+- Error handling
+- Type-safe response wrappers
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 22+
-- npm 9+
+- **Node.js** 24+ and npm 10+
+- Backend services running on `http://localhost:3002`
+- Keycloak or other OIDC provider configured
 
 ### Installation
 
 ```bash
-# Install dependencies
 npm install
 ```
+
+### Environment Configuration
+
+Create a `.env` file in `apps/frontend/`:
+
+```env
+# API Configuration (empty for Vite proxy in development)
+VITE_API_BASE_URL=
+
+# OIDC Authentication
+VITE_OIDC_AUTHORITY=https://keycloak.example.com/realms/myrealm
+VITE_OIDC_CLIENT_ID=document-intelligence-ui
+VITE_OIDC_REDIRECT_URI=http://localhost:3000
+VITE_OIDC_SCOPE=openid profile email
+
+# Application Configuration
+VITE_APP_NAME=Document Intelligence Platform
+VITE_APP_VERSION=1.0.0
+```
+
+**OIDC Configuration:**
+- `VITE_OIDC_AUTHORITY` - Keycloak realm URL (base URL without `/protocol/openid-connect`)
+- `VITE_OIDC_CLIENT_ID` - Client ID configured in Keycloak
+- `VITE_OIDC_REDIRECT_URI` - Frontend URL for redirect after authentication
+- `VITE_OIDC_SCOPE` - OAuth scopes (typically `openid profile email`)
 
 ### Development
 
 ```bash
-# Start development server
+# Start development server with hot reload
 npm run dev
 ```
 
-The application will be available at `http://localhost:3000`
+The application will be available at `http://localhost:3000`.
 
-### Build
+**Development Proxy:**
+Vite proxies API requests to the backend:
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:3002`
+- API requests to `/api/*` are proxied automatically
+
+This eliminates CORS issues during development.
+
+### Building
 
 ```bash
 # Build for production
 npm run build
-```
 
-### Preview
-
-```bash
-# Preview production build
+# Preview production build locally
 npm run preview
 ```
+
+Production build outputs to `dist/`.
 
 ### Linting
 
 ```bash
-# Run ESLint
+# Run Biome linter
 npm run lint
+
+# Auto-fix linting issues
+npm run lint:fix
 ```
 
-## Environment Variables
+## Key Components
 
-Create a `.env` file in the root directory based on `.env.example`:
+### Document Viewer
+
+**Component:** `DocumentViewerModal`
+
+Full-screen modal for viewing documents with OCR overlays:
+- PDF rendering with `react-pdf`
+- Image display
+- OCR bounding box overlays
+- Key-value pair display
+- Confidence score visualization
+- Multi-page navigation
+
+### Workflow Editor
+
+**Component:** `WorkflowEditor`
+
+Visual graph editor built with React Flow:
+- Drag-and-drop node creation (Future development)
+- Visual edge connections
+- Node configuration panel (Future development)
+- Live validation
+- Auto-layout with Dagre
+- Zoom and pan controls
+
+**Node Types:**
+- **Start** - Entry point with document context
+- **OCR** - Azure Document Intelligence processing
+- **HTTP Request** - External API calls
+- **Azure Blob Read/Write** - Storage operations
+- **Conditional** - Branching logic with expression evaluation
+- **Transform** - Data transformation with JSONata expressions
+- **Join** - Merge multiple branches
+- **End** - Workflow termination
+
+### Labeling Canvas
+
+**Component:** `LabelingWorkspacePage`
+
+Canvas-based labeling interface using React Konva:
+- Select boxes from initial OCR data
+- Associate boxes with field definitions
+- Multi-page document navigation
+- Zoom and pan
+- Label persistence
+
+### Review Workspace
+
+**Component:** `ReviewWorkspacePage`
+
+Field-by-field review interface:
+- Display OCR-extracted fields with confidence scores
+- Edit field values
+- Track correction actions (confirmed, corrected, flagged, deleted)
+- Side-by-side document view with highlighting
+- Session management
+- Approve or escalate documents
+
+## Authentication
+
+The app uses OpenID Connect (OIDC) with `oidc-client-ts`:
+
+1. User clicks "Login"
+2. Redirected to Keycloak/OIDC provider
+3. After successful authentication, redirected back with authorization code
+4. Frontend exchanges code for tokens
+5. Access token stored and used for API requests
+6. Token refresh handled automatically
+
+**Auth Context:**
+- `isAuthenticated` - Auth status
+- `isLoading` - Loading state
+- `user` - User profile (name, email, sub)
+- `login()` - Initiate login flow
+- `logout()` - Clear session and logout
+
+## Styling
+
+- **Mantine UI** - Comprehensive component library
+- **Dark mode** - Default color scheme
+- **CSS Variables** - Mantine theme tokens
+- **Responsive** - Mobile-friendly layouts
+- **Custom CSS** - Component-specific styles in `.css` files
+
+## Best Practices
+
+### Component Guidelines
+
+1. **Functional Components** - Use function components with hooks
+2. **TypeScript** - Always use proper types, avoid `any`
+3. **Props Interface** - Define explicit prop interfaces
+4. **Error Boundaries** - Wrap unstable components
+5. **Lazy Loading** - Code-split large feature modules
+
+### Data Fetching
+
+1. **Use TanStack Query** - For all server state
+2. **Custom Hooks** - Wrap queries in reusable hooks
+3. **Error Handling** - Handle loading, error, and success states
+4. **Cache Invalidation** - Invalidate queries after mutations
+
+### State Management
+
+1. **Local State First** - Use `useState` for component-local state
+2. **React Query** - For server state and caching
+3. **Context Sparingly** - Only for cross-cutting concerns (auth)
+
+## Development Tips
+
+### Adding a New Page
+
+1. Create page component in `src/pages/` or `src/features/*/pages/`
+2. Add navigation item to `App.tsx` nav items
+3. Add route handler in `App.tsx` main content area
+4. Create API hooks in `src/data/hooks/`
+
+### Adding a New Feature Module
+
+1. Create feature directory in `src/features/`
+2. Structure: `components/`, `pages/`, `types/`, `hooks/`
+3. Export public API from `index.ts`
+4. Integrate into main app navigation
+
+### Working with React Flow
+
+- Use `useNodesState` and `useEdgesState` for state management
+- Implement `onNodesChange`, `onEdgesChange`, `onConnect` handlers
+- Custom node types: define in separate files, register in `nodeTypes` prop
+- Use `useReactFlow` hook for imperative API access
+
+### Working with React Konva
+
+- Use `Stage`, `Layer`, `Rect`, `Text` primitives
+- Handle mouse events: `onMouseDown`, `onMouseMove`, `onMouseUp`
+- Maintain separate state for drawing vs. committed shapes
+- Use `transformer` for interactive shape manipulation
+
+## Deployment
+
+### Docker
 
 ```bash
-# API Configuration (leave empty to use Vite proxy in development)
-VITE_API_BASE_URL=
+# Build image
+docker build -t frontend -f Dockerfile .
 
-# Application Configuration
-VITE_APP_NAME=AI OCR Frontend
-VITE_APP_VERSION=1.0.0
+# Run container
+docker run -p 3000:80 frontend
 ```
 
-## Development with Proxy
+The Dockerfile uses nginx to serve the static build.
 
-The development server uses Vite's proxy feature to avoid CORS issues:
+### Environment Variables for Production
 
-- Frontend: `http://localhost:3000`
-- Backend: `http://localhost:3002`
-- API requests to `/api/*` are automatically proxied to the backend
+Set environment variables at build time:
 
-This eliminates CORS issues during development while maintaining clean API calls in the code.
+```bash
+VITE_API_BASE_URL=https://api.example.com \
+VITE_OIDC_AUTHORITY=https://keycloak.example.com/realms/myrealm \
+npm run build
+```
 
-## Architecture Guidelines
+## Troubleshooting
 
-### Data Layer
-- Contains API services and data fetching logic
-- Custom hooks for reusable data operations
-- Centralized error handling and loading states
+### CORS Issues
 
-### UI Layer
-- Pure React components focused on presentation
-- Reusable component library
-- Component composition over inheritance
+In development, ensure Vite proxy is configured in `vite.config.ts`.
+In production, ensure backend CORS settings allow frontend origin.
 
-### Shared Layer
-- Common utilities and helper functions
-- TypeScript type definitions
-- Application constants and configuration
-- Global styles and CSS variables
+### Authentication Issues
 
-## Contributing
+- Verify `VITE_OIDC_*` environment variables
+- Check Keycloak client configuration (allowed redirect URIs)
+- Inspect browser console for OIDC errors
+- Verify backend accepts Bearer tokens
 
-1. Follow the established project structure
-2. Use TypeScript for all new code
-3. Write clear, concise component and function names
-4. Add proper TypeScript types
-5. Run linting before committing
+### Build Errors
+
+- Clear `node_modules` and reinstall: `rm -rf node_modules && npm install`
+- Clear Vite cache: `rm -rf node_modules/.vite`
+- Check TypeScript errors: `npx tsc --noEmit`
+
+### PDF Rendering Issues
+
+Ensure PDF.js worker is correctly configured:
+- Worker loads from CDN by default
+- Verify `vite.config.ts` MIME type configuration
+- Check browser console for worker errors
+
+## License
+
+Apache License 2.0
