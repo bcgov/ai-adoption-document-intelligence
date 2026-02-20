@@ -1,0 +1,435 @@
+import {
+  Badge,
+  Button,
+  Card,
+  Center,
+  Group,
+  Loader,
+  Menu,
+  Modal,
+  Pagination,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  Title,
+} from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import {
+  IconArchive,
+  IconCheck,
+  IconDotsVertical,
+  IconEye,
+  IconShieldCheck,
+  IconUpload,
+} from "@tabler/icons-react";
+import { useState } from "react";
+import { useParams } from "react-router-dom";
+import { apiService } from "@/data/services/api.service";
+import { FileUploadDialog } from "../components/FileUploadDialog";
+import { GroundTruthViewer } from "../components/GroundTruthViewer";
+import { SplitManagement } from "../components/SplitManagement";
+import { ValidationReport } from "../components/ValidationReport";
+import { useDataset } from "../hooks/useDatasets";
+import { useValidateDataset } from "../hooks/useDatasetValidation";
+import {
+  useDatasetSamples,
+  useDatasetVersions,
+} from "../hooks/useDatasetVersions";
+
+export function DatasetDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { dataset, isLoading: isLoadingDataset } = useDataset(id || "");
+  const {
+    versions,
+    isLoading: isLoadingVersions,
+    publishVersion,
+    archiveVersion,
+  } = useDatasetVersions(id || "");
+
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(
+    null,
+  );
+  const [activeTab, setActiveTab] = useState<string>("versions");
+  const [samplePage, setSamplePage] = useState(1);
+  const [
+    groundTruthViewerOpen,
+    { open: openGroundTruthViewer, close: closeGroundTruthViewer },
+  ] = useDisclosure(false);
+  const [selectedGroundTruth, setSelectedGroundTruth] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [validationDialogOpen, setValidationDialogOpen] = useState(false);
+
+  const {
+    samples,
+    totalPages,
+    isLoading: isLoadingSamples,
+  } = useDatasetSamples(id || "", selectedVersionId || "", samplePage, 20);
+
+  const {
+    mutate: validateDataset,
+    data: validationResult,
+    isPending: isValidating,
+  } = useValidateDataset(id || "");
+
+  if (isLoadingDataset || isLoadingVersions) {
+    return (
+      <Center h={400}>
+        <Loader />
+      </Center>
+    );
+  }
+
+  if (!dataset) {
+    return (
+      <Center h={400}>
+        <Stack align="center" gap="sm">
+          <Text c="dimmed">Dataset not found</Text>
+          {id && <Text size="sm" c="dimmed">ID: {id}</Text>}
+        </Stack>
+      </Center>
+    );
+  }
+
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case "draft":
+        return "yellow";
+      case "published":
+        return "green";
+      case "archived":
+        return "gray";
+      default:
+        return "blue";
+    }
+  };
+
+  const handlePublish = (versionId: string) => {
+    publishVersion(versionId);
+  };
+
+  const handleArchive = (versionId: string) => {
+    archiveVersion(versionId);
+  };
+
+  const handleValidate = (versionId: string) => {
+    setValidationDialogOpen(true);
+    validateDataset({ versionId });
+  };
+
+  const handleViewGroundTruth = async (sampleId: string) => {
+    const sample = samples.find((s) => s.id === sampleId);
+    if (sample?.groundTruth?.[0]?.path && selectedVersionId) {
+      try {
+        // Fetch the actual ground truth JSON from the API
+        const response = await apiService.get<{
+          sampleId: string;
+          content: Record<string, unknown>;
+          path: string;
+          format: string;
+        }>(
+          `/benchmark/datasets/${id}/versions/${selectedVersionId}/samples/${sampleId}/ground-truth`,
+        );
+
+        setSelectedGroundTruth(response.data.content);
+        openGroundTruthViewer();
+      } catch (error) {
+        console.error("Error fetching ground truth:", error);
+      }
+    }
+  };
+
+  return (
+    <>
+      <Stack gap="lg">
+        <Stack gap={2}>
+          <Group justify="space-between">
+            <Title order={2} data-testid="dataset-name-title">
+              {dataset.name}
+            </Title>
+            <Button
+              leftSection={<IconUpload size={16} />}
+              onClick={() => setUploadDialogOpen(true)}
+              data-testid="upload-files-btn"
+            >
+              Upload Files
+            </Button>
+          </Group>
+          <Text c="dimmed" size="sm" data-testid="dataset-description">
+            {dataset.description || "No description"}
+          </Text>
+        </Stack>
+
+        <Tabs
+          value={activeTab}
+          onChange={(value) => {
+            setActiveTab(value || "versions");
+            if (value !== "versions") {
+              // Extract versionId from tab value (handle "splits-" prefix)
+              const versionId = value?.startsWith("splits-")
+                ? value.substring(7)
+                : value;
+              if (versionId && versionId !== selectedVersionId) {
+                setSelectedVersionId(versionId);
+                setSamplePage(1);
+              }
+            } else {
+              setSelectedVersionId(null);
+              setSamplePage(1);
+            }
+          }}
+        >
+          <Tabs.List>
+            <Tabs.Tab value="versions" data-testid="versions-tab">
+              Versions ({versions.length})
+            </Tabs.Tab>
+            {selectedVersionId && (
+              <Tabs.Tab value={selectedVersionId} data-testid="sample-preview-tab">
+                Sample Preview
+              </Tabs.Tab>
+            )}
+            {selectedVersionId && (
+              <Tabs.Tab value={`splits-${selectedVersionId}`} data-testid="splits-tab">
+                Splits
+              </Tabs.Tab>
+            )}
+          </Tabs.List>
+
+          <Tabs.Panel value="versions" pt="md">
+            {versions.length === 0 ? (
+              <Card>
+                <Center>
+                  <Stack align="center" gap="md">
+                    <Text c="dimmed" data-testid="no-versions-message">No versions yet</Text>
+                    <Text size="sm" c="dimmed">
+                      Upload files to create a new version
+                    </Text>
+                  </Stack>
+                </Center>
+              </Card>
+            ) : (
+              <Table striped highlightOnHover data-testid="versions-table">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Version</Table.Th>
+                    <Table.Th>Status</Table.Th>
+                    <Table.Th>Documents</Table.Th>
+                    <Table.Th>Git Revision</Table.Th>
+                    <Table.Th>Published</Table.Th>
+                    <Table.Th>Created</Table.Th>
+                    <Table.Th>Actions</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {versions.map((version) => (
+                    <Table.Tr
+                      key={version.id}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => {
+                        setSelectedVersionId(version.id);
+                        setActiveTab(version.id);
+                      }}
+                      data-testid={`version-row-${version.id}`}
+                    >
+                      <Table.Td>{version.version}</Table.Td>
+                      <Table.Td>
+                        <Badge
+                          color={getStatusBadgeColor(version.status)}
+                          data-testid={`version-status-badge-${version.id}`}
+                        >
+                          {version.status}
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td>{version.documentCount}</Table.Td>
+                      <Table.Td>{version.gitRevision.substring(0, 8)}</Table.Td>
+                      <Table.Td>
+                        {version.publishedAt
+                          ? new Date(version.publishedAt).toLocaleDateString()
+                          : "-"}
+                      </Table.Td>
+                      <Table.Td>
+                        {new Date(version.createdAt).toLocaleDateString()}
+                      </Table.Td>
+                      <Table.Td onClick={(e) => e.stopPropagation()}>
+                        <Menu position="bottom-end">
+                          <Menu.Target>
+                            <Button size="xs" variant="subtle" data-testid={`version-actions-btn-${version.id}`}>
+                              <IconDotsVertical size={16} />
+                            </Button>
+                          </Menu.Target>
+                          <Menu.Dropdown>
+                            <Menu.Item
+                              leftSection={<IconEye size={16} />}
+                              onClick={() => {
+                                setSelectedVersionId(version.id);
+                                setActiveTab(version.id);
+                              }}
+                              data-testid={`view-samples-menu-item-${version.id}`}
+                            >
+                              View Samples
+                            </Menu.Item>
+                            <Menu.Item
+                              leftSection={<IconShieldCheck size={16} />}
+                              onClick={() => handleValidate(version.id)}
+                              data-testid={`validate-menu-item-${version.id}`}
+                            >
+                              Validate
+                            </Menu.Item>
+                            {version.status === "draft" && (
+                              <Menu.Item
+                                leftSection={<IconCheck size={16} />}
+                                onClick={() => handlePublish(version.id)}
+                                data-testid={`publish-menu-item-${version.id}`}
+                              >
+                                Publish
+                              </Menu.Item>
+                            )}
+                            {version.status === "published" && (
+                              <Menu.Item
+                                leftSection={<IconArchive size={16} />}
+                                onClick={() => handleArchive(version.id)}
+                                data-testid={`archive-menu-item-${version.id}`}
+                              >
+                                Archive
+                              </Menu.Item>
+                            )}
+                          </Menu.Dropdown>
+                        </Menu>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            )}
+          </Tabs.Panel>
+
+          {selectedVersionId && (
+            <Tabs.Panel value={selectedVersionId} pt="md">
+              <Stack gap="md">
+                {isLoadingSamples ? (
+                  <Center h={200}>
+                    <Loader />
+                  </Center>
+                ) : samples.length === 0 ? (
+                  <Card>
+                    <Center>
+                      <Text c="dimmed" data-testid="no-samples-message">No samples found</Text>
+                    </Center>
+                  </Card>
+                ) : (
+                  <>
+                    <Table striped highlightOnHover data-testid="samples-table">
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>Sample ID</Table.Th>
+                          <Table.Th>Input Files</Table.Th>
+                          <Table.Th>Ground Truth</Table.Th>
+                          <Table.Th>Metadata</Table.Th>
+                          <Table.Th>Actions</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {samples.map((sample) => (
+                          <Table.Tr key={sample.id} data-testid={`sample-row-${sample.id}`}>
+                            <Table.Td>{sample.id}</Table.Td>
+                            <Table.Td>
+                              {sample.inputs.map((input, idx) => (
+                                <Text key={idx} size="sm">
+                                  {input.path}
+                                </Text>
+                              ))}
+                            </Table.Td>
+                            <Table.Td>
+                              {sample.groundTruth.map((gt, idx) => (
+                                <Text key={idx} size="sm">
+                                  {gt.path}
+                                </Text>
+                              ))}
+                            </Table.Td>
+                            <Table.Td>
+                              {sample.metadata ? (
+                                <Text size="sm" c="dimmed">
+                                  {Object.keys(sample.metadata).length} field(s)
+                                </Text>
+                              ) : (
+                                "-"
+                              )}
+                            </Table.Td>
+                            <Table.Td>
+                              <Button
+                                size="xs"
+                                variant="subtle"
+                                leftSection={<IconEye size={14} />}
+                                onClick={() => handleViewGroundTruth(sample.id)}
+                                data-testid={`view-ground-truth-btn-${sample.id}`}
+                              >
+                                View
+                              </Button>
+                            </Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+
+                    {totalPages > 1 && (
+                      <Center>
+                        <Pagination
+                          value={samplePage}
+                          onChange={setSamplePage}
+                          total={totalPages}
+                          data-testid="samples-pagination"
+                        />
+                      </Center>
+                    )}
+                  </>
+                )}
+              </Stack>
+            </Tabs.Panel>
+          )}
+
+          {selectedVersionId && (
+            <Tabs.Panel value={`splits-${selectedVersionId}`} pt="md">
+              <SplitManagement
+                datasetId={id || ""}
+                versionId={selectedVersionId}
+                samples={samples}
+              />
+            </Tabs.Panel>
+          )}
+        </Tabs>
+      </Stack>
+
+      <FileUploadDialog
+        datasetId={id || ""}
+        opened={uploadDialogOpen}
+        onClose={() => setUploadDialogOpen(false)}
+      />
+
+      <GroundTruthViewer
+        groundTruth={selectedGroundTruth}
+        opened={groundTruthViewerOpen}
+        onClose={closeGroundTruthViewer}
+      />
+
+      <Modal
+        opened={validationDialogOpen}
+        onClose={() => setValidationDialogOpen(false)}
+        title="Dataset Validation Report"
+        size="xl"
+      >
+        {isValidating ? (
+          <Center h={200}>
+            <Loader />
+          </Center>
+        ) : validationResult?.data ? (
+          <ValidationReport validation={validationResult.data} />
+        ) : (
+          <Text c="dimmed">No validation results available</Text>
+        )}
+      </Modal>
+    </>
+  );
+}

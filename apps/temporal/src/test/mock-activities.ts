@@ -27,6 +27,15 @@ interface OCRWorkflowInput {
   modelId?: string;
 }
 
+interface OCRWorkflowInput {
+  documentId: string;
+  binaryData?: string;
+  fileName?: string;
+  fileType?: string;
+  contentType?: string;
+  modelId?: string;
+}
+
 const MINIMAL_SPAN: Span = { offset: 0, length: 1 };
 const MINIMAL_WORD: Word = {
   content: 'test',

@@ -34,3 +34,25 @@ export { classifyDocument } from './activities/classify-document';
 export { validateDocumentFields } from './activities/document-validate-fields';
 export { splitAndClassifyDocument } from './activities/split-and-classify-document';
 export { combineSegmentResult } from './activities/combine-segment-result';
+
+// Benchmark activities
+export { benchmarkEvaluate, benchmarkAggregate } from './activities/benchmark-evaluate';
+export type {
+  BenchmarkEvaluateInput,
+  BenchmarkAggregateInput,
+} from './activities/benchmark-evaluate';
+
+export { benchmarkLogToMlflow, benchmarkCleanup } from './activities/benchmark-logging';
+export type {
+  BenchmarkLogToMlflowInput,
+  BenchmarkCleanupInput,
+} from './activities/benchmark-logging';
+
+export { benchmarkUpdateRunStatus } from './activities/benchmark-update-run';
+export type { BenchmarkUpdateRunStatusInput } from './activities/benchmark-update-run';
+
+export { benchmarkCompareAgainstBaseline } from './activities/benchmark-baseline-comparison';
+export type { BenchmarkBaselineComparisonInput } from './activities/benchmark-baseline-comparison';
+
+export { materializeDataset, loadDatasetManifest } from './activities/benchmark-materialize';
+export type { DatasetManifest } from './activities/benchmark-materialize';

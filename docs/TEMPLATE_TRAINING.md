@@ -660,6 +660,135 @@ Response:
 }
 ```
 
+### Labeling Data Flow (prebuilt-layout -> labels.json)
+
+This section documents how OCR output is used in the labeling UI and how user selections are converted into training labels.
+
+#### 1) What is rendered in the labeling canvas
+
+From `labeling_document.ocr_result.analyzeResult.pages`, the UI renders:
+
+- `pages[].words[]`: text OCR elements (content, polygon, span, confidence)
+- `pages[].selectionMarks[]`: checkbox OCR elements (state, polygon, span, confidence)
+
+The user selects a target field first, then clicks OCR elements on the canvas/PDF overlay.
+
+#### 2) What gets saved when the user labels
+
+When the user saves labels, each selected OCR element is sent as one label item:
+
+```json
+{
+  "field_key": "invoice_number",
+  "label_name": "invoice_number",
+  "value": "INV-12345",
+  "page_number": 1,
+  "bounding_box": {
+    "polygon": [100, 200, 200, 200, 200, 220, 100, 220],
+    "span": { "offset": 1234, "length": 8 }
+  }
+}
+```
+
+For selection marks, `value` is `"selected"` or `"unselected"` based on the OCR mark state.
+
+These records are stored in `document_labels` and later exported for training.
+
+#### 2.1) Auto-suggestions (semi-automatic first pass)
+
+The labeling workspace now supports suggestion loading to reduce first-document clicks:
+
+- Auto-load suggestions once on initial page load only when there are no saved labels.
+- Manual actions:
+  - `Load suggestions`: regenerate and apply suggestions.
+  - `Reset`: clear current in-memory assignments.
+
+**Note:** The suggestion system uses **default heuristics only** (no configuration UI). The current implementation is **brittle and tuned for SDPR forms**. Making it more generic is a **TODO**. Also, `fields.json` generation is currently done manually or with VLM as a beginner for SDPR case - standardizing this process is a **TODO**.
+
+Suggestions are applied to the same assignment state used by manual clicks, so highlighted boxes look identical to user-selected boxes.
+
+**How the suggestion system works:**
+
+The suggestion engine (`SuggestionService`) processes OCR data in three phases:
+
+1. **Selection marks** (checkboxes): Maps `FieldType.selectionMark` fields to selection marks by schema `display_order` (first field → first mark, second → second, etc.). Marks are sorted by page then `span.offset` (reading order). Output: `{ field_key, value: "selected"|"unselected", element_ids: [markId] }`.
+
+2. **Key-value pairs** (labeled fields): Processes `analyzeResult.keyValuePairs` in **document order**. For each pair:
+   - Generates field aliases from field key (e.g. `spouse_name` → `["spouse_name", "spouse name", "name", "spouse"]`). Special cases: `sin`/`spouse_sin` get "social insurance number" aliases; `phone`/`spouse_phone` get "telephone" alias.
+   - Scores each unassigned field's aliases against OCR key using text matching (exact=1.0, substring=0.8, token overlap=Jaccard). Minimum score: 0.45.
+   - Assigns pair to best matching field (tie-break: longer alias, then schema order). This ensures repeated keys (e.g. "Date", "Social Insurance Number") assign first occurrence → first field, second → second field.
+   - Matches words in value region: prefers **span-based matching** (if value has `spans`) to include all value words; falls back to polygon IoU. **Only uses value region** (never key region). **Skips if value is empty**.
+   - Output: `{ field_key, value, element_ids: [wordIds...], source_type: "keyValuePair" }`.
+
+3. **Table cells** (numeric values): Processes `FieldType.number` fields. For each field:
+   - Infers row/column from field key: `applicant_workers_compensation` → row "workers compensation", column "Applicant".
+   - Finds matching table: scores column headers (threshold 0.4), scores row headers (threshold 0.4, normalizes apostrophes). Gets value cell at intersection.
+   - Matches words in value cell: uses IoU > 0.05 OR containment ≥ 0.5 (for small words like "0" in large cells). **Excludes currency-only words** (`$`, `€`, `£`, `¥`).
+   - Output: `{ field_key, value, element_ids: [wordIds...], source_type: "tableCellToWords" }`.
+
+All suggestions are sorted by `page_number`, then `span.offset` (reading order). Words/selection marks are marked as "used" after assignment to prevent reuse.
+
+**Text normalization:** Lowercase, remove apostrophes (`'` → removed), strip non-alphanumeric to spaces, collapse whitespace. This enables matching like "Worker's Compensation" → "workers compensation".
+
+**Debugging:** Set `LOG_LEVEL=debug` to see detailed logs: `[suggestFromTables]`, `[findTableCellMatch]`, `[matchWordsInRegion]` show matching decisions and scores.
+
+#### 2.2) Field list filtering
+
+The labeling Fields panel includes a search box above the field list:
+
+- The filter matches against `fieldKey` (case-insensitive, partial match).
+- Filtering only changes the visible field list in the side panel; OCR overlays and assignments are unchanged.
+- If the currently selected field is filtered out, selection is cleared to avoid accidental assignment to a hidden field.
+
+Suggestion source behavior:
+
+- Key-value fields: from `analyzeResult.keyValuePairs`, mapped to existing word boxes.
+  - Only the **value** bounding region is used; the key region is never used for assigning words (so the key label text is never suggested as the value).
+  - When the KVP value has **spans** (character offset/length), words are matched by span overlap so multi-line or large value regions (e.g. "Explain changes") include all value words, not only those overlapping the value polygon.
+  - Suggestions are **skipped when the value has no content** (e.g. empty "Spouse signature" when there is no spouse).
+  - For field key `sin`, default key aliases include "social insurance number", "sin number", and "sin #" so OCR keys like "Social Insurance Number" match.
+  - **Document order**: Key–value pairs are processed in the order they appear in the OCR (document order). For each pair, the best matching **unassigned** field is chosen (by score, then longest matching alias, then schema order). So repeated keys (e.g. "Date (yyyy-mmm-dd)", "Social Insurance Number") assign first occurrence to the first matching field in the schema (`date`, `sin`), second to the next (`spouse_date`, `spouse_sin`). Same for "Applicant Print Name" / "Spouse Print Name" → `name` then `spouse_name`.
+  - **Aliases**: `spouse_sin` gets the same SIN aliases as `sin` (e.g. "social insurance number"). Fields ending in `phone` get alias "telephone" so "Spouse Telephone" matches `spouse_phone`.
+- Checkbox fields: from ordered `pages[].selectionMarks[]`, mapped by field schema order.
+- Table numeric fields: table cells are detected from `analyzeResult.tables[].cells`, then mapped to overlapping words from `pages[].words[]` (the UI still selects/highlights only words and selection marks). Row header text is normalized so apostrophes are removed (e.g. "Worker's Compensation" matches the inferred row label "workers compensation" from field key `applicant_workers_compensation`). Words are included if they overlap the cell (IoU) or if they are **contained** in the cell (word area overlap &gt; 50%), so small values like "$ 0" inside large cells are matched. Words that are only currency symbols (e.g. "$", "€", "£", "¥") are excluded from the suggested value and element_ids so the stored value is just the number. For suggestion debugging, set log level to `debug` (e.g. `LOG_LEVEL=debug`) and check `SuggestionService` and `[suggestFromTables]` / `[findTableCellMatch]` / `[matchWordsInRegion]` messages.
+
+#### 3) How saved labels are exported to training format
+
+During export:
+
+- Labels are grouped by `field_key`
+- Entries are sorted by page and OCR `span.offset` to preserve reading order
+- Bounding polygons are normalized by page width/height when available
+- Selection mark values are converted:
+  - `"selected"` -> `":selected:"`
+  - `"unselected"` -> `":unselected:"`
+
+Resulting per-document training file shape:
+
+```json
+{
+  "document": "invoice-001.pdf",
+  "labels": [
+    {
+      "label": "invoice_number",
+      "value": [
+        {
+          "page": 1,
+          "text": "INV-12345",
+          "boundingBoxes": [[0.10, 0.25, 0.20, 0.25, 0.20, 0.28, 0.10, 0.28]]
+        }
+      ]
+    }
+  ]
+}
+```
+
+This `*.labels.json` is uploaded together with:
+
+- original document file
+- `${filename}.ocr.json` (raw prebuilt-layout OCR output)
+- `fields.json` (project field schema)
+
 ### Azure Blob Storage Format
 
 **Container Structure**:
@@ -723,6 +852,23 @@ training-{projectId}/
 ```
 
 ## Configuration
+
+### Seeded Template Project
+
+Prisma seeding includes a predefined labeling project for template training:
+
+- **Project name**: `SDPR monthly report template`
+- **Seed source**: `apps/shared/prisma/seed.ts`
+- **Seeded data**:
+  - Creates/updates the `LabelingProject`
+  - Creates/updates the full SDPR monthly report `FieldDefinition` schema
+  - Removes stale field definitions for that seeded project so reruns stay consistent
+
+Run from `apps/backend-services`:
+
+```bash
+npm run db:seed
+```
 
 ### Environment Variables
 

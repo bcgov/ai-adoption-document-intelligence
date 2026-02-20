@@ -387,6 +387,21 @@ const StaggerLabelEdge = memo(function StaggerLabelEdge(props: EdgeProps) {
     data,
   } = props;
 
+<<<<<<< HEAD
+=======
+  // biome-ignore lint/security/noSecrets: not a secret
+  console.log("[StaggerLabelEdge] render", {
+    id,
+    label,
+    hasLabel: !!label,
+    data,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+  });
+
+>>>>>>> 064655a (linting and ts fixes)
   const [edgePath, defaultLabelX, defaultLabelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -415,6 +430,21 @@ const StaggerLabelEdge = memo(function StaggerLabelEdge(props: EdgeProps) {
     y = sourceY + dy * t;
   }
 
+<<<<<<< HEAD
+=======
+  // biome-ignore lint/security/noSecrets: not a secret
+  console.log("[StaggerLabelEdge] label position", {
+    id,
+    fraction,
+    distPx,
+    x,
+    y,
+    defaultLabelX,
+    defaultLabelY,
+    renderingLabel: !!label,
+  });
+
+>>>>>>> 064655a (linting and ts fixes)
   const labelStyleObj = labelStyle as
     | { fill?: string; fontSize?: number; fontWeight?: number }
     | undefined;
@@ -1468,19 +1498,51 @@ export function GraphVisualization({
     );
     const hasNodeGroups =
       config.nodeGroups && Object.keys(config.nodeGroups).length > 0;
+<<<<<<< HEAD
 
     // Priority 1: Hybrid view - simplified groups + detailed map containers
     if (viewMode === "simplified" && hasNodeGroups) {
+=======
+
+    // biome-ignore lint/security/noSecrets: not a secret
+    console.log("[GraphVisualization] Render decision:", {
+      viewMode,
+      hasMapNodes,
+      hasNodeGroups,
+      nodeCount: Object.keys(config.nodes).length,
+    });
+
+    // Priority 1: Hybrid view - simplified groups + detailed map containers
+    if (viewMode === "simplified" && hasNodeGroups) {
+      console.log(
+        // biome-ignore lint/security/noSecrets: not a secret
+        "[GraphVisualization] Using hybrid view: simplified groups + detailed map containers",
+      );
+>>>>>>> 064655a (linting and ts fixes)
       if (hasMapNodes) {
         return finalize(buildHybridView(config, errorNodeIds), {
           staggerLabels: true,
         });
       }
+<<<<<<< HEAD
+=======
+      console.log(
+        // biome-ignore lint/security/noSecrets: not a secret
+        "[GraphVisualization] Using simplified view with groups (no map containers)",
+      );
+>>>>>>> 064655a (linting and ts fixes)
       return finalize(buildSimplifiedView(config, errorNodeIds));
     }
 
     // Priority 2: Detailed view with map containers
     if (hasMapNodes) {
+<<<<<<< HEAD
+=======
+      console.log(
+        // biome-ignore lint/security/noSecrets: not a secret
+        "[GraphVisualization] Using detailed view with map containers",
+      );
+>>>>>>> 064655a (linting and ts fixes)
       return finalize(
         buildDetailedViewWithMapContainers(config, errorNodeIds),
         { staggerLabels: true },

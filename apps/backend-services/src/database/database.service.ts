@@ -135,7 +135,11 @@ export class DatabaseService {
 
   async updateLabelingProject(
     id: string,
-    data: { name?: string; description?: string; status?: ProjectStatus },
+    data: {
+      name?: string;
+      description?: string;
+      status?: ProjectStatus;
+    },
   ): Promise<LabelingProjectData | null> {
     return this.labelingProjectDb.updateLabelingProject(id, data);
   }

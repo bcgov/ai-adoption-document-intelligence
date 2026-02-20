@@ -27,6 +27,11 @@ import {
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
+<<<<<<< HEAD
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import { DatabaseService, DocumentData } from "../database/database.service";
+=======
+>>>>>>> 064655a (linting and ts fixes)
 import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";

@@ -22,6 +22,14 @@ import {
   storeDocumentRejection,
   getWorkflowGraphConfig,
   enrichResults,
+  benchmarkEvaluate,
+  benchmarkAggregate,
+  benchmarkLogToMlflow,
+  benchmarkCleanup,
+  benchmarkUpdateRunStatus,
+  benchmarkCompareAgainstBaseline,
+  materializeDataset,
+  loadDatasetManifest,
 } from "./activities";
 import { splitDocument } from "./activities/split-document";
 import { classifyDocument } from "./activities/classify-document";
@@ -181,6 +189,72 @@ register({
   defaultTimeout: "10s",
   defaultRetry: { maximumAttempts: 1 },
   description: "Combine segment metadata with OCR result for join collection",
+});
+
+// -- Benchmark activities ---------------------------------------------------
+
+register({
+  activityType: "benchmark.evaluate",
+  activityFn: benchmarkEvaluate as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "10m",
+  defaultRetry: { maximumAttempts: 2 },
+  description: "Evaluate benchmark run results against ground truth",
+});
+
+register({
+  activityType: "benchmark.aggregate",
+  activityFn: benchmarkAggregate as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "5m",
+  defaultRetry: { maximumAttempts: 3 },
+  description: "Aggregate evaluation results into summary metrics",
+});
+
+register({
+  activityType: "benchmark.logToMlflow",
+  activityFn: benchmarkLogToMlflow as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "10m",
+  defaultRetry: { maximumAttempts: 3 },
+  description: "Log metrics and artifacts to MLflow",
+});
+
+register({
+  activityType: "benchmark.cleanup",
+  activityFn: benchmarkCleanup as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "5m",
+  defaultRetry: { maximumAttempts: 2 },
+  description: "Clean up temporary files and materialized datasets",
+});
+
+register({
+  activityType: "benchmark.updateRunStatus",
+  activityFn: benchmarkUpdateRunStatus as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 5 },
+  description: "Update benchmark run status in database",
+});
+
+register({
+  activityType: "benchmark.compareAgainstBaseline",
+  activityFn: benchmarkCompareAgainstBaseline as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "1m",
+  defaultRetry: { maximumAttempts: 3 },
+  description: "Compare run metrics against baseline and detect regressions",
+});
+
+register({
+  activityType: "benchmark.materializeDataset",
+  activityFn: materializeDataset as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "30m",
+  defaultRetry: { maximumAttempts: 2 },
+  description: "Materialize dataset version from DVC",
+});
+
+register({
+  activityType: "benchmark.loadManifest",
+  activityFn: loadDatasetManifest as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "1m",
+  defaultRetry: { maximumAttempts: 3 },
+  description: "Load dataset manifest from materialized data",
 });
 
 // ---------------------------------------------------------------------------

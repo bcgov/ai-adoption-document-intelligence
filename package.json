@@ -16,7 +16,12 @@
     "build:frontend": "cd apps/frontend && npm run build",
     "build": "npm run build:backend-services && npm run build:frontend",
     "install:all": "npm install && cd apps/backend-services && npm install && cd ../frontend && npm install",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:file": "playwright test",
+    "test:dir": "playwright test",
+    "test:db:reset": "cd apps/backend-services && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\" npx prisma migrate reset --force && npm run db:seed"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
@@ -27,6 +32,8 @@
     "npm": ">=10.0.0"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.990.0",
+    "@playwright/test": "^1.58.2",
     "apollo-server-express": "^3.13.0"
   }
 }

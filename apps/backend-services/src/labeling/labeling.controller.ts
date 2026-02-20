@@ -28,6 +28,7 @@ import {
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
+import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { LabelingService } from "./labeling.service";
 
 interface AuthenticatedRequest {
@@ -306,6 +307,25 @@ export class LabelingController {
     @Param("docId") documentId: string,
   ) {
     return this.labelingService.getDocumentOcr(projectId, documentId);
+  }
+
+  @Post("projects/:id/documents/:docId/suggestions")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary:
+      "Generate label suggestions mapped to existing words/selection marks",
+  })
+  @ApiParam({ name: "id", description: "Project ID" })
+  @ApiParam({ name: "docId", description: "Document ID" })
+  async generateDocumentSuggestions(
+    @Param("id") projectId: string,
+    @Param("docId") documentId: string,
+  ): Promise<LabelSuggestionDto[]> {
+    return this.labelingService.generateDocumentSuggestions(
+      projectId,
+      documentId,
+    );
   }
 
   // ========== EXPORT ENDPOINTS ==========

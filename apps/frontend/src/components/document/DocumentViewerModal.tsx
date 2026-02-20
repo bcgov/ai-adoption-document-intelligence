@@ -14,7 +14,7 @@ import {
   IconFileDownload,
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
-import { useAuth } from "../../auth/AuthContext";
+import { useAuth } from "../../auth/useAuth";
 import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
 import { Document, DocumentField, ExtractedFields } from "../../shared/types";
 import { DocumentValidation } from "./DocumentValidation";

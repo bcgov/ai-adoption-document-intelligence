@@ -21,6 +21,22 @@ const graphConfig: GraphWorkflowConfig = {
   edges: [],
 };
 
+const graphConfig: GraphWorkflowConfig = {
+  schemaVersion: "1.0",
+  metadata: { description: "Test graph" },
+  entryNodeId: "start",
+  ctx: { documentId: { type: "string" } },
+  nodes: {
+    start: {
+      id: "start",
+      type: "activity",
+      label: "Start",
+      activityType: "document.updateStatus",
+    },
+  },
+  edges: [],
+};
+
 // Mock Temporal client
 jest.mock("@temporalio/client", () => {
   const mockWorkflowHandle = {

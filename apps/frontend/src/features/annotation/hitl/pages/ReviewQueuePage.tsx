@@ -19,17 +19,13 @@ import {
   IconEye,
 } from "@tabler/icons-react";
 import { FC, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { HITL_MAX_CONFIDENCE } from "@/shared/constants";
 import type { QueueDocument } from "../hooks/useReviewQueue";
 import { useReviewQueue } from "../hooks/useReviewQueue";
 
-interface ReviewQueuePageProps {
-  onStartSession?: (sessionId: string, readOnly?: boolean) => void;
-}
-
-export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
-  onStartSession,
-}) => {
+export const ReviewQueuePage: FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string | null>("pending");
 
   const pendingQueue = useReviewQueue({
@@ -74,11 +70,11 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
   ) => {
     try {
       if (readOnly) {
-        onStartSession?.(documentId, true);
+        navigate(`/review/${documentId}?readOnly=true`);
       } else {
         const session = await activeQueue.startSessionAsync(documentId);
         if (session?.id) {
-          onStartSession?.(session.id, false);
+          navigate(`/review/${session.id}`);
         }
       }
     } catch {

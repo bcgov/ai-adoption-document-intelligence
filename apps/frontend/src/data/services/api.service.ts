@@ -28,6 +28,15 @@ class ApiService {
         ) {
           config.headers.Authorization = `Bearer ${this.authToken}`;
         }
+
+        // Add x-api-key header for test/development mode
+        // This allows the backend's ApiKeyAuthGuard to authenticate requests
+        // when NODE_ENV=test on the backend
+        const testApiKey = import.meta.env.VITE_TEST_API_KEY;
+        if (testApiKey && config.headers) {
+          config.headers["x-api-key"] = testApiKey;
+        }
+
         return config;
       },
       (error) => Promise.reject(error),
@@ -49,15 +58,17 @@ class ApiService {
   }
 
   private async request<T>(
-    method: "GET" | "POST" | "PUT" | "DELETE",
+    method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
     endpoint: string,
     data?: unknown,
+    config?: Record<string, unknown>,
   ): Promise<ApiResponse<T>> {
     try {
       const response: AxiosResponse<T> = await this.axiosInstance({
         method,
         url: endpoint,
         data,
+        ...config,
       });
 
       return {
@@ -65,25 +76,44 @@ class ApiService {
         success: true,
       };
     } catch (error) {
-      // Error handling - logging removed for lint compliance
+      // Extract error message from axios error response
+      let message = "Unknown error";
+      if (axios.isAxiosError(error) && error.response?.data) {
+        // Backend returns error in format: { message: "error message", ... }
+        message = error.response.data.message || error.message;
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
+
       return {
         data: null as T,
         success: false,
-        message: error instanceof Error ? error.message : "Unknown error",
+        message,
       };
     }
   }
 
-  async get<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>("GET", endpoint);
+  async get<T>(
+    endpoint: string,
+    config?: Record<string, unknown>,
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>("GET", endpoint, undefined, config);
   }
 
-  async post<T>(endpoint: string, data: unknown): Promise<ApiResponse<T>> {
-    return this.request<T>("POST", endpoint, data);
+  async post<T>(
+    endpoint: string,
+    data: unknown,
+    config?: Record<string, unknown>,
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>("POST", endpoint, data, config);
   }
 
   async put<T>(endpoint: string, data: unknown): Promise<ApiResponse<T>> {
     return this.request<T>("PUT", endpoint, data);
+  }
+
+  async patch<T>(endpoint: string, data: unknown): Promise<ApiResponse<T>> {
+    return this.request<T>("PATCH", endpoint, data);
   }
 
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {

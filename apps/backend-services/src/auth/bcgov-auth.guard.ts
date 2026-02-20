@@ -92,7 +92,10 @@ export class BCGovAuthGuard implements CanActivate {
     );
     const apiKeyHeader = request.headers["x-api-key"];
 
-    if (allowApiKeyAuth && apiKeyHeader) {
+    // In test mode, allow API key auth on all endpoints if x-api-key header is present
+    const isTestMode = this.configService.get<string>("NODE_ENV") === "test";
+
+    if ((allowApiKeyAuth || isTestMode) && apiKeyHeader) {
       // Skip bearer token validation - API key guard will handle it
       return true;
     }

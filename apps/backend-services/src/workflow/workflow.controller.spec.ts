@@ -25,6 +25,23 @@ const mockGraphConfig: GraphWorkflowConfig = {
   edges: [],
 };
 
+const mockGraphConfig: GraphWorkflowConfig = {
+  schemaVersion: "1.0",
+  metadata: { description: "Test graph" },
+  entryNodeId: "start",
+  ctx: { documentId: { type: "string" } },
+  nodes: {
+    start: {
+      id: "start",
+      type: "activity",
+      label: "Start",
+      activityType: "document.updateStatus",
+      inputs: [{ port: "documentId", ctxKey: "documentId" }],
+    },
+  },
+  edges: [],
+};
+
 const mockWorkflowInfo: WorkflowInfo = {
   id: "wf-1",
   name: "Test Workflow",

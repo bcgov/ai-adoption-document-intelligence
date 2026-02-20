@@ -1,0 +1,306 @@
+{
+  "fields": [
+    {
+      "fieldKey": "checkbox_need_assistance_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_need_assistance_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_family_assets_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_family_assets_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_shelter_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_shelter_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_dependants_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_dependants_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_employment_changes_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_employment_changes_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_employment_changes_spouse_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_employment_changes_spouse_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_school_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_school_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_school_spouse_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_school_spouse_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_work_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_work_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_work_souse_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_work_souse_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_moved_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_moved_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_moved_spouse_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_moved_spouse_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_warrant_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_warrant_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_warrant_spouse_yes",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "checkbox_warrant_spouse_no",
+      "fieldType": "selectionMark"
+    },
+    {
+      "fieldKey": "explain_changes",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "signature",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "spouse_signature",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "date",
+      "fieldType": "date",
+      "fieldFormat": "dmy"
+    },
+    {
+      "fieldKey": "spouse_date",
+      "fieldType": "date",
+      "fieldFormat": "dmy"
+    },
+    {
+      "fieldKey": "name",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "spouse_name",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "phone",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "spouse_phone",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "sin",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "spouse_sin",
+      "fieldType": "string"
+    },
+    {
+      "fieldKey": "applicant_net_employment_income",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_employment_insurance",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_spousal_support_alimony",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_child_support",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_workbc_financial_support",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_student_funding_loans_bursaries",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_rental_income",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_room_board_income",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_workers_compensation",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_private_pensions_retirement_disability",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_oas_gis",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_trust_income",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_canada_pension_plan_cpp",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_tax_credits_gst_credit",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_child_tax_benefits",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_income_tax_refund",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_other_income_money_received",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "applicant_income_of_dependent_children",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_net_employment_income",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_employment_insurance",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_spousal_support_alimony",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_child_support",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_workbc_financial_support",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_student_funding_loans_bursaries",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_rental_income",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_room_board_income",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_workers_compensation",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_private_pensions_retirement_disability",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_oas_gis",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_trust_income",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_canada_pension_plan_cpp",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_tax_credits_gst_credit",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_child_tax_benefits",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income_tax_refund",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_other_income_money_received",
+      "fieldType": "number"
+    },
+    {
+      "fieldKey": "spouse_income_of_dependent_children",
+      "fieldType": "number"
+    }
+  ]
+}

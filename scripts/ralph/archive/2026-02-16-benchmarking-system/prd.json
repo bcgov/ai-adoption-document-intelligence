@@ -1,0 +1,260 @@
+{
+  "mode": "test-fixer",
+  "testFolder": "benchmarking",
+  "featureDir": "feature-docs/003-benchmarking-system/",
+  "progressFile": "feature-docs/003-benchmarking-system/playwright/test-fixer-progress.md",
+  "testFiles": [
+    {
+      "id": "advanced-features.spec.ts",
+      "file": "tests/e2e/benchmarking/advanced-features.spec.ts",
+      "passes": true,
+      "notes": "Test passing"
+    },
+    {
+      "id": "artifact-viewer.spec.ts",
+      "file": "tests/e2e/benchmarking/artifact-viewer.spec.ts",
+      "passes": true,
+      "notes": "Test passing"
+    },
+    {
+      "id": "baseline-comparison.spec.ts",
+      "file": "tests/e2e/benchmarking/baseline-comparison.spec.ts",
+      "passes": true,
+      "notes": "Test passing"
+    },
+    {
+      "id": "baseline-promotion.spec.ts",
+      "file": "tests/e2e/benchmarking/baseline-promotion.spec.ts",
+      "passes": true,
+      "notes": "Test passing"
+    },
+    {
+      "id": "baseline-ui-display.spec.ts",
+      "file": "tests/e2e/benchmarking/baseline-ui-display.spec.ts",
+      "passes": true,
+      "notes": "Test passing"
+    },
+    {
+      "id": "dataset-list-create.spec.ts",
+      "file": "tests/e2e/benchmarking/dataset-list-create.spec.ts",
+      "passes": true,
+      "notes": "Test passing"
+    },
+    {
+      "id": "dataset-version-sample-preview.spec.ts",
+      "file": "tests/e2e/benchmarking/dataset-version-sample-preview.spec.ts",
+      "passes": true,
+      "notes": "Test passing"
+    },
+    {
+      "id": "definition-create-validation.spec.ts",
+      "file": "tests/e2e/benchmarking/definition-create-validation.spec.ts",
+      "passes": true,
+      "notes": "Test passing"
+    },
+    {
+      "id": "definition-form-display.spec.ts",
+      "file": "tests/e2e/benchmarking/definition-form-display.spec.ts",
+      "passes": true,
+      "notes": "Test passing"
+    },
+    {
+      "id": "definition-list-detail.spec.ts",
+      "file": "tests/e2e/benchmarking/definition-list-detail.spec.ts",
+      "passes": true,
+      "notes": "Test passing"
+    },
+    {
+      "id": "drill-down-panel.spec.ts",
+      "file": "tests/e2e/benchmarking/drill-down-panel.spec.ts",
+      "passes": true,
+      "notes": "Test passing"
+    },
+    {
+      "id": "filtering.spec.ts",
+      "file": "tests/e2e/benchmarking/filtering.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "metrics-breakdown.spec.ts",
+      "file": "tests/e2e/benchmarking/metrics-breakdown.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "navigation-routing.spec.ts",
+      "file": "tests/e2e/benchmarking/navigation-routing.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "regression-report-advanced.spec.ts",
+      "file": "tests/e2e/benchmarking/regression-report-advanced.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "regression-report-display.spec.ts",
+      "file": "tests/e2e/benchmarking/regression-report-display.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "regression-report-edge-cases.spec.ts",
+      "file": "tests/e2e/benchmarking/regression-report-edge-cases.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "regression-report-exports.spec.ts",
+      "file": "tests/e2e/benchmarking/regression-report-exports.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "regression-report-run-list.spec.ts",
+      "file": "tests/e2e/benchmarking/regression-report-run-list.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "regression-report-trends.spec.ts",
+      "file": "tests/e2e/benchmarking/regression-report-trends.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "results-artifacts.spec.ts",
+      "file": "tests/e2e/benchmarking/results-artifacts.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "results-drill-down.spec.ts",
+      "file": "tests/e2e/benchmarking/results-drill-down.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "results-error-states.spec.ts",
+      "file": "tests/e2e/benchmarking/results-error-states.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "results-large-datasets.spec.ts",
+      "file": "tests/e2e/benchmarking/results-large-datasets.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "results-metrics.spec.ts",
+      "file": "tests/e2e/benchmarking/results-metrics.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "results-mlflow-links.spec.ts",
+      "file": "tests/e2e/benchmarking/results-mlflow-links.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "results-params-tags.spec.ts",
+      "file": "tests/e2e/benchmarking/results-params-tags.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "run-comparison-export.spec.ts",
+      "file": "tests/e2e/benchmarking/run-comparison-export.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "run-comparison-metrics.spec.ts",
+      "file": "tests/e2e/benchmarking/run-comparison-metrics.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "run-comparison-multiple-baseline.spec.ts",
+      "file": "tests/e2e/benchmarking/run-comparison-multiple-baseline.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "run-comparison-navigation.spec.ts",
+      "file": "tests/e2e/benchmarking/run-comparison-navigation.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "run-comparison-params-tags.spec.ts",
+      "file": "tests/e2e/benchmarking/run-comparison-params-tags.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "run-comparison-selection.spec.ts",
+      "file": "tests/e2e/benchmarking/run-comparison-selection.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "run-management.spec.ts",
+      "file": "tests/e2e/benchmarking/run-management.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "split-create.spec.ts",
+      "file": "tests/e2e/benchmarking/split-create.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "split-edge-cases.spec.ts",
+      "file": "tests/e2e/benchmarking/split-edge-cases.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "split-edit.spec.ts",
+      "file": "tests/e2e/benchmarking/split-edit.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "split-freeze.spec.ts",
+      "file": "tests/e2e/benchmarking/split-freeze.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "split-list-display.spec.ts",
+      "file": "tests/e2e/benchmarking/split-list-display.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "validation-edge-cases.spec.ts",
+      "file": "tests/e2e/benchmarking/validation-edge-cases.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "validation-errors.spec.ts",
+      "file": "tests/e2e/benchmarking/validation-errors.spec.ts",
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "validation-trigger.spec.ts",
+      "file": "tests/e2e/benchmarking/validation-trigger.spec.ts",
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

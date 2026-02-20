@@ -10,10 +10,16 @@ import {
 } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconArrowLeft, IconDeviceFloppy } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconDeviceFloppy,
+  IconRefresh,
+  IconRestore,
+} from "@tabler/icons-react";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
-import { useAuth } from "@/auth/AuthContext";
+import { useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "@/auth/useAuth";
 import {
   colorForFieldKeyWithAlpha,
   colorForFieldKeyWithBorder,
@@ -25,14 +31,9 @@ import { FieldPanel } from "../../core/field-panel/FieldPanel";
 import { useFieldSchema } from "../hooks/useFieldSchema";
 import { type LabelDto, useLabels } from "../hooks/useLabels";
 import { useProjectDocument } from "../hooks/useProjects";
+import { useSuggestions } from "../hooks/useSuggestions";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-
-interface LabelingWorkspacePageProps {
-  projectId: string;
-  documentId: string;
-  onBack: () => void;
-}
 
 interface LabelState {
   field_key: string;
@@ -88,11 +89,22 @@ interface AzureOcrResult {
   analyzeResult?: AnalyzeResult;
 }
 
-export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
-  projectId,
-  documentId,
-  onBack,
-}) => {
+export const LabelingWorkspacePage: FC = () => {
+  const navigate = useNavigate();
+  const { projectId, documentId } = useParams<{
+    projectId: string;
+    documentId: string;
+  }>();
+
+  if (!projectId || !documentId) {
+    return (
+      <Stack align="center" justify="center" mih="70vh">
+        <Text size="sm" c="dimmed">
+          Invalid URL parameters.
+        </Text>
+      </Stack>
+    );
+  }
   const { schema } = useFieldSchema(projectId);
   const { document: projectDocument, isLoading } = useProjectDocument(
     projectId,
@@ -104,6 +116,10 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     saveLabelsAsync,
     isSaving,
   } = useLabels(projectId, documentId);
+  const { loadSuggestionsAsync, isLoadingSuggestions } = useSuggestions(
+    projectId,
+    documentId,
+  );
   const { getAccessToken } = useAuth();
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [labelState, setLabelState] = useState<Record<string, LabelState>>({});
@@ -111,6 +127,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     Record<string, string>
   >({});
   const [assignmentsHydrated, setAssignmentsHydrated] = useState(false);
+  const [autoSuggestionApplied, setAutoSuggestionApplied] = useState(false);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number }>(
     { width: 1000, height: 1400 },
@@ -220,6 +237,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   useEffect(() => {
     setAssignmentsHydrated(false);
     setWordAssignments({});
+    setAutoSuggestionApplied(false);
   }, [documentId]);
 
   useEffect(() => {
@@ -364,6 +382,137 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     setWordAssignments(nextAssignments);
     setAssignmentsHydrated(true);
   }, [labels, ocrWords, assignmentsHydrated]);
+
+  useEffect(() => {
+    console.debug("[Labeling] OCR elements loaded", {
+      totalElements: ocrWords.length,
+      words: ocrWords.filter((e) => e.type === "word").length,
+      selectionMarks: ocrWords.filter((e) => e.type === "selectionMark").length,
+      pages: Object.keys(wordsByPage),
+    });
+  }, [ocrWords, wordsByPage]);
+
+  const applySuggestionsToAssignments = (
+    suggestions: Array<{ field_key: string; element_ids: string[] }>,
+  ) => {
+    console.debug("[Labeling] Applying suggestions", {
+      suggestionCount: suggestions.length,
+      suggestions: suggestions.map((s) => ({
+        field_key: s.field_key,
+        element_count: s.element_ids.length,
+      })),
+    });
+
+    const elementSet = new Set(ocrWords.map((element) => element.id));
+    const nextAssignments: Record<string, string> = {};
+
+    for (const suggestion of suggestions) {
+      console.debug(
+        `[Labeling] Processing suggestion for field "${suggestion.field_key}" with ${suggestion.element_ids.length} elements`,
+      );
+      let assignedCount = 0;
+      let skippedCount = 0;
+
+      for (const elementId of suggestion.element_ids) {
+        if (!elementSet.has(elementId)) {
+          skippedCount++;
+          continue;
+        }
+        if (nextAssignments[elementId]) {
+          console.debug(
+            `[Labeling] Element ${elementId} already assigned to ${nextAssignments[elementId]}, skipping for ${suggestion.field_key}`,
+          );
+          skippedCount++;
+          continue;
+        }
+        nextAssignments[elementId] = suggestion.field_key;
+        assignedCount++;
+      }
+
+      console.debug(
+        `[Labeling] Assigned ${assignedCount} elements to "${suggestion.field_key}" (skipped ${skippedCount})`,
+      );
+    }
+
+    console.debug("[Labeling] Final assignments", {
+      totalAssignments: Object.keys(nextAssignments).length,
+      fieldKeys: [...new Set(Object.values(nextAssignments))],
+    });
+
+    setWordAssignments(nextAssignments);
+  };
+
+  const handleLoadSuggestions = async () => {
+    try {
+      console.debug("[Labeling] Loading suggestions from backend...");
+      const suggestions = await loadSuggestionsAsync();
+      console.debug("[Labeling] Received suggestions from backend", {
+        count: suggestions.length,
+        fields: suggestions.map((s) => `${s.field_key}="${s.value}"`),
+      });
+      applySuggestionsToAssignments(suggestions);
+      notifications.show({
+        title: "Suggestions loaded",
+        message: `Applied ${suggestions.length} field suggestions.`,
+        color: "blue",
+      });
+    } catch (error) {
+      console.error("[Labeling] Failed to load suggestions", error);
+      notifications.show({
+        title: "Failed to load suggestions",
+        message:
+          error instanceof Error
+            ? error.message
+            : "An error occurred while loading suggestions.",
+        color: "red",
+      });
+    }
+  };
+
+  const handleResetAssignments = () => {
+    setWordAssignments({});
+    setLabelState({});
+    setActiveFieldKey(null);
+    notifications.show({
+      title: "Assignments reset",
+      message: "All current assignments were cleared.",
+      color: "gray",
+    });
+  };
+
+  useEffect(() => {
+    if (
+      autoSuggestionApplied ||
+      isLoadingSuggestions ||
+      isLabelsLoading ||
+      labels.length > 0 ||
+      Object.keys(wordAssignments).length > 0 ||
+      ocrWords.length === 0
+    ) {
+      return;
+    }
+
+    const run = async () => {
+      try {
+        const suggestions = await loadSuggestionsAsync();
+        applySuggestionsToAssignments(suggestions);
+      } catch (error) {
+        console.error("Failed to auto-load suggestions", error);
+      } finally {
+        setAutoSuggestionApplied(true);
+      }
+    };
+
+    void run();
+  }, [
+    autoSuggestionApplied,
+    isLoadingSuggestions,
+    isLabelsLoading,
+    labels,
+    wordAssignments,
+    ocrWords,
+    loadSuggestionsAsync,
+  ]);
 
   const wordBoxes = useMemo(() => {
     return ocrWords.map((element) => {
@@ -610,7 +759,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           <Button
             variant="subtle"
             leftSection={<IconArrowLeft size={16} />}
-            onClick={onBack}
+            onClick={() => navigate(`/labeling/${projectId}`)}
           >
             Back
           </Button>
@@ -622,6 +771,22 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           </Stack>
         </Group>
         <Group>
+          <Button
+            variant="default"
+            leftSection={<IconRefresh size={16} />}
+            onClick={() => void handleLoadSuggestions()}
+            loading={isLoadingSuggestions}
+          >
+            Load suggestions
+          </Button>
+          <Button
+            variant="default"
+            leftSection={<IconRestore size={16} />}
+            onClick={handleResetAssignments}
+            disabled={Object.keys(wordAssignments).length === 0}
+          >
+            Reset
+          </Button>
           <Button
             leftSection={<IconDeviceFloppy size={16} />}
             onClick={handleSave}
