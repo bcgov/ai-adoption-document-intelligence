@@ -387,17 +387,6 @@ const StaggerLabelEdge = memo(function StaggerLabelEdge(props: EdgeProps) {
     data,
   } = props;
 
-  console.log("[StaggerLabelEdge] render", {
-    id,
-    label,
-    hasLabel: !!label,
-    data,
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-  });
-
   const [edgePath, defaultLabelX, defaultLabelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -425,17 +414,6 @@ const StaggerLabelEdge = memo(function StaggerLabelEdge(props: EdgeProps) {
     x = sourceX + dx * t;
     y = sourceY + dy * t;
   }
-
-  console.log("[StaggerLabelEdge] label position", {
-    id,
-    fraction,
-    distPx,
-    x,
-    y,
-    defaultLabelX,
-    defaultLabelY,
-    renderingLabel: !!label,
-  });
 
   const labelStyleObj = labelStyle as
     | { fill?: string; fontSize?: number; fontWeight?: number }
@@ -1491,34 +1469,18 @@ export function GraphVisualization({
     const hasNodeGroups =
       config.nodeGroups && Object.keys(config.nodeGroups).length > 0;
 
-    console.log("[GraphVisualization] Render decision:", {
-      viewMode,
-      hasMapNodes,
-      hasNodeGroups,
-      nodeCount: Object.keys(config.nodes).length,
-    });
-
     // Priority 1: Hybrid view - simplified groups + detailed map containers
     if (viewMode === "simplified" && hasNodeGroups) {
-      console.log(
-        "[GraphVisualization] Using hybrid view: simplified groups + detailed map containers",
-      );
       if (hasMapNodes) {
         return finalize(buildHybridView(config, errorNodeIds), {
           staggerLabels: true,
         });
       }
-      console.log(
-        "[GraphVisualization] Using simplified view with groups (no map containers)",
-      );
       return finalize(buildSimplifiedView(config, errorNodeIds));
     }
 
     // Priority 2: Detailed view with map containers
     if (hasMapNodes) {
-      console.log(
-        "[GraphVisualization] Using detailed view with map containers",
-      );
       return finalize(
         buildDetailedViewWithMapContainers(config, errorNodeIds),
         { staggerLabels: true },

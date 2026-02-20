@@ -57,11 +57,12 @@ model LabelingDocument {
 }
 
 model OcrResult {
-  id            String   @id @default(cuid())
-  document_id   String   @unique
-  document      Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
-  keyValuePairs Json?
-  processed_at  DateTime @default(now())
+  id                 String   @id @default(cuid())
+  document_id        String   @unique
+  document           Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  keyValuePairs      Json?
+  enrichment_summary Json?
+  processed_at       DateTime @default(now())
 
   @@map("ocr_results")
 }

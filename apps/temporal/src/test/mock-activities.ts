@@ -13,7 +13,10 @@ import type {
   Page,
   Word,
   Span,
+  EnrichmentResult,
+  EnrichmentSummary,
 } from '../types';
+import type { EnrichResultsParams } from '../activities';
 
 interface OCRWorkflowInput {
   documentId: string;
@@ -121,6 +124,10 @@ export const mockActivities = {
     return ocrResult;
   },
 
+  async enrichResults(params: EnrichResultsParams): Promise<EnrichmentResult> {
+    return { ocrResult: params.ocrResult, summary: null };
+  },
+
   async checkOcrConfidence(
     _documentId: string,
     _ocrResult: OCRResult,
@@ -132,7 +139,11 @@ export const mockActivities = {
     };
   },
 
-  async upsertOcrResult(_documentId: string, _ocrResult: OCRResult): Promise<void> {},
+  async upsertOcrResult(
+    _documentId: string,
+    _ocrResult: OCRResult,
+    _enrichmentSummary?: EnrichmentSummary | null
+  ): Promise<void> {},
 
   async storeDocumentRejection(
     _documentId: string,

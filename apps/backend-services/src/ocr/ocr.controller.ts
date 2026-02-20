@@ -1,6 +1,7 @@
 import { Controller, Get } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { DatabaseService } from "@/database/database.service";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 
 @ApiTags("OCR")
@@ -8,7 +9,10 @@ import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 export class OcrController {
   private readonly allowedModels: string[];
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private db: DatabaseService,
+  ) {
     const modelsEnv = this.configService.get<string>(
       "AZURE_DOC_INTELLIGENCE_MODELS",
     );
@@ -18,10 +22,25 @@ export class OcrController {
   }
 
   @Get("models")
-  @ApiOperation({ summary: "Get a list of available OCR models" })
+  @ApiOperation({
+    summary: "Get a list of available OCR models (prebuilt + trained)",
+  })
   @KeycloakSSOAuth()
   @ApiOkResponse({ schema: { default: { models: ["string"] } } })
-  getModels(): { models: string[] } {
-    return { models: this.allowedModels };
+  async getModels(): Promise<{ models: string[] }> {
+    const prisma = this.db["prisma"];
+    const trained = prisma
+      ? await prisma.trainedModel.findMany({
+          select: { model_id: true },
+          distinct: ["model_id"],
+        })
+      : [];
+    // Pull model_ids into one set for deduplication
+    const combined = new Set([
+      ...this.allowedModels,
+      ...trained.map((m) => m.model_id),
+    ]);
+    // Return sorted result if order matters
+    return { models: Array.from(combined).sort() };
   }
 }

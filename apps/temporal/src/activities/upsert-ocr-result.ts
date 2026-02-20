@@ -1,6 +1,6 @@
 import { getPrismaClient } from './database-client';
 import { Prisma } from '@generated/client';
-import type { OCRResult } from '../types';
+import type { OCRResult, EnrichmentSummary } from '../types';
 
 /**
  * Activity: Upsert OCR result in database
@@ -11,9 +11,10 @@ import type { OCRResult } from '../types';
 export async function upsertOcrResult(params: {
   documentId: string;
   ocrResult: OCRResult;
+  enrichmentSummary?: EnrichmentSummary | null;
 }): Promise<void> {
   const activityName = 'upsertOcrResult';
-  const { documentId, ocrResult } = params;
+  const { documentId, ocrResult, enrichmentSummary } = params;
   const startTime = Date.now();
 
   console.log(JSON.stringify({
@@ -25,6 +26,7 @@ export async function upsertOcrResult(params: {
     status: ocrResult.status,
     keyValuePairsCount: ocrResult.keyValuePairs?.length || 0,
     documentsCount: ocrResult.documents?.length || 0,
+    hasEnrichmentSummary: !!enrichmentSummary,
     timestamp: new Date().toISOString()
   }));
 
@@ -39,12 +41,24 @@ export async function upsertOcrResult(params: {
       return obj as Prisma.InputJsonValue;
     };
 
+    // Ensure each stored field has valueString from content so the UI can display it
+    const withValueString = (fields: Record<string, unknown>): Record<string, unknown> => {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(fields)) {
+        const obj = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+        const content = typeof obj.content === 'string' ? obj.content : '';
+        out[k] = { ...obj, valueString: obj.valueString ?? content };
+      }
+      return out;
+    };
+
     // Determine extracted fields based on model type (matches database.service.ts logic)
     let extractedFields: Record<string, unknown> | null = null;
 
     if (ocrResult.documents && ocrResult.documents.length > 0) {
-      // Custom model: use fields directly from documents[0].fields
-      extractedFields = ocrResult.documents[0].fields;
+      // Custom model: use fields directly from documents[0].fields, ensure valueString set
+      const raw = ocrResult.documents[0].fields as Record<string, unknown>;
+      extractedFields = withValueString(raw);
       console.log(JSON.stringify({
         activity: activityName,
         event: 'fields_extracted',
@@ -53,14 +67,16 @@ export async function upsertOcrResult(params: {
         timestamp: new Date().toISOString()
       }));
     } else if (ocrResult.keyValuePairs && ocrResult.keyValuePairs.length > 0) {
-      // Prebuilt model: convert keyValuePairs to fields format
+      // Prebuilt model: convert keyValuePairs to fields format with valueString for UI
       const fields: Record<string, unknown> = {};
 
       for (const pair of ocrResult.keyValuePairs) {
         const fieldName = pair.key?.content || "unknown";
+        const content = pair.value?.content || null;
         const field = {
           type: "string",
-          content: pair.value?.content || null,
+          content,
+          valueString: content,
           confidence: pair.confidence,
           boundingRegions: pair.value?.boundingRegions || pair.key?.boundingRegions,
           spans: pair.value?.spans || pair.key?.spans,
@@ -92,10 +108,14 @@ export async function upsertOcrResult(params: {
     const processedDate = new Date(ocrResult.processedAt);
     const validProcessedDate = isNaN(processedDate.getTime()) ? new Date() : processedDate;
 
-    const updateObject = {
+    const updateObject: Record<string, unknown> = {
       processed_at: validProcessedDate,
       keyValuePairs: asJson(extractedFields),
     };
+    if (enrichmentSummary !== undefined) {
+      updateObject.enrichment_summary =
+        enrichmentSummary != null ? enrichmentSummary : null;
+    }
 
     // Upsert OCR result
     await prisma.ocrResult.upsert({

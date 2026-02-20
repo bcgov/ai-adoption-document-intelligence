@@ -25,7 +25,12 @@ export { checkOcrConfidence } from './activities/check-ocr-confidence';
 
 export { getWorkflowGraphConfig } from './activities/get-workflow-graph-config';
 
+export { enrichResults } from './activities/enrich-results';
+export type { EnrichResultsParams } from './activities/enrich-results';
+
 // Re-export existing activities from activities folder
 export { splitDocument } from './activities/split-document';
 export { classifyDocument } from './activities/classify-document';
 export { validateDocumentFields } from './activities/document-validate-fields';
+export { splitAndClassifyDocument } from './activities/split-and-classify-document';
+export { combineSegmentResult } from './activities/combine-segment-result';
