@@ -812,6 +812,19 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "List of labeling projects with their field schemas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LabelingProjectResponseDto"
+                  }
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -843,6 +856,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "Newly created labeling project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelingProjectResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -876,6 +899,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Labeling project with full field schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelingProjectResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -917,6 +950,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "Updated labeling project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelingProjectResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -948,6 +991,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Project deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -981,6 +1034,19 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Ordered list of field definitions for the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FieldDefinitionResponseDto"
+                  }
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1022,6 +1088,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "Newly created field definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldDefinitionResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1074,6 +1150,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "Updated field definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldDefinitionResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1114,6 +1200,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Field deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1147,6 +1243,19 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "List of labeled documents with their labels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LabeledDocumentResponseDto"
+                  }
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1188,6 +1297,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "Document added to the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabeledDocumentResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1231,6 +1350,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "Document uploaded and queued for OCR processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadLabelingResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1273,6 +1402,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Labeled document with all its labels and underlying document data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabeledDocumentResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1313,6 +1452,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Document removed from project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteDocumentResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1355,6 +1504,9 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Binary file content (PDF or image)"
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1397,6 +1549,19 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "All labels for the document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LabelResponseDto"
+                  }
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1447,6 +1612,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "Updated labeled document with all saved labels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabeledDocumentResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1498,6 +1673,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Label deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1540,6 +1725,9 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Raw OCR result from Azure Document Intelligence"
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1583,6 +1771,23 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "Exported project data. Shape depends on format: azure returns fieldsJson/labelsFiles, json returns project/documents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AzureExportResponseDto"
+                    },
+                    {
+                      "$ref": "#/components/schemas/JsonExportResponseDto"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1669,6 +1874,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Paginated list of documents requiring human review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1702,6 +1917,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Queue statistics including total counts and average confidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueStatsResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1735,6 +1960,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "Review session created with document and OCR data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSessionResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1768,6 +2003,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Review session with document, OCR data, and corrections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSessionResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1811,6 +2056,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "Corrections saved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitCorrectionsResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1842,6 +2097,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "List of all corrections submitted for the session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorrectionsListResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1875,6 +2140,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Session approved and marked complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionActionResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1918,6 +2193,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "Session escalated for expert review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionActionResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -1951,6 +2236,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Session skipped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionActionResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -2004,6 +2299,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Review analytics including correction rates and session summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -2030,12 +2335,23 @@
             "name": "projectId",
             "required": true,
             "in": "path",
+            "description": "Labeling project ID",
             "schema": {
               "type": "string"
             }
           }
         ],
         "responses": {
+          "200": {
+            "description": "Validation result indicating whether the project is ready for training",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationResultDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -2048,6 +2364,7 @@
             "api-key": []
           }
         ],
+        "summary": "Validate project training data",
         "tags": [
           "Training"
         ]
@@ -2061,6 +2378,7 @@
             "name": "projectId",
             "required": true,
             "in": "path",
+            "description": "Labeling project ID",
             "schema": {
               "type": "string"
             }
@@ -2077,6 +2395,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "Training job created and started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJobDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -2089,6 +2417,7 @@
             "api-key": []
           }
         ],
+        "summary": "Start model training for a project",
         "tags": [
           "Training"
         ]
@@ -2102,12 +2431,26 @@
             "name": "projectId",
             "required": true,
             "in": "path",
+            "description": "Labeling project ID",
             "schema": {
               "type": "string"
             }
           }
         ],
         "responses": {
+          "200": {
+            "description": "List of training jobs for the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrainingJobDto"
+                  }
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -2120,6 +2463,7 @@
             "api-key": []
           }
         ],
+        "summary": "Get all training jobs for a project",
         "tags": [
           "Training"
         ]
@@ -2133,12 +2477,23 @@
             "name": "jobId",
             "required": true,
             "in": "path",
+            "description": "Training job ID",
             "schema": {
               "type": "string"
             }
           }
         ],
         "responses": {
+          "200": {
+            "description": "Training job details and current status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJobDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -2151,6 +2506,7 @@
             "api-key": []
           }
         ],
+        "summary": "Get training job status",
         "tags": [
           "Training"
         ]
@@ -2162,12 +2518,23 @@
             "name": "jobId",
             "required": true,
             "in": "path",
+            "description": "Training job ID",
             "schema": {
               "type": "string"
             }
           }
         ],
         "responses": {
+          "200": {
+            "description": "Training job cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelJobResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -2180,6 +2547,7 @@
             "api-key": []
           }
         ],
+        "summary": "Cancel a training job",
         "tags": [
           "Training"
         ]
@@ -2193,12 +2561,26 @@
             "name": "projectId",
             "required": true,
             "in": "path",
+            "description": "Labeling project ID",
             "schema": {
               "type": "string"
             }
           }
         ],
         "responses": {
+          "200": {
+            "description": "List of trained models produced from this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrainedModelDto"
+                  }
+                }
+              }
+            }
+          },
           "401": {
             "description": "Invalid API key"
           }
@@ -2211,6 +2593,7 @@
             "api-key": []
           }
         ],
+        "summary": "Get trained models for a project",
         "tags": [
           "Training"
         ]
@@ -2427,7 +2810,7 @@
           }
         ],
         "responses": {
-          "201": {
+          "200": {
             "description": "Training result retrieved",
             "content": {
               "application/json": {
@@ -2524,7 +2907,7 @@
           }
         ],
         "responses": {
-          "201": {
+          "200": {
             "description": "Classification result retrieved",
             "content": {
               "application/json": {
@@ -3124,6 +3507,89 @@
           "document"
         ]
       },
+      "FieldDefinitionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "field_key": {
+            "type": "string"
+          },
+          "field_type": {
+            "type": "string"
+          },
+          "field_format": {
+            "type": "string"
+          },
+          "display_order": {
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "field_key",
+          "field_type",
+          "display_order",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "LabelingProjectResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "field_schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldDefinitionResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "field_schema"
+        ]
+      },
       "CreateProjectDto": {
         "type": "object",
         "properties": {
@@ -3161,6 +3627,21 @@
             ]
           }
         }
+      },
+      "DeleteResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "id"
+        ]
       },
       "CreateFieldDefinitionDto": {
         "type": "object",
@@ -3207,6 +3688,137 @@
           }
         }
       },
+      "LabelingDocumentResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "original_filename": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "file_type": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "number"
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ocr_result": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "original_filename",
+          "file_path",
+          "file_type",
+          "file_size",
+          "source",
+          "status",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "LabelResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "labeled_document_id": {
+            "type": "string"
+          },
+          "field_key": {
+            "type": "string"
+          },
+          "label_name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "page_number": {
+            "type": "number"
+          },
+          "bounding_box": {
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "labeled_document_id",
+          "field_key",
+          "label_name",
+          "page_number",
+          "bounding_box",
+          "created_at"
+        ]
+      },
+      "LabeledDocumentResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "labeling_document_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "labeling_document": {
+            "$ref": "#/components/schemas/LabelingDocumentResponseDto"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LabelResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "labeling_document_id",
+          "status",
+          "created_at",
+          "updated_at",
+          "labeling_document",
+          "labels"
+        ]
+      },
       "AddDocumentDto": {
         "type": "object",
         "properties": {
@@ -3249,6 +3861,36 @@
           "file_type",
           "original_filename",
           "metadata"
+        ]
+      },
+      "UploadLabelingResponseDto": {
+        "type": "object",
+        "properties": {
+          "labeledDocument": {
+            "$ref": "#/components/schemas/LabeledDocumentResponseDto"
+          },
+          "labelingDocument": {
+            "$ref": "#/components/schemas/LabelingDocumentResponseDto"
+          }
+        },
+        "required": [
+          "labeledDocument",
+          "labelingDocument"
+        ]
+      },
+      "DeleteDocumentResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "documentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "documentId"
         ]
       },
       "SpanDto": {
@@ -3393,6 +4035,130 @@
           "all"
         ]
       },
+      "QueueDocumentOcrDto": {
+        "type": "object",
+        "properties": {
+          "fields": {
+            "type": "object",
+            "description": "Extracted key-value pairs with confidence scores"
+          }
+        },
+        "required": [
+          "fields"
+        ]
+      },
+      "QueueSessionSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "reviewer_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "completed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "corrections_count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "reviewer_id",
+          "status",
+          "corrections_count"
+        ]
+      },
+      "QueueDocumentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "original_filename": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ocr_result": {
+            "$ref": "#/components/schemas/QueueDocumentOcrDto"
+          },
+          "lastSession": {
+            "$ref": "#/components/schemas/QueueSessionSummaryDto"
+          }
+        },
+        "required": [
+          "id",
+          "original_filename",
+          "status",
+          "created_at",
+          "updated_at",
+          "ocr_result"
+        ]
+      },
+      "QueueResponseDto": {
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QueueDocumentDto"
+            }
+          },
+          "total": {
+            "type": "number",
+            "description": "Total number of documents matching the filter"
+          }
+        },
+        "required": [
+          "documents",
+          "total"
+        ]
+      },
+      "QueueStatsResponseDto": {
+        "type": "object",
+        "properties": {
+          "totalDocuments": {
+            "type": "number",
+            "description": "Total documents in the review queue"
+          },
+          "requiresReview": {
+            "type": "number",
+            "description": "Documents requiring human review"
+          },
+          "averageConfidence": {
+            "type": "number",
+            "description": "Average confidence score across all documents"
+          },
+          "reviewedToday": {
+            "type": "number",
+            "description": "Number of documents reviewed today"
+          }
+        },
+        "required": [
+          "totalDocuments",
+          "requiresReview",
+          "averageConfidence",
+          "reviewedToday"
+        ]
+      },
       "ReviewSessionDto": {
         "type": "object",
         "properties": {
@@ -3407,6 +4173,69 @@
         },
         "required": [
           "documentId"
+        ]
+      },
+      "SessionDocumentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "original_filename": {
+            "type": "string"
+          },
+          "storage_path": {
+            "type": "string"
+          },
+          "ocr_result": {
+            "$ref": "#/components/schemas/QueueDocumentOcrDto"
+          }
+        },
+        "required": [
+          "id",
+          "original_filename",
+          "storage_path",
+          "ocr_result"
+        ]
+      },
+      "ReviewSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string"
+          },
+          "reviewerId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "document": {
+            "$ref": "#/components/schemas/SessionDocumentDto"
+          },
+          "corrections": {
+            "type": "array",
+            "description": "Corrections submitted during this session"
+          }
+        },
+        "required": [
+          "id",
+          "documentId",
+          "reviewerId",
+          "status",
+          "startedAt",
+          "document"
         ]
       },
       "CorrectionDto": {
@@ -3460,6 +4289,104 @@
           "corrections"
         ]
       },
+      "SubmitCorrectionsResponseDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "corrections": {
+            "type": "array",
+            "description": "Saved correction records"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sessionId",
+          "corrections",
+          "message"
+        ]
+      },
+      "CorrectionRecordDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fieldKey": {
+            "type": "string"
+          },
+          "originalValue": {
+            "type": "string"
+          },
+          "correctedValue": {
+            "type": "string"
+          },
+          "originalConfidence": {
+            "type": "number"
+          },
+          "action": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fieldKey",
+          "action",
+          "createdAt"
+        ]
+      },
+      "CorrectionsListResponseDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "corrections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CorrectionRecordDto"
+            }
+          }
+        },
+        "required": [
+          "sessionId",
+          "corrections"
+        ]
+      },
+      "SessionActionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Escalation reason (escalate endpoint only)"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "message"
+        ]
+      },
       "EscalateDto": {
         "type": "object",
         "properties": {
@@ -3472,9 +4399,243 @@
           "reason"
         ]
       },
+      "AnalyticsCorrectionsByActionDto": {
+        "type": "object",
+        "properties": {
+          "confirmed": {
+            "type": "number"
+          },
+          "corrected": {
+            "type": "number"
+          },
+          "flagged": {
+            "type": "number"
+          }
+        }
+      },
+      "AnalyticsSummaryDto": {
+        "type": "object",
+        "properties": {
+          "totalSessions": {
+            "type": "number"
+          },
+          "completedSessions": {
+            "type": "number"
+          },
+          "totalCorrections": {
+            "type": "number"
+          },
+          "confirmedFields": {
+            "type": "number"
+          },
+          "correctedFields": {
+            "type": "number"
+          },
+          "flaggedFields": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "totalSessions",
+          "completedSessions",
+          "totalCorrections",
+          "confirmedFields",
+          "correctedFields",
+          "flaggedFields"
+        ]
+      },
+      "AnalyticsResponseDto": {
+        "type": "object",
+        "properties": {
+          "totalDocuments": {
+            "type": "number"
+          },
+          "reviewedDocuments": {
+            "type": "number"
+          },
+          "averageConfidence": {
+            "type": "number"
+          },
+          "correctionRate": {
+            "type": "number"
+          },
+          "correctionsByAction": {
+            "$ref": "#/components/schemas/AnalyticsCorrectionsByActionDto"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AnalyticsSummaryDto"
+          }
+        },
+        "required": [
+          "totalDocuments",
+          "reviewedDocuments",
+          "averageConfidence",
+          "correctionRate",
+          "correctionsByAction",
+          "summary"
+        ]
+      },
+      "ValidationResultDto": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "description": "Whether the project has sufficient labeled data for training"
+          },
+          "labeledDocumentsCount": {
+            "type": "number",
+            "description": "Number of labeled documents in the project"
+          },
+          "minimumRequired": {
+            "type": "number",
+            "description": "Minimum number of labeled documents required"
+          },
+          "issues": {
+            "description": "List of validation issues preventing training",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "valid",
+          "labeledDocumentsCount",
+          "minimumRequired",
+          "issues"
+        ]
+      },
       "StartTrainingDto": {
         "type": "object",
         "properties": {}
+      },
+      "TrainingJobDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Training job ID"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Labeling project ID"
+          },
+          "status": {
+            "type": "string",
+            "description": "Training job status",
+            "enum": [
+              "PENDING",
+              "UPLOADING",
+              "UPLOADED",
+              "TRAINING",
+              "SUCCEEDED",
+              "FAILED"
+            ]
+          },
+          "containerName": {
+            "type": "string",
+            "description": "Azure blob storage container name"
+          },
+          "sasUrl": {
+            "type": "string",
+            "description": "SAS URL for blob storage access"
+          },
+          "blobCount": {
+            "type": "number",
+            "description": "Number of blobs uploaded for training"
+          },
+          "modelId": {
+            "type": "string",
+            "description": "Azure model ID once training completes"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Azure training operation ID"
+          },
+          "errorMessage": {
+            "type": "string",
+            "description": "Error message if training failed"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When training started"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When training completed"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "status",
+          "containerName",
+          "blobCount",
+          "startedAt"
+        ]
+      },
+      "TrainedModelDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Trained model record ID"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Labeling project ID"
+          },
+          "trainingJobId": {
+            "type": "string",
+            "description": "Training job that produced this model"
+          },
+          "modelId": {
+            "type": "string",
+            "description": "Azure Document Intelligence model ID"
+          },
+          "description": {
+            "type": "string",
+            "description": "Model description"
+          },
+          "docTypes": {
+            "type": "object",
+            "description": "Azure document type definitions"
+          },
+          "fieldCount": {
+            "type": "number",
+            "description": "Number of fields the model recognizes"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When the model was created"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "trainingJobId",
+          "modelId",
+          "fieldCount",
+          "createdAt"
+        ]
+      },
+      "CancelJobResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
       },
       "ClassifierCreationDto": {
         "type": "object",

@@ -22,6 +22,7 @@ import {
   ApiConsumes,
   ApiCreatedResponse,
   ApiNoContentResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
@@ -367,7 +368,7 @@ export class AzureController {
     summary: "Get classification result",
     description: "Get the result of a classification operation.",
   })
-  @ApiCreatedResponse({
+  @ApiOkResponse({
     description: "Classification result retrieved",
     type: ClassifierResponseDto,
   })
@@ -396,7 +397,7 @@ export class AzureController {
     summary: "Get training result",
     description: "Get the result of a classifier training operation.",
   })
-  @ApiCreatedResponse({
+  @ApiOkResponse({
     description: "Training result retrieved",
     type: ClassifierModelResponseDto,
   })
