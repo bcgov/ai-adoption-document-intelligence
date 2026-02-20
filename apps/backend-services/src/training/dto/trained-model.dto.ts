@@ -16,7 +16,11 @@ export class TrainedModelDto {
   @ApiPropertyOptional({ description: "Model description" })
   description?: string;
 
-  @ApiPropertyOptional({ description: "Azure document type definitions", type: "object", additionalProperties: true })
+  @ApiPropertyOptional({
+    description: "Azure document type definitions",
+    type: "object",
+    additionalProperties: true,
+  })
   docTypes?: Record<string, unknown>;
 
   @ApiProperty({ description: "Number of fields the model recognizes" })

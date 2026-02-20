@@ -18,13 +18,13 @@ import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
+import { StartTrainingDto } from "./dto/start-training.dto";
+import { TrainedModelDto } from "./dto/trained-model.dto";
 import {
   CancelJobResponseDto,
   TrainingJobDto,
   ValidationResultDto,
 } from "./dto/training-job.dto";
-import { TrainedModelDto } from "./dto/trained-model.dto";
-import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainingService } from "./training.service";
 
 interface AuthenticatedRequest {
@@ -47,7 +47,8 @@ export class TrainingController {
   @ApiOperation({ summary: "Validate project training data" })
   @ApiParam({ name: "projectId", description: "Labeling project ID" })
   @ApiOkResponse({
-    description: "Validation result indicating whether the project is ready for training",
+    description:
+      "Validation result indicating whether the project is ready for training",
     type: ValidationResultDto,
   })
   async validateProject(@Param("projectId") projectId: string) {

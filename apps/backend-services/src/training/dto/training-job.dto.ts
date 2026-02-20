@@ -20,7 +20,9 @@ export class TrainingJobDto {
   @ApiProperty({ description: "Number of blobs uploaded for training" })
   blobCount: number;
 
-  @ApiPropertyOptional({ description: "Azure model ID once training completes" })
+  @ApiPropertyOptional({
+    description: "Azure model ID once training completes",
+  })
   modelId?: string;
 
   @ApiPropertyOptional({ description: "Azure training operation ID" })
@@ -37,7 +39,9 @@ export class TrainingJobDto {
 }
 
 export class ValidationResultDto {
-  @ApiProperty({ description: "Whether the project has sufficient labeled data for training" })
+  @ApiProperty({
+    description: "Whether the project has sufficient labeled data for training",
+  })
   valid: boolean;
 
   @ApiProperty({ description: "Number of labeled documents in the project" })
@@ -46,7 +50,10 @@ export class ValidationResultDto {
   @ApiProperty({ description: "Minimum number of labeled documents required" })
   minimumRequired: number;
 
-  @ApiProperty({ description: "List of validation issues preventing training", type: [String] })
+  @ApiProperty({
+    description: "List of validation issues preventing training",
+    type: [String],
+  })
   issues: string[];
 }
 

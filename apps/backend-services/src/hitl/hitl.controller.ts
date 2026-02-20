@@ -71,7 +71,8 @@ export class HitlController {
     description: "Filter by review status",
   })
   @ApiOkResponse({
-    description: "Queue statistics including total counts and average confidence",
+    description:
+      "Queue statistics including total counts and average confidence",
     type: QueueStatsResponseDto,
   })
   async getQueueStats(
@@ -185,7 +186,8 @@ export class HitlController {
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get HITL analytics" })
   @ApiOkResponse({
-    description: "Review analytics including correction rates and session summaries",
+    description:
+      "Review analytics including correction rates and session summaries",
     type: AnalyticsResponseDto,
   })
   async getAnalytics(@Query() filters: AnalyticsFilterDto) {

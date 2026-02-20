@@ -19,7 +19,8 @@ export class LabelingProjectResponseDto {
   @ApiProperty() created_by: string;
   @ApiProperty() created_at: Date;
   @ApiProperty() updated_at: Date;
-  @ApiProperty({ type: [FieldDefinitionResponseDto] }) field_schema: FieldDefinitionResponseDto[];
+  @ApiProperty({ type: [FieldDefinitionResponseDto] })
+  field_schema: FieldDefinitionResponseDto[];
 }
 
 export class LabelingDocumentResponseDto {
@@ -32,7 +33,8 @@ export class LabelingDocumentResponseDto {
   @ApiProperty() status: string;
   @ApiProperty() created_at: Date;
   @ApiProperty() updated_at: Date;
-  @ApiPropertyOptional({ type: "object", additionalProperties: true }) ocr_result?: unknown;
+  @ApiPropertyOptional({ type: "object", additionalProperties: true })
+  ocr_result?: unknown;
 }
 
 export class LabelResponseDto {
@@ -42,7 +44,8 @@ export class LabelResponseDto {
   @ApiProperty() label_name: string;
   @ApiPropertyOptional() value?: string | null;
   @ApiProperty() page_number: number;
-  @ApiProperty({ type: "object", additionalProperties: true }) bounding_box: unknown;
+  @ApiProperty({ type: "object", additionalProperties: true })
+  bounding_box: unknown;
   @ApiProperty() created_at: Date;
 }
 
@@ -53,7 +56,8 @@ export class LabeledDocumentResponseDto {
   @ApiProperty() status: string;
   @ApiProperty() created_at: Date;
   @ApiProperty() updated_at: Date;
-  @ApiProperty({ type: LabelingDocumentResponseDto }) labeling_document: LabelingDocumentResponseDto;
+  @ApiProperty({ type: LabelingDocumentResponseDto })
+  labeling_document: LabelingDocumentResponseDto;
   @ApiProperty({ type: [LabelResponseDto] }) labels: LabelResponseDto[];
 }
 
@@ -68,8 +72,10 @@ export class DeleteDocumentResponseDto {
 }
 
 export class UploadLabelingResponseDto {
-  @ApiProperty({ type: LabeledDocumentResponseDto }) labeledDocument: LabeledDocumentResponseDto;
-  @ApiProperty({ type: LabelingDocumentResponseDto }) labelingDocument: LabelingDocumentResponseDto;
+  @ApiProperty({ type: LabeledDocumentResponseDto })
+  labeledDocument: LabeledDocumentResponseDto;
+  @ApiProperty({ type: LabelingDocumentResponseDto })
+  labelingDocument: LabelingDocumentResponseDto;
 }
 
 export class ExportFieldDto {
@@ -81,7 +87,8 @@ export class ExportFieldDto {
 export class ExportLabelValueDto {
   @ApiProperty() page: number;
   @ApiProperty() text: string;
-  @ApiProperty({ type: "array", items: { type: "number" } }) boundingBoxes: number[][];
+  @ApiProperty({ type: "array", items: { type: "number" } })
+  boundingBoxes: number[][];
 }
 
 export class ExportLabelEntryDto {
@@ -95,8 +102,10 @@ export class ExportLabelsFileDto {
 }
 
 export class AzureExportResponseDto {
-  @ApiProperty({ type: "object", additionalProperties: true }) fieldsJson: unknown;
-  @ApiProperty({ type: [ExportLabelsFileDto] }) labelsFiles: ExportLabelsFileDto[];
+  @ApiProperty({ type: "object", additionalProperties: true })
+  fieldsJson: unknown;
+  @ApiProperty({ type: [ExportLabelsFileDto] })
+  labelsFiles: ExportLabelsFileDto[];
   @ApiProperty() projectName: string;
   @ApiProperty() documentCount: number;
   @ApiProperty() labeledCount: number;
@@ -119,6 +128,7 @@ export class JsonExportProjectDto {
 
 export class JsonExportResponseDto {
   @ApiProperty({ type: JsonExportProjectDto }) project: JsonExportProjectDto;
-  @ApiProperty({ type: [JsonExportDocumentDto] }) documents: JsonExportDocumentDto[];
+  @ApiProperty({ type: [JsonExportDocumentDto] })
+  documents: JsonExportDocumentDto[];
   @ApiProperty() exportedAt: string;
 }

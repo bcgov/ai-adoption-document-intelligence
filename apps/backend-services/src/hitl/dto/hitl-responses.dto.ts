@@ -2,7 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { CorrectionDto } from "./correction.dto";
 
 export class QueueDocumentOcrDto {
-  @ApiProperty({ description: "Extracted key-value pairs with confidence scores", type: "object", additionalProperties: true })
+  @ApiProperty({
+    description: "Extracted key-value pairs with confidence scores",
+    type: "object",
+    additionalProperties: true,
+  })
   fields: Record<string, unknown>;
 }
 
@@ -107,7 +111,10 @@ export class ReviewSessionResponseDto {
   @ApiProperty({ type: SessionDocumentDto })
   document: SessionDocumentDto;
 
-  @ApiPropertyOptional({ description: "Corrections submitted during this session", type: "array" })
+  @ApiPropertyOptional({
+    description: "Corrections submitted during this session",
+    type: "array",
+  })
   corrections?: unknown[];
 }
 
@@ -163,7 +170,9 @@ export class SessionActionResponseDto {
   @ApiPropertyOptional()
   completedAt?: Date | null;
 
-  @ApiPropertyOptional({ description: "Escalation reason (escalate endpoint only)" })
+  @ApiPropertyOptional({
+    description: "Escalation reason (escalate endpoint only)",
+  })
   reason?: string;
 
   @ApiProperty()
@@ -190,6 +199,7 @@ export class AnalyticsResponseDto {
   @ApiProperty() reviewedDocuments: number;
   @ApiProperty() averageConfidence: number;
   @ApiProperty() correctionRate: number;
-  @ApiProperty({ type: AnalyticsCorrectionsByActionDto }) correctionsByAction: AnalyticsCorrectionsByActionDto;
+  @ApiProperty({ type: AnalyticsCorrectionsByActionDto })
+  correctionsByAction: AnalyticsCorrectionsByActionDto;
   @ApiProperty({ type: AnalyticsSummaryDto }) summary: AnalyticsSummaryDto;
 }

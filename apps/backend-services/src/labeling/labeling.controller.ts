@@ -256,7 +256,8 @@ export class LabelingController {
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
   @ApiOkResponse({
-    description: "Labeled document with all its labels and underlying document data",
+    description:
+      "Labeled document with all its labels and underlying document data",
     type: LabeledDocumentResponseDto,
   })
   async getProjectDocument(
@@ -385,7 +386,9 @@ export class LabelingController {
   @ApiOperation({ summary: "Get OCR data for document" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
-  @ApiOkResponse({ description: "Raw OCR result from Azure Document Intelligence" })
+  @ApiOkResponse({
+    description: "Raw OCR result from Azure Document Intelligence",
+  })
   async getDocumentOcr(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
@@ -401,7 +404,8 @@ export class LabelingController {
   @ApiOperation({ summary: "Export labeled data for training" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiOkResponse({
-    description: "Exported project data. Shape depends on format: azure returns fieldsJson/labelsFiles, json returns project/documents.",
+    description:
+      "Exported project data. Shape depends on format: azure returns fieldsJson/labelsFiles, json returns project/documents.",
     schema: {
       oneOf: [
         { $ref: "#/components/schemas/AzureExportResponseDto" },
