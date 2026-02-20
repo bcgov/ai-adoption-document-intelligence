@@ -387,8 +387,6 @@ const StaggerLabelEdge = memo(function StaggerLabelEdge(props: EdgeProps) {
     data,
   } = props;
 
-<<<<<<< HEAD
-=======
   // biome-ignore lint/security/noSecrets: not a secret
   console.log("[StaggerLabelEdge] render", {
     id,
@@ -401,7 +399,6 @@ const StaggerLabelEdge = memo(function StaggerLabelEdge(props: EdgeProps) {
     targetY,
   });
 
->>>>>>> 064655a (linting and ts fixes)
   const [edgePath, defaultLabelX, defaultLabelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -430,8 +427,6 @@ const StaggerLabelEdge = memo(function StaggerLabelEdge(props: EdgeProps) {
     y = sourceY + dy * t;
   }
 
-<<<<<<< HEAD
-=======
   // biome-ignore lint/security/noSecrets: not a secret
   console.log("[StaggerLabelEdge] label position", {
     id,
@@ -444,7 +439,6 @@ const StaggerLabelEdge = memo(function StaggerLabelEdge(props: EdgeProps) {
     renderingLabel: !!label,
   });
 
->>>>>>> 064655a (linting and ts fixes)
   const labelStyleObj = labelStyle as
     | { fill?: string; fontSize?: number; fontWeight?: number }
     | undefined;
@@ -1498,11 +1492,6 @@ export function GraphVisualization({
     );
     const hasNodeGroups =
       config.nodeGroups && Object.keys(config.nodeGroups).length > 0;
-<<<<<<< HEAD
-
-    // Priority 1: Hybrid view - simplified groups + detailed map containers
-    if (viewMode === "simplified" && hasNodeGroups) {
-=======
 
     // biome-ignore lint/security/noSecrets: not a secret
     console.log("[GraphVisualization] Render decision:", {
@@ -1518,31 +1507,24 @@ export function GraphVisualization({
         // biome-ignore lint/security/noSecrets: not a secret
         "[GraphVisualization] Using hybrid view: simplified groups + detailed map containers",
       );
->>>>>>> 064655a (linting and ts fixes)
       if (hasMapNodes) {
         return finalize(buildHybridView(config, errorNodeIds), {
           staggerLabels: true,
         });
       }
-<<<<<<< HEAD
-=======
       console.log(
         // biome-ignore lint/security/noSecrets: not a secret
         "[GraphVisualization] Using simplified view with groups (no map containers)",
       );
->>>>>>> 064655a (linting and ts fixes)
       return finalize(buildSimplifiedView(config, errorNodeIds));
     }
 
     // Priority 2: Detailed view with map containers
     if (hasMapNodes) {
-<<<<<<< HEAD
-=======
       console.log(
         // biome-ignore lint/security/noSecrets: not a secret
         "[GraphVisualization] Using detailed view with map containers",
       );
->>>>>>> 064655a (linting and ts fixes)
       return finalize(
         buildDetailedViewWithMapContainers(config, errorNodeIds),
         { staggerLabels: true },
