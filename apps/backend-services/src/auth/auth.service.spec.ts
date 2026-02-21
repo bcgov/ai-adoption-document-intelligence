@@ -165,7 +165,7 @@ describe("AuthService", () => {
 
   describe("handleCallback", () => {
     it("should handle callback with PKCE validation", async () => {
-      const result = await service.handleCallback("auth-code", "state");
+      const result = await service.handleCallback("auth-code", "state", "https://auth.example.com/realms/test-realm");
       
       expect(authSessionStore.consumePKCEState).toHaveBeenCalledWith("state");
       expect(client.authorizationCodeGrant).toHaveBeenCalledWith(
@@ -187,11 +187,26 @@ describe("AuthService", () => {
       expect(result).toBe("result-id");
     });
 
+    it("should include iss parameter in callback URL when provided", async () => {
+      await service.handleCallback("auth-code", "state", "https://auth.example.com/realms/test-realm");
+
+      const callbackUrl = (client.authorizationCodeGrant as jest.Mock).mock.calls[0][1] as URL;
+      expect(callbackUrl.searchParams.get("iss")).toBe("https://auth.example.com/realms/test-realm");
+    });
+
+    it("should work without iss parameter", async () => {
+      const result = await service.handleCallback("auth-code", "state");
+
+      const callbackUrl = (client.authorizationCodeGrant as jest.Mock).mock.calls[0][1] as URL;
+      expect(callbackUrl.searchParams.has("iss")).toBe(false);
+      expect(result).toBe("result-id");
+    });
+
     it("should throw on callback failure", async () => {
       (client.authorizationCodeGrant as jest.Mock).mockRejectedValueOnce(
         new Error("Invalid code")
       );
-      
+
       await expect(service.handleCallback("bad-code", "state")).rejects.toThrow(
         /OAuth callback failed/
       );

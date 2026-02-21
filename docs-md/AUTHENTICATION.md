@@ -260,9 +260,8 @@ constructor(
 | Method | Purpose |
 |--------|---------|
 | `getLoginUrl()` | Generates authorization URL with signed state token and nonce |
-| `handleCallback(code, state)` | Validates state, exchanges code for tokens, validates ID token, stores result |
-| `exchangeCodeForTokens(code)` | Server-to-server code exchange using client credentials |
-| `validateIdTokenNonce(idToken, nonce)` | Verifies ID token signature and nonce match |
+| `handleCallback(code, state, iss?)` | Validates PKCE state, exchanges code for tokens via openid-client, validates ID token, stores result. The `iss` parameter is required when Keycloak advertises `authorization_response_iss_parameter_supported` |
+| `refreshAccessToken(refreshToken)` | Proxies refresh token grant to Keycloak via openid-client |
 | `refreshAccessToken(refreshToken)` | Proxies refresh token to Keycloak |
 | `consumeAuthResult(resultId)` | One-time read of stored tokens |
 | `getLogoutUrl(idTokenHint?)` | Constructs Keycloak logout URL |
@@ -332,10 +331,10 @@ async getLoginUrl(@Res() res: Response) {
 // 2. OAuth Callback Handler
 @Get("callback")
 async oauthCallback(
-  @Query() query: OAuthCallbackQueryDto,  // { code, state }
+  @Query() query: OAuthCallbackQueryDto,  // { code, state, iss?, session_state? }
   @Res() res: Response,
 ) {
-  const resultId = await this.authService.handleCallback(query.code, query.state);
+  const resultId = await this.authService.handleCallback(query.code, query.state, query.iss);
   const redirectUrl = this.authService.buildAuthResultRedirect(resultId);
   return res.redirect(redirectUrl);  // Redirect to SPA with ?auth_result=uuid
 }
@@ -1754,9 +1753,9 @@ Backend (`auth.service.ts`):
 ```typescript
 private logger = new Logger(AuthService.name);
 
-async handleCallback(code: string, state: string): Promise<string> {
+async handleCallback(code: string, state: string, iss?: string): Promise<string> {
   this.logger.log(`Callback received: code=${code.substring(0, 10)}..., state=${state.substring(0, 20)}...`);
-  
+
   // ... existing logic
 }
 ```
@@ -1774,10 +1773,15 @@ const handleAuthResultFromUrl = async () => {
 
 **Common Issues:**
 
-1. **"Invalid state parameter"**
-   - State JWT expired (user took >5 min to login)
-   - State secret mismatch (server restarted with different secret)
+1. **"PKCE state expired or invalid"**
+   - PKCE state expired (user took >60s to login, configurable via `AUTH_RESULT_TTL_SECONDS`)
+   - Server restarted (in-memory PKCE store cleared)
    - Solution: Retry login immediately
+
+1. **"callback_failed" redirect**
+   - Missing `iss` parameter in callback URL when Keycloak advertises `authorization_response_iss_parameter_supported`
+   - PKCE code verifier mismatch
+   - Solution: Ensure all query parameters from Keycloak callback (code, state, iss) are passed to `handleCallback`
 
 2. **"Auth result expired or invalid"**
    - Result ID consumed twice (React StrictMode)

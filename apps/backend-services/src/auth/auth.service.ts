@@ -122,15 +122,24 @@ export class AuthService implements OnModuleInit {
    * - Persists the provider tokens in a short-lived in-memory store
    * Returns the opaque `resultId` that the frontend will redeem once.
    */
-  async handleCallback(code: string, state: string): Promise<string> {
+  async handleCallback(
+    code: string,
+    state: string,
+    iss?: string,
+  ): Promise<string> {
     try {
       // Retrieve and consume PKCE state
       const { codeVerifier, nonce } = this.authSessionStore.consumePKCEState(state);
 
       // Build the callback URL for openid-client
+      // Must include all parameters from the authorization response, especially `iss`
+      // when the server advertises authorization_response_iss_parameter_supported
       const callbackUrl = new URL(this.redirectUri);
       callbackUrl.searchParams.set("code", code);
       callbackUrl.searchParams.set("state", state);
+      if (iss) {
+        callbackUrl.searchParams.set("iss", iss);
+      }
 
       // Exchange code for tokens with PKCE validation
       // openid-client handles: code exchange, ID token validation, nonce verification

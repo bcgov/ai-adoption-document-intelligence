@@ -96,19 +96,39 @@ describe("AuthController", () => {
     it("should handle callback and redirect", async () => {
       authService.handleCallback.mockResolvedValue("resultId");
       authService.buildAuthResultRedirect.mockReturnValue("/redirect");
-      const query: OAuthCallbackQueryDto = { code: "c", state: "s" } as any;
+      const query: OAuthCallbackQueryDto = {
+        code: "c",
+        state: "s",
+        iss: "https://auth.example.com/realms/test",
+      };
       await controller.oauthCallback(query, res);
-      expect(authService.handleCallback).toHaveBeenCalledWith("c", "s");
+      expect(authService.handleCallback).toHaveBeenCalledWith(
+        "c",
+        "s",
+        "https://auth.example.com/realms/test",
+      );
       expect(authService.buildAuthResultRedirect).toHaveBeenCalledWith(
         "resultId",
       );
       expect(res.redirect).toHaveBeenCalledWith("/redirect");
     });
 
+    it("should pass undefined iss when not provided", async () => {
+      authService.handleCallback.mockResolvedValue("resultId");
+      authService.buildAuthResultRedirect.mockReturnValue("/redirect");
+      const query: OAuthCallbackQueryDto = { code: "c", state: "s" };
+      await controller.oauthCallback(query, res);
+      expect(authService.handleCallback).toHaveBeenCalledWith(
+        "c",
+        "s",
+        undefined,
+      );
+    });
+
     it("should redirect to error if exception", async () => {
       authService.handleCallback.mockRejectedValue(new Error("fail"));
       authService.buildErrorRedirect.mockReturnValue("/error");
-      const query: OAuthCallbackQueryDto = { code: "c", state: "s" } as any;
+      const query: OAuthCallbackQueryDto = { code: "c", state: "s" };
       await controller.oauthCallback(query, res);
       expect(authService.buildErrorRedirect).toHaveBeenCalledWith(
         "callback_failed",

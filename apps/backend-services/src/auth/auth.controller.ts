@@ -150,6 +150,7 @@ export class AuthController {
       const resultId = await this.authService.handleCallback(
         query.code,
         query.state,
+        query.iss,
       );
       const redirectUrl = this.authService.buildAuthResultRedirect(resultId);
       return res.redirect(redirectUrl);
