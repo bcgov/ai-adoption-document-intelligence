@@ -72,8 +72,13 @@ export class ApiKeyController {
     const user = req.user;
     const userId = user?.sub as string;
     const userEmail = (user?.email || "unknown@example.com") as string;
+    const roles = user?.roles || [];
 
-    const apiKey = await this.apiKeyService.generateApiKey(userId, userEmail);
+    const apiKey = await this.apiKeyService.generateApiKey(
+      userId,
+      userEmail,
+      roles,
+    );
     return { apiKey };
   }
 
@@ -104,8 +109,13 @@ export class ApiKeyController {
     const user = req.user;
     const userId = user?.sub as string;
     const userEmail = (user?.email || "unknown@example.com") as string;
+    const roles = user?.roles || [];
 
-    const apiKey = await this.apiKeyService.regenerateApiKey(userId, userEmail);
+    const apiKey = await this.apiKeyService.regenerateApiKey(
+      userId,
+      userEmail,
+      roles,
+    );
     return { apiKey };
   }
 }

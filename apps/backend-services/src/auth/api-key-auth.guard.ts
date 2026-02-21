@@ -50,11 +50,11 @@ export class ApiKeyAuthGuard implements CanActivate {
       throw new UnauthorizedException("Invalid API key");
     }
 
-    // Set user info from API key
+    // Set user info from API key (roles are inherited from the creating user)
     request.user = {
       sub: keyInfo.userId,
       email: keyInfo.userEmail,
-      roles: [],
+      roles: keyInfo.roles,
     };
 
     return true;

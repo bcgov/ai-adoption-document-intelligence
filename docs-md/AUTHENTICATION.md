@@ -1463,8 +1463,15 @@ export class WebhookController {
 1. `JwtAuthGuard` checks if route has `@ApiKeyAuth()` and `X-API-Key` header present
 2. If yes, skips JWT validation (delegates to `ApiKeyAuthGuard`)
 3. `ApiKeyAuthGuard` validates the API key against database
-4. Sets `request.user` with user info from API key record
-5. `RolesGuard` can still enforce roles if needed (API keys can have associated roles)
+4. Sets `request.user` with user info and roles from the API key record
+5. `RolesGuard` can enforce roles — API keys inherit the creating user's roles at generation time
+
+**Role Inheritance:**
+
+When a user generates an API key, the key captures the user's current Keycloak roles (from their JWT). These roles are stored in the `api_keys` table and populated on `request.user.roles` during API key authentication. This means:
+
+- API key-authenticated requests can pass `@Roles()` checks, provided the creating user had the required roles
+- To update an API key's roles after a user's roles change in Keycloak, regenerate the API key
 
 **Usage Example:**
 
@@ -1489,18 +1496,37 @@ API keys are managed through the `ApiKeyService`:
 ```typescript
 @Injectable()
 export class ApiKeyService {
-  async validateApiKey(apiKey: string): Promise<{ userId: string; userEmail: string } | null> {
-    // Look up API key in database
-    // Return user info if valid, null otherwise
+  async validateApiKey(apiKey: string): Promise<{ userId: string; userEmail: string; roles: string[] } | null> {
+    // Look up API key in database by prefix
+    // Compare hash with bcrypt
+    // Return user info and stored roles if valid, null otherwise
   }
 }
 ```
 
+**Database Schema:**
+
+```prisma
+model ApiKey {
+  id         String    @id @default(cuid())
+  key_hash   String    @unique
+  key_prefix String
+  user_id    String    @unique
+  user_email String
+  roles      String[]  @default([])
+  created_at DateTime  @default(now())
+  last_used  DateTime?
+
+  @@map("api_keys")
+}
+```
+
 **Best Practices:**
-- API keys should be stored hashed in the database (similar to passwords)
-- Include key prefix for key identification (e.g., `pk_live_...`)
-- Implement key rotation policies
-- Scope keys to specific operations or resources
+- API keys are stored hashed with bcrypt (cost factor 10) in the database
+- The key prefix enables indexed lookups without full-table scans
+- Roles are inherited from the creating user's JWT at generation time
+- Regenerating a key captures the user's current roles
+- Full API keys are returned only once at creation — they cannot be retrieved later
 
 ---
 

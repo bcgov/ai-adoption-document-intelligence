@@ -42,6 +42,7 @@ export class ApiKeyService {
       id: apiKey.id,
       keyPrefix: apiKey.key_prefix,
       userEmail: apiKey.user_email,
+      roles: apiKey.roles,
       createdAt: apiKey.created_at,
       lastUsed: apiKey.last_used,
     };
@@ -50,6 +51,7 @@ export class ApiKeyService {
   async generateApiKey(
     userId: string,
     userEmail: string,
+    roles: string[],
   ): Promise<GeneratedApiKeyDto> {
     // Check if user already has a key
     const existingKey = await this.prisma.apiKey.findUnique({
@@ -75,6 +77,7 @@ export class ApiKeyService {
         key_prefix: keyPrefix,
         user_id: userId,
         user_email: userEmail,
+        roles,
       },
     });
 
@@ -85,6 +88,7 @@ export class ApiKeyService {
       key, // Return full key only once
       keyPrefix,
       userEmail: apiKey.user_email,
+      roles: apiKey.roles,
       createdAt: apiKey.created_at,
       lastUsed: null,
     };
@@ -109,6 +113,7 @@ export class ApiKeyService {
   async regenerateApiKey(
     userId: string,
     userEmail: string,
+    roles: string[],
   ): Promise<GeneratedApiKeyDto> {
     // Delete existing key if any
     try {
@@ -118,12 +123,12 @@ export class ApiKeyService {
     }
 
     // Generate new key
-    return this.generateApiKey(userId, userEmail);
+    return this.generateApiKey(userId, userEmail, roles);
   }
 
   async validateApiKey(
     key: string,
-  ): Promise<{ userId: string; userEmail: string } | null> {
+  ): Promise<{ userId: string; userEmail: string; roles: string[] } | null> {
     // Extract prefix from the incoming key for indexed lookup
     const prefix = key.substring(0, 8);
 
@@ -144,6 +149,7 @@ export class ApiKeyService {
         return {
           userId: apiKey.user_id,
           userEmail: apiKey.user_email,
+          roles: apiKey.roles,
         };
       }
     }

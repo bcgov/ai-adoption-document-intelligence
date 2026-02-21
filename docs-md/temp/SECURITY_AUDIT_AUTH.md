@@ -24,14 +24,14 @@ The authentication architecture follows a sound design: confidential OAuth 2.0 A
 
 However, this audit identified **2 critical**, **4 high**, **6 medium**, and **5 low/informational** findings that should be addressed, ranging from missing rate limiting on authentication endpoints to a duplicate decorator definition that could lead to authorization bypass confusion.
 
-**Remediation Progress:** 3 of 17 findings resolved.
+**Remediation Progress:** 4 of 17 findings resolved.
 
 | Finding | Severity | Status |
 |---------|----------|--------|
 | C-1: No Rate Limiting | Critical | ✅ Resolved |
 | C-2: No Security Headers (Helmet) | Critical | ✅ Resolved |
 | H-1: CSRF Token No maxAge | High | ✅ Resolved |
-| H-2: API Key Empty Roles | High | ⬚ Open |
+| H-2: API Key Empty Roles | High | ✅ Resolved |
 | H-3: Duplicate ApiKeyAuth Decorator | High | ⬚ Open |
 | H-4: Auth Error Message Leaks | High | ⬚ Open |
 | M-1 through M-6 | Medium | ⬚ Open |
@@ -157,11 +157,23 @@ This makes it a session cookie that persists until the browser is closed. In con
 
 ---
 
-### H-2: API Key Auth Users Get Empty Roles Array — RBAC Bypass
+### H-2: API Key Auth Users Get Empty Roles Array — RBAC Bypass — ✅ RESOLVED
 
 **Location:** [apps/backend-services/src/auth/api-key-auth.guard.ts](../apps/backend-services/src/auth/api-key-auth.guard.ts#L48-L52)
 
-**Description:** When a request is authenticated via API key, the guard sets:
+**Status:** Resolved on 2026-02-21.
+
+**Resolution:** API keys now store and populate roles inherited from the creating user’s JWT:
+- Added `roles String[] @default([])` column to the `ApiKey` Prisma model (migration `20260221213638_add_api_key_roles`)
+- `ApiKeyService.generateApiKey()` and `regenerateApiKey()` now accept a `roles` parameter
+- `ApiKeyController` passes the creating user’s `request.user.roles` from their Keycloak JWT when generating or regenerating keys
+- `ApiKeyService.validateApiKey()` returns `{ userId, userEmail, roles }` from the database record
+- `ApiKeyAuthGuard` populates `request.user.roles` from the stored roles instead of hardcoding `[]`
+- `ApiKeyInfoDto` and `GeneratedApiKeyDto` include a `roles` field
+- Tests updated in `api-key-auth.guard.spec.ts` (6 tests: validates roles from DB are set on request.user, including empty roles case), `api-key.service.spec.ts` (10 tests: roles stored/returned in generate/validate flows), and `api-key.controller.spec.ts` (8 tests: roles passed from JWT to service)
+
+<details>
+<summary>Original finding (pre-resolution)</summary>
 
 ```typescript
 request.user = {
@@ -178,6 +190,8 @@ More critically, if a developer adds `@ApiKeyAuth()` to an endpoint that has `@R
 **Impact:** Confusing authorization semantics. API key users cannot use role-protected endpoints at all.
 
 **Recommendation:** Either (a) store roles alongside API keys in the database and populate `request.user.roles` from there, or (b) document explicitly that API keys bypass RBAC and are only for specific non-role-protected endpoints.
+
+</details>
 
 ---
 

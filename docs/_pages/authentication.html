@@ -243,7 +243,8 @@ X-API-Key: your-api-key-here</code></pre>
             <li>API keys are generated and managed through the platform Settings page</li>
             <li>Each user can have <strong>one active key</strong> at a time</li>
             <li>Keys are validated by the <code>ApiKeyAuthGuard</code> via <code>ApiKeyService</code></li>
-            <li>On validation, <code>request.user</code> is populated with the key owner's identity</li>
+            <li>On validation, <code>request.user</code> is populated with the key owner's identity and <strong>roles inherited from their JWT at key creation time</strong></li>
+            <li>Regenerating a key captures the user's current Keycloak roles</li>
         </ul>
     </div>
     <div class="card" style="border-left-color: #8b5cf6;">

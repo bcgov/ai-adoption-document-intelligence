@@ -102,6 +102,7 @@ describe("ApiKeyAuthGuard", () => {
     mockApiKeyService.validateApiKey.mockResolvedValue({
       userId: "user123",
       userEmail: "test@example.com",
+      roles: ["admin", "editor"],
     });
 
     const mockRequest = {
@@ -123,6 +124,37 @@ describe("ApiKeyAuthGuard", () => {
     expect(mockRequest.user).toEqual({
       sub: "user123",
       email: "test@example.com",
+      roles: ["admin", "editor"],
+    });
+  });
+
+  it("should set empty roles when API key has no roles stored", async () => {
+    (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
+    mockApiKeyService.validateApiKey.mockResolvedValue({
+      userId: "user456",
+      userEmail: "noroles@example.com",
+      roles: [],
+    });
+
+    const mockRequest = {
+      headers: { "x-api-key": "validkey2" },
+      user: undefined,
+    };
+
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => mockRequest,
+      }),
+      getHandler: () => ({}),
+      getClass: () => ({}),
+    } as unknown as ExecutionContext;
+
+    const result = await guard.canActivate(context);
+
+    expect(result).toBe(true);
+    expect(mockRequest.user).toEqual({
+      sub: "user456",
+      email: "noroles@example.com",
       roles: [],
     });
   });

@@ -17,6 +17,7 @@ describe("ApiKeyController", () => {
     user: {
       sub: "testuser",
       email: "test@example.com",
+      roles: ["admin", "editor"],
     },
   };
 
@@ -52,6 +53,7 @@ describe("ApiKeyController", () => {
         id: "key123",
         keyPrefix: "abcd1234",
         userEmail: "test@example.com",
+        roles: ["admin"],
         createdAt: new Date(),
         lastUsed: null,
       };
@@ -76,6 +78,7 @@ describe("ApiKeyController", () => {
         key: "fullkeyvalue",
         keyPrefix: "fullkeyv",
         userEmail: "test@example.com",
+        roles: ["admin", "editor"],
         createdAt: new Date(),
         lastUsed: null,
       };
@@ -87,15 +90,17 @@ describe("ApiKeyController", () => {
       expect(apiKeyService.generateApiKey).toHaveBeenCalledWith(
         "testuser",
         "test@example.com",
+        ["admin", "editor"],
       );
     });
 
-    it("should use unknown@example.com when user has no email", async () => {
+    it("should use unknown@example.com and empty roles when user has no email or roles", async () => {
       const mockGeneratedKey = {
         id: "key123",
         key: "fullkeyvalue",
         keyPrefix: "fullkeyv",
         userEmail: "unknown@example.com",
+        roles: [],
         createdAt: new Date(),
         lastUsed: null,
       };
@@ -109,6 +114,7 @@ describe("ApiKeyController", () => {
       expect(apiKeyService.generateApiKey).toHaveBeenCalledWith(
         "testuser",
         "unknown@example.com",
+        [],
       );
     });
   });
@@ -130,6 +136,7 @@ describe("ApiKeyController", () => {
         key: "newfullkeyvalue",
         keyPrefix: "newfullk",
         userEmail: "test@example.com",
+        roles: ["admin", "editor"],
         createdAt: new Date(),
         lastUsed: null,
       };
@@ -141,15 +148,17 @@ describe("ApiKeyController", () => {
       expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith(
         "testuser",
         "test@example.com",
+        ["admin", "editor"],
       );
     });
 
-    it("should use unknown@example.com when user has no email", async () => {
+    it("should use unknown@example.com and empty roles when user has no email or roles", async () => {
       const mockRegeneratedKey = {
         id: "newkey123",
         key: "newfullkeyvalue",
         keyPrefix: "newfullk",
         userEmail: "unknown@example.com",
+        roles: [],
         createdAt: new Date(),
         lastUsed: null,
       };
@@ -162,6 +171,7 @@ describe("ApiKeyController", () => {
       expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith(
         "testuser",
         "unknown@example.com",
+        [],
       );
     });
   });
