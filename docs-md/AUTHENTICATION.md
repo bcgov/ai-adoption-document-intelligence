@@ -433,8 +433,9 @@ export const COOKIE_OPTIONS = {
   idToken: (expiresInSeconds: number): CookieOptions => ({
     ...baseHttpOnlyOptions(), maxAge: expiresInSeconds * 1000, path: '/api/auth',
   }),
-  csrfToken: (): CookieOptions => ({
+  csrfToken: (expiresInSeconds: number): CookieOptions => ({
     httpOnly: false, secure: isSecure(), sameSite: 'strict', path: '/',
+    maxAge: expiresInSeconds * 1000,
   }),
 } as const;
 
@@ -1617,7 +1618,7 @@ Tokens are stored in HttpOnly cookies, making them inaccessible to JavaScript:
 | `access_token` | Yes | Lax | `/` | Token lifetime |
 | `refresh_token` | Yes | Lax | `/api/auth/refresh` | 30 days |
 | `id_token` | Yes | Lax | `/api/auth` | Token lifetime |
-| `csrf_token` | **No** | Strict | `/` | Session |
+| `csrf_token` | **No** | Strict | `/` | Token lifetime |
 
 **Security Properties:**
 - **XSS Protection**: HttpOnly flag prevents JavaScript from reading tokens, eliminating XSS-based token theft

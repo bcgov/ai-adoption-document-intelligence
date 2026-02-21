@@ -71,11 +71,12 @@ export const COOKIE_OPTIONS = {
     path: "/api/auth",
   }),
 
-  csrfToken: (): CookieOptions => ({
+  csrfToken: (expiresInSeconds: number): CookieOptions => ({
     httpOnly: false,
     secure: isSecure(),
     sameSite: "strict",
     path: "/",
+    maxAge: expiresInSeconds * 1000,
   }),
 } as const;
 
@@ -130,7 +131,7 @@ export function setAuthCookies(
   res.cookie(
     AUTH_COOKIE_NAMES.CSRF_TOKEN,
     csrfToken,
-    COOKIE_OPTIONS.csrfToken(),
+    COOKIE_OPTIONS.csrfToken(expiresIn),
   );
 }
 

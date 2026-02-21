@@ -24,13 +24,13 @@ The authentication architecture follows a sound design: confidential OAuth 2.0 A
 
 However, this audit identified **2 critical**, **4 high**, **6 medium**, and **5 low/informational** findings that should be addressed, ranging from missing rate limiting on authentication endpoints to a duplicate decorator definition that could lead to authorization bypass confusion.
 
-**Remediation Progress:** 2 of 17 findings resolved.
+**Remediation Progress:** 3 of 17 findings resolved.
 
 | Finding | Severity | Status |
 |---------|----------|--------|
 | C-1: No Rate Limiting | Critical | ✅ Resolved |
 | C-2: No Security Headers (Helmet) | Critical | ✅ Resolved |
-| H-1: CSRF Token No maxAge | High | ⬚ Open |
+| H-1: CSRF Token No maxAge | High | ✅ Resolved |
 | H-2: API Key Empty Roles | High | ⬚ Open |
 | H-3: Duplicate ApiKeyAuth Decorator | High | ⬚ Open |
 | H-4: Auth Error Message Leaks | High | ⬚ Open |
@@ -118,9 +118,20 @@ The nginx frontend config also lacks security headers.
 
 ## Findings — High
 
-### H-1: CSRF Token Not Protected by `maxAge` — Lives Indefinitely as Session Cookie
+### H-1: CSRF Token Not Protected by `maxAge` — Lives Indefinitely as Session Cookie — ✅ RESOLVED
 
 **Location:** [apps/backend-services/src/auth/cookie-auth.utils.ts](../apps/backend-services/src/auth/cookie-auth.utils.ts#L70-L75)
+
+**Status:** Resolved on 2026-02-21.
+
+**Resolution:** Updated `COOKIE_OPTIONS.csrfToken()` to accept an `expiresInSeconds` parameter and set `maxAge` on the CSRF cookie, matching the access token's lifetime:
+- `csrfToken(expiresInSeconds)` now sets `maxAge: expiresInSeconds * 1000`
+- `setAuthCookies()` passes the token's `expires_in` value to `csrfToken()`, so the CSRF cookie expires at the same time as the access token
+- On refresh, a new CSRF token is issued with a fresh `maxAge` matching the new access token's lifetime
+- Tests added in `cookie-auth.utils.spec.ts` (13 tests: CSRF cookie maxAge validation, setAuthCookies integration, clearAuthCookies, generateCsrfToken)
+
+<details>
+<summary>Original finding (pre-resolution)</summary>
 
 **Description:** The `csrf_token` cookie has no `maxAge` or `expires` property:
 
@@ -141,6 +152,8 @@ This makes it a session cookie that persists until the browser is closed. In con
 **Impact:** Stale CSRF tokens remain usable longer than necessary, increasing the window for token theft via non-HttpOnly cookie access.
 
 **Recommendation:** Set `maxAge` on the CSRF token cookie to match the access token's `expires_in` value, or use a reasonable upper bound (e.g., 24 hours).
+
+</details>
 
 ---
 
