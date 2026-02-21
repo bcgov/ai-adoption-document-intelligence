@@ -203,12 +203,10 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 | `react` | 19.2.0 | UI framework |
 | `react-router-dom` | 7.9.6 | Client-side routing |
 | `axios` | 1.13.2 | HTTP client for backend API calls |
-| `oidc-client-ts` | 3.4.1 | OIDC utilities (currently unused, legacy) |
 
 **Frontend Implementation Notes:**
 
-- **No OIDC client library actively used**: The frontend relies on the backend to handle all OAuth interactions
-- **`oidc-client-ts` is present but not actively used**: Previously considered for client-side OIDC, superseded by backend-driven approach
+- **No OIDC client library used**: The frontend relies entirely on the backend to handle all OAuth interactions
 - **No token access**: The frontend never sees raw tokens; they are stored in HttpOnly cookies managed by the backend
 - **Profile data**: User profile information is fetched from the `/api/auth/me` endpoint
 
@@ -232,9 +230,11 @@ apps/backend-services/src/auth/
 ├── public.decorator.ts         # @Public() metadata
 ├── roles.decorator.ts          # @Roles(...) metadata
 ├── api-key-auth.decorator.ts   # @ApiKeyAuth() metadata
+├── types.ts                    # User interface and Express augmentation
 └── dto/
+    ├── index.ts                      # Barrel export
     ├── token-response.dto.ts         # Keycloak token response structure
-    ├── refresh-token.dto.ts          # Refresh request/response DTOs
+    ├── refresh-token.dto.ts          # Refresh response DTO
     ├── oauth-callback-query.dto.ts   # Callback query parameters
     ├── me-response.dto.ts            # Profile endpoint response DTO
     └── logout-query.dto.ts           # Logout query parameters
@@ -259,7 +259,7 @@ constructor(private configService: ConfigService)
 
 | Method | Purpose |
 |--------|---------|
-| `getLoginUrl()` | Returns `LoginUrlResult` with authorization URL, PKCE state, code verifier, and nonce |
+| `getLoginUrl()` | Async — returns `Promise<LoginUrlResult>` with authorization URL, PKCE state, code verifier, and nonce |
 | `handleCallback(code, state, codeVerifier, nonce, iss?)` | Exchanges authorization code for tokens with PKCE validation; returns `TokenResponseDto` directly |
 | `refreshAccessToken(refreshToken)` | Proxies refresh token grant to Keycloak via openid-client |
 | `getLogoutUrl(idTokenHint?)` | Constructs Keycloak logout URL |
@@ -290,42 +290,54 @@ Thin HTTP layer exposing OAuth entrypoints. Auth flow routes are marked `@Public
 
 ```typescript
 // 1. Login Initiation
+@Public()
 @Get("login")
-async login(@Res() res: Response) {
-  const { url, code_verifier, nonce } = this.authService.getLoginUrl();
-  // Sets pkce_verifier cookie (HttpOnly, short-lived)
-  res.cookie("pkce_verifier", JSON.stringify({ code_verifier, nonce }), { httpOnly: true, maxAge: 300_000 });
+async getLoginUrl(@Res() res: Response) {
+  const { url, state, codeVerifier, nonce } = await this.authService.getLoginUrl();
+  // Stores PKCE data in an HttpOnly cookie scoped to the callback path
+  const pkceData: PkceCookieData = { state, codeVerifier, nonce };
+  res.cookie(AUTH_COOKIE_NAMES.PKCE_VERIFIER, JSON.stringify(pkceData), COOKIE_OPTIONS.pkceVerifier());
   res.redirect(url);  // 302 redirect to Keycloak
 }
 
 // 2. OAuth Callback Handler
+@Public()
 @Get("callback")
 async oauthCallback(
   @Query() query: OAuthCallbackQueryDto,  // { code, state, iss?, session_state? }
   @Req() req: Request,
   @Res() res: Response,
 ) {
-  const { code_verifier, nonce } = JSON.parse(req.cookies.pkce_verifier);
-  res.clearCookie("pkce_verifier");
-  const tokens = await this.authService.handleCallback(query.code, query.state, code_verifier, nonce, query.iss);
-  // Sets HttpOnly auth cookies: access_token, refresh_token, id_token, csrf_token
-  setAuthCookies(res, tokens);
+  const pkceData: PkceCookieData = JSON.parse(req.cookies[AUTH_COOKIE_NAMES.PKCE_VERIFIER]);
+  res.clearCookie(AUTH_COOKIE_NAMES.PKCE_VERIFIER, { path: "/api/auth/callback" });
+  const tokens = await this.authService.handleCallback(
+    query.code, query.state, pkceData.codeVerifier, pkceData.nonce, query.iss,
+  );
+  // Sets HttpOnly auth cookies + CSRF token
+  const csrfToken = generateCsrfToken();
+  setAuthCookies(res, tokens, csrfToken);
   res.redirect(this.authService.getFrontendUrl());
 }
 
 // 3. Token Refresh
+@Public()
 @Post("refresh")
-async refreshToken(@Req() req: Request, @Res() res: Response) {
-  const refreshToken = req.cookies.refresh_token;
-  const tokens = await this.authService.refreshAccessToken(refreshToken);
-  setAuthCookies(res, tokens);
-  res.json({ expires_in: tokens.expires_in });
+async refreshToken(
+  @Req() req: Request,
+  @Res({ passthrough: true }) res: Response,
+): Promise<RefreshReturnDto> {
+  const refreshTokenValue = req.cookies?.[AUTH_COOKIE_NAMES.REFRESH_TOKEN];
+  const tokens = await this.authService.refreshAccessToken(refreshTokenValue);
+  const csrfToken = generateCsrfToken();
+  setAuthCookies(res, tokens, csrfToken);
+  return { expires_in: tokens.expires_in };
 }
 
 // 4. Logout
+@Public()
 @Get("logout")
 async logout(@Req() req: Request, @Res() res: Response) {
-  const idTokenHint = req.cookies.id_token;
+  const idTokenHint = req.cookies?.[AUTH_COOKIE_NAMES.ID_TOKEN];
   clearAuthCookies(res);
   const logoutUrl = this.authService.getLogoutUrl(idTokenHint);
   res.redirect(logoutUrl);  // 302 redirect to Keycloak logout
@@ -333,8 +345,18 @@ async logout(@Req() req: Request, @Res() res: Response) {
 
 // 5. User Profile (protected — NOT @Public)
 @Get("me")
-async me(@Req() req: Request): Promise<MeResponseDto> {
-  return req.user;  // Populated by JwtAuthGuard from access_token cookie
+async getMe(@Req() req: Request): Promise<MeResponseDto> {
+  const user = req.user as User;
+  const now = Math.floor(Date.now() / 1000);
+  const exp = (user.exp as number) || now;
+  return {
+    sub: user.sub || "",
+    name: (user.name as string) || (user.display_name as string),
+    preferred_username: (user.preferred_username as string) || (user.idir_username as string),
+    email: user.email,
+    roles: user.roles || [],
+    expires_in: Math.max(exp - now, 0),
+  };
 }
 ```
 
@@ -372,23 +394,51 @@ Centralized cookie configuration for all auth-related cookies. Provides consiste
 
 ```typescript
 // Cookie names
-export const AUTH_COOKIES = {
+export const AUTH_COOKIE_NAMES = {
+  PKCE_VERIFIER: 'pkce_verifier',
   ACCESS_TOKEN: 'access_token',
   REFRESH_TOKEN: 'refresh_token',
   ID_TOKEN: 'id_token',
   CSRF_TOKEN: 'csrf_token',
-  PKCE_VERIFIER: 'pkce_verifier',
 } as const;
 
-// Common cookie options
-const baseCookieOptions = (isProduction: boolean): CookieOptions => ({
-  httpOnly: true,
-  secure: isProduction,      // HTTPS only in production
-  sameSite: 'lax',           // Allows OAuth redirects while preventing CSRF
-  path: '/',
-});
+export const CSRF_HEADER_NAME = 'x-csrf-token';
 
-export function setAuthCookies(res: Response, tokens: TokenResponseDto): void {
+// Determines if cookies should set the `secure` flag
+function isSecure(): boolean {
+  const env = process.env.NODE_ENV;
+  return env !== 'development' && env !== 'test';
+}
+
+// Base options shared by all HttpOnly auth cookies
+function baseHttpOnlyOptions(): CookieOptions {
+  return { httpOnly: true, secure: isSecure(), sameSite: 'lax' };
+}
+
+// Cookie option presets
+export const COOKIE_OPTIONS = {
+  pkceVerifier: (): CookieOptions => ({
+    ...baseHttpOnlyOptions(), maxAge: 2 * 60 * 1000, path: '/api/auth/callback',
+  }),
+  accessToken: (expiresInSeconds: number): CookieOptions => ({
+    ...baseHttpOnlyOptions(), maxAge: expiresInSeconds * 1000, path: '/',
+  }),
+  refreshToken: (): CookieOptions => ({
+    ...baseHttpOnlyOptions(), maxAge: 30 * 24 * 60 * 60 * 1000, path: '/api/auth/refresh',
+  }),
+  idToken: (expiresInSeconds: number): CookieOptions => ({
+    ...baseHttpOnlyOptions(), maxAge: expiresInSeconds * 1000, path: '/api/auth',
+  }),
+  csrfToken: (): CookieOptions => ({
+    httpOnly: false, secure: isSecure(), sameSite: 'strict', path: '/',
+  }),
+} as const;
+
+export function generateCsrfToken(): string {
+  return randomBytes(32).toString('hex');
+}
+
+export function setAuthCookies(res: Response, tokens: TokenResponseDto, csrfToken: string): void {
   // Sets access_token, refresh_token, id_token as HttpOnly cookies
   // Sets csrf_token as a non-HttpOnly cookie (readable by JavaScript for CSRF header)
 }
@@ -411,19 +461,39 @@ Implements the double-submit cookie pattern for CSRF protection on state-changin
 ```typescript
 @Injectable()
 export class CsrfGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest();
+  private static readonly SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
-    // Skip for safe HTTP methods (GET, HEAD, OPTIONS)
-    if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest<Request>();
+
+    // Safe (read-only) methods are never CSRF-vulnerable
+    if (CsrfGuard.SAFE_METHODS.has(request.method.toUpperCase())) {
       return true;
     }
 
-    const cookieToken = request.cookies?.csrf_token;
-    const headerToken = request.headers['x-csrf-token'];
+    // Requests with explicit Authorization header (Bearer token) are not CSRF-vulnerable
+    const authHeader = request.headers['authorization'];
+    if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+      return true;
+    }
 
-    if (!cookieToken || !headerToken || cookieToken !== headerToken) {
-      throw new ForbiddenException('CSRF token mismatch');
+    // Requests with API key header are not CSRF-vulnerable
+    if (request.headers['x-api-key']) {
+      return true;
+    }
+
+    // If no auth cookie is present, this isn't a cookie-authenticated request — skip CSRF
+    const accessTokenCookie = request.cookies?.[AUTH_COOKIE_NAMES.ACCESS_TOKEN];
+    if (!accessTokenCookie) {
+      return true;
+    }
+
+    // Cookie-authenticated state-changing request: enforce CSRF double-submit
+    const csrfCookie = request.cookies?.[AUTH_COOKIE_NAMES.CSRF_TOKEN];
+    const csrfHeader = request.headers[CSRF_HEADER_NAME];
+
+    if (!csrfCookie || !csrfHeader || typeof csrfHeader !== 'string' || csrfCookie !== csrfHeader) {
+      throw new ForbiddenException('CSRF token validation failed');
     }
 
     return true;
@@ -432,10 +502,12 @@ export class CsrfGuard implements CanActivate {
 ```
 
 **How It Works:**
-- On login, a `csrf_token` cookie is set (readable by JavaScript, NOT HttpOnly)
+- On login and refresh, a `csrf_token` cookie is set (readable by JavaScript, NOT HttpOnly)
 - Frontend reads this cookie and sends its value as an `X-CSRF-Token` header on state-changing requests
 - The guard compares the header value to the cookie value
 - A cross-origin attacker cannot read the cookie to set the header, preventing CSRF
+- Requests using Bearer tokens or API keys are exempt (not CSRF-vulnerable)
+- If no `access_token` cookie is present, CSRF check is skipped (not a cookie-authenticated request)
 
 #### 5. **JwtAuthGuard / KeycloakJwtStrategy** (`jwt-auth.guard.ts` / `keycloak-jwt.strategy.ts`)
 
@@ -454,34 +526,44 @@ Global guard that validates JWTs on all routes except those marked `@Public()`. 
 **Passport JWT Strategy (cookie-first extraction):**
 
 ```typescript
+// Cookie-first extraction with Bearer header fallback
+function cookieOrBearerExtractor(req: Request): string | null {
+  const cookieToken = req.cookies?.[AUTH_COOKIE_NAMES.ACCESS_TOKEN];
+  if (cookieToken) return cookieToken;
+  return ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+}
+
 @Injectable()
-export class KeycloakJwtStrategy extends PassportStrategy(Strategy, 'keycloak-jwt') {
-  constructor(configService: ConfigService) {
+export class KeycloakJwtStrategy extends PassportStrategy(Strategy, 'jwt') {
+  private readonly clientId: string;
+
+  constructor(private configService: ConfigService) {
+    // ... construct jwksUri and expectedIssuer from SSO_AUTH_SERVER_URL + SSO_REALM
     super({
-      // Cookie-first extraction with Bearer header fallback
-      jwtFromRequest: (req: Request) => {
-        // 1. Try access_token cookie
-        if (req?.cookies?.access_token) {
-          return req.cookies.access_token;
-        }
-        // 2. Fall back to Authorization: Bearer header
-        return ExtractJwt.fromAuthHeaderAsBearerToken()(req);
-      },
-      secretOrKeyProvider: jwksRsa.passportJwtSecret({
-        jwksUri: `${issuerUrl}/protocol/openid-connect/certs`,
+      secretOrKeyProvider: passportJwtSecret({
         cache: true,
-        cacheMaxAge: 86400000,  // 24 hours
+        rateLimit: true,
+        jwksRequestsPerMinute: 5,
+        jwksUri,
       }),
-      issuer: issuerUrl,
+      jwtFromRequest: cookieOrBearerExtractor,
+      issuer: expectedIssuer,
       audience: clientId,
       algorithms: ['RS256'],
     });
+    this.clientId = clientId;
   }
 
-  async validate(payload: JwtPayload): Promise<User> {
-    // Normalize Keycloak roles from multiple sources
-    const roles = this.extractRoles(payload);
-    return { ...payload, roles };
+  validate(payload: any): User {
+    const normalizedRoles = this.extractRoles(payload);
+    return {
+      sub: payload.sub,
+      idir_username: payload.idir_username,
+      display_name: payload.display_name,
+      email: payload.email,
+      roles: normalizedRoles,
+      ...payload,
+    };
   }
 }
 ```
@@ -568,7 +650,7 @@ Global guards are registered via `APP_GUARD` provider token, which applies them 
 
 ```typescript
 @Module({
-  imports: [ConfigModule, ApiKeyModule, PassportModule],
+  imports: [ConfigModule, PassportModule.register({ defaultStrategy: 'jwt' }), ApiKeyModule],
   controllers: [AuthController],
   providers: [
     AuthService,
@@ -579,15 +661,15 @@ Global guards are registered via `APP_GUARD` provider token, which applies them 
     },
     {
       provide: APP_GUARD,
-      useClass: CsrfGuard,  // CSRF double-submit cookie protection
-    },
-    {
-      provide: APP_GUARD,
       useClass: ApiKeyAuthGuard,  // Handles API key auth
     },
     {
       provide: APP_GUARD,
-      useClass: RolesGuard,  // Enforces @Roles decorator last
+      useClass: RolesGuard,  // Enforces @Roles decorator
+    },
+    {
+      provide: APP_GUARD,
+      useClass: CsrfGuard,  // CSRF double-submit cookie protection
     },
   ],
   exports: [AuthService],
@@ -597,16 +679,16 @@ export class AuthModule {}
 
 **Guard Execution Order:**
 1. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
-2. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
-3. `ApiKeyAuthGuard` → Validates API key (if applicable) → Sets `request.user`
-4. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
+2. `ApiKeyAuthGuard` → Validates API key (if applicable) → Sets `request.user`
+3. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
+4. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
 
 ### Security Mechanisms
 
 #### CSRF Protection (Double-Submit Cookie Pattern)
 
 State-changing requests (POST, PUT, DELETE) are protected by the double-submit cookie pattern:
-- A `csrf_token` cookie (readable by JavaScript) is set during login
+- A `csrf_token` cookie (readable by JavaScript) is set during login and refresh
 - The frontend reads this cookie and sends its value as an `X-CSRF-Token` header
 - The `CsrfGuard` compares the header to the cookie value
 - Cross-origin attackers cannot read the cookie to forge the header
@@ -614,7 +696,7 @@ State-changing requests (POST, PUT, DELETE) are protected by the double-submit c
 #### PKCE Protection
 
 The authorization code exchange is protected by PKCE:
-- A `code_verifier` is generated and stored in an HttpOnly cookie during login
+- A `code_verifier` is generated and stored in an HttpOnly cookie during login (2-minute TTL)
 - The corresponding `code_challenge` is sent to Keycloak
 - On callback, the `code_verifier` is included in the token exchange
 - This prevents authorization code interception attacks
@@ -630,7 +712,7 @@ The nonce is validated automatically by `openid-client` during token exchange:
 
 All access tokens are verified using Keycloak's public keys:
 - Keys fetched from `/protocol/openid-connect/certs` (JWKS endpoint)
-- Cached for 24 hours for performance
+- Cached with rate limiting (5 requests per minute)
 - RS256 asymmetric signature verification
 - Validates `issuer` and `audience` claims
 
@@ -661,14 +743,15 @@ apps/frontend/src/auth/
 
 ```typescript
 interface AuthUser {
-  profile?: {
-    sub?: string;
+  sub: string;
+  expires_at: number;
+  profile: {
     name?: string;
     preferred_username?: string;
     email?: string;
-    roles?: string[];
     [key: string]: unknown;
   };
+  roles: string[];
 }
 
 interface AuthContextType {
@@ -691,11 +774,17 @@ The `AuthProvider` wraps the entire application and manages authentication state
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const initRef = useRef(false);
 
   useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
+
     const initAuth = async () => {
       try {
-        await checkAuthStatus();  // Call /api/auth/me to check if authenticated
+        cleanAuthErrorFromUrl();
+        const userData = await fetchMe();  // Call /api/auth/me to check if authenticated
+        setUser(userData);
       } catch {
         setUser(null);
       } finally {
@@ -704,14 +793,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initAuth();
-  }, []);
+  }, [fetchMe]);
 
   // ... context value and return
 };
 ```
 
 **Key Behaviors:**
-- Runs once on mount
+- Runs once on mount (guarded by `useRef` to prevent double-init in React Strict Mode)
+- Cleans up `auth_error` query params from failed login attempts
 - Calls `/api/auth/me` to check if user has valid auth cookies
 - If cookies are valid, the backend returns user profile data
 - If cookies are expired/missing, user is set to `null`
@@ -740,25 +830,25 @@ Tokens are stored in HttpOnly cookies managed entirely by the backend. The front
 On app load, the provider calls `/api/auth/me` to determine authentication state:
 
 ```typescript
-const checkAuthStatus = async () => {
+const fetchMe = useCallback(async (): Promise<AuthUser | null> => {
   try {
     const response = await axios.get<MeResponse>(
       `${apiBaseUrl}/auth/me`,
       { withCredentials: true },
     );
-    setUser({ profile: response.data });
+    return meResponseToUser(response.data);
   } catch {
-    // Not authenticated or cookies expired
-    setUser(null);
+    return null;
   }
-};
+}, [apiBaseUrl, meResponseToUser]);
 ```
 
 **How It Works:**
 1. Browser automatically sends auth cookies with the request
 2. Backend's `JwtAuthGuard` validates the `access_token` cookie
-3. If valid, returns user profile data extracted from the JWT
-4. If invalid/missing, returns 401 and frontend shows logged-out state
+3. If valid, returns `MeResponseDto` with user profile and `expires_in`
+4. `meResponseToUser()` computes `expires_at` from `expires_in` and builds the `AuthUser` object
+5. If invalid/missing, returns 401 and frontend shows logged-out state
 
 ### User Session Lifecycle
 
@@ -780,23 +870,7 @@ const login = () => {
 
 #### Post-Login Redirect
 
-After OAuth callback, the backend sets auth cookies and redirects the user to the frontend. On mount, the `AuthProvider` calls `/api/auth/me` which succeeds because the cookies are now present:
-
-```typescript
-// AuthProvider initialization detects auth cookies via /me endpoint
-useEffect(() => {
-  const initAuth = async () => {
-    try {
-      await checkAuthStatus();  // /api/auth/me succeeds with valid cookies
-    } catch {
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  initAuth();
-}, []);
-```
+After OAuth callback, the backend sets auth cookies and redirects the user to the frontend. On mount, the `AuthProvider` calls `fetchMe()` which hits `/api/auth/me` — this succeeds because the cookies are now present.
 
 No URL parameters, localStorage, or token handling needed on the frontend.
 
@@ -805,33 +879,33 @@ No URL parameters, localStorage, or token handling needed on the frontend.
 The refresh function calls the backend, which reads the refresh_token cookie and returns new cookies:
 
 ```typescript
-const refreshToken = async (): Promise<void> => {
+const refreshToken = useCallback(async (): Promise<void> => {
   try {
-    const response = await axios.post<{ expires_in: number }>(
+    const csrfToken = getCookie('csrf_token');
+    const response = await axios.post<RefreshResponse>(
       `${apiBaseUrl}/auth/refresh`,
       {},
       {
         withCredentials: true,
-        headers: {
-          'X-CSRF-Token': getCsrfToken(),  // Read csrf_token cookie
-        },
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
       },
     );
 
     // Backend has already set new auth cookies in the response
-    // Re-fetch user profile to update React state
-    await checkAuthStatus();
-  } catch (error) {
+    // Update local expires_at without re-fetching /me
+    const expiresAt = Math.floor(Date.now() / 1000) + response.data.expires_in;
+    setUser((prev) => prev ? { ...prev, expires_at: expiresAt } : prev);
+  } catch {
     setUser(null);
-    throw error;
   }
-};
+}, [apiBaseUrl]);
 ```
 
 **When is Refresh Triggered?**
-- Automatically on app load if `/me` returns 401
-- Can be manually triggered by components (e.g., API interceptors on 401 responses)
-- After refresh failure, user must re-login
+- **Proactively** by a timer at 75% of the access token's lifetime (minimum 10 seconds)
+- **On tab focus** via a `visibilitychange` listener when less than 60 seconds remain
+- **Reactively** by the `apiService` 401 response interceptor (single-flight pattern)
+- After refresh failure, the 401 interceptor triggers logout
 
 #### Logout
 
@@ -853,31 +927,74 @@ const logout = () => {
 
 ### API Integration
 
-All API requests use `withCredentials: true` so the browser automatically sends auth cookies. The CSRF token is included as a header:
+All API requests go through a centralized `ApiService` class with `withCredentials: true` so the browser automatically sends auth cookies. The CSRF token is included as a header:
 
 ```typescript
 // api.service.ts
-const apiClient = axios.create({
-  baseURL: apiBaseUrl,
-  withCredentials: true,  // Sends cookies automatically
-});
+class ApiService {
+  private axiosInstance: AxiosInstance;
+  private refreshCallback: (() => Promise<void>) | null = null;
+  private refreshPromise: Promise<void> | null = null;
+  private logoutCallback: (() => void) | null = null;
 
-// Add CSRF header to state-changing requests
-apiClient.interceptors.request.use((config) => {
-  if (['post', 'put', 'patch', 'delete'].includes(config.method ?? '')) {
-    config.headers['X-CSRF-Token'] = getCsrfToken();
+  constructor(baseURL: string) {
+    this.axiosInstance = axios.create({
+      baseURL,
+      withCredentials: true,  // Sends cookies automatically
+    });
+
+    // Add CSRF header to state-changing requests
+    this.axiosInstance.interceptors.request.use((config) => {
+      const method = config.method?.toUpperCase();
+      if (method && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+        const csrfToken = getCsrfToken();
+        if (csrfToken && config.headers) {
+          config.headers['X-CSRF-Token'] = csrfToken;
+        }
+      }
+      return config;
+    });
+
+    // 401 interceptor with single-flight refresh
+    this.axiosInstance.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config;
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+          if (!this.refreshPromise && this.refreshCallback) {
+            this.refreshPromise = this.refreshCallback()
+              .finally(() => { this.refreshPromise = null; });
+          }
+          if (this.refreshPromise) {
+            try {
+              await this.refreshPromise;
+              return this.axiosInstance(originalRequest);
+            } catch {
+              this.logoutCallback?.();
+              return Promise.reject(error);
+            }
+          }
+        }
+        return Promise.reject(error);
+      },
+    );
   }
-  return config;
-});
+
+  setRefreshCallback(callback: () => Promise<void>) { this.refreshCallback = callback; }
+  setLogoutCallback(callback: () => void) { this.logoutCallback = callback; }
+}
 
 // Helper to read csrf_token cookie
-function getCsrfToken(): string {
-  const match = document.cookie.match(/csrf_token=([^;]+)/);
-  return match?.[1] ?? '';
+function getCsrfToken(): string | undefined {
+  const match = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith('csrf_token='));
+  return match?.split('=')[1];
 }
 ```
 
-This ensures all API calls are automatically authenticated without manual token management in components.
+The `AuthContext` registers its `refreshToken` and `logout` callbacks with `apiService`, enabling automatic token refresh on 401 responses without manual token management in components.
 
 ### Using the Auth Context
 
@@ -1093,9 +1210,9 @@ function MyComponent() {
 ```
 
 **Refresh Triggers:**
-- Automatic on app load if access token expired
-- Manual trigger by API error interceptors (401 responses)
-- Proactive refresh before expiry (can be implemented with timer)
+- Proactive timer at 75% of token lifetime
+- Visibility change listener when tab regains focus and token is near expiry
+- 401 response interceptor in `apiService` (single-flight pattern)
 
 **Note:** Keycloak may optionally rotate the refresh token on each refresh operation, which is a security best practice.
 
@@ -1462,9 +1579,7 @@ Tokens are stored in HttpOnly cookies, making them inaccessible to JavaScript:
 **Client Secret:**
 - Only stored on backend
 - Never exposed to frontend
-- Used for token exchange and refresh
-- Used only for signing state JWTs
-- Rotation supported (old states become invalid)
+- Used for token exchange and refresh via `openid-client`
 
 ### HTTPS Requirement
 

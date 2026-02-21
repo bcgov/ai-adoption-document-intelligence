@@ -369,4 +369,4 @@ All existing security mechanisms are preserved or improved:
 - **ID token validation** is handled by `openid-client` (signature, nonce, iss, aud, exp)
 - **Confidential client** is maintained — `client_secret` stays server-side
 - **Role normalization** is preserved in the Passport strategy's `validate()` method
-- **`localStorage` token storage** remains unchanged (consider HttpOnly cookies as a future enhancement)
+- **`localStorage` token storage** has been replaced by HttpOnly cookies (XSS immune)

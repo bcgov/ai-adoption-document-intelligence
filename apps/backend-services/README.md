@@ -16,7 +16,7 @@ The backend services provide a modular, scalable API for:
 
 ## Architecture
 
-- **Framework**: NestJS with Fastify HTTP server
+- **Framework**: NestJS with Express HTTP server
 - **Database**: PostgreSQL with Prisma ORM
 - **Workflow Engine**: Temporal.io for durable, distributed workflows
 - **OCR**: Azure Document Intelligence (formerly Form Recognizer)

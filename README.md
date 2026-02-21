@@ -164,7 +164,7 @@ The platform is built as a microservices architecture with five main components:
 
 ### Backend
 - **NestJS** - Modular backend framework
-- **Fastify** - High-performance HTTP server
+- **Express** - HTTP server (via @nestjs/platform-express)
 - **Prisma** - Type-safe database ORM
 - **PostgreSQL** - Primary database
 - **TypeScript** - Type safety and modern JavaScript
@@ -181,7 +181,6 @@ The platform is built as a microservices architecture with five main components:
 - **React Konva** - Canvas-based labeling
 - **React PDF** - PDF rendering
 - **TanStack Query** - Data fetching and caching
-- **oidc-client-ts** - OpenID Connect authentication
 - **Axios** - HTTP client
 
 ### Workflow Engine

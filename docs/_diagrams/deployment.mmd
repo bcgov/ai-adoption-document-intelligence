@@ -19,7 +19,7 @@ graph TB
         subgraph BEPod ["Backend Pod"]
             direction TB
             InitMigrate["Init Container<br/>prisma migrate deploy"]
-            NestJS["NestJS / Fastify<br/>:3002<br/>Liveness: /health<br/>Readiness: /health"]
+            NestJS["NestJS / Express<br/>:3002<br/>Liveness: /health<br/>Readiness: /health"]
             InitMigrate -->|"runs before"| NestJS
         end
 
