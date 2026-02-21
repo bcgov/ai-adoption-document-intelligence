@@ -94,28 +94,16 @@ describe("ApiKeyController", () => {
       );
     });
 
-    it("should use unknown@example.com and empty roles when user has no email or roles", async () => {
-      const mockGeneratedKey = {
-        id: "key123",
-        key: "fullkeyvalue",
-        keyPrefix: "fullkeyv",
-        userEmail: "unknown@example.com",
-        roles: [],
-        createdAt: new Date(),
-        lastUsed: null,
-      };
-      mockApiKeyService.generateApiKey.mockResolvedValue(mockGeneratedKey);
-
-      const result = await controller.generateApiKey({
-        user: { sub: "testuser" },
-      } as any);
-
-      expect(result).toEqual({ apiKey: mockGeneratedKey });
-      expect(apiKeyService.generateApiKey).toHaveBeenCalledWith(
-        "testuser",
-        "unknown@example.com",
-        [],
+    it("should throw BadRequestException when user has no email", async () => {
+      await expect(
+        controller.generateApiKey({
+          user: { sub: "testuser" },
+        } as any),
+      ).rejects.toThrow(
+        "Email claim is required in JWT to generate an API key",
       );
+
+      expect(apiKeyService.generateApiKey).not.toHaveBeenCalled();
     });
   });
 
@@ -152,27 +140,16 @@ describe("ApiKeyController", () => {
       );
     });
 
-    it("should use unknown@example.com and empty roles when user has no email or roles", async () => {
-      const mockRegeneratedKey = {
-        id: "newkey123",
-        key: "newfullkeyvalue",
-        keyPrefix: "newfullk",
-        userEmail: "unknown@example.com",
-        roles: [],
-        createdAt: new Date(),
-        lastUsed: null,
-      };
-      mockApiKeyService.regenerateApiKey.mockResolvedValue(mockRegeneratedKey);
-
-      const _result = await controller.regenerateApiKey({
-        user: { sub: "testuser" },
-      } as any);
-
-      expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith(
-        "testuser",
-        "unknown@example.com",
-        [],
+    it("should throw BadRequestException when user has no email", async () => {
+      await expect(
+        controller.regenerateApiKey({
+          user: { sub: "testuser" },
+        } as any),
+      ).rejects.toThrow(
+        "Email claim is required in JWT to regenerate an API key",
       );
+
+      expect(apiKeyService.regenerateApiKey).not.toHaveBeenCalled();
     });
   });
 });

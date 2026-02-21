@@ -915,18 +915,18 @@ X-CSRF-Token: abc123...</code></pre>
         </tr>
         <tr>
             <td><strong>3</strong></td>
-            <td><code>CsrfGuard</code></td>
-            <td>Validates CSRF double-submit token on state-changing requests (POST, PUT, DELETE, PATCH) when the user is authenticated via cookies. Skips Bearer and API-key authenticated requests.</td>
-        </tr>
-        <tr>
-            <td><strong>4</strong></td>
             <td><code>ApiKeyAuthGuard</code></td>
             <td>Validates <code>X-API-Key</code> header on <code>@ApiKeyAuth()</code>-decorated routes. Skips if user already authenticated via JWT.</td>
         </tr>
         <tr>
-            <td><strong>5</strong></td>
+            <td><strong>4</strong></td>
             <td><code>RolesGuard</code></td>
             <td>Checks <code>@Roles()</code> decorator metadata against <code>request.user.roles</code>. Requires at least one matching role.</td>
+        </tr>
+        <tr>
+            <td><strong>5</strong></td>
+            <td><code>CsrfGuard</code></td>
+            <td>Validates CSRF double-submit token on state-changing requests (POST, PUT, DELETE, PATCH) when the user is authenticated via cookies. Skips Bearer and API-key authenticated requests.</td>
         </tr>
     </tbody>
 </table>
@@ -1135,7 +1135,7 @@ export class AdminController {
         <tr>
             <td><code>GET</code></td>
             <td><code>/api/auth/logout</code></td>
-            <td>Reads <code>id_token</code> from cookie, clears all auth cookies, redirects to Keycloak logout endpoint</td>
+            <td>Reads <code>id_token</code> from cookie, clears all auth cookies, redirects to Keycloak logout endpoint with <code>client_id</code>, <code>id_token_hint</code>, and <code>post_logout_redirect_uri</code></td>
         </tr>
     </tbody>
 </table>

@@ -69,9 +69,7 @@ sequenceDiagram
     KC -->> BE: New access_token<br/>+ refresh_token + expires_in
     BE ->> BE: Set new HttpOnly cookies<br/>+ new csrf_token
     BE -->> SPA: { expires_in }
-    SPA ->> BE: GET /api/auth/me<br/>(refresh user profile)
-    BE -->> SPA: Updated profile
-    SPA ->> SPA: Reset refresh timer
+    SPA ->> SPA: Update expires_at<br/>Reset refresh timer
 
     Note over User,KC: 401 INTERCEPTOR (Fallback)
 
@@ -95,7 +93,7 @@ sequenceDiagram
     SPA -->> User: Navigate to<br/>/api/auth/logout
     User ->> BE: GET /api/auth/logout
     BE ->> BE: Read id_token from cookie<br/>Clear all auth cookies
-    BE -->> User: 302 Redirect to<br/>Keycloak logout endpoint<br/>with id_token_hint
+    BE -->> User: 302 Redirect to<br/>Keycloak logout endpoint<br/>with client_id, id_token_hint,<br/>post_logout_redirect_uri
     User ->> KC: End session
     KC -->> User: Redirect to post-logout URL
 

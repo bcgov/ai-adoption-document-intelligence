@@ -1,12 +1,12 @@
 import { Response } from "express";
+import { TokenResponseDto } from "@/auth/dto/token-response.dto";
 import {
-  COOKIE_OPTIONS,
   AUTH_COOKIE_NAMES,
-  setAuthCookies,
+  COOKIE_OPTIONS,
   clearAuthCookies,
   generateCsrfToken,
+  setAuthCookies,
 } from "./cookie-auth.utils";
-import { TokenResponseDto } from "@/auth/dto/token-response.dto";
 
 describe("cookie-auth.utils", () => {
   describe("COOKIE_OPTIONS.csrfToken", () => {

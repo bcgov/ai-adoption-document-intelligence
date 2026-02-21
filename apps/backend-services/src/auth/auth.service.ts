@@ -115,9 +115,12 @@ export class AuthService implements OnModuleInit {
 
   /**
    * Builds the Keycloak logout URL so the browser can end the realm session.
+   * Always includes client_id alongside post_logout_redirect_uri so Keycloak
+   * can validate the redirect destination even when id_token_hint is absent.
    */
   getLogoutUrl(idTokenHint?: string): string {
     const params = new URLSearchParams();
+    params.append("client_id", this.clientId);
     params.append(
       "post_logout_redirect_uri",
       this.configService.get<string>("SSO_POST_LOGOUT_REDIRECT_URI") ||

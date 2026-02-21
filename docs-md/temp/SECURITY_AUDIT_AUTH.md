@@ -24,7 +24,7 @@ The authentication architecture follows a sound design: confidential OAuth 2.0 A
 
 However, this audit identified **2 critical**, **4 high**, **6 medium**, and **5 low/informational** findings that should be addressed, ranging from missing rate limiting on authentication endpoints to a duplicate decorator definition that could lead to authorization bypass confusion.
 
-**Remediation Progress:** 7 of 17 findings resolved.
+**Remediation Progress:** 12 of 17 findings resolved.
 
 | Finding | Severity | Status |
 |---------|----------|--------|
@@ -35,8 +35,19 @@ However, this audit identified **2 critical**, **4 high**, **6 medium**, and **5
 | H-3: Duplicate ApiKeyAuth Decorator | High | ✅ Resolved |
 | H-4: Auth Error Message Leaks | High | ✅ Resolved |
 | M-1: Refresh Endpoint @Public() | Medium | ✅ Documented |
-| M-2 through M-6 | Medium | ⬜ Open |
-| L-1 through L-5 | Low | ⬚ Open |
+| M-2: CORS Single Origin | Medium | ⬜ Open |
+| M-3: Logout Missing client_id | Medium | ✅ Resolved |
+| M-4: PKCE Cookie Plain JSON | Medium | ⬜ Open |
+| M-5: Cookie secure Flag | Medium | ⬜ Open |
+| M-6: No @Roles() Usage | Medium | ⬜ Open |
+| L-1: Nginx No Security Headers | Low | ⬜ Open |
+| L-2: CSRF sameSite vs Auth sameSite | Low | ⬜ Open |
+| L-3: TokenResponseDto No Validation | Low | ⬜ Open |
+| L-4: LogoutQueryDto Unused | Low | ✅ Resolved |
+| L-5: API Key Email Fallback | Low | ✅ Resolved |
+| D-1: Docs client_id in Logout | Docs | ✅ Resolved |
+| D-3: Guard Execution Order | Docs | ✅ Resolved |
+| D-4: Refresh Flow /me Call | Docs | ✅ Resolved |
 
 ---
 
@@ -319,9 +330,16 @@ This is appropriately restrictive (single origin with credentials). However, if 
 
 ---
 
-### M-3: Logout Does Not Append `client_id` to Keycloak Logout URL
+### M-3: Logout Does Not Append `client_id` to Keycloak Logout URL — ✅ RESOLVED
 
-**Location:** [apps/backend-services/src/auth/auth.service.ts](../apps/backend-services/src/auth/auth.service.ts#L112-L126)
+**Location:** [apps/backend-services/src/auth/auth.service.ts](../apps/backend-services/src/auth/auth.service.ts)
+
+**Status:** Resolved on 2026-02-21.
+
+**Resolution:** Updated `getLogoutUrl()` to always include `client_id` in the logout URL parameters alongside `post_logout_redirect_uri`. This ensures Keycloak can validate the redirect destination even when `id_token_hint` is absent (e.g., when the ID token cookie has expired). The `client_id` is now the first parameter appended, followed by `post_logout_redirect_uri` and optionally `id_token_hint`. Updated tests in `auth.service.spec.ts` (3 tests: verifies `client_id` is present with and without `id_token_hint`). Updated documentation in AUTHENTICATION.md, the Mermaid diagram, and the HTML docs site.
+
+<details>
+<summary>Original finding (pre-resolution)</summary>
 
 **Description:** The logout URL construction omits `client_id`:
 
@@ -342,6 +360,8 @@ Per the OIDC RP-Initiated Logout spec and Keycloak's implementation, if `id_toke
 **Impact:** Logout may not cleanly redirect back to the application when the ID token has expired.
 
 **Recommendation:** Always include `client_id` in the logout URL parameters alongside `post_logout_redirect_uri`.
+
+</details>
 
 ---
 
@@ -453,9 +473,16 @@ In practice, the callback handler sets auth cookies and then redirects to the fr
 
 ---
 
-### L-4: `LogoutQueryDto` Is Defined but Never Used
+### L-4: `LogoutQueryDto` Is Defined but Never Used — ✅ RESOLVED
 
-**Location:** [apps/backend-services/src/auth/dto/logout-query.dto.ts](../apps/backend-services/src/auth/dto/logout-query.dto.ts)
+**Location:** ~~apps/backend-services/src/auth/dto/logout-query.dto.ts~~ (deleted)
+
+**Status:** Resolved on 2026-02-21.
+
+**Resolution:** Deleted `logout-query.dto.ts` and removed its export from the barrel file (`dto/index.ts`). The DTO was dead code — the logout endpoint reads `id_token_hint` from cookies, not query parameters. Updated AUTHENTICATION.md module structure to remove the file listing.
+
+<details>
+<summary>Original finding (pre-resolution)</summary>
 
 **Description:** `LogoutQueryDto` is defined with an `@IsJWT()` validator for `id_token_hint`, but the logout controller endpoint reads `id_token_hint` from cookies, not query parameters. This DTO is exported from the barrel file but never used in any controller.
 
@@ -463,11 +490,20 @@ In practice, the callback handler sets auth cookies and then redirects to the fr
 
 **Recommendation:** Remove `LogoutQueryDto` to reduce confusion.
 
+</details>
+
 ---
 
-### L-5: API Key Controller Falls Back to `"unknown@example.com"` for Missing Email
+### L-5: API Key Controller Falls Back to `"unknown@example.com"` for Missing Email — ✅ RESOLVED
 
-**Location:** [apps/backend-services/src/api-key/api-key.controller.ts](../apps/backend-services/src/api-key/api-key.controller.ts#L68)
+**Location:** [apps/backend-services/src/api-key/api-key.controller.ts](../apps/backend-services/src/api-key/api-key.controller.ts)
+
+**Status:** Resolved on 2026-02-21.
+
+**Resolution:** The `generateApiKey()` and `regenerateApiKey()` controller methods now require a valid `email` claim in the user's JWT. If the email is missing, a `BadRequestException` is thrown with the message `"Email claim is required in JWT to generate an API key"` (or `"...to regenerate..."`). The `"unknown@example.com"` fallback has been removed entirely. Tests updated in `api-key.controller.spec.ts` (2 tests: verifies `BadRequestException` is thrown and the service method is not called when email is missing).
+
+<details>
+<summary>Original finding (pre-resolution)</summary>
 
 **Description:**
 
@@ -481,13 +517,17 @@ If a user's JWT payload lacks an `email` claim, the API key is associated with `
 
 **Recommendation:** Require a valid email in the JWT or reject API key generation if email is missing. Alternatively, fall back to the user's `sub` claim for identification.
 
+</details>
+
 ---
 
 ## Documentation vs. Code Discrepancies
 
-### D-1: Documentation Shows `client_id` in Logout URL — Code Does Not
+### D-1: ~~Documentation Shows `client_id` in Logout URL — Code Does Not~~ — RESOLVED
 
-The AUTHENTICATION.md documentation mentions `post_logout_redirect_uri` in logout, but the code omits `client_id`. The code and documentation should align on whether `client_id` is included (see finding M-3).
+~~The AUTHENTICATION.md documentation mentions `post_logout_redirect_uri` in logout, but the code omits `client_id`. The code and documentation should align on whether `client_id` is included (see finding M-3).~~
+
+Resolved: The code now includes `client_id` in the logout URL (see M-3 resolution). Documentation, Mermaid diagrams, and the HTML docs site have been updated to reflect this.
 
 ### D-2: ~~Documentation Shows Separate `api-key-auth.decorator.ts` in File Structure~~ — RESOLVED
 
@@ -495,13 +535,17 @@ The AUTHENTICATION.md documentation mentions `post_logout_redirect_uri` in logou
 
 Resolved: The dead file has been deleted and the module structure in AUTHENTICATION.md updated to remove the reference.
 
-### D-3: Guard Execution Order in Docs vs. Actual NestJS Behavior
+### D-3: ~~Guard Execution Order in Docs vs. Actual NestJS Behavior~~ — RESOLVED
 
-The documentation states guard order as: JwtAuthGuard → ApiKeyAuthGuard → RolesGuard → CsrfGuard. In NestJS, `APP_GUARD` providers execute in registration order, which matches the module definition. However, this order means **CsrfGuard runs last** — after `RolesGuard`. This is the correct order since CSRF should validate after authentication is established. The documentation accurately reflects this.
+~~The documentation states guard order as: JwtAuthGuard → ApiKeyAuthGuard → RolesGuard → CsrfGuard. In NestJS, `APP_GUARD` providers execute in registration order, which matches the module definition.~~
 
-### D-4: Documentation Token Refresh Flow Shows `/api/auth/me` Call After Refresh
+Resolved: Verified on 2026-02-21. The actual code registration order in `AuthModule` is: JwtAuthGuard → ApiKeyAuthGuard → RolesGuard → CsrfGuard, with ThrottlerGuard registered first in `AppModule`. The AUTHENTICATION.md documentation accurately reflects this order (ThrottlerGuard → JwtAuthGuard → ApiKeyAuthGuard → RolesGuard → CsrfGuard). The HTML docs site had the order wrong (CsrfGuard listed before ApiKeyAuthGuard and RolesGuard) and has been corrected to match.
 
-The sequence diagram (step 8-9 of the Token Refresh Flow) shows the frontend calling `/api/auth/me` after a refresh. In the actual code, the frontend does NOT call `/me` after refresh — it simply updates `expires_at` from the `expires_in` response field. This is a minor documentation inaccuracy.
+### D-4: ~~Documentation Token Refresh Flow Shows `/api/auth/me` Call After Refresh~~ — RESOLVED
+
+~~The sequence diagram (step 8-9 of the Token Refresh Flow) shows the frontend calling `/api/auth/me` after a refresh. In the actual code, the frontend does NOT call `/me` after refresh — it simply updates `expires_at` from the `expires_in` response field. This is a minor documentation inaccuracy.~~
+
+Resolved: Updated on 2026-02-21. The Token Refresh Flow diagram in AUTHENTICATION.md now correctly shows the frontend updating `expires_at` from the `expires_in` response field and resetting the refresh timer, without a `/api/auth/me` call. The Mermaid diagram has also been updated to remove the spurious `/api/auth/me` call and profile response from the refresh flow.
 
 ### D-5: ~~Documentation References `@ApiKeyAuth()` from `auth/api-key-auth.decorator.ts`~~ — RESOLVED
 

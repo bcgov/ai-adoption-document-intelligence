@@ -239,8 +239,7 @@ apps/backend-services/src/auth/
     ├── token-response.dto.ts         # Keycloak token response structure
     ├── refresh-token.dto.ts          # Refresh response DTO
     ├── oauth-callback-query.dto.ts   # Callback query parameters
-    ├── me-response.dto.ts            # Profile endpoint response DTO
-    └── logout-query.dto.ts           # Logout query parameters
+    └── me-response.dto.ts            # Profile endpoint response DTO
 ```
 
 ### Core Components
@@ -265,7 +264,7 @@ constructor(private configService: ConfigService)
 | `getLoginUrl()` | Async — returns `Promise<LoginUrlResult>` with authorization URL, PKCE state, code verifier, and nonce |
 | `handleCallback(code, state, codeVerifier, nonce, iss?)` | Exchanges authorization code for tokens with PKCE validation; returns `TokenResponseDto` directly |
 | `refreshAccessToken(refreshToken)` | Proxies refresh token grant to Keycloak via openid-client |
-| `getLogoutUrl(idTokenHint?)` | Constructs Keycloak logout URL |
+| `getLogoutUrl(idTokenHint?)` | Constructs Keycloak logout URL with `client_id` and `post_logout_redirect_uri` |
 | `getFrontendUrl()` | Returns the configured frontend URL for redirects |
 | `buildErrorRedirect(error)` | Produces a frontend redirect URL for auth failures |
 
@@ -1278,14 +1277,11 @@ function MyComponent() {
     │                           │  7. Returns { expires_in }                           │
     │                           │<─────────────────────────┤                           │
     │                           │                          │                           │
-    │                           │  8. Call /api/auth/me    │                           │
-    │                           │     to refresh profile   │                           │
-    │                           ├─────────────────────────>│                           │
+    │                           │  8. Update expires_at    │                           │
+    │                           │     from expires_in,     │                           │
+    │                           │     reset refresh timer  │                           │
     │                           │                          │                           │
-    │                           │  9. Updated user profile │                           │
-    │                           │<─────────────────────────┤                           │
-    │                           │                          │                           │
-    │  10. Continue using app   │                          │                           │
+    │  9. Continue using app    │                          │                           │
     │     with refreshed token  │                          │                           │
     │<──────────────────────────┤                          │                           │
     │                           │                          │                           │
@@ -1325,6 +1321,7 @@ function MyComponent() {
     │                           │<─────────────────────────┤                           │
     │                           │                          │                           │
     │                           │  5. GET /logout?         │                           │
+    │                           │     client_id=X&         │                           │
     │                           │     id_token_hint=JWT&   │                           │
     │                           │     post_logout_         │                           │
     │                           │     redirect_uri=SPA_URL │                           │

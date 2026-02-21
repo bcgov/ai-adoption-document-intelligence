@@ -148,16 +148,25 @@ describe("AuthService", () => {
   });
 
   describe("getLogoutUrl", () => {
-    it("should build logout url with id_token_hint", () => {
+    it("should build logout url with id_token_hint and client_id", () => {
       const url = service.getLogoutUrl("idtoken");
       expect(url).toContain("id_token_hint=idtoken");
       expect(url).toContain("post_logout_redirect_uri");
+      expect(url).toContain("client_id=client-id");
     });
 
-    it("should build logout url without id_token_hint", () => {
+    it("should build logout url without id_token_hint but with client_id", () => {
       const url = service.getLogoutUrl();
       expect(url).toContain("post_logout_redirect_uri");
+      expect(url).toContain("client_id=client-id");
       expect(url).not.toContain("id_token_hint");
+    });
+
+    it("should include client_id before post_logout_redirect_uri in params", () => {
+      const url = service.getLogoutUrl();
+      const params = new URL(url).searchParams;
+      expect(params.get("client_id")).toBe("client-id");
+      expect(params.has("post_logout_redirect_uri")).toBe(true);
     });
   });
 
