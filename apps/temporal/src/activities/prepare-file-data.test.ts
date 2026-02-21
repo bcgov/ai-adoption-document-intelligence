@@ -25,11 +25,11 @@ describe('prepareFileData activity', () => {
 
     const result = await prepareFileData(input);
 
-    expect(result.fileName).toBe('test.pdf');
-    expect(result.fileType).toBe('pdf');
-    expect(result.contentType).toBe('application/pdf');
-    expect(result.blobKey).toBe('documents/doc-1/test.pdf');
-    expect(result.modelId).toBe('prebuilt-layout');
+    expect(result.preparedData.fileName).toBe('test.pdf');
+    expect(result.preparedData.fileType).toBe('pdf');
+    expect(result.preparedData.contentType).toBe('application/pdf');
+    expect(result.preparedData.blobKey).toBe('documents/doc-1/test.pdf');
+    expect(result.preparedData.modelId).toBe('prebuilt-layout');
   });
 
   it('prepares image file data', async () => {
@@ -46,10 +46,10 @@ describe('prepareFileData activity', () => {
 
     const result = await prepareFileData(input);
 
-    expect(result.fileName).toBe('scan.png');
-    expect(result.fileType).toBe('image');
-    expect(result.contentType).toBe('image/png');
-    expect(result.blobKey).toBe('documents/doc-2/scan.png');
+    expect(result.preparedData.fileName).toBe('scan.png');
+    expect(result.preparedData.fileType).toBe('image');
+    expect(result.preparedData.contentType).toBe('image/png');
+    expect(result.preparedData.blobKey).toBe('documents/doc-2/scan.png');
   });
 
   it('accepts custom modelId', async () => {
@@ -64,7 +64,7 @@ describe('prepareFileData activity', () => {
 
     const result = await prepareFileData(input);
 
-    expect(result.modelId).toBe('custom-invoice-model');
+    expect(result.preparedData.modelId).toBe('custom-invoice-model');
   });
 
   it('detects file type from filename extension', async () => {
@@ -78,8 +78,8 @@ describe('prepareFileData activity', () => {
 
     const result = await prepareFileData(input);
 
-    expect(result.fileType).toBe('image');
-    expect(result.contentType).toBe('image/jpeg');
+    expect(result.preparedData.fileType).toBe('image');
+    expect(result.preparedData.contentType).toBe('image/jpeg');
   });
 
   it('throws error for missing blobKey', async () => {

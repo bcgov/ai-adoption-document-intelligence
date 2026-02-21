@@ -6,21 +6,21 @@
  * reachability, switch/map/join cross-references, port bindings,
  * expression validation, and activity type validation.
  *
- * See docs/DAG_WORKFLOW_ENGINE.md Section 9.2
+ * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 9.2
  */
 
+import { isRegisteredActivityType } from "./activity-registry";
 import type {
-  GraphWorkflowConfig,
-  GraphValidationError,
-  ConditionExpression,
-  SwitchNode,
-  MapNode,
-  JoinNode,
   ActivityNode,
+  ConditionExpression,
+  GraphValidationError,
+  GraphWorkflowConfig,
+  JoinNode,
+  MapNode,
   PollUntilNode,
+  SwitchNode,
   ValueRef,
 } from "./graph-workflow-types";
-import { isRegisteredActivityType } from "./activity-registry";
 
 const SUPPORTED_SCHEMA_VERSIONS = ["1.0"];
 
@@ -226,7 +226,9 @@ function validateErrorPolicies(
   config: GraphWorkflowConfig,
   errors: GraphValidationError[],
 ): void {
-  const edgesById = new Map((config.edges || []).map((edge) => [edge.id, edge]));
+  const edgesById = new Map(
+    (config.edges || []).map((edge) => [edge.id, edge]),
+  );
 
   for (const [nodeId, node] of Object.entries(config.nodes)) {
     if (node.errorPolicy?.onError !== "fallback") {
@@ -435,7 +437,9 @@ function validateExpressions(
   config: GraphWorkflowConfig,
   errors: GraphValidationError[],
 ): void {
-  const declaredCtxKeys = config.ctx ? new Set(Object.keys(config.ctx)) : new Set<string>();
+  const declaredCtxKeys = config.ctx
+    ? new Set(Object.keys(config.ctx))
+    : new Set<string>();
 
   for (const [nodeId, node] of Object.entries(config.nodes)) {
     if (node.type === "switch") {
@@ -708,7 +712,10 @@ function markBodyNodesReachable(
     const node = config.nodes[current];
     if (node && node.type === "map") {
       const mapNode = node as MapNode;
-      if (mapNode.bodyEntryNodeId in config.nodes && !visited.has(mapNode.bodyEntryNodeId)) {
+      if (
+        mapNode.bodyEntryNodeId in config.nodes &&
+        !visited.has(mapNode.bodyEntryNodeId)
+      ) {
         markBodyNodesReachable(
           mapNode.bodyEntryNodeId,
           mapNode.bodyExitNodeId,

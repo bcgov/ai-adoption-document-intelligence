@@ -8,8 +8,8 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getPrismaPgOptions } from "@/utils/database-url";
-import { GraphWorkflowConfig } from "./graph-workflow-types";
 import { validateGraphConfig } from "./graph-schema-validator";
+import { GraphWorkflowConfig } from "./graph-workflow-types";
 
 export interface WorkflowInfo {
   id: string;

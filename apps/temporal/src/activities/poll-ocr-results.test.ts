@@ -1,10 +1,24 @@
 import { pollOCRResults } from './poll-ocr-results';
 import type { OCRResponse } from '../types';
-import axios from 'axios';
+import DocumentIntelligence, { isUnexpected } from '@azure-rest/ai-document-intelligence';
 
-jest.mock('axios');
+jest.mock('@azure-rest/ai-document-intelligence', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  isUnexpected: jest.fn(),
+}));
 
-const axiosMock = axios as jest.Mocked<typeof axios>;
+const documentIntelligenceMock = DocumentIntelligence as jest.MockedFunction<typeof DocumentIntelligence>;
+const isUnexpectedMock = isUnexpected as jest.MockedFunction<typeof isUnexpected>;
+
+type PollResponse = {
+  status: string | number;
+  body: OCRResponse | null;
+  headers?: Record<string, string | string[]>;
+};
+
+const mockGet = jest.fn<Promise<PollResponse>, []>();
+const mockPath = jest.fn(() => ({ get: mockGet }));
 
 describe('pollOCRResults activity', () => {
   const originalEnv = process.env;
@@ -16,6 +30,14 @@ describe('pollOCRResults activity', () => {
       AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: 'https://test.cognitiveservices.azure.com',
       AZURE_DOCUMENT_INTELLIGENCE_API_KEY: 'test-api-key',
     };
+    isUnexpectedMock.mockReturnValue(false);
+    mockGet.mockReset();
+    mockPath.mockReset();
+    mockPath.mockReturnValue({ get: mockGet });
+    documentIntelligenceMock.mockReset();
+    documentIntelligenceMock.mockReturnValue({
+      path: mockPath,
+    } as unknown as ReturnType<typeof DocumentIntelligence>);
   });
 
   afterEach(() => {
@@ -41,17 +63,25 @@ describe('pollOCRResults activity', () => {
       },
     };
 
-    axiosMock.get.mockResolvedValue({ data: mockOCRResponse });
+    mockGet.mockResolvedValue({ status: 200, body: mockOCRResponse });
 
     const result = await pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'prebuilt-layout' });
 
     expect(result.status).toBe('succeeded');
     expect(result.response).toEqual(mockOCRResponse);
-    expect(axiosMock.get).toHaveBeenCalledWith(
-      expect.stringContaining('/analyzeResults/test-request-id'),
-      expect.objectContaining({
-        headers: { 'api-key': 'test-api-key' },
-      })
+    expect(documentIntelligenceMock).toHaveBeenCalledWith(
+      'https://test.cognitiveservices.azure.com',
+      { key: 'test-api-key' },
+      {
+        credentials: {
+          apiKeyHeaderName: 'api-key',
+        },
+      },
+    );
+    expect(mockPath).toHaveBeenCalledWith(
+      '/documentModels/{modelId}/analyzeResults/{resultId}',
+      'prebuilt-layout',
+      'test-request-id',
     );
   });
 
@@ -62,7 +92,7 @@ describe('pollOCRResults activity', () => {
       lastUpdatedDateTime: '2024-01-01T00:00:30Z',
     };
 
-    axiosMock.get.mockResolvedValue({ data: mockOCRResponse });
+    mockGet.mockResolvedValue({ status: 200, body: mockOCRResponse });
 
     const result = await pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'prebuilt-layout' });
 
@@ -77,7 +107,7 @@ describe('pollOCRResults activity', () => {
       lastUpdatedDateTime: '2024-01-01T00:00:30Z',
     };
 
-    axiosMock.get.mockResolvedValue({ data: mockOCRResponse });
+    mockGet.mockResolvedValue({ status: 200, body: mockOCRResponse });
 
     const result = await pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'prebuilt-layout' });
 
@@ -101,49 +131,39 @@ describe('pollOCRResults activity', () => {
   });
 
   it('throws error when response body is empty', async () => {
-    axiosMock.get.mockResolvedValue({ data: null });
+    mockGet.mockResolvedValue({ status: 200, body: null });
 
     await expect(pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'prebuilt-layout' })).rejects.toThrow(
       'Empty response from Azure OCR polling endpoint'
     );
   });
 
-  it('handles axios errors', async () => {
-    const axiosError = new Error('Request failed');
-    Object.assign(axiosError, {
-      isAxiosError: true,
-      response: {
-        status: 404,
-        statusText: 'Not Found',
-        data: { error: 'Request not found' },
-      },
-      config: {
-        url: 'https://test.cognitiveservices.azure.com/documentModels/prebuilt-layout/analyzeResults/test-request-id',
-      },
-    });
-    axiosMock.get.mockRejectedValue(axiosError);
-    (axiosMock.isAxiosError as unknown as jest.Mock) = jest.fn().mockReturnValue(true);
+  it('rethrows SDK client errors', async () => {
+    const sdkError = new Error('Request failed');
+    mockGet.mockRejectedValue(sdkError);
 
     await expect(pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'prebuilt-layout' })).rejects.toThrow(
       'Request failed'
     );
   });
 
-  it('normalizes endpoint URL by removing trailing slash', async () => {
-    process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = 'https://test.cognitiveservices.azure.com/';
+  it('passes endpoint from env to SDK as configured', async () => {
+    process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = 'https://test.cognitiveservices.azure.com';
 
     const mockOCRResponse: OCRResponse = {
       status: 'succeeded',
       createdDateTime: '2024-01-01T00:00:00Z',
       lastUpdatedDateTime: '2024-01-01T00:01:00Z',
     };
-
-    axiosMock.get.mockResolvedValue({ data: mockOCRResponse });
+    mockGet.mockResolvedValue({ status: 200, body: mockOCRResponse });
 
     await pollOCRResults({ apimRequestId: 'test-request-id', modelId: 'prebuilt-layout' });
 
-    const calledUrl = axiosMock.get.mock.calls[0][0] as string;
-    expect(calledUrl).not.toContain('//documentModels');
-    expect(calledUrl).toContain('/documentModels');
+    expect(documentIntelligenceMock).toHaveBeenCalledWith(
+      'https://test.cognitiveservices.azure.com',
+      expect.any(Object),
+      expect.any(Object),
+    );
   });
+
 });

@@ -23,7 +23,7 @@ describe('postOcrCleanup activity', () => {
 
     const result = await postOcrCleanup({ ocrResult });
 
-    expect(result.extractedText).toBe('Hello World-test"Hello"');
+    expect(result.cleanedResult.extractedText).toBe('Hello World-test"Hello"');
   });
 
   it('removes hyphenation at line breaks', async () => {
@@ -47,8 +47,8 @@ describe('postOcrCleanup activity', () => {
 
     const result = await postOcrCleanup({ ocrResult });
 
-    expect(result.extractedText).toContain('document');
-    expect(result.extractedText).toContain('hyphenation');
+    expect(result.cleanedResult.extractedText).toContain('document');
+    expect(result.cleanedResult.extractedText).toContain('hyphenation');
   });
 
   it('normalizes date separators', async () => {
@@ -72,7 +72,7 @@ describe('postOcrCleanup activity', () => {
 
     const result = await postOcrCleanup({ ocrResult });
 
-    expect(result.extractedText).toContain('12/31/2024');
+    expect(result.cleanedResult.extractedText).toContain('12/31/2024');
   });
 
   it('fixes common OCR number errors', async () => {
@@ -96,7 +96,7 @@ describe('postOcrCleanup activity', () => {
 
     const result = await postOcrCleanup({ ocrResult });
 
-    expect(result.extractedText).toContain('105.00');
+    expect(result.cleanedResult.extractedText).toContain('105.00');
   });
 
   it('cleans text in pages, paragraphs, and tables', async () => {
@@ -146,10 +146,10 @@ describe('postOcrCleanup activity', () => {
 
     const result = await postOcrCleanup({ ocrResult });
 
-    expect(result.pages[0].words[0].content).toBe('Hello World');
-    expect(result.pages[0].lines[0].content).toBe('Hello World');
-    expect(result.paragraphs[0].content).toBe('Para-graph');
-    expect(result.tables[0].cells[0].content).toBe('105');
+    expect(result.cleanedResult.pages[0].words[0].content).toBe('Hello World');
+    expect(result.cleanedResult.pages[0].lines[0].content).toBe('Hello World');
+    expect(result.cleanedResult.paragraphs[0].content).toBe('Para-graph');
+    expect(result.cleanedResult.tables[0].cells[0].content).toBe('105');
   });
 
   it('cleans text in key-value pairs', async () => {
@@ -179,8 +179,8 @@ describe('postOcrCleanup activity', () => {
 
     const result = await postOcrCleanup({ ocrResult });
 
-    expect(result.keyValuePairs[0].key.content).toBe('Name Key');
-    expect(result.keyValuePairs[0].value?.content).toBe('Value-Text');
+    expect(result.cleanedResult.keyValuePairs[0].key.content).toBe('Name Key');
+    expect(result.cleanedResult.keyValuePairs[0].value?.content).toBe('Value-Text');
   });
 
   it('returns original result if cleanup fails', async () => {
@@ -210,7 +210,7 @@ describe('postOcrCleanup activity', () => {
 
     const result = await postOcrCleanup({ ocrResult: brokenResult });
 
-    expect(result).toBe(brokenResult);
+    expect(result.cleanedResult).toBe(brokenResult);
   });
 
   it('does not modify original ocrResult object', async () => {

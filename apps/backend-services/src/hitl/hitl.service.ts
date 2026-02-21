@@ -11,13 +11,12 @@ import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { DatabaseService } from "../database/database.service";
 import { AnalyticsService } from "./analytics.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
-import {
-  AnalyticsFilterDto,
-  DocumentStatusFilter,
-  QueueFilterDto,
-  ReviewStatusFilter,
-} from "./dto/queue-filter.dto";
+import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
+import {
+  DocumentStatusFilter,
+  ReviewStatusFilter,
+} from "./dto/status-constants.dto";
 
 interface DocumentWithOcrResult extends Document {
   ocr_result: OcrResult | null;
@@ -200,6 +199,7 @@ export class HitlService {
       throw new NotFoundException(`Review session ${id} not found`);
     }
 
+    const doc = session.document as ReviewSessionWithDocument["document"];
     return {
       id: session.id,
       documentId: session.document_id,
@@ -212,9 +212,8 @@ export class HitlService {
         original_filename: session.document.original_filename,
         storage_path: session.document.file_path,
         ocr_result: {
-          fields:
-            (session.document as ReviewSessionWithDocument["document"])
-              .ocr_result?.keyValuePairs || {},
+          fields: doc.ocr_result?.keyValuePairs || {},
+          enrichment_summary: doc.ocr_result?.enrichment_summary ?? undefined,
         },
       },
       corrections: session.corrections,

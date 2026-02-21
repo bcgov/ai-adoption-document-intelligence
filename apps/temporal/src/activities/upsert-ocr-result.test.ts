@@ -54,8 +54,8 @@ describe('upsertOcrResult activity', () => {
         {
           docType: 'invoice',
           fields: {
-            InvoiceNumber: { type: 'string', content: 'INV-001', confidence: 0.99 },
-            TotalAmount: { type: 'number', content: 1500.00, confidence: 0.98 },
+            InvoiceNumber: { content: 'INV-001', confidence: 0.99 },
+            TotalAmount: { content: '1500.00', confidence: 0.98 },
           },
           confidence: 0.98,
           spans: [{ offset: 0, length: 100 }],

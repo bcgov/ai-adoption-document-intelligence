@@ -142,7 +142,7 @@ function AppContent(): JSX.Element {
         navbar={{
           width: navbarOpened ? NAV_EXPANDED : NAV_COLLAPSED,
           breakpoint: "sm",
-          collapsed: { mobile: !navbarOpened }
+          collapsed: { mobile: !navbarOpened },
         }}
         padding="md"
         withBorder
@@ -195,7 +195,11 @@ function AppContent(): JSX.Element {
               background: "var(--mantine-color-body)",
             }}
           >
-            {navbarOpened ? <IconChevronLeft size={18} /> : <IconChevronRight size={18} />}
+            {navbarOpened ? (
+              <IconChevronLeft size={18} />
+            ) : (
+              <IconChevronRight size={18} />
+            )}
           </ActionIcon>
 
           <Stack gap="xs">

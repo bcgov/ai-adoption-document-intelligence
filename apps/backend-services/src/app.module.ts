@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { ScheduleModule } from "@nestjs/schedule";
+import { AzureModule } from "@/azure/azure.module";
 import { ApiKeyModule } from "./api-key/api-key.module";
 import { AuthModule } from "./auth/auth.module";
 import { BlobStorageModule } from "./blob-storage/blob-storage.module";
@@ -36,6 +37,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     BlobStorageModule,
     TrainingModule,
     WorkflowModule,
+    AzureModule,
   ],
 })
 export class AppModule {}

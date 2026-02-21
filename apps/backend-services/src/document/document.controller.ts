@@ -27,6 +27,7 @@ import {
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
@@ -44,6 +45,9 @@ export class DocumentController {
     private readonly blobStorage: LocalBlobStorageService,
   ) {}
 
+  // TODO: Refactor list endpoint to avoid per-request Temporal fan-out and full-table reads.
+  // Add pagination, make DB the source of truth for status/review state, move reconciliation off read path,
+  // and align workflow query status contract. See: ./get-all-documents-fixes.md
   @Get()
   @HttpCode(HttpStatus.OK)
   @KeycloakSSOAuth()

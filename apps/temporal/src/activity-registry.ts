@@ -5,7 +5,7 @@
  * Temporal activity implementations. The graph runner resolves activityType
  * from node definitions to actual activity functions via this registry.
  *
- * See docs/DAG_WORKFLOW_ENGINE.md Section 5.5 for the full specification.
+ * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5.5 for the full specification.
  */
 
 import type { RetryPolicy } from "./graph-workflow-types";
@@ -21,6 +21,7 @@ import {
   upsertOcrResult,
   storeDocumentRejection,
   getWorkflowGraphConfig,
+  enrichResults,
 } from "./activities";
 import { splitDocument } from "./activities/split-document";
 import { classifyDocument } from "./activities/classify-document";
@@ -130,6 +131,14 @@ register({
   defaultTimeout: "30s",
   defaultRetry: { maximumAttempts: 3 },
   description: "Load workflow configuration from database",
+});
+
+register({
+  activityType: "ocr.enrich",
+  activityFn: enrichResults as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "3m",
+  defaultRetry: { maximumAttempts: 2 },
+  description: "Enrich OCR results with field schema and optional LLM",
 });
 
 // -- New activities (implementations in US-017, US-018, US-019) -------------

@@ -1,3 +1,6 @@
+import { json } from "@codemirror/lang-json";
+import { Diagnostic, linter, lintGutter } from "@codemirror/lint";
+import { EditorView } from "@codemirror/view";
 import {
   Badge,
   Button,
@@ -13,11 +16,10 @@ import {
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { json } from "@codemirror/lang-json";
-import { Diagnostic, lintGutter, linter } from "@codemirror/lint";
-import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { GraphConfigFormEditor } from "../components/workflow/GraphConfigFormEditor";
+import { GraphVisualization } from "../components/workflow/GraphVisualization";
 import {
   CreateWorkflowDto,
   useCreateWorkflow,
@@ -25,7 +27,6 @@ import {
   useWorkflow,
 } from "../data/hooks/useWorkflows";
 import { GraphWorkflowConfig } from "../types/workflow";
-import { GraphVisualization } from "../components/workflow/GraphVisualization";
 
 interface GraphValidationError {
   path: string;
@@ -81,7 +82,7 @@ function validateGraphConfig(value: unknown): GraphValidationError[] {
   if (schemaVersion !== "1.0") {
     errors.push({
       path: "schemaVersion",
-      message: "schemaVersion must be \"1.0\".",
+      message: 'schemaVersion must be "1.0".',
     });
   }
 
@@ -170,10 +171,7 @@ function validateGraphConfig(value: unknown): GraphValidationError[] {
   return errors;
 }
 
-function parseJsonErrorPosition(
-  message: string,
-  documentText: string,
-): number {
+function parseJsonErrorPosition(message: string, documentText: string): number {
   const match = /position\s+(\d+)/i.exec(message);
   const fallback = Math.min(0, documentText.length);
   if (!match) {
@@ -268,7 +266,12 @@ export function WorkflowEditorPage({
     DEFAULT_GRAPH_CONFIG,
   );
   const [debouncedJson] = useDebouncedValue(jsonValue, 300);
-  const [viewMode, setViewMode] = useState<"detailed" | "simplified">("simplified");
+  const [viewMode, setViewMode] = useState<"detailed" | "simplified">(
+    "simplified",
+  );
+  const [configEditorMode, setConfigEditorMode] = useState<"form" | "json">(
+    "form",
+  );
   const initializedRef = useRef(false);
   const initialSnapshotRef = useRef<{
     name: string;
@@ -334,6 +337,13 @@ export function WorkflowEditorPage({
     !jsonError &&
     validationErrors.length === 0 &&
     workflowName.trim().length > 0;
+
+  const handleFormConfigChange = (newConfig: GraphWorkflowConfig) => {
+    setParsedConfig(newConfig);
+    setJsonValue(JSON.stringify(newConfig, null, 2));
+    setJsonError(null);
+    setValidationErrors([]);
+  };
 
   const handleFormat = () => {
     const formatted = formatJson(jsonValue);
@@ -551,7 +561,20 @@ export function WorkflowEditorPage({
           <Paper withBorder p="md">
             <Group justify="space-between" mb="sm">
               <Group gap="xs">
-                <Text fw={600}>Graph config (JSON)</Text>
+                <SegmentedControl
+                  size="sm"
+                  value={configEditorMode}
+                  onChange={(v) => setConfigEditorMode(v as "form" | "json")}
+                  data={[
+                    { label: "Form", value: "form" },
+                    { label: "JSON", value: "json" },
+                  ]}
+                />
+                <Text fw={600}>
+                  {configEditorMode === "form"
+                    ? "Graph config (form)"
+                    : "Graph config (JSON)"}
+                </Text>
                 {jsonError || validationErrors.length > 0 ? (
                   <Badge color="red" variant="light">
                     Errors
@@ -564,57 +587,76 @@ export function WorkflowEditorPage({
               </Group>
             </Group>
 
-            <Paper withBorder>
-              <CodeMirror
-                value={jsonValue}
-                theme="dark"
-                height="520px"
-                extensions={[
-                  json(),
-                  lintGutter(),
-                  linter(() => diagnostics),
-                  EditorView.lineWrapping,
-                ]}
-                onChange={(value) => setJsonValue(value)}
-              />
-            </Paper>
-
-            <Group justify="space-between" mt="sm">
-              <Text size="sm" c="dimmed">
-                Changes sync after 300ms.
-              </Text>
-              {(jsonError || validationErrors.length > 0) && (
-                <Button
-                  variant="subtle"
-                  size="xs"
-                  onClick={() => setShowErrors((prev) => !prev)}
-                >
-                  {showErrors ? "Hide errors" : "Show errors"}
-                </Button>
-              )}
-            </Group>
-
-            <Collapse
-              in={
-                showErrors &&
-                Boolean(jsonError || validationErrors.length > 0)
-              }
-            >
-              <Paper withBorder p="sm" mt="sm">
-                <Stack gap="xs">
-                  {jsonError ? (
-                    <Text c="red" size="sm">
-                      {jsonError}
-                    </Text>
-                  ) : null}
-                  {validationErrors.map((err) => (
-                    <Text key={`${err.path}-${err.message}`} c="red" size="sm">
-                      {err.path}: {err.message}
-                    </Text>
-                  ))}
-                </Stack>
+            {configEditorMode === "form" ? (
+              <Paper
+                withBorder
+                p="md"
+                style={{ maxHeight: 520, overflow: "auto" }}
+              >
+                <GraphConfigFormEditor
+                  value={parsedConfig ?? DEFAULT_GRAPH_CONFIG}
+                  onChange={handleFormConfigChange}
+                />
               </Paper>
-            </Collapse>
+            ) : (
+              <>
+                <Paper withBorder>
+                  <CodeMirror
+                    value={jsonValue}
+                    theme="dark"
+                    height="520px"
+                    extensions={[
+                      json(),
+                      lintGutter(),
+                      linter(() => diagnostics),
+                      EditorView.lineWrapping,
+                    ]}
+                    onChange={(value) => setJsonValue(value)}
+                  />
+                </Paper>
+
+                <Group justify="space-between" mt="sm">
+                  <Text size="sm" c="dimmed">
+                    Changes sync after 300ms.
+                  </Text>
+                  {(jsonError || validationErrors.length > 0) && (
+                    <Button
+                      variant="subtle"
+                      size="xs"
+                      onClick={() => setShowErrors((prev) => !prev)}
+                    >
+                      {showErrors ? "Hide errors" : "Show errors"}
+                    </Button>
+                  )}
+                </Group>
+
+                <Collapse
+                  in={
+                    showErrors &&
+                    Boolean(jsonError || validationErrors.length > 0)
+                  }
+                >
+                  <Paper withBorder p="sm" mt="sm">
+                    <Stack gap="xs">
+                      {jsonError ? (
+                        <Text c="red" size="sm">
+                          {jsonError}
+                        </Text>
+                      ) : null}
+                      {validationErrors.map((err) => (
+                        <Text
+                          key={`${err.path}-${err.message}`}
+                          c="red"
+                          size="sm"
+                        >
+                          {err.path}: {err.message}
+                        </Text>
+                      ))}
+                    </Stack>
+                  </Paper>
+                </Collapse>
+              </>
+            )}
           </Paper>
         </Stack>
 
@@ -622,17 +664,20 @@ export function WorkflowEditorPage({
           <Stack gap="xs">
             <Group justify="space-between" align="center">
               <Text fw={600}>Workflow preview</Text>
-              {parsedConfig?.nodeGroups && Object.keys(parsedConfig.nodeGroups).length > 0 && (
-                <SegmentedControl
-                  size="xs"
-                  value={viewMode}
-                  onChange={(value) => setViewMode(value as "detailed" | "simplified")}
-                  data={[
-                    { label: "Detailed", value: "detailed" },
-                    { label: "Simplified", value: "simplified" },
-                  ]}
-                />
-              )}
+              {parsedConfig?.nodeGroups &&
+                Object.keys(parsedConfig.nodeGroups).length > 0 && (
+                  <SegmentedControl
+                    size="xs"
+                    value={viewMode}
+                    onChange={(value) =>
+                      setViewMode(value as "detailed" | "simplified")
+                    }
+                    data={[
+                      { label: "Detailed", value: "detailed" },
+                      { label: "Simplified", value: "simplified" },
+                    ]}
+                  />
+                )}
             </Group>
             <GraphVisualization
               config={parsedConfig}

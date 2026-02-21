@@ -12,12 +12,12 @@ import {
   EscalateDto,
   SubmitCorrectionsDto,
 } from "./dto/correction.dto";
+import { QueueFilterDto } from "./dto/queue-filter.dto";
+import { ReviewSessionDto } from "./dto/review-session.dto";
 import {
   DocumentStatusFilter,
-  QueueFilterDto,
   ReviewStatusFilter,
-} from "./dto/queue-filter.dto";
-import { ReviewSessionDto } from "./dto/review-session.dto";
+} from "./dto/status-constants.dto";
 import { HitlService } from "./hitl.service";
 
 describe("HitlService", () => {
@@ -417,6 +417,7 @@ describe("HitlService", () => {
           storage_path: "/path/to/test.pdf",
           ocr_result: {
             fields: mockOcrResult.keyValuePairs,
+            enrichment_summary: undefined,
           },
         },
         corrections: [],

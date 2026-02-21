@@ -1,15 +1,29 @@
 import { submitToAzureOCR } from './submit-to-azure-ocr';
 import type { PreparedFileData } from '../types';
-import axios from 'axios';
+import DocumentIntelligence, { isUnexpected } from '@azure-rest/ai-document-intelligence';
 import * as fs from 'fs/promises';
 
-jest.mock('axios');
+jest.mock('@azure-rest/ai-document-intelligence', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  isUnexpected: jest.fn(),
+}));
 jest.mock('fs/promises', () => ({
   readFile: jest.fn(),
 }));
 
-const axiosMock = axios as jest.Mocked<typeof axios>;
 const readFileMock = fs.readFile as jest.Mock;
+const documentIntelligenceMock = DocumentIntelligence as jest.MockedFunction<typeof DocumentIntelligence>;
+const isUnexpectedMock = isUnexpected as jest.MockedFunction<typeof isUnexpected>;
+
+type AnalyzeResponse = {
+  status: number | string;
+  headers: Record<string, string | string[]>;
+  body?: unknown;
+};
+
+const mockPost = jest.fn<Promise<AnalyzeResponse>, [Record<string, unknown>]>();
+const mockPath = jest.fn(() => ({ post: mockPost }));
 
 describe('submitToAzureOCR activity', () => {
   const originalEnv = process.env;
@@ -23,6 +37,14 @@ describe('submitToAzureOCR activity', () => {
       LOCAL_BLOB_STORAGE_PATH: '/tmp/blobs',
     };
     readFileMock.mockResolvedValue(Buffer.from('test file content'));
+    isUnexpectedMock.mockReturnValue(false);
+    mockPost.mockReset();
+    mockPath.mockClear();
+    mockPath.mockReturnValue({ post: mockPost });
+    documentIntelligenceMock.mockReset();
+    documentIntelligenceMock.mockReturnValue({
+      path: mockPath,
+    } as unknown as ReturnType<typeof DocumentIntelligence>);
   });
 
   afterEach(() => {
@@ -35,9 +57,9 @@ describe('submitToAzureOCR activity', () => {
       headers: {
         'apim-request-id': 'test-request-id-123',
       },
-      data: {},
+      body: {},
     };
-    axiosMock.post.mockResolvedValue(mockResponse);
+    mockPost.mockResolvedValue(mockResponse);
 
     const fileData: PreparedFileData = {
       fileName: 'test.pdf',
@@ -52,17 +74,27 @@ describe('submitToAzureOCR activity', () => {
     expect(result.statusCode).toBe(202);
     expect(result.apimRequestId).toBe('test-request-id-123');
     expect(result.headers).toHaveProperty('apim-request-id');
-    expect(axiosMock.post).toHaveBeenCalledWith(
-      expect.stringContaining('prebuilt-layout:analyze'),
-      expect.any(Buffer),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'api-key': 'test-api-key',
-          'Content-Type': 'application/pdf',
-        }),
-      })
+    expect(documentIntelligenceMock).toHaveBeenCalledWith(
+      'https://test.cognitiveservices.azure.com',
+      { key: 'test-api-key' },
+      {
+        credentials: {
+          apiKeyHeaderName: 'api-key',
+        },
+      },
     );
-    expect(axiosMock.post.mock.calls[0][0]).toContain('features=keyValuePairs');
+    expect(mockPath).toHaveBeenCalledWith(
+      '/documentModels/{modelId}:analyze',
+      'prebuilt-layout',
+    );
+    expect(mockPost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contentType: 'application/json',
+        queryParameters: expect.objectContaining({
+          features: ['keyValuePairs'],
+        }),
+      }),
+    );
   });
 
   it('submits document with custom model without features parameter', async () => {
@@ -71,9 +103,9 @@ describe('submitToAzureOCR activity', () => {
       headers: {
         'apim-request-id': 'test-request-id-456',
       },
-      data: {},
+      body: {},
     };
-    axiosMock.post.mockResolvedValue(mockResponse);
+    mockPost.mockResolvedValue(mockResponse);
 
     const fileData: PreparedFileData = {
       fileName: 'invoice.pdf',
@@ -87,8 +119,17 @@ describe('submitToAzureOCR activity', () => {
 
     expect(result.statusCode).toBe(202);
     expect(result.apimRequestId).toBe('test-request-id-456');
-    expect(axiosMock.post.mock.calls[0][0]).toContain('custom-invoice-model:analyze');
-    expect(axiosMock.post.mock.calls[0][0]).not.toContain('features=');
+    expect(mockPath).toHaveBeenCalledWith(
+      '/documentModels/{modelId}:analyze',
+      'custom-invoice-model',
+    );
+    expect(mockPost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryParameters: expect.objectContaining({
+          features: undefined,
+        }),
+      }),
+    );
   });
 
   it('handles different case variations of apim-request-id header', async () => {
@@ -97,9 +138,9 @@ describe('submitToAzureOCR activity', () => {
       headers: {
         'Apim-Request-Id': 'test-request-id-789',
       },
-      data: {},
+      body: {},
     };
-    axiosMock.post.mockResolvedValue(mockResponse);
+    mockPost.mockResolvedValue(mockResponse);
 
     const fileData: PreparedFileData = {
       fileName: 'test.pdf',
@@ -135,9 +176,9 @@ describe('submitToAzureOCR activity', () => {
     const mockResponse = {
       status: 400,
       headers: {},
-      data: { error: 'Bad request' },
+      body: { error: 'Bad request' },
     };
-    axiosMock.post.mockResolvedValue(mockResponse);
+    mockPost.mockResolvedValue(mockResponse);
 
     const fileData: PreparedFileData = {
       fileName: 'test.pdf',
@@ -156,9 +197,9 @@ describe('submitToAzureOCR activity', () => {
     const mockResponse = {
       status: 202,
       headers: {},
-      data: {},
+      body: {},
     };
-    axiosMock.post.mockResolvedValue(mockResponse);
+    mockPost.mockResolvedValue(mockResponse);
 
     const fileData: PreparedFileData = {
       fileName: 'test.pdf',
@@ -173,22 +214,9 @@ describe('submitToAzureOCR activity', () => {
     );
   });
 
-  it('handles axios errors with additional context', async () => {
-    const axiosError = new Error('Request failed');
-    Object.assign(axiosError, {
-      isAxiosError: true,
-      response: {
-        status: 500,
-        statusText: 'Internal Server Error',
-        data: { error: 'Service unavailable' },
-      },
-      config: {
-        url: 'https://test.cognitiveservices.azure.com/documentModels/prebuilt-layout:analyze',
-        method: 'post',
-      },
-    });
-    axiosMock.post.mockRejectedValue(axiosError);
-    (axiosMock.isAxiosError as unknown as jest.Mock) = jest.fn().mockReturnValue(true);
+  it('rethrows SDK client errors with context', async () => {
+    const sdkError = new Error('Request failed');
+    mockPost.mockRejectedValue(sdkError);
 
     const fileData: PreparedFileData = {
       fileName: 'test.pdf',
@@ -209,9 +237,9 @@ describe('submitToAzureOCR activity', () => {
       headers: {
         'apim-request-id': 'test-request-id',
       },
-      data: {},
+      body: {},
     };
-    axiosMock.post.mockResolvedValue(mockResponse);
+    mockPost.mockResolvedValue(mockResponse);
 
     const fileData: PreparedFileData = {
       fileName: 'test.pdf',
@@ -223,8 +251,10 @@ describe('submitToAzureOCR activity', () => {
 
     await submitToAzureOCR({ fileData });
 
-    const calledUrl = axiosMock.post.mock.calls[0][0] as string;
-    expect(calledUrl).not.toContain('//documentModels');
-    expect(calledUrl).toContain('/documentModels');
+    expect(documentIntelligenceMock).toHaveBeenCalledWith(
+      'https://test.cognitiveservices.azure.com',
+      expect.any(Object),
+      expect.any(Object),
+    );
   });
 });

@@ -1,145 +1,95 @@
-import {
+import type {
   CorrectionAction,
-  Document,
-  DocumentLabel,
-  DocumentStatus,
-  FieldCorrection,
-  FieldDefinition,
   FieldType,
-  LabeledDocument,
-  LabelingProject,
   LabelingStatus,
-  OcrResult,
-  Prisma,
-  PrismaClient,
   ProjectStatus,
-  ReviewSession,
   ReviewStatus,
 } from "@generated/client";
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { Injectable } from "@nestjs/common";
 import {
-  AnalysisResponse,
-  DocumentField,
-  ExtractedFields,
-  KeyValuePair,
-} from "@/ocr/azure-types";
+  ClassifierSource,
+  ClassifierStatus,
+} from "@/azure/dto/classifier-constants.dto";
+import type { AnalysisResponse } from "@/ocr/azure-types";
+import type {
+  DocumentData,
+  LabeledDocumentData,
+  LabelingDocumentData,
+  LabelingProjectData,
+  ReviewSessionData,
+} from "./database.types";
+import { DocumentDbService } from "./document-db.service";
+import { LabelingDocumentDbService } from "./labeling-document-db.service";
+import { LabelingProjectDbService } from "./labeling-project-db.service";
+import { PrismaService } from "./prisma.service";
+import { ReviewDbService } from "./review-db.service";
 
-type JsonValue = Prisma.JsonValue;
+export type {
+  DocumentData,
+  LabeledDocumentData,
+  LabelingDocumentData,
+  LabelingProjectData,
+  ReviewSessionData,
+};
 
-import { getPrismaPgOptions } from "@/utils/database-url";
+export type ClassifierConfig = {
+  labels: {
+    label: string;
+    fromFolder: string;
+    blobFolder: string;
+  }[];
+};
 
-export type DocumentData = Document;
-export type LabelingProjectData = LabelingProject & {
-  field_schema: FieldDefinition[];
-  documents?: LabeledDocument[];
-};
-export type LabelingDocumentData = {
-  id: string;
-  title: string;
-  original_filename: string;
-  file_path: string;
-  file_type: string;
-  file_size: number;
-  metadata?: Record<string, unknown> | null;
-  source: string;
-  status: DocumentStatus;
-  created_at: Date;
-  updated_at: Date;
-  apim_request_id?: string | null;
-  model_id: string;
-  ocr_result?: JsonValue | null;
-};
-export type LabeledDocumentData = LabeledDocument & {
-  labeling_document: LabelingDocumentData;
-  labels: DocumentLabel[];
-};
-export type ReviewSessionData = ReviewSession & {
-  document: Document & {
-    ocr_result: OcrResult | null;
-  };
-  corrections: FieldCorrection[];
-};
+interface ClassifierEditableProperties {
+  version?: number;
+  group_id: string;
+  config: ClassifierConfig;
+  description: string;
+  status: ClassifierStatus;
+  source: ClassifierSource;
+  last_used_at?: Date;
+  operation_location?: string;
+}
 
 @Injectable()
 export class DatabaseService {
-  private readonly logger = new Logger(DatabaseService.name);
-  private prisma: PrismaClient;
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly documentDb: DocumentDbService,
+    private readonly labelingDocumentDb: LabelingDocumentDbService,
+    private readonly labelingProjectDb: LabelingProjectDbService,
+    private readonly reviewDb: ReviewDbService,
+  ) {}
 
-  constructor(private configService: ConfigService) {
-    const dbOptions = getPrismaPgOptions(
-      this.configService.get("DATABASE_URL"),
-    );
-    this.prisma = new PrismaClient({
-      log: ["error", "warn"],
-      adapter: new PrismaPg(dbOptions),
-    });
-    this.logger.log("Database service initialized with Prisma");
+  get prisma() {
+    return this.prismaService.prisma;
   }
 
   async createDocument(
     data: Omit<DocumentData, "created_at" | "updated_at">,
   ): Promise<DocumentData> {
-    this.logger.debug("=== DatabaseService.createDocument ===");
-    this.logger.debug(`Creating document: ${data.title}`);
-
-    try {
-      const document = await this.prisma.document.create({
-        data: {
-          ...(data.id ? { id: data.id } : {}),
-          title: data.title,
-          original_filename: data.original_filename,
-          file_path: data.file_path,
-          file_type: data.file_type,
-          file_size: data.file_size,
-          metadata: data.metadata,
-          source: data.source,
-          status: data.status as DocumentStatus,
-          model_id: data.model_id,
-          workflow_id: data.workflow_id || null,
-          workflow_config_id: data.workflow_config_id || null,
-          workflow_execution_id: data.workflow_execution_id || null,
-        },
-      });
-
-      this.logger.debug(`Document created: ${document.id}`);
-      this.logger.debug("=== DatabaseService.createDocument completed ===");
-
-      return document;
-    } catch (error) {
-      this.logger.error(
-        `Failed to create document: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.documentDb.createDocument(data);
   }
 
   async findDocument(id: string): Promise<DocumentData | null> {
-    this.logger.debug("=== DatabaseService.findDocument ===");
-    this.logger.debug(`Finding document: ${id}`);
+    return this.documentDb.findDocument(id);
+  }
 
-    try {
-      const document = await this.prisma.document.findUnique({
-        where: { id },
-      });
+  async createLabelingDocument(
+    data: Omit<LabelingDocumentData, "id" | "created_at" | "updated_at">,
+  ): Promise<LabelingDocumentData> {
+    return this.labelingDocumentDb.createLabelingDocument(data);
+  }
 
-      if (document) {
-        this.logger.debug(`Document found: ${document.id}`);
-      } else {
-        this.logger.debug(`Document not found: ${id}`);
-      }
+  async findLabelingDocument(id: string): Promise<LabelingDocumentData | null> {
+    return this.labelingDocumentDb.findLabelingDocument(id);
+  }
 
-      this.logger.debug("=== DatabaseService.findDocument completed ===");
-      return document;
-    } catch (error) {
-      this.logger.error(
-        `Failed to find document: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+  async updateLabelingDocument(
+    id: string,
+    data: Partial<LabelingDocumentData>,
+  ): Promise<LabelingDocumentData | null> {
+    return this.labelingDocumentDb.updateLabelingDocument(id, data);
   }
 
   async createLabelingDocument(
@@ -200,121 +150,18 @@ export class DatabaseService {
   }
 
   async findAllDocuments(): Promise<DocumentData[]> {
-    this.logger.debug("=== DatabaseService.findAllDocuments ===");
-
-    try {
-      const documents = await this.prisma.document.findMany({
-        orderBy: { created_at: "desc" },
-      });
-
-      this.logger.debug(`Found ${documents.length} documents`);
-      this.logger.debug("=== DatabaseService.findAllDocuments completed ===");
-
-      return documents;
-    } catch (error) {
-      this.logger.error(
-        `Failed to find documents: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.documentDb.findAllDocuments();
   }
 
   async updateDocument(
     id: string,
     data: Partial<Omit<DocumentData, "id" | "created_at">>,
   ): Promise<DocumentData | null> {
-    this.logger.debug("=== DatabaseService.updateDocument ===");
-    this.logger.debug(`Updating document: ${id}`);
-    this.logger.debug(`Update data: ${JSON.stringify(data, null, 2)}`);
-
-    try {
-      const document = await this.prisma.document.update({
-        where: { id },
-        data: {
-          ...data,
-          updated_at: new Date(),
-        },
-      });
-
-      this.logger.debug(`Document updated: ${document.id}`);
-      this.logger.debug("=== DatabaseService.updateDocument completed ===");
-
-      return document;
-    } catch (error) {
-      if (error.code === "P2025") {
-        this.logger.debug(`Document not found for update: ${id}`);
-        return null;
-      }
-      this.logger.error(
-        `Failed to update document: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+    return this.documentDb.updateDocument(id, data);
   }
 
-  async findOcrResult(documentId: string): Promise<OcrResult | null> {
-    this.logger.debug("=== DatabaseService.findOcrResult ===");
-    this.logger.debug(`Finding OCR result for document: ${documentId}`);
-
-    try {
-      const ocrResult = await this.prisma.ocrResult.findFirst({
-        where: { document_id: documentId },
-        orderBy: { processed_at: "desc" },
-      });
-
-      if (!ocrResult) {
-        this.logger.debug(`No OCR result found for document: ${documentId}`);
-        this.logger.debug("=== DatabaseService.findOcrResult completed ===");
-        return null;
-      }
-
-      this.logger.debug(`OCR result found for document: ${documentId}`);
-      this.logger.debug("=== DatabaseService.findOcrResult completed ===");
-
-      return ocrResult;
-    } catch (error) {
-      this.logger.error(
-        `Failed to find OCR result: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Converts prebuilt model keyValuePairs array to the custom model fields format.
-   * This ensures a unified format for all OCR results.
-   */
-  private convertKeyValuePairsToFields(
-    keyValuePairs: KeyValuePair[],
-  ): ExtractedFields {
-    const fields: ExtractedFields = {};
-
-    for (const pair of keyValuePairs) {
-      const fieldName = pair.key?.content || "unknown";
-      const field: DocumentField = {
-        type: "string",
-        content: pair.value?.content || null,
-        confidence: pair.confidence,
-        boundingRegions:
-          pair.value?.boundingRegions || pair.key?.boundingRegions,
-        spans: pair.value?.spans || pair.key?.spans,
-      };
-
-      // Handle duplicate field names by appending a suffix
-      let uniqueName = fieldName;
-      let counter = 1;
-      while (fields[uniqueName]) {
-        uniqueName = `${fieldName}_${counter}`;
-        counter++;
-      }
-
-      fields[uniqueName] = field;
-    }
-
-    return fields;
+  async findOcrResult(documentId: string) {
+    return this.documentDb.findOcrResult(documentId);
   }
 
   async upsertOcrResult(data: {
@@ -322,62 +169,245 @@ export class DatabaseService {
     analysisResponse: AnalysisResponse;
     metadata?: Record<string, unknown>;
   }): Promise<void> {
-    this.logger.debug("=== DatabaseService.upsertOcrResult ===");
-    this.logger.debug(
-      `Creating/Updating OCR result for document: ${data.documentId}`,
+    return this.documentDb.upsertOcrResult(data);
+  }
+
+  async createLabelingProject(data: {
+    name: string;
+    description?: string;
+    created_by: string;
+  }): Promise<LabelingProjectData> {
+    return this.labelingProjectDb.createLabelingProject(data);
+  }
+
+  async findLabelingProject(id: string): Promise<LabelingProjectData | null> {
+    return this.labelingProjectDb.findLabelingProject(id);
+  }
+
+  async findAllLabelingProjects(
+    userId?: string,
+  ): Promise<LabelingProjectData[]> {
+    return this.labelingProjectDb.findAllLabelingProjects(userId);
+  }
+
+  async updateLabelingProject(
+    id: string,
+    data: { name?: string; description?: string; status?: ProjectStatus },
+  ): Promise<LabelingProjectData | null> {
+    return this.labelingProjectDb.updateLabelingProject(id, data);
+  }
+
+  async deleteLabelingProject(id: string): Promise<boolean> {
+    return this.labelingProjectDb.deleteLabelingProject(id);
+  }
+
+  async createFieldDefinition(
+    projectId: string,
+    data: {
+      field_key: string;
+      field_type: FieldType;
+      field_format?: string;
+      display_order?: number;
+    },
+  ) {
+    return this.labelingProjectDb.createFieldDefinition(projectId, data);
+  }
+
+  async updateFieldDefinition(
+    id: string,
+    data: { field_format?: string; display_order?: number },
+  ) {
+    return this.labelingProjectDb.updateFieldDefinition(id, data);
+  }
+
+  async deleteFieldDefinition(id: string): Promise<boolean> {
+    return this.labelingProjectDb.deleteFieldDefinition(id);
+  }
+
+  async addDocumentToProject(
+    projectId: string,
+    labelingDocumentId: string,
+  ): Promise<LabeledDocumentData> {
+    return this.labelingProjectDb.addDocumentToProject(
+      projectId,
+      labelingDocumentId,
     );
+  }
 
-    try {
-      const analysisResult = data.analysisResponse.analyzeResult;
-      const asJson = (obj): Prisma.JsonValue =>
-        obj as unknown as Prisma.JsonValue;
+  async findLabeledDocument(
+    projectId: string,
+    labelingDocumentId: string,
+  ): Promise<LabeledDocumentData | null> {
+    return this.labelingProjectDb.findLabeledDocument(
+      projectId,
+      labelingDocumentId,
+    );
+  }
 
-      // Determine extracted fields based on model type
-      let extractedFields: ExtractedFields | null = null;
+  async findLabeledDocuments(
+    projectId: string,
+  ): Promise<LabeledDocumentData[]> {
+    return this.labelingProjectDb.findLabeledDocuments(projectId);
+  }
 
-      if (analysisResult.documents?.length > 0) {
-        // Custom model: use fields directly from documents[0].fields
-        extractedFields = analysisResult.documents[0].fields;
-        this.logger.debug(
-          `Using custom model fields: ${Object.keys(extractedFields).length} fields`,
-        );
-      } else if (analysisResult.keyValuePairs?.length > 0) {
-        // Prebuilt model: convert keyValuePairs to fields format
-        extractedFields = this.convertKeyValuePairsToFields(
-          analysisResult.keyValuePairs,
-        );
-        this.logger.debug(
-          `Converted ${analysisResult.keyValuePairs.length} keyValuePairs to fields format`,
-        );
-      }
+  async removeDocumentFromProject(
+    projectId: string,
+    labelingDocumentId: string,
+  ): Promise<boolean> {
+    return this.labelingProjectDb.removeDocumentFromProject(
+      projectId,
+      labelingDocumentId,
+    );
+  }
 
-      const updateObject = {
-        processed_at: data.analysisResponse.lastUpdatedDateTime,
-        keyValuePairs: asJson(extractedFields),
-      };
+  async updateLabeledDocumentStatus(
+    labeledDocId: string,
+    status: LabelingStatus,
+  ): Promise<void> {
+    return this.labelingProjectDb.updateLabeledDocumentStatus(
+      labeledDocId,
+      status,
+    );
+  }
 
-      await this.prisma.ocrResult.upsert({
-        where: {
-          document_id: data.documentId,
+  async saveDocumentLabels(
+    labeledDocId: string,
+    labels: Array<{
+      field_key: string;
+      label_name: string;
+      value?: string;
+      page_number: number;
+      bounding_box: unknown;
+    }>,
+  ) {
+    return this.labelingProjectDb.saveDocumentLabels(labeledDocId, labels);
+  }
+
+  async deleteDocumentLabel(labelId: string): Promise<boolean> {
+    return this.labelingProjectDb.deleteDocumentLabel(labelId);
+  }
+
+  async createReviewSession(
+    documentId: string,
+    reviewerId: string,
+  ): Promise<ReviewSessionData> {
+    return this.reviewDb.createReviewSession(documentId, reviewerId);
+  }
+
+  async findReviewSession(id: string): Promise<ReviewSessionData | null> {
+    return this.reviewDb.findReviewSession(id);
+  }
+
+  async findReviewQueue(filters: {
+    status?: import("@generated/client").DocumentStatus;
+    modelId?: string;
+    minConfidence?: number;
+    maxConfidence?: number;
+    limit?: number;
+    offset?: number;
+    reviewStatus?: "pending" | "reviewed" | "all";
+  }) {
+    return this.reviewDb.findReviewQueue(filters);
+  }
+
+  async updateReviewSession(
+    id: string,
+    data: { status?: ReviewStatus; completed_at?: Date },
+  ): Promise<ReviewSessionData | null> {
+    return this.reviewDb.updateReviewSession(id, data);
+  }
+
+  async createFieldCorrection(
+    sessionId: string,
+    data: {
+      field_key: string;
+      original_value?: string;
+      corrected_value?: string;
+      original_conf?: number;
+      action: CorrectionAction;
+    },
+  ) {
+    return this.reviewDb.createFieldCorrection(sessionId, data);
+  }
+
+  async findSessionCorrections(sessionId: string) {
+    return this.reviewDb.findSessionCorrections(sessionId);
+  }
+
+  async getReviewAnalytics(filters: {
+    startDate?: Date;
+    endDate?: Date;
+    reviewerId?: string;
+  }) {
+    return this.reviewDb.getReviewAnalytics(filters);
+  }
+
+  async createClassifierModel(
+    classifierName: string,
+    properties: ClassifierEditableProperties,
+    userId: string,
+  ) {
+    return await this.prisma.classifierModel.create({
+      data: {
+        ...properties,
+        created_by: userId,
+        updated_by: userId,
+        name: classifierName,
+      },
+    });
+  }
+
+  async updateClassifierModel(
+    classifierName: string,
+    groupId: string,
+    properties: Partial<ClassifierEditableProperties>,
+    userId: string,
+  ) {
+    return await this.prisma.classifierModel.update({
+      where: {
+        name_group_id: {
+          name: classifierName,
+          group_id: groupId,
         },
-        update: updateObject,
-        create: {
-          document_id: data.documentId,
-          ...updateObject,
-        },
-      });
+      },
+      data: {
+        ...properties,
+        created_by: userId,
+        updated_by: userId,
+        name: classifierName,
+      },
+    });
+  }
 
-      this.logger.debug(
-        `OCR result created/updated for document: ${data.documentId}`,
-      );
-      this.logger.debug("=== DatabaseService.upsertOcrResult completed ===");
-    } catch (error) {
-      this.logger.error(
-        `Failed to create/update OCR result: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
+  async getClassifierModel(classifierName: string, groupId: string) {
+    return await this.prisma.classifierModel.findUnique({
+      where: {
+        name_group_id: {
+          name: classifierName,
+          group_id: groupId,
+        },
+      },
+    });
+  }
+
+  async getUsersGroups(userId: string) {
+    return await this.prisma.userGroup.findMany({
+      where: {
+        user_id: userId,
+      },
+    });
+  }
+
+  async isUserInGroup(userId: string, groupId: string) {
+    const entry = await this.prisma.userGroup.findUnique({
+      where: {
+        user_id_group_id: {
+          user_id: userId,
+          group_id: groupId,
+        },
+      },
+    });
+    return entry != null;
   }
 
   // ========== LABELING PROJECT OPERATIONS ==========

@@ -1,19 +1,195 @@
 # Backend Services
 
-NestJS backend services for the AI OCR pipeline. Handles document uploads via REST API, stores files to local filesystem, and integrates with database API.
+NestJS REST API backend for the Document Intelligence Platform. Provides comprehensive document processing capabilities including OCR, workflow execution, document labeling, model training, and human-in-the-loop review.
 
-## Features
+## Overview
 
-- REST API endpoint for document uploads (base64-encoded files)
-- Local filesystem storage with UUID-based naming
-- Stubbed database API integration
+The backend services provide a modular, scalable API for:
+- Document upload, storage, and metadata management
+- Azure Document Intelligence OCR integration
+- Graph-based workflow orchestration via Temporal.io
+- Document labeling projects with custom field schemas
+- Azure Document Intelligence custom model training
+- Human-in-the-loop (HITL) review queue and correction tracking
+- Multi-mode authentication (Keycloak SSO + API keys)
+- Blob storage abstraction (local filesystem and Azure Blob Storage)
+
+## Architecture
+
+- **Framework**: NestJS with Fastify HTTP server
+- **Database**: PostgreSQL with Prisma ORM
+- **Workflow Engine**: Temporal.io for durable, distributed workflows
+- **OCR**: Azure Document Intelligence (formerly Form Recognizer)
+- **Storage**: Pluggable blob storage (local filesystem or Azure Blob Storage)
+- **Authentication**: Keycloak OIDC/SSO + API Key authentication
+- **API Documentation**: Swagger/OpenAPI at `/api`
+
+## Modules
+
+### Core Modules
+
+#### `document/` - Document Management
+- CRUD operations for documents
+- Document status tracking (pre_ocr, ongoing_ocr, completed_ocr, failed)
+- OCR result retrieval and key-value pair extraction
+- Document approval workflow
+- File download endpoints
+- Integration with Temporal workflows and blob storage
+
+**Key Endpoints:**
+- `GET /api/documents` - List all documents with optional filters
+- `GET /api/documents/:id` - Get document details
+- `POST /api/documents/:id/approve` - Approve OCR results
+- `GET /api/documents/:id/file` - Download original file
+- `GET /api/documents/:id/ocr-result` - Get OCR results with key-value pairs
+
+#### `upload/` - Document Upload
+- File upload via base64-encoded or multipart/form-data
+- Automatic OCR workflow triggering
 - File type validation
-- Comprehensive error handling and logging
+- Metadata handling
+
+**Key Endpoints:**
+- `POST /api/upload` - Upload document and start OCR processing
+
+#### `ocr/` - OCR Management
+- Azure Document Intelligence integration
+- Model listing (prebuilt and custom models)
+- OCR processing coordination
+
+**Key Endpoints:**
+- `GET /api/models` - List available OCR models
+
+#### `workflow/` - Workflow Configuration
+- CRUD operations for graph-based workflow definitions
+- Workflow versioning
+- User-scoped workflow management
+- Workflow execution via Temporal
+
+**Key Endpoints:**
+- `GET /api/workflows` - List user workflows
+- `POST /api/workflows` - Create workflow
+- `GET /api/workflows/:id` - Get workflow details
+- `PUT /api/workflows/:id` - Update workflow
+- `DELETE /api/workflows/:id` - Delete workflow
+
+### Labeling & Training Modules
+
+#### `labeling/` - Document Labeling
+- Labeling project management
+- Custom field schema definition (string, number, date, signature, selectionMark)
+- Document-to-project assignment
+- Bounding box label saving
+- Label export for training
+
+**Key Endpoints:**
+- `GET /api/labeling/projects` - List projects
+- `POST /api/labeling/projects` - Create project
+- `GET /api/labeling/projects/:id` - Get project details
+- `POST /api/labeling/projects/:id/fields` - Add field definition
+- `POST /api/labeling/projects/:projectId/documents` - Add document to project
+- `POST /api/labeling/projects/:projectId/documents/:docId/labels` - Save labels
+- `GET /api/labeling/projects/:projectId/export` - Export labels for training
+
+#### `training/` - Model Training
+- Azure Document Intelligence custom model training
+- Training data validation
+- Training job management and monitoring
+- Blob container creation and SAS URL generation
+- Label file formatting (.labels.json)
+
+**Key Endpoints:**
+- `GET /api/training/projects/:projectId/validate` - Validate training readiness
+- `POST /api/training/projects/:projectId/train` - Start training job
+- `GET /api/training/projects/:projectId/jobs` - List training jobs
+- `GET /api/training/jobs/:jobId` - Get job status
+- `DELETE /api/training/jobs/:jobId` - Delete training job and resources
+
+### Azure Classifier Module
+
+#### `azure/` - Azure Classifier
+- Document classifier management (create, train, classify)
+- Wraps Azure Document Intelligence classifier APIs
+- BlobService for container/blob lifecycle and SAS URL generation
+- Group-scoped classifiers with PRETRAINING → TRAINING → READY lifecycle
+
+**Key Endpoints:**
+- `POST /api/azure/classifier` — Create classifier record
+- `POST /api/azure/classifier/documents` — Upload training documents
+- `DELETE /api/azure/classifier/documents` — Delete training documents (204)
+- `POST /api/azure/classifier/train` — Start training job
+- `GET /api/azure/classifier/train` — Poll training result
+- `POST /api/azure/classifier/classify` — Classify a document
+- `GET /api/azure/classifier/classify` — Poll classification result
+
+### HITL (Human-in-the-Loop) Module
+
+#### `hitl/` - Review & Correction
+- Review queue management with filtering
+- Review session tracking
+- Field-level correction recording
+- Confidence score tracking
+- Escalation workflow
+- Analytics and statistics
+
+**Key Endpoints:**
+- `GET /api/hitl/queue` - Get review queue with filters
+- `GET /api/hitl/queue/stats` - Queue statistics
+- `POST /api/hitl/sessions` - Start review session
+- `POST /api/hitl/sessions/:id/corrections` - Submit corrections
+- `POST /api/hitl/sessions/:id/approve` - Approve document
+- `POST /api/hitl/sessions/:id/escalate` - Escalate for further review
+- `GET /api/hitl/analytics` - Analytics data with filters
+
+### Infrastructure Modules
+
+#### `auth/` - Authentication
+- Keycloak OIDC/SSO integration
+- JWT token validation
+- User context extraction
+- Protected route decorators
+
+#### `api-key/` - API Key Management
+- API key generation and storage
+- bcrypt-based key hashing
+- API key authentication guard
+- Last-used timestamp tracking
+
+**Key Endpoints:**
+- `GET /api/api-key` - Get user's API key info
+- `POST /api/api-key` - Generate new API key
+- `DELETE /api/api-key` - Revoke API key
+
+#### `temporal/` - Temporal Client
+- Temporal workflow client initialization
+- Workflow execution (OCR, Graph workflows)
+- Workflow status querying
+- Search attribute management
+- Workflow cancellation
+
+#### `blob-storage/` - Storage Abstraction
+- Pluggable storage interface (`BlobStorageInterface`)
+- Local filesystem implementation (`LocalBlobStorageService`)
+- Azure Blob Storage implementation (`BlobStorageService`)
+- Operations: write, read, exists, delete
+- SAS URL generation for Azure
+
+#### `database/` - Database Service
+- Prisma client wrapper
+- Database connection management
+- Shared across all modules
+
+#### `queue/` - Message Queue (Stub)
+- Message queue integration interface
+- Ready for RabbitMQ/SQS/Azure Service Bus integration
 
 ## Prerequisites
 
-- Node.js 22+
-- npm 9+
+- **Node.js** 24+ and npm 10+
+- **PostgreSQL** 14+
+- **Temporal Server** (local or cloud)
+- **Azure Subscription** (for Document Intelligence and Blob Storage)
+- **Keycloak** (optional, for SSO authentication)
 
 ## Setup
 
@@ -25,41 +201,177 @@ npm install
 
 ### 2. Environment Configuration
 
-Create a `.env` file in the backend services directory:
+Create a `.env` file in the `apps/backend-services/` directory:
 
 ```env
+# Server Configuration
 PORT=3002
 NODE_ENV=development
-FRONTEND_URL=http://localhost:5173
-DATABASE_API_URL=http://localhost:3001/api/documents
+FRONTEND_URL=http://localhost:3000
 
-# Temporal Configuration
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/docintell
+
+# Azure Document Intelligence (OCR)
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<your-resource>.cognitiveservices.azure.com/
+AZURE_DOCUMENT_INTELLIGENCE_API_KEY=<your-api-key>
+AZURE_DOC_INTELLIGENCE_MODELS=prebuilt-layout,prebuilt-document,prebuilt-invoice
+
+# Azure Blob Storage (Optional - for production storage)
+AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=...
+AZURE_STORAGE_ACCOUNT_NAME=<your-account-name>
+AZURE_STORAGE_ACCOUNT_KEY=<your-account-key>
+AZURE_STORAGE_CONTAINER=documents
+AZURE_STORAGE_TRAINING_CONTAINER=training-data
+
+# Local Blob Storage (Development fallback)
+LOCAL_BLOB_STORAGE_PATH=./data/blobs
+
+# Temporal Workflow Engine
 TEMPORAL_ADDRESS=localhost:7233
 TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=ocr-processing
 
-# Database (for Prisma)
-DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+# Keycloak SSO (Optional)
+KEYCLOAK_ISSUER=https://keycloak.example.com/realms/myrealm
+KEYCLOAK_JWKS_URI=https://keycloak.example.com/realms/myrealm/protocol/openid-connect/certs
+KEYCLOAK_AUDIENCE=account
+KEYCLOAK_TOKEN_SIGNING_ALG=RS256
+
+# Request Limits
+BODY_LIMIT=50mb
 ```
 
-### 3. Database Setup (Prisma)
+### 3. Database Setup
 
-This project uses Prisma with a shared schema located at `apps/shared/prisma/schema.prisma`. The Prisma client is generated locally in this app.
-
-#### Generate Prisma Client
+This project uses Prisma with a shared schema located at `apps/shared/prisma/schema.prisma`.
 
 ```bash
+# Generate Prisma client (writes to apps/backend-services/src/generated/)
 npm run db:generate
+
+# Run migrations
+npm run db:migrate
+
+# (Optional) Seed database
+npm run db:seed
+
+# (Optional) Open Prisma Studio for database GUI
+npm run db:studio
 ```
 
-This will:
-- Read the shared schema from `apps/shared/prisma/schema.prisma`
-- Generate the Prisma client locally in `src/generated/`
-- The client is automatically generated before builds
+**Important:** Migrations are stored in `apps/shared/prisma/migrations/` and are shared between `backend-services` and `temporal` apps.
 
-#### Database Migrations
+### 4. Start Temporal Server
 
 ```bash
+# Using Docker Compose (recommended for local development)
+cd ../temporal
+docker-compose up -d
+
+# Verify Temporal is running
+temporal server status
+```
+
+### 5. Run the Service
+
+```bash
+# Development mode (with hot reload)
+npm run start:dev
+
+# Production mode
+npm run build
+npm run start:prod
+```
+
+The API will be available at `http://localhost:3002`.
+
+## API Documentation
+
+Interactive Swagger/OpenAPI documentation is available once the server is running:
+
+**Swagger UI:** http://localhost:3002/api
+
+The API documentation includes:
+- All endpoint definitions with request/response schemas
+- Authentication requirements (Bearer token or API key)
+- Example requests and responses
+- Schema definitions for all DTOs
+
+## Authentication
+
+The API supports two authentication modes:
+
+### 1. Keycloak SSO (Bearer Token)
+
+Protected endpoints accept JWT bearer tokens from Keycloak:
+
+```bash
+curl -X GET http://localhost:3002/api/documents \
+  -H "Authorization: Bearer <your-jwt-token>"
+```
+
+Use the `@KeycloakSSOAuth()` decorator on protected endpoints.
+
+### 2. API Key
+
+Protected endpoints accept API keys in the `x-api-key` header:
+
+```bash
+curl -X GET http://localhost:3002/api/documents \
+  -H "x-api-key: <your-api-key>"
+```
+
+Use the `@ApiKeyAuth()` decorator on protected endpoints.
+
+Most endpoints support both authentication methods for flexibility.
+
+## Testing
+
+### Unit Tests
+
+```bash
+npm test
+```
+
+### Integration Tests
+
+Integration tests validate end-to-end API flows including database and Temporal interactions.
+
+```bash
+# Run all integration tests
+npm run test:int
+
+# Run specific test suite
+npm run test:int -- document.spec.ts
+
+# Run graph workflow integration tests
+npm run test:int:workflow
+
+# Run with Temporal worker in same process
+npm run test:int:workflow:with-worker
+```
+
+See [TESTING.md](./TESTING.md) for comprehensive testing documentation.
+
+### Manual Testing
+
+Test scripts are provided for quick validation:
+
+```bash
+# Upload a document (bash)
+./test-upload.sh path/to/document.pdf
+
+# Upload a document (Node.js)
+node test-upload.js path/to/document.pdf
+```
+
+## Database Operations
+
+```bash
+# Generate Prisma client from shared schema
+npm run db:generate
+
 # Create a new migration
 npm run db:migrate
 
@@ -71,108 +383,205 @@ npm run db:reset
 
 # Open Prisma Studio (database GUI)
 npm run db:studio
+
+# Run seed script
+npm run db:seed
 ```
 
-> **Note**: Migrations are stored in `apps/shared/prisma/migrations/` and are shared between `backend-services` and `temporal` apps. The schema is the single source of truth for both applications.
+## Project Structure
 
-#### Prisma Commands
+```
+apps/backend-services/
+├── src/
+│   ├── api-key/              # API key authentication
+│   │   ├── api-key.controller.ts
+│   │   ├── api-key.service.ts
+│   │   └── guards/           # API key guard
+│   │
+│   ├── azure/                # Azure Document Intelligence classifier
+│   │   ├── azure.module.ts
+│   │   ├── azure.controller.ts
+│   │   ├── azure.service.ts
+│   │   ├── blob.service.ts
+│   │   ├── classifier.service.ts
+│   │   └── dto/
+│   │
+│   ├── auth/                 # Keycloak SSO authentication
+│   │   ├── auth.controller.ts
+│   │   ├── auth.service.ts
+│   │   └── guards/           # JWT guard
+│   │
+│   ├── blob-storage/         # Storage abstraction
+│   │   ├── blob-storage.service.ts        # Azure Blob implementation
+│   │   └── local-blob-storage.service.ts  # Local filesystem
+│   │
+│   ├── database/             # Prisma database module
+│   │   └── database.service.ts
+│   │
+│   ├── document/             # Document CRUD
+│   │   ├── document.controller.ts
+│   │   ├── document.service.ts
+│   │   └── dto/
+│   │
+│   ├── hitl/                 # Human-in-the-loop
+│   │   ├── hitl.controller.ts
+│   │   ├── hitl.service.ts
+│   │   └── dto/
+│   │
+│   ├── labeling/             # Document labeling
+│   │   ├── labeling.controller.ts
+│   │   ├── labeling.service.ts
+│   │   └── dto/
+│   │
+│   ├── ocr/                  # Azure Document Intelligence
+│   │   ├── ocr.controller.ts
+│   │   └── ocr.service.ts
+│   │
+│   ├── queue/                # Message queue (stub)
+│   │   ├── queue.module.ts
+│   │   └── queue.service.ts
+│   │
+│   ├── temporal/             # Temporal client
+│   │   ├── temporal-client.service.ts
+│   │   └── workflow-types.ts
+│   │
+│   ├── training/             # Model training
+│   │   ├── training.controller.ts
+│   │   ├── training.service.ts
+│   │   └── dto/
+│   │
+│   ├── upload/               # Document upload
+│   │   ├── upload.controller.ts
+│   │   └── dto/
+│   │
+│   ├── workflow/             # Workflow configuration
+│   │   ├── workflow.controller.ts
+│   │   ├── workflow.service.ts
+│   │   ├── graph-workflow-types.ts
+│   │   └── dto/
+│   │
+│   ├── decorators/           # Custom decorators
+│   │   └── custom-auth-decorators.ts
+│   │
+│   ├── utils/                # Shared utilities
+│   ├── testUtils/            # Test utilities
+│   │
+│   ├── app.module.ts         # Root module
+│   └── main.ts               # Application entrypoint
+│
+├── integration-tests/         # Integration test suites
+│   ├── document.spec.ts
+│   ├── upload.spec.ts
+│   ├── graph-workflow-tests/
+│   └── helpers/
+│
+├── prisma.config.ts          # Prisma configuration
+├── nest-cli.json             # NestJS CLI config
+├── tsconfig.json             # TypeScript config
+└── package.json              # Dependencies
+```
 
-- `npm run db:generate` - Generate Prisma client from shared schema
-- `npm run db:migrate` - Create and apply a new migration
-- `npm run db:status` - Check migration status
-- `npm run db:reset` - Reset database (deletes all data)
-- `npm run db:studio` - Open Prisma Studio (database GUI)
-- `npm run db:seed` - Run database seed script
+## Development Tips
 
-### 4. Run the Service
+### Adding a New Module
+
+1. Generate module using NestJS CLI:
+   ```bash
+   nest generate module my-feature
+   nest generate controller my-feature
+   nest generate service my-feature
+   ```
+
+2. Add module to `app.module.ts`
+
+3. Create DTOs in `my-feature/dto/`
+
+4. Add Swagger decorators for API documentation
+
+5. Write tests in `my-feature/*.spec.ts`
+
+### Adding Database Models
+
+1. Edit `apps/shared/prisma/schema.prisma`
+
+2. Create migration:
+   ```bash
+   npm run db:migrate
+   ```
+
+3. Regenerate Prisma clients:
+   ```bash
+   npm run db:generate
+   ```
+
+4. Update services to use new models
+
+### Working with Temporal Workflows
+
+1. Define workflow in `apps/temporal/src/`
+
+2. Register activity in activity registry
+
+3. Use `TemporalClientService` to start workflows from backend
+
+4. Query workflow status via `queryWorkflow()` method
+
+## Deployment
+
+Docker support:
 
 ```bash
-# Development mode
-npm run start:dev
+# Build image
+docker build -t backend-services -f Dockerfile .
 
-# Production mode
-npm run build
-npm run start:prod
+# Run container
+docker run -p 3002:3002 \
+  -e DATABASE_URL="postgresql://..." \
+  -e TEMPORAL_ADDRESS="temporal:7233" \
+  backend-services
 ```
 
-## API Endpoints
+See `/deployments/openshift/kustomize/` for Kubernetes/OpenShift manifests.
 
-### POST /api/upload
+## Troubleshooting
 
-Upload a document with base64-encoded file data.
+### Prisma Client Issues
 
-**Request Body:**
-```json
-{
-  "title": "Document Title",
-  "file": "base64-encoded-file-data",
-  "file_type": "pdf|image|scan",
-  "original_filename": "document.pdf",
-  "metadata": {
-    "key": "value"
-  }
-}
+If you see "Cannot find module '@generated/client'":
+
+```bash
+npm run db:generate
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "document": {
-    "id": "doc_1234567890_abc123",
-    "title": "Document Title",
-    "original_filename": "document.pdf",
-    "file_type": "pdf",
-    "file_size": 1024,
-    "status": "pending",
-    "created_at": "2024-01-01T00:00:00.000Z"
-  }
-}
+### Temporal Connection Errors
+
+Ensure Temporal server is running:
+
+```bash
+cd ../temporal
+docker-compose ps
 ```
 
-## Architecture
+### Azure Document Intelligence Errors
 
-- **Framework**: NestJS with Fastify
-- **Database**: Stubbed API client (ready for HTTP client integration)
-- **File Storage**: Local filesystem (can be upgraded to S3/object storage)
+Verify environment variables:
+- `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT`
+- `AZURE_DOCUMENT_INTELLIGENCE_API_KEY`
 
-## Testing
+Test connectivity:
+```bash
+curl -X GET "$AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT/documentintelligence/documentModels?api-version=2023-10-31-preview" \
+  -H "Ocp-Apim-Subscription-Key: $AZURE_DOCUMENT_INTELLIGENCE_API_KEY"
+```
 
-See [TESTING.md](./TESTING.md) for comprehensive testing instructions.
+## Documentation
 
-### Quick Test
+- [API Documentation](../../docs-md/API.md)
+- [HITL Architecture](../../docs-md/HITL_ARCHITECTURE.md)
+- [Testing Guide](./TESTING.md)
+- [Migration Guide](./MIGRATIONS.md)
 
-1. **Start the service:**
-   ```bash
-   npm run start:dev
-   ```
+## License
 
-2. **Use the test script:**
-   ```bash
-   # Using bash script
-   ./test-upload.sh path/to/your/file.pdf
-   
-   # Using Node.js script
-   node test-upload.js path/to/your/file.pdf
-   ```
-
-3. **Or use cURL:**
-   ```bash
-   FILE_BASE64=$(base64 -i yourfile.pdf)
-   curl -X POST http://localhost:3002/api/upload \
-     -H "Content-Type: application/json" \
-     -d "{
-       \"title\": \"Test Document\",
-       \"file\": \"$FILE_BASE64\",
-       \"file_type\": \"pdf\",
-       \"original_filename\": \"yourfile.pdf\"
-     }"
-   ```
-
-## Development
-
-The service uses stubbed implementations for:
-- Database operations (API calls logged, ready for HTTP client)
-
-Replace the stubbed implementations when ready to integrate with actual services.
+Apache License 2.0
 

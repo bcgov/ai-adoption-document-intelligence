@@ -81,8 +81,8 @@ export const ReviewQueuePage: FC<ReviewQueuePageProps> = ({
           onStartSession?.(session.id, false);
         }
       }
-    } catch (error) {
-      console.error("Failed to start review session", error);
+    } catch {
+      // Session start failed; leave state unchanged
     }
   };
 

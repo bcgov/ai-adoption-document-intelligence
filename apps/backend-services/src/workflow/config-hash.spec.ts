@@ -1,5 +1,5 @@
 import { computeConfigHash } from "./config-hash";
-import type { GraphWorkflowConfig, ActivityNode } from "./graph-workflow-types";
+import type { ActivityNode, GraphWorkflowConfig } from "./graph-workflow-types";
 
 function makeMinimalGraph(): GraphWorkflowConfig {
   return {

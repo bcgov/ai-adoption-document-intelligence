@@ -1,9 +1,9 @@
 import { DocumentStatus } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { OcrService } from "./ocr.service";
 
 const defaultDocument = {

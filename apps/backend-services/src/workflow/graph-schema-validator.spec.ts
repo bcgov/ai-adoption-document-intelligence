@@ -2,11 +2,11 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { validateGraphConfig } from "./graph-schema-validator";
 import type {
-  GraphWorkflowConfig,
   ActivityNode,
-  SwitchNode,
-  MapNode,
+  GraphWorkflowConfig,
   JoinNode,
+  MapNode,
+  SwitchNode,
 } from "./graph-workflow-types";
 
 // ---------------------------------------------------------------------------
@@ -136,8 +136,18 @@ describe("graph-schema-validator", () => {
           } as ActivityNode,
         },
         edges: [
-          { id: "e-review", source: "check", target: "review", type: "conditional" },
-          { id: "e-done", source: "check", target: "done", type: "conditional" },
+          {
+            id: "e-review",
+            source: "check",
+            target: "review",
+            type: "conditional",
+          },
+          {
+            id: "e-done",
+            source: "check",
+            target: "done",
+            type: "conditional",
+          },
           { id: "e-finish", source: "review", target: "done", type: "normal" },
         ],
       };
@@ -221,7 +231,12 @@ describe("graph-schema-validator", () => {
           } as ActivityNode,
         },
         edges: [
-          { id: "e-fallback", source: "start", target: "fallback", type: "error" },
+          {
+            id: "e-fallback",
+            source: "start",
+            target: "fallback",
+            type: "error",
+          },
         ],
       });
 
@@ -255,13 +270,20 @@ describe("graph-schema-validator", () => {
           } as ActivityNode,
         },
         edges: [
-          { id: "e-fallback", source: "start", target: "fallback", type: "normal" },
+          {
+            id: "e-fallback",
+            source: "start",
+            target: "fallback",
+            type: "normal",
+          },
         ],
       });
 
       const result = validateGraphConfig(config);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((error) => error.message.includes("type \"error\""))).toBe(true);
+      expect(
+        result.errors.some((error) => error.message.includes('type "error"')),
+      ).toBe(true);
     });
   });
 
@@ -338,12 +360,20 @@ describe("graph-schema-validator", () => {
         entryNodeId: "a",
         ctx: {},
         nodes: {
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
-          b: { id: "b", type: "activity", label: "B", activityType: "file.prepare" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
+          b: {
+            id: "b",
+            type: "activity",
+            label: "B",
+            activityType: "file.prepare",
+          } as ActivityNode,
         },
-        edges: [
-          { id: "e1", source: "b", target: "a", type: "normal" },
-        ],
+        edges: [{ id: "e1", source: "b", target: "a", type: "normal" }],
       };
       const result = validateGraphConfig(config);
       expect(result.valid).toBe(false);
@@ -397,9 +427,24 @@ describe("graph-schema-validator", () => {
         entryNodeId: "a",
         ctx: {},
         nodes: {
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
-          b: { id: "b", type: "activity", label: "B", activityType: "file.prepare" } as ActivityNode,
-          c: { id: "c", type: "activity", label: "C", activityType: "ocr.cleanup" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
+          b: {
+            id: "b",
+            type: "activity",
+            label: "B",
+            activityType: "file.prepare",
+          } as ActivityNode,
+          c: {
+            id: "c",
+            type: "activity",
+            label: "C",
+            activityType: "ocr.cleanup",
+          } as ActivityNode,
         },
         edges: [
           { id: "e1", source: "a", target: "b", type: "normal" },
@@ -446,9 +491,24 @@ describe("graph-schema-validator", () => {
         entryNodeId: "a",
         ctx: {},
         nodes: {
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
-          b: { id: "b", type: "activity", label: "B", activityType: "file.prepare" } as ActivityNode,
-          c: { id: "c", type: "activity", label: "C", activityType: "ocr.cleanup" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
+          b: {
+            id: "b",
+            type: "activity",
+            label: "B",
+            activityType: "file.prepare",
+          } as ActivityNode,
+          c: {
+            id: "c",
+            type: "activity",
+            label: "C",
+            activityType: "ocr.cleanup",
+          } as ActivityNode,
         },
         edges: [
           { id: "e1", source: "a", target: "b", type: "normal" },
@@ -479,13 +539,26 @@ describe("graph-schema-validator", () => {
         entryNodeId: "a",
         ctx: {},
         nodes: {
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
-          b: { id: "b", type: "activity", label: "B", activityType: "file.prepare" } as ActivityNode,
-          orphan: { id: "orphan", type: "activity", label: "Orphan", activityType: "ocr.cleanup" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
+          b: {
+            id: "b",
+            type: "activity",
+            label: "B",
+            activityType: "file.prepare",
+          } as ActivityNode,
+          orphan: {
+            id: "orphan",
+            type: "activity",
+            label: "Orphan",
+            activityType: "ocr.cleanup",
+          } as ActivityNode,
         },
-        edges: [
-          { id: "e1", source: "a", target: "b", type: "normal" },
-        ],
+        edges: [{ id: "e1", source: "a", target: "b", type: "normal" }],
       };
       const result = validateGraphConfig(config);
       // Warnings don't make the graph invalid
@@ -519,12 +592,21 @@ describe("graph-schema-validator", () => {
             label: "Switch",
             cases: [
               {
-                condition: { operator: "equals", left: { ref: "ctx.flag" }, right: { literal: true } },
+                condition: {
+                  operator: "equals",
+                  left: { ref: "ctx.flag" },
+                  right: { literal: true },
+                },
                 edgeId: "e-case",
               },
             ],
           } as SwitchNode,
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
         },
         edges: [
           { id: "e-case", source: "sw", target: "a", type: "conditional" },
@@ -554,13 +636,22 @@ describe("graph-schema-validator", () => {
             label: "Switch",
             cases: [
               {
-                condition: { operator: "equals", left: { ref: "ctx.flag" }, right: { literal: true } },
+                condition: {
+                  operator: "equals",
+                  left: { ref: "ctx.flag" },
+                  right: { literal: true },
+                },
                 edgeId: "nonexistent-edge",
               },
             ],
             defaultEdge: "e-default",
           } as SwitchNode,
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
         },
         edges: [
           { id: "e-default", source: "sw", target: "a", type: "conditional" },
@@ -648,7 +739,12 @@ describe("graph-schema-validator", () => {
         entryNodeId: "a",
         ctx: { results: { type: "array" } },
         nodes: {
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
           j: {
             id: "j",
             type: "join",
@@ -658,9 +754,7 @@ describe("graph-schema-validator", () => {
             resultsCtxKey: "results",
           } as JoinNode,
         },
-        edges: [
-          { id: "e1", source: "a", target: "j", type: "normal" },
-        ],
+        edges: [{ id: "e1", source: "a", target: "j", type: "normal" }],
       };
       const result = validateGraphConfig(config);
       expect(result.valid).toBe(false);
@@ -775,7 +869,12 @@ describe("graph-schema-validator", () => {
             ],
             defaultEdge: "e-default",
           } as SwitchNode,
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
         },
         edges: [
           { id: "e-default", source: "sw", target: "a", type: "conditional" },
@@ -815,7 +914,12 @@ describe("graph-schema-validator", () => {
             ],
             defaultEdge: "e-default",
           } as SwitchNode,
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
         },
         edges: [
           { id: "e-default", source: "sw", target: "a", type: "conditional" },
@@ -1003,13 +1107,48 @@ describe("graph-schema-validator", () => {
           } as ActivityNode,
         },
         edges: [
-          { id: "e1", source: "updateStatus", target: "prepareFileData", type: "normal" },
-          { id: "e2", source: "prepareFileData", target: "submitOcr", type: "normal" },
-          { id: "e3", source: "submitOcr", target: "pollOcrResults", type: "normal" },
-          { id: "e4", source: "pollOcrResults", target: "extractResults", type: "normal" },
-          { id: "e5", source: "extractResults", target: "postOcrCleanup", type: "normal" },
-          { id: "e6", source: "postOcrCleanup", target: "checkConfidence", type: "normal" },
-          { id: "e7", source: "checkConfidence", target: "reviewSwitch", type: "normal" },
+          {
+            id: "e1",
+            source: "updateStatus",
+            target: "prepareFileData",
+            type: "normal",
+          },
+          {
+            id: "e2",
+            source: "prepareFileData",
+            target: "submitOcr",
+            type: "normal",
+          },
+          {
+            id: "e3",
+            source: "submitOcr",
+            target: "pollOcrResults",
+            type: "normal",
+          },
+          {
+            id: "e4",
+            source: "pollOcrResults",
+            target: "extractResults",
+            type: "normal",
+          },
+          {
+            id: "e5",
+            source: "extractResults",
+            target: "postOcrCleanup",
+            type: "normal",
+          },
+          {
+            id: "e6",
+            source: "postOcrCleanup",
+            target: "checkConfidence",
+            type: "normal",
+          },
+          {
+            id: "e7",
+            source: "checkConfidence",
+            target: "reviewSwitch",
+            type: "normal",
+          },
           {
             id: "edge-switch-to-humanGate",
             source: "reviewSwitch",
@@ -1022,7 +1161,12 @@ describe("graph-schema-validator", () => {
             target: "storeResults",
             type: "conditional",
           },
-          { id: "e10", source: "humanReview", target: "storeResults", type: "normal" },
+          {
+            id: "e10",
+            source: "humanReview",
+            target: "storeResults",
+            type: "normal",
+          },
         ],
       };
 
@@ -1041,11 +1185,14 @@ describe("graph-schema-validator", () => {
         "..",
         "..",
         "docs",
+        "graph-workflows",
         "templates",
         "standard-ocr-workflow.json",
       );
       const templateJson = readFileSync(templatePath, "utf8");
-      const template = JSON.parse(templateJson) as unknown as GraphWorkflowConfig;
+      const template = JSON.parse(
+        templateJson,
+      ) as unknown as GraphWorkflowConfig;
       const result = validateGraphConfig(template);
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -1059,11 +1206,14 @@ describe("graph-schema-validator", () => {
         "..",
         "..",
         "docs",
+        "graph-workflows",
         "templates",
         "multi-page-report-workflow.json",
       );
       const templateJson = readFileSync(templatePath, "utf8");
-      const template = JSON.parse(templateJson) as unknown as GraphWorkflowConfig;
+      const template = JSON.parse(
+        templateJson,
+      ) as unknown as GraphWorkflowConfig;
       const result = validateGraphConfig(template);
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -1119,7 +1269,9 @@ describe("graph-schema-validator", () => {
       };
       const result = validateGraphConfig(config);
       expect(result.valid).toBe(false);
-      const error = result.errors.find((e) => e.message.includes("nonExistent"));
+      const error = result.errors.find((e) =>
+        e.message.includes("nonExistent"),
+      );
       expect(error).toBeDefined();
       expect(error?.severity).toBe("error");
     });
@@ -1139,7 +1291,8 @@ describe("graph-schema-validator", () => {
       const result = validateGraphConfig(config);
       expect(result.valid).toBe(true); // warnings don't fail validation
       const warning = result.errors.find(
-        (e) => e.severity === "warning" && e.message.includes("multiple groups"),
+        (e) =>
+          e.severity === "warning" && e.message.includes("multiple groups"),
       );
       expect(warning).toBeDefined();
       expect(warning?.message).toContain("group1, group2");

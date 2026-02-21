@@ -1,7 +1,7 @@
 import {
-  REGISTERED_ACTIVITY_TYPES,
-  isRegisteredActivityType,
   getRegisteredActivityTypeKeys,
+  isRegisteredActivityType,
+  REGISTERED_ACTIVITY_TYPES,
 } from "./activity-registry";
 
 const EXPECTED_ACTIVITY_TYPES = [
@@ -11,19 +11,22 @@ const EXPECTED_ACTIVITY_TYPES = [
   "azureOcr.poll",
   "azureOcr.extract",
   "ocr.cleanup",
+  "ocr.enrich",
   "ocr.checkConfidence",
   "ocr.storeResults",
   "document.storeRejection",
   "document.split",
   "document.classify",
+  "document.splitAndClassify",
   "document.validateFields",
+  "segment.combineResult",
 ];
 
 describe("activity-registry (backend)", () => {
   describe("REGISTERED_ACTIVITY_TYPES", () => {
-    it("contains all 12 expected activity types", () => {
+    it("contains all 15 expected activity types", () => {
       const keys = Object.keys(REGISTERED_ACTIVITY_TYPES);
-      expect(keys).toHaveLength(12);
+      expect(keys).toHaveLength(15);
       for (const activityType of EXPECTED_ACTIVITY_TYPES) {
         expect(activityType in REGISTERED_ACTIVITY_TYPES).toBe(true);
       }
@@ -38,12 +41,11 @@ describe("activity-registry (backend)", () => {
   });
 
   describe("isRegisteredActivityType", () => {
-    it.each(EXPECTED_ACTIVITY_TYPES)(
-      "returns true for registered type: %s",
-      (activityType) => {
-        expect(isRegisteredActivityType(activityType)).toBe(true);
-      },
-    );
+    it.each(
+      EXPECTED_ACTIVITY_TYPES,
+    )("returns true for registered type: %s", (activityType) => {
+      expect(isRegisteredActivityType(activityType)).toBe(true);
+    });
 
     it("returns false for unknown activity type", () => {
       expect(isRegisteredActivityType("nonexistent.activity")).toBe(false);
@@ -55,9 +57,9 @@ describe("activity-registry (backend)", () => {
   });
 
   describe("getRegisteredActivityTypeKeys", () => {
-    it("returns all 12 activity type strings", () => {
+    it("returns all 15 activity type strings", () => {
       const keys = getRegisteredActivityTypeKeys();
-      expect(keys).toHaveLength(12);
+      expect(keys).toHaveLength(15);
       for (const activityType of EXPECTED_ACTIVITY_TYPES) {
         expect(keys).toContain(activityType);
       }

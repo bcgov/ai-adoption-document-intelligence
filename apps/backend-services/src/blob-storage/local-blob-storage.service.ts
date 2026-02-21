@@ -5,7 +5,7 @@
  * Provides read/write/exists/delete operations with key-based access.
  * Keys map to file paths under a configurable base directory.
  *
- * See docs/DAG_WORKFLOW_ENGINE.md Section 13.3
+ * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 13.3
  */
 
 import { Injectable, Logger } from "@nestjs/common";
@@ -110,7 +110,9 @@ export class LocalBlobStorageService implements BlobStorageInterface {
     // Prevent path traversal attacks
     const normalized = path.normalize(key);
     if (normalized.startsWith("..") || path.isAbsolute(normalized)) {
-      throw new Error(`Invalid blob key: "${key}" - path traversal not allowed`);
+      throw new Error(
+        `Invalid blob key: "${key}" - path traversal not allowed`,
+      );
     }
 
     return path.join(this.basePath, normalized);
