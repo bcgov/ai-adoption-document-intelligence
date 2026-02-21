@@ -30,29 +30,30 @@
 This application implements a **confidential OAuth 2.0 Authorization Code flow** with **Keycloak** as the identity provider. The architecture is designed with the following principles:
 
 - **Backend-Driven OAuth**: The backend acts as the confidential OAuth client, keeping client secrets server-side
-- **Stateless Frontend**: The SPA stores only provider-issued tokens; no application-specific sessions
-- **Token Transparency**: Provider tokens are passed through to the frontend for direct API authentication
-- **Defense-in-Depth**: Multiple security layers including state tokens, nonce validation, JWKS verification, and RBAC
+- **Cookie-Based Sessions**: Tokens are stored in HttpOnly cookies, never exposed to JavaScript
+- **Zero Token Exposure**: The frontend receives no raw tokens; authentication state is determined via a `/api/auth/me` endpoint
+- **Defense-in-Depth**: Multiple security layers including PKCE, nonce validation, CSRF double-submit cookies, JWKS verification, and RBAC
 
 ---
 
 ## OAuth 2.0 Flow Type
 
-### Authorization Code Flow with PKCE-Ready Architecture
+### Authorization Code Flow with PKCE
 
-The implementation uses the **OAuth 2.0 Authorization Code Flow**, which is the most secure flow for web applications with a backend:
+The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof Key for Code Exchange)**, which is the most secure flow for web applications with a backend:
 
 **Flow Characteristics:**
 - **Confidential Client**: Backend holds the `client_secret` and exchanges authorization codes server-to-server
-- **State Parameter**: Signed JWT with embedded nonce to prevent CSRF and replay attacks
-- **Nonce Validation**: ID token nonce is validated against the state to ensure response freshness
-- **PKCE-Ready**: Code verifier parameter support is present in `exchangeCodeForTokens()` for future enhancement
-- **Token Storage**: Provider tokens stored in browser `localStorage` for persistence across sessions
+- **PKCE**: Active PKCE (code_verifier / code_challenge) protects the authorization code exchange against interception
+- **Nonce Validation**: ID token nonce is validated via `openid-client` to ensure response freshness
+- **Token Storage**: Provider tokens stored in HttpOnly cookies, inaccessible to JavaScript
+- **CSRF Protection**: Double-submit cookie pattern protects state-changing endpoints
 - **Refresh Token Rotation**: Supports refresh token grant for extending sessions without re-authentication
 
 **Why This Flow?**
-- Prevents token leakage in browser history (tokens never in URL)
+- Prevents token leakage in browser history (tokens never in URL, never in JavaScript)
 - Client secret never exposed to browser
+- HttpOnly cookies prevent XSS-based token theft
 - Supports long-lived sessions via refresh tokens
 - Compatible with Keycloak's security model
 
@@ -69,16 +70,15 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow**, which is the 
 │  │                                                                        │  │
 │  │  ┌──────────────────────────────────────────────────────────────┐   │  │
 │  │  │             AuthContext (AuthProvider)                        │   │  │
-│  │  │  - Token Storage (localStorage)                               │   │  │
+│  │  │  - Cookie-based auth (HttpOnly cookies)                       │   │  │
 │  │  │  - Automatic Refresh Logic                                    │   │  │
-│  │  │  - Auth Result Handling                                       │   │  │
-│  │  │  - Profile Decoding (ID Token)                                │   │  │
+│  │  │  - Profile from /api/auth/me endpoint                         │   │  │
 │  │  └──────────────────────────────────────────────────────────────┘   │  │
 │  │                              │                                         │  │
 │  │                              ▼                                         │  │
 │  │  ┌──────────────────────────────────────────────────────────────┐   │  │
 │  │  │             API Service (axios)                               │   │  │
-│  │  │  - Injects: Authorization: Bearer {access_token}              │   │  │
+│  │  │  - Sends credentials via cookies + CSRF header                │   │  │
 │  │  └──────────────────────────────────────────────────────────────┘   │  │
 │  └────────────────────────────────┬─────────────────────────────────────┘  │
 │                                   │                                         │
@@ -98,27 +98,19 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow**, which is the 
 │  │  │            Auth Controller (Routes)                         │   │    │
 │  │  │  - GET  /api/auth/login                                     │   │    │
 │  │  │  - GET  /api/auth/callback                                  │   │    │
-│  │  │  - GET  /api/auth/result                                    │   │    │
 │  │  │  - POST /api/auth/refresh                                   │   │    │
 │  │  │  - GET  /api/auth/logout                                    │   │    │
+│  │  │  - GET  /api/auth/me                                        │   │    │
 │  │  └────────────────────────────────────────────────────────────┘   │    │
 │  │                              │                                      │    │
 │  │                              ▼                                      │    │
 │  │  ┌────────────────────────────────────────────────────────────┐   │    │
 │  │  │            Auth Service                                     │   │    │
-│  │  │  - URL Construction (Keycloak endpoints)                    │   │    │
-│  │  │  - State Token Creation/Verification (JWT)                  │   │    │
+│  │  │  - OIDC Discovery (openid-client)                           │   │    │
+│  │  │  - PKCE Code Verifier / Challenge                           │   │    │
 │  │  │  - Code → Token Exchange                                    │   │    │
-│  │  │  - ID Token Nonce Validation (JWKS)                         │   │    │
+│  │  │  - Cookie Management (HttpOnly)                             │   │    │
 │  │  │  - Refresh Token Proxying                                   │   │    │
-│  │  └────────────────────────────────────────────────────────────┘   │    │
-│  │                              │                                      │    │
-│  │                              ▼                                      │    │
-│  │  ┌────────────────────────────────────────────────────────────┐   │    │
-│  │  │        AuthSessionStore (In-Memory)                         │   │    │
-│  │  │  - Short-lived token cache (60s TTL)                        │   │    │
-│  │  │  - One-time consumption pattern                             │   │    │
-│  │  │  - Background cleanup sweeper                               │   │    │
 │  │  └────────────────────────────────────────────────────────────┘   │    │
 │  └──────────────────────────────────────────────────────────────────┘    │
 │                                                                              │
@@ -126,12 +118,20 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow**, which is the 
 │  │                  Global Guards (APP_GUARD)                          │    │
 │  │                                                                      │    │
 │  │  ┌────────────────────────────────────────────────────────────┐   │    │
-│  │  │        BCGovAuthGuard (Bearer Token Validation)             │   │    │
+│  │  │        JwtAuthGuard (Cookie-first JWT Validation)           │   │    │
 │  │  │  - Skips @Public routes                                     │   │    │
-│  │  │  - Extracts Bearer token from Authorization header          │   │    │
+│  │  │  - Extracts JWT from access_token cookie first              │   │    │
+│  │  │  - Falls back to Authorization: Bearer header               │   │    │
 │  │  │  - Validates token via JWKS (RS256)                         │   │    │
 │  │  │  - Verifies issuer & audience                               │   │    │
 │  │  │  - Normalizes Keycloak roles into request.user              │   │    │
+│  │  └────────────────────────────────────────────────────────────┘   │    │
+│  │                              │                                      │    │
+│  │                              ▼                                      │    │
+│  │  ┌────────────────────────────────────────────────────────────┐   │    │
+│  │  │        CsrfGuard (CSRF Protection)                          │   │    │
+│  │  │  - Validates CSRF double-submit cookie pattern              │   │    │
+│  │  │  - Compares X-CSRF-Token header to csrf_token cookie        │   │    │
 │  │  └────────────────────────────────────────────────────────────┘   │    │
 │  │                              │                                      │    │
 │  │                              ▼                                      │    │
@@ -182,17 +182,18 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow**, which is the 
 |---------|---------|---------|
 | `@nestjs/common` | 11.1.12 | Core NestJS framework |
 | `@nestjs/config` | 4.0.2 | Configuration management |
-| `jsonwebtoken` | 9.0.2 | JWT signing, verification, and decoding |
-| `jwks-rsa` | 3.2.0 | Fetches and caches Keycloak's public signing keys |
-| `axios` | 1.13.2 | HTTP client for Keycloak token endpoint |
+| `@nestjs/passport` | 11.x | Passport integration for NestJS |
+| `passport-jwt` | 4.x | JWT extraction and validation strategy |
+| `openid-client` | 6.8.2 | OIDC discovery, PKCE, token exchange, refresh, and ID token validation |
+| `cookie-parser` | 1.4.7 | Parse HTTP cookies on incoming requests |
 | `class-validator` | 0.14.3 | DTO validation for all auth routes |
 | `class-transformer` | 0.5.1 | DTO transformation |
 
 **Key Backend Libraries Explained:**
 
-- **`jsonwebtoken`**: Signs the state token, verifies state on callback, and validates ID token nonces
-- **`jwks-rsa`**: Automates fetching Keycloak's public keys from the JWKS endpoint for RS256 signature verification
-- **`axios`**: Performs server-to-server calls to Keycloak's token endpoint (code exchange, refresh)
+- **`openid-client`**: Handles OIDC discovery, PKCE code challenge/verifier generation, authorization code exchange, refresh grants, and ID token signature verification — replaces manual `jsonwebtoken`/`jwks-rsa`/`axios` usage
+- **`passport-jwt`**: Extracts JWTs from cookies (primary) or Authorization header (fallback) and validates them via JWKS
+- **`cookie-parser`**: Parses cookies so controllers and guards can read auth tokens from `req.cookies`
 - **`class-validator`**: Ensures all incoming OAuth callback parameters and request bodies are well-formed
 
 ### Frontend Dependencies
@@ -208,8 +209,8 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow**, which is the 
 
 - **No OIDC client library actively used**: The frontend relies on the backend to handle all OAuth interactions
 - **`oidc-client-ts` is present but not actively used**: Previously considered for client-side OIDC, superseded by backend-driven approach
-- **Token storage**: Uses native `localStorage` API for token persistence
-- **Token decoding**: Uses browser native `atob()` for base64 decoding of ID token payload
+- **No token access**: The frontend never sees raw tokens; they are stored in HttpOnly cookies managed by the backend
+- **Profile data**: User profile information is fetched from the `/api/auth/me` endpoint
 
 ---
 
@@ -222,8 +223,10 @@ apps/backend-services/src/auth/
 ├── auth.module.ts              # Module definition with global guards
 ├── auth.controller.ts          # Public HTTP endpoints for OAuth flow
 ├── auth.service.ts             # Core OAuth orchestration logic
-├── auth-session.store.ts       # In-memory result cache
-├── bcgov-auth.guard.ts         # Bearer token validation guard
+├── cookie-auth.utils.ts        # Centralized cookie configuration (names, options, helpers)
+├── csrf.guard.ts               # CSRF double-submit cookie protection guard
+├── keycloak-jwt.strategy.ts    # Passport JWT strategy (cookie-first extraction)
+├── jwt-auth.guard.ts           # Passport-based auth guard wrapping the JWT strategy
 ├── api-key-auth.guard.ts       # API key validation guard
 ├── roles.guard.ts              # RBAC enforcement guard
 ├── public.decorator.ts         # @Public() metadata
@@ -233,7 +236,7 @@ apps/backend-services/src/auth/
     ├── token-response.dto.ts         # Keycloak token response structure
     ├── refresh-token.dto.ts          # Refresh request/response DTOs
     ├── oauth-callback-query.dto.ts   # Callback query parameters
-    ├── auth-result-query.dto.ts      # Result endpoint query
+    ├── me-response.dto.ts            # Profile endpoint response DTO
     └── logout-query.dto.ts           # Logout query parameters
 ```
 
@@ -245,120 +248,93 @@ The central orchestrator for the OAuth flow. Key responsibilities:
 
 **Initialization:**
 ```typescript
-constructor(
-  private configService: ConfigService,
-  private authSessionStore: AuthSessionStore,
-)
+constructor(private configService: ConfigService)
 ```
 
+- Performs OIDC discovery via `openid-client` on module init
 - Constructs Keycloak endpoint URLs from environment variables
-- Initializes JWKS client for public key caching
 - Validates required configuration on startup
 
 **Key Methods:**
 
 | Method | Purpose |
 |--------|---------|
-| `getLoginUrl()` | Generates authorization URL with signed state token and nonce |
-| `handleCallback(code, state, iss?)` | Validates PKCE state, exchanges code for tokens via openid-client, validates ID token, stores result. The `iss` parameter is required when Keycloak advertises `authorization_response_iss_parameter_supported` |
+| `getLoginUrl()` | Returns `LoginUrlResult` with authorization URL, PKCE state, code verifier, and nonce |
+| `handleCallback(code, state, codeVerifier, nonce, iss?)` | Exchanges authorization code for tokens with PKCE validation; returns `TokenResponseDto` directly |
 | `refreshAccessToken(refreshToken)` | Proxies refresh token grant to Keycloak via openid-client |
-| `refreshAccessToken(refreshToken)` | Proxies refresh token to Keycloak |
-| `consumeAuthResult(resultId)` | One-time read of stored tokens |
 | `getLogoutUrl(idTokenHint?)` | Constructs Keycloak logout URL |
+| `getFrontendUrl()` | Returns the configured frontend URL for redirects |
+| `buildErrorRedirect(error)` | Produces a frontend redirect URL for auth failures |
 
-**State Token Security:**
+**PKCE Security:**
+
+PKCE (Proof Key for Code Exchange) is handled using `openid-client` functions:
+
 ```typescript
-private createStateToken(): { state: string; nonce: string } {
-  const nonce = randomBytes(16).toString("hex");
-  const payload = { nonce };
-  
-  const state = jwt.sign(payload, this.stateSecret, {
-    expiresIn: "5m",
-    audience: this.clientId,
-    issuer: "auth-service",
-  });
-  
-  return { state, nonce };
-}
+const codeVerifier = client.randomPKCECodeVerifier();
+const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
+const state = client.randomState();
+const nonce = client.randomNonce();
 ```
 
-- State is a JWT signed with `AUTH_STATE_SECRET`
-- Contains a cryptographically random nonce
-- Expires in 5 minutes (short-lived to prevent replay)
-- Verified on callback with issuer/audience checks
-
-**ID Token Validation:**
-```typescript
-private async validateIdTokenNonce(
-  idToken: string,
-  expectedNonce: string,
-): Promise<void> {
-  const decoded = jwt.decode(idToken, { complete: true });
-  const key = await this.jwksClient.getSigningKey(decoded.header.kid);
-  const signingKey = key.getPublicKey();
-  
-  const verified = jwt.verify(idToken, signingKey, {
-    algorithms: ["RS256"],
-    issuer: this.issuer,
-    audience: this.clientId,
-  }) as jwt.JwtPayload;
-  
-  if (verified.nonce !== expectedNonce) {
-    throw new Error("Nonce mismatch");
-  }
-}
-```
-
-- Fetches Keycloak's public key using `kid` from token header
-- Verifies signature using RS256 algorithm
-- Validates issuer and audience claims
-- Ensures nonce matches what was sent in authorization request
+- Code verifier and nonce are stored in an HttpOnly cookie on the browser (scoped to `/api/auth/callback`)
+- The code challenge is sent to Keycloak in the authorization URL
+- On callback, the code verifier is read from the cookie and sent to Keycloak with the authorization code
+- `openid-client` validates the ID token (signature, nonce, issuer, audience) automatically
 
 #### 2. **AuthController** (`auth.controller.ts`)
 
-Thin HTTP layer exposing OAuth entrypoints. All routes are marked `@Public()` because they're part of the authentication flow itself.
+Thin HTTP layer exposing OAuth entrypoints. Auth flow routes are marked `@Public()`. The `/me` endpoint requires authentication.
 
 **Routes:**
 
 ```typescript
 // 1. Login Initiation
 @Get("login")
-async getLoginUrl(@Res() res: Response) {
-  const loginUrl = this.authService.getLoginUrl();
-  res.redirect(loginUrl);  // 302 redirect to Keycloak
+async login(@Res() res: Response) {
+  const { url, code_verifier, nonce } = this.authService.getLoginUrl();
+  // Sets pkce_verifier cookie (HttpOnly, short-lived)
+  res.cookie("pkce_verifier", JSON.stringify({ code_verifier, nonce }), { httpOnly: true, maxAge: 300_000 });
+  res.redirect(url);  // 302 redirect to Keycloak
 }
 
 // 2. OAuth Callback Handler
 @Get("callback")
 async oauthCallback(
   @Query() query: OAuthCallbackQueryDto,  // { code, state, iss?, session_state? }
+  @Req() req: Request,
   @Res() res: Response,
 ) {
-  const resultId = await this.authService.handleCallback(query.code, query.state, query.iss);
-  const redirectUrl = this.authService.buildAuthResultRedirect(resultId);
-  return res.redirect(redirectUrl);  // Redirect to SPA with ?auth_result=uuid
+  const { code_verifier, nonce } = JSON.parse(req.cookies.pkce_verifier);
+  res.clearCookie("pkce_verifier");
+  const tokens = await this.authService.handleCallback(query.code, query.state, code_verifier, nonce, query.iss);
+  // Sets HttpOnly auth cookies: access_token, refresh_token, id_token, csrf_token
+  setAuthCookies(res, tokens);
+  res.redirect(this.authService.getFrontendUrl());
 }
 
-// 3. Token Result Consumption
-@Get("result")
-async consumeResult(
-  @Query() query: AuthResultQueryDto,  // { result }
-): Promise<TokenResponseDto> {
-  return this.authService.consumeAuthResult(query.result);
-}
-
-// 4. Token Refresh
+// 3. Token Refresh
 @Post("refresh")
-async refreshToken(@Body() body: RefreshTokenDto): Promise<RefreshReturnDto> {
-  const tokens = await this.authService.refreshAccessToken(body.refresh_token);
-  return { ...tokens };
+async refreshToken(@Req() req: Request, @Res() res: Response) {
+  const refreshToken = req.cookies.refresh_token;
+  const tokens = await this.authService.refreshAccessToken(refreshToken);
+  setAuthCookies(res, tokens);
+  res.json({ expires_in: tokens.expires_in });
 }
 
-// 5. Logout Initiation
+// 4. Logout
 @Get("logout")
-async logout(@Query() query: LogoutQueryDto, @Res() res: Response) {
-  const logoutUrl = this.authService.getLogoutUrl(query.id_token_hint);
+async logout(@Req() req: Request, @Res() res: Response) {
+  const idTokenHint = req.cookies.id_token;
+  clearAuthCookies(res);
+  const logoutUrl = this.authService.getLogoutUrl(idTokenHint);
   res.redirect(logoutUrl);  // 302 redirect to Keycloak logout
+}
+
+// 5. User Profile (protected — NOT @Public)
+@Get("me")
+async me(@Req() req: Request): Promise<MeResponseDto> {
+  return req.user;  // Populated by JwtAuthGuard from access_token cookie
 }
 ```
 
@@ -375,9 +351,13 @@ export class OAuthCallbackQueryDto {
 
   @IsString()
   @IsNotEmpty()
-  @IsJWT()
   @ApiProperty()
   state!: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiProperty()
+  iss?: string;
 
   @IsOptional()
   @IsString()
@@ -386,129 +366,123 @@ export class OAuthCallbackQueryDto {
 }
 ```
 
-#### 3. **AuthSessionStore** (`auth-session.store.ts`)
+#### 3. **Cookie Auth Utilities** (`cookie-auth.utils.ts`)
 
-In-memory cache for short-lived auth results. Design goals:
-- Prevent tokens from appearing in browser URLs
-- One-time consumption pattern (tokens can't be redeemed twice)
-- Automatic cleanup of expired entries
+Centralized cookie configuration for all auth-related cookies. Provides consistent cookie settings and helper functions.
+
+```typescript
+// Cookie names
+export const AUTH_COOKIES = {
+  ACCESS_TOKEN: 'access_token',
+  REFRESH_TOKEN: 'refresh_token',
+  ID_TOKEN: 'id_token',
+  CSRF_TOKEN: 'csrf_token',
+  PKCE_VERIFIER: 'pkce_verifier',
+} as const;
+
+// Common cookie options
+const baseCookieOptions = (isProduction: boolean): CookieOptions => ({
+  httpOnly: true,
+  secure: isProduction,      // HTTPS only in production
+  sameSite: 'lax',           // Allows OAuth redirects while preventing CSRF
+  path: '/',
+});
+
+export function setAuthCookies(res: Response, tokens: TokenResponseDto): void {
+  // Sets access_token, refresh_token, id_token as HttpOnly cookies
+  // Sets csrf_token as a non-HttpOnly cookie (readable by JavaScript for CSRF header)
+}
+
+export function clearAuthCookies(res: Response): void {
+  // Clears all auth cookies
+}
+```
+
+**Cookie Security Properties:**
+- `httpOnly: true` — Prevents JavaScript access (XSS protection)
+- `secure: true` (production) — Sent only over HTTPS
+- `sameSite: 'lax'` — Allows OAuth redirects while blocking cross-site POST requests
+- `csrf_token` cookie is intentionally NOT HttpOnly so frontend JavaScript can read it and send it as a header
+
+#### 4. **CsrfGuard** (`csrf.guard.ts`)
+
+Implements the double-submit cookie pattern for CSRF protection on state-changing endpoints:
 
 ```typescript
 @Injectable()
-export class AuthSessionStore {
-  private readonly ttlMs: number;
-  private readonly store = new Map<string, StoredTokens>();
+export class CsrfGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest();
 
-  constructor(private configService: ConfigService) {
-    const ttlSeconds = Number(
-      this.configService.get<string>("AUTH_RESULT_TTL_SECONDS") ?? "60",
-    );
-    this.ttlMs = ttlSeconds * 1000;
-    
-    // Background cleanup every TTL interval
-    setInterval(() => this.cleanupExpired(), this.ttlMs).unref();
-  }
-
-  save(tokens: TokenResponseDto): string {
-    const id = randomUUID();
-    this.store.set(id, {
-      tokens,
-      expiresAt: Date.now() + this.ttlMs,
-    });
-    return id;
-  }
-
-  consume(id: string): TokenResponseDto {
-    const entry = this.store.get(id);
-    if (!entry || entry.expiresAt < Date.now()) {
-      this.store.delete(id);
-      throw new NotFoundException("Auth result expired or invalid");
+    // Skip for safe HTTP methods (GET, HEAD, OPTIONS)
+    if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
+      return true;
     }
-    this.store.delete(id);  // One-time consumption
-    return entry.tokens;
+
+    const cookieToken = request.cookies?.csrf_token;
+    const headerToken = request.headers['x-csrf-token'];
+
+    if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+      throw new ForbiddenException('CSRF token mismatch');
+    }
+
+    return true;
   }
 }
 ```
 
-**Important:** This is in-memory, so:
-- Entries lost on server restart
-- Not suitable for horizontally scaled deployments without sticky sessions
-- Could be replaced with Redis for production multi-instance setups
+**How It Works:**
+- On login, a `csrf_token` cookie is set (readable by JavaScript, NOT HttpOnly)
+- Frontend reads this cookie and sends its value as an `X-CSRF-Token` header on state-changing requests
+- The guard compares the header value to the cookie value
+- A cross-origin attacker cannot read the cookie to set the header, preventing CSRF
 
-#### 4. **BCGovAuthGuard** (`bcgov-auth.guard.ts`)
+#### 5. **JwtAuthGuard / KeycloakJwtStrategy** (`jwt-auth.guard.ts` / `keycloak-jwt.strategy.ts`)
 
-Global guard that validates bearer tokens on all routes except those marked `@Public()`.
+Global guard that validates JWTs on all routes except those marked `@Public()`. Uses Passport's JWT strategy with cookie-first extraction and Bearer header fallback.
 
 **Flow:**
 
 1. Check if route is `@Public()` → skip validation
-2. Check if route allows `@ApiKeyAuth()` and API key present → skip  (ApiKeyAuthGuard handles it)
-3. Extract `Authorization: Bearer {token}` header
-4. Decode token header to get `kid` (key ID)
-5. Fetch corresponding public key from Keycloak JWKS endpoint
-6. Verify token signature with RS256
-7. Validate `issuer` and `audience` claims
-8. Normalize Keycloak role claims into `request.user.roles[]`
-9. Attach `user` object to request for downstream use
+2. Check if route allows `@ApiKeyAuth()` and API key present → skip (ApiKeyAuthGuard handles it)
+3. Extract JWT from `access_token` cookie first; if absent, fall back to `Authorization: Bearer {token}` header
+4. Validate token via Passport JWT strategy (JWKS RS256 signature verification)
+5. Validate `issuer` and `audience` claims
+6. Normalize Keycloak role claims into `request.user.roles[]`
+7. Attach `user` object to request for downstream use
+
+**Passport JWT Strategy (cookie-first extraction):**
 
 ```typescript
-async canActivate(context: ExecutionContext): Promise<boolean> {
-  const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-    context.getHandler(),
-    context.getClass(),
-  ]);
-
-  if (isPublic) {
-    return true;
+@Injectable()
+export class KeycloakJwtStrategy extends PassportStrategy(Strategy, 'keycloak-jwt') {
+  constructor(configService: ConfigService) {
+    super({
+      // Cookie-first extraction with Bearer header fallback
+      jwtFromRequest: (req: Request) => {
+        // 1. Try access_token cookie
+        if (req?.cookies?.access_token) {
+          return req.cookies.access_token;
+        }
+        // 2. Fall back to Authorization: Bearer header
+        return ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+      },
+      secretOrKeyProvider: jwksRsa.passportJwtSecret({
+        jwksUri: `${issuerUrl}/protocol/openid-connect/certs`,
+        cache: true,
+        cacheMaxAge: 86400000,  // 24 hours
+      }),
+      issuer: issuerUrl,
+      audience: clientId,
+      algorithms: ['RS256'],
+    });
   }
 
-  const request = context.switchToHttp().getRequest<Request>();
-  const authHeader = request.headers["authorization"];
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new UnauthorizedException("No Bearer token provided");
+  async validate(payload: JwtPayload): Promise<User> {
+    // Normalize Keycloak roles from multiple sources
+    const roles = this.extractRoles(payload);
+    return { ...payload, roles };
   }
-
-  const token = authHeader.substring(7);
-  
-  try {
-    const user = await this.validateToken(token);
-    request.user = user;  // Attach user to request
-    return true;
-  } catch {
-    throw new ForbiddenException("Invalid token");
-  }
-}
-```
-
-**Token Validation Logic:**
-
-```typescript
-private async validateToken(token: string): Promise<User> {
-  // Decode token header to get key ID (kid)
-  const decoded = jwt.decode(token, { complete: true });
-  if (!decoded || !decoded.header.kid) {
-    throw new UnauthorizedException("Invalid token format");
-  }
-
-  // Fetch public key from JWKS endpoint (cached for 24h)
-  const key = await this.jwksClient.getSigningKey(decoded.header.kid);
-  const signingKey = key.getPublicKey();
-
-  // Verify signature and claims
-  const verified = jwt.verify(token, signingKey, {
-    algorithms: ["RS256"],
-    issuer: expectedIssuer,
-    audience: this.clientId,
-  }) as jwt.JwtPayload & User;
-
-  // Normalize Keycloak roles from multiple sources
-  const normalizedRoles = this.extractRoles(verified);
-
-  return {
-    ...verified,
-    roles: normalizedRoles,
-  };
 }
 ```
 
@@ -519,10 +493,10 @@ Keycloak can embed roles in multiple JWT claims:
 - `realm_access.roles[]` (realm-level roles)
 - `resource_access.<client-id>.roles[]` (client-specific roles)
 
-The guard normalizes all of these into a single `user.roles[]` array:
+The strategy normalizes all of these into a single `user.roles[]` array:
 
 ```typescript
-private extractRoles(payload: jwt.JwtPayload): string[] {
+private extractRoles(payload: JwtPayload): string[] {
   const roleSet = new Set<string>();
   
   // Collect from all potential sources
@@ -539,7 +513,7 @@ private extractRoles(payload: jwt.JwtPayload): string[] {
 
 #### 5. **RolesGuard** (`roles.guard.ts`)
 
-RBAC enforcement guard that runs after `BCGovAuthGuard`. It checks the `@Roles()` decorator and ensures `request.user.roles` contains at least one required role.
+RBAC enforcement guard that runs after `JwtAuthGuard`. It checks the `@Roles()` decorator and ensures `request.user.roles` contains at least one required role.
 
 ```typescript
 @Injectable()
@@ -594,14 +568,18 @@ Global guards are registered via `APP_GUARD` provider token, which applies them 
 
 ```typescript
 @Module({
-  imports: [ConfigModule, ApiKeyModule],
+  imports: [ConfigModule, ApiKeyModule, PassportModule],
   controllers: [AuthController],
   providers: [
     AuthService,
-    AuthSessionStore,
+    KeycloakJwtStrategy,
     {
       provide: APP_GUARD,
-      useClass: BCGovAuthGuard,  // Validates bearer tokens first
+      useClass: JwtAuthGuard,  // Validates JWT (cookie-first) on all routes
+    },
+    {
+      provide: APP_GUARD,
+      useClass: CsrfGuard,  // CSRF double-submit cookie protection
     },
     {
       provide: APP_GUARD,
@@ -618,48 +596,51 @@ export class AuthModule {}
 ```
 
 **Guard Execution Order:**
-1. `BCGovAuthGuard` → Validates bearer token → Sets `request.user`
-2. `ApiKeyAuthGuard` → Validates API key (if applicable) → Sets `request.user`
-3. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
+1. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
+2. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
+3. `ApiKeyAuthGuard` → Validates API key (if applicable) → Sets `request.user`
+4. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
 
 ### Security Mechanisms
 
-#### CSRF Protection (State Token)
+#### CSRF Protection (Double-Submit Cookie Pattern)
 
-The `state` parameter is a signed JWT that:
-- Prevents CSRF by binding the authorization request to the callback
-- Contains a cryptographic nonce that must match the ID token
-- Expires in 5 minutes to prevent replay attacks
-- Uses `AUTH_STATE_SECRET` (defaults to client secret) for signing
+State-changing requests (POST, PUT, DELETE) are protected by the double-submit cookie pattern:
+- A `csrf_token` cookie (readable by JavaScript) is set during login
+- The frontend reads this cookie and sends its value as an `X-CSRF-Token` header
+- The `CsrfGuard` compares the header to the cookie value
+- Cross-origin attackers cannot read the cookie to forge the header
+
+#### PKCE Protection
+
+The authorization code exchange is protected by PKCE:
+- A `code_verifier` is generated and stored in an HttpOnly cookie during login
+- The corresponding `code_challenge` is sent to Keycloak
+- On callback, the `code_verifier` is included in the token exchange
+- This prevents authorization code interception attacks
 
 #### Nonce Validation
 
-The nonce from the state token is validated against the ID token:
-```typescript
-if (verified.nonce !== expectedNonce) {
-  throw new Error("Nonce mismatch");
-}
-```
-
-This ensures:
-- The ID token was issued in response to our specific authorization request
-- Protects against token replay attacks
-- Provides request-response binding
+The nonce is validated automatically by `openid-client` during token exchange:
+- A cryptographic nonce is generated and sent in the authorization request
+- `openid-client` verifies the nonce in the returned ID token matches
+- This binds the ID token to the specific authorization request, preventing replay
 
 #### Token Signature Verification (JWKS)
 
-All bearer tokens are verified using Keycloak's public keys:
+All access tokens are verified using Keycloak's public keys:
 - Keys fetched from `/protocol/openid-connect/certs` (JWKS endpoint)
 - Cached for 24 hours for performance
 - RS256 asymmetric signature verification
 - Validates `issuer` and `audience` claims
 
-#### Short-Lived Auth Results
+#### HttpOnly Cookie Security
 
-The `AuthSessionStore` provides a brief window (60s default) for the SPA to redeem tokens:
-- Prevents long-lived result IDs from being exploited
-- One-time consumption pattern prevents replay
-- Background cleanup prevents memory leaks
+Tokens stored in HttpOnly cookies provide:
+- **XSS Protection**: JavaScript cannot access HttpOnly cookies, preventing token theft via XSS
+- **Automatic Transmission**: Browser automatically sends cookies with same-origin requests
+- **Secure Flag**: Cookies only sent over HTTPS in production
+- **SameSite=Lax**: Prevents CSRF while allowing OAuth redirect flows
 
 ---
 
@@ -679,22 +660,13 @@ apps/frontend/src/auth/
 ### Key Interfaces
 
 ```typescript
-interface TokenResponse {
-  access_token: string;
-  refresh_token?: string;
-  id_token?: string;
-  expires_in: number;
-}
-
 interface AuthUser {
-  access_token: string;
-  refresh_token?: string;
-  id_token?: string;
-  expires_at?: number;
   profile?: {
+    sub?: string;
     name?: string;
     preferred_username?: string;
     email?: string;
+    roles?: string[];
     [key: string]: unknown;
   };
 }
@@ -705,7 +677,6 @@ interface AuthContextType {
   user: AuthUser | null;
   login: () => void;
   logout: () => void;
-  getAccessToken: () => string | null;
   refreshToken: () => Promise<void>;
 }
 ```
@@ -720,15 +691,12 @@ The `AuthProvider` wraps the entire application and manages authentication state
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const handledAuthResultIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const initAuth = async () => {
       try {
-        await restoreStoredTokens();      // Rehydrate from localStorage
-        await handleAuthResultFromUrl();  // Check for ?auth_result= param
+        await checkAuthStatus();  // Call /api/auth/me to check if authenticated
       } catch {
-        localStorage.removeItem("auth_tokens");
         setUser(null);
       } finally {
         setIsLoading(false);
@@ -738,143 +706,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initAuth();
   }, []);
 
-  // Automatically inject token into API service when user changes
-  useEffect(() => {
-    apiService.setAuthToken(user?.access_token ?? null);
-  }, [user?.access_token]);
-
   // ... context value and return
 };
 ```
 
 **Key Behaviors:**
 - Runs once on mount
-- Attempts to restore previous session from `localStorage`
-- Checks URL for OAuth redirect (`?auth_result=`)
+- Calls `/api/auth/me` to check if user has valid auth cookies
+- If cookies are valid, the backend returns user profile data
+- If cookies are expired/missing, user is set to `null`
 - Sets `isLoading = false` when complete
-- Automatically updates `apiService` with latest access token
 
 ### Token Management
 
-#### Storage Strategy
+#### Cookie-Based Authentication
 
-Tokens are stored in `localStorage` as a JSON string:
+Tokens are stored in HttpOnly cookies managed entirely by the backend. The frontend never sees or handles raw tokens.
 
-```typescript
-const persistTokens = async (tokens: TokenResponse) => {
-  const expiresAt = Math.floor(Date.now() / 1000) + tokens.expires_in;
-  const tokenData = { ...tokens, expires_at: expiresAt };
-  localStorage.setItem("auth_tokens", JSON.stringify(tokenData));
-  
-  const userData = await decodeAndCreateUser(tokenData);
-  setUser(userData);
-};
-```
+**How It Works:**
+- After successful OAuth callback, the backend sets HttpOnly cookies (`access_token`, `refresh_token`, `id_token`)
+- The browser automatically sends these cookies with every same-origin request
+- A `csrf_token` cookie (NOT HttpOnly) is also set for CSRF protection
+- The frontend reads only the `csrf_token` cookie to include it as an `X-CSRF-Token` header
 
-**Why `localStorage`?**
-- Persists across browser sessions (unlike `sessionStorage`)
-- Simple API, no dependencies
-- Allows the backend to be truly stateless
-- Can be easily migrated to `sessionStorage` or `IndexedDB` if needed
+**Why HttpOnly Cookies?**
+- Immune to XSS attacks (JavaScript cannot access HttpOnly cookies)
+- Automatic browser handling (no manual token management)
+- Persistent across browser sessions
+- Simplifies frontend code (no localStorage management)
 
-**Storage Format:**
-```json
-{
-  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expires_in": 3600,
-  "expires_at": 1707678234
-}
-```
+#### Auth Status Check
 
-#### Token Restoration
-
-On app load, the provider attempts to restore tokens:
+On app load, the provider calls `/api/auth/me` to determine authentication state:
 
 ```typescript
-const restoreStoredTokens = async () => {
-  const storedTokens = localStorage.getItem("auth_tokens");
-  if (!storedTokens) {
-    return;
-  }
-
-  const tokens: TokenResponse & { expires_at?: number } = JSON.parse(storedTokens);
-  const now = Math.floor(Date.now() / 1000);
-
-  // If token still valid, use it
-  if (tokens.expires_at && tokens.expires_at > now) {
-    const userData = await decodeAndCreateUser(tokens);
-    setUser(userData);
-    return;
-  }
-
-  // If expired but refresh token available, refresh
-  if (tokens.refresh_token) {
-    try {
-      await refreshToken();
-    } catch {
-      // Refresh failed, clear tokens
-      localStorage.removeItem("auth_tokens");
-      setUser(null);
-    }
-  } else {
-    // No way to refresh, clear tokens
-    localStorage.removeItem("auth_tokens");
+const checkAuthStatus = async () => {
+  try {
+    const response = await axios.get<MeResponse>(
+      `${apiBaseUrl}/auth/me`,
+      { withCredentials: true },
+    );
+    setUser({ profile: response.data });
+  } catch {
+    // Not authenticated or cookies expired
     setUser(null);
   }
 };
 ```
 
-**Restoration Logic:**
-1. Check if tokens exist in `localStorage`
-2. If access token not expired → use it
-3. If expired but refresh token present → automatically refresh
-4. If refresh fails or no refresh token → clear storage, user must re-login
-
-#### Profile Decoding
-
-The ID token is decoded client-side to extract profile information:
-
-```typescript
-const decodeAndCreateUser = async (
-  tokens: TokenResponse & { expires_at?: number },
-): Promise<AuthUser> => {
-  let profilePayload: Record<string, unknown> | undefined;
-
-  if (tokens.id_token) {
-    try {
-      const base64Payload = tokens.id_token.split(".")[1];
-      if (base64Payload) {
-        // Base64URL decoding
-        const normalized = base64Payload.replace(/-/g, "+").replace(/_/g, "/");
-        const padded = normalized.padEnd(
-          normalized.length + ((4 - (normalized.length % 4)) % 4),
-          "=",
-        );
-        profilePayload = JSON.parse(atob(padded));
-      }
-    } catch {
-      // Ignore parsing errors - profile is optional
-    }
-  }
-
-  return {
-    access_token: tokens.access_token,
-    refresh_token: tokens.refresh_token,
-    id_token: tokens.id_token,
-    expires_at: tokens.expires_at,
-    profile: profilePayload ? {
-      name: profilePayload.name as string | undefined,
-      preferred_username: profilePayload.preferred_username as string | undefined,
-      email: profilePayload.email as string | undefined,
-      ...profilePayload,
-    } : undefined,
-  };
-};
-```
-
-**Note:** This is purely for UI convenience (displaying username, email). The backend never trusts client-decoded claims; it always validates tokens server-side.
+**How It Works:**
+1. Browser automatically sends auth cookies with the request
+2. Backend's `JwtAuthGuard` validates the `access_token` cookie
+3. If valid, returns user profile data extracted from the JWT
+4. If invalid/missing, returns 401 and frontend shows logged-out state
 
 ### User Session Lifecycle
 
@@ -894,90 +778,50 @@ const login = () => {
 - Simplifies state management (no need to track partial auth states)
 - Browser handles redirect sequence automatically
 
-#### Auth Result Handling
+#### Post-Login Redirect
 
-After OAuth redirect, the backend returns the user to the SPA with `?auth_result=<uuid>`:
-
-```typescript
-const handleAuthResultFromUrl = async () => {
-  const url = new URL(window.location.href);
-  const authResult = url.searchParams.get("auth_result");
-
-  if (!authResult) {
-    return;
-  }
-
-  // Prevent React StrictMode double-execution from consuming result twice
-  if (handledAuthResultIdsRef.current.has(authResult)) {
-    return;
-  }
-  handledAuthResultIdsRef.current.add(authResult);
-
-  try {
-    // Exchange result ID for tokens
-    const response = await axios.get<TokenResponse>(
-      `${apiBaseUrl}/auth/result`,
-      { params: { result: authResult } },
-    );
-
-    await persistTokens(response.data);
-  } catch {
-    localStorage.removeItem("auth_tokens");
-    setUser(null);
-  } finally {
-    // Clean URL without reload
-    url.searchParams.delete("auth_result");
-    updateBrowserUrl(url);
-  }
-};
-```
-
-**React StrictMode Protection:**
-- Uses `useRef` to track handled result IDs
-- Prevents double-invocation in development mode from consuming result twice
-- Important because `AuthSessionStore.consume()` is one-time use
-
-**URL Cleanup:**
+After OAuth callback, the backend sets auth cookies and redirects the user to the frontend. On mount, the `AuthProvider` calls `/api/auth/me` which succeeds because the cookies are now present:
 
 ```typescript
-const updateBrowserUrl = (url: URL) => {
-  const newSearch = url.searchParams.toString();
-  window.history.replaceState(
-    {},
-    document.title,
-    `${url.pathname}${newSearch ? `?${newSearch}` : ""}${url.hash}`,
-  );
-};
+// AuthProvider initialization detects auth cookies via /me endpoint
+useEffect(() => {
+  const initAuth = async () => {
+    try {
+      await checkAuthStatus();  // /api/auth/me succeeds with valid cookies
+    } catch {
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  initAuth();
+}, []);
 ```
 
-Uses `history.replaceState()` to remove `?auth_result=` from URL without page reload, keeping the browser history clean.
+No URL parameters, localStorage, or token handling needed on the frontend.
 
 #### Token Refresh
 
-The refresh function proxies the refresh token to the backend:
+The refresh function calls the backend, which reads the refresh_token cookie and returns new cookies:
 
 ```typescript
 const refreshToken = async (): Promise<void> => {
   try {
-    const storedTokens = localStorage.getItem("auth_tokens");
-    if (!storedTokens) {
-      throw new Error("No tokens to refresh");
-    }
-
-    const tokens = JSON.parse(storedTokens);
-    if (!tokens.refresh_token) {
-      throw new Error("No refresh token available");
-    }
-
-    const response = await axios.post<TokenResponse>(
+    const response = await axios.post<{ expires_in: number }>(
       `${apiBaseUrl}/auth/refresh`,
-      { refresh_token: tokens.refresh_token },
+      {},
+      {
+        withCredentials: true,
+        headers: {
+          'X-CSRF-Token': getCsrfToken(),  // Read csrf_token cookie
+        },
+      },
     );
 
-    await persistTokens(response.data);
+    // Backend has already set new auth cookies in the response
+    // Re-fetch user profile to update React state
+    await checkAuthStatus();
   } catch (error) {
-    // Clear invalid tokens
-    localStorage.removeItem("auth_tokens");
     setUser(null);
     throw error;
   }
@@ -985,63 +829,51 @@ const refreshToken = async (): Promise<void> => {
 ```
 
 **When is Refresh Triggered?**
-- Automatically on app load if access token expired
-- Can be manually triggered by components (e.g., API interceptors)
+- Automatically on app load if `/me` returns 401
+- Can be manually triggered by components (e.g., API interceptors on 401 responses)
 - After refresh failure, user must re-login
 
 #### Logout
 
-The logout function clears local state and redirects to Keycloak logout:
+The logout function navigates to the backend logout endpoint, which clears cookies and redirects to Keycloak:
 
 ```typescript
 const logout = () => {
-  const idTokenHint = user?.id_token;
   setUser(null);
-  localStorage.removeItem("auth_tokens");
-  
-  const logoutUrl = idTokenHint
-    ? `${apiBaseUrl}/auth/logout?id_token_hint=${encodeURIComponent(idTokenHint)}`
-    : `${apiBaseUrl}/auth/logout`;
-  
-  window.location.href = logoutUrl;
+  window.location.href = `${apiBaseUrl}/auth/logout`;
 };
 ```
 
-**ID Token Hint:**
-- Sent to Keycloak to identify the session to terminate
-- Optional but recommended for clean logout
-- Keycloak will invalidate the session and redirect back to `SSO_POST_LOGOUT_REDIRECT_URI`
+**How It Works:**
+- Backend reads `id_token` from cookie to pass as `id_token_hint` to Keycloak
+- Backend clears all auth cookies
+- Backend redirects to Keycloak's logout endpoint
+- Keycloak invalidates the session and redirects back to `SSO_POST_LOGOUT_REDIRECT_URI`
+- No query parameters needed from the frontend
 
 ### API Integration
 
-The auth context automatically injects the access token into all API calls via `apiService`:
+All API requests use `withCredentials: true` so the browser automatically sends auth cookies. The CSRF token is included as a header:
 
 ```typescript
-useEffect(() => {
-  apiService.setAuthToken(user?.access_token ?? null);
-}, [user?.access_token]);
-```
+// api.service.ts
+const apiClient = axios.create({
+  baseURL: apiBaseUrl,
+  withCredentials: true,  // Sends cookies automatically
+});
 
-The `apiService` (from `api.service.ts`) then adds the `Authorization` header:
-
-```typescript
-// Example implementation in api.service.ts
-class ApiService {
-  private authToken: string | null = null;
-
-  setAuthToken(token: string | null) {
-    this.authToken = token;
+// Add CSRF header to state-changing requests
+apiClient.interceptors.request.use((config) => {
+  if (['post', 'put', 'patch', 'delete'].includes(config.method ?? '')) {
+    config.headers['X-CSRF-Token'] = getCsrfToken();
   }
+  return config;
+});
 
-  request(config: AxiosRequestConfig) {
-    if (this.authToken) {
-      config.headers = {
-        ...config.headers,
-        Authorization: `Bearer ${this.authToken}`,
-      };
-    }
-    return axios.request(config);
-  }
+// Helper to read csrf_token cookie
+function getCsrfToken(): string {
+  const match = document.cookie.match(/csrf_token=([^;]+)/);
+  return match?.[1] ?? '';
 }
 ```
 
@@ -1082,11 +914,10 @@ function MyComponent() {
 **Available Properties:**
 - `isAuthenticated`: Boolean indicating if user is logged in
 - `isLoading`: Boolean indicating if auth state is still initializing
-- `user`: Current user object with tokens and profile
+- `user`: Current user object with profile data from `/api/auth/me`
 - `login()`: Initiates login flow
-- `logout()`: Clears session and redirects to Keycloak logout
-- `getAccessToken()`: Returns current access token or null
-- `refreshToken()`: Manually triggers token refresh
+- `logout()`: Navigates to backend logout endpoint (clears cookies, redirects to Keycloak)
+- `refreshToken()`: Manually triggers token refresh via cookies
 
 ---
 
@@ -1106,18 +937,23 @@ function MyComponent() {
     │                           │     /api/auth/login      │                           │
     │                           ├─────────────────────────>│                           │
     │                           │                          │                           │
-    │                           │                          │  3. Generate state JWT    │
-    │                           │                          │     with embedded nonce   │
+    │                           │                          │  3. Generate PKCE        │
+    │                           │                          │     code_verifier +      │
+    │                           │                          │     code_challenge       │
+    │                           │                          │     Generate nonce       │
+    │                           │                          │     Set pkce_verifier    │
+    │                           │                          │     cookie (HttpOnly)    │
     │                           │                          │                           │
     │                           │  4. 302 Redirect to      │                           │
     │                           │     Keycloak auth URL    │                           │
-    │                           │     with state, nonce    │                           │
+    │                           │     with code_challenge, │                           │
+    │                           │     state, nonce         │                           │
     │                           │<─────────────────────────┤                           │
     │                           │                          │                           │
     │                           │  5. GET /auth?           │                           │
     │                           │     client_id=X&         │                           │
     │                           │     redirect_uri=Y&      │                           │
-    │                           │     state=JWT&           │                           │
+    │                           │     code_challenge=Z&    │                           │
     │                           │     nonce=ABC            │                           │
     │                           ├──────────────────────────┴──────────────────────────>│
     │                           │                                                      │
@@ -1136,18 +972,20 @@ function MyComponent() {
     │                           │                          │                           │
     │                           │  10. GET /api/auth/      │                           │
     │                           │      callback?code=XYZ&  │                           │
-    │                           │      state=JWT           │                           │
+    │                           │      state=STATE         │                           │
     │                           ├─────────────────────────>│                           │
     │                           │                          │                           │
-    │                           │                          │  11. Verify state JWT    │
-    │                           │                          │      Extract nonce       │
+    │                           │                          │  11. Read pkce_verifier  │
+    │                           │                          │      cookie, extract     │
+    │                           │                          │      code_verifier       │
     │                           │                          │                           │
     │                           │                          │  12. POST /token         │
     │                           │                          │      grant_type:         │
     │                           │                          │        authorization_code │
     │                           │                          │      code: XYZ           │
+    │                           │                          │      code_verifier: ***  │
     │                           │                          │      client_id: X        │
-    │                           │                          │      client_secret: *** │
+    │                           │                          │      client_secret: ***  │
     │                           │                          ├──────────────────────────>│
     │                           │                          │                           │
     │                           │                          │  13. Returns tokens:     │
@@ -1156,43 +994,38 @@ function MyComponent() {
     │                           │                          │      - id_token          │
     │                           │                          │<──────────────────────────┤
     │                           │                          │                           │
-    │                           │                          │  14. Validate id_token   │
-    │                           │                          │      signature (JWKS)    │
-    │                           │                          │      Verify nonce match  │
+    │                           │                          │  14. openid-client       │
+    │                           │                          │      validates id_token  │
+    │                           │                          │      (signature, nonce)  │
     │                           │                          │                           │
-    │                           │                          │  15. Save tokens in      │
-    │                           │                          │      AuthSessionStore    │
-    │                           │                          │      TTL = 60s           │
-    │                           │                          │      Returns resultId    │
+    │                           │                          │  15. Set HttpOnly cookies│
+    │                           │                          │      access_token        │
+    │                           │                          │      refresh_token       │
+    │                           │                          │      id_token            │
+    │                           │                          │      csrf_token          │
     │                           │                          │                           │
     │                           │  16. 302 Redirect to     │                           │
-    │                           │      SPA with            │                           │
-    │                           │      ?auth_result=UUID   │                           │
+    │                           │      frontend URL        │                           │
     │                           │<─────────────────────────┤                           │
     │                           │                          │                           │
-    │                           │  17. SPA sees            │                           │
-    │                           │      auth_result param   │                           │
-    │                           │                          │                           │
-    │                           │  18. GET /api/auth/      │                           │
-    │                           │      result?result=UUID  │                           │
+    │                           │  17. SPA mounts,         │                           │
+    │                           │      calls /api/auth/me  │                           │
+    │                           │      (cookies sent       │                           │
+    │                           │       automatically)     │                           │
     │                           ├─────────────────────────>│                           │
     │                           │                          │                           │
-    │                           │                          │  19. Lookup & delete     │
-    │                           │                          │      from session store  │
+    │                           │                          │  18. Validate            │
+    │                           │                          │      access_token cookie │
+    │                           │                          │      via JwtAuthGuard    │
     │                           │                          │                           │
-    │                           │  20. Returns tokens      │                           │
+    │                           │  19. Returns user        │                           │
+    │                           │      profile data        │                           │
     │                           │<─────────────────────────┤                           │
     │                           │                          │                           │
-    │                           │  21. Store tokens in     │                           │
-    │                           │      localStorage        │                           │
-    │                           │      Decode id_token     │                           │
-    │                           │      for profile info    │                           │
-    │                           │      Update React state  │                           │
+    │                           │  20. Update React state  │                           │
+    │                           │      with user profile   │                           │
     │                           │                          │                           │
-    │                           │  22. Clean URL           │                           │
-    │                           │      (remove param)      │                           │
-    │                           │                          │                           │
-    │  23. Application loaded   │                          │                           │
+    │  21. Application loaded   │                          │                           │
     │     with user logged in   │                          │                           │
     │<──────────────────────────┤                          │                           │
     │                           │                          │                           │
@@ -1200,11 +1033,11 @@ function MyComponent() {
 
 **Key Steps Explained:**
 
-- **Steps 1-5**: User clicks login, SPA navigates to backend `/auth/login`, backend creates state JWT with nonce and redirects to Keycloak
+- **Steps 1-5**: User clicks login, SPA navigates to backend `/auth/login`, backend generates PKCE code_verifier/challenge, stores verifier in HttpOnly cookie, redirects to Keycloak
 - **Steps 6-8**: Keycloak authenticates user (login page, 2FA, etc.) and generates authorization code
-- **Steps 9-15**: Keycloak redirects back to backend callback, backend verifies state, exchanges code for tokens, validates ID token nonce
-- **Steps 16-22**: Backend stores tokens with short TTL, redirects SPA with `auth_result` UUID, SPA exchanges UUID for tokens, stores in localStorage
-- **Step 23**: User is authenticated, SPA can make API calls with access token
+- **Steps 9-14**: Keycloak redirects back to backend callback, backend reads PKCE cookie, exchanges code for tokens with code_verifier, `openid-client` validates ID token
+- **Steps 15-20**: Backend sets HttpOnly auth cookies, redirects to frontend, SPA calls `/api/auth/me` to get user profile
+- **Step 21**: User is authenticated, SPA can make API calls (cookies sent automatically)
 
 ### Token Refresh Flow
 
@@ -1216,13 +1049,14 @@ function MyComponent() {
     │                           │  1. Access token         │                           │
     │                           │     expired or about to  │                           │
     │                           │                          │                           │
-    │                           │  2. Read refresh_token   │                           │
-    │                           │     from localStorage    │                           │
-    │                           │                          │                           │
-    │                           │  3. POST /api/auth/      │                           │
+    │                           │  2. POST /api/auth/      │                           │
     │                           │     refresh              │                           │
-    │                           │     { refresh_token }    │                           │
+    │                           │     (refresh_token sent  │                           │
+    │                           │      via HttpOnly cookie)│                           │
     │                           ├─────────────────────────>│                           │
+    │                           │                          │                           │
+    │                           │                          │  3. Read refresh_token   │
+    │                           │                          │     from cookie          │
     │                           │                          │                           │
     │                           │                          │  4. POST /token          │
     │                           │                          │     grant_type:          │
@@ -1239,14 +1073,20 @@ function MyComponent() {
     │                           │                          │     refresh_token        │
     │                           │                          │<──────────────────────────┤
     │                           │                          │                           │
-    │                           │  6. Returns new tokens   │                           │
+    │                           │                          │  6. Set new HttpOnly     │
+    │                           │                          │     auth cookies         │
+    │                           │                          │                           │
+    │                           │  7. Returns { expires_in }                           │
     │                           │<─────────────────────────┤                           │
     │                           │                          │                           │
-    │                           │  7. Update localStorage  │                           │
-    │                           │     with new tokens      │                           │
-    │                           │     Update React state   │                           │
+    │                           │  8. Call /api/auth/me    │                           │
+    │                           │     to refresh profile   │                           │
+    │                           ├─────────────────────────>│                           │
     │                           │                          │                           │
-    │  8. Continue using app    │                          │                           │
+    │                           │  9. Updated user profile │                           │
+    │                           │<─────────────────────────┤                           │
+    │                           │                          │                           │
+    │  10. Continue using app   │                          │                           │
     │     with refreshed token  │                          │                           │
     │<──────────────────────────┤                          │                           │
     │                           │                          │                           │
@@ -1269,16 +1109,18 @@ function MyComponent() {
     │  1. Click "Logout"        │                          │                           │
     ├──────────────────────────>│                          │                           │
     │                           │                          │                           │
-    │                           │  2. Extract id_token     │                           │
-    │                           │     Clear user state     │                           │
-    │                           │     Clear localStorage   │                           │
+    │                           │  2. Clear user state     │                           │
     │                           │                          │                           │
     │                           │  3. Navigate to          │                           │
-    │                           │     /api/auth/logout?    │                           │
-    │                           │     id_token_hint=JWT    │                           │
+    │                           │     /api/auth/logout     │                           │
     │                           ├─────────────────────────>│                           │
     │                           │                          │                           │
-    │                           │  4. 302 Redirect to      │                           │
+    │                           │                          │  4. Read id_token        │
+    │                           │                          │     from HttpOnly cookie │
+    │                           │                          │     Clear all auth       │
+    │                           │                          │     cookies              │
+    │                           │                          │                           │
+    │                           │  5. 302 Redirect to      │                           │
     │                           │     Keycloak logout      │                           │
     │                           │     with id_token_hint   │                           │
     │                           │<─────────────────────────┤                           │
@@ -1390,7 +1232,7 @@ Roles are configured in Keycloak and can be:
 }
 ```
 
-The `BCGovAuthGuard` normalizes these into `request.user.roles`:
+The `KeycloakJwtStrategy` normalizes these into `request.user.roles`:
 ```typescript
 user.roles = ["user", "offline_access", "document-editor", "workflow-viewer"]
 ```
@@ -1418,8 +1260,8 @@ export class WebhookController {
 
 **Execution Flow:**
 
-1. `BCGovAuthGuard` checks if route has `@ApiKeyAuth()` and `X-API-Key` header present
-2. If yes, skips bearer token validation (delegates to `ApiKeyAuthGuard`)
+1. `JwtAuthGuard` checks if route has `@ApiKeyAuth()` and `X-API-Key` header present
+2. If yes, skips JWT validation (delegates to `ApiKeyAuthGuard`)
 3. `ApiKeyAuthGuard` validates the API key against database
 4. Sets `request.user` with user info from API key record
 5. `RolesGuard` can still enforce roles if needed (API keys can have associated roles)
@@ -1480,12 +1322,11 @@ SSO_CLIENT_SECRET=your-client-secret-here
 SSO_REDIRECT_URI=https://api.example.com/api/auth/callback
 SSO_POST_LOGOUT_REDIRECT_URI=https://app.example.com
 
-# Frontend URL (for auth result redirect)
+# Frontend URL (for cookie redirect after OAuth callback)
 FRONTEND_URL=https://app.example.com
 
-# Auth Security
-AUTH_STATE_SECRET=your-state-signing-secret  # Optional, defaults to client secret
-AUTH_RESULT_TTL_SECONDS=60                   # Optional, default 60
+# Environment (controls cookie Secure flag; 'development' or 'test' disables Secure)
+NODE_ENV=production
 ```
 
 **Important Configuration Notes:**
@@ -1503,10 +1344,10 @@ AUTH_RESULT_TTL_SECONDS=60                   # Optional, default 60
    - Where Keycloak redirects after logout
    - Typically your frontend home page
 
-4. **AUTH_STATE_SECRET:**
-   - Used to sign the state JWT
-   - Should be a strong random secret (32+ characters)
-   - Defaults to `SSO_CLIENT_SECRET` if not provided
+4. **NODE_ENV:**
+   - Controls the `Secure` flag on auth cookies
+   - Set to `development` or `test` to disable Secure (allows HTTP during development)
+   - Any other value (including `production`) enables Secure (HTTPS only)
 
 ### Frontend Environment Variables
 
@@ -1568,60 +1409,48 @@ http://localhost:3000  # For development
 
 ### Token Storage
 
-**Current Approach: `localStorage`**
+**Approach: HttpOnly Cookies**
 
-**Pros:**
-- Persists across browser sessions
-- Simple implementation
-- No server-side session management needed
+Tokens are stored in HttpOnly cookies, making them inaccessible to JavaScript:
 
-**Cons:**
-- Vulnerable to XSS attacks (if attacker injects malicious scripts, they can read localStorage)
+| Cookie | HttpOnly | SameSite | Path | TTL |
+|--------|----------|----------|------|-----|
+| `access_token` | Yes | Lax | `/` | Token lifetime |
+| `refresh_token` | Yes | Lax | `/api/auth/refresh` | 30 days |
+| `id_token` | Yes | Lax | `/api/auth` | Token lifetime |
+| `csrf_token` | **No** | Strict | `/` | Session |
 
-**Mitigations:**
-1. **Content Security Policy (CSP)**: Implement strict CSP headers to prevent script injection
-2. **HTTPOnly Cookies (Alternative)**: Could store tokens in HTTPOnly cookies immune to XSS, but complicates CORS
-3. **Short-Lived Tokens**: Access tokens expire quickly (15 min default)
-4. **XSS Protection**: Sanitize all user inputs, use React's built-in XSS protection
-
-**Future Enhancement:**
-Consider moving to HTTPOnly cookies for token storage:
-```typescript
-// Backend sets cookie after auth
-res.cookie("auth_token", tokens.access_token, {
-  httpOnly: true,
-  secure: true,
-  sameSite: "strict",
-});
-```
+**Security Properties:**
+- **XSS Protection**: HttpOnly flag prevents JavaScript from reading tokens, eliminating XSS-based token theft
+- **Automatic Transmission**: Browser sends cookies with same-origin requests without manual intervention
+- **Scoped Paths**: `refresh_token` only sent to `/api/auth/refresh`; `id_token` only sent to `/api/auth` routes
+- **Secure Flag**: Enabled in production (HTTPS only), disabled in development/test
+- **No localStorage**: No tokens stored in any JavaScript-accessible storage
 
 ### CSRF Protection
 
-**State Token:**
-- Signed JWT with short expiry (5 minutes)
-- Contains cryptographic nonce
-- Validated on callback
-- Prevents CSRF attacks on OAuth flow
+**Double-Submit Cookie Pattern:**
+- A `csrf_token` cookie (NOT HttpOnly) is set during login and refresh
+- The frontend reads this cookie and sends its value as an `X-CSRF-Token` header on state-changing requests (POST, PUT, DELETE)
+- The `CsrfGuard` compares the header value to the cookie value
+- A cross-origin attacker cannot read the cookie to forge the header
 
-**API Requests:**
-- Bearer tokens are not vulnerable to CSRF (unlike cookies)
-- Tokens sent via `Authorization` header, not automatically by browser
-
-**If Using Cookies (Future):**
-- Implement CSRF tokens for state-changing operations
-- Use `SameSite=Strict` or `SameSite=Lax` cookie attribute
+**CSRF Exemptions:**
+- GET, HEAD, OPTIONS requests (safe methods)
+- Requests with `Authorization: Bearer` header (not cookie-authenticated)
+- Requests with `X-API-Key` header (API key authenticated)
 
 ### Token Validation
 
 **Backend Validation (Critical):**
-- Every bearer token validated via JWKS signature verification
+- Every access token validated via Passport JWT strategy using JWKS signature verification
 - Issuer and audience claims checked
 - Token expiry enforced
-- Never trust client-decoded claims
+- Cookie-first extraction with Bearer header fallback
 
-**Frontend Validation (Informational):**
-- ID token decoded for UI display only
-- Backend always re-validates on API calls
+**Frontend Validation:**
+- Frontend never sees raw tokens
+- User profile comes from the `/api/auth/me` endpoint, which requires valid JWT
 
 ### Secrets Management
 
@@ -1634,9 +1463,6 @@ res.cookie("auth_token", tokens.access_token, {
 - Only stored on backend
 - Never exposed to frontend
 - Used for token exchange and refresh
-
-**State Secret:**
-- Separate from client secret (recommended)
 - Used only for signing state JWTs
 - Rotation supported (old states become invalid)
 
@@ -1680,16 +1506,19 @@ async createUser(@Body() body: CreateUserDto) {
 
 **Not Vulnerable:**
 - OAuth flow generates new tokens on each login
-- No session IDs reused
-- State token is one-time use
+- PKCE state stored in short-lived HttpOnly cookie (2 min TTL)
+- PKCE cookie consumed and cleared immediately after use
+- New CSRF token generated on every login and refresh
 
 ### Token Leakage
 
 **Mitigations:**
-- Tokens never in URLs (except transient `auth_result` ID, which is short-lived and one-time)
-- Access tokens short-lived (15 min default)
+- Tokens never in URLs — no auth_result UUID or token query parameters
+- Tokens stored in HttpOnly cookies, inaccessible to JavaScript
+- Access tokens short-lived (configurable, default 15 min)
 - Refresh tokens require client secret to use
 - JWKS signature verification prevents token forgery
+- Cookie paths scoped to minimize exposure (e.g., refresh_token only sent to `/api/auth/refresh`)
 
 ---
 
@@ -1749,56 +1578,58 @@ async createUser(@Body() body: CreateUserDto) {
 
 **Enable Verbose Logging:**
 
-Backend (`auth.service.ts`):
+Backend (`auth.controller.ts`):
 ```typescript
-private logger = new Logger(AuthService.name);
+private readonly logger = new Logger(AuthController.name);
 
-async handleCallback(code: string, state: string, iss?: string): Promise<string> {
-  this.logger.log(`Callback received: code=${code.substring(0, 10)}..., state=${state.substring(0, 20)}...`);
-
+async oauthCallback(query, req, res) {
+  this.logger.log(`Callback received: code=${query.code.substring(0, 10)}...`);
   // ... existing logic
 }
 ```
 
 Frontend (`AuthContext.tsx`):
 ```typescript
-const handleAuthResultFromUrl = async () => {
-  console.log("Checking for auth_result in URL:", window.location.search);
-  
-  // ... existing logic
-  
-  console.log("Auth result redeemed successfully, storing tokens");
+const checkAuthStatus = async () => {
+  console.log("Checking auth status via /api/auth/me");
+  // ... /me call
+  console.log("Auth check result:", user ? "authenticated" : "not authenticated");
 };
 ```
 
 **Common Issues:**
 
-1. **"PKCE state expired or invalid"**
-   - PKCE state expired (user took >60s to login, configurable via `AUTH_RESULT_TTL_SECONDS`)
-   - Server restarted (in-memory PKCE store cleared)
-   - Solution: Retry login immediately
+1. **"PKCE verifier missing or expired"**
+   - PKCE cookie expired (2-minute TTL) — user took too long on Keycloak login
+   - Browser blocked third-party cookies
+   - Solution: Retry login; ensure same-origin cookie settings are correct
 
-1. **"callback_failed" redirect**
-   - Missing `iss` parameter in callback URL when Keycloak advertises `authorization_response_iss_parameter_supported`
+2. **"State mismatch — possible CSRF"**
+   - State in callback URL doesn't match state in PKCE cookie
+   - Possible CSRF attack or stale browser tab
+   - Solution: Retry login from a fresh page
+
+3. **"callback_failed" redirect**
    - PKCE code verifier mismatch
-   - Solution: Ensure all query parameters from Keycloak callback (code, state, iss) are passed to `handleCallback`
+   - Missing `iss` parameter when Keycloak requires it
+   - Solution: Check backend logs for detailed error
 
-2. **"Auth result expired or invalid"**
-   - Result ID consumed twice (React StrictMode)
-   - Result ID expired (>60s elapsed)
-   - Solution: Check `handledAuthResultIdsRef` logic
-
-3. **"Invalid token" on API calls**
-   - Token expired (check `expires_at`)
+4. **"Invalid token" on API calls**
+   - Token expired (check cookie expiry)
    - Token signature invalid (Keycloak keys rotated)
    - Wrong audience/issuer (config mismatch)
    - Solution: Check token in [jwt.io](https://jwt.io), compare issuer/aud with config
 
-4. **"Insufficient permissions"**
+5. **"CSRF token validation failed"**
+   - Frontend not sending `X-CSRF-Token` header on POST/PUT/DELETE requests
+   - csrf_token cookie missing or expired
+   - Solution: Check that `getCsrfToken()` reads the cookie correctly, verify `withCredentials: true` is set
+
+6. **"Insufficient permissions"**
    - User lacks required roles
    - Solution: Check `request.user.roles` in backend, assign roles in Keycloak
 
-5. **Infinite redirect loop**
+7. **Infinite redirect loop**
    - Redirect URI mismatch (Keycloak config vs `SSO_REDIRECT_URI`)
    - Solution: Ensure exact match, including protocol and port
 
@@ -1806,24 +1637,20 @@ const handleAuthResultFromUrl = async () => {
 
 **Manual Test:**
 ```bash
-# 1. Get login URL
-curl http://localhost:3002/api/auth/login -v
+# 1. Start login (follow the redirect in a browser)
+curl -v http://localhost:3002/api/auth/login
 
-# 2. Manually visit Keycloak URL in browser
+# 2. Complete Keycloak login in browser
+# After login, browser redirects to callback, callback sets cookies and redirects to frontend
 
-# 3. After login, copy callback URL from browser
-# Example: http://localhost:3002/api/auth/callback?code=abc&state=xyz
+# 3. Check auth status (cookies are in browser, use browser DevTools or curl with cookie jar)
+curl -b cookies.txt http://localhost:3002/api/auth/me
 
-# 4. Visit callback URL in browser (should redirect to frontend)
+# 4. Test API call (cookies sent automatically)
+curl -b cookies.txt http://localhost:3002/api/documents
 
-# 5. Copy auth_result from URL
-# Example: http://localhost:3000/?auth_result=uuid
-
-# 6. Exchange result for tokens
-curl "http://localhost:3002/api/auth/result?result=uuid"
-
-# 7. Test API call with token
-curl http://localhost:3002/api/protected \
+# 5. Test with Bearer token (fallback auth method)
+curl http://localhost:3002/api/documents \
   -H "Authorization: Bearer ACCESS_TOKEN_HERE"
 ```
 
@@ -1835,23 +1662,25 @@ describe("OAuth Flow", () => {
     // 1. Start login
     const loginRes = await request(app).get("/api/auth/login");
     expect(loginRes.status).toBe(302);
+    // Login response sets pkce_verifier cookie
     
-    // 2. Simulate Keycloak response (requires test double or actual Keycloak)
+    // 2. Simulate Keycloak callback (requires test double or actual Keycloak)
     const callbackRes = await request(app)
       .get("/api/auth/callback")
-      .query({ code: "test-code", state: signedState });
+      .set("Cookie", pkceCookie)
+      .query({ code: "test-code", state: pkceState });
     
     expect(callbackRes.status).toBe(302);
-    expect(callbackRes.headers.location).toContain("auth_result=");
+    expect(callbackRes.headers.location).toBe("http://localhost:3000");
+    // Response sets auth cookies
     
-    // 3. Redeem result
-    const resultId = extractResultId(callbackRes.headers.location);
-    const tokensRes = await request(app)
-      .get("/api/auth/result")
-      .query({ result: resultId });
+    // 3. Check user profile
+    const meRes = await request(app)
+      .get("/api/auth/me")
+      .set("Cookie", authCookies);
     
-    expect(tokensRes.body).toHaveProperty("access_token");
-    expect(tokensRes.body).toHaveProperty("refresh_token");
+    expect(meRes.body).toHaveProperty("sub");
+    expect(meRes.body).toHaveProperty("roles");
   });
 });
 ```
@@ -1860,30 +1689,34 @@ describe("OAuth Flow", () => {
 
 ## Summary
 
-This application implements a **secure, backend-driven OAuth 2.0 Authorization Code flow** with:
+This application implements a **secure, backend-driven OAuth 2.0 Authorization Code flow with PKCE** with:
 
 **Key Features:**
 - Confidential client architecture (secrets never exposed)
-- State token with embedded nonce for CSRF protection
+- PKCE protection on authorization code exchange
+- HttpOnly cookie-based token storage (XSS immune)
+- CSRF double-submit cookie protection
 - JWKS-based token signature verification
 - Role-based access control (RBAC)
-- Automatic token refresh
-- Clean separation between frontend (token storage) and backend (OAuth orchestration)
+- Automatic proactive token refresh (75% of lifetime)
+- `/api/auth/me` endpoint for stateless profile retrieval
+- Cookie-first JWT extraction with Bearer header fallback
 - Alternative API key authentication for machine-to-machine
 
 **Technology Stack:**
-- Backend: NestJS + `jsonwebtoken` + `jwks-rsa` + Axios
-- Frontend: React + Axios + `localStorage`
+- Backend: NestJS + `openid-client` + `passport-jwt` + `cookie-parser`
+- Frontend: React + Axios (`withCredentials: true`)
 - Identity Provider: Keycloak (OpenID Connect)
 
 **Security Layers:**
 1. HTTPS transport encryption
-2. State token signing (JWT)
-3. Nonce validation (replay protection)
+2. PKCE code challenge/verifier
+3. Nonce validation via openid-client (replay protection)
 4. Token signature verification (JWKS)
 5. Issuer/audience claim validation
-6. Short-lived auth results (60s TTL)
-7. Refresh token rotation
-8. Role-based authorization
+6. HttpOnly cookies (XSS protection)
+7. CSRF double-submit cookie pattern
+8. Refresh token rotation
+9. Role-based authorization
 
-This architecture provides a robust foundation for secure authentication while keeping the frontend stateless and the backend in control of sensitive operations.
+This architecture provides a robust foundation for secure authentication while keeping both the frontend and backend stateless, with no server-side session storage required for horizontal scaling.

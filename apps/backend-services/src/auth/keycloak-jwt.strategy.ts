@@ -3,12 +3,27 @@ import { ConfigService } from "@nestjs/config";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
 import { passportJwtSecret } from "jwks-rsa";
+import { Request } from "express";
 import { User } from "./types";
+import { AUTH_COOKIE_NAMES } from "./cookie-auth.utils";
+
+/**
+ * Extracts JWT from the access_token HttpOnly cookie first,
+ * falling back to the Authorization: Bearer header for backward compatibility
+ * (Swagger, external API consumers).
+ */
+function cookieOrBearerExtractor(req: Request): string | null {
+  const cookieToken = req.cookies?.[AUTH_COOKIE_NAMES.ACCESS_TOKEN];
+  if (cookieToken) {
+    return cookieToken;
+  }
+  return ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+}
 
 /**
  * Passport JWT strategy for validating Keycloak bearer tokens.
- * Replaces the custom BCGovAuthGuard with a standard Passport-based approach.
  * Uses jwks-rsa to automatically fetch and cache Keycloak's public signing keys.
+ * Extracts JWT from HttpOnly cookie first, falling back to Authorization header.
  */
 @Injectable()
 export class KeycloakJwtStrategy extends PassportStrategy(Strategy, "jwt") {
@@ -51,7 +66,7 @@ export class KeycloakJwtStrategy extends PassportStrategy(Strategy, "jwt") {
         jwksRequestsPerMinute: 5,
         jwksUri,
       }),
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: cookieOrBearerExtractor,
       issuer: expectedIssuer,
       audience: clientId,
       algorithms: ["RS256"],

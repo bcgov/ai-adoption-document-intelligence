@@ -6,7 +6,7 @@ import { ApiKeyModule } from "../api-key/api-key.module";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
-import { AuthSessionStore } from "./auth-session.store";
+import { CsrfGuard } from "./csrf.guard";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { KeycloakJwtStrategy } from "./keycloak-jwt.strategy";
 import { RolesGuard } from "./roles.guard";
@@ -16,7 +16,6 @@ import { RolesGuard } from "./roles.guard";
   controllers: [AuthController],
   providers: [
     AuthService,
-    AuthSessionStore,
     KeycloakJwtStrategy,
     {
       provide: APP_GUARD,
@@ -29,6 +28,10 @@ import { RolesGuard } from "./roles.guard";
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: CsrfGuard,
     },
   ],
   exports: [AuthService],

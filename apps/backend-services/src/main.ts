@@ -2,12 +2,16 @@ import { Logger, ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { json, urlencoded } from "body-parser";
+import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
 
 const logger = new Logger("Bootstrap");
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
+
+  // Cookie parser must be registered before routes are mounted
+  app.use(cookieParser());
 
   // Swagger (OpenAPI) Setup
   const config = new DocumentBuilder()

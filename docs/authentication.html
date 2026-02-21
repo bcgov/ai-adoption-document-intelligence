@@ -750,19 +750,20 @@
         <ul style="margin-bottom: 0;">
             <li>Holds the <code>client_secret</code> — never exposed to the browser</li>
             <li>Uses <code>openid-client</code> (v6.x) for OIDC discovery, code exchange, and token refresh</li>
-            <li>Uses <code>passport-jwt</code> + <code>jwks-rsa</code> for bearer token validation</li>
-            <li>PKCE (<code>code_verifier</code> / <code>code_challenge</code>) stored server-side</li>
-            <li>Short-lived in-memory session store for passing tokens to the SPA</li>
+            <li>Uses <code>passport-jwt</code> for cookie-first JWT validation (Bearer header fallback)</li>
+            <li>PKCE state stored in HttpOnly cookie (2-minute TTL)</li>
+            <li>Tokens set as <strong>HttpOnly, Secure, SameSite=Lax</strong> cookies — never exposed to JavaScript</li>
+            <li>CSRF protection via double-submit cookie pattern (<code>CsrfGuard</code>)</li>
         </ul>
     </div>
     <div class="card" style="border-left-color: var(--bc-gold);">
         <h3 style="margin-top: 0;">Frontend (Stateless SPA)</h3>
         <ul style="margin-bottom: 0;">
             <li>No OIDC client library — relies entirely on the backend</li>
-            <li>Stores provider-issued tokens in <code>localStorage</code></li>
-            <li>Proactive refresh timer at 75% of token lifetime</li>
-            <li>Axios 401 interceptor with single-flight refresh</li>
-            <li>Visibility change listener for tab-return refresh</li>
+            <li>Cookie-based authentication — tokens managed by the browser automatically</li>
+            <li>User profile loaded from <code>GET /api/auth/me</code> endpoint on mount</li>
+            <li>Axios 401 interceptor with single-flight cookie refresh</li>
+            <li>CSRF token read from non-HttpOnly cookie and sent as <code>X-CSRF-Token</code> header</li>
         </ul>
     </div>
 </div>
@@ -807,7 +808,7 @@
         <tr>
             <td><strong>3</strong></td>
             <td>Backend</td>
-            <td>Stores PKCE state in <code>AuthSessionStore</code> (in-memory, 5-minute TTL)</td>
+            <td>Stores PKCE state (<code>code_verifier</code>, <code>state</code>, <code>nonce</code>) in an HttpOnly cookie (2-minute TTL, path <code>/api/auth/callback</code>)</td>
         </tr>
         <tr>
             <td><strong>4</strong></td>
@@ -827,7 +828,7 @@
         <tr>
             <td><strong>7</strong></td>
             <td>Backend</td>
-            <td>Validates <code>state</code>, retrieves stored <code>code_verifier</code> and <code>nonce</code></td>
+            <td>Validates <code>state</code>, retrieves <code>code_verifier</code> and <code>nonce</code> from PKCE cookie</td>
         </tr>
         <tr>
             <td><strong>8</strong></td>
@@ -842,72 +843,60 @@
         <tr>
             <td><strong>10</strong></td>
             <td>Backend</td>
-            <td>Stores tokens in <code>AuthSessionStore</code> with a UUID key (60-second TTL, one-time consumption)</td>
+            <td>Sets HttpOnly cookies: <code>access_token</code> (path <code>/</code>), <code>refresh_token</code> (path <code>/api/auth/refresh</code>, 30d), <code>id_token</code> (path <code>/api/auth</code>), and a non-HttpOnly <code>csrf_token</code> cookie</td>
         </tr>
         <tr>
             <td><strong>11</strong></td>
             <td>Backend</td>
-            <td>Redirects browser to <code>FRONTEND_URL?auth_result=UUID</code></td>
+            <td>Clears the PKCE cookie and redirects browser to <code>FRONTEND_URL</code> (clean URL, no query parameters)</td>
         </tr>
         <tr>
             <td><strong>12</strong></td>
             <td>SPA</td>
-            <td>Detects <code>?auth_result=</code> in URL, fetches tokens via <code>GET /api/auth/result?result=UUID</code></td>
-        </tr>
-        <tr>
-            <td><strong>13</strong></td>
-            <td>SPA</td>
-            <td>Stores tokens in <code>localStorage</code>, decodes ID token for profile, schedules refresh timer</td>
+            <td>On mount, calls <code>GET /api/auth/me</code> (with credentials) to load user profile and session info</td>
         </tr>
     </tbody>
 </table>
 
-<div class="alert alert-warning">
+<div class="alert alert-info">
     <div class="alert-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     </div>
     <div>
-        <strong>One-Time Token Consumption.</strong> The <code>auth_result</code> UUID can only be redeemed once. After consumption, the entry is deleted from memory. This prevents replay attacks via browser history or shared links.
+        <strong>Cookie-Based Token Transport.</strong> Tokens are never exposed to JavaScript. The browser automatically attaches HttpOnly cookies to same-origin API requests. The SPA loads its user profile from the <code>/api/auth/me</code> endpoint after mount.
     </div>
 </div>
 
 <h2>Token Refresh Strategy</h2>
 
-<p>The platform uses a three-layer approach to keep sessions alive without requiring the user to re-authenticate.</p>
+<p>The platform uses a two-layer approach to keep sessions alive without requiring the user to re-authenticate.</p>
 
-<div class="grid grid-3">
+<div class="grid grid-2">
     <div class="card" style="border-left-color: #22c55e;">
-        <h3 style="margin-top: 0;">1. Proactive Timer</h3>
-        <p>A <code>setTimeout</code> fires at <strong>75%</strong> of the access token's lifetime (minimum 10 seconds before expiry). This refreshes the token before any API call can fail.</p>
-    </div>
-    <div class="card" style="border-left-color: #f59e0b;">
-        <h3 style="margin-top: 0;">2. Visibility Listener</h3>
-        <p>When the user returns to the tab (<code>visibilitychange</code> event), tokens are checked. If less than <strong>60 seconds</strong> remain, an immediate refresh is triggered.</p>
+        <h3 style="margin-top: 0;">1. Proactive Refresh</h3>
+        <p>The SPA calls <code>POST /api/auth/refresh</code> periodically based on <code>expires_in</code> returned from authentication. Cookies are refreshed automatically by the server response.</p>
     </div>
     <div class="card" style="border-left-color: #ef4444;">
-        <h3 style="margin-top: 0;">3. Axios 401 Interceptor</h3>
-        <p>If a request returns <strong>401 Unauthorized</strong>, the interceptor attempts a single-flight refresh, retries the original request, and only logs the user out if refresh fails.</p>
+        <h3 style="margin-top: 0;">2. Axios 401 Interceptor</h3>
+        <p>If a request returns <strong>401 Unauthorized</strong>, the interceptor attempts a single-flight refresh via <code>POST /api/auth/refresh</code> (cookies sent automatically), retries the original request, and only logs the user out if refresh fails.</p>
     </div>
 </div>
 
 <h3>Refresh Endpoint</h3>
 
 <pre><code>POST /api/auth/refresh
-Content-Type: application/json
+Cookie: refresh_token=eyJhbGciOi...
+X-CSRF-Token: abc123...</code></pre>
 
-{
-  "refresh_token": "eyJhbGciOi..."
-}</code></pre>
+<p>The backend reads the <code>refresh_token</code> from the HttpOnly cookie, exchanges it with Keycloak via <code>openid-client.refreshTokenGrant()</code>, and sets updated auth cookies in the response. Returns <code>{ "expires_in": 300 }</code> in the body.</p>
 
-<p>Returns updated <code>access_token</code>, <code>refresh_token</code>, <code>id_token</code>, and <code>expires_in</code>. The backend proxies this to Keycloak via <code>openid-client.refreshTokenGrant()</code>.</p>
+<h2>Token Validation</h2>
 
-<h2>Bearer Token Validation</h2>
-
-<p>All API requests (except routes marked <code>@Public()</code>) are validated by a global <strong>Passport JWT guard</strong> using Keycloak's JWKS endpoint.</p>
+<p>All API requests (except routes marked <code>@Public()</code>) are validated by a global <strong>Passport JWT guard</strong>. The JWT strategy extracts tokens from HttpOnly cookies first, with a Bearer header fallback for API clients.</p>
 
 <h3>Guard Execution Order</h3>
 
-<p>Three guards are registered globally via NestJS <code>APP_GUARD</code>. They execute in this order on every request:</p>
+<p>Four guards are registered globally via NestJS <code>APP_GUARD</code>. They execute in this order on every request:</p>
 
 <table>
     <thead>
@@ -917,15 +906,20 @@ Content-Type: application/json
         <tr>
             <td><strong>1</strong></td>
             <td><code>JwtAuthGuard</code></td>
-            <td>Extends Passport <code>AuthGuard('jwt')</code>. Skips <code>@Public()</code> routes. Defers to API key guard if <code>@ApiKeyAuth()</code> and <code>x-api-key</code> header present. Otherwise validates Bearer token via <code>KeycloakJwtStrategy</code>.</td>
+            <td>Extends Passport <code>AuthGuard('jwt')</code>. Skips <code>@Public()</code> routes. Defers to API key guard if <code>@ApiKeyAuth()</code> and <code>x-api-key</code> header present. Otherwise validates token via <code>KeycloakJwtStrategy</code> (cookie-first, Bearer fallback).</td>
         </tr>
         <tr>
             <td><strong>2</strong></td>
+            <td><code>CsrfGuard</code></td>
+            <td>Validates CSRF double-submit token on state-changing requests (POST, PUT, DELETE, PATCH) when the user is authenticated via cookies. Skips Bearer and API-key authenticated requests.</td>
+        </tr>
+        <tr>
+            <td><strong>3</strong></td>
             <td><code>ApiKeyAuthGuard</code></td>
             <td>Validates <code>X-API-Key</code> header on <code>@ApiKeyAuth()</code>-decorated routes. Skips if user already authenticated via JWT.</td>
         </tr>
         <tr>
-            <td><strong>3</strong></td>
+            <td><strong>4</strong></td>
             <td><code>RolesGuard</code></td>
             <td>Checks <code>@Roles()</code> decorator metadata against <code>request.user.roles</code>. Requires at least one matching role.</td>
         </tr>
@@ -937,8 +931,8 @@ Content-Type: application/json
 <p>The <code>KeycloakJwtStrategy</code> (Passport strategy) handles token validation:</p>
 
 <ul>
-    <li><strong>Key Provider:</strong> <code>jwks-rsa</code> with caching (24h) and rate limiting (5 req/min) — fetches Keycloak's RS256 public keys from <code>/protocol/openid-connect/certs</code></li>
-    <li><strong>Token Extraction:</strong> <code>Authorization: Bearer {token}</code> header</li>
+    <li><strong>Key Provider:</strong> <code>passport-jwt</code> with <code>secretOrKeyProvider</code> using <code>openid-client</code> JWKS — fetches Keycloak's RS256 public keys</li>
+    <li><strong>Token Extraction:</strong> Cookie-first (<code>req.cookies.access_token</code>), with <code>Authorization: Bearer {token}</code> header as fallback for API clients</li>
     <li><strong>Validation:</strong> RS256 signature, issuer, audience, expiration</li>
     <li><strong>Role Normalization:</strong> Collects roles from three Keycloak JWT locations:
         <ul>
@@ -1007,10 +1001,11 @@ export class AdminController {
     </thead>
     <tbody>
         <tr><td><code>auth.module.ts</code></td><td>Module definition — registers global guards, imports PassportModule</td></tr>
-        <tr><td><code>auth.controller.ts</code></td><td>HTTP endpoints: <code>/login</code>, <code>/callback</code>, <code>/result</code>, <code>/refresh</code>, <code>/logout</code></td></tr>
+        <tr><td><code>auth.controller.ts</code></td><td>HTTP endpoints: <code>/login</code>, <code>/callback</code>, <code>/me</code>, <code>/refresh</code>, <code>/logout</code></td></tr>
         <tr><td><code>auth.service.ts</code></td><td>OAuth orchestrator — OIDC discovery, PKCE, code exchange, token refresh via <code>openid-client</code></td></tr>
-        <tr><td><code>auth-session.store.ts</code></td><td>In-memory store for PKCE state and token results (short TTL, one-time consumption)</td></tr>
-        <tr><td><code>keycloak-jwt.strategy.ts</code></td><td>Passport JWT strategy — JWKS validation, role normalization</td></tr>
+        <tr><td><code>cookie-auth.utils.ts</code></td><td>Centralized cookie configuration — <code>setAuthCookies()</code>, <code>clearAuthCookies()</code>, CSRF token generation</td></tr>
+        <tr><td><code>csrf.guard.ts</code></td><td>Global CSRF guard — double-submit cookie validation for state-changing requests</td></tr>
+        <tr><td><code>keycloak-jwt.strategy.ts</code></td><td>Passport JWT strategy — cookie-first extraction, JWKS validation, role normalization</td></tr>
         <tr><td><code>jwt-auth.guard.ts</code></td><td>Global JWT guard — extends <code>AuthGuard('jwt')</code>, handles <code>@Public()</code> and <code>@ApiKeyAuth()</code> bypass</td></tr>
         <tr><td><code>api-key-auth.guard.ts</code></td><td>API key validation guard</td></tr>
         <tr><td><code>roles.guard.ts</code></td><td>RBAC enforcement based on <code>@Roles()</code> decorator</td></tr>
@@ -1033,13 +1028,12 @@ export class AdminController {
         <tr><th>Feature</th><th>Description</th></tr>
     </thead>
     <tbody>
-        <tr><td>Token Storage</td><td>Persists <code>access_token</code>, <code>refresh_token</code>, <code>id_token</code>, and <code>expires_at</code> in <code>localStorage</code> as JSON</td></tr>
-        <tr><td>Session Restore</td><td>On mount, attempts to restore from <code>localStorage</code> — refreshes if expired, clears if refresh fails</td></tr>
-        <tr><td>OAuth Redirect Handling</td><td>Detects <code>?auth_result=UUID</code> in URL and fetches tokens from <code>/api/auth/result</code></td></tr>
-        <tr><td>Profile Decoding</td><td>Decodes ID token (base64) client-side for display only — name, email, preferred_username</td></tr>
-        <tr><td>Proactive Refresh</td><td><code>setTimeout</code> at 75% of token lifetime (min 10s before expiry)</td></tr>
-        <tr><td>Visibility Refresh</td><td>Checks remaining token life on tab focus — refreshes if &lt;60s remaining</td></tr>
-        <tr><td>API Token Injection</td><td>Registers callbacks on <code>apiService</code> for automatic <code>Authorization</code> header injection</td></tr>
+        <tr><td>Authentication</td><td>Cookie-based — HttpOnly cookies are sent automatically by the browser on all same-origin requests</td></tr>
+        <tr><td>Session Check</td><td>On mount, calls <code>GET /api/auth/me</code> with credentials — loads user profile if authenticated, shows login if not</td></tr>
+        <tr><td>OAuth Redirect Handling</td><td>After login callback, the backend redirects to a clean <code>FRONTEND_URL</code> — SPA mounts and calls <code>/me</code></td></tr>
+        <tr><td>Profile Data</td><td>Loaded from <code>/api/auth/me</code> response: <code>sub</code>, <code>name</code>, <code>email</code>, <code>preferred_username</code>, <code>roles</code></td></tr>
+        <tr><td>Token Refresh</td><td>Calls <code>POST /api/auth/refresh</code> — cookies are refreshed by the server response</td></tr>
+        <tr><td>CSRF Protection</td><td>Reads non-HttpOnly <code>csrf_token</code> cookie and sends it as <code>X-CSRF-Token</code> header on POST/PUT/DELETE requests</td></tr>
     </tbody>
 </table>
 
@@ -1048,8 +1042,8 @@ export class AdminController {
 <p>The <code>apiService</code> wraps Axios with authentication-aware interceptors:</p>
 
 <ul>
-    <li><strong>Request interceptor:</strong> Attaches <code>Authorization: Bearer {token}</code> to all outgoing requests</li>
-    <li><strong>Response interceptor:</strong> On 401, triggers a single-flight refresh (shared promise to avoid concurrent refreshes), retries the original request with new token, logs out if refresh fails</li>
+    <li><strong>Request interceptor:</strong> Reads the <code>csrf_token</code> cookie and attaches it as the <code>X-CSRF-Token</code> header on POST, PUT, and DELETE requests. All requests include <code>withCredentials: true</code> so cookies are sent automatically.</li>
+    <li><strong>Response interceptor:</strong> On 401, triggers a single-flight refresh via <code>POST /api/auth/refresh</code> (cookies sent automatically), retries the original request, logs out if refresh fails</li>
 </ul>
 
 <h2>Security Mechanisms</h2>
@@ -1065,11 +1059,15 @@ export class AdminController {
     </div>
     <div class="card" style="border-left-color: #f59e0b;">
         <h3 style="margin-top: 0;">JWKS Signature Verification</h3>
-        <p>All bearer tokens are verified using Keycloak's RS256 public keys fetched from the JWKS endpoint. Keys are cached for 24 hours and rate-limited to 5 requests per minute via <code>jwks-rsa</code>.</p>
+        <p>All access tokens (from cookies or Bearer headers) are verified using Keycloak's RS256 public keys fetched from the JWKS endpoint via <code>openid-client</code>.</p>
     </div>
     <div class="card" style="border-left-color: #ef4444;">
-        <h3 style="margin-top: 0;">Short-Lived Session Store</h3>
-        <p>Auth results and PKCE state are stored in-memory with a short TTL (60 seconds for tokens, 5 minutes for PKCE). Entries are consumed once and automatically cleaned up by a background sweeper.</p>
+        <h3 style="margin-top: 0;">HttpOnly Cookie Storage</h3>
+        <p>Tokens are stored in <strong>HttpOnly, Secure, SameSite=Lax</strong> cookies. JavaScript cannot access them, eliminating XSS-based token theft. The <code>refresh_token</code> cookie is scoped to <code>/api/auth/refresh</code> to minimize exposure.</p>
+    </div>
+    <div class="card" style="border-left-color: #0ea5e9;">
+        <h3 style="margin-top: 0;">CSRF Double-Submit Cookie</h3>
+        <p>A random CSRF token is set as a non-HttpOnly cookie and must be echoed in the <code>X-CSRF-Token</code> header on state-changing requests. The global <code>CsrfGuard</code> validates this for all cookie-authenticated POST/PUT/DELETE/PATCH requests.</p>
     </div>
 </div>
 
@@ -1088,7 +1086,7 @@ export class AdminController {
         <tr><td><code>SSO_REDIRECT_URI</code></td><td>Yes</td><td>Callback URL (e.g., <code>https://your-host/api/auth/callback</code>)</td></tr>
         <tr><td><code>FRONTEND_URL</code></td><td>Yes</td><td>SPA base URL for post-auth redirect</td></tr>
         <tr><td><code>SSO_POST_LOGOUT_REDIRECT_URI</code></td><td>No</td><td>URL to redirect to after Keycloak logout</td></tr>
-        <tr><td><code>AUTH_RESULT_TTL_SECONDS</code></td><td>No</td><td>Token result TTL in seconds (default: 60)</td></tr>
+        <tr><td><code>NODE_ENV</code></td><td>No</td><td>Controls cookie <code>Secure</code> flag — when <code>development</code> or <code>test</code>, cookies are not marked Secure (allows HTTP in local dev)</td></tr>
     </tbody>
 </table>
 
@@ -1109,22 +1107,22 @@ export class AdminController {
         <tr>
             <td><code>GET</code></td>
             <td><code>/api/auth/callback</code></td>
-            <td>Handles Keycloak redirect, exchanges code for tokens, redirects to SPA</td>
+            <td>Handles Keycloak redirect, exchanges code for tokens, sets auth cookies, redirects to SPA</td>
         </tr>
         <tr>
             <td><code>GET</code></td>
-            <td><code>/api/auth/result?result=UUID</code></td>
-            <td>One-time token consumption — returns <code>access_token</code>, <code>refresh_token</code>, <code>id_token</code>, <code>expires_in</code></td>
+            <td><code>/api/auth/me</code></td>
+            <td>Returns authenticated user profile — <code>sub</code>, <code>name</code>, <code>email</code>, <code>roles</code>, <code>expires_in</code> (requires valid access_token cookie or Bearer)</td>
         </tr>
         <tr>
             <td><code>POST</code></td>
             <td><code>/api/auth/refresh</code></td>
-            <td>Proxies refresh token grant to Keycloak. Body: <code>{ "refresh_token": "..." }</code></td>
+            <td>Reads <code>refresh_token</code> from HttpOnly cookie, refreshes with Keycloak, sets updated cookies. Returns <code>{ "expires_in": ... }</code></td>
         </tr>
         <tr>
             <td><code>GET</code></td>
-            <td><code>/api/auth/logout?id_token_hint=...</code></td>
-            <td>Redirects to Keycloak logout endpoint</td>
+            <td><code>/api/auth/logout</code></td>
+            <td>Reads <code>id_token</code> from cookie, clears all auth cookies, redirects to Keycloak logout endpoint</td>
         </tr>
     </tbody>
 </table>
@@ -1138,10 +1136,10 @@ export class AdminController {
         <tr><th>Library</th><th>Purpose</th></tr>
     </thead>
     <tbody>
-        <tr><td><code>openid-client</code> (v6.x)</td><td>OpenID-certified RP — discovery, authorization URL, code exchange, token refresh, ID token validation</td></tr>
+        <tr><td><code>openid-client</code> (v6.x)</td><td>OpenID-certified RP — discovery, authorization URL, code exchange, token refresh, ID token validation, JWKS key resolution</td></tr>
         <tr><td><code>@nestjs/passport</code></td><td>Passport integration for NestJS guards and strategies</td></tr>
-        <tr><td><code>passport-jwt</code></td><td>JWT bearer token extraction and validation strategy</td></tr>
-        <tr><td><code>jwks-rsa</code></td><td>Automatic fetching and caching of Keycloak JWKS signing keys</td></tr>
+        <tr><td><code>passport-jwt</code></td><td>JWT extraction (cookie-first with Bearer fallback) and validation strategy</td></tr>
+        <tr><td><code>cookie-parser</code></td><td>Express middleware for parsing cookies from incoming requests</td></tr>
         <tr><td><code>class-validator</code></td><td>DTO validation for all auth request/response shapes</td></tr>
     </tbody>
 </table>
@@ -1153,7 +1151,7 @@ export class AdminController {
         <tr><th>Library</th><th>Purpose</th></tr>
     </thead>
     <tbody>
-        <tr><td><code>axios</code></td><td>HTTP client with interceptors for Bearer token injection and 401 handling</td></tr>
+        <tr><td><code>axios</code></td><td>HTTP client with <code>withCredentials: true</code> for cookie transport and CSRF header injection</td></tr>
         <tr><td><code>react</code></td><td>AuthContext provider for global authentication state</td></tr>
     </tbody>
 </table>
@@ -1167,24 +1165,20 @@ export class AdminController {
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     </div>
     <div>
-        <strong>Priority Items.</strong> The first three items below affect production scalability and security posture. The remaining are improvements for maintainability and operational excellence.
+        <strong>Progress.</strong> Items 1 and 2 have been resolved with the cookie-based auth migration. The remaining items are improvements for maintainability and operational excellence.
     </div>
 </div>
 
-<h3>1. In-Memory Session Store Is Not Horizontally Scalable</h3>
+<h3>1. <s>In-Memory Session Store Is Not Horizontally Scalable</s> — RESOLVED</h3>
 
-<div class="card" style="border-left-color: #ef4444;">
-    <p><strong>Issue:</strong> <code>AuthSessionStore</code> uses a JavaScript <code>Map</code> for both PKCE state and token results. In a multi-instance (horizontally scaled) deployment behind a load balancer, the callback request may hit a different instance than the one that created the PKCE state — causing authentication failures.</p>
-    <p><strong>Recommendation:</strong> Replace with <strong>Redis</strong> (or another shared store) for PKCE state and auth results. Use a NestJS <code>CacheModule</code> with a Redis driver, or implement a simple Redis-backed store with the same <code>save()/consume()</code> interface. Set TTLs natively in Redis to eliminate the manual sweeper.</p>
-    <p><strong>Workaround (current):</strong> Use sticky sessions (session affinity) at the load balancer level, but this reduces the benefits of horizontal scaling.</p>
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> The <code>AuthSessionStore</code> has been removed. PKCE state is now stored in an HttpOnly cookie (2-minute TTL, scoped to <code>/api/auth/callback</code>). Tokens are set directly as HttpOnly cookies in the callback response. The backend is fully stateless and can be horizontally scaled without sticky sessions.</p>
 </div>
 
-<h3>2. Token Storage in localStorage Is Vulnerable to XSS</h3>
+<h3>2. <s>Token Storage in localStorage Is Vulnerable to XSS</s> — RESOLVED</h3>
 
-<div class="card" style="border-left-color: #f59e0b;">
-    <p><strong>Issue:</strong> Storing <code>access_token</code> and <code>refresh_token</code> in <code>localStorage</code> means any JavaScript running on the page (including from XSS vulnerabilities or compromised third-party scripts) can read and exfiltrate the tokens.</p>
-    <p><strong>Recommendation:</strong> Migrate to <strong>HttpOnly, Secure, SameSite=Strict cookies</strong> for token storage. The backend would set tokens as cookies in the <code>/api/auth/result</code> response, and the browser would automatically attach them to all same-origin API requests. This eliminates JavaScript access to tokens entirely.</p>
-    <p><strong>Trade-off:</strong> Cookie-based storage requires CSRF protection (e.g., double-submit cookie pattern or SameSite attribute), but significantly reduces the XSS attack surface. Consider using a BFF (Backend-For-Frontend) pattern where the backend manages all token lifecycle and the SPA never sees raw tokens.</p>
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> Tokens are now stored in <strong>HttpOnly, Secure, SameSite=Lax</strong> cookies. JavaScript cannot access tokens at all. CSRF protection is implemented via a double-submit cookie pattern with the global <code>CsrfGuard</code>. The SPA never handles raw tokens — it only interacts with the <code>/api/auth/me</code> endpoint for profile data.</p>
 </div>
 
 <h3>3. No Token Revocation Check on the Backend</h3>
@@ -1204,8 +1198,8 @@ export class AdminController {
 <h3>5. No Rate Limiting on Auth Endpoints</h3>
 
 <div class="card" style="border-left-color: #0ea5e9;">
-    <p><strong>Issue:</strong> The <code>/api/auth/refresh</code> and <code>/api/auth/result</code> endpoints have no rate limiting. While Keycloak itself provides some brute-force protection for the login flow, the backend refresh and result endpoints are direct targets for abuse.</p>
-    <p><strong>Recommendation:</strong> Add <code>@nestjs/throttler</code> with appropriate rate limits. For example, limit <code>/api/auth/refresh</code> to 10 requests per minute per IP and <code>/api/auth/result</code> to 5 requests per minute per IP.</p>
+    <p><strong>Issue:</strong> The <code>/api/auth/refresh</code> endpoint has no rate limiting. While Keycloak itself provides some brute-force protection for the login flow, the backend refresh endpoint is a direct target for abuse.</p>
+    <p><strong>Recommendation:</strong> Add <code>@nestjs/throttler</code> with appropriate rate limits. For example, limit <code>/api/auth/refresh</code> to 10 requests per minute per IP.</p>
 </div>
 
 <h3>6. No Structured Logging for Authentication Events</h3>

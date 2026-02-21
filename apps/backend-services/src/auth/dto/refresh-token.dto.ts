@@ -1,23 +1,10 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsString } from "class-validator";
 
-export class RefreshTokenDto {
-  @IsString()
-  @IsNotEmpty()
-  @ApiProperty()
-  refresh_token!: string;
-}
-
+/**
+ * Response from POST /api/auth/refresh.
+ * Only exposes expires_in — tokens are set as HttpOnly cookies.
+ */
 export class RefreshReturnDto {
-  @ApiProperty()
-  refresh_token: string;
-
-  @ApiProperty()
-  access_token: string;
-
-  @ApiProperty()
-  id_token: string;
-
-  @ApiProperty()
+  @ApiProperty({ description: "Seconds until the new access token expires" })
   expires_in: number;
 }

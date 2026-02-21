@@ -4,7 +4,6 @@ import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { AuthController } from "../../src/auth/auth.controller";
 import { AuthService } from "../../src/auth/auth.service";
-import { AuthSessionStore } from "../../src/auth/auth-session.store";
 import { DatabaseModule } from "../../src/database/database.module";
 import { DocumentModule } from "../../src/document/document.module";
 import { OcrModule } from "../../src/ocr/ocr.module";
@@ -63,7 +62,6 @@ export const httpServiceMock = {
   controllers: [AuthController],
   providers: [
     AuthService,
-    AuthSessionStore,
     { provide: APP_GUARD, useClass: CompositeMockGuard },
     {
       provide: HttpService,

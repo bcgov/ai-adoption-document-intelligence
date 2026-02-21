@@ -6,9 +6,15 @@ import axios, {
 import { API_BASE_URL } from "../../shared/constants";
 import type { ApiResponse } from "../../shared/types";
 
+function getCsrfToken(): string | undefined {
+  const match = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("csrf_token="));
+  return match?.split("=")[1];
+}
+
 class ApiService {
   private axiosInstance: AxiosInstance;
-  private authToken: string | null = null;
   private refreshCallback: (() => Promise<void>) | null = null;
   private refreshPromise: Promise<void> | null = null;
   private logoutCallback: (() => void) | null = null;
@@ -16,20 +22,21 @@ class ApiService {
   constructor(baseURL: string = API_BASE_URL) {
     this.axiosInstance = axios.create({
       baseURL,
+      withCredentials: true,
       headers: {
         "Content-Type": "application/json",
       },
     });
 
-    // Add request interceptor for authentication
+    // Add request interceptor for CSRF token on state-changing requests
     this.axiosInstance.interceptors.request.use(
       (config: InternalAxiosRequestConfig) => {
-        if (
-          this.authToken &&
-          this.authToken !== "undefined" &&
-          config.headers
-        ) {
-          config.headers.Authorization = `Bearer ${this.authToken}`;
+        const method = config.method?.toUpperCase();
+        if (method && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+          const csrfToken = getCsrfToken();
+          if (csrfToken && config.headers) {
+            config.headers["X-CSRF-Token"] = csrfToken;
+          }
         }
         return config;
       },
@@ -57,11 +64,7 @@ class ApiService {
           if (this.refreshPromise) {
             try {
               await this.refreshPromise;
-              // Update the Authorization header with the new token
-              if (this.authToken && originalRequest.headers) {
-                originalRequest.headers.Authorization = `Bearer ${this.authToken}`;
-              }
-              // Retry the original request
+              // Retry the original request (cookies auto-attach)
               return this.axiosInstance(originalRequest);
             } catch {
               // Refresh failed — redirect to login
@@ -86,11 +89,6 @@ class ApiService {
   // Method to register the logout callback from AuthContext
   setLogoutCallback(callback: () => void) {
     this.logoutCallback = callback;
-  }
-
-  // Method to set the authentication token
-  setAuthToken(token: string | null) {
-    this.authToken = token;
   }
 
   private async request<T>(

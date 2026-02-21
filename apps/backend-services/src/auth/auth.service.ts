@@ -3,12 +3,25 @@ import { ConfigService } from "@nestjs/config";
 import * as client from "openid-client";
 import { URL } from "url";
 import { TokenResponseDto } from "@/auth/dto/token-response.dto";
-import { AuthSessionStore } from "./auth-session.store";
+
+/**
+ * Result returned by getLoginUrl(), containing the Keycloak authorization URL
+ * and PKCE data that the controller stores in an HttpOnly cookie.
+ */
+export interface LoginUrlResult {
+  url: string;
+  state: string;
+  codeVerifier: string;
+  nonce: string;
+}
 
 /**
  * Central orchestrator for the OAuth Authorization Code flow using openid-client.
  * Responsible for OIDC discovery, constructing auth URLs with PKCE, handling callbacks,
- * verifying ID tokens, persisting short-lived auth results, and proxying refresh operations.
+ * verifying ID tokens, and proxying refresh operations.
+ *
+ * This service is stateless — PKCE state is stored in HttpOnly cookies on the browser,
+ * and tokens are set as HttpOnly cookies by the controller.
  */
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -19,10 +32,7 @@ export class AuthService implements OnModuleInit {
   private readonly redirectUri: string;
   private readonly frontendUrl: string;
 
-  constructor(
-    private configService: ConfigService,
-    private authSessionStore: AuthSessionStore,
-  ) {
+  constructor(private configService: ConfigService) {
     const authServerUrl = this.configService.get<string>("SSO_AUTH_SERVER_URL");
     const realm = this.configService.get<string>("SSO_REALM");
 
@@ -71,16 +81,13 @@ export class AuthService implements OnModuleInit {
 
   /**
    * Builds the authorization URL with PKCE and nonce protection.
-   * Stores PKCE state server-side for validation during callback.
+   * Returns the URL and PKCE data so the controller can store them in an HttpOnly cookie.
    */
-  async getLoginUrl(): Promise<string> {
+  async getLoginUrl(): Promise<LoginUrlResult> {
     const codeVerifier = client.randomPKCECodeVerifier();
     const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
     const state = client.randomState();
     const nonce = client.randomNonce();
-
-    // Store PKCE state for callback validation
-    this.authSessionStore.savePKCEState(state, codeVerifier, nonce);
 
     const authUrl = client.buildAuthorizationUrl(this.config, {
       redirect_uri: this.redirectUri,
@@ -91,7 +98,12 @@ export class AuthService implements OnModuleInit {
       nonce,
     });
 
-    return authUrl.href;
+    return {
+      url: authUrl.href,
+      state,
+      codeVerifier,
+      nonce,
+    };
   }
 
   /**
@@ -116,24 +128,20 @@ export class AuthService implements OnModuleInit {
 
   /**
    * Handles the redirect back from Keycloak.
-   * - Validates the state and retrieves PKCE parameters
-   * - Exchanges the authorization code for tokens using PKCE
+   * - Validates PKCE using the code_verifier from the cookie
+   * - Exchanges the authorization code for tokens
    * - Validates ID token (signature, issuer, audience, nonce)
-   * - Persists the provider tokens in a short-lived in-memory store
-   * Returns the opaque `resultId` that the frontend will redeem once.
+   * Returns the token response directly — the controller sets cookies.
    */
   async handleCallback(
     code: string,
     state: string,
+    codeVerifier: string,
+    nonce: string,
     iss?: string,
-  ): Promise<string> {
+  ): Promise<TokenResponseDto> {
     try {
-      // Retrieve and consume PKCE state
-      const { codeVerifier, nonce } = this.authSessionStore.consumePKCEState(state);
-
       // Build the callback URL for openid-client
-      // Must include all parameters from the authorization response, especially `iss`
-      // when the server advertises authorization_response_iss_parameter_supported
       const callbackUrl = new URL(this.redirectUri);
       callbackUrl.searchParams.set("code", code);
       callbackUrl.searchParams.set("state", state);
@@ -142,7 +150,6 @@ export class AuthService implements OnModuleInit {
       }
 
       // Exchange code for tokens with PKCE validation
-      // openid-client handles: code exchange, ID token validation, nonce verification
       const tokens = await client.authorizationCodeGrant(
         this.config,
         callbackUrl,
@@ -153,17 +160,13 @@ export class AuthService implements OnModuleInit {
         },
       );
 
-      // Convert openid-client token response to our DTO format
-      const tokenResponse: TokenResponseDto = {
+      return {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         id_token: tokens.id_token,
         expires_in: tokens.expires_in || 300,
         token_type: tokens.token_type || "Bearer",
       };
-
-      // Store tokens and return result ID
-      return this.authSessionStore.save(tokenResponse);
     } catch (error) {
       throw new HttpException(
         `OAuth callback failed: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -174,7 +177,6 @@ export class AuthService implements OnModuleInit {
 
   /**
    * Refreshes an access token using the provider refresh token.
-   * Uses openid-client's refresh grant which handles all the details.
    */
   async refreshAccessToken(refreshToken: string): Promise<TokenResponseDto> {
     try {
@@ -196,20 +198,10 @@ export class AuthService implements OnModuleInit {
   }
 
   /**
-   * Exposes a one-time read for the frontend to retrieve tokens after redirect.
+   * Returns the frontend URL for redirect after successful callback.
    */
-  consumeAuthResult(resultId: string): TokenResponseDto {
-    return this.authSessionStore.consume(resultId);
-  }
-
-  /**
-   * Produces the frontend redirect URL with an `auth_result` query parameter.
-   * The frontend will immediately exchange this value for provider tokens.
-   */
-  buildAuthResultRedirect(resultId: string): string {
-    const url = new URL(this.frontendUrl);
-    url.searchParams.set("auth_result", resultId);
-    return url.toString();
+  getFrontendUrl(): string {
+    return this.frontendUrl;
   }
 
   /**

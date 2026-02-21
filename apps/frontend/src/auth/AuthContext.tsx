@@ -12,30 +12,38 @@ import { apiService } from "../data/services/api.service";
 import { API_BASE_URL } from "../shared/constants";
 
 /**
- * Shape of the token bundle returned by the backend `/auth/token` or `/auth/result` endpoints.
- * Mirrors Keycloak's response so we can store it locally and forward it with each API call.
+ * Response shape from GET /api/auth/me.
  */
-interface TokenResponse {
-  access_token: string;
-  refresh_token?: string;
-  id_token?: string;
+interface MeResponse {
+  sub: string;
+  name?: string;
+  preferred_username?: string;
+  email?: string;
+  roles: string[];
   expires_in: number;
 }
 
 /**
- * Local representation of an authenticated user, enriched with decoded ID token data.
+ * Response shape from POST /api/auth/refresh.
+ */
+interface RefreshResponse {
+  expires_in: number;
+}
+
+/**
+ * Local representation of an authenticated user.
+ * Profile data comes from the /me endpoint — the frontend never touches raw tokens.
  */
 interface AuthUser {
-  access_token: string;
-  refresh_token?: string;
-  id_token?: string;
-  expires_at?: number;
-  profile?: {
+  sub: string;
+  expires_at: number;
+  profile: {
     name?: string;
     preferred_username?: string;
     email?: string;
     [key: string]: unknown;
   };
+  roles: string[];
 }
 
 /**
@@ -47,7 +55,6 @@ interface AuthContextType {
   user: AuthUser | null;
   login: () => void;
   logout: () => void;
-  getAccessToken: () => string | null;
   refreshToken: () => Promise<void>;
 }
 
@@ -58,214 +65,122 @@ interface AuthProviderProps {
 }
 
 /**
- * Top-level provider that encapsulates all browser-side auth state.
- * It keeps the SPA stateless by simply persisting provider tokens and letting the backend handle OAuth.
+ * Reads a cookie value by name from document.cookie.
  */
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const handledAuthResultIdsRef = useRef<Set<string>>(new Set());
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
-  // Use same API base as rest of app (VITE_API_BASE_URL); relative /api in dev, full backend URL in prod
-  const apiBaseUrl = API_BASE_URL;
-
-  /**
-   * Decodes the ID token (if present) to provide profile metadata throughout the app.
-   */
-  const decodeAndCreateUser = useCallback(async (
-    tokens: TokenResponse & { expires_at?: number },
-  ): Promise<AuthUser> => {
-    let profilePayload: Record<string, unknown> | undefined;
-
-    if (tokens.id_token) {
-      try {
-        const base64Payload = tokens.id_token.split(".")[1];
-        if (base64Payload) {
-          const normalized = base64Payload
-            .replace(/-/g, "+")
-            .replace(/_/g, "/");
-          const padded = normalized.padEnd(
-            normalized.length + ((4 - (normalized.length % 4)) % 4),
-            "=",
-          );
-          profilePayload = JSON.parse(atob(padded));
-        }
-      } catch (_error) {
-        // Ignore parsing errors - profile payload is optional
-      }
-    }
-
-    return {
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      id_token: tokens.id_token,
-      expires_at: tokens.expires_at,
-      profile: profilePayload
-        ? {
-            name: profilePayload.name as string | undefined,
-            preferred_username: profilePayload.preferred_username as
-              | string
-              | undefined,
-            email: profilePayload.email as string | undefined,
-            ...profilePayload,
-          }
-        : undefined,
-    };
-  }, []);
-
-  /**
-   * Persists a token response, derives expiry, and updates React state.
-   */
-  const persistTokens = useCallback(async (tokens: TokenResponse) => {
-    const expiresAt = Math.floor(Date.now() / 1000) + tokens.expires_in;
-    const tokenData = { ...tokens, expires_at: expiresAt };
-    localStorage.setItem("auth_tokens", JSON.stringify(tokenData));
-    const userData = await decodeAndCreateUser(tokenData);
-    setUser(userData);
-  }, [decodeAndCreateUser]);
-
-  /**
-   * Calls the backend refresh endpoint with the stored refresh token and rehydrates local state.
-   */
-  const refreshToken = useCallback(async (): Promise<void> => {
-    try {
-      const storedTokens = localStorage.getItem("auth_tokens");
-      if (!storedTokens) {
-        throw new Error("No tokens to refresh");
-      }
-
-      const tokens = JSON.parse(storedTokens);
-      if (!tokens.refresh_token) {
-        throw new Error("No refresh token available");
-      }
-
-      const response = await axios.post<TokenResponse>(
-        `${apiBaseUrl}/auth/refresh`,
-        {
-          refresh_token: tokens.refresh_token,
-        },
-      );
-
-      await persistTokens(response.data);
-    } catch (error) {
-      // Clear invalid tokens
-      localStorage.removeItem("auth_tokens");
-      setUser(null);
-      throw error;
-    }
-  }, [apiBaseUrl, persistTokens]);
-
-  const logout = useCallback(() => {
-    const idTokenHint = user?.id_token;
-    setUser(null);
-    localStorage.removeItem("auth_tokens");
-    const logoutUrl = idTokenHint
-      ? `${apiBaseUrl}/auth/logout?id_token_hint=${encodeURIComponent(idTokenHint)}`
-      : `${apiBaseUrl}/auth/logout`;
-    window.location.href = logoutUrl;
-  }, [user?.id_token, apiBaseUrl]);
-
-  const login = () => {
-    const loginUrl = `${apiBaseUrl}/auth/login`;
-    window.location.href = loginUrl;
-  };
-
-  const getAccessToken = (): string | null => {
-    return user?.access_token || null;
-  };
-
-  /**
-   * Removes transient query params (`auth_result` / `auth_error`) without reloading the page.
-   */
-  const updateBrowserUrl = (url: URL) => {
+/**
+ * Removes transient query params (`auth_error`) from the URL without reloading the page.
+ */
+function cleanAuthErrorFromUrl() {
+  const url = new URL(window.location.href);
+  if (url.searchParams.has("auth_error")) {
+    url.searchParams.delete("auth_error");
     const newSearch = url.searchParams.toString();
     window.history.replaceState(
       {},
       document.title,
       `${url.pathname}${newSearch ? `?${newSearch}` : ""}${url.hash}`,
     );
-  };
+  }
+}
+
+/**
+ * Top-level provider that encapsulates all browser-side auth state.
+ * Tokens are stored in HttpOnly cookies — the frontend never handles raw tokens.
+ * Profile data and token expiry come from the GET /api/auth/me endpoint.
+ */
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const initRef = useRef(false);
+
+  const apiBaseUrl = API_BASE_URL;
 
   /**
-   * Rehydrates the last known token set from localStorage and refreshes if necessary.
+   * Converts a /me response into local AuthUser state.
    */
-  const restoreStoredTokens = async () => {
-    const storedTokens = localStorage.getItem("auth_tokens");
-    if (!storedTokens) {
-      return;
-    }
-
-    const tokens: TokenResponse & { expires_at?: number } =
-      JSON.parse(storedTokens);
-    const now = Math.floor(Date.now() / 1000);
-
-    if (tokens.expires_at && tokens.expires_at > now) {
-      const userData = await decodeAndCreateUser(tokens);
-      setUser(userData);
-      return;
-    }
-
-    if (tokens.refresh_token) {
-      try {
-        await refreshToken();
-      } catch (_error) {
-        // Token refresh failed - removed console for lint compliance
-        localStorage.removeItem("auth_tokens");
-        setUser(null);
-      }
-    } else {
-      localStorage.removeItem("auth_tokens");
-      setUser(null);
-    }
-  };
+  const meResponseToUser = useCallback((me: MeResponse): AuthUser => {
+    const expiresAt = Math.floor(Date.now() / 1000) + me.expires_in;
+    return {
+      sub: me.sub,
+      expires_at: expiresAt,
+      profile: {
+        name: me.name,
+        preferred_username: me.preferred_username,
+        email: me.email,
+      },
+      roles: me.roles,
+    };
+  }, []);
 
   /**
-   * Detects the backend redirect (`?auth_result=<uuid>`) and exchanges it for the actual token bundle.
-   * The `handledAuthResultIdsRef` ensures React StrictMode does not double-consume the value.
+   * Fetches user profile from the /me endpoint. Cookies auto-attach.
+   * Returns null if the user is not authenticated.
    */
-  const handleAuthResultFromUrl = async () => {
-    const url = new URL(window.location.href);
-    const authResult = url.searchParams.get("auth_result");
-
-    if (!authResult) {
-      if (url.searchParams.has("auth_error")) {
-        url.searchParams.delete("auth_error");
-        updateBrowserUrl(url);
-      }
-      return;
-    }
-
-    if (handledAuthResultIdsRef.current.has(authResult)) {
-      return;
-    }
-    handledAuthResultIdsRef.current.add(authResult);
-
+  const fetchMe = useCallback(async (): Promise<AuthUser | null> => {
     try {
-      const response = await axios.get<TokenResponse>(
-        `${apiBaseUrl}/auth/result`,
+      const response = await axios.get<MeResponse>(
+        `${apiBaseUrl}/auth/me`,
+        { withCredentials: true },
+      );
+      return meResponseToUser(response.data);
+    } catch {
+      return null;
+    }
+  }, [apiBaseUrl, meResponseToUser]);
+
+  /**
+   * Calls the backend refresh endpoint. Cookies auto-attach (refresh_token cookie).
+   * The backend sets new auth cookies and returns { expires_in }.
+   */
+  const refreshToken = useCallback(async (): Promise<void> => {
+    try {
+      const csrfToken = getCookie("csrf_token");
+      const response = await axios.post<RefreshResponse>(
+        `${apiBaseUrl}/auth/refresh`,
+        {},
         {
-          params: { result: authResult },
+          withCredentials: true,
+          headers: csrfToken ? { "X-CSRF-Token": csrfToken } : {},
         },
       );
 
-      await persistTokens(response.data);
-    } catch (_error) {
-      localStorage.removeItem("auth_tokens");
+      const expiresAt = Math.floor(Date.now() / 1000) + response.data.expires_in;
+      setUser((prev) =>
+        prev ? { ...prev, expires_at: expiresAt } : prev,
+      );
+    } catch {
       setUser(null);
-    } finally {
-      url.searchParams.delete("auth_result");
-      updateBrowserUrl(url);
     }
-  };
+  }, [apiBaseUrl]);
 
+  const logout = useCallback(() => {
+    setUser(null);
+    window.location.href = `${apiBaseUrl}/auth/logout`;
+  }, [apiBaseUrl]);
+
+  const login = useCallback(() => {
+    window.location.href = `${apiBaseUrl}/auth/login`;
+  }, [apiBaseUrl]);
+
+  /**
+   * On mount: call /me to check if the user has a valid session (cookie).
+   * Clean up any auth_error query params left from failed login attempts.
+   */
   useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
+
     const initAuth = async () => {
       try {
-        await restoreStoredTokens();
-        await handleAuthResultFromUrl();
-      } catch (_error) {
-        // Auth initialization error - removed console for lint compliance
-        localStorage.removeItem("auth_tokens");
+        cleanAuthErrorFromUrl();
+        const userData = await fetchMe();
+        setUser(userData);
+      } catch {
         setUser(null);
       } finally {
         setIsLoading(false);
@@ -273,11 +188,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initAuth();
-  }, []);
-
-  useEffect(() => {
-    apiService.setAuthToken(user?.access_token ?? null);
-  }, [user?.access_token]);
+  }, [fetchMe]);
 
   // Register refresh and logout callbacks with apiService for 401 handling
   useEffect(() => {
@@ -285,19 +196,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     apiService.setLogoutCallback(logout);
   }, [refreshToken, logout]);
 
-  // Proactive token refresh timer - refresh at 75% of token lifetime
+  // Proactive token refresh timer — refresh at 75% of token lifetime
   useEffect(() => {
-    if (!user?.expires_at || !user?.refresh_token) return;
+    if (!user?.expires_at) return;
 
     const now = Math.floor(Date.now() / 1000);
-    const expiresAt = user.expires_at;
-    const tokenLifetime = expiresAt - now;
+    const tokenLifetime = user.expires_at - now;
 
-    // If token already expired or expiring very soon, don't schedule
     if (tokenLifetime <= 0) return;
 
-    // Refresh at 75% of remaining lifetime (minimum 10 seconds before expiry)
-    const refreshIn = Math.max((tokenLifetime * 0.75) * 1000, 10_000);
+    const refreshIn = Math.max(tokenLifetime * 0.75 * 1000, 10_000);
 
     const timerId = setTimeout(async () => {
       try {
@@ -308,25 +216,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }, refreshIn);
 
     return () => clearTimeout(timerId);
-  }, [user?.expires_at, user?.refresh_token, refreshToken]);
+  }, [user?.expires_at, refreshToken]);
 
-  // Visibility change listener - refresh when user returns to tab if token expiring soon
+  // Visibility change listener — refresh when user returns to tab if token expiring soon
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && user?.expires_at && user?.refresh_token) {
+      if (document.visibilityState === "visible" && user?.expires_at) {
         const now = Math.floor(Date.now() / 1000);
-        const buffer = 60; // refresh if less than 60 seconds remaining
+        const buffer = 60;
         if (user.expires_at - now < buffer) {
-          refreshToken().catch(() => {
-            // Refresh failed — let the 401 interceptor handle it
-          });
+          refreshToken().catch(() => {});
         }
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [user?.expires_at, user?.refresh_token, refreshToken]);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [user?.expires_at, refreshToken]);
 
   const value: AuthContextType = {
     isAuthenticated: !!user,
@@ -334,7 +241,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     login,
     logout,
-    getAccessToken,
     refreshToken,
   };
 

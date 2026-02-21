@@ -1,38 +1,46 @@
 import {
-  Body,
   Controller,
   Get,
   HttpStatus,
   Logger,
   Post,
   Query,
+  Req,
   Res,
+  UnauthorizedException,
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
+  ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
-  ApiQuery,
   ApiResponse,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
-import { Response } from "express";
-import { TokenResponseDto } from "@/auth/dto/token-response.dto";
+import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import {
-  AuthResultQueryDto,
-  LogoutQueryDto,
+  MeResponseDto,
   OAuthCallbackQueryDto,
   RefreshReturnDto,
-  RefreshTokenDto,
 } from "./dto";
 import { Public } from "./public.decorator";
+import {
+  AUTH_COOKIE_NAMES,
+  COOKIE_OPTIONS,
+  PkceCookieData,
+  clearAuthCookies,
+  generateCsrfToken,
+  setAuthCookies,
+} from "./cookie-auth.utils";
+import { User } from "./types";
 
 /**
  * Thin HTTP layer that exposes the OAuth entrypoints to the frontend.
- * All routes are public because authorization happens via bearer tokens on other controllers.
+ * Auth flow routes are public; the /me endpoint requires authentication.
+ * Tokens are stored in HttpOnly cookies — the frontend never handles raw tokens.
  */
 @ApiTags("Authorization")
 @Controller("api/auth")
@@ -41,32 +49,37 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /**
-   * Backend endpoint the SPA uses to refresh provider tokens.
-   * Delegates to AuthService so only the backend interacts with Keycloak using the client secret.
+   * Refreshes provider tokens using the refresh_token HttpOnly cookie.
+   * Sets new auth cookies and returns { expires_in } for frontend timer scheduling.
    */
   @Public()
   @Post("refresh")
-  @ApiOperation({ summary: "Refresh provider tokens using a refresh token" })
+  @ApiOperation({ summary: "Refresh provider tokens using the refresh_token cookie" })
   @ApiOkResponse({
     type: RefreshReturnDto,
-    description: "Returns refreshed token if successful",
+    description: "Returns expires_in and sets new auth cookies",
   })
-  @ApiBadRequestResponse({ example: "Failed to refresh access token" })
-  async refreshToken(@Body() body: RefreshTokenDto): Promise<RefreshReturnDto> {
-    const tokens = await this.authService.refreshAccessToken(
-      body.refresh_token,
-    );
-    return {
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      id_token: tokens.id_token,
-      expires_in: tokens.expires_in,
-    };
+  @ApiBadRequestResponse({ description: "Failed to refresh access token" })
+  @ApiUnauthorizedResponse({ description: "No refresh token cookie present" })
+  async refreshToken(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<RefreshReturnDto> {
+    const refreshTokenValue = req.cookies?.[AUTH_COOKIE_NAMES.REFRESH_TOKEN];
+    if (!refreshTokenValue) {
+      throw new UnauthorizedException("No refresh token available");
+    }
+
+    const tokens = await this.authService.refreshAccessToken(refreshTokenValue);
+    const csrfToken = generateCsrfToken();
+    setAuthCookies(res, tokens, csrfToken);
+
+    return { expires_in: tokens.expires_in };
   }
 
   /**
    * Redirects the browser to the Keycloak authorization endpoint.
-   * Using a backend redirect keeps client_id/secret pairing server-side (no exposed secrets).
+   * Sets the PKCE verifier + state + nonce in an HttpOnly cookie for the callback to read.
    */
   @Public()
   @Get("login")
@@ -81,11 +94,21 @@ export class AuthController {
       },
     },
   })
-  @ApiInternalServerErrorResponse({ example: "Failed to generate login URL" })
+  @ApiInternalServerErrorResponse({ description: "Failed to generate login URL" })
   async getLoginUrl(@Res() res: Response) {
     try {
-      const loginUrl = await this.authService.getLoginUrl();
-      res.redirect(loginUrl);
+      const { url, state, codeVerifier, nonce } =
+        await this.authService.getLoginUrl();
+
+      // Store PKCE data in an HttpOnly cookie scoped to the callback path
+      const pkceData: PkceCookieData = { state, codeVerifier, nonce };
+      res.cookie(
+        AUTH_COOKIE_NAMES.PKCE_VERIFIER,
+        JSON.stringify(pkceData),
+        COOKIE_OPTIONS.pkceVerifier(),
+      );
+
+      res.redirect(url);
     } catch {
       res
         .status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -94,15 +117,15 @@ export class AuthController {
   }
 
   /**
-   * Drives the browser through the Keycloak logout endpoint (if an ID token hint is provided).
-   * This ensures realm sessions are terminated and the SPA gets a clean slate.
+   * Drives the browser through the Keycloak logout endpoint.
+   * Reads id_token from HttpOnly cookie to pass as id_token_hint, then clears all auth cookies.
    */
   @Public()
   @Get("logout")
-  @ApiOperation({ summary: "Redirect to Keycloak logout endpoint" })
+  @ApiOperation({ summary: "Clear auth cookies and redirect to Keycloak logout" })
   @ApiResponse({
     status: 302,
-    description: "Redirects to the Keycloak logout endpoint",
+    description: "Clears auth cookies and redirects to the Keycloak logout endpoint",
     headers: {
       Location: {
         description: "URL to redirect the client to",
@@ -110,10 +133,12 @@ export class AuthController {
       },
     },
   })
-  @ApiInternalServerErrorResponse({ example: "Failed to generate logout URL" })
-  async logout(@Query() query: LogoutQueryDto, @Res() res: Response) {
+  @ApiInternalServerErrorResponse({ description: "Failed to generate logout URL" })
+  async logout(@Req() req: Request, @Res() res: Response) {
     try {
-      const logoutUrl = this.authService.getLogoutUrl(query.id_token_hint);
+      const idTokenHint = req.cookies?.[AUTH_COOKIE_NAMES.ID_TOKEN] as string | undefined;
+      clearAuthCookies(res);
+      const logoutUrl = this.authService.getLogoutUrl(idTokenHint);
       res.redirect(logoutUrl);
     } catch {
       res
@@ -124,17 +149,17 @@ export class AuthController {
 
   /**
    * Receives the redirect from Keycloak after the user authenticates.
-   * Converts the authorization code into tokens and then bounces the browser back to the SPA
-   * with an opaque `auth_result` identifier.
+   * Reads PKCE data from the HttpOnly cookie, exchanges the authorization code for tokens,
+   * sets auth cookies, and redirects the browser to the SPA with a clean URL.
    */
   @Public()
   @Get("callback")
   @ApiOperation({
-    summary: "Handle Keycloak OAuth callback and redirect to application",
+    summary: "Handle Keycloak OAuth callback, set auth cookies, and redirect to application",
   })
   @ApiResponse({
     status: 302,
-    description: "Redirects to the application with an auth result or error",
+    description: "Sets auth cookies and redirects to the application",
     headers: {
       Location: {
         description: "URL to redirect the client to",
@@ -144,16 +169,41 @@ export class AuthController {
   })
   async oauthCallback(
     @Query() query: OAuthCallbackQueryDto,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     try {
-      const resultId = await this.authService.handleCallback(
+      // Read and validate PKCE cookie
+      const pkceCookie = req.cookies?.[AUTH_COOKIE_NAMES.PKCE_VERIFIER];
+      if (!pkceCookie) {
+        throw new UnauthorizedException("PKCE verifier missing or expired");
+      }
+
+      const pkceData: PkceCookieData = JSON.parse(pkceCookie);
+      if (pkceData.state !== query.state) {
+        throw new UnauthorizedException("State mismatch — possible CSRF");
+      }
+
+      // Clear the PKCE cookie immediately
+      res.clearCookie(AUTH_COOKIE_NAMES.PKCE_VERIFIER, {
+        path: "/api/auth/callback",
+      });
+
+      // Exchange code for tokens
+      const tokens = await this.authService.handleCallback(
         query.code,
         query.state,
+        pkceData.codeVerifier,
+        pkceData.nonce,
         query.iss,
       );
-      const redirectUrl = this.authService.buildAuthResultRedirect(resultId);
-      return res.redirect(redirectUrl);
+
+      // Set auth cookies
+      const csrfToken = generateCsrfToken();
+      setAuthCookies(res, tokens, csrfToken);
+
+      // Redirect to the SPA with a clean URL (no UUID or tokens in query string)
+      return res.redirect(this.authService.getFrontendUrl());
     } catch (error) {
       this.logger.error("OAuth callback handling failed:", error);
       const redirectUrl =
@@ -163,26 +213,33 @@ export class AuthController {
   }
 
   /**
-   * One-time endpoint the SPA calls immediately after redirect to retrieve the provider tokens.
-   * The `resultId` is invalidated after the first successful read to keep the flow stateless.
+   * Returns the authenticated user's profile information.
+   * Requires a valid access_token cookie or Bearer token.
+   * The frontend uses this to display user info and schedule token refresh.
    */
-  @Public()
-  @Get("result")
+  @Get("me")
   @ApiOperation({
-    summary: "Retrieve provider tokens using a resultId after OAuth flow",
+    summary: "Get current user profile from validated JWT",
   })
-  @ApiQuery({ name: "result" })
   @ApiOkResponse({
-    description: "Returns the provider tokens for a valid resultId",
-    type: TokenResponseDto,
+    type: MeResponseDto,
+    description: "Returns current user profile and token expiry",
   })
-  @ApiNotFoundResponse({
-    description: "No stored session was found",
-    example: "Auth result expired or invalid",
-  })
-  async consumeResult(
-    @Query() query: AuthResultQueryDto,
-  ): Promise<TokenResponseDto> {
-    return this.authService.consumeAuthResult(query.result);
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  @ApiForbiddenResponse({ description: "Invalid token" })
+  async getMe(@Req() req: Request): Promise<MeResponseDto> {
+    const user = req.user as User;
+    const now = Math.floor(Date.now() / 1000);
+    const exp = (user.exp as number) || now;
+
+    return {
+      sub: user.sub || "",
+      name: (user.name as string) || (user.display_name as string),
+      preferred_username:
+        (user.preferred_username as string) || (user.idir_username as string),
+      email: user.email,
+      roles: user.roles || [],
+      expires_in: Math.max(exp - now, 0),
+    };
   }
 }
