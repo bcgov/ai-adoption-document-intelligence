@@ -24,12 +24,12 @@ The authentication architecture follows a sound design: confidential OAuth 2.0 A
 
 However, this audit identified **2 critical**, **4 high**, **6 medium**, and **5 low/informational** findings that should be addressed, ranging from missing rate limiting on authentication endpoints to a duplicate decorator definition that could lead to authorization bypass confusion.
 
-**Remediation Progress:** 1 of 17 findings resolved.
+**Remediation Progress:** 2 of 17 findings resolved.
 
 | Finding | Severity | Status |
 |---------|----------|--------|
 | C-1: No Rate Limiting | Critical | ✅ Resolved |
-| C-2: No Security Headers (Helmet) | Critical | ⬚ Open |
+| C-2: No Security Headers (Helmet) | Critical | ✅ Resolved |
 | H-1: CSRF Token No maxAge | High | ⬚ Open |
 | H-2: API Key Empty Roles | High | ⬚ Open |
 | H-3: Duplicate ApiKeyAuth Decorator | High | ⬚ Open |
@@ -77,9 +77,25 @@ No `@nestjs/throttler`, express-rate-limit, or any other rate-limiting mechanism
 
 ---
 
-### C-2: No Security Headers (Helmet) Configured
+### C-2: No Security Headers (Helmet) Configured — ✅ RESOLVED
 
-**Location:** [apps/backend-services/src/main.ts](../apps/backend-services/src/main.ts)
+**Location:** [apps/backend-services/src/main.ts](../apps/backend-services/src/main.ts), [apps/frontend/nginx-default.conf](../apps/frontend/nginx-default.conf)
+
+**Status:** Resolved on 2026-02-21.
+
+**Resolution:** Implemented `helmet` (v8.x) middleware in `main.ts` and security headers in nginx:
+- **Backend (`helmet` in `main.ts`):** Registered before routes are mounted with the following configuration:
+  - `Strict-Transport-Security`: `max-age=31536000; includeSubDomains` (HSTS, 1 year)
+  - `X-Frame-Options`: `DENY` (clickjacking prevention)
+  - `X-Content-Type-Options`: `nosniff` (MIME type sniffing prevention)
+  - `Referrer-Policy`: `strict-origin-when-cross-origin` (limits referrer leakage)
+  - `Content-Security-Policy`: `default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https://validator.swagger.io` (CSP configured for Swagger UI compatibility)
+  - `X-Powered-By`: removed (technology fingerprinting prevention)
+- **Frontend (`nginx-default.conf`):** Added `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Strict-Transport-Security` headers
+- Tests added in `auth/security-headers.spec.ts` (6 tests: verifying each security header is correctly set on responses)
+
+<details>
+<summary>Original finding (pre-resolution)</summary>
 
 **Description:** The NestJS application does not use `helmet` or any security header middleware. The following security headers are absent:
 
@@ -95,6 +111,8 @@ The nginx frontend config also lacks security headers.
 **Impact:** Clickjacking attacks could trick users into performing authenticated actions. Missing HSTS allows SSL stripping attacks in non-HSTS-preloaded environments. Missing CSP in the Swagger UI context increases XSS risk.
 
 **Recommendation:** Add `helmet` middleware in `main.ts` before routes are mounted. Add equivalent headers in the nginx config for the frontend.
+
+</details>
 
 ---
 

@@ -1078,6 +1078,10 @@ export class AdminController {
         <h3 style="margin-top: 0;">Rate Limiting</h3>
         <p>All endpoints are protected by <code>@nestjs/throttler</code> with a global default of <strong>100 requests per minute per IP</strong>. Auth endpoints have stricter limits: <code>/api/auth/refresh</code> at <strong>5/min</strong>, and <code>/api/auth/login</code>, <code>/api/auth/callback</code>, <code>/api/auth/logout</code> at <strong>10/min</strong>. Exceeding limits returns <code>429 Too Many Requests</code> with rate limit headers.</p>
     </div>
+    <div class="card" style="border-left-color: #a855f7;">
+        <h3 style="margin-top: 0;">Security Headers (Helmet)</h3>
+        <p>The <code>helmet</code> middleware sets HTTP security headers on all backend responses: <code>Strict-Transport-Security</code> (HSTS, 1 year), <code>X-Frame-Options: DENY</code> (clickjacking prevention), <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code>, <code>Content-Security-Policy</code>, and removes <code>X-Powered-By</code>. The frontend nginx config also sets equivalent security headers.</p>
+    </div>
 </div>
 
 <h2>Configuration</h2>
@@ -1149,6 +1153,7 @@ export class AdminController {
         <tr><td><code>@nestjs/passport</code></td><td>Passport integration for NestJS guards and strategies</td></tr>
         <tr><td><code>passport-jwt</code></td><td>JWT extraction (cookie-first with Bearer fallback) and validation strategy</td></tr>
         <tr><td><code>@nestjs/throttler</code></td><td>Global and per-route rate limiting — protects against brute-force, credential stuffing, and DoS attacks</td></tr>
+        <tr><td><code>helmet</code></td><td>HTTP security headers — HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, CSP, removes X-Powered-By</td></tr>
         <tr><td><code>cookie-parser</code></td><td>Express middleware for parsing cookies from incoming requests</td></tr>
         <tr><td><code>class-validator</code></td><td>DTO validation for all auth request/response shapes</td></tr>
     </tbody>
@@ -1175,7 +1180,7 @@ export class AdminController {
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     </div>
     <div>
-    <p><strong>Progress.</strong> Items 1, 2, and 5 have been resolved with the cookie-based auth migration and rate limiting implementation. The remaining items are improvements for maintainability and operational excellence.</p>
+    <p><strong>Progress.</strong> Items 1, 2, 5, and 6 have been resolved with the cookie-based auth migration, rate limiting implementation, and security headers. The remaining items are improvements for maintainability and operational excellence.</p>
     </div>
 </div>
 
@@ -1211,21 +1216,27 @@ export class AdminController {
     <p><strong>Resolved:</strong> Global rate limiting is now enforced via <code>@nestjs/throttler</code>. A default limit of <strong>100 requests per minute per IP</strong> applies to all endpoints. Authentication endpoints have stricter per-route limits: <code>/api/auth/refresh</code> is limited to <strong>5 requests/minute</strong>, while <code>/api/auth/login</code>, <code>/api/auth/callback</code>, and <code>/api/auth/logout</code> are limited to <strong>10 requests/minute</strong>. When limits are exceeded, the server returns HTTP <code>429 Too Many Requests</code> with <code>Retry-After</code> headers.</p>
 </div>
 
-<h3>6. No Structured Logging for Authentication Events</h3>
+<h3>6. <s>No Security Headers (Helmet)</s> — RESOLVED</h3>
+
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> The <code>helmet</code> middleware (v8.x) is now registered in <code>main.ts</code> before routes are mounted, setting HTTP security headers on all backend responses: <code>Strict-Transport-Security</code> (HSTS, max-age 1 year with includeSubDomains), <code>X-Frame-Options: DENY</code>, <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code>, and <code>Content-Security-Policy</code> (configured to allow Swagger UI). The <code>X-Powered-By</code> header is removed. The frontend nginx config also sets equivalent security headers.</p>
+</div>
+
+<h3>7. No Structured Logging for Authentication Events</h3>
 
 <div class="card" style="border-left-color: #0ea5e9;">
     <p><strong>Issue:</strong> Authentication events (successful login, failed refresh, token validation failure, logout) are logged using the default NestJS logger without structured metadata. This makes it difficult to audit authentication activity, detect anomalies, or trace issues in production.</p>
     <p><strong>Recommendation:</strong> Emit structured JSON log entries for all auth events with consistent fields: <code>event_type</code>, <code>user_sub</code>, <code>client_ip</code>, <code>timestamp</code>, <code>result</code> (success/failure), and <code>reason</code> (for failures). Integrate with a centralized logging system (e.g., ELK, Splunk) for monitoring and alerting.</p>
 </div>
 
-<h3>7. User Type Uses Loose Index Signature</h3>
+<h3>8. User Type Uses Loose Index Signature</h3>
 
 <div class="card" style="border-left-color: #0ea5e9;">
     <p><strong>Issue:</strong> The <code>User</code> type in <code>auth/types.ts</code> includes <code>[key: string]: unknown</code>, allowing arbitrary JWT claims to pass through. While pragmatic, this weakens type safety downstream — consumers of <code>request.user</code> may access properties that don't exist without TypeScript catching the error.</p>
     <p><strong>Recommendation:</strong> Define explicit optional fields for known Keycloak claims (e.g., <code>preferred_username</code>, <code>given_name</code>, <code>family_name</code>, <code>realm_access</code>, <code>resource_access</code>) and remove the index signature. If pass-through of unknown claims is truly needed, consider using a separate <code>rawClaims</code> field.</p>
 </div>
 
-<h3>8. No Automated Auth Integration Tests</h3>
+<h3>9. No Automated Auth Integration Tests</h3>
 
 <div class="card" style="border-left-color: #0ea5e9;">
     <p><strong>Issue:</strong> While unit tests exist for individual components, there are no end-to-end integration tests that exercise the full OAuth flow (login → callback → result → API call → refresh → logout). Auth regressions may only be caught in manual testing or production.</p>

@@ -3,6 +3,7 @@ import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { json, urlencoded } from "body-parser";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
 import { AppModule } from "./app.module";
 
 const logger = new Logger("Bootstrap");
@@ -12,6 +13,31 @@ async function bootstrap(): Promise<void> {
 
   // Cookie parser must be registered before routes are mounted
   app.use(cookieParser());
+
+  // Security headers via helmet — must be registered before routes
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "https://validator.swagger.io"],
+        },
+      },
+      // HSTS: enforce HTTPS for 1 year, include subdomains
+      hsts: {
+        maxAge: 31_536_000,
+        includeSubDomains: true,
+      },
+      // Prevent clickjacking
+      frameguard: { action: "deny" },
+      // Prevent MIME type sniffing
+      noSniff: true,
+      // Control referrer information
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    }),
+  );
 
   // Swagger (OpenAPI) Setup
   const config = new DocumentBuilder()

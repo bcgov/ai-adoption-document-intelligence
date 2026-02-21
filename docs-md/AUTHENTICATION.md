@@ -32,7 +32,7 @@ This application implements a **confidential OAuth 2.0 Authorization Code flow**
 - **Backend-Driven OAuth**: The backend acts as the confidential OAuth client, keeping client secrets server-side
 - **Cookie-Based Sessions**: Tokens are stored in HttpOnly cookies, never exposed to JavaScript
 - **Zero Token Exposure**: The frontend receives no raw tokens; authentication state is determined via a `/api/auth/me` endpoint
-- **Defense-in-Depth**: Multiple security layers including PKCE, nonce validation, CSRF double-submit cookies, JWKS verification, and RBAC
+- **Defense-in-Depth**: Multiple security layers including PKCE, nonce validation, CSRF double-submit cookies, JWKS verification, RBAC, rate limiting, and HTTP security headers (helmet)
 
 ---
 
@@ -187,6 +187,7 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 | `openid-client` | 6.8.2 | OIDC discovery, PKCE, token exchange, refresh, and ID token validation |
 | `cookie-parser` | 1.4.7 | Parse HTTP cookies on incoming requests |
 | `@nestjs/throttler` | 6.5.0 | Global and per-route rate limiting to prevent brute-force and DoS |
+| `helmet` | 8.x | HTTP security headers (HSTS, CSP, X-Frame-Options, etc.) |
 | `class-validator` | 0.14.3 | DTO validation for all auth routes |
 | `class-transformer` | 0.5.1 | DTO transformation |
 
@@ -196,6 +197,7 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 - **`passport-jwt`**: Extracts JWTs from cookies (primary) or Authorization header (fallback) and validates them via JWKS
 - **`cookie-parser`**: Parses cookies so controllers and guards can read auth tokens from `req.cookies`
 - **`@nestjs/throttler`**: Provides global rate limiting (100 requests/minute default) and per-route overrides on sensitive auth endpoints (5–10 requests/minute)
+- **`helmet`**: Sets HTTP security headers on all responses — HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Content-Security-Policy, and removes X-Powered-By
 - **`class-validator`**: Ensures all incoming OAuth callback parameters and request bodies are well-formed
 
 ### Frontend Dependencies
@@ -773,6 +775,28 @@ All endpoints are protected by `@nestjs/throttler` with a default global rate li
 - `Retry-After`: Seconds until the rate limit resets (only on 429 responses)
 
 When a rate limit is exceeded, the server responds with HTTP `429 Too Many Requests`.
+
+#### Security Headers (Helmet)
+
+The backend uses the `helmet` middleware (v8.x) to set HTTP security headers on all responses. Helmet is registered in `main.ts` before routes are mounted, ensuring every response includes protective headers.
+
+**Headers applied:**
+
+| Header | Value | Purpose |
+|--------|-------|---------|
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | Enforces HTTPS-only connections for 1 year |
+| `X-Frame-Options` | `DENY` | Prevents clickjacking by disallowing framing |
+| `X-Content-Type-Options` | `nosniff` | Prevents browser MIME type sniffing |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Limits referrer information leakage |
+| `Content-Security-Policy` | `default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https://validator.swagger.io` | Controls resource loading origins |
+| `X-Powered-By` | *(removed)* | Helmet removes this header to prevent technology fingerprinting |
+
+**CSP Configuration Notes:**
+- `'unsafe-inline'` is required for `style-src` and `script-src` to allow Swagger UI to function at `/api`
+- `https://validator.swagger.io` is whitelisted in `img-src` for the Swagger badge
+- `data:` URIs allowed in `img-src` for inline Swagger UI images
+
+**Frontend nginx** also sets equivalent security headers (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Strict-Transport-Security`) in `nginx-default.conf`.
 
 #### HttpOnly Cookie Security
 
