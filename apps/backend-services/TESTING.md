@@ -62,11 +62,7 @@ curl -X POST http://localhost:3002/api/upload \
   }'
 ```
 
-### Method 2: Using the Test Script
-
-A test script is provided at `test-upload.sh` (see below).
-
-### Method 3: Using Postman or Insomnia
+### Method 2: Using Postman or Insomnia
 
 1. Create a new POST request to `http://localhost:3002/api/upload`
 2. Set headers: `Content-Type: application/json`
@@ -82,10 +78,6 @@ A test script is provided at `test-upload.sh` (see below).
      }
    }
    ```
-
-### Method 4: Using Node.js Script
-
-See `test-upload.js` for a Node.js test script.
 
 ## Expected Response
 

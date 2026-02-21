@@ -258,5 +258,3 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
-// Backwards compatibility alias for useSSO
-export const useSSO = useAuth;

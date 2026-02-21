@@ -1,13 +1,10 @@
-import { PrismaClient } from "@generated/client";
 import {
   BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { getPrismaPgOptions } from "@/utils/database-url";
+import { PrismaService } from "@/database/prisma.service";
 import { validateGraphConfig } from "./graph-schema-validator";
 import { GraphWorkflowConfig } from "./graph-workflow-types";
 
@@ -32,15 +29,11 @@ export interface CreateWorkflowDto {
 @Injectable()
 export class WorkflowService {
   private readonly logger = new Logger(WorkflowService.name);
-  private prisma: PrismaClient;
 
-  constructor(private configService: ConfigService) {
-    const dbOptions = getPrismaPgOptions(
-      this.configService.get("DATABASE_URL"),
-    );
-    this.prisma = new PrismaClient({
-      adapter: new PrismaPg(dbOptions),
-    });
+  constructor(private readonly prismaService: PrismaService) {}
+
+  private get prisma() {
+    return this.prismaService.prisma;
   }
 
   /**

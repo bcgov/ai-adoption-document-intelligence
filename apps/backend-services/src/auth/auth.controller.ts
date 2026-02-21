@@ -203,14 +203,15 @@ export class AuthController {
       }
 
       const pkceData: PkceCookieData = JSON.parse(pkceCookie);
-      if (pkceData.state !== query.state) {
-        throw new UnauthorizedException("State mismatch — possible CSRF");
-      }
 
-      // Clear the PKCE cookie immediately
+      // Clear the PKCE cookie immediately regardless of validation outcome
       res.clearCookie(AUTH_COOKIE_NAMES.PKCE_VERIFIER, {
         path: "/api/auth/callback",
       });
+
+      if (pkceData.state !== query.state) {
+        throw new UnauthorizedException("State mismatch — possible CSRF");
+      }
 
       // Exchange code for tokens
       const tokens = await this.authService.handleCallback(

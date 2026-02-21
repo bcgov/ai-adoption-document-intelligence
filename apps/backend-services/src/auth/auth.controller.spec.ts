@@ -250,7 +250,7 @@ describe("AuthController", () => {
       );
     });
 
-    it("should redirect to error on state mismatch", async () => {
+    it("should redirect to error on state mismatch and clear PKCE cookie", async () => {
       const pkceData = {
         state: "expected-state",
         codeVerifier: "verifier",
@@ -269,6 +269,11 @@ describe("AuthController", () => {
       };
       await controller.oauthCallback(query, req as Request, res as Response);
 
+      // PKCE cookie should be cleared even on state mismatch
+      expect(res.clearCookie).toHaveBeenCalledWith(
+        AUTH_COOKIE_NAMES.PKCE_VERIFIER,
+        { path: "/api/auth/callback" },
+      );
       expect(authService.buildErrorRedirect).toHaveBeenCalledWith(
         "callback_failed",
       );

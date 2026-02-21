@@ -44,9 +44,9 @@ A previous security audit (archived in `docs-md/temp/SECURITY_AUDIT_AUTH.md`) id
 
 | Severity | Count | Description |
 |----------|-------|-------------|
-| **High** | 1 | Duplicate PrismaClient instances (connection pool leak) |
-| **Medium** | 4 | Missing resource-level authorization, PKCE cookie not cleared on error, no `@Roles()` usage, API key validation not rate-limited |
-| **Low** | 4 | Dead code (`useSSO`, `BCGovAuthGuard` comment), CSRF timing comparison, `getCookie` regex injection |
+| **High** | 0 | — |
+| **Medium** | 4 | Missing resource-level authorization (documented), PKCE cookie not cleared on error (resolved), no `@Roles()` usage, API key validation not rate-limited (documented) |
+| **Low** | 4 | Dead code (resolved), CSRF timing comparison, `getCookie` regex injection |
 
 ---
 
@@ -70,13 +70,13 @@ Because `JwtAuthGuard` is a global guard, **every route requires JWT authenticat
 
 | ID | Finding | Severity | Status |
 |----|---------|----------|--------|
-| H-1 | Duplicate PrismaClient instances in ApiKeyService and WorkflowService | **High** | Open |
-| M-1 | No resource-level authorization (IDOR) on most endpoints | **Medium** | Open |
-| M-2 | PKCE cookie not cleared on state mismatch error path | **Medium** | Open |
+| H-1 | Duplicate PrismaClient instances in ApiKeyService and WorkflowService | **High** | Resolved |
+| M-1 | No resource-level authorization (IDOR) on most endpoints | **Medium** | Documented |
+| M-2 | PKCE cookie not cleared on state mismatch error path | **Medium** | Resolved |
 | M-3 | `@Roles()` decorator never used — RBAC not enforced | **Medium** | Open (from previous audit M-6) |
-| M-4 | No rate limiting on API key validation path | **Medium** | Open |
-| L-1 | `useSSO` export in AuthContext.tsx is dead code | **Low** | Open |
-| L-2 | Legacy `BCGovAuthGuard` comment in jwt-auth.guard.ts | **Low** | Open |
+| M-4 | No rate limiting on API key validation path | **Medium** | Documented |
+| L-1 | `useSSO` export in AuthContext.tsx is dead code | **Low** | Resolved |
+| L-2 | Legacy `BCGovAuthGuard` comment in jwt-auth.guard.ts | **Low** | Resolved |
 | L-3 | CSRF comparison uses `!==` not `timingSafeEqual` | **Low** | Open |
 | L-4 | `getCookie()` in AuthContext.tsx doesn't escape regex | **Low** | Open |
 
@@ -84,44 +84,24 @@ Because `JwtAuthGuard` is a global guard, **every route requires JWT authenticat
 
 ## Findings — High
 
-### H-1: Duplicate PrismaClient Instances — Connection Pool Leak
+### H-1: ~~Duplicate PrismaClient Instances — Connection Pool Leak~~ — RESOLVED
 
 **Severity:** High
+**Status:** Resolved
 **Files:**
-- [apps/backend-services/src/api-key/api-key.service.ts](../apps/backend-services/src/api-key/api-key.service.ts#L22-L30)
-- [apps/backend-services/src/workflow/workflow.service.ts](../apps/backend-services/src/workflow/workflow.service.ts#L38-L44)
-- [apps/backend-services/src/database/prisma.service.ts](../apps/backend-services/src/database/prisma.service.ts#L16)
+- [apps/backend-services/src/api-key/api-key.service.ts](../apps/backend-services/src/api-key/api-key.service.ts)
+- [apps/backend-services/src/workflow/workflow.service.ts](../apps/backend-services/src/workflow/workflow.service.ts)
 
-**Description:** Both `ApiKeyService` and `WorkflowService` create their own `PrismaClient` instances in their constructors instead of injecting the shared `PrismaService` from `DatabaseModule`:
-
-```typescript
-// api-key.service.ts — creates its own PrismaClient
-constructor(private configService: ConfigService) {
-  const dbOptions = getPrismaPgOptions(this.configService.get("DATABASE_URL"));
-  this.prisma = new PrismaClient({
-    adapter: new PrismaPg(dbOptions),
-  });
-}
-```
-
-The application already has a shared `PrismaService` in `DatabaseModule` that manages a single connection pool. These duplicate instances:
-
-1. **Create separate, unmanaged connection pools** — each `PrismaClient` opens its own pool of connections to PostgreSQL
-2. **Never disconnect** — neither service implements `onModuleDestroy` to call `this.prisma.$disconnect()`
-3. **Waste database connections** — the default Prisma connection pool is ~`num_cpus * 2 + 1` connections per client instance
-4. **Bypass centralized configuration** — any connection pool tuning on the shared `PrismaService` doesn't apply
-
-**Impact:** Connection pool exhaustion under load. In production with connection limits (common on managed PostgreSQL instances), three separate connection pools competing for connections can cause intermittent `ConnectionPoolTimeoutError` failures.
-
-**Recommendation:** Refactor both services to inject `PrismaService` from `DatabaseModule` instead of creating their own clients. Import `DatabaseModule` in `ApiKeyModule` and `WorkflowModule`.
+**Resolution:** Both `ApiKeyService` and `WorkflowService` have been refactored to inject the shared `PrismaService` from `DatabaseModule` instead of creating their own `PrismaClient` instances. `ApiKeyModule` and `WorkflowModule` now import `DatabaseModule`. The duplicate connection pools, missing `$disconnect()` calls, and bypassed central configuration are all resolved.
 
 ---
 
 ## Findings — Medium
 
-### M-1: No Resource-Level Authorization (IDOR) on Most Endpoints
+### M-1: No Resource-Level Authorization (IDOR) on Most Endpoints — DOCUMENTED
 
 **Severity:** Medium-High
+**Status:** Documented in AUTHENTICATION.md and docs site
 **Files:** Multiple controllers
 
 **Description:** While all endpoints are protected by authentication (JWT or API key), there are **no ownership or tenant-level authorization checks** on most resource endpoints. Any authenticated user can access or modify any resource by ID:
@@ -149,50 +129,13 @@ The application already has a shared `PrismaService` in `DatabaseModule` that ma
 
 ---
 
-### M-2: PKCE Cookie Not Cleared on State Mismatch Error Path
+### M-2: ~~PKCE Cookie Not Cleared on State Mismatch Error Path~~ — RESOLVED
 
 **Severity:** Medium
-**File:** [apps/backend-services/src/auth/auth.controller.ts](../apps/backend-services/src/auth/auth.controller.ts#L205-L215)
+**Status:** Resolved
+**File:** [apps/backend-services/src/auth/auth.controller.ts](../apps/backend-services/src/auth/auth.controller.ts)
 
-**Description:** In the OAuth callback handler, the PKCE cookie is cleared at line ~212,  **after** the state validation at line ~207. If the state check fails (throws `UnauthorizedException`), the `clearCookie` call is never reached because control transfers to the catch block which redirects but does not clear the PKCE cookie:
-
-```typescript
-// Line 206: Parse PKCE cookie
-const pkceData: PkceCookieData = JSON.parse(pkceCookie);
-
-// Line 207-209: State check — throws if mismatch
-if (pkceData.state !== query.state) {
-  throw new UnauthorizedException("State mismatch — possible CSRF");
-}
-
-// Line 212: Clear PKCE cookie — ONLY reached if state check passes
-res.clearCookie(AUTH_COOKIE_NAMES.PKCE_VERIFIER, {
-  path: "/api/auth/callback",
-});
-```
-
-This means the PKCE cookie (containing `codeVerifier`, `nonce`, `state`) persists after a failed state check until its 2-minute `maxAge` expires.
-
-**Impact:** The practical risk is low because:
-- The PKCE code verifier is one-time-use at the IdP level
-- The cookie has a 2-minute TTL
-- An attacker would need to intercept the cookie AND have a valid authorization code for the same PKCE challenge
-
-However, failing to clean up security-sensitive material on error is a defense-in-depth gap.
-
-**Recommendation:** Move the `clearCookie` call before the state check, or add it to the catch block:
-
-```typescript
-// Clear PKCE cookie FIRST regardless of outcome
-res.clearCookie(AUTH_COOKIE_NAMES.PKCE_VERIFIER, {
-  path: "/api/auth/callback",
-});
-
-// Then validate state
-if (pkceData.state !== query.state) {
-  throw new UnauthorizedException("State mismatch — possible CSRF");
-}
-```
+**Resolution:** The `clearCookie` call has been moved before the state validation check, so the PKCE cookie is always cleared regardless of whether state validation passes or fails. The cookie containing `codeVerifier`, `nonce`, and `state` no longer persists after a failed state check.
 
 ---
 
@@ -213,9 +156,10 @@ This means the application operates on a **binary authenticated/unauthenticated 
 
 ---
 
-### M-4: No Rate Limiting on API Key Validation Path
+### M-4: No Rate Limiting on API Key Validation Path — DOCUMENTED
 
 **Severity:** Medium
+**Status:** Documented in AUTHENTICATION.md and docs site
 **Files:**
 - [apps/backend-services/src/auth/api-key-auth.guard.ts](../apps/backend-services/src/auth/api-key-auth.guard.ts)
 - [apps/backend-services/src/api-key/api-key.service.ts](../apps/backend-services/src/api-key/api-key.service.ts#L121-L147)
@@ -240,32 +184,21 @@ While the 32-byte API key (256 bits of entropy) is not brute-forceable, the **re
 
 ## Findings — Low / Informational
 
-### L-1: `useSSO` Export Is Dead Code
+### L-1: ~~`useSSO` Export Is Dead Code~~ — RESOLVED
 
-**File:** [apps/frontend/src/auth/AuthContext.tsx](../apps/frontend/src/auth/AuthContext.tsx#L261-L262)
+**Status:** Resolved
+**File:** [apps/frontend/src/auth/AuthContext.tsx](../apps/frontend/src/auth/AuthContext.tsx)
 
-```typescript
-// Backwards compatibility alias for useSSO
-export const useSSO = useAuth;
-```
-
-A workspace-wide grep confirms `useSSO` is exported but **never imported anywhere**. This is dead code from a previous auth implementation.
-
-**Recommendation:** Remove the `useSSO` export.
+**Resolution:** The `useSSO` backwards-compatibility alias has been removed.
 
 ---
 
-### L-2: Legacy `BCGovAuthGuard` Comment
+### L-2: ~~Legacy `BCGovAuthGuard` Comment~~ — RESOLVED
 
-**File:** [apps/backend-services/src/auth/jwt-auth.guard.ts](../apps/backend-services/src/auth/jwt-auth.guard.ts#L10)
+**Status:** Resolved
+**File:** [apps/backend-services/src/auth/jwt-auth.guard.ts](../apps/backend-services/src/auth/jwt-auth.guard.ts)
 
-```typescript
-* Provides the same behavior as BCGovAuthGuard but uses the standard Passport approach.
-```
-
-No `BCGovAuthGuard` class exists in the codebase. This is a stale reference to a previous implementation.
-
-**Recommendation:** Update the JSDoc to remove the reference to `BCGovAuthGuard`.
+**Resolution:** The stale JSDoc reference to `BCGovAuthGuard` has been removed from the guard's documentation comment.
 
 ---
 
@@ -307,9 +240,9 @@ The `name` parameter is interpolated directly into a `RegExp` without escaping s
 
 | Item | File | Description | Action |
 |------|------|-------------|--------|
-| `useSSO` export | `apps/frontend/src/auth/AuthContext.tsx:262` | Backwards-compat alias never imported anywhere | Remove export |
-| `BCGovAuthGuard` comment | `apps/backend-services/src/auth/jwt-auth.guard.ts:10` | Reference to non-existent guard class | Update JSDoc |
-| `test-upload.js` and `test-upload.sh` | `apps/backend-services/` | Development test scripts committed to repo — no credentials found, but they attempt POSTs without authentication | Consider moving to integration test folder or adding to `.gitignore` |
+| ~~`useSSO` export~~ | `apps/frontend/src/auth/AuthContext.tsx` | Backwards-compat alias never imported anywhere | Removed |
+| ~~`BCGovAuthGuard` comment~~ | `apps/backend-services/src/auth/jwt-auth.guard.ts` | Reference to non-existent guard class | Removed |
+| ~~`test-upload.js` and `test-upload.sh`~~ | `apps/backend-services/` | Development test scripts committed to repo | Removed (files deleted, references cleaned from README.md, TESTING.md, biome.json) |
 
 ---
 

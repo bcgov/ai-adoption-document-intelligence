@@ -1763,6 +1763,33 @@ async createUser(@Body() body: CreateUserDto) {
 - JWKS signature verification prevents token forgery
 - Cookie paths scoped to minimize exposure (e.g., refresh_token only sent to `/api/auth/refresh`)
 
+### Known Open Issues
+
+The following issues have been identified and documented for future resolution:
+
+#### No Resource-Level Authorization (IDOR)
+
+**Severity:** Medium-High
+
+While all endpoints are protected by authentication (JWT or API key), there are no ownership or tenant-level authorization checks on most resource endpoints. Any authenticated user can access or modify any resource by ID (Insecure Direct Object Reference). For example, any authenticated user could read another user's OCR results, download their documents, or interact with their HITL sessions.
+
+**Exceptions (properly scoped):**
+- `WorkflowService` — passes `userId` to service methods for ownership checks
+- `AzureController` — checks `isUserInGroup()` at the service level
+- `ApiKeyController` — scopes operations to `req.user.sub`
+
+**Recommendation:** Add resource ownership validation at the service layer. Either filter queries by `userId` (e.g., `WHERE user_id = $1 AND id = $2`), check ownership after retrieval and throw `ForbiddenException`, or implement a tenant/organization scoping middleware.
+
+#### No Rate Limiting on API Key Validation Path
+
+**Severity:** Medium
+
+Auth endpoints (`/login`, `/refresh`, `/logout`, `/callback`) all have `@Throttle()` decorators with strict per-route limits. However, the API key validation path (via `ApiKeyAuthGuard` on any `@ApiKeyAuth()` route) has no rate limiting beyond the global default of 100 requests/minute. Each failed API key validation triggers a database query (prefix lookup) and a `bcrypt.compare()` operation (CPU-intensive, cost factor 10).
+
+An attacker sending rapid invalid `x-api-key` headers to any `@ApiKeyAuth()` endpoint can cause CPU exhaustion via bcrypt comparisons and saturate database connections. While the 256-bit key is not brute-forceable, the resource exhaustion vector is real.
+
+**Recommendation:** Add tighter `@Throttle()` decorators to routes that accept API key auth, or add failed-validation throttling in the `ApiKeyAuthGuard` itself (e.g., track failed attempts per IP).
+
 ---
 
 ## Development Guide

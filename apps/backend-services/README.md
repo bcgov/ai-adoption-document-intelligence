@@ -354,18 +354,6 @@ npm run test:int:workflow:with-worker
 
 See [TESTING.md](./TESTING.md) for comprehensive testing documentation.
 
-### Manual Testing
-
-Test scripts are provided for quick validation:
-
-```bash
-# Upload a document (bash)
-./test-upload.sh path/to/document.pdf
-
-# Upload a document (Node.js)
-node test-upload.js path/to/document.pdf
-```
-
 ## Database Operations
 
 ```bash

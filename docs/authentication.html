@@ -1241,6 +1241,24 @@ export class AdminController {
     <p><strong>Issue:</strong> While unit tests exist for individual components, there are no end-to-end integration tests that exercise the full OAuth flow (login → callback → result → API call → refresh → logout). Auth regressions may only be caught in manual testing or production.</p>
     <p><strong>Recommendation:</strong> Create integration tests using a Keycloak test container (e.g., <code>testcontainers</code> with the Keycloak Docker image). Test the full flow including: successful login, expired token refresh, revoked token handling, rate limit enforcement, and role-based access denial.</p>
 </div>
+
+<h3>10. No Resource-Level Authorization (IDOR)</h3>
+
+<div class="card" style="border-left-color: #f59e0b;">
+    <p><strong>Severity:</strong> Medium-High</p>
+    <p><strong>Issue:</strong> While all endpoints are protected by authentication (JWT or API key), there are no ownership or tenant-level authorization checks on most resource endpoints. Any authenticated user can access or modify any resource by ID (Insecure Direct Object Reference). For example, any authenticated user could read another user's OCR results, download their documents, or interact with their HITL sessions.</p>
+    <p><strong>Exceptions:</strong> <code>WorkflowService</code> passes <code>userId</code> to service methods for ownership checks. <code>AzureController</code> checks <code>isUserInGroup()</code> at the service level. <code>ApiKeyController</code> scopes operations to <code>req.user.sub</code>.</p>
+    <p><strong>Recommendation:</strong> Add resource ownership validation at the service layer. Either filter queries by <code>userId</code> (e.g., <code>WHERE user_id = $1 AND id = $2</code>), check ownership after retrieval and throw <code>ForbiddenException</code>, or implement a tenant/organization scoping middleware.</p>
+</div>
+
+<h3>11. No Rate Limiting on API Key Validation Path</h3>
+
+<div class="card" style="border-left-color: #f59e0b;">
+    <p><strong>Severity:</strong> Medium</p>
+    <p><strong>Issue:</strong> Auth endpoints (<code>/login</code>, <code>/refresh</code>, <code>/logout</code>, <code>/callback</code>) all have <code>@Throttle()</code> decorators with strict per-route limits. However, the API key validation path (via <code>ApiKeyAuthGuard</code> on any <code>@ApiKeyAuth()</code> route) has no rate limiting beyond the global default of 100 requests/minute. Each failed API key validation triggers a database query (prefix lookup) and a <code>bcrypt.compare()</code> operation (CPU-intensive, cost factor 10).</p>
+    <p><strong>Impact:</strong> An attacker sending rapid invalid <code>x-api-key</code> headers can cause CPU exhaustion via bcrypt comparisons and saturate database connections. While the 256-bit key is not brute-forceable, the resource exhaustion vector is real (denial of service).</p>
+    <p><strong>Recommendation:</strong> Add tighter <code>@Throttle()</code> decorators to routes that accept API key auth, or add failed-validation throttling in the <code>ApiKeyAuthGuard</code> itself (e.g., track failed attempts per IP).</p>
+</div>
     </main>
     <footer class="site-footer">
         <div class="footer-content">

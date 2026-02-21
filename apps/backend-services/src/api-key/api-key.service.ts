@@ -1,32 +1,25 @@
-import { PrismaClient } from "@generated/client";
 import {
   ConflictException,
   Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PrismaPg } from "@prisma/adapter-pg";
 import * as bcrypt from "bcrypt";
 import * as crypto from "crypto";
 import {
   ApiKeyInfoDto,
   GeneratedApiKeyDto,
 } from "@/api-key/dto/api-key-info.dto";
-import { getPrismaPgOptions } from "@/utils/database-url";
+import { PrismaService } from "@/database/prisma.service";
 
 @Injectable()
 export class ApiKeyService {
   private readonly logger = new Logger(ApiKeyService.name);
-  private prisma: PrismaClient;
 
-  constructor(private configService: ConfigService) {
-    const dbOptions = getPrismaPgOptions(
-      this.configService.get("DATABASE_URL"),
-    );
-    this.prisma = new PrismaClient({
-      adapter: new PrismaPg(dbOptions),
-    });
+  constructor(private readonly prismaService: PrismaService) {}
+
+  private get prisma() {
+    return this.prismaService.prisma;
   }
 
   async getUserApiKey(userId: string): Promise<ApiKeyInfoDto | null> {

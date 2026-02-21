@@ -1,10 +1,10 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { DatabaseModule } from "@/database/database.module";
 import { ApiKeyController } from "./api-key.controller";
 import { ApiKeyService } from "./api-key.service";
 
 @Module({
-  imports: [ConfigModule],
+  imports: [DatabaseModule],
   controllers: [ApiKeyController],
   providers: [ApiKeyService],
   exports: [ApiKeyService],

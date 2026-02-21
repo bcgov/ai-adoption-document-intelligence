@@ -1,7 +1,7 @@
 import { ConflictException, NotFoundException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as bcrypt from "bcrypt";
+import { PrismaService } from "@/database/prisma.service";
 import { ApiKeyService } from "./api-key.service";
 
 // Mock Prisma
@@ -13,15 +13,11 @@ const mockPrismaApiKey = {
   update: jest.fn(),
 };
 
-jest.mock("../generated/client", () => ({
-  PrismaClient: jest.fn().mockImplementation(() => ({
+const mockPrismaService = {
+  prisma: {
     apiKey: mockPrismaApiKey,
-  })),
-}));
-
-jest.mock("@prisma/adapter-pg", () => ({
-  PrismaPg: jest.fn().mockImplementation(() => ({})),
-}));
+  },
+};
 
 describe("ApiKeyService", () => {
   let service: ApiKeyService;
@@ -33,15 +29,8 @@ describe("ApiKeyService", () => {
       providers: [
         ApiKeyService,
         {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn((key: string) => {
-              if (key === "DATABASE_URL") {
-                return "postgresql://test:test@localhost:5432/test";
-              }
-              return undefined;
-            }),
-          },
+          provide: PrismaService,
+          useValue: mockPrismaService,
         },
       ],
     }).compile();
