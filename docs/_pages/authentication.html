@@ -300,7 +300,6 @@ export class AdminController {
         <tr><td><code>roles.guard.ts</code></td><td>RBAC enforcement based on <code>@Roles()</code> decorator</td></tr>
         <tr><td><code>public.decorator.ts</code></td><td><code>@Public()</code> — marks routes as unauthenticated</td></tr>
         <tr><td><code>roles.decorator.ts</code></td><td><code>@Roles(...)</code> — declares required roles</td></tr>
-        <tr><td><code>api-key-auth.decorator.ts</code></td><td><code>@ApiKeyAuth()</code> — enables API key fallback</td></tr>
         <tr><td><code>types.ts</code></td><td><code>User</code> interface — <code>sub</code>, <code>email</code>, <code>roles</code>, etc.</td></tr>
         <tr><td><code>dto/*.ts</code></td><td>Validated DTOs for all auth endpoints (class-validator)</td></tr>
     </tbody>
@@ -493,11 +492,10 @@ export class AdminController {
     <p><strong>Recommendation:</strong> Implement <strong>token introspection</strong> for sensitive operations. Use Keycloak's <code>/protocol/openid-connect/token/introspect</code> endpoint to check if a token is still active. This can be applied selectively (e.g., for admin operations, write operations) to avoid the performance overhead on every request. Alternatively, use short-lived access tokens (e.g., 5 minutes) combined with refresh token rotation to reduce the window of exposure.</p>
 </div>
 
-<h3>4. Duplicate Decorator Definitions</h3>
+<h3>4. <s>Duplicate Decorator Definitions</s> — RESOLVED</h3>
 
-<div class="card" style="border-left-color: #0ea5e9;">
-    <p><strong>Issue:</strong> The <code>API_KEY_AUTH_KEY</code> constant and <code>@ApiKeyAuth()</code> decorator are defined in two places: <code>auth/api-key-auth.decorator.ts</code> and <code>decorators/custom-auth-decorators.ts</code>. The guards import from the <code>decorators/</code> version, making the <code>auth/</code> version effectively dead code. This creates confusion and risks bugs if the wrong import is used.</p>
-    <p><strong>Recommendation:</strong> Remove the duplicate definition. Consolidate into a single canonical location (either <code>auth/</code> or <code>decorators/</code>) and update all imports.</p>
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> The dead <code>api-key-auth.decorator.ts</code> file in <code>src/auth/</code> has been removed. The canonical <code>@ApiKeyAuth()</code> decorator is defined in <code>src/decorators/custom-auth-decorators.ts</code>, which includes both <code>SetMetadata</code> and Swagger annotations (<code>@ApiSecurity</code>, <code>@ApiUnauthorizedResponse</code>). All guards and controllers import from this single location.</p>
 </div>
 
 <h3>5. <s>No Rate Limiting on Auth Endpoints</s> — RESOLVED</h3>

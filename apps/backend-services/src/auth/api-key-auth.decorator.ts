@@ -1,4 +1,0 @@
-import { SetMetadata } from "@nestjs/common";
-
-export const API_KEY_AUTH_KEY = "allowApiKeyAuth";
-export const ApiKeyAuth = () => SetMetadata(API_KEY_AUTH_KEY, true);

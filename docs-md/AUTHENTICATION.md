@@ -233,7 +233,6 @@ apps/backend-services/src/auth/
 ├── roles.guard.ts              # RBAC enforcement guard
 ├── public.decorator.ts         # @Public() metadata
 ├── roles.decorator.ts          # @Roles(...) metadata
-├── api-key-auth.decorator.ts   # @ApiKeyAuth() metadata
 ├── types.ts                    # User interface and Express augmentation
 └── dto/
     ├── index.ts                      # Barrel export
@@ -1665,6 +1664,29 @@ Tokens are stored in HttpOnly cookies, making them inaccessible to JavaScript:
 - GET, HEAD, OPTIONS requests (safe methods)
 - Requests with `Authorization: Bearer` header (not cookie-authenticated)
 - Requests with `X-API-Key` header (API key authenticated)
+
+### Refresh Endpoint Security Model
+
+The `POST /api/auth/refresh` endpoint is marked `@Public()` because the access token may be expired when refresh is called — `JwtAuthGuard` is intentionally skipped. The endpoint's security relies on:
+
+1. **Refresh token cookie** — The refresh token must be present in an HttpOnly cookie scoped to `/api/auth/refresh`. This cookie is not accessible to JavaScript and is only sent to this specific path.
+2. **CSRF guard** — The `CsrfGuard` validates the double-submit CSRF token on the request, preventing cross-site request forgery.
+3. **SameSite cookie policy** — The `Lax` SameSite attribute on the refresh token cookie prevents it from being sent on cross-origin sub-requests.
+4. **Rate limiting** — The endpoint is rate-limited to 5 requests per minute per IP via `@Throttle()`, preventing brute-force and abuse.
+
+**Architectural rationale:** This is an inherent trade-off in cookie-based OAuth implementations. The refresh endpoint cannot require a valid access token (since the whole point is to obtain a new one when the current one has expired). CSRF protection, cookie scoping, and rate limiting together provide strong defense against unauthorized refresh attempts.
+
+### Error Handling in Auth Service
+
+Authentication error responses return **generic messages** to prevent information disclosure:
+
+| Error Scenario | Client-Facing Message | HTTP Status |
+|---|---|---|
+| OAuth callback failure | `"Authentication failed"` | 400 |
+| Token refresh failure | `"Token refresh failed"` | 400 |
+| Callback error (controller) | Redirect to `FRONTEND_URL?auth_error=callback_failed` | 302 |
+
+Full error details (Keycloak error codes, token endpoint URLs, internal state) are logged server-side via `Logger.error()` with stack traces, but are never exposed to clients. This prevents attackers from using error messages for reconnaissance (e.g., differentiating between expired, revoked, and invalid tokens).
 
 ### Token Validation
 

@@ -24,7 +24,7 @@ The authentication architecture follows a sound design: confidential OAuth 2.0 A
 
 However, this audit identified **2 critical**, **4 high**, **6 medium**, and **5 low/informational** findings that should be addressed, ranging from missing rate limiting on authentication endpoints to a duplicate decorator definition that could lead to authorization bypass confusion.
 
-**Remediation Progress:** 4 of 17 findings resolved.
+**Remediation Progress:** 7 of 17 findings resolved.
 
 | Finding | Severity | Status |
 |---------|----------|--------|
@@ -32,9 +32,10 @@ However, this audit identified **2 critical**, **4 high**, **6 medium**, and **5
 | C-2: No Security Headers (Helmet) | Critical | ✅ Resolved |
 | H-1: CSRF Token No maxAge | High | ✅ Resolved |
 | H-2: API Key Empty Roles | High | ✅ Resolved |
-| H-3: Duplicate ApiKeyAuth Decorator | High | ⬚ Open |
-| H-4: Auth Error Message Leaks | High | ⬚ Open |
-| M-1 through M-6 | Medium | ⬚ Open |
+| H-3: Duplicate ApiKeyAuth Decorator | High | ✅ Resolved |
+| H-4: Auth Error Message Leaks | High | ✅ Resolved |
+| M-1: Refresh Endpoint @Public() | Medium | ✅ Documented |
+| M-2 through M-6 | Medium | ⬜ Open |
 | L-1 through L-5 | Low | ⬚ Open |
 
 ---
@@ -195,11 +196,18 @@ More critically, if a developer adds `@ApiKeyAuth()` to an endpoint that has `@R
 
 ---
 
-### H-3: Duplicate `API_KEY_AUTH_KEY` and `ApiKeyAuth` Decorator Definitions
+### H-3: Duplicate `API_KEY_AUTH_KEY` and `ApiKeyAuth` Decorator Definitions — ✅ RESOLVED
 
 **Location:**
-- [apps/backend-services/src/auth/api-key-auth.decorator.ts](../apps/backend-services/src/auth/api-key-auth.decorator.ts)
+- ~~apps/backend-services/src/auth/api-key-auth.decorator.ts~~ (deleted)
 - [apps/backend-services/src/decorators/custom-auth-decorators.ts](../apps/backend-services/src/decorators/custom-auth-decorators.ts)
+
+**Status:** Resolved on 2026-02-21.
+
+**Resolution:** Deleted the dead `api-key-auth.decorator.ts` file from `src/auth/`. The canonical `@ApiKeyAuth()` decorator is defined solely in `src/decorators/custom-auth-decorators.ts`, which includes both `SetMetadata(API_KEY_AUTH_KEY, true)` and Swagger annotations (`@ApiSecurity('api-key')`, `@ApiUnauthorizedResponse`). All guards and controllers already imported from this location. Updated AUTHENTICATION.md module structure and HTML docs to reflect the removal.
+
+<details>
+<summary>Original finding (pre-resolution)</summary>
 
 **Description:** There are two separate definitions of `API_KEY_AUTH_KEY` and `ApiKeyAuth`:
 
@@ -212,11 +220,24 @@ Both define `API_KEY_AUTH_KEY = "allowApiKeyAuth"`. The guards import from `@/de
 
 **Recommendation:** Delete `apps/backend-services/src/auth/api-key-auth.decorator.ts` — it is unused and duplicative.
 
+</details>
+
 ---
 
-### H-4: Error Messages in Auth Service Leak Internal Details
+### H-4: Error Messages in Auth Service Leak Internal Details — ✅ RESOLVED
 
-**Location:** [apps/backend-services/src/auth/auth.service.ts](../apps/backend-services/src/auth/auth.service.ts#L168-L174)
+**Location:** [apps/backend-services/src/auth/auth.service.ts](../apps/backend-services/src/auth/auth.service.ts)
+
+**Status:** Resolved on 2026-02-21.
+
+**Resolution:** Auth service error handling now returns generic messages to clients while logging full details server-side:
+- `handleCallback()` catch block: logs full error with `this.logger.error()` (including stack trace), throws `HttpException("Authentication failed", 400)`
+- `refreshAccessToken()` catch block: logs full error with `this.logger.error()` (including stack trace), throws `HttpException("Token refresh failed", 400)`
+- Internal error details (Keycloak error codes, token endpoint URLs, grant types) are never exposed to clients
+- Tests updated in `auth.service.spec.ts` (4 tests: verifies generic messages are returned and internal details are not leaked for both callback and refresh failures)
+
+<details>
+<summary>Original finding (pre-resolution)</summary>
 
 **Description:** The auth service propagates internal error messages directly to HTTP responses:
 
@@ -241,13 +262,26 @@ The `error.message` from `openid-client` can include server URLs, token endpoint
 
 **Recommendation:** Log the full error server-side (`this.logger.error(...)`) but return generic messages to clients: `"Authentication failed"`, `"Token refresh failed"`.
 
+</details>
+
 ---
 
 ## Findings — Medium
 
-### M-1: Refresh Endpoint Marked `@Public()` — CSRF Is the Only Protection
+### M-1: Refresh Endpoint Marked `@Public()` — CSRF Is the Only Protection — ✅ DOCUMENTED
 
 **Location:** [apps/backend-services/src/auth/auth.controller.ts](../apps/backend-services/src/auth/auth.controller.ts#L54-L55)
+
+**Status:** Documented on 2026-02-21. No code changes required.
+
+**Resolution:** This is an accepted architectural trade-off inherent to cookie-based OAuth implementations. The refresh endpoint cannot require a valid access token (since the whole point is to obtain a new one when the current token has expired). The security model is explicitly documented in AUTHENTICATION.md under "Refresh Endpoint Security Model" with the following protections enumerated:
+1. HttpOnly refresh token cookie scoped to `/api/auth/refresh`
+2. CSRF double-submit cookie validation via `CsrfGuard`
+3. `SameSite=Lax` cookie attribute preventing cross-origin sub-requests
+4. Rate limiting at 5 requests per minute per IP via `@Throttle()`
+
+<details>
+<summary>Original finding (pre-resolution)</summary>
 
 **Description:** The `POST /api/auth/refresh` endpoint is marked `@Public()`, which means `JwtAuthGuard` is skipped entirely. The only protections are:
 
@@ -259,6 +293,8 @@ This is architecturally necessary (the access token may be expired when refresh 
 **Impact:** The refresh endpoint's security depends entirely on CSRF and cookie scoping.
 
 **Recommendation:** This is an acceptable architectural trade-off but should be explicitly documented. Consider adding an additional binding mechanism (e.g., a refresh token rotation counter stored server-side) to detect and revoke stolen refresh tokens.
+
+</details>
 
 ---
 
@@ -453,9 +489,11 @@ If a user's JWT payload lacks an `email` claim, the API key is associated with `
 
 The AUTHENTICATION.md documentation mentions `post_logout_redirect_uri` in logout, but the code omits `client_id`. The code and documentation should align on whether `client_id` is included (see finding M-3).
 
-### D-2: Documentation Shows Separate `api-key-auth.decorator.ts` in File Structure
+### D-2: ~~Documentation Shows Separate `api-key-auth.decorator.ts` in File Structure~~ — RESOLVED
 
-The module structure section in AUTHENTICATION.md lists `api-key-auth.decorator.ts` under the auth module. This file exists but is dead code — the actual `ApiKeyAuth` decorator used throughout the app is in `src/decorators/custom-auth-decorators.ts`, which is not mentioned in the documentation.
+~~The module structure section in AUTHENTICATION.md lists `api-key-auth.decorator.ts` under the auth module. This file exists but is dead code — the actual `ApiKeyAuth` decorator used throughout the app is in `src/decorators/custom-auth-decorators.ts`, which is not mentioned in the documentation.~~
+
+Resolved: The dead file has been deleted and the module structure in AUTHENTICATION.md updated to remove the reference.
 
 ### D-3: Guard Execution Order in Docs vs. Actual NestJS Behavior
 
@@ -465,9 +503,11 @@ The documentation states guard order as: JwtAuthGuard → ApiKeyAuthGuard → Ro
 
 The sequence diagram (step 8-9 of the Token Refresh Flow) shows the frontend calling `/api/auth/me` after a refresh. In the actual code, the frontend does NOT call `/me` after refresh — it simply updates `expires_at` from the `expires_in` response field. This is a minor documentation inaccuracy.
 
-### D-5: Documentation References `@ApiKeyAuth()` from `auth/api-key-auth.decorator.ts`
+### D-5: ~~Documentation References `@ApiKeyAuth()` from `auth/api-key-auth.decorator.ts`~~ — RESOLVED
 
-The documentation shows `@ApiKeyAuth()` imported from the auth module. The actual code uses `@ApiKeyAuth()` from `@/decorators/custom-auth-decorators`, which includes additional Swagger decorators. The behavior is the same (both set the same metadata key), but the import path is wrong in the docs.
+~~The documentation shows `@ApiKeyAuth()` imported from the auth module. The actual code uses `@ApiKeyAuth()` from `@/decorators/custom-auth-decorators`, which includes additional Swagger decorators. The behavior is the same (both set the same metadata key), but the import path is wrong in the docs.~~
+
+Resolved: The dead `auth/api-key-auth.decorator.ts` file has been deleted. All documentation now references the canonical `@ApiKeyAuth()` from `decorators/custom-auth-decorators.ts`.
 
 ---
 

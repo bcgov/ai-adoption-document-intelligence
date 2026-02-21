@@ -219,14 +219,43 @@ describe("AuthService", () => {
       expect(result).toHaveProperty("access_token");
     });
 
-    it("should throw on callback failure", async () => {
+    it("should throw generic error on callback failure", async () => {
       (client.authorizationCodeGrant as jest.Mock).mockRejectedValueOnce(
         new Error("Invalid code"),
       );
 
       await expect(
         service.handleCallback("bad-code", "state", "code-verifier", "nonce"),
-      ).rejects.toThrow(/OAuth callback failed/);
+      ).rejects.toThrow("Authentication failed");
+    });
+
+    it("should not leak internal error details on callback failure", async () => {
+      const internalError = new Error(
+        "invalid_grant: Token endpoint returned 400",
+      );
+      (client.authorizationCodeGrant as jest.Mock).mockRejectedValueOnce(
+        internalError,
+      );
+
+      try {
+        await service.handleCallback(
+          "bad-code",
+          "state",
+          "code-verifier",
+          "nonce",
+        );
+        fail("Expected error to be thrown");
+      } catch (error) {
+        expect((error as { message: string }).message).toBe(
+          "Authentication failed",
+        );
+        expect((error as { message: string }).message).not.toContain(
+          "invalid_grant",
+        );
+        expect((error as { message: string }).message).not.toContain(
+          "Token endpoint",
+        );
+      }
     });
   });
 
@@ -247,14 +276,36 @@ describe("AuthService", () => {
       });
     });
 
-    it("should throw on refresh failure", async () => {
+    it("should throw generic error on refresh failure", async () => {
       (client.refreshTokenGrant as jest.Mock).mockRejectedValueOnce(
         new Error("Invalid refresh token"),
       );
 
       await expect(service.refreshAccessToken("bad-token")).rejects.toThrow(
-        /Failed to refresh access token/,
+        "Token refresh failed",
       );
+    });
+
+    it("should not leak internal error details on refresh failure", async () => {
+      const internalError = new Error("invalid_grant: Session not active");
+      (client.refreshTokenGrant as jest.Mock).mockRejectedValueOnce(
+        internalError,
+      );
+
+      try {
+        await service.refreshAccessToken("bad-token");
+        fail("Expected error to be thrown");
+      } catch (error) {
+        expect((error as { message: string }).message).toBe(
+          "Token refresh failed",
+        );
+        expect((error as { message: string }).message).not.toContain(
+          "invalid_grant",
+        );
+        expect((error as { message: string }).message).not.toContain(
+          "Session not active",
+        );
+      }
     });
   });
 

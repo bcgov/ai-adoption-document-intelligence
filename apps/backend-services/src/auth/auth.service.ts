@@ -2,6 +2,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   OnModuleInit,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -30,6 +31,7 @@ export interface LoginUrlResult {
  */
 @Injectable()
 export class AuthService implements OnModuleInit {
+  private readonly logger = new Logger(AuthService.name);
   private config: client.Configuration;
   private readonly issuer: string;
   private readonly clientId: string;
@@ -173,10 +175,11 @@ export class AuthService implements OnModuleInit {
         token_type: tokens.token_type || "Bearer",
       };
     } catch (error) {
-      throw new HttpException(
+      this.logger.error(
         `OAuth callback failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-        HttpStatus.BAD_REQUEST,
+        error instanceof Error ? error.stack : undefined,
       );
+      throw new HttpException("Authentication failed", HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -195,10 +198,11 @@ export class AuthService implements OnModuleInit {
         token_type: tokens.token_type || "Bearer",
       };
     } catch (error) {
-      throw new HttpException(
-        `Failed to refresh access token: ${error instanceof Error ? error.message : "Unknown error"}`,
-        HttpStatus.BAD_REQUEST,
+      this.logger.error(
+        `Token refresh failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error instanceof Error ? error.stack : undefined,
       );
+      throw new HttpException("Token refresh failed", HttpStatus.BAD_REQUEST);
     }
   }
 
