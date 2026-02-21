@@ -2,6 +2,35 @@
  * Type definitions for OCR activities and results.
  */
 
+// Enrichment (used by ocr.enrich activity and graph workflows)
+export interface EnrichmentStepParams {
+  documentType: string; // LabelingProject ID -> fetches field_schema
+  confidenceThreshold?: number; // Below this, fields are LLM candidates (default 0.85)
+  enableLlmEnrichment?: boolean; // Enable Azure OpenAI enrichment (default false)
+}
+
+export interface EnrichmentChange {
+  fieldKey: string;
+  originalValue: string;
+  correctedValue: string;
+  reason: string;
+  source: 'rule' | 'llm';
+}
+
+export interface EnrichmentSummary {
+  summary: string;
+  changes: EnrichmentChange[];
+  rulesApplied: string[];
+  llmEnriched: boolean;
+  llmModel?: string;
+  timestamp: string;
+}
+
+export interface EnrichmentResult {
+  ocrResult: OCRResult;
+  summary: EnrichmentSummary | null;
+}
+
 // Azure OCR API Response Types
 export interface HttpResponse {
   statusCode: number;
@@ -33,9 +62,18 @@ export interface AnalyzeResult {
   documents?: AzureDocument[]; // Custom models return documents with fields
 }
 
+/** Field value shape from Azure Document Intelligence custom models */
+export interface AzureDocumentFieldValue {
+  content?: string;
+  valueString?: string;
+  confidence?: number;
+  boundingRegions?: BoundingRegion[];
+  spans?: Span[];
+}
+
 export interface AzureDocument {
   docType: string;
-  fields: Record<string, any>; // Custom model fields - already in correct format
+  fields: Record<string, AzureDocumentFieldValue>;
   boundingRegions?: BoundingRegion[];
   spans?: Span[];
   confidence?: number;

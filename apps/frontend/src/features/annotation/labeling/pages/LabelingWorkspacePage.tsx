@@ -223,19 +223,8 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   }, [documentId]);
 
   useEffect(() => {
-    console.debug("[Labeling] Active field changed", {
-      activeFieldKey,
-    });
-  }, [activeFieldKey]);
-
-  useEffect(() => {
     const loadDocument = async () => {
       if (!projectDocument?.labeling_document) return;
-      console.debug("[Labeling] Loading document file", {
-        documentId,
-        fileType: projectDocument.labeling_document.file_type,
-        status: projectDocument.labeling_document.status,
-      });
       try {
         const token = getAccessToken?.() ?? null;
         const headers: Record<string, string> = {};
@@ -248,8 +237,8 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         setDocumentUrl(url);
-      } catch (error) {
-        console.error("Failed to load document", error);
+      } catch {
+        // Document load failed; leave URL unset
       }
     };
 
@@ -292,11 +281,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       | AzureOcrResult
       | undefined;
     const ocrResult = azureOcr?.analyzeResult;
-    console.debug("[Labeling] OCR result shape", {
-      hasOcr: Boolean(ocrResult),
-      hasPages: Boolean(ocrResult?.pages),
-      pageCount: ocrResult?.pages?.length,
-    });
     if (!ocrResult?.pages) return [];
 
     const elements: OcrElement[] = [];
@@ -331,12 +315,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           state: mark.state,
         });
       });
-    });
-
-    console.debug("[Labeling] Extracted OCR elements", {
-      total: elements.length,
-      words: elements.filter((e) => e.type === "word").length,
-      selectionMarks: elements.filter((e) => e.type === "selectionMark").length,
     });
 
     return elements;
@@ -383,29 +361,11 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       }
     });
 
-    console.debug("[Labeling] Hydrated assignments from labels", {
-      labels: labels.length,
-      matched: Object.keys(nextAssignments).length,
-    });
-
     setWordAssignments(nextAssignments);
     setAssignmentsHydrated(true);
   }, [labels, ocrWords, assignmentsHydrated]);
 
-  useEffect(() => {
-    console.debug("[Labeling] OCR elements loaded", {
-      totalElements: ocrWords.length,
-      words: ocrWords.filter((e) => e.type === "word").length,
-      selectionMarks: ocrWords.filter((e) => e.type === "selectionMark").length,
-      pages: Object.keys(wordsByPage),
-    });
-  }, [ocrWords, wordsByPage]);
-
   const wordBoxes = useMemo(() => {
-    console.debug("[Labeling] Building element boxes", {
-      totalElements: ocrWords.length,
-      assignments: Object.keys(wordAssignments).length,
-    });
     return ocrWords.map((element) => {
       const points = [];
       for (let i = 0; i < element.polygon.length; i += 2) {
@@ -438,9 +398,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   }, [ocrWords, wordAssignments, activeFieldKey]);
 
   const updateLabelsFromAssignments = useMemo(() => {
-    console.debug("[Labeling] Updating labels from assignments", {
-      assignments: Object.keys(wordAssignments).length,
-    });
     const updates: Record<string, LabelState> = {};
     const elementsInOrder = [...ocrWords].sort((a, b) => {
       if (a.pageNumber !== b.pageNumber) return a.pageNumber - b.pageNumber;
@@ -528,9 +485,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     if (Object.keys(updateLabelsFromAssignments).length === 0) {
       return;
     }
-    console.debug("[Labeling] Applying label updates", {
-      fields: Object.keys(updateLabelsFromAssignments),
-    });
     setLabelState((prev) => ({
       ...prev,
       ...updateLabelsFromAssignments,
@@ -538,20 +492,13 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   }, [updateLabelsFromAssignments]);
 
   const handleWordSelect = (elementId: string | null) => {
-    console.debug("[Labeling] Element selection clicked", {
-      elementId,
-      activeFieldKey,
-    });
-
     // If clicking on canvas background (null), deselect active field
     if (!elementId) {
-      console.debug("[Labeling] Canvas background clicked - deselecting");
       setActiveFieldKey(null);
       return;
     }
 
     if (!activeFieldKey) {
-      console.warn("[Labeling] No active field selected for assignment");
       notifications.show({
         title: "Select a field",
         message: "Choose a field on the right before assigning OCR elements.",
@@ -563,16 +510,8 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
       const current = prev[elementId];
       const next = { ...prev };
       if (current === activeFieldKey) {
-        console.debug("[Labeling] Unassigning element from field", {
-          elementId,
-          fieldKey: activeFieldKey,
-        });
         delete next[elementId];
       } else {
-        console.debug("[Labeling] Assigning element to field", {
-          elementId,
-          fieldKey: activeFieldKey,
-        });
         next[elementId] = activeFieldKey;
       }
       return next;
@@ -619,12 +558,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
         };
       })
       .filter(Boolean) as LabelDto[];
-
-    console.debug("[Labeling] Saving labels", {
-      elementAssignments: Object.keys(wordAssignments).length,
-      payloadCount: payload.length,
-      existingLabels: labels?.length ?? 0,
-    });
 
     try {
       await saveLabelsAsync(payload);
@@ -760,9 +693,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                 onClick={(e) => {
                   // Deselect active field if clicking on PDF background (not on an overlay box)
                   if (e.target === e.currentTarget) {
-                    console.debug(
-                      "[Labeling] PDF background clicked - deselecting",
-                    );
                     setActiveFieldKey(null);
                   }
                 }}
@@ -770,7 +700,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                 <Document
                   file={documentUrl}
                   onLoadSuccess={({ numPages }) => {
-                    console.debug("[Labeling] PDF loaded", { numPages });
                     setNumPages(numPages);
                   }}
                 >
@@ -780,12 +709,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                     renderTextLayer={false}
                     renderAnnotationLayer={false}
                     onLoadSuccess={(page) => {
-                      console.debug("[Labeling] PDF page loaded", {
-                        pageNumber: currentPage,
-                        width: page.width,
-                        height: page.height,
-                        zoom,
-                      });
                       setPdfRenderedSize({
                         width: page.width,
                         height: page.height,
@@ -895,14 +818,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                               : "#adb5bd",
                         }}
                         onClick={(event) => {
-                          console.debug("[Labeling] OCR element clicked", {
-                            elementId: element.id,
-                            type: element.type,
-                            page: element.pageNumber,
-                            activeFieldKey,
-                            target: (event.target as HTMLElement)?.dataset
-                              ?.wordId,
-                          });
                           handleWordSelect(element.id);
                         }}
                         title={
@@ -949,9 +864,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           onClick={(e) => {
             // Deselect active field if clicking on field panel background
             if (e.target === e.currentTarget) {
-              console.debug(
-                "[Labeling] Field panel background clicked - deselecting",
-              );
               setActiveFieldKey(null);
             }
           }}
@@ -961,10 +873,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
             fw={600}
             mb="md"
             onClick={(e) => {
-              // Deselect when clicking on the header text
-              console.debug(
-                "[Labeling] Field panel header clicked - deselecting",
-              );
               setActiveFieldKey(null);
               e.stopPropagation();
             }}
@@ -986,9 +894,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                     "mantine-ScrollArea-viewport",
                   )
                 ) {
-                  console.debug(
-                    "[Labeling] Field panel scroll area clicked - deselecting",
-                  );
                   setActiveFieldKey(null);
                 }
               },
@@ -999,7 +904,6 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
               values={labelValues}
               activeFieldKey={activeFieldKey}
               onSelectField={(fieldKey) => {
-                console.debug("[Labeling] Field selected", { fieldKey });
                 setActiveFieldKey(fieldKey);
               }}
               onValueChange={handleValueChange}

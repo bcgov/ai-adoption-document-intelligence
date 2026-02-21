@@ -1,8 +1,8 @@
 jest.mock("fs/promises");
 
-import * as fs from "fs/promises";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import * as fs from "fs/promises";
 import { LocalBlobStorageService } from "./local-blob-storage.service";
 
 const mockFs = fs as jest.Mocked<typeof fs>;
@@ -123,9 +123,7 @@ describe("LocalBlobStorageService", () => {
         Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
       );
 
-      await expect(
-        service.delete("nonexistent/key"),
-      ).resolves.toBeUndefined();
+      await expect(service.delete("nonexistent/key")).resolves.toBeUndefined();
     });
 
     it("re-throws non-ENOENT errors", async () => {
@@ -168,8 +166,7 @@ describe("LocalBlobStorageService", () => {
       mockFs.mkdir.mockResolvedValue(undefined);
       mockFs.writeFile.mockResolvedValue(undefined);
 
-      const segmentKey =
-        "documents/doc-123/segments/segment-001-pages-1-5.pdf";
+      const segmentKey = "documents/doc-123/segments/segment-001-pages-1-5.pdf";
       await service.write(segmentKey, Buffer.from("segment data"));
 
       expect(mockFs.writeFile).toHaveBeenCalledWith(
@@ -210,9 +207,7 @@ describe("LocalBlobStorageService", () => {
 
     it("rejects absolute path keys", () => {
       expect(() =>
-        (service as LocalBlobStorageService)["resolveKeyToPath"](
-          "/etc/passwd",
-        ),
+        (service as LocalBlobStorageService)["resolveKeyToPath"]("/etc/passwd"),
       ).toThrow("path traversal not allowed");
     });
   });

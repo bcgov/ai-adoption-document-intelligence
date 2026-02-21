@@ -89,8 +89,7 @@ export class TrainingPollerService {
 
     try {
       // Find all jobs that are actively training
-      // Access Prisma client through DatabaseService private property
-      const prisma = this.db["prisma"];
+      const prisma = this.db.prisma;
       if (!prisma) {
         this.logger.error("Prisma client not available");
         return;
@@ -187,6 +186,9 @@ export class TrainingPollerService {
             return;
           }
 
+          this.logger.error(
+            `Azure operations GET failed: status=${operationResponse.status}, request URL=${operationResponse.request?.url}, body=${JSON.stringify(operationResponse.body)}`,
+          );
           const errorMessage =
             (operationResponse.body as AzureErrorResponse)?.error?.message ||
             `Error retrieving operation ${operationId} (status ${operationResponse.status})`;
@@ -204,6 +206,9 @@ export class TrainingPollerService {
         }
 
         if (status !== "succeeded") {
+          this.logger.error(
+            `Azure training operation failed: status=${status}, operation body=${JSON.stringify(operation)}`,
+          );
           const errorMessage =
             operation.error?.message || `Training failed with status ${status}`;
           throw new Error(errorMessage);
@@ -223,6 +228,9 @@ export class TrainingPollerService {
             .get();
 
           if (isUnexpected(modelResponse)) {
+            this.logger.error(
+              `Azure documentModels GET failed: status=${modelResponse.status}, request URL=${modelResponse.request?.url}, body=${JSON.stringify(modelResponse.body)}`,
+            );
             const errorMessage =
               (modelResponse.body as AzureErrorResponse)?.error?.message ||
               `Error retrieving model ${modelId} (status ${modelResponse.status})`;

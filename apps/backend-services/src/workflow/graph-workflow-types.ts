@@ -3,7 +3,7 @@
  *
  * Defines the complete type system for the DAG workflow engine.
  * These types are shared between backend-services and temporal worker.
- * See docs/DAG_WORKFLOW_ENGINE.md for the full specification.
+ * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md for the full specification.
  */
 
 // ---------------------------------------------------------------------------
@@ -277,7 +277,12 @@ export interface GraphValidationError {
 // Status / Query Types
 // ---------------------------------------------------------------------------
 
-export type NodeStatusValue = "pending" | "running" | "completed" | "failed" | "skipped";
+export type NodeStatusValue =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "skipped";
 
 export interface NodeStatus {
   status: NodeStatusValue;

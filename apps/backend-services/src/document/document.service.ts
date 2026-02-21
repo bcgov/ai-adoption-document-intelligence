@@ -1,7 +1,7 @@
 import { DocumentStatus, Prisma } from "@generated/client";
 import { Injectable, Logger } from "@nestjs/common";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { v4 as uuidv4 } from "uuid";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService, DocumentData } from "../database/database.service";
 
 export interface UploadedDocument {
@@ -26,8 +26,7 @@ export class DocumentService {
   constructor(
     private databaseService: DatabaseService,
     private readonly blobStorage: LocalBlobStorageService,
-  ) {
-  }
+  ) {}
 
   private getFileExtension(fileType: string): string {
     const typeMap: Record<string, string> = {

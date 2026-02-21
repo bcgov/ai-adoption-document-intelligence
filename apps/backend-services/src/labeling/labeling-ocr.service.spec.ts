@@ -3,8 +3,8 @@ import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { of } from "rxjs";
-import { DatabaseService } from "../database/database.service";
 import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import { DatabaseService } from "../database/database.service";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingOcrService } from "./labeling-ocr.service";
 
@@ -117,7 +117,9 @@ describe("LabelingOcrService", () => {
           source: "labeling",
           status: DocumentStatus.ongoing_ocr,
           model_id: "prebuilt-layout",
-          file_path: expect.stringMatching(/^labeling-documents\/[^/]+\/original\.pdf$/),
+          file_path: expect.stringMatching(
+            /^labeling-documents\/[^/]+\/original\.pdf$/,
+          ),
         }),
       );
       expect(result).toEqual(mockLabelingDocument);

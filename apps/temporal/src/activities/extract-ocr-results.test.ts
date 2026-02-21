@@ -59,15 +59,15 @@ describe('extractOCRResults activity', () => {
       ocrResponse: mockOCRResponse
     });
 
-    expect(result.success).toBe(true);
-    expect(result.status).toBe('succeeded');
-    expect(result.apimRequestId).toBe('test-request-id');
-    expect(result.fileName).toBe('test.pdf');
-    expect(result.fileType).toBe('pdf');
-    expect(result.modelId).toBe('prebuilt-layout');
-    expect(result.extractedText).toBe('Test content from document');
-    expect(result.pages).toHaveLength(1);
-    expect(result.paragraphs).toHaveLength(1);
+    expect(result.ocrResult.success).toBe(true);
+    expect(result.ocrResult.status).toBe('succeeded');
+    expect(result.ocrResult.apimRequestId).toBe('test-request-id');
+    expect(result.ocrResult.fileName).toBe('test.pdf');
+    expect(result.ocrResult.fileType).toBe('pdf');
+    expect(result.ocrResult.modelId).toBe('prebuilt-layout');
+    expect(result.ocrResult.extractedText).toBe('Test content from document');
+    expect(result.ocrResult.pages).toHaveLength(1);
+    expect(result.ocrResult.paragraphs).toHaveLength(1);
   });
 
   it('fetches OCR results from API when response not provided', async () => {
@@ -98,7 +98,7 @@ describe('extractOCRResults activity', () => {
       modelId: 'prebuilt-layout'
     });
 
-    expect(result.extractedText).toBe('Fetched content');
+    expect(result.ocrResult.extractedText).toBe('Fetched content');
     expect(axiosMock.get).toHaveBeenCalledWith(
       expect.stringContaining('/analyzeResults/test-request-id'),
       expect.objectContaining({
@@ -122,10 +122,10 @@ describe('extractOCRResults activity', () => {
       ocrResponse: mockOCRResponse
     });
 
-    expect(result.success).toBe(true);
-    expect(result.extractedText).toBe('');
-    expect(result.pages).toEqual([]);
-    expect(result.tables).toEqual([]);
+    expect(result.ocrResult.success).toBe(true);
+    expect(result.ocrResult.extractedText).toBe('');
+    expect(result.ocrResult.pages).toEqual([]);
+    expect(result.ocrResult.tables).toEqual([]);
   });
 
   it('sets success to false for failed status', async () => {
@@ -143,8 +143,8 @@ describe('extractOCRResults activity', () => {
       ocrResponse: mockOCRResponse
     });
 
-    expect(result.success).toBe(false);
-    expect(result.status).toBe('failed');
+    expect(result.ocrResult.success).toBe(false);
+    expect(result.ocrResult.status).toBe('failed');
   });
 
   it('throws error when credentials are missing and response not provided', async () => {
@@ -217,9 +217,9 @@ describe('extractOCRResults activity', () => {
       ocrResponse: mockOCRResponse
     });
 
-    expect(result.tables).toHaveLength(1);
-    expect(result.tables[0].rowCount).toBe(2);
-    expect(result.keyValuePairs).toHaveLength(1);
-    expect(result.keyValuePairs[0].key.content).toBe('Name');
+    expect(result.ocrResult.tables).toHaveLength(1);
+    expect(result.ocrResult.tables[0].rowCount).toBe(2);
+    expect(result.ocrResult.keyValuePairs).toHaveLength(1);
+    expect(result.ocrResult.keyValuePairs[0].key.content).toBe('Name');
   });
 });

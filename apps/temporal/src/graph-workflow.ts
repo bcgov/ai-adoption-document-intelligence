@@ -4,7 +4,7 @@
  * This workflow function replaces the legacy hardcoded workflow with a generic
  * data-driven interpreter that can execute any workflow graph definition.
  *
- * See docs/DAG_WORKFLOW_ENGINE.md Section 5
+ * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5
  */
 
 import {
@@ -25,7 +25,14 @@ import type {
 } from './graph-workflow-types';
 import { validateGraphConfigForExecution } from './graph-schema-validator';
 import { runGraphExecution } from './graph-engine';
-import type * as activities from './activities';
+
+type PreExecutionActivities = {
+  'document.updateStatus': (params: {
+    documentId: string;
+    status: string;
+    apimRequestId?: string;
+  }) => Promise<void>;
+};
 
 // Workflow type constant
 export const GRAPH_WORKFLOW_TYPE = 'graphWorkflow';
@@ -135,15 +142,11 @@ export async function graphWorkflow(
       input.initialCtx.documentId &&
       typeof input.initialCtx.documentId === 'string'
     ) {
-      const activityProxy = proxyActivities<typeof activities>({
+      const activityProxy = proxyActivities<PreExecutionActivities>({
         startToCloseTimeout: '30s',
         retry: { maximumAttempts: 5 },
       });
-
-      // Access activity by its registered type name (not function name)
-      const updateStatusActivity = activityProxy['document.updateStatus'] as (
-        params: { documentId: string; status: string; apimRequestId?: string }
-      ) => Promise<void>;
+      const updateStatusActivity = activityProxy['document.updateStatus'];
 
       await updateStatusActivity({
         documentId: input.initialCtx.documentId,

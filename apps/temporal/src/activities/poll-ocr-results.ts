@@ -5,14 +5,6 @@ import DocumentIntelligence, {
 import type { OCRResponse, PollResult } from '../types';
 
 /**
- * Normalize endpoint URL by removing trailing slash
- */
-function normalizeEndpoint(url: string | undefined): string {
-  if (!url) return '';
-  return url.endsWith('/') ? url.slice(0, -1) : url;
-}
-
-/**
  * Activity: Poll Azure Document Intelligence for OCR results
  * Returns status and full response if available
  */
@@ -104,13 +96,11 @@ export async function pollOCRResults(params: {
     throw new Error('APIM Request ID not available for polling');
   }
 
-  const normalizedEndpoint = normalizeEndpoint(endpoint);
   const normalizedModelId = modelId || 'prebuilt-layout';
 
   try {
-    // Initialize Azure Document Intelligence client with APIM-compatible configuration
     const client: DocumentIntelligenceClient = DocumentIntelligence(
-      normalizedEndpoint,
+      endpoint,
       { key: apiKey },
       {
         credentials: {

@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { LocalBlobStorageService } from "@/blob-storage/local-blob-storage.service";
 import { DatabaseService } from "@/database/database.service";
 import {
   AnalysisResponse,
@@ -13,7 +14,6 @@ import {
   KeyValuePair,
 } from "@/ocr/azure-types";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
-import { LocalBlobStorageService } from "@/blob-storage/local-blob-storage.service";
 
 export interface OcrRequestResponse {
   status: DocumentStatus;
@@ -39,9 +39,7 @@ export class OcrService {
    * @param steps Optional workflow steps configuration
    * @returns New status of document and workflow ID.
    */
-  async requestOcr(
-    documentId: string,
-  ): Promise<OcrRequestResponse> {
+  async requestOcr(documentId: string): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
     // Find filepath of document
     const document = await this.databaseService.findDocument(documentId);

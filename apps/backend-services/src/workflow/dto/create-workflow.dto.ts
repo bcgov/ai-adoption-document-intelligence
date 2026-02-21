@@ -20,8 +20,7 @@ export class CreateWorkflowDto {
   description?: string;
 
   @ApiProperty({
-    description:
-      "Graph workflow configuration (GraphWorkflowConfig JSON).",
+    description: "Graph workflow configuration (GraphWorkflowConfig JSON).",
   })
   @IsObject()
   config: GraphWorkflowConfig;

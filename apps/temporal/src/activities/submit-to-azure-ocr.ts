@@ -3,26 +3,22 @@ import DocumentIntelligence, {
   isUnexpected,
 } from '@azure-rest/ai-document-intelligence';
 import * as fs from 'fs/promises';
-import * as path from 'path';
 import type { PreparedFileData, SubmissionResult } from '../types';
-
-const DEFAULT_BLOB_BASE_PATH = './data/blobs';
+import { resolveBlobKeyToPath } from '../blob-storage/blob-path-resolver';
 
 /**
- * Normalize endpoint URL by removing trailing slash
+ * Normalize endpoint for the Azure SDK. The SDK appends "/documentintelligence" to the
+ * endpoint, so if the env var already includes that path (e.g. APIM), strip it to avoid
+ * double segment and 404.
  */
-function normalizeEndpoint(url: string | undefined): string {
+function normalizeEndpointForSdk(url: string | undefined): string {
   if (!url) return '';
-  return url.endsWith('/') ? url.slice(0, -1) : url;
-}
-
-function resolveBlobKeyToPath(blobKey: string): string {
-  const basePath = process.env.LOCAL_BLOB_STORAGE_PATH ?? DEFAULT_BLOB_BASE_PATH;
-  const normalized = path.normalize(blobKey);
-  if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
-    throw new Error(`Invalid blob key: "${blobKey}"`);
+  let normalized = url.endsWith('/') ? url.slice(0, -1) : url;
+  const suffix = '/documentintelligence';
+  if (normalized.toLowerCase().endsWith(suffix)) {
+    normalized = normalized.slice(0, -suffix.length);
   }
-  return path.join(basePath, normalized);
+  return normalized;
 }
 
 async function readBlobData(blobKey: string): Promise<Buffer> {
@@ -98,11 +94,11 @@ export async function submitToAzureOCR(params: {
     );
   }
 
-  const normalizedEndpoint = normalizeEndpoint(endpoint);
+  const normalizedEndpoint = normalizeEndpointForSdk(endpoint);
   const modelId = fileData.modelId || 'prebuilt-layout';
 
   try {
-    // Initialize Azure Document Intelligence client with APIM-compatible configuration
+    // Initialize Azure Document Intelligence client (SDK appends /documentintelligence to endpoint)
     const client: DocumentIntelligenceClient = DocumentIntelligence(
       normalizedEndpoint,
       { key: apiKey },
@@ -131,16 +127,21 @@ export async function submitToAzureOCR(params: {
     });
 
     if (isUnexpected(initialResponse)) {
+      const status = initialResponse.status;
       console.error(JSON.stringify({
         activity: activityName,
         event: 'error',
         error: 'azure_api_error',
-        status: initialResponse.status,
+        status,
         body: initialResponse.body,
         timestamp: new Date().toISOString()
       }));
+      const hint =
+        Number(status) === 404
+          ? ` Model "${modelId}" may not exist in this resource, or the model ID may be wrong. For custom models, use the exact model ID returned when the model was built (e.g. from GET documentModels or the build response). Verify AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT points to the same resource where the model was created.`
+          : '';
       throw new Error(
-        `Failed to submit document to Azure OCR. Status: ${initialResponse.status}`
+        `Failed to submit document to Azure OCR. Status: ${status}${hint}`,
       );
     }
 
