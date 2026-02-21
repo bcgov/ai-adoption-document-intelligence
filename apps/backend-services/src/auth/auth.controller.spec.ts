@@ -45,7 +45,9 @@ describe("AuthController", () => {
 
   describe("refreshToken", () => {
     it("should read refresh_token from cookie and return expires_in", async () => {
-      req.cookies = { [AUTH_COOKIE_NAMES.REFRESH_TOKEN]: "refresh-token-value" };
+      req.cookies = {
+        [AUTH_COOKIE_NAMES.REFRESH_TOKEN]: "refresh-token-value",
+      };
       authService.refreshAccessToken.mockResolvedValue({
         access_token: "new-access",
         refresh_token: "new-refresh",
@@ -120,30 +122,47 @@ describe("AuthController", () => {
   describe("logout", () => {
     it("should read id_token from cookie, clear cookies, and redirect", async () => {
       req.cookies = { [AUTH_COOKIE_NAMES.ID_TOKEN]: "id-token-value" };
-      authService.getLogoutUrl.mockReturnValue("https://auth.example.com/logout");
+      authService.getLogoutUrl.mockReturnValue(
+        "https://auth.example.com/logout",
+      );
 
       await controller.logout(req as Request, res as Response);
 
-      expect(res.clearCookie).toHaveBeenCalledWith(AUTH_COOKIE_NAMES.ACCESS_TOKEN, { path: "/" });
-      expect(res.clearCookie).toHaveBeenCalledWith(AUTH_COOKIE_NAMES.REFRESH_TOKEN, {
-        path: "/api/auth/refresh",
-      });
+      expect(res.clearCookie).toHaveBeenCalledWith(
+        AUTH_COOKIE_NAMES.ACCESS_TOKEN,
+        { path: "/" },
+      );
+      expect(res.clearCookie).toHaveBeenCalledWith(
+        AUTH_COOKIE_NAMES.REFRESH_TOKEN,
+        {
+          path: "/api/auth/refresh",
+        },
+      );
       expect(res.clearCookie).toHaveBeenCalledWith(AUTH_COOKIE_NAMES.ID_TOKEN, {
         path: "/api/auth",
       });
-      expect(res.clearCookie).toHaveBeenCalledWith(AUTH_COOKIE_NAMES.CSRF_TOKEN, { path: "/" });
+      expect(res.clearCookie).toHaveBeenCalledWith(
+        AUTH_COOKIE_NAMES.CSRF_TOKEN,
+        { path: "/" },
+      );
       expect(authService.getLogoutUrl).toHaveBeenCalledWith("id-token-value");
-      expect(res.redirect).toHaveBeenCalledWith("https://auth.example.com/logout");
+      expect(res.redirect).toHaveBeenCalledWith(
+        "https://auth.example.com/logout",
+      );
     });
 
     it("should work without id_token cookie", async () => {
       req.cookies = {};
-      authService.getLogoutUrl.mockReturnValue("https://auth.example.com/logout");
+      authService.getLogoutUrl.mockReturnValue(
+        "https://auth.example.com/logout",
+      );
 
       await controller.logout(req as Request, res as Response);
 
       expect(authService.getLogoutUrl).toHaveBeenCalledWith(undefined);
-      expect(res.redirect).toHaveBeenCalledWith("https://auth.example.com/logout");
+      expect(res.redirect).toHaveBeenCalledWith(
+        "https://auth.example.com/logout",
+      );
     });
 
     it("should return 500 if error", async () => {

@@ -1,5 +1,5 @@
-import { CookieOptions, Response } from "express";
 import { randomBytes } from "crypto";
+import { CookieOptions, Response } from "express";
 import { TokenResponseDto } from "@/auth/dto/token-response.dto";
 
 /**
@@ -139,7 +139,9 @@ export function setAuthCookies(
  */
 export function clearAuthCookies(res: Response): void {
   res.clearCookie(AUTH_COOKIE_NAMES.ACCESS_TOKEN, { path: "/" });
-  res.clearCookie(AUTH_COOKIE_NAMES.REFRESH_TOKEN, { path: "/api/auth/refresh" });
+  res.clearCookie(AUTH_COOKIE_NAMES.REFRESH_TOKEN, {
+    path: "/api/auth/refresh",
+  });
   res.clearCookie(AUTH_COOKIE_NAMES.ID_TOKEN, { path: "/api/auth" });
   res.clearCookie(AUTH_COOKIE_NAMES.CSRF_TOKEN, { path: "/" });
 }

@@ -22,19 +22,15 @@ import {
 import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import {
-  MeResponseDto,
-  OAuthCallbackQueryDto,
-  RefreshReturnDto,
-} from "./dto";
-import { Public } from "./public.decorator";
-import {
   AUTH_COOKIE_NAMES,
   COOKIE_OPTIONS,
-  PkceCookieData,
   clearAuthCookies,
   generateCsrfToken,
+  PkceCookieData,
   setAuthCookies,
 } from "./cookie-auth.utils";
+import { MeResponseDto, OAuthCallbackQueryDto, RefreshReturnDto } from "./dto";
+import { Public } from "./public.decorator";
 import { User } from "./types";
 
 /**
@@ -54,7 +50,9 @@ export class AuthController {
    */
   @Public()
   @Post("refresh")
-  @ApiOperation({ summary: "Refresh provider tokens using the refresh_token cookie" })
+  @ApiOperation({
+    summary: "Refresh provider tokens using the refresh_token cookie",
+  })
   @ApiOkResponse({
     type: RefreshReturnDto,
     description: "Returns expires_in and sets new auth cookies",
@@ -94,7 +92,9 @@ export class AuthController {
       },
     },
   })
-  @ApiInternalServerErrorResponse({ description: "Failed to generate login URL" })
+  @ApiInternalServerErrorResponse({
+    description: "Failed to generate login URL",
+  })
   async getLoginUrl(@Res() res: Response) {
     try {
       const { url, state, codeVerifier, nonce } =
@@ -122,10 +122,13 @@ export class AuthController {
    */
   @Public()
   @Get("logout")
-  @ApiOperation({ summary: "Clear auth cookies and redirect to Keycloak logout" })
+  @ApiOperation({
+    summary: "Clear auth cookies and redirect to Keycloak logout",
+  })
   @ApiResponse({
     status: 302,
-    description: "Clears auth cookies and redirects to the Keycloak logout endpoint",
+    description:
+      "Clears auth cookies and redirects to the Keycloak logout endpoint",
     headers: {
       Location: {
         description: "URL to redirect the client to",
@@ -133,10 +136,14 @@ export class AuthController {
       },
     },
   })
-  @ApiInternalServerErrorResponse({ description: "Failed to generate logout URL" })
+  @ApiInternalServerErrorResponse({
+    description: "Failed to generate logout URL",
+  })
   async logout(@Req() req: Request, @Res() res: Response) {
     try {
-      const idTokenHint = req.cookies?.[AUTH_COOKIE_NAMES.ID_TOKEN] as string | undefined;
+      const idTokenHint = req.cookies?.[AUTH_COOKIE_NAMES.ID_TOKEN] as
+        | string
+        | undefined;
       clearAuthCookies(res);
       const logoutUrl = this.authService.getLogoutUrl(idTokenHint);
       res.redirect(logoutUrl);
@@ -155,7 +162,8 @@ export class AuthController {
   @Public()
   @Get("callback")
   @ApiOperation({
-    summary: "Handle Keycloak OAuth callback, set auth cookies, and redirect to application",
+    summary:
+      "Handle Keycloak OAuth callback, set auth cookies, and redirect to application",
   })
   @ApiResponse({
     status: 302,

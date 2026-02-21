@@ -238,11 +238,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     };
 
     void loadDocument();
-  }, [
-    projectDocument?.labeling_document,
-    projectId,
-    documentId,
-  ]);
+  }, [projectDocument?.labeling_document, projectId, documentId]);
 
   useEffect(() => {
     return () => {

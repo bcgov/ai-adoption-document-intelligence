@@ -19,11 +19,7 @@ import { AUTH_COOKIE_NAMES, CSRF_HEADER_NAME } from "./cookie-auth.utils";
  */
 @Injectable()
 export class CsrfGuard implements CanActivate {
-  private static readonly SAFE_METHODS = new Set([
-    "GET",
-    "HEAD",
-    "OPTIONS",
-  ]);
+  private static readonly SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
@@ -35,7 +31,11 @@ export class CsrfGuard implements CanActivate {
 
     // Requests with explicit Authorization header (Bearer token) are not CSRF-vulnerable
     const authHeader = request.headers["authorization"];
-    if (authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+    if (
+      authHeader &&
+      typeof authHeader === "string" &&
+      authHeader.startsWith("Bearer ")
+    ) {
       return true;
     }
 

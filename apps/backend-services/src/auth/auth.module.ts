@@ -12,7 +12,11 @@ import { KeycloakJwtStrategy } from "./keycloak-jwt.strategy";
 import { RolesGuard } from "./roles.guard";
 
 @Module({
-  imports: [ConfigModule, PassportModule.register({ defaultStrategy: "jwt" }), ApiKeyModule],
+  imports: [
+    ConfigModule,
+    PassportModule.register({ defaultStrategy: "jwt" }),
+    ApiKeyModule,
+  ],
   controllers: [AuthController],
   providers: [
     AuthService,

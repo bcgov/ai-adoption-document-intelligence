@@ -42,20 +42,20 @@ describe("AuthService", () => {
       .mockResolvedValue("code-challenge");
     (client.randomState as jest.Mock) = jest.fn().mockReturnValue("state");
     (client.randomNonce as jest.Mock) = jest.fn().mockReturnValue("nonce");
-    (client.buildAuthorizationUrl as jest.Mock) = jest.fn().mockReturnValue(
-      new URL(
-        "https://auth.example.com/realms/test-realm/protocol/openid-connect/auth?client_id=client-id",
-      ),
-    );
-    (client.authorizationCodeGrant as jest.Mock) = jest
+    (client.buildAuthorizationUrl as jest.Mock) = jest
       .fn()
-      .mockResolvedValue({
-        access_token: "access-token",
-        refresh_token: "refresh-token",
-        id_token: "id-token",
-        expires_in: 3600,
-        token_type: "Bearer",
-      });
+      .mockReturnValue(
+        new URL(
+          "https://auth.example.com/realms/test-realm/protocol/openid-connect/auth?client_id=client-id",
+        ),
+      );
+    (client.authorizationCodeGrant as jest.Mock) = jest.fn().mockResolvedValue({
+      access_token: "access-token",
+      refresh_token: "refresh-token",
+      id_token: "id-token",
+      expires_in: 3600,
+      token_type: "Bearer",
+    });
     (client.refreshTokenGrant as jest.Mock) = jest.fn().mockResolvedValue({
       access_token: "new-access-token",
       refresh_token: "new-refresh-token",

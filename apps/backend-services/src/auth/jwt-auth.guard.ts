@@ -8,7 +8,7 @@ import { IS_PUBLIC_KEY } from "./public.decorator";
 /**
  * JWT authentication guard that wraps Passport's JWT strategy.
  * Provides the same behavior as BCGovAuthGuard but uses the standard Passport approach.
- * 
+ *
  * This guard:
  * - Skips validation for routes marked with @Public()
  * - Defers to ApiKeyAuthGuard for routes marked with @ApiKeyAuth() when an API key is present

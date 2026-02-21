@@ -125,7 +125,6 @@ export function validateWorkflowConfig(config: WorkflowStepsConfig): {
           errors.push({
             stepId,
             field: "documentType",
-            // biome-ignore lint/security/noSecrets: user-facing validation message, not a secret
             message: "documentType must be a string (LabelingProject ID)",
           });
         }

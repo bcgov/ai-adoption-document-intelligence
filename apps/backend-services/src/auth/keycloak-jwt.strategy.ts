@@ -1,11 +1,22 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PassportStrategy } from "@nestjs/passport";
-import { ExtractJwt, Strategy } from "passport-jwt";
-import { passportJwtSecret } from "jwks-rsa";
 import { Request } from "express";
-import { User } from "./types";
+import { passportJwtSecret } from "jwks-rsa";
+import { ExtractJwt, Strategy } from "passport-jwt";
 import { AUTH_COOKIE_NAMES } from "./cookie-auth.utils";
+import { User } from "./types";
+
+interface KeycloakJwtPayload {
+  sub?: string;
+  idir_username?: string;
+  display_name?: string;
+  email?: string;
+  roles?: string[];
+  realm_access?: { roles?: string[] };
+  resource_access?: Record<string, { roles?: string[] }>;
+  [key: string]: unknown;
+}
 
 /**
  * Extracts JWT from the access_token HttpOnly cookie first,
@@ -29,7 +40,7 @@ function cookieOrBearerExtractor(req: Request): string | null {
 export class KeycloakJwtStrategy extends PassportStrategy(Strategy, "jwt") {
   private readonly clientId: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(configService: ConfigService) {
     const ssoAuthServerUrl = configService.get<string>("SSO_AUTH_SERVER_URL");
     const realm = configService.get<string>("SSO_REALM");
     const clientId = configService.get<string>("SSO_CLIENT_ID");
@@ -79,7 +90,7 @@ export class KeycloakJwtStrategy extends PassportStrategy(Strategy, "jwt") {
    * Validates the JWT payload and normalizes Keycloak roles.
    * This method is called automatically by Passport after signature verification.
    */
-  validate(payload: any): User {
+  validate(payload: KeycloakJwtPayload): User {
     const normalizedRoles = this.extractRoles(payload);
 
     return {
@@ -99,13 +110,7 @@ export class KeycloakJwtStrategy extends PassportStrategy(Strategy, "jwt") {
    * - realm_access.roles[] (realm-level roles)
    * - resource_access.<client-id>.roles[] (client-specific roles)
    */
-  private extractRoles(
-    payload: {
-      realm_access?: { roles?: string[] };
-      resource_access?: Record<string, { roles?: string[] }>;
-      roles?: string[];
-    },
-  ): string[] {
+  private extractRoles(payload: KeycloakJwtPayload): string[] {
     const roleSet = new Set<string>();
 
     const pushRoles = (roles?: string[]) => {

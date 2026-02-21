@@ -1,6 +1,6 @@
 import { ExecutionContext, ForbiddenException } from "@nestjs/common";
-import { CsrfGuard } from "./csrf.guard";
 import { AUTH_COOKIE_NAMES, CSRF_HEADER_NAME } from "./cookie-auth.utils";
+import { CsrfGuard } from "./csrf.guard";
 
 function createMockContext(overrides: {
   method: string;
@@ -28,7 +28,11 @@ describe("CsrfGuard", () => {
   });
 
   describe("safe methods", () => {
-    it.each(["GET", "HEAD", "OPTIONS"])("should allow %s requests", (method) => {
+    it.each([
+      "GET",
+      "HEAD",
+      "OPTIONS",
+    ])("should allow %s requests", (method) => {
       const context = createMockContext({ method });
       expect(guard.canActivate(context)).toBe(true);
     });

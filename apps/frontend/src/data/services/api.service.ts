@@ -55,10 +55,9 @@ class ApiService {
 
           // Single-flight: reuse existing refresh promise if one is in-flight
           if (!this.refreshPromise && this.refreshCallback) {
-            this.refreshPromise = this.refreshCallback()
-              .finally(() => {
-                this.refreshPromise = null;
-              });
+            this.refreshPromise = this.refreshCallback().finally(() => {
+              this.refreshPromise = null;
+            });
           }
 
           if (this.refreshPromise) {

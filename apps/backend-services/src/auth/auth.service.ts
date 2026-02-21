@@ -1,4 +1,9 @@
-import { HttpException, HttpStatus, Injectable, OnModuleInit } from "@nestjs/common";
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  OnModuleInit,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as client from "openid-client";
 import { URL } from "url";

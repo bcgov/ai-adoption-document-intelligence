@@ -123,10 +123,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const fetchMe = useCallback(async (): Promise<AuthUser | null> => {
     try {
-      const response = await axios.get<MeResponse>(
-        `${apiBaseUrl}/auth/me`,
-        { withCredentials: true },
-      );
+      const response = await axios.get<MeResponse>(`${apiBaseUrl}/auth/me`, {
+        withCredentials: true,
+      });
       return meResponseToUser(response.data);
     } catch {
       return null;
@@ -149,10 +148,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         },
       );
 
-      const expiresAt = Math.floor(Date.now() / 1000) + response.data.expires_in;
-      setUser((prev) =>
-        prev ? { ...prev, expires_at: expiresAt } : prev,
-      );
+      const expiresAt =
+        Math.floor(Date.now() / 1000) + response.data.expires_in;
+      setUser((prev) => (prev ? { ...prev, expires_at: expiresAt } : prev));
     } catch {
       setUser(null);
     }
@@ -225,7 +223,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const now = Math.floor(Date.now() / 1000);
         const buffer = 60;
         if (user.expires_at - now < buffer) {
-          refreshToken().catch(() => {});
+          // Intentionally swallowing errors — refresh failure is handled by the interceptor
+          refreshToken().catch(() => {
+            /* silent */
+          });
         }
       }
     };

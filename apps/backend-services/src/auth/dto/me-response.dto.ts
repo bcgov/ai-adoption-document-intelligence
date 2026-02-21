@@ -11,15 +11,22 @@ export class MeResponseDto {
   @ApiPropertyOptional({ description: "User display name" })
   name?: string;
 
-  @ApiPropertyOptional({ description: "Keycloak preferred username or IDIR username" })
+  @ApiPropertyOptional({
+    description: "Keycloak preferred username or IDIR username",
+  })
   preferred_username?: string;
 
   @ApiPropertyOptional({ description: "User email address" })
   email?: string;
 
-  @ApiProperty({ description: "Normalized roles from Keycloak JWT", type: [String] })
+  @ApiProperty({
+    description: "Normalized roles from Keycloak JWT",
+    type: [String],
+  })
   roles: string[];
 
-  @ApiProperty({ description: "Seconds until the current access token expires" })
+  @ApiProperty({
+    description: "Seconds until the current access token expires",
+  })
   expires_in: number;
 }
