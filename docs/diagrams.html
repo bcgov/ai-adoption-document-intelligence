@@ -711,13 +711,20 @@
                     </a>
                 </div>
             </div>
+            <div class="nav-dropdown">
+                <span class="nav-trigger">Technical Documentation</span>
+                <div class="nav-dropdown-menu">
+                    <a href="authentication.html">
+                        Authentication
+                        <small>OAuth 2.0, PKCE, RBAC &amp; API keys</small>
+                    </a>
+                </div>
+            </div>
             <a href="api-reference.html" class="">API Reference</a>
             <a href="diagrams.html" class="active">Diagrams</a>
         </nav>
     </header>
     <main>
-<!-- TITLE: Architecture Diagrams -->
-<!-- NAV: diagrams -->
 
 <style>
 /* SVG Viewer Styles */
@@ -941,6 +948,15 @@
             <p>OpenShift cluster layout, ingress, services, and external dependencies</p>
         </div>
     </div>
+    <div class="diagram-card" onclick="loadDiagram('authentication-flow', this)">
+        <div class="diagram-card-preview">
+            <img src="assets/authentication-flow.svg" alt="Authentication Flow Preview" onerror="this.parentElement.innerHTML='<div style=\'color:#666;font-size:0.9rem;\'>Preview unavailable</div>'">
+        </div>
+        <div class="diagram-card-info">
+            <h4>Authentication Flow</h4>
+            <p>OAuth 2.0 Authorization Code + PKCE sequence — login, token refresh, and logout</p>
+        </div>
+    </div>
 </div>
 
 <h2>Interactive Viewer</h2>
@@ -1026,6 +1042,17 @@
             <li>Task queue polling and execution model</li>
         </ul>
     </div>
+    <div class="card" style="border-left-color: #dc2626;">
+        <h3 style="margin-top: 0;">Authentication Flow</h3>
+        <p>OAuth 2.0 sequence showing:</p>
+        <ul style="margin-bottom: 0;">
+            <li>Login with PKCE and state parameter</li>
+            <li>Authorization code exchange via openid-client</li>
+            <li>Proactive token refresh and 401 interceptor</li>
+            <li>API key authentication alternative</li>
+            <li>Logout and session termination</li>
+        </ul>
+    </div>
 </div>
 
 <h2>Using SVG Diagrams</h2>
@@ -1085,6 +1112,10 @@ const diagrams = {
     'deployment': {
         title: 'Deployment Topology',
         src: 'assets/deployment.svg'
+    },
+    'authentication-flow': {
+        title: 'Authentication Flow',
+        src: 'assets/authentication-flow.svg'
     }
 };
 
