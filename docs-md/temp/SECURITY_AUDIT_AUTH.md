@@ -24,13 +24,41 @@ The authentication architecture follows a sound design: confidential OAuth 2.0 A
 
 However, this audit identified **2 critical**, **4 high**, **6 medium**, and **5 low/informational** findings that should be addressed, ranging from missing rate limiting on authentication endpoints to a duplicate decorator definition that could lead to authorization bypass confusion.
 
+**Remediation Progress:** 1 of 17 findings resolved.
+
+| Finding | Severity | Status |
+|---------|----------|--------|
+| C-1: No Rate Limiting | Critical | ✅ Resolved |
+| C-2: No Security Headers (Helmet) | Critical | ⬚ Open |
+| H-1: CSRF Token No maxAge | High | ⬚ Open |
+| H-2: API Key Empty Roles | High | ⬚ Open |
+| H-3: Duplicate ApiKeyAuth Decorator | High | ⬚ Open |
+| H-4: Auth Error Message Leaks | High | ⬚ Open |
+| M-1 through M-6 | Medium | ⬚ Open |
+| L-1 through L-5 | Low | ⬚ Open |
+
 ---
 
 ## Findings — Critical
 
-### C-1: No Rate Limiting on Authentication Endpoints
+### C-1: No Rate Limiting on Authentication Endpoints — ✅ RESOLVED
 
 **Location:** [apps/backend-services/src/main.ts](../apps/backend-services/src/main.ts), [apps/backend-services/src/auth/auth.controller.ts](../apps/backend-services/src/auth/auth.controller.ts)
+
+**Status:** Resolved on 2026-02-21.
+
+**Resolution:** Implemented `@nestjs/throttler` (v6.5.0) with:
+- **Global default:** 100 requests per minute per IP (configured in `AppModule` via `ThrottlerModule.forRoot()` with `ThrottlerGuard` as global `APP_GUARD`)
+- **`POST /api/auth/refresh`:** 5 requests per minute (via `@Throttle()` decorator)
+- **`GET /api/auth/login`:** 10 requests per minute (via `@Throttle()` decorator)
+- **`GET /api/auth/callback`:** 10 requests per minute (via `@Throttle()` decorator)
+- **`GET /api/auth/logout`:** 10 requests per minute (via `@Throttle()` decorator)
+- Rate limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `Retry-After`) are included in responses
+- Returns HTTP 429 when limits are exceeded
+- Tests added in `auth/throttle.spec.ts` (8 tests: decorator metadata validation + integration tests with actual HTTP requests proving 429 behavior)
+
+<details>
+<summary>Original finding (pre-resolution)</summary>
 
 **Description:** There is no rate limiting on any endpoint in the application. This is most dangerous for authentication-related endpoints:
 
@@ -44,6 +72,8 @@ No `@nestjs/throttler`, express-rate-limit, or any other rate-limiting mechanism
 **Impact:** Brute-force attacks, credential stuffing, denial-of-service via bcrypt CPU exhaustion on API key validation.
 
 **Recommendation:** Add `@nestjs/throttler` with strict limits on auth endpoints (e.g., 5 requests/minute for `/refresh`, 10/minute for `/login`). Apply a global default rate limit (e.g., 100 requests/minute) and tighter per-route limits on sensitive endpoints.
+
+</details>
 
 ---
 

@@ -17,8 +17,10 @@ import {
   ApiOperation,
   ApiResponse,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import {
@@ -50,6 +52,7 @@ export class AuthController {
    */
   @Public()
   @Post("refresh")
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @ApiOperation({
     summary: "Refresh provider tokens using the refresh_token cookie",
   })
@@ -59,6 +62,9 @@ export class AuthController {
   })
   @ApiBadRequestResponse({ description: "Failed to refresh access token" })
   @ApiUnauthorizedResponse({ description: "No refresh token cookie present" })
+  @ApiTooManyRequestsResponse({
+    description: "Rate limit exceeded — max 5 requests per minute",
+  })
   async refreshToken(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -81,6 +87,7 @@ export class AuthController {
    */
   @Public()
   @Get("login")
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({ summary: "Redirect to Keycloak authorization endpoint" })
   @ApiResponse({
     status: 302,
@@ -94,6 +101,9 @@ export class AuthController {
   })
   @ApiInternalServerErrorResponse({
     description: "Failed to generate login URL",
+  })
+  @ApiTooManyRequestsResponse({
+    description: "Rate limit exceeded — max 10 requests per minute",
   })
   async getLoginUrl(@Res() res: Response) {
     try {
@@ -122,6 +132,7 @@ export class AuthController {
    */
   @Public()
   @Get("logout")
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({
     summary: "Clear auth cookies and redirect to Keycloak logout",
   })
@@ -138,6 +149,9 @@ export class AuthController {
   })
   @ApiInternalServerErrorResponse({
     description: "Failed to generate logout URL",
+  })
+  @ApiTooManyRequestsResponse({
+    description: "Rate limit exceeded — max 10 requests per minute",
   })
   async logout(@Req() req: Request, @Res() res: Response) {
     try {
@@ -161,6 +175,7 @@ export class AuthController {
    */
   @Public()
   @Get("callback")
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({
     summary:
       "Handle Keycloak OAuth callback, set auth cookies, and redirect to application",

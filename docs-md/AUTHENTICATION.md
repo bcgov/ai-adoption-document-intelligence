@@ -186,6 +186,7 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 | `passport-jwt` | 4.x | JWT extraction and validation strategy |
 | `openid-client` | 6.8.2 | OIDC discovery, PKCE, token exchange, refresh, and ID token validation |
 | `cookie-parser` | 1.4.7 | Parse HTTP cookies on incoming requests |
+| `@nestjs/throttler` | 6.5.0 | Global and per-route rate limiting to prevent brute-force and DoS |
 | `class-validator` | 0.14.3 | DTO validation for all auth routes |
 | `class-transformer` | 0.5.1 | DTO transformation |
 
@@ -194,6 +195,7 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 - **`openid-client`**: Handles OIDC discovery, PKCE code challenge/verifier generation, authorization code exchange, refresh grants, and ID token signature verification — replaces manual `jsonwebtoken`/`jwks-rsa`/`axios` usage
 - **`passport-jwt`**: Extracts JWTs from cookies (primary) or Authorization header (fallback) and validates them via JWKS
 - **`cookie-parser`**: Parses cookies so controllers and guards can read auth tokens from `req.cookies`
+- **`@nestjs/throttler`**: Provides global rate limiting (100 requests/minute default) and per-route overrides on sensitive auth endpoints (5–10 requests/minute)
 - **`class-validator`**: Ensures all incoming OAuth callback parameters and request bodies are well-formed
 
 ### Frontend Dependencies
@@ -646,9 +648,39 @@ export class AdminController {
 
 #### 6. **Module Wiring** (`auth.module.ts`)
 
-Global guards are registered via `APP_GUARD` provider token, which applies them to all routes automatically:
+Global guards are registered via `APP_GUARD` provider token, which applies them to all routes automatically.
+
+**Rate limiting** is configured globally in the `AppModule` via `ThrottlerModule` and `ThrottlerGuard`:
 
 ```typescript
+// app.module.ts — Global rate limiting
+@Module({
+  imports: [
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          name: "default",
+          ttl: 60_000,    // 1 minute window
+          limit: 100,     // 100 requests per minute per IP
+        },
+      ],
+    }),
+    // ... other modules
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,  // Enforces rate limits globally
+    },
+  ],
+})
+export class AppModule {}
+```
+
+**Auth-specific guards** are registered in the `AuthModule`:
+
+```typescript
+// auth.module.ts — Authentication guards
 @Module({
   imports: [ConfigModule, PassportModule.register({ defaultStrategy: 'jwt' }), ApiKeyModule],
   controllers: [AuthController],
@@ -678,10 +710,11 @@ export class AuthModule {}
 ```
 
 **Guard Execution Order:**
-1. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
-2. `ApiKeyAuthGuard` → Validates API key (if applicable) → Sets `request.user`
-3. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
-4. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
+1. `ThrottlerGuard` → Enforces per-IP rate limits (global default or per-route override)
+2. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
+3. `ApiKeyAuthGuard` → Validates API key (if applicable) → Sets `request.user`
+4. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
+5. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
 
 ### Security Mechanisms
 
@@ -715,6 +748,31 @@ All access tokens are verified using Keycloak's public keys:
 - Cached with rate limiting (5 requests per minute)
 - RS256 asymmetric signature verification
 - Validates `issuer` and `audience` claims
+
+#### Rate Limiting
+
+All endpoints are protected by `@nestjs/throttler` with a default global rate limit. Auth endpoints have stricter per-route limits:
+
+| Endpoint | Method | Rate Limit | Window |
+|----------|--------|-----------|--------|
+| All endpoints (default) | Any | 100 requests | 1 minute |
+| `/api/auth/refresh` | POST | 5 requests | 1 minute |
+| `/api/auth/login` | GET | 10 requests | 1 minute |
+| `/api/auth/callback` | GET | 10 requests | 1 minute |
+| `/api/auth/logout` | GET | 10 requests | 1 minute |
+| `/api/auth/me` | GET | 100 requests (global default) | 1 minute |
+
+**Why strict limits on auth endpoints?**
+- `/api/auth/refresh` is the most sensitive — it can generate unlimited CSRF tokens and probe for valid refresh tokens. Limited to 5/minute.
+- `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` are rate-limited to 10/minute to prevent login flood attacks and authorization code brute-forcing.
+- API key validation involves bcrypt comparison, making it a CPU-exhaustion vector under high request volume. The global default rate limit (100/minute) protects against this.
+
+**Response headers** on rate-limited endpoints:
+- `X-RateLimit-Limit`: Maximum number of requests allowed in the window
+- `X-RateLimit-Remaining`: Number of requests remaining in the current window
+- `Retry-After`: Seconds until the rate limit resets (only on 429 responses)
+
+When a rate limit is exceeded, the server responds with HTTP `429 Too Many Requests`.
 
 #### HttpOnly Cookie Security
 

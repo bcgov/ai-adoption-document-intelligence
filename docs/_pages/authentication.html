@@ -176,7 +176,7 @@ X-CSRF-Token: abc123...</code></pre>
 
 <h3>Guard Execution Order</h3>
 
-<p>Four guards are registered globally via NestJS <code>APP_GUARD</code>. They execute in this order on every request:</p>
+<p>Five guards are registered globally via NestJS <code>APP_GUARD</code>. They execute in this order on every request:</p>
 
 <table>
     <thead>
@@ -185,21 +185,26 @@ X-CSRF-Token: abc123...</code></pre>
     <tbody>
         <tr>
             <td><strong>1</strong></td>
+            <td><code>ThrottlerGuard</code></td>
+            <td>Enforces per-IP rate limits. Default: 100 requests/minute. Auth endpoints have stricter per-route limits (5–10 requests/minute). Returns 429 when exceeded.</td>
+        </tr>
+        <tr>
+            <td><strong>2</strong></td>
             <td><code>JwtAuthGuard</code></td>
             <td>Extends Passport <code>AuthGuard('jwt')</code>. Skips <code>@Public()</code> routes. Defers to API key guard if <code>@ApiKeyAuth()</code> and <code>x-api-key</code> header present. Otherwise validates token via <code>KeycloakJwtStrategy</code> (cookie-first, Bearer fallback).</td>
         </tr>
         <tr>
-            <td><strong>2</strong></td>
+            <td><strong>3</strong></td>
             <td><code>CsrfGuard</code></td>
             <td>Validates CSRF double-submit token on state-changing requests (POST, PUT, DELETE, PATCH) when the user is authenticated via cookies. Skips Bearer and API-key authenticated requests.</td>
         </tr>
         <tr>
-            <td><strong>3</strong></td>
+            <td><strong>4</strong></td>
             <td><code>ApiKeyAuthGuard</code></td>
             <td>Validates <code>X-API-Key</code> header on <code>@ApiKeyAuth()</code>-decorated routes. Skips if user already authenticated via JWT.</td>
         </tr>
         <tr>
-            <td><strong>4</strong></td>
+            <td><strong>5</strong></td>
             <td><code>RolesGuard</code></td>
             <td>Checks <code>@Roles()</code> decorator metadata against <code>request.user.roles</code>. Requires at least one matching role.</td>
         </tr>
@@ -354,6 +359,10 @@ export class AdminController {
         <h3 style="margin-top: 0;">CSRF Double-Submit Cookie</h3>
         <p>A random CSRF token is set as a non-HttpOnly cookie and must be echoed in the <code>X-CSRF-Token</code> header on state-changing requests. The global <code>CsrfGuard</code> validates this for all cookie-authenticated POST/PUT/DELETE/PATCH requests.</p>
     </div>
+    <div class="card" style="border-left-color: #22c55e;">
+        <h3 style="margin-top: 0;">Rate Limiting</h3>
+        <p>All endpoints are protected by <code>@nestjs/throttler</code> with a global default of <strong>100 requests per minute per IP</strong>. Auth endpoints have stricter limits: <code>/api/auth/refresh</code> at <strong>5/min</strong>, and <code>/api/auth/login</code>, <code>/api/auth/callback</code>, <code>/api/auth/logout</code> at <strong>10/min</strong>. Exceeding limits returns <code>429 Too Many Requests</code> with rate limit headers.</p>
+    </div>
 </div>
 
 <!-- ====================================================================== -->
@@ -427,6 +436,7 @@ export class AdminController {
         <tr><td><code>openid-client</code> (v6.x)</td><td>OpenID-certified RP — discovery, authorization URL, code exchange, token refresh, ID token validation, JWKS key resolution</td></tr>
         <tr><td><code>@nestjs/passport</code></td><td>Passport integration for NestJS guards and strategies</td></tr>
         <tr><td><code>passport-jwt</code></td><td>JWT extraction (cookie-first with Bearer fallback) and validation strategy</td></tr>
+        <tr><td><code>@nestjs/throttler</code></td><td>Global and per-route rate limiting — protects against brute-force, credential stuffing, and DoS attacks</td></tr>
         <tr><td><code>cookie-parser</code></td><td>Express middleware for parsing cookies from incoming requests</td></tr>
         <tr><td><code>class-validator</code></td><td>DTO validation for all auth request/response shapes</td></tr>
     </tbody>
@@ -454,7 +464,7 @@ export class AdminController {
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     </div>
     <div>
-        <strong>Progress.</strong> Items 1 and 2 have been resolved with the cookie-based auth migration. The remaining items are improvements for maintainability and operational excellence.
+    <p><strong>Progress.</strong> Items 1, 2, and 5 have been resolved with the cookie-based auth migration and rate limiting implementation. The remaining items are improvements for maintainability and operational excellence.</p>
     </div>
 </div>
 
@@ -484,11 +494,10 @@ export class AdminController {
     <p><strong>Recommendation:</strong> Remove the duplicate definition. Consolidate into a single canonical location (either <code>auth/</code> or <code>decorators/</code>) and update all imports.</p>
 </div>
 
-<h3>5. No Rate Limiting on Auth Endpoints</h3>
+<h3>5. <s>No Rate Limiting on Auth Endpoints</s> — RESOLVED</h3>
 
-<div class="card" style="border-left-color: #0ea5e9;">
-    <p><strong>Issue:</strong> The <code>/api/auth/refresh</code> endpoint has no rate limiting. While Keycloak itself provides some brute-force protection for the login flow, the backend refresh endpoint is a direct target for abuse.</p>
-    <p><strong>Recommendation:</strong> Add <code>@nestjs/throttler</code> with appropriate rate limits. For example, limit <code>/api/auth/refresh</code> to 10 requests per minute per IP.</p>
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> Global rate limiting is now enforced via <code>@nestjs/throttler</code>. A default limit of <strong>100 requests per minute per IP</strong> applies to all endpoints. Authentication endpoints have stricter per-route limits: <code>/api/auth/refresh</code> is limited to <strong>5 requests/minute</strong>, while <code>/api/auth/login</code>, <code>/api/auth/callback</code>, and <code>/api/auth/logout</code> are limited to <strong>10 requests/minute</strong>. When limits are exceeded, the server returns HTTP <code>429 Too Many Requests</code> with <code>Retry-After</code> headers.</p>
 </div>
 
 <h3>6. No Structured Logging for Authentication Events</h3>
