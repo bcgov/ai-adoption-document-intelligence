@@ -69,4 +69,55 @@ describe("AuthSessionStore", () => {
       jest.useRealTimers();
     });
   });
+
+  describe("savePKCEState", () => {
+    it("should save PKCE state for a given state token", () => {
+      store.savePKCEState("state-token", "code-verifier", "nonce-value");
+      const pkceState = store.consumePKCEState("state-token");
+      expect(pkceState.codeVerifier).toBe("code-verifier");
+      expect(pkceState.nonce).toBe("nonce-value");
+    });
+
+    it("should allow different state tokens to coexist", () => {
+      store.savePKCEState("state1", "verifier1", "nonce1");
+      store.savePKCEState("state2", "verifier2", "nonce2");
+      const pkce1 = store.consumePKCEState("state1");
+      const pkce2 = store.consumePKCEState("state2");
+      expect(pkce1.codeVerifier).toBe("verifier1");
+      expect(pkce2.codeVerifier).toBe("verifier2");
+    });
+  });
+
+  describe("consumePKCEState", () => {
+    it("should return PKCE state and remove entry when state is valid", () => {
+      store.savePKCEState("state-token", "code-verifier", "nonce-value");
+      const pkceState = store.consumePKCEState("state-token");
+      expect(pkceState).toEqual({
+        codeVerifier: "code-verifier",
+        nonce: "nonce-value",
+      });
+      expect(() => store.consumePKCEState("state-token")).toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("should throw NotFoundException when state is unknown", () => {
+      expect(() => store.consumePKCEState("unknown-state")).toThrow(
+        NotFoundException,
+      );
+      expect(() => store.consumePKCEState("unknown-state")).toThrow(
+        "Invalid or expired OAuth state",
+      );
+    });
+
+    it("should throw NotFoundException when PKCE state is expired", () => {
+      jest.useFakeTimers();
+      store.savePKCEState("state-token", "code-verifier", "nonce-value");
+      jest.advanceTimersByTime(11 * 60 * 1000); // past 10 minute TTL
+      expect(() => store.consumePKCEState("state-token")).toThrow(
+        NotFoundException,
+      );
+      jest.useRealTimers();
+    });
+  });
 });

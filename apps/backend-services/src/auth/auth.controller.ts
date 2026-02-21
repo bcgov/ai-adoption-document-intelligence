@@ -84,7 +84,7 @@ export class AuthController {
   @ApiInternalServerErrorResponse({ example: "Failed to generate login URL" })
   async getLoginUrl(@Res() res: Response) {
     try {
-      const loginUrl = this.authService.getLoginUrl();
+      const loginUrl = await this.authService.getLoginUrl();
       res.redirect(loginUrl);
     } catch {
       res

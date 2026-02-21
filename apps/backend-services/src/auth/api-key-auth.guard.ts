@@ -30,7 +30,7 @@ export class ApiKeyAuthGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<Request>();
 
-    // Check if already authenticated via Bearer token (handled by BCGovAuthGuard)
+    // Check if already authenticated via Bearer token (handled by JwtAuthGuard)
     if (request.user) {
       return true;
     }
