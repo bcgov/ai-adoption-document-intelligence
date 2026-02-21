@@ -106,7 +106,7 @@ describe("AuthSessionStore", () => {
         NotFoundException,
       );
       expect(() => store.consumePKCEState("unknown-state")).toThrow(
-        "Invalid or expired OAuth state",
+        "PKCE state expired or invalid",
       );
     });
 
