@@ -1,9 +1,15 @@
-import { ExecutionContext, Injectable } from "@nestjs/common";
+import {
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { AuthGuard } from "@nestjs/passport";
 import { Request } from "express";
 import { API_KEY_AUTH_KEY } from "@/decorators/custom-auth-decorators";
+import { cookieOrBearerExtractor } from "./cookie-auth.utils";
 import { IS_PUBLIC_KEY } from "./public.decorator";
+import { TokenIntrospectionService } from "./token-introspection.service";
 
 /**
  * JWT authentication guard that wraps Passport's JWT strategy.
@@ -12,14 +18,18 @@ import { IS_PUBLIC_KEY } from "./public.decorator";
  * - Skips validation for routes marked with @Public()
  * - Defers to ApiKeyAuthGuard for routes marked with @ApiKeyAuth() when an API key is present
  * - Validates bearer tokens using the KeycloakJwtStrategy for all other routes
+ * - Checks token revocation via Keycloak introspection (cached for 5 minutes)
  */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard("jwt") {
-  constructor(private reflector: Reflector) {
+  constructor(
+    private reflector: Reflector,
+    private tokenIntrospectionService: TokenIntrospectionService,
+  ) {
     super();
   }
 
-  canActivate(context: ExecutionContext) {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     // Check if route is marked as public
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
@@ -44,6 +54,24 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
     }
 
     // Delegate to Passport JWT strategy for bearer token validation
-    return super.canActivate(context);
+    const passportResult = await (
+      super.canActivate(context) as Promise<boolean>
+    );
+
+    if (!passportResult) {
+      return false;
+    }
+
+    // After JWT signature validation succeeds, check token revocation
+    const token = cookieOrBearerExtractor(request);
+    if (token) {
+      const isActive =
+        await this.tokenIntrospectionService.isTokenActive(token);
+      if (!isActive) {
+        throw new UnauthorizedException("Token has been revoked");
+      }
+    }
+
+    return true;
   }
 }

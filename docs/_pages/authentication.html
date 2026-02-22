@@ -191,12 +191,12 @@ X-CSRF-Token: abc123...</code></pre>
         <tr>
             <td><strong>2</strong></td>
             <td><code>JwtAuthGuard</code></td>
-            <td>Extends Passport <code>AuthGuard('jwt')</code>. Skips <code>@Public()</code> routes. Defers to API key guard if <code>@ApiKeyAuth()</code> and <code>x-api-key</code> header present. Otherwise validates token via <code>KeycloakJwtStrategy</code> (cookie-first, Bearer fallback).</td>
+            <td>Extends Passport <code>AuthGuard('jwt')</code>. Skips <code>@Public()</code> routes. Defers to API key guard if <code>@ApiKeyAuth()</code> and <code>x-api-key</code> header present. Otherwise validates token via <code>KeycloakJwtStrategy</code> (cookie-first, Bearer fallback), then checks token revocation via <code>TokenIntrospectionService</code> (Keycloak introspection, cached 5 minutes).</td>
         </tr>
         <tr>
             <td><strong>3</strong></td>
             <td><code>ApiKeyAuthGuard</code></td>
-            <td>Validates <code>X-API-Key</code> header on <code>@ApiKeyAuth()</code>-decorated routes. Skips if user already authenticated via JWT.</td>
+            <td>Validates <code>X-API-Key</code> header on <code>@ApiKeyAuth()</code>-decorated routes. Skips if user already authenticated via JWT. Tracks failed validation attempts per IP — after 20 failures/minute, blocks with <code>429 Too Many Requests</code> before reaching the expensive bcrypt comparison.</td>
         </tr>
         <tr>
             <td><strong>4</strong></td>
@@ -361,7 +361,11 @@ export class AdminController {
     </div>
     <div class="card" style="border-left-color: #22c55e;">
         <h3 style="margin-top: 0;">Rate Limiting</h3>
-        <p>All endpoints are protected by <code>@nestjs/throttler</code> with a global default of <strong>100 requests per minute per IP</strong>. Auth endpoints have stricter limits: <code>/api/auth/refresh</code> at <strong>5/min</strong>, and <code>/api/auth/login</code>, <code>/api/auth/callback</code>, <code>/api/auth/logout</code> at <strong>10/min</strong>. Exceeding limits returns <code>429 Too Many Requests</code> with rate limit headers.</p>
+        <p>All endpoints are protected by <code>@nestjs/throttler</code> with a global default of <strong>100 requests per minute per IP</strong>. Auth endpoints have stricter limits: <code>/api/auth/refresh</code> at <strong>5/min</strong>, and <code>/api/auth/login</code>, <code>/api/auth/callback</code>, <code>/api/auth/logout</code> at <strong>10/min</strong>. API key validation has in-guard failed-attempt throttling at <strong>20 failures/min/IP</strong>. Exceeding limits returns <code>429 Too Many Requests</code>.</p>
+    </div>
+    <div class="card" style="border-left-color: #06b6d4;">
+        <h3 style="margin-top: 0;">Token Introspection (Revocation Check)</h3>
+        <p>After JWT signature verification, the <code>JwtAuthGuard</code> checks token revocation via Keycloak's introspection endpoint (RFC 7662) using <code>openid-client.tokenIntrospection()</code>. Results are cached in-memory for <strong>5 minutes</strong> per token (keyed by SHA-256 hash). Fails open on introspection errors — the JWT is already signature-validated, introspection is defense-in-depth. Revoked tokens return <code>401 Unauthorized</code>.</p>
     </div>
     <div class="card" style="border-left-color: #a855f7;">
         <h3 style="margin-top: 0;">Security Headers (Helmet)</h3>
@@ -485,11 +489,10 @@ export class AdminController {
     <p><strong>Resolved:</strong> Tokens are now stored in <strong>HttpOnly, Secure, SameSite=Lax</strong> cookies. JavaScript cannot access tokens at all. CSRF protection is implemented via a double-submit cookie pattern with the global <code>CsrfGuard</code>. The SPA never handles raw tokens — it only interacts with the <code>/api/auth/me</code> endpoint for profile data.</p>
 </div>
 
-<h3>3. No Token Revocation Check on the Backend</h3>
+<h3>3. <s>No Token Revocation Check on the Backend</s> — RESOLVED</h3>
 
-<div class="card" style="border-left-color: #f59e0b;">
-    <p><strong>Issue:</strong> Bearer token validation only checks the JWT signature, issuer, audience, and expiration. If a token is revoked in Keycloak (e.g., user account disabled, admin-initiated session termination), the token remains valid until it naturally expires. This is inherent to stateless JWT validation.</p>
-    <p><strong>Recommendation:</strong> Implement <strong>token introspection</strong> for sensitive operations. Use Keycloak's <code>/protocol/openid-connect/token/introspect</code> endpoint to check if a token is still active. This can be applied selectively (e.g., for admin operations, write operations) to avoid the performance overhead on every request. Alternatively, use short-lived access tokens (e.g., 5 minutes) combined with refresh token rotation to reduce the window of exposure.</p>
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> The <code>TokenIntrospectionService</code> now checks token revocation against Keycloak's introspection endpoint (RFC 7662) via <code>openid-client.tokenIntrospection()</code>. All authenticated requests (non-<code>@Public()</code>, non-API-key) are checked after JWT signature validation. Results are cached in-memory for <strong>5 minutes</strong> per token, keyed by SHA-256 hash (raw tokens never stored in memory). The service fails open on introspection errors (network issues, Keycloak unavailability) since the JWT is already signature-validated — introspection is defense-in-depth. Revoked tokens return <code>401 Unauthorized</code> with message "Token has been revoked".</p>
 </div>
 
 <h3>4. <s>Duplicate Decorator Definitions</s> — RESOLVED</h3>
@@ -540,11 +543,8 @@ export class AdminController {
     <p><strong>Recommendation:</strong> Add resource ownership validation at the service layer. Either filter queries by <code>userId</code> (e.g., <code>WHERE user_id = $1 AND id = $2</code>), check ownership after retrieval and throw <code>ForbiddenException</code>, or implement a tenant/organization scoping middleware.</p>
 </div>
 
-<h3>11. No Rate Limiting on API Key Validation Path</h3>
+<h3>11. <s>No Rate Limiting on API Key Validation Path</s> — RESOLVED</h3>
 
-<div class="card" style="border-left-color: #f59e0b;">
-    <p><strong>Severity:</strong> Medium</p>
-    <p><strong>Issue:</strong> Auth endpoints (<code>/login</code>, <code>/refresh</code>, <code>/logout</code>, <code>/callback</code>) all have <code>@Throttle()</code> decorators with strict per-route limits. However, the API key validation path (via <code>ApiKeyAuthGuard</code> on any <code>@ApiKeyAuth()</code> route) has no rate limiting beyond the global default of 100 requests/minute. Each failed API key validation triggers a database query (prefix lookup) and a <code>bcrypt.compare()</code> operation (CPU-intensive, cost factor 10).</p>
-    <p><strong>Impact:</strong> An attacker sending rapid invalid <code>x-api-key</code> headers can cause CPU exhaustion via bcrypt comparisons and saturate database connections. While the 256-bit key is not brute-forceable, the resource exhaustion vector is real (denial of service).</p>
-    <p><strong>Recommendation:</strong> Add tighter <code>@Throttle()</code> decorators to routes that accept API key auth, or add failed-validation throttling in the <code>ApiKeyAuthGuard</code> itself (e.g., track failed attempts per IP).</p>
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> The <code>ApiKeyAuthGuard</code> now tracks failed API key validation attempts per IP address in-memory. After <strong>20 failed attempts</strong> within a 60-second window, further attempts from the same IP are blocked with <code>429 Too Many Requests</code> before reaching the expensive database query and bcrypt comparison. The counter resets on successful validation or when the time window expires. Stale records are swept every 60 seconds to prevent memory leaks.</p>
 </div>

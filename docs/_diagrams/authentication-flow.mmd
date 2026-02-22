@@ -46,7 +46,10 @@ sequenceDiagram
     API ->> BE: GET /api/documents<br/>(cookies sent automatically)
     BE ->> Guard: JwtAuthGuard intercepts
     Guard ->> Guard: Extract JWT from<br/>access_token cookie
-    Guard ->> Guard: Verify token<br/>Set request.user
+    Guard ->> Guard: Verify token signature<br/>(iss, aud, exp)
+    Guard ->> KC: Token introspection<br/>(cached 5 min per token)
+    KC -->> Guard: active: true/false
+    Guard ->> Guard: Set request.user
     Guard -->> BE: Authenticated
     BE -->> API: 200 OK (response data)
 
@@ -103,7 +106,8 @@ sequenceDiagram
         Note over API,Guard: Machine-to-Machine (M2M)
         API ->> BE: POST /api/upload<br/>X-API-Key: api_key_value
         BE ->> Guard: JwtAuthGuard skips<br/>(@ApiKeyAuth route + x-api-key present)
-        BE ->> BE: ApiKeyAuthGuard validates key<br/>via ApiKeyService
+        BE ->> BE: ApiKeyAuthGuard checks<br/>failed attempts for IP<br/>(max 20/min, else 429)
+        BE ->> BE: Validate key via ApiKeyService<br/>(prefix lookup + bcrypt)
         BE ->> BE: Set request.user from key<br/>(sub, email, roles)
         BE -->> API: 200 OK
     end

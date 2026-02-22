@@ -225,11 +225,12 @@ apps/backend-services/src/auth/
 ├── auth.module.ts              # Module definition with global guards
 ├── auth.controller.ts          # Public HTTP endpoints for OAuth flow
 ├── auth.service.ts             # Core OAuth orchestration logic
-├── cookie-auth.utils.ts        # Centralized cookie configuration (names, options, helpers)
+├── token-introspection.service.ts  # Token revocation checking via Keycloak introspection (RFC 7662)
+├── cookie-auth.utils.ts        # Centralized cookie configuration, token extraction helpers
 ├── csrf.guard.ts               # CSRF double-submit cookie protection guard
 ├── keycloak-jwt.strategy.ts    # Passport JWT strategy (cookie-first extraction)
-├── jwt-auth.guard.ts           # Passport-based auth guard wrapping the JWT strategy
-├── api-key-auth.guard.ts       # API key validation guard
+├── jwt-auth.guard.ts           # Passport-based auth guard with token introspection
+├── api-key-auth.guard.ts       # API key validation guard with failed-attempt throttling
 ├── roles.guard.ts              # RBAC enforcement guard
 ├── public.decorator.ts         # @Public() metadata
 ├── roles.decorator.ts          # @Roles(...) metadata
@@ -524,7 +525,8 @@ Global guard that validates JWTs on all routes except those marked `@Public()`. 
 4. Validate token via Passport JWT strategy (JWKS RS256 signature verification)
 5. Validate `issuer` and `audience` claims
 6. Normalize Keycloak role claims into `request.user.roles[]`
-7. Attach `user` object to request for downstream use
+7. **Check token revocation** via `TokenIntrospectionService` — calls Keycloak's introspection endpoint with a 5-minute in-memory cache per token. If revoked, throws `UnauthorizedException`
+8. Attach `user` object to request for downstream use
 
 **Passport JWT Strategy (cookie-first extraction):**
 
@@ -687,10 +689,11 @@ export class AppModule {}
   controllers: [AuthController],
   providers: [
     AuthService,
+    TokenIntrospectionService,
     KeycloakJwtStrategy,
     {
       provide: APP_GUARD,
-      useClass: JwtAuthGuard,  // Validates JWT (cookie-first) on all routes
+      useClass: JwtAuthGuard,  // Validates JWT (cookie-first) + introspection on all routes
     },
     {
       provide: APP_GUARD,
@@ -712,8 +715,8 @@ export class AuthModule {}
 
 **Guard Execution Order:**
 1. `ThrottlerGuard` → Enforces per-IP rate limits (global default or per-route override)
-2. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
-3. `ApiKeyAuthGuard` → Validates API key (if applicable) → Sets `request.user`
+2. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Checks token revocation via introspection (cached 5 min) → Sets `request.user`
+3. `ApiKeyAuthGuard` → Checks per-IP failed-attempt limit (20/min) → Validates API key (if applicable) → Sets `request.user`
 4. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
 5. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
 
@@ -750,6 +753,19 @@ All access tokens are verified using Keycloak's public keys:
 - RS256 asymmetric signature verification
 - Validates `issuer` and `audience` claims
 
+#### Token Introspection (Revocation Check)
+
+After JWT signature verification succeeds, the `JwtAuthGuard` checks whether the token has been revoked by Keycloak via the `TokenIntrospectionService`:
+
+- **Endpoint:** Keycloak's `/protocol/openid-connect/token/introspect` (RFC 7662), discovered automatically via `openid-client`
+- **Scope:** All authenticated requests (non-`@Public()`, non-API-key routes)
+- **Caching:** Results are cached in-memory for **5 minutes** per token, keyed by SHA-256 hash of the token (raw tokens are never stored in memory)
+- **Fail-open behavior:** If introspection fails (network error, Keycloak unavailable), the request is allowed through with a warning log. The JWT is already signature-validated — introspection is defense-in-depth, not primary validation
+- **Cache cleanup:** A periodic sweep (every 5 minutes) removes expired cache entries to prevent memory leaks
+- **Revoked tokens:** If `active === false`, the guard throws `UnauthorizedException('Token has been revoked')`
+
+This addresses the gap where a user account disabled in Keycloak or an admin-initiated session termination would not be detected until the JWT naturally expired. With introspection, revoked tokens are detected within the 5-minute cache window.
+
 #### Rate Limiting
 
 All endpoints are protected by `@nestjs/throttler` with a default global rate limit. Auth endpoints have stricter per-route limits:
@@ -762,11 +778,12 @@ All endpoints are protected by `@nestjs/throttler` with a default global rate li
 | `/api/auth/callback` | GET | 10 requests | 1 minute |
 | `/api/auth/logout` | GET | 10 requests | 1 minute |
 | `/api/auth/me` | GET | 100 requests (global default) | 1 minute |
+| API key failed attempts | Any `@ApiKeyAuth()` route | 20 failures per IP | 1 minute |
 
 **Why strict limits on auth endpoints?**
 - `/api/auth/refresh` is the most sensitive — it can generate unlimited CSRF tokens and probe for valid refresh tokens. Limited to 5/minute.
 - `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` are rate-limited to 10/minute to prevent login flood attacks and authorization code brute-forcing.
-- API key validation involves bcrypt comparison, making it a CPU-exhaustion vector under high request volume. The global default rate limit (100/minute) protects against this.
+- API key validation involves bcrypt comparison, making it a CPU-exhaustion vector under high request volume. The `ApiKeyAuthGuard` tracks failed validation attempts per IP in-memory and blocks further attempts after 20 failures within a 60-second window, returning `429 Too Many Requests` before the expensive DB+bcrypt path is reached. The counter resets on successful validation or when the window expires.
 
 **Response headers** on rate-limited endpoints:
 - `X-RateLimit-Limit`: Maximum number of requests allowed in the window
@@ -1692,6 +1709,7 @@ Full error details (Keycloak error codes, token endpoint URLs, internal state) a
 - Issuer and audience claims checked
 - Token expiry enforced
 - Cookie-first extraction with Bearer header fallback
+- **Token revocation checked** via Keycloak introspection endpoint (cached 5 minutes per token)
 
 **Frontend Validation:**
 - Frontend never sees raw tokens
@@ -1780,15 +1798,15 @@ While all endpoints are protected by authentication (JWT or API key), there are 
 
 **Recommendation:** Add resource ownership validation at the service layer. Either filter queries by `userId` (e.g., `WHERE user_id = $1 AND id = $2`), check ownership after retrieval and throw `ForbiddenException`, or implement a tenant/organization scoping middleware.
 
-#### No Rate Limiting on API Key Validation Path
+### Resolved Issues
 
-**Severity:** Medium
+#### ~~No Token Revocation Check on the Backend~~ — RESOLVED
 
-Auth endpoints (`/login`, `/refresh`, `/logout`, `/callback`) all have `@Throttle()` decorators with strict per-route limits. However, the API key validation path (via `ApiKeyAuthGuard` on any `@ApiKeyAuth()` route) has no rate limiting beyond the global default of 100 requests/minute. Each failed API key validation triggers a database query (prefix lookup) and a `bcrypt.compare()` operation (CPU-intensive, cost factor 10).
+**Resolved:** The `TokenIntrospectionService` now checks token revocation against Keycloak's introspection endpoint (RFC 7662) via `openid-client.tokenIntrospection()`. All authenticated requests (non-`@Public()`, non-API-key) are checked after JWT signature validation. Results are cached in-memory for 5 minutes per token (keyed by SHA-256 hash). The service fails open on introspection errors (network issues, Keycloak unavailability) since the JWT is already signature-validated — introspection is defense-in-depth. Revoked tokens return `401 Unauthorized` with message "Token has been revoked".
 
-An attacker sending rapid invalid `x-api-key` headers to any `@ApiKeyAuth()` endpoint can cause CPU exhaustion via bcrypt comparisons and saturate database connections. While the 256-bit key is not brute-forceable, the resource exhaustion vector is real.
+#### ~~No Rate Limiting on API Key Validation Path~~ — RESOLVED
 
-**Recommendation:** Add tighter `@Throttle()` decorators to routes that accept API key auth, or add failed-validation throttling in the `ApiKeyAuthGuard` itself (e.g., track failed attempts per IP).
+**Resolved:** The `ApiKeyAuthGuard` now tracks failed API key validation attempts per IP address in-memory. After 20 failed attempts within a 60-second window, further attempts from the same IP are blocked with `429 Too Many Requests` before reaching the expensive database query and bcrypt comparison. The counter resets on successful validation or when the time window expires. Stale records are swept every 60 seconds.
 
 ---
 

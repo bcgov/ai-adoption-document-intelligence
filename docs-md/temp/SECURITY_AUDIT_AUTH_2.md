@@ -45,7 +45,7 @@ A previous security audit (archived in `docs-md/temp/SECURITY_AUDIT_AUTH.md`) id
 | Severity | Count | Description |
 |----------|-------|-------------|
 | **High** | 0 | — |
-| **Medium** | 4 | Missing resource-level authorization (documented), PKCE cookie not cleared on error (resolved), no `@Roles()` usage, API key validation not rate-limited (documented) |
+| **Medium** | 4 | Missing resource-level authorization (documented), PKCE cookie not cleared on error (resolved), no `@Roles()` usage, API key validation not rate-limited (resolved) |
 | **Low** | 4 | Dead code (resolved), CSRF timing comparison, `getCookie` regex injection |
 
 ---
@@ -57,8 +57,8 @@ The system uses a multi-layer guard stack registered globally via NestJS `APP_GU
 | Order | Guard | Registered In | Purpose |
 |-------|-------|---------------|---------|
 | 1 | `ThrottlerGuard` | `AppModule` | Rate limiting (100 req/60s default) |
-| 2 | `JwtAuthGuard` | `AuthModule` | JWT validation (cookie-first, Bearer fallback); skips `@Public()` |
-| 3 | `ApiKeyAuthGuard` | `AuthModule` | API key validation for `@ApiKeyAuth()` routes |
+| 2 | `JwtAuthGuard` | `AuthModule` | JWT validation (cookie-first, Bearer fallback) + token introspection (revocation check, cached 5 min); skips `@Public()` |
+| 3 | `ApiKeyAuthGuard` | `AuthModule` | API key validation for `@ApiKeyAuth()` routes; failed-attempt throttling (20/min/IP) |
 | 4 | `RolesGuard` | `AuthModule` | RBAC enforcement via `@Roles()` (currently unused) |
 | 5 | `CsrfGuard` | `AuthModule` | Double-submit cookie CSRF on state-changing methods |
 
@@ -74,7 +74,7 @@ Because `JwtAuthGuard` is a global guard, **every route requires JWT authenticat
 | M-1 | No resource-level authorization (IDOR) on most endpoints | **Medium** | Documented |
 | M-2 | PKCE cookie not cleared on state mismatch error path | **Medium** | Resolved |
 | M-3 | `@Roles()` decorator never used — RBAC not enforced | **Medium** | Open (from previous audit M-6) |
-| M-4 | No rate limiting on API key validation path | **Medium** | Documented |
+| M-4 | No rate limiting on API key validation path | **Medium** | Resolved |
 | L-1 | `useSSO` export in AuthContext.tsx is dead code | **Low** | Resolved |
 | L-2 | Legacy `BCGovAuthGuard` comment in jwt-auth.guard.ts | **Low** | Resolved |
 | L-3 | CSRF comparison uses `!==` not `timingSafeEqual` | **Low** | Open |
@@ -156,29 +156,15 @@ This means the application operates on a **binary authenticated/unauthenticated 
 
 ---
 
-### M-4: No Rate Limiting on API Key Validation Path — DOCUMENTED
+### M-4: ~~No Rate Limiting on API Key Validation Path~~ — RESOLVED
 
 **Severity:** Medium
-**Status:** Documented in AUTHENTICATION.md and docs site
+**Status:** Resolved
 **Files:**
 - [apps/backend-services/src/auth/api-key-auth.guard.ts](../apps/backend-services/src/auth/api-key-auth.guard.ts)
 - [apps/backend-services/src/api-key/api-key.service.ts](../apps/backend-services/src/api-key/api-key.service.ts#L121-L147)
 
-**Description:** Auth endpoints (`/login`, `/refresh`, `/logout`, `/callback`) all have `@Throttle()` decorators with strict per-route limits. However, the **API key validation path** (via `ApiKeyAuthGuard` on any `@ApiKeyAuth()` route) has no rate limiting beyond the global default of 100 req/minute.
-
-Each failed API key validation triggers:
-1. A database query (prefix lookup)
-2. A `bcrypt.compare()` operation (CPU-intensive, cost factor 10)
-
-An attacker sending rapid invalid `x-api-key` headers to any `@ApiKeyAuth()` endpoint can:
-- Cause CPU exhaustion via bcrypt comparisons
-- Saturate database connections with prefix lookups
-
-While the 32-byte API key (256 bits of entropy) is not brute-forceable, the **resource exhaustion vector** is real.
-
-**Impact:** Denial of service via CPU exhaustion on bcrypt operations and database connection saturation.
-
-**Recommendation:** Add tighter `@Throttle()` decorators to routes that accept API key auth, or add failed-validation throttling in the `ApiKeyAuthGuard` itself (e.g., track failed attempts per IP).
+**Resolution:** The `ApiKeyAuthGuard` now tracks failed API key validation attempts per IP address using an in-memory `Map`. After **20 failed attempts** within a 60-second window, further requests from the same IP are blocked with `429 Too Many Requests` before reaching the database query or bcrypt comparison. The counter resets on successful validation or when the window expires. Stale records are swept every 60 seconds via `setInterval` to prevent unbounded memory growth. The guard implements `OnModuleDestroy` to clean up the sweep interval.
 
 ---
 

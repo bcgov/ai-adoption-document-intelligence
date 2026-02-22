@@ -1,10 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PassportStrategy } from "@nestjs/passport";
-import { Request } from "express";
 import { passportJwtSecret } from "jwks-rsa";
-import { ExtractJwt, Strategy } from "passport-jwt";
-import { AUTH_COOKIE_NAMES } from "./cookie-auth.utils";
+import { Strategy } from "passport-jwt";
+import { cookieOrBearerExtractor } from "./cookie-auth.utils";
 import { User } from "./types";
 
 interface KeycloakJwtPayload {
@@ -16,19 +15,6 @@ interface KeycloakJwtPayload {
   realm_access?: { roles?: string[] };
   resource_access?: Record<string, { roles?: string[] }>;
   [key: string]: unknown;
-}
-
-/**
- * Extracts JWT from the access_token HttpOnly cookie first,
- * falling back to the Authorization: Bearer header for backward compatibility
- * (Swagger, external API consumers).
- */
-function cookieOrBearerExtractor(req: Request): string | null {
-  const cookieToken = req.cookies?.[AUTH_COOKIE_NAMES.ACCESS_TOKEN];
-  if (cookieToken) {
-    return cookieToken;
-  }
-  return ExtractJwt.fromAuthHeaderAsBearerToken()(req);
 }
 
 /**

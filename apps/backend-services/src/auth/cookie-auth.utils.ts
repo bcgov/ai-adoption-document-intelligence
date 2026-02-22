@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
-import { CookieOptions, Response } from "express";
+import { CookieOptions, Request, Response } from "express";
+import { ExtractJwt } from "passport-jwt";
 import { TokenResponseDto } from "@/auth/dto/token-response.dto";
 
 /**
@@ -133,6 +134,19 @@ export function setAuthCookies(
     csrfToken,
     COOKIE_OPTIONS.csrfToken(expiresIn),
   );
+}
+
+/**
+ * Extracts the raw JWT string from the request.
+ * Checks the access_token HttpOnly cookie first, falling back to the
+ * Authorization: Bearer header for API clients / Swagger.
+ */
+export function cookieOrBearerExtractor(req: Request): string | null {
+  const cookieToken = req.cookies?.[AUTH_COOKIE_NAMES.ACCESS_TOKEN];
+  if (cookieToken) {
+    return cookieToken;
+  }
+  return ExtractJwt.fromAuthHeaderAsBearerToken()(req);
 }
 
 /**
