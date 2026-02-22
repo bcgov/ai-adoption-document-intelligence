@@ -70,7 +70,9 @@ export class ApiKeyAuthGuard implements CanActivate, OnModuleDestroy {
     const apiKey = request.headers["x-api-key"] as string;
 
     if (!apiKey) {
-      // No API key provided, let other guards handle it
+      if (!request.user) {
+        throw new UnauthorizedException("Authentication required");
+      }
       return true;
     }
 

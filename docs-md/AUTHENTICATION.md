@@ -1466,9 +1466,11 @@ export class WebhookController {
 
 1. `JwtAuthGuard` checks if route has `@ApiKeyAuth()` and `X-API-Key` header present
 2. If yes, skips JWT validation (delegates to `ApiKeyAuthGuard`)
-3. `ApiKeyAuthGuard` validates the API key against database
-4. Sets `request.user` with user info and roles from the API key record
-5. `RolesGuard` can enforce roles — API keys inherit the creating user's roles at generation time
+3. `ApiKeyAuthGuard` checks if user is already authenticated (e.g., via JWT) — if so, skips API key validation
+4. If no `X-API-Key` header is provided and no user is authenticated, rejects with `401 Unauthorized` — this prevents unauthenticated access on endpoints decorated only with `@ApiKeyAuth()`
+5. Validates the API key against the database (prefix lookup + bcrypt comparison)
+6. Sets `request.user` with user info and roles from the API key record
+7. `RolesGuard` can enforce roles — API keys inherit the creating user's roles at generation time
 
 **Role Inheritance:**
 

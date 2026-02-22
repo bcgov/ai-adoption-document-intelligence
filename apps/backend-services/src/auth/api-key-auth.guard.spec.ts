@@ -86,10 +86,21 @@ describe("ApiKeyAuthGuard", () => {
     expect(apiKeyService.validateApiKey).not.toHaveBeenCalled();
   });
 
-  it("should return true if no API key header is provided", async () => {
+  it("should throw UnauthorizedException if no API key header and no authenticated user", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
 
     const context = createMockExecutionContext({});
+
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
+    expect(apiKeyService.validateApiKey).not.toHaveBeenCalled();
+  });
+
+  it("should return true if no API key header but user is already authenticated", async () => {
+    (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
+
+    const context = createMockExecutionContext({}, { sub: "testuser" });
     const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
