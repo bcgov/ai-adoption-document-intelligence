@@ -233,6 +233,101 @@ X-CSRF-Token: abc123...</code></pre>
 </ul>
 
 <!-- ====================================================================== -->
+<h2>Decorator Composition Rules</h2>
+
+<p>The guard chain runs globally in this order: <code>JwtAuthGuard</code> &rarr; <code>ApiKeyAuthGuard</code> &rarr; <code>RolesGuard</code> &rarr; <code>CsrfGuard</code>. Decorators control which guards activate. Follow these rules when protecting endpoints.</p>
+
+<h3>Available Decorators</h3>
+
+<table>
+    <thead>
+        <tr><th>Decorator</th><th>Purpose</th><th>Runtime Effect</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>@Public()</code></td>
+            <td>Unauthenticated access</td>
+            <td><code>JwtAuthGuard</code> returns <code>true</code> immediately &mdash; all downstream guards become no-ops</td>
+        </tr>
+        <tr>
+            <td><code>@ApiKeyAuth()</code></td>
+            <td>Allow API key authentication</td>
+            <td>Sets metadata read by <code>JwtAuthGuard</code> (skip JWT when API key header present) and <code>ApiKeyAuthGuard</code> (validate the key)</td>
+        </tr>
+        <tr>
+            <td><code>@KeycloakSSOAuth()</code></td>
+            <td>Swagger documentation only</td>
+            <td>Adds <code>ApiBearerAuth</code> and <code>ApiUnauthorizedResponse</code> to OpenAPI spec. <strong>No runtime effect</strong> &mdash; JWT is enforced globally</td>
+        </tr>
+        <tr>
+            <td><code>@Roles(...)</code></td>
+            <td>Require specific roles</td>
+            <td><code>RolesGuard</code> checks <code>request.user.roles</code> for at least one match. Works with both JWT and API key users</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Valid Combinations</h3>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h4 style="margin-top: 0;">Standard JWT-protected (most common)</h4>
+        <pre><code>@KeycloakSSOAuth()
+@Get("documents")
+listDocuments() {}</code></pre>
+        <p style="margin-bottom: 0;">Requires valid JWT. API keys ignored. <code>@KeycloakSSOAuth()</code> is Swagger-only; enforcement comes from the global <code>JwtAuthGuard</code>.</p>
+    </div>
+    <div class="card" style="border-left-color: var(--bc-blue);">
+        <h4 style="margin-top: 0;">Dual auth &mdash; JWT or API key</h4>
+        <pre><code>@ApiKeyAuth()
+@KeycloakSSOAuth()
+@Post("upload")
+uploadDocument() {}</code></pre>
+        <p style="margin-bottom: 0;">Accepts <strong>either</strong> JWT <strong>or</strong> <code>X-API-Key</code>. If neither &rarr; <code>401</code>. CSRF automatically exempted for API key and Bearer requests.</p>
+    </div>
+    <div class="card" style="border-left-color: var(--bc-gold);">
+        <h4 style="margin-top: 0;">JWT with role enforcement</h4>
+        <pre><code>@Roles("admin")
+@KeycloakSSOAuth()
+@Delete("documents/:id")
+deleteDocument() {}</code></pre>
+        <p style="margin-bottom: 0;">Requires valid JWT <strong>and</strong> the <code>admin</code> role. Users without the role get <code>403</code>. API keys not accepted.</p>
+    </div>
+    <div class="card" style="border-left-color: #4C2C92;">
+        <h4 style="margin-top: 0;">Dual auth with role enforcement</h4>
+        <pre><code>@ApiKeyAuth()
+@Roles("admin")
+@KeycloakSSOAuth()
+@Post("admin/users")
+createUser() {}</code></pre>
+        <p style="margin-bottom: 0;">JWT or API key, <strong>plus</strong> <code>admin</code> role required. API key roles inherited from creating user.</p>
+    </div>
+</div>
+
+<h3>Invalid / Dangerous Combinations</h3>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+        <ul style="margin-bottom: 0;">
+            <li><code>@Public()</code> + <code>@Roles(...)</code> &mdash; Roles guard throws <code>403</code> because <code>@Public()</code> skips auth, leaving <code>request.user</code> undefined</li>
+            <li><code>@ApiKeyAuth()</code> without <code>@KeycloakSSOAuth()</code> &mdash; Works at runtime but Swagger won't show the bearer auth option (misleading docs)</li>
+            <li><code>@Public()</code> + <code>@ApiKeyAuth()</code> &mdash; <code>@Public()</code> short-circuits the guard chain; the API key decorator has no effect</li>
+        </ul>
+    </div>
+</div>
+
+<h3>Decision Flowchart</h3>
+<ol>
+    <li>Is this an auth flow endpoint (login, callback, refresh, logout)? &rarr; <code>@Public()</code></li>
+    <li>Does this endpoint need machine-to-machine access? &rarr; Add <code>@ApiKeyAuth()</code> + <code>@KeycloakSSOAuth()</code></li>
+    <li>Only browser/JWT access? &rarr; <code>@KeycloakSSOAuth()</code></li>
+    <li>Does this endpoint require specific roles? &rarr; Add <code>@Roles('role1', 'role2')</code></li>
+</ol>
+
+<!-- ====================================================================== -->
 <h2>API Key Authentication</h2>
 
 <p>For machine-to-machine (M2M) integrations, routes decorated with <code>@ApiKeyAuth()</code> accept an API key via the <code>X-API-Key</code> header as an alternative to Bearer tokens.</p>

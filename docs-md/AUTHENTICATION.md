@@ -1443,6 +1443,110 @@ user.roles = ["user", "offline_access", "document-editor", "workflow-viewer"]
 
 ---
 
+## Decorator Composition Rules
+
+The guard chain runs globally in this order: `JwtAuthGuard` → `ApiKeyAuthGuard` → `RolesGuard` → `CsrfGuard`. Decorators control which guards activate. The following rules define how to combine decorators safely.
+
+### Available Decorators
+
+| Decorator | Purpose | Runtime effect |
+|-----------|---------|----------------|
+| `@Public()` | Marks a route as unauthenticated | `JwtAuthGuard` returns `true` immediately — all downstream guards become no-ops |
+| `@ApiKeyAuth()` | Allows API key authentication | Sets metadata read by both `JwtAuthGuard` (to skip JWT when API key header present) and `ApiKeyAuthGuard` (to validate the key) |
+| `@KeycloakSSOAuth()` | Swagger documentation only | Adds `ApiBearerAuth` and `ApiUnauthorizedResponse` to OpenAPI spec. **No runtime effect** — JWT is enforced globally |
+| `@Roles(...)` | Requires specific roles | `RolesGuard` checks `request.user.roles` for at least one match. Applies to both JWT and API key users |
+
+### Valid Decorator Combinations
+
+#### 1. Standard JWT-protected endpoint (most common)
+
+```typescript
+@KeycloakSSOAuth()
+@Get("documents")
+listDocuments() {}
+```
+
+- Requires a valid JWT (cookie or Bearer header)
+- API keys are ignored even if provided
+- `@KeycloakSSOAuth()` is Swagger-only; the actual enforcement comes from the global `JwtAuthGuard`
+
+#### 2. Dual auth — JWT or API key
+
+```typescript
+@ApiKeyAuth()
+@KeycloakSSOAuth()
+@Post("upload")
+uploadDocument() {}
+```
+
+- Accepts **either** a valid JWT **or** a valid `X-API-Key` header
+- If neither is provided → `401 Unauthorized`
+- If an API key is provided, JWT validation is skipped entirely
+- CSRF is automatically exempted for API key and Bearer token requests
+
+#### 3. JWT with role enforcement
+
+```typescript
+@Roles("admin")
+@KeycloakSSOAuth()
+@Delete("documents/:id")
+deleteDocument() {}
+```
+
+- Requires a valid JWT **and** the `admin` role
+- Users without the role get `403 Forbidden`
+- API keys are not accepted (no `@ApiKeyAuth()`)
+
+#### 4. Dual auth with role enforcement
+
+```typescript
+@ApiKeyAuth()
+@Roles("admin")
+@KeycloakSSOAuth()
+@Post("admin/users")
+createUser() {}
+```
+
+- Accepts JWT or API key, **and** requires the `admin` role
+- API key users inherit roles from the user who created the key
+- Missing role → `403 Forbidden` regardless of auth method
+
+#### 5. Public endpoint
+
+```typescript
+@Public()
+@Get("health")
+healthCheck() {}
+```
+
+- No authentication required. `request.user` is `undefined`
+- All downstream guards (API key, roles, CSRF) become no-ops
+- **Never combine `@Public()` with `@Roles()`** — roles require an authenticated user
+
+### Invalid / Dangerous Combinations
+
+| Combination | Problem |
+|-------------|---------|
+| `@Public()` + `@Roles(...)` | Roles guard will throw `403 "User has no roles"` because `@Public()` skips authentication, leaving `request.user` undefined |
+| `@ApiKeyAuth()` alone (without `@KeycloakSSOAuth()`) | Functionally works but misleading in Swagger — the endpoint accepts JWT too (global guard) but Swagger won't show the bearer auth option |
+| `@Public()` + `@ApiKeyAuth()` | `@Public()` short-circuits the entire guard chain. The API key decorator has no effect |
+
+### Decision Flowchart
+
+```
+Is this an auth flow endpoint (login, callback, refresh, logout)?
+  └─ Yes → @Public()
+
+Does this endpoint need machine-to-machine access?
+  └─ No  → @KeycloakSSOAuth()
+  └─ Yes → @ApiKeyAuth() + @KeycloakSSOAuth()
+
+Does this endpoint require specific roles?
+  └─ Yes → add @Roles('role1', 'role2')
+```
+
+---
+
 ## API Key Authentication
 
 In addition to OAuth, the system supports API key authentication for machine-to-machine communication.
@@ -1495,22 +1599,37 @@ curl -X POST https://api.example.com/webhooks/process \
   -d '{"event": "document.uploaded"}'
 ```
 
-### API Key Management
+### API Key Generation
 
-API keys are managed through the `ApiKeyService`:
+When a user generates an API key via `ApiKeyService.generateApiKey()`:
 
-```typescript
-@Injectable()
-export class ApiKeyService {
-  async validateApiKey(apiKey: string): Promise<{ userId: string; userEmail: string; roles: string[] } | null> {
-    // Look up API key in database by prefix
-    // Compare hash with bcrypt
-    // Return user info and stored roles if valid, null otherwise
-  }
-}
+1. A 32-byte cryptographically random key is created: `crypto.randomBytes(32).toString("base64url")`
+2. The first 8 characters of the key are stored in plaintext as `key_prefix`
+3. The full key is hashed with bcrypt (cost factor 10) and stored as `key_hash`
+4. The full plaintext key is returned to the user **once** — it cannot be retrieved later
+
+### API Key Validation (Prefix + Bcrypt Strategy)
+
+**The problem:** API keys are stored as bcrypt hashes. Bcrypt is intentionally slow (by design — it resists brute-force attacks). To validate an incoming key naively, you'd need to call `bcrypt.compare()` against every row in the `api_keys` table — an O(n) operation that degrades as more keys are created.
+
+**The solution — prefix-based candidate narrowing:**
+
+```
+Incoming key: "a1b2c3d4XYZ..."
+                ^^^^^^^^
+                prefix (first 8 chars, stored in plaintext)
 ```
 
-**Database Schema:**
+1. Extract the first 8 characters of the incoming key as the prefix
+2. Query `WHERE key_prefix = prefix` to retrieve only candidate rows (typically 0 or 1 matches)
+3. Run `bcrypt.compare()` only against the small candidate set
+4. On match, update `last_used` timestamp and return the associated user info and roles
+
+This reduces validation from O(n) bcrypt comparisons to O(1) in practice. The 8-character base64url prefix provides ~48 bits of entropy, making prefix collisions astronomically unlikely at any realistic scale.
+
+**Security note:** The plaintext prefix is an optimization index only — it does not weaken key security. Authentication depends entirely on the bcrypt comparison of the full key. Even if an attacker knows the prefix, they cannot derive the remaining key material.
+
+### Database Schema
 
 ```prisma
 model ApiKey {
@@ -1527,12 +1646,20 @@ model ApiKey {
 }
 ```
 
-**Best Practices:**
-- API keys are stored hashed with bcrypt (cost factor 10) in the database
-- The key prefix enables indexed lookups without full-table scans
-- Roles are inherited from the creating user's JWT at generation time
-- Regenerating a key captures the user's current roles
-- Full API keys are returned only once at creation — they cannot be retrieved later
+| Column       | Purpose                                                        |
+|--------------|----------------------------------------------------------------|
+| `key_hash`   | Bcrypt hash of the full API key — used for authentication      |
+| `key_prefix` | First 8 chars of the key in plaintext — used for indexed lookup |
+| `user_id`    | Unique constraint ensures one API key per user                 |
+| `roles`      | Snapshot of the user's Keycloak roles at key generation time   |
+| `last_used`  | Updated on each successful validation                          |
+
+### Key Lifecycle
+
+- **One key per user** — generating a new key when one exists requires deletion or regeneration
+- **Regeneration** deletes the old key and creates a new one, capturing the user's current roles
+- **Full key shown once** — after generation, only the `key_prefix` is visible for identification
+- **Roles are static** — to update roles on an API key after a user's Keycloak roles change, regenerate the key
 
 ---
 
