@@ -18,9 +18,16 @@ async function bootstrap(): Promise<void> {
   // Cookie parser must be registered before routes are mounted
   app.use(cookieParser());
 
-  // Security headers via helmet — must be registered before routes
+  // Helmet sets HTTP response headers that tell browsers to enable security
+  // features. These are defense-in-depth measures — they don't replace server-side
+  // validation but add extra layers if other defenses (e.g. XSS filtering) fail.
+  // Must be registered before routes so every response gets the headers.
   app.use(
     helmet({
+      // Content-Security-Policy (CSP): tells the browser which sources are allowed
+      // to load scripts, styles, images, etc. If an attacker injects a <script> tag
+      // pointing to evil.com, the browser blocks it because evil.com isn't in the
+      // allowlist. 'unsafe-inline' is required for Swagger UI's inline styles/scripts.
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
@@ -29,16 +36,29 @@ async function bootstrap(): Promise<void> {
           imgSrc: ["'self'", "data:", "https://validator.swagger.io"],
         },
       },
-      // HSTS: enforce HTTPS for 1 year, include subdomains
+      // Strict-Transport-Security (HSTS): once a browser sees this header, it will
+      // refuse to connect over plain HTTP for the specified duration — even if the
+      // user types http://. This prevents SSL-stripping attacks where a MITM
+      // downgrades the connection to unencrypted HTTP.
       hsts: {
-        maxAge: 31_536_000,
+        maxAge: 31_536_000, // 1 year in seconds
         includeSubDomains: true,
       },
-      // Prevent clickjacking
+      // X-Frame-Options: "deny" prevents the page from being embedded in an iframe
+      // on any site. This blocks clickjacking attacks where an attacker overlays
+      // an invisible iframe of our app over a decoy page to trick users into
+      // clicking buttons they can't see (e.g. "Delete my account").
       frameguard: { action: "deny" },
-      // Prevent MIME type sniffing
+      // X-Content-Type-Options: "nosniff" stops the browser from guessing the MIME
+      // type of a response. Without this, a browser might interpret a JSON or text
+      // response as HTML/JavaScript if an attacker can control the content, enabling
+      // XSS via content-type sniffing.
       noSniff: true,
-      // Control referrer information
+      // Referrer-Policy: controls how much URL information is sent in the Referer
+      // header when navigating away. "strict-origin-when-cross-origin" sends the
+      // full URL for same-origin requests but only the origin (no path/query) for
+      // cross-origin ones — prevents leaking sensitive URL params (tokens, IDs)
+      // to external sites.
       referrerPolicy: { policy: "strict-origin-when-cross-origin" },
     }),
   );
