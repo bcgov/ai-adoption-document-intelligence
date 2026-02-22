@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
@@ -26,14 +26,18 @@ import { WorkflowModule } from "./workflow/workflow.module";
       cache: true,
     }),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRoot({
-      throttlers: [
-        {
-          name: "default",
-          ttl: 60_000,
-          limit: 100,
-        },
-      ],
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            name: "default",
+            ttl: config.get<number>("THROTTLE_GLOBAL_TTL_MS", 60_000),
+            limit: config.get<number>("THROTTLE_GLOBAL_LIMIT", 100),
+          },
+        ],
+      }),
     }),
     AuthModule,
     ApiKeyModule,

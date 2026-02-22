@@ -906,7 +906,7 @@ X-CSRF-Token: abc123...</code></pre>
         <tr>
             <td><strong>1</strong></td>
             <td><code>ThrottlerGuard</code></td>
-            <td>Enforces per-IP rate limits. Default: 100 requests/minute. Auth endpoints have stricter per-route limits (5–10 requests/minute). Returns 429 when exceeded.</td>
+            <td>Enforces per-IP rate limits. Defaults: 100 requests/minute globally, 5–10 requests/minute on auth endpoints. All limits are env-configurable via <code>auth.config.ts</code>. Returns 429 when exceeded.</td>
         </tr>
         <tr>
             <td><strong>2</strong></td>
@@ -916,7 +916,7 @@ X-CSRF-Token: abc123...</code></pre>
         <tr>
             <td><strong>3</strong></td>
             <td><code>ApiKeyAuthGuard</code></td>
-            <td>Validates <code>X-API-Key</code> header on <code>@ApiKeyAuth()</code>-decorated routes. Skips if user already authenticated via JWT. Tracks failed validation attempts per IP — after 20 failures/minute, blocks with <code>429 Too Many Requests</code> before reaching the expensive bcrypt comparison.</td>
+            <td>Validates <code>X-API-Key</code> header on <code>@ApiKeyAuth()</code>-decorated routes. Skips if user already authenticated via JWT. Tracks failed validation attempts per IP — after the configured limit (default: 20 failures/minute), blocks with <code>429 Too Many Requests</code> before reaching the expensive bcrypt comparison. All thresholds are env-configurable.</td>
         </tr>
         <tr>
             <td><strong>4</strong></td>
@@ -1076,7 +1076,7 @@ export class AdminController {
     </div>
     <div class="card" style="border-left-color: #22c55e;">
         <h3 style="margin-top: 0;">Rate Limiting</h3>
-        <p>All endpoints are protected by <code>@nestjs/throttler</code> with a global default of <strong>100 requests per minute per IP</strong>. Auth endpoints have stricter limits: <code>/api/auth/refresh</code> at <strong>5/min</strong>, and <code>/api/auth/login</code>, <code>/api/auth/callback</code>, <code>/api/auth/logout</code> at <strong>10/min</strong>. API key validation has in-guard failed-attempt throttling at <strong>20 failures/min/IP</strong>. Exceeding limits returns <code>429 Too Many Requests</code>.</p>
+        <p>All endpoints are protected by <code>@nestjs/throttler</code> with env-configurable limits (defaults: <strong>100 requests per minute per IP</strong> globally, <code>/api/auth/refresh</code> at <strong>5/min</strong>, <code>/api/auth/login</code>, <code>/api/auth/callback</code>, <code>/api/auth/logout</code> at <strong>10/min</strong>, API key failed-attempt throttling at <strong>20 failures/min/IP</strong>). All values can be overridden via environment variables — see <code>auth.config.ts</code> for the full list. Exceeding limits returns <code>429 Too Many Requests</code>.</p>
     </div>
     <div class="card" style="border-left-color: #a855f7;">
         <h3 style="margin-top: 0;">Security Headers (Helmet)</h3>
@@ -1212,7 +1212,7 @@ export class AdminController {
 <h3>5. <s>No Rate Limiting on Auth Endpoints</s> — RESOLVED</h3>
 
 <div class="card" style="border-left-color: #22c55e;">
-    <p><strong>Resolved:</strong> Global rate limiting is now enforced via <code>@nestjs/throttler</code>. A default limit of <strong>100 requests per minute per IP</strong> applies to all endpoints. Authentication endpoints have stricter per-route limits: <code>/api/auth/refresh</code> is limited to <strong>5 requests/minute</strong>, while <code>/api/auth/login</code>, <code>/api/auth/callback</code>, and <code>/api/auth/logout</code> are limited to <strong>10 requests/minute</strong>. When limits are exceeded, the server returns HTTP <code>429 Too Many Requests</code> with <code>Retry-After</code> headers.</p>
+    <p><strong>Resolved:</strong> Global rate limiting is now enforced via <code>@nestjs/throttler</code>. All limits are env-configurable with sensible defaults: <strong>100 requests per minute per IP</strong> globally, <strong>5 requests/minute</strong> for <code>/api/auth/refresh</code>, and <strong>10 requests/minute</strong> for <code>/api/auth/login</code>, <code>/api/auth/callback</code>, and <code>/api/auth/logout</code>. When limits are exceeded, the server returns HTTP <code>429 Too Many Requests</code> with <code>Retry-After</code> headers. See <code>auth.config.ts</code> for the complete list of environment variables.</p>
 </div>
 
 <h3>6. <s>No Security Headers (Helmet)</s> — RESOLVED</h3>
@@ -1254,7 +1254,7 @@ export class AdminController {
 <h3>11. <s>No Rate Limiting on API Key Validation Path</s> — RESOLVED</h3>
 
 <div class="card" style="border-left-color: #22c55e;">
-    <p><strong>Resolved:</strong> The <code>ApiKeyAuthGuard</code> now tracks failed API key validation attempts per IP address in-memory. After <strong>20 failed attempts</strong> within a 60-second window, further attempts from the same IP are blocked with <code>429 Too Many Requests</code> before reaching the expensive database query and bcrypt comparison. The counter resets on successful validation or when the time window expires. Stale records are swept every 60 seconds to prevent memory leaks.</p>
+    <p><strong>Resolved:</strong> The <code>ApiKeyAuthGuard</code> now tracks failed API key validation attempts per IP address in-memory. After the configured limit (default: <strong>20 failed attempts</strong>) within the configured window (default: 60 seconds), further attempts from the same IP are blocked with <code>429 Too Many Requests</code> before reaching the expensive database query and bcrypt comparison. The counter resets on successful validation or when the time window expires. Stale records are swept at a configurable interval (default: 60 seconds) to prevent memory leaks. All thresholds are env-configurable — see <code>auth.config.ts</code>.</p>
 </div>
     </main>
     <footer class="site-footer">

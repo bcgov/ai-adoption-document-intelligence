@@ -58,7 +58,7 @@ The system uses a multi-layer guard stack registered globally via NestJS `APP_GU
 |-------|-------|---------------|---------|
 | 1 | `ThrottlerGuard` | `AppModule` | Rate limiting (100 req/60s default) |
 | 2 | `JwtAuthGuard` | `AuthModule` | JWT validation (cookie-first, Bearer fallback); skips `@Public()` |
-| 3 | `ApiKeyAuthGuard` | `AuthModule` | API key validation for `@ApiKeyAuth()` routes; failed-attempt throttling (20/min/IP) |
+| 3 | `ApiKeyAuthGuard` | `AuthModule` | API key validation for `@ApiKeyAuth()` routes; failed-attempt throttling (default 20/min/IP, env-configurable) |
 | 4 | `RolesGuard` | `AuthModule` | RBAC enforcement via `@Roles()` (currently unused) |
 | 5 | `CsrfGuard` | `AuthModule` | Double-submit cookie CSRF on state-changing methods |
 
@@ -164,7 +164,7 @@ This means the application operates on a **binary authenticated/unauthenticated 
 - [apps/backend-services/src/auth/api-key-auth.guard.ts](../apps/backend-services/src/auth/api-key-auth.guard.ts)
 - [apps/backend-services/src/api-key/api-key.service.ts](../apps/backend-services/src/api-key/api-key.service.ts#L121-L147)
 
-**Resolution:** The `ApiKeyAuthGuard` now tracks failed API key validation attempts per IP address using an in-memory `Map`. After **20 failed attempts** within a 60-second window, further requests from the same IP are blocked with `429 Too Many Requests` before reaching the database query or bcrypt comparison. The counter resets on successful validation or when the window expires. Stale records are swept every 60 seconds via `setInterval` to prevent unbounded memory growth. The guard implements `OnModuleDestroy` to clean up the sweep interval.
+**Resolution:** The `ApiKeyAuthGuard` now tracks failed API key validation attempts per IP address using an in-memory `Map`. After the configured limit (default: **20 failed attempts**) within the configured window (default: 60 seconds), further requests from the same IP are blocked with `429 Too Many Requests` before reaching the database query or bcrypt comparison. The counter resets on successful validation or when the window expires. Stale records are swept at the configured interval (default: 60 seconds) via `setInterval` to prevent unbounded memory growth. The guard implements `OnModuleDestroy` to clean up the sweep interval. All thresholds are env-configurable via `auth.config.ts`.
 
 ---
 
@@ -376,7 +376,7 @@ The existing `docs-md/AUTHENTICATION.md` is **comprehensive and largely accurate
 | Refresh flow diagram shows no `/me` call after refresh | Accurate (previously corrected) |
 | `@Roles()` described as available but notes indicate it's not currently used | Sufficiently documented |
 | Frontend auth architecture description | Accurate |
-| Rate limiting documentation | Accurate — all limits match `@Throttle()` decorators |
+| Rate limiting documentation | Accurate — all limits match `@Throttle()` decorators and `auth.config.ts` constants |
 
 **No new documentation-code discrepancies found.**
 
@@ -412,7 +412,7 @@ The following aspects are well-implemented and represent security best practices
 
 13. **Helmet security headers** — HSTS (1 year, includeSubDomains), X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, CSP configured, X-Powered-By removed. Verified by integration tests.
 
-14. **Rate limiting infrastructure** — Global `ThrottlerGuard` (100 req/min) with per-route overrides on auth endpoints. Integration tests verify 429 behavior.
+14. **Rate limiting infrastructure** — Global `ThrottlerGuard` (default 100 req/min, env-configurable) with per-route overrides on auth endpoints. All limits configurable via environment variables in `auth.config.ts`. Integration tests verify 429 behavior.
 
 15. **Generic error messages** — Auth service returns generic `"Authentication failed"` / `"Token refresh failed"` to clients while logging full details server-side. Verified by tests.
 

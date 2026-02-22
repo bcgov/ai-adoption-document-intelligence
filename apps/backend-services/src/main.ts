@@ -1,3 +1,7 @@
+// Load .env before any module is resolved so that process.env is populated
+// when decorators (e.g. @Throttle) are evaluated at import time.
+import "dotenv/config";
+
 import { Logger, ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";

@@ -24,6 +24,12 @@ import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import {
+  THROTTLE_AUTH_LIMIT,
+  THROTTLE_AUTH_REFRESH_LIMIT,
+  THROTTLE_AUTH_REFRESH_TTL_MS,
+  THROTTLE_AUTH_TTL_MS,
+} from "./auth.config";
+import {
   AUTH_COOKIE_NAMES,
   COOKIE_OPTIONS,
   clearAuthCookies,
@@ -52,7 +58,7 @@ export class AuthController {
    */
   @Public()
   @Post("refresh")
-  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @Throttle({ default: { ttl: THROTTLE_AUTH_REFRESH_TTL_MS, limit: THROTTLE_AUTH_REFRESH_LIMIT } })
   @ApiOperation({
     summary: "Refresh provider tokens using the refresh_token cookie",
   })
@@ -63,7 +69,7 @@ export class AuthController {
   @ApiBadRequestResponse({ description: "Failed to refresh access token" })
   @ApiUnauthorizedResponse({ description: "No refresh token cookie present" })
   @ApiTooManyRequestsResponse({
-    description: "Rate limit exceeded — max 5 requests per minute",
+    description: `Rate limit exceeded — max ${THROTTLE_AUTH_REFRESH_LIMIT} requests per window`,
   })
   async refreshToken(
     @Req() req: Request,
@@ -87,7 +93,7 @@ export class AuthController {
    */
   @Public()
   @Get("login")
-  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Throttle({ default: { ttl: THROTTLE_AUTH_TTL_MS, limit: THROTTLE_AUTH_LIMIT } })
   @ApiOperation({ summary: "Redirect to Keycloak authorization endpoint" })
   @ApiResponse({
     status: 302,
@@ -103,7 +109,7 @@ export class AuthController {
     description: "Failed to generate login URL",
   })
   @ApiTooManyRequestsResponse({
-    description: "Rate limit exceeded — max 10 requests per minute",
+    description: `Rate limit exceeded — max ${THROTTLE_AUTH_LIMIT} requests per window`,
   })
   async getLoginUrl(@Res() res: Response) {
     try {
@@ -132,7 +138,7 @@ export class AuthController {
    */
   @Public()
   @Get("logout")
-  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Throttle({ default: { ttl: THROTTLE_AUTH_TTL_MS, limit: THROTTLE_AUTH_LIMIT } })
   @ApiOperation({
     summary: "Clear auth cookies and redirect to Keycloak logout",
   })
@@ -151,7 +157,7 @@ export class AuthController {
     description: "Failed to generate logout URL",
   })
   @ApiTooManyRequestsResponse({
-    description: "Rate limit exceeded — max 10 requests per minute",
+    description: `Rate limit exceeded — max ${THROTTLE_AUTH_LIMIT} requests per window`,
   })
   async logout(@Req() req: Request, @Res() res: Response) {
     try {
@@ -175,7 +181,7 @@ export class AuthController {
    */
   @Public()
   @Get("callback")
-  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Throttle({ default: { ttl: THROTTLE_AUTH_TTL_MS, limit: THROTTLE_AUTH_LIMIT } })
   @ApiOperation({
     summary:
       "Handle Keycloak OAuth callback, set auth cookies, and redirect to application",

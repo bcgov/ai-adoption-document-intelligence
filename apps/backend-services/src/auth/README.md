@@ -12,7 +12,7 @@ This folder contains the NestJS pieces that implement the confidential OAuth 2.0
 6. Refreshes happen via `POST /api/auth/refresh`, which reads the refresh_token from its HttpOnly cookie and proxies it to Keycloak.
 7. Protected routes rely on `JwtAuthGuard` (Passport JWT) and (optionally) `RolesGuard` to validate tokens and enforce RBAC. Tokens are extracted from the HttpOnly cookie first, falling back to the `Authorization: Bearer` header.
 8. State-changing requests (POST/PUT/DELETE) from cookie-authenticated clients are protected by `CsrfGuard` using the double-submit cookie pattern.
-9. API key validation via `ApiKeyAuthGuard` includes failed-attempt throttling: after 20 failed attempts per IP within 60 seconds, requests are blocked with `429 Too Many Requests`.
+9. API key validation via `ApiKeyAuthGuard` includes failed-attempt throttling: after exceeding the configured limit (default: 20 attempts) per IP within the configured window (default: 60 seconds), requests are blocked with `429 Too Many Requests`. See `auth.config.ts` for env-configurable values.
 
 ## Key Components
 
@@ -32,3 +32,19 @@ This folder contains the NestJS pieces that implement the confidential OAuth 2.0
 - `SSO_*` variables configure the Keycloak realm, client id/secret, and redirect URIs.
 - `FRONTEND_URL` is used for redirecting the browser back to the SPA after login/logout.
 - `NODE_ENV` controls whether cookies set the `secure` flag (disabled in `development`/`test`).
+
+### Rate Limiting & Throttling Environment Variables
+
+All rate limiting settings are env-configurable with sensible defaults. See `auth.config.ts` for the full list.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `THROTTLE_GLOBAL_TTL_MS` | `60000` | Global rate limit window (ms) |
+| `THROTTLE_GLOBAL_LIMIT` | `100` | Max requests per IP in the global window |
+| `THROTTLE_AUTH_TTL_MS` | `60000` | Auth endpoint (login, callback, logout) window (ms) |
+| `THROTTLE_AUTH_LIMIT` | `10` | Max requests per IP for auth endpoints |
+| `THROTTLE_AUTH_REFRESH_TTL_MS` | `60000` | Token refresh endpoint window (ms) |
+| `THROTTLE_AUTH_REFRESH_LIMIT` | `5` | Max requests per IP for token refresh |
+| `API_KEY_MAX_FAILED_ATTEMPTS` | `20` | Failed API key attempts per IP before 429 |
+| `API_KEY_FAILED_WINDOW_MS` | `60000` | Window for tracking failed API key attempts (ms) |
+| `API_KEY_SWEEP_INTERVAL_MS` | `60000` | Cleanup interval for stale failure records (ms) |

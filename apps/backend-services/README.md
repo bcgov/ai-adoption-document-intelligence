@@ -240,6 +240,23 @@ KEYCLOAK_TOKEN_SIGNING_ALG=RS256
 
 # Request Limits
 BODY_LIMIT=50mb
+
+# Rate Limiting — Global Default (all endpoints, via @nestjs/throttler)
+THROTTLE_GLOBAL_TTL_MS=60000        # Time window in milliseconds (default: 60 000 = 1 minute)
+THROTTLE_GLOBAL_LIMIT=100           # Max requests per IP per window (default: 100)
+
+# Rate Limiting — Auth Endpoints (login, callback, logout)
+THROTTLE_AUTH_TTL_MS=60000          # Time window in milliseconds (default: 60 000 = 1 minute)
+THROTTLE_AUTH_LIMIT=10              # Max requests per IP per window (default: 10)
+
+# Rate Limiting — Token Refresh Endpoint
+THROTTLE_AUTH_REFRESH_TTL_MS=60000  # Time window in milliseconds (default: 60 000 = 1 minute)
+THROTTLE_AUTH_REFRESH_LIMIT=5       # Max requests per IP per window (default: 5)
+
+# API Key Failed-Attempt Throttling
+API_KEY_MAX_FAILED_ATTEMPTS=20      # Max failed API key validations per IP before 429 (default: 20)
+API_KEY_FAILED_WINDOW_MS=60000      # Tracking window in milliseconds (default: 60 000 = 1 minute)
+API_KEY_SWEEP_INTERVAL_MS=60000     # Cleanup interval for stale records in milliseconds (default: 60 000)
 ```
 
 ### 3. Database Setup

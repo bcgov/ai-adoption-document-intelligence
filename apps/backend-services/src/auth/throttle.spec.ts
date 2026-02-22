@@ -4,6 +4,12 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { Throttle, ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import * as request from "supertest";
 import { AuthController } from "./auth.controller";
+import {
+  THROTTLE_AUTH_LIMIT,
+  THROTTLE_AUTH_REFRESH_LIMIT,
+  THROTTLE_AUTH_REFRESH_TTL_MS,
+  THROTTLE_AUTH_TTL_MS,
+} from "./auth.config";
 
 /**
  * Verifies that rate limiting decorators are correctly applied
@@ -13,7 +19,7 @@ describe("AuthController — Throttle decorators", () => {
   const THROTTLER_LIMIT_KEY = "THROTTLER:LIMIT";
   const THROTTLER_TTL_KEY = "THROTTLER:TTL";
 
-  it("should have @Throttle on refreshToken with limit 5 per minute", () => {
+  it("should have @Throttle on refreshToken with configured limit per window", () => {
     const limit = Reflect.getMetadata(
       `${THROTTLER_LIMIT_KEY}default`,
       AuthController.prototype.refreshToken,
@@ -22,11 +28,11 @@ describe("AuthController — Throttle decorators", () => {
       `${THROTTLER_TTL_KEY}default`,
       AuthController.prototype.refreshToken,
     );
-    expect(limit).toBe(5);
-    expect(ttl).toBe(60_000);
+    expect(limit).toBe(THROTTLE_AUTH_REFRESH_LIMIT);
+    expect(ttl).toBe(THROTTLE_AUTH_REFRESH_TTL_MS);
   });
 
-  it("should have @Throttle on getLoginUrl with limit 10 per minute", () => {
+  it("should have @Throttle on getLoginUrl with configured limit per window", () => {
     const limit = Reflect.getMetadata(
       `${THROTTLER_LIMIT_KEY}default`,
       AuthController.prototype.getLoginUrl,
@@ -35,11 +41,11 @@ describe("AuthController — Throttle decorators", () => {
       `${THROTTLER_TTL_KEY}default`,
       AuthController.prototype.getLoginUrl,
     );
-    expect(limit).toBe(10);
-    expect(ttl).toBe(60_000);
+    expect(limit).toBe(THROTTLE_AUTH_LIMIT);
+    expect(ttl).toBe(THROTTLE_AUTH_TTL_MS);
   });
 
-  it("should have @Throttle on logout with limit 10 per minute", () => {
+  it("should have @Throttle on logout with configured limit per window", () => {
     const limit = Reflect.getMetadata(
       `${THROTTLER_LIMIT_KEY}default`,
       AuthController.prototype.logout,
@@ -48,11 +54,11 @@ describe("AuthController — Throttle decorators", () => {
       `${THROTTLER_TTL_KEY}default`,
       AuthController.prototype.logout,
     );
-    expect(limit).toBe(10);
-    expect(ttl).toBe(60_000);
+    expect(limit).toBe(THROTTLE_AUTH_LIMIT);
+    expect(ttl).toBe(THROTTLE_AUTH_TTL_MS);
   });
 
-  it("should have @Throttle on oauthCallback with limit 10 per minute", () => {
+  it("should have @Throttle on oauthCallback with configured limit per window", () => {
     const limit = Reflect.getMetadata(
       `${THROTTLER_LIMIT_KEY}default`,
       AuthController.prototype.oauthCallback,
@@ -61,8 +67,8 @@ describe("AuthController — Throttle decorators", () => {
       `${THROTTLER_TTL_KEY}default`,
       AuthController.prototype.oauthCallback,
     );
-    expect(limit).toBe(10);
-    expect(ttl).toBe(60_000);
+    expect(limit).toBe(THROTTLE_AUTH_LIMIT);
+    expect(ttl).toBe(THROTTLE_AUTH_TTL_MS);
   });
 
   it("should NOT have a per-route @Throttle on getMe (uses global default)", () => {

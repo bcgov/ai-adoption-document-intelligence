@@ -223,6 +223,7 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 ```
 apps/backend-services/src/auth/
 ├── auth.module.ts              # Module definition with global guards
+├── auth.config.ts              # Env-configurable rate limiting and throttling constants
 ├── auth.controller.ts          # Public HTTP endpoints for OAuth flow
 ├── auth.service.ts             # Core OAuth orchestration logic
 ├── cookie-auth.utils.ts        # Centralized cookie configuration, token extraction helpers
@@ -651,20 +652,24 @@ export class AdminController {
 
 Global guards are registered via `APP_GUARD` provider token, which applies them to all routes automatically.
 
-**Rate limiting** is configured globally in the `AppModule` via `ThrottlerModule` and `ThrottlerGuard`:
+**Rate limiting** is configured globally in the `AppModule` via `ThrottlerModule` and `ThrottlerGuard`. The global limits are env-configurable via `THROTTLE_GLOBAL_TTL_MS` and `THROTTLE_GLOBAL_LIMIT`:
 
 ```typescript
-// app.module.ts — Global rate limiting
+// app.module.ts — Global rate limiting (env-configurable)
 @Module({
   imports: [
-    ThrottlerModule.forRoot({
-      throttlers: [
-        {
-          name: "default",
-          ttl: 60_000,    // 1 minute window
-          limit: 100,     // 100 requests per minute per IP
-        },
-      ],
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            name: "default",
+            ttl: config.get<number>("THROTTLE_GLOBAL_TTL_MS", 60_000),
+            limit: config.get<number>("THROTTLE_GLOBAL_LIMIT", 100),
+          },
+        ],
+      }),
     }),
     // ... other modules
   ],
@@ -713,7 +718,7 @@ export class AuthModule {}
 **Guard Execution Order:**
 1. `ThrottlerGuard` → Enforces per-IP rate limits (global default or per-route override)
 2. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
-3. `ApiKeyAuthGuard` → Checks per-IP failed-attempt limit (20/min) → Validates API key (if applicable) → Sets `request.user`
+3. `ApiKeyAuthGuard` → Checks per-IP failed-attempt limit (configurable, default 20/min) → Validates API key (if applicable) → Sets `request.user`
 4. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
 5. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
 
@@ -752,22 +757,22 @@ All access tokens are verified using Keycloak's public keys:
 
 #### Rate Limiting
 
-All endpoints are protected by `@nestjs/throttler` with a default global rate limit. Auth endpoints have stricter per-route limits:
+All endpoints are protected by `@nestjs/throttler` with a default global rate limit. Auth endpoints have stricter per-route limits. All values are env-configurable via `auth.config.ts` constants — see the table below for defaults:
 
-| Endpoint | Method | Rate Limit | Window |
-|----------|--------|-----------|--------|
-| All endpoints (default) | Any | 100 requests | 1 minute |
-| `/api/auth/refresh` | POST | 5 requests | 1 minute |
-| `/api/auth/login` | GET | 10 requests | 1 minute |
-| `/api/auth/callback` | GET | 10 requests | 1 minute |
-| `/api/auth/logout` | GET | 10 requests | 1 minute |
-| `/api/auth/me` | GET | 100 requests (global default) | 1 minute |
-| API key failed attempts | Any `@ApiKeyAuth()` route | 20 failures per IP | 1 minute |
+| Endpoint | Method | Rate Limit (default) | Window (default) | Env Variables |
+|----------|--------|-----------|--------|---------------|
+| All endpoints (global) | Any | 100 requests | 1 minute | `THROTTLE_GLOBAL_LIMIT`, `THROTTLE_GLOBAL_TTL_MS` |
+| `/api/auth/refresh` | POST | 5 requests | 1 minute | `THROTTLE_AUTH_REFRESH_LIMIT`, `THROTTLE_AUTH_REFRESH_TTL_MS` |
+| `/api/auth/login` | GET | 10 requests | 1 minute | `THROTTLE_AUTH_LIMIT`, `THROTTLE_AUTH_TTL_MS` |
+| `/api/auth/callback` | GET | 10 requests | 1 minute | `THROTTLE_AUTH_LIMIT`, `THROTTLE_AUTH_TTL_MS` |
+| `/api/auth/logout` | GET | 10 requests | 1 minute | `THROTTLE_AUTH_LIMIT`, `THROTTLE_AUTH_TTL_MS` |
+| `/api/auth/me` | GET | 100 requests (global default) | 1 minute | (uses global) |
+| API key failed attempts | Any `@ApiKeyAuth()` route | 20 failures per IP | 1 minute | `API_KEY_MAX_FAILED_ATTEMPTS`, `API_KEY_FAILED_WINDOW_MS` |
 
 **Why strict limits on auth endpoints?**
-- `/api/auth/refresh` is the most sensitive — it can generate unlimited CSRF tokens and probe for valid refresh tokens. Limited to 5/minute.
-- `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` are rate-limited to 10/minute to prevent login flood attacks and authorization code brute-forcing.
-- API key validation involves bcrypt comparison, making it a CPU-exhaustion vector under high request volume. The `ApiKeyAuthGuard` tracks failed validation attempts per IP in-memory and blocks further attempts after 20 failures within a 60-second window, returning `429 Too Many Requests` before the expensive DB+bcrypt path is reached. The counter resets on successful validation or when the window expires.
+- `/api/auth/refresh` is the most sensitive — it can generate unlimited CSRF tokens and probe for valid refresh tokens. Limited to 5/minute by default.
+- `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` are rate-limited to 10/minute by default to prevent login flood attacks and authorization code brute-forcing.
+- API key validation involves bcrypt comparison, making it a CPU-exhaustion vector under high request volume. The `ApiKeyAuthGuard` tracks failed validation attempts per IP in-memory and blocks further attempts after the configured limit (default: 20 failures) within the configured window (default: 60 seconds), returning `429 Too Many Requests` before the expensive DB+bcrypt path is reached. The counter resets on successful validation or when the window expires. Stale entries are periodically cleaned up at the interval set by `API_KEY_SWEEP_INTERVAL_MS`.
 
 **Response headers** on rate-limited endpoints:
 - `X-RateLimit-Limit`: Maximum number of requests allowed in the window

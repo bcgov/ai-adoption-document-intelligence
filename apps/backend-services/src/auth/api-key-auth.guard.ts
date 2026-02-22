@@ -12,6 +12,11 @@ import { Reflector } from "@nestjs/core";
 import { Request } from "express";
 import { API_KEY_AUTH_KEY } from "@/decorators/custom-auth-decorators";
 import { ApiKeyService } from "../api-key/api-key.service";
+import {
+  API_KEY_FAILED_WINDOW_MS,
+  API_KEY_MAX_FAILED_ATTEMPTS,
+  API_KEY_SWEEP_INTERVAL_MS,
+} from "./auth.config";
 
 /**
  * Tracks failed API key validation attempts per IP within a time window.
@@ -20,15 +25,6 @@ interface FailedAttemptRecord {
   count: number;
   windowStart: number;
 }
-
-/** Maximum failed API key attempts per IP before blocking. */
-const MAX_FAILED_ATTEMPTS = 20;
-
-/** Time window for failed attempt tracking (60 seconds). */
-const WINDOW_MS = 60_000;
-
-/** Interval for sweeping stale failure records (60 seconds). */
-const SWEEP_INTERVAL_MS = 60_000;
 
 @Injectable()
 export class ApiKeyAuthGuard implements CanActivate, OnModuleDestroy {
@@ -42,7 +38,7 @@ export class ApiKeyAuthGuard implements CanActivate, OnModuleDestroy {
   ) {
     this.sweepInterval = setInterval(
       () => this.sweepStaleEntries(),
-      SWEEP_INTERVAL_MS,
+      API_KEY_SWEEP_INTERVAL_MS,
     );
   }
 
@@ -118,12 +114,12 @@ export class ApiKeyAuthGuard implements CanActivate, OnModuleDestroy {
     }
 
     // Reset if the window has expired
-    if (Date.now() - record.windowStart >= WINDOW_MS) {
+    if (Date.now() - record.windowStart >= API_KEY_FAILED_WINDOW_MS) {
       this.failedAttempts.delete(ip);
       return false;
     }
 
-    return record.count >= MAX_FAILED_ATTEMPTS;
+    return record.count >= API_KEY_MAX_FAILED_ATTEMPTS;
   }
 
   /**
@@ -133,7 +129,7 @@ export class ApiKeyAuthGuard implements CanActivate, OnModuleDestroy {
     const now = Date.now();
     const record = this.failedAttempts.get(ip);
 
-    if (!record || now - record.windowStart >= WINDOW_MS) {
+    if (!record || now - record.windowStart >= API_KEY_FAILED_WINDOW_MS) {
       // Start a new window
       this.failedAttempts.set(ip, { count: 1, windowStart: now });
     } else {
@@ -147,7 +143,7 @@ export class ApiKeyAuthGuard implements CanActivate, OnModuleDestroy {
   private sweepStaleEntries(): void {
     const now = Date.now();
     for (const [ip, record] of this.failedAttempts) {
-      if (now - record.windowStart >= WINDOW_MS) {
+      if (now - record.windowStart >= API_KEY_FAILED_WINDOW_MS) {
         this.failedAttempts.delete(ip);
       }
     }
