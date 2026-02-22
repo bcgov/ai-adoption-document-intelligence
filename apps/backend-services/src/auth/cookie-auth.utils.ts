@@ -35,6 +35,12 @@ function isSecure(): boolean {
 
 /**
  * Base options shared by all HttpOnly auth cookies.
+ *
+ * - httpOnly: prevents JavaScript from reading token values, mitigating XSS theft.
+ * - secure: ensures cookies are only sent over HTTPS in production.
+ * - sameSite "lax": allows the cookie on top-level navigations (e.g. user clicks
+ *   a link to our app) while still blocking cross-site sub-requests (img, fetch
+ *   from another origin). "strict" would break OAuth redirects back to our callback.
  */
 function baseHttpOnlyOptions(): CookieOptions {
   return {
@@ -46,32 +52,47 @@ function baseHttpOnlyOptions(): CookieOptions {
 
 /**
  * Cookie option presets for each auth cookie.
+ *
+ * Path scoping is used to restrict which endpoints receive each cookie,
+ * following the principle of least privilege. This reduces the attack surface
+ * by ensuring tokens are only transmitted to the routes that need them.
  */
 export const COOKIE_OPTIONS = {
+  /** Scoped to the callback route only — the PKCE verifier is consumed once
+   *  when the IdP redirects back. Short TTL limits the window for replay. */
   pkceVerifier: (): CookieOptions => ({
     ...baseHttpOnlyOptions(),
     maxAge: 2 * 60 * 1000, // 2 minutes
     path: "/api/auth/callback",
   }),
 
+  /** Sent on every request (path "/") so all API endpoints can authenticate.
+   *  Lifetime matches the Keycloak token's own expiry. */
   accessToken: (expiresInSeconds: number): CookieOptions => ({
     ...baseHttpOnlyOptions(),
     maxAge: expiresInSeconds * 1000,
     path: "/",
   }),
 
+  /** Scoped to the refresh endpoint — avoids sending the long-lived refresh
+   *  token on every request, limiting exposure if another endpoint is compromised. */
   refreshToken: (): CookieOptions => ({
     ...baseHttpOnlyOptions(),
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     path: "/api/auth/refresh",
   }),
 
+  /** Scoped to /api/auth — only needed for logout (id_token_hint). */
   idToken: (expiresInSeconds: number): CookieOptions => ({
     ...baseHttpOnlyOptions(),
     maxAge: expiresInSeconds * 1000,
     path: "/api/auth",
   }),
 
+  /** Non-HttpOnly so the frontend JS can read the value and send it back in
+   *  the X-CSRF-Token header (double-submit cookie pattern). sameSite "strict"
+   *  (stricter than the auth cookies' "lax") ensures this cookie is never sent
+   *  on any cross-site request, even top-level navigations. */
   csrfToken: (expiresInSeconds: number): CookieOptions => ({
     httpOnly: false,
     secure: isSecure(),
@@ -91,7 +112,10 @@ export interface PkceCookieData {
 }
 
 /**
- * Generates a cryptographically random CSRF token.
+ * Generates a cryptographically random CSRF token (256-bit / 64 hex chars).
+ * Used in the double-submit cookie pattern: this value is set as a cookie AND
+ * must be echoed back by the frontend in the X-CSRF-Token header. An attacker
+ * on another origin cannot read our cookies, so they cannot forge the header.
  */
 export function generateCsrfToken(): string {
   return randomBytes(32).toString("hex");
@@ -151,6 +175,8 @@ export function cookieOrBearerExtractor(req: Request): string | null {
 
 /**
  * Clears all auth cookies on the response (used during logout).
+ * The path option MUST match what was used when setting each cookie,
+ * otherwise the browser will not remove it (cookies are path-scoped).
  */
 export function clearAuthCookies(res: Response): void {
   res.clearCookie(AUTH_COOKIE_NAMES.ACCESS_TOKEN, { path: "/" });
