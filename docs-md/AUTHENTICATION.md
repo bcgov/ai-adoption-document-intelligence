@@ -185,6 +185,7 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 | `@nestjs/passport` | 11.x | Passport integration for NestJS |
 | `passport-jwt` | 4.x | JWT extraction and validation strategy |
 | `openid-client` | 6.8.2 | OIDC discovery, PKCE, token exchange, refresh, and ID token validation |
+| `jwks-rsa` | 3.2.0 | Fetches and caches Keycloak's RS256 public signing keys from the JWKS endpoint for per-request JWT validation via Passport |
 | `cookie-parser` | 1.4.7 | Parse HTTP cookies on incoming requests |
 | `@nestjs/throttler` | 6.5.0 | Global and per-route rate limiting to prevent brute-force and DoS |
 | `helmet` | 8.x | HTTP security headers (HSTS, CSP, X-Frame-Options, etc.) |
@@ -193,8 +194,9 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 
 **Key Backend Libraries Explained:**
 
-- **`openid-client`**: Handles OIDC discovery, PKCE code challenge/verifier generation, authorization code exchange, refresh grants, and ID token signature verification — replaces manual `jsonwebtoken`/`jwks-rsa`/`axios` usage
-- **`passport-jwt`**: Extracts JWTs from cookies (primary) or Authorization header (fallback) and validates them via JWKS
+- **`openid-client`**: Handles OIDC discovery, PKCE code challenge/verifier generation, authorization code exchange, refresh grants, and ID token signature verification
+- **`jwks-rsa`**: Provides `secretOrKeyProvider` for the Passport JWT strategy — automatically fetches and caches Keycloak's RS256 public keys from the JWKS endpoint for per-request access token validation
+- **`passport-jwt`**: Extracts JWTs from cookies (primary) or Authorization header (fallback) and validates them via `jwks-rsa` JWKS
 - **`cookie-parser`**: Parses cookies so controllers and guards can read auth tokens from `req.cookies`
 - **`@nestjs/throttler`**: Provides global rate limiting (100 requests/minute default) and per-route overrides on sensitive auth endpoints (5–10 requests/minute)
 - **`helmet`**: Sets HTTP security headers on all responses — HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Content-Security-Policy, and removes X-Powered-By
@@ -1538,9 +1540,10 @@ model ApiKey {
 
 ```bash
 # Keycloak Configuration
-SSO_AUTH_SERVER_URL=https://keycloak.example.com/realms/my-realm
-# OR
 SSO_AUTH_SERVER_URL=https://keycloak.example.com/auth
+SSO_REALM=my-realm
+# OR (full OIDC endpoint — SSO_REALM is still required)
+SSO_AUTH_SERVER_URL=https://keycloak.example.com/realms/my-realm/protocol/openid-connect
 SSO_REALM=my-realm
 
 SSO_CLIENT_ID=ai-ocr-backend
@@ -1561,8 +1564,9 @@ NODE_ENV=production
 
 1. **SSO_AUTH_SERVER_URL Format:**
    - Can be full OIDC endpoint: `https://keycloak.example.com/realms/my-realm/protocol/openid-connect`
-   - Or base realm URL: `https://keycloak.example.com/realms/my-realm`
-   - The code auto-detects and adapts
+   - Or base Keycloak URL: `https://keycloak.example.com/auth` (the code appends `/realms/${SSO_REALM}` automatically)
+   - **Do not** use a bare realm URL like `https://keycloak.example.com/realms/my-realm` — the code would double-append `/realms/${SSO_REALM}`
+   - `SSO_REALM` is always required regardless of URL format
 
 2. **SSO_REDIRECT_URI:**
    - MUST match exactly what's configured in Keycloak client settings

@@ -148,15 +148,19 @@
 <!-- ====================================================================== -->
 <h2>Token Refresh Strategy</h2>
 
-<p>The platform uses a two-layer approach to keep sessions alive without requiring the user to re-authenticate.</p>
+<p>The platform uses a three-layer approach to keep sessions alive without requiring the user to re-authenticate.</p>
 
-<div class="grid grid-2">
+<div class="grid grid-3">
     <div class="card" style="border-left-color: #22c55e;">
-        <h3 style="margin-top: 0;">1. Proactive Refresh</h3>
-        <p>The SPA calls <code>POST /api/auth/refresh</code> periodically based on <code>expires_in</code> returned from authentication. Cookies are refreshed automatically by the server response.</p>
+        <h3 style="margin-top: 0;">1. Proactive Timer</h3>
+        <p>A <code>setTimeout</code> is scheduled at <strong>75% of the access token's lifetime</strong> (minimum 10 seconds). When it fires, the SPA calls <code>POST /api/auth/refresh</code>. Cookies are refreshed automatically by the server response, and the timer is rescheduled.</p>
+    </div>
+    <div class="card" style="border-left-color: #f59e0b;">
+        <h3 style="margin-top: 0;">2. Tab Visibility Listener</h3>
+        <p>When the user returns to the tab (via a <code>visibilitychange</code> event), the SPA checks if the access token has less than <strong>60 seconds</strong> remaining. If so, it triggers an immediate refresh to avoid making API calls with an about-to-expire token.</p>
     </div>
     <div class="card" style="border-left-color: #ef4444;">
-        <h3 style="margin-top: 0;">2. Axios 401 Interceptor</h3>
+        <h3 style="margin-top: 0;">3. Axios 401 Interceptor</h3>
         <p>If a request returns <strong>401 Unauthorized</strong>, the interceptor attempts a single-flight refresh via <code>POST /api/auth/refresh</code> (cookies sent automatically), retries the original request, and only logs the user out if refresh fails.</p>
     </div>
 </div>
@@ -216,7 +220,7 @@ X-CSRF-Token: abc123...</code></pre>
 <p>The <code>KeycloakJwtStrategy</code> (Passport strategy) handles token validation:</p>
 
 <ul>
-    <li><strong>Key Provider:</strong> <code>passport-jwt</code> with <code>secretOrKeyProvider</code> using <code>openid-client</code> JWKS — fetches Keycloak's RS256 public keys</li>
+    <li><strong>Key Provider:</strong> <code>passport-jwt</code> with <code>secretOrKeyProvider</code> using <code>jwks-rsa</code> — automatically fetches and caches Keycloak's RS256 public keys from the JWKS endpoint</li>
     <li><strong>Token Extraction:</strong> Cookie-first (<code>req.cookies.access_token</code>), with <code>Authorization: Bearer {token}</code> header as fallback for API clients</li>
     <li><strong>Validation:</strong> RS256 signature, issuer, audience, expiration</li>
     <li><strong>Role Normalization:</strong> Collects roles from three Keycloak JWT locations:
@@ -379,7 +383,8 @@ export class AdminController {
         <tr><th>Variable</th><th>Required</th><th>Description</th></tr>
     </thead>
     <tbody>
-        <tr><td><code>SSO_AUTH_SERVER_URL</code></td><td>Yes</td><td>Keycloak realm URL (e.g., <code>https://sso.example.com/realms/my-realm</code>)</td></tr>
+        <tr><td><code>SSO_AUTH_SERVER_URL</code></td><td>Yes</td><td>Keycloak base URL (e.g., <code>https://sso.example.com/auth</code>) or full OIDC endpoint (<code>https://sso.example.com/realms/my-realm/protocol/openid-connect</code>)</td></tr>
+        <tr><td><code>SSO_REALM</code></td><td>Yes</td><td>Keycloak realm name (e.g., <code>my-realm</code>). Used with the base URL format to construct the issuer: <code>{SSO_AUTH_SERVER_URL}/realms/{SSO_REALM}</code></td></tr>
         <tr><td><code>SSO_CLIENT_ID</code></td><td>Yes</td><td>OAuth client ID registered in Keycloak</td></tr>
         <tr><td><code>SSO_CLIENT_SECRET</code></td><td>Yes</td><td>Confidential client secret (server-side only)</td></tr>
         <tr><td><code>SSO_REDIRECT_URI</code></td><td>Yes</td><td>Callback URL (e.g., <code>https://your-host/api/auth/callback</code>)</td></tr>
@@ -392,7 +397,7 @@ export class AdminController {
 <!-- ====================================================================== -->
 <h2>API Endpoints</h2>
 
-<p>All auth endpoints are under <code>/api/auth/</code> and are marked <code>@Public()</code> (no bearer token required).</p>
+<p>Auth flow endpoints are under <code>/api/auth/</code>. The flow endpoints (<code>/login</code>, <code>/callback</code>, <code>/refresh</code>, <code>/logout</code>) are marked <code>@Public()</code> (no bearer token required). The <code>/me</code> endpoint requires a valid JWT.</p>
 
 <table>
     <thead>
@@ -437,7 +442,8 @@ export class AdminController {
         <tr><th>Library</th><th>Purpose</th></tr>
     </thead>
     <tbody>
-        <tr><td><code>openid-client</code> (v6.x)</td><td>OpenID-certified RP — discovery, authorization URL, code exchange, token refresh, ID token validation, JWKS key resolution</td></tr>
+        <tr><td><code>openid-client</code> (v6.x)</td><td>OpenID-certified RP — OIDC discovery, authorization URL construction, code exchange, token refresh, ID token validation</td></tr>
+        <tr><td><code>jwks-rsa</code> (v3.x)</td><td>Fetches and caches Keycloak's RS256 public signing keys from the JWKS endpoint for per-request JWT validation via Passport</td></tr>
         <tr><td><code>@nestjs/passport</code></td><td>Passport integration for NestJS guards and strategies</td></tr>
         <tr><td><code>passport-jwt</code></td><td>JWT extraction (cookie-first with Bearer fallback) and validation strategy</td></tr>
         <tr><td><code>@nestjs/throttler</code></td><td>Global and per-route rate limiting — protects against brute-force, credential stuffing, and DoS attacks</td></tr>
