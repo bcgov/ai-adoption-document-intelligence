@@ -46,10 +46,7 @@ sequenceDiagram
     API ->> BE: GET /api/documents<br/>(cookies sent automatically)
     BE ->> Guard: JwtAuthGuard intercepts
     Guard ->> Guard: Extract JWT from<br/>access_token cookie
-    Guard ->> Guard: Verify token signature<br/>(iss, aud, exp)
-    Guard ->> KC: Token introspection<br/>(cached 5 min per token)
-    KC -->> Guard: active: true/false
-    Guard ->> Guard: Set request.user
+    Guard ->> Guard: Verify token<br/>Set request.user
     Guard -->> BE: Authenticated
     BE -->> API: 200 OK (response data)
 

@@ -34,14 +34,6 @@ export class AuthService implements OnModuleInit {
   private readonly logger = new Logger(AuthService.name);
   private config: client.Configuration;
   private readonly issuer: string;
-
-  /**
-   * Returns the OIDC configuration for use by other services (e.g., token introspection).
-   * Only available after module initialization (onModuleInit).
-   */
-  getOidcConfig(): client.Configuration {
-    return this.config;
-  }
   private readonly clientId: string;
   private readonly clientSecret: string;
   private readonly redirectUri: string;

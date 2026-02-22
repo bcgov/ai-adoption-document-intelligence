@@ -10,7 +10,6 @@ import { CsrfGuard } from "./csrf.guard";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { KeycloakJwtStrategy } from "./keycloak-jwt.strategy";
 import { RolesGuard } from "./roles.guard";
-import { TokenIntrospectionService } from "./token-introspection.service";
 
 @Module({
   imports: [
@@ -21,7 +20,6 @@ import { TokenIntrospectionService } from "./token-introspection.service";
   controllers: [AuthController],
   providers: [
     AuthService,
-    TokenIntrospectionService,
     KeycloakJwtStrategy,
     {
       provide: APP_GUARD,

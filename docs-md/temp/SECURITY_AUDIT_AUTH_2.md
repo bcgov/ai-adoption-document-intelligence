@@ -57,7 +57,7 @@ The system uses a multi-layer guard stack registered globally via NestJS `APP_GU
 | Order | Guard | Registered In | Purpose |
 |-------|-------|---------------|---------|
 | 1 | `ThrottlerGuard` | `AppModule` | Rate limiting (100 req/60s default) |
-| 2 | `JwtAuthGuard` | `AuthModule` | JWT validation (cookie-first, Bearer fallback) + token introspection (revocation check, cached 5 min); skips `@Public()` |
+| 2 | `JwtAuthGuard` | `AuthModule` | JWT validation (cookie-first, Bearer fallback); skips `@Public()` |
 | 3 | `ApiKeyAuthGuard` | `AuthModule` | API key validation for `@ApiKeyAuth()` routes; failed-attempt throttling (20/min/IP) |
 | 4 | `RolesGuard` | `AuthModule` | RBAC enforcement via `@Roles()` (currently unused) |
 | 5 | `CsrfGuard` | `AuthModule` | Double-submit cookie CSRF on state-changing methods |

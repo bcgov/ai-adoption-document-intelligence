@@ -911,7 +911,7 @@ X-CSRF-Token: abc123...</code></pre>
         <tr>
             <td><strong>2</strong></td>
             <td><code>JwtAuthGuard</code></td>
-            <td>Extends Passport <code>AuthGuard('jwt')</code>. Skips <code>@Public()</code> routes. Defers to API key guard if <code>@ApiKeyAuth()</code> and <code>x-api-key</code> header present. Otherwise validates token via <code>KeycloakJwtStrategy</code> (cookie-first, Bearer fallback), then checks token revocation via <code>TokenIntrospectionService</code> (Keycloak introspection, cached 5 minutes).</td>
+            <td>Extends Passport <code>AuthGuard('jwt')</code>. Skips <code>@Public()</code> routes. Defers to API key guard if <code>@ApiKeyAuth()</code> and <code>x-api-key</code> header present. Otherwise validates token via <code>KeycloakJwtStrategy</code> (cookie-first, Bearer fallback).</td>
         </tr>
         <tr>
             <td><strong>3</strong></td>
@@ -1078,10 +1078,6 @@ export class AdminController {
         <h3 style="margin-top: 0;">Rate Limiting</h3>
         <p>All endpoints are protected by <code>@nestjs/throttler</code> with a global default of <strong>100 requests per minute per IP</strong>. Auth endpoints have stricter limits: <code>/api/auth/refresh</code> at <strong>5/min</strong>, and <code>/api/auth/login</code>, <code>/api/auth/callback</code>, <code>/api/auth/logout</code> at <strong>10/min</strong>. API key validation has in-guard failed-attempt throttling at <strong>20 failures/min/IP</strong>. Exceeding limits returns <code>429 Too Many Requests</code>.</p>
     </div>
-    <div class="card" style="border-left-color: #06b6d4;">
-        <h3 style="margin-top: 0;">Token Introspection (Revocation Check)</h3>
-        <p>After JWT signature verification, the <code>JwtAuthGuard</code> checks token revocation via Keycloak's introspection endpoint (RFC 7662) using <code>openid-client.tokenIntrospection()</code>. Results are cached in-memory for <strong>5 minutes</strong> per token (keyed by SHA-256 hash). Fails open on introspection errors — the JWT is already signature-validated, introspection is defense-in-depth. Revoked tokens return <code>401 Unauthorized</code>.</p>
-    </div>
     <div class="card" style="border-left-color: #a855f7;">
         <h3 style="margin-top: 0;">Security Headers (Helmet)</h3>
         <p>The <code>helmet</code> middleware sets HTTP security headers on all backend responses: <code>Strict-Transport-Security</code> (HSTS, 1 year), <code>X-Frame-Options: DENY</code> (clickjacking prevention), <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code>, <code>Content-Security-Policy</code>, and removes <code>X-Powered-By</code>. The frontend nginx config also sets equivalent security headers.</p>
@@ -1200,10 +1196,11 @@ export class AdminController {
     <p><strong>Resolved:</strong> Tokens are now stored in <strong>HttpOnly, Secure, SameSite=Lax</strong> cookies. JavaScript cannot access tokens at all. CSRF protection is implemented via a double-submit cookie pattern with the global <code>CsrfGuard</code>. The SPA never handles raw tokens — it only interacts with the <code>/api/auth/me</code> endpoint for profile data.</p>
 </div>
 
-<h3>3. <s>No Token Revocation Check on the Backend</s> — RESOLVED</h3>
+<h3>3. No Token Revocation Check on the Backend</h3>
 
-<div class="card" style="border-left-color: #22c55e;">
-    <p><strong>Resolved:</strong> The <code>TokenIntrospectionService</code> now checks token revocation against Keycloak's introspection endpoint (RFC 7662) via <code>openid-client.tokenIntrospection()</code>. All authenticated requests (non-<code>@Public()</code>, non-API-key) are checked after JWT signature validation. Results are cached in-memory for <strong>5 minutes</strong> per token, keyed by SHA-256 hash (raw tokens never stored in memory). The service fails open on introspection errors (network issues, Keycloak unavailability) since the JWT is already signature-validated — introspection is defense-in-depth. Revoked tokens return <code>401 Unauthorized</code> with message "Token has been revoked".</p>
+<div class="card" style="border-left-color: #f59e0b;">
+    <p><strong>Issue:</strong> Bearer token validation only checks the JWT signature, issuer, audience, and expiration. If a token is revoked in Keycloak (e.g., user account disabled, admin-initiated session termination), the token remains valid until it naturally expires. This is inherent to stateless JWT validation.</p>
+    <p><strong>Recommendation:</strong> Implement <strong>token introspection</strong> for sensitive operations. Use Keycloak's <code>/protocol/openid-connect/token/introspect</code> endpoint to check if a token is still active. This can be applied selectively (e.g., for admin operations, write operations) to avoid the performance overhead on every request. Alternatively, use short-lived access tokens (e.g., 5 minutes) combined with refresh token rotation to reduce the window of exposure.</p>
 </div>
 
 <h3>4. <s>Duplicate Decorator Definitions</s> — RESOLVED</h3>

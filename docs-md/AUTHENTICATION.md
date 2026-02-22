@@ -225,11 +225,10 @@ apps/backend-services/src/auth/
 ├── auth.module.ts              # Module definition with global guards
 ├── auth.controller.ts          # Public HTTP endpoints for OAuth flow
 ├── auth.service.ts             # Core OAuth orchestration logic
-├── token-introspection.service.ts  # Token revocation checking via Keycloak introspection (RFC 7662)
 ├── cookie-auth.utils.ts        # Centralized cookie configuration, token extraction helpers
 ├── csrf.guard.ts               # CSRF double-submit cookie protection guard
 ├── keycloak-jwt.strategy.ts    # Passport JWT strategy (cookie-first extraction)
-├── jwt-auth.guard.ts           # Passport-based auth guard with token introspection
+├── jwt-auth.guard.ts           # Passport-based auth guard (cookie-first, Bearer fallback)
 ├── api-key-auth.guard.ts       # API key validation guard with failed-attempt throttling
 ├── roles.guard.ts              # RBAC enforcement guard
 ├── public.decorator.ts         # @Public() metadata
@@ -525,8 +524,7 @@ Global guard that validates JWTs on all routes except those marked `@Public()`. 
 4. Validate token via Passport JWT strategy (JWKS RS256 signature verification)
 5. Validate `issuer` and `audience` claims
 6. Normalize Keycloak role claims into `request.user.roles[]`
-7. **Check token revocation** via `TokenIntrospectionService` — calls Keycloak's introspection endpoint with a 5-minute in-memory cache per token. If revoked, throws `UnauthorizedException`
-8. Attach `user` object to request for downstream use
+7. Attach `user` object to request for downstream use
 
 **Passport JWT Strategy (cookie-first extraction):**
 
@@ -689,11 +687,10 @@ export class AppModule {}
   controllers: [AuthController],
   providers: [
     AuthService,
-    TokenIntrospectionService,
     KeycloakJwtStrategy,
     {
       provide: APP_GUARD,
-      useClass: JwtAuthGuard,  // Validates JWT (cookie-first) + introspection on all routes
+      useClass: JwtAuthGuard,  // Validates JWT (cookie-first) on all routes
     },
     {
       provide: APP_GUARD,
@@ -715,7 +712,7 @@ export class AuthModule {}
 
 **Guard Execution Order:**
 1. `ThrottlerGuard` → Enforces per-IP rate limits (global default or per-route override)
-2. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Checks token revocation via introspection (cached 5 min) → Sets `request.user`
+2. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
 3. `ApiKeyAuthGuard` → Checks per-IP failed-attempt limit (20/min) → Validates API key (if applicable) → Sets `request.user`
 4. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
 5. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
@@ -752,19 +749,6 @@ All access tokens are verified using Keycloak's public keys:
 - Cached with rate limiting (5 requests per minute)
 - RS256 asymmetric signature verification
 - Validates `issuer` and `audience` claims
-
-#### Token Introspection (Revocation Check)
-
-After JWT signature verification succeeds, the `JwtAuthGuard` checks whether the token has been revoked by Keycloak via the `TokenIntrospectionService`:
-
-- **Endpoint:** Keycloak's `/protocol/openid-connect/token/introspect` (RFC 7662), discovered automatically via `openid-client`
-- **Scope:** All authenticated requests (non-`@Public()`, non-API-key routes)
-- **Caching:** Results are cached in-memory for **5 minutes** per token, keyed by SHA-256 hash of the token (raw tokens are never stored in memory)
-- **Fail-open behavior:** If introspection fails (network error, Keycloak unavailable), the request is allowed through with a warning log. The JWT is already signature-validated — introspection is defense-in-depth, not primary validation
-- **Cache cleanup:** A periodic sweep (every 5 minutes) removes expired cache entries to prevent memory leaks
-- **Revoked tokens:** If `active === false`, the guard throws `UnauthorizedException('Token has been revoked')`
-
-This addresses the gap where a user account disabled in Keycloak or an admin-initiated session termination would not be detected until the JWT naturally expired. With introspection, revoked tokens are detected within the 5-minute cache window.
 
 #### Rate Limiting
 
@@ -1709,7 +1693,6 @@ Full error details (Keycloak error codes, token endpoint URLs, internal state) a
 - Issuer and audience claims checked
 - Token expiry enforced
 - Cookie-first extraction with Bearer header fallback
-- **Token revocation checked** via Keycloak introspection endpoint (cached 5 minutes per token)
 
 **Frontend Validation:**
 - Frontend never sees raw tokens
@@ -1799,10 +1782,6 @@ While all endpoints are protected by authentication (JWT or API key), there are 
 **Recommendation:** Add resource ownership validation at the service layer. Either filter queries by `userId` (e.g., `WHERE user_id = $1 AND id = $2`), check ownership after retrieval and throw `ForbiddenException`, or implement a tenant/organization scoping middleware.
 
 ### Resolved Issues
-
-#### ~~No Token Revocation Check on the Backend~~ — RESOLVED
-
-**Resolved:** The `TokenIntrospectionService` now checks token revocation against Keycloak's introspection endpoint (RFC 7662) via `openid-client.tokenIntrospection()`. All authenticated requests (non-`@Public()`, non-API-key) are checked after JWT signature validation. Results are cached in-memory for 5 minutes per token (keyed by SHA-256 hash). The service fails open on introspection errors (network issues, Keycloak unavailability) since the JWT is already signature-validated — introspection is defense-in-depth. Revoked tokens return `401 Unauthorized` with message "Token has been revoked".
 
 #### ~~No Rate Limiting on API Key Validation Path~~ — RESOLVED
 
