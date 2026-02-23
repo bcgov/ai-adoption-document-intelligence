@@ -3,6 +3,22 @@ import { DatabaseService } from '../database/database.service';
 
 @Injectable()
 export class GroupService {
+    /**
+     * Creates a new group with the given name and optional description.
+     * Throws an error if a group with the same name already exists.
+     */
+    async createGroup(name: string): Promise<{ id: string; name: string }> {
+      // Check for duplicate group name
+      const existing = await this.databaseService.prisma.group.findUnique({ where: { name } });
+      if (existing) {
+        throw new NotFoundException('Group with this name already exists');
+      }
+      // Create the group
+      const group = await this.databaseService.prisma.group.create({
+        data: { name },
+      });
+      return group;
+    }
   constructor(
     private readonly databaseService: DatabaseService,
   ) {}

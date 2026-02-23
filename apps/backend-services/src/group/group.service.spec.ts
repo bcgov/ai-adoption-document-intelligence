@@ -1,3 +1,30 @@
+describe('createGroup', () => {
+  it('should create a new group', async () => {
+    const mockGroup = { id: 'g1', name: 'Test Group' };
+    const mockPrisma = {
+      group: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(mockGroup),
+      },
+    };
+    const service = new GroupService({ prisma: mockPrisma } as any);
+    const result = await service.createGroup('Test Group');
+    expect(result).toEqual(mockGroup);
+    expect(mockPrisma.group.findUnique).toHaveBeenCalledWith({ where: { name: 'Test Group' } });
+    expect(mockPrisma.group.create).toHaveBeenCalledWith({ data: { name: 'Test Group' } });
+  });
+
+  it('should throw if group name exists', async () => {
+    const mockPrisma = {
+      group: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'g1', name: 'Test Group' }),
+        create: jest.fn(),
+      },
+    };
+    const service = new GroupService({ prisma: mockPrisma } as any);
+    await expect(service.createGroup('Test Group')).rejects.toThrow('Group with this name already exists');
+  });
+});
 import { Test, TestingModule } from '@nestjs/testing';
 import { GroupService } from './group.service';
 import { DatabaseService } from '../database/database.service';

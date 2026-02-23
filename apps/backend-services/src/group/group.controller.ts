@@ -3,6 +3,23 @@ import { GroupService } from './group.service';
 
 @Controller('api/users')
 export class GroupController {
+    /**
+     * Create a new group
+     * POST /api/users/groups
+     */
+    @Post('groups')
+    async createGroup(
+      @Body('name') name: string
+    ): Promise<{ id: string; name: string }> {
+      if (!name || typeof name !== 'string') {
+        throw new HttpException('Group name is required', HttpStatus.BAD_REQUEST);
+      }
+      try {
+        return await this.groupService.createGroup(name);
+      } catch (error) {
+        throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      }
+    }
   constructor(private readonly groupService: GroupService) {}
 
   /**
