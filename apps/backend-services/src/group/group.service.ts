@@ -32,5 +32,37 @@ export class GroupService {
         });
       })
     );
+   }
+  /**
+   * Removes a user from a group by userId and groupId.
+   * Throws an error if the group or user does not exist, or if the user is not a member.
+   */
+  async removeUserFromGroup(groupId: string, userId: string): Promise<void> {
+    // Check if group exists
+    const group = await this.databaseService.prisma.group.findUnique({ where: { id: groupId } });
+    if (!group) {
+      throw new NotFoundException('Group not found');
+    }
+    // Check if user-group relation exists
+    const userGroup = await this.databaseService.prisma.userGroup.findUnique({
+      where: {
+        user_id_group_id: {
+          user_id: userId,
+          group_id: groupId,
+        },
+      },
+    });
+    if (!userGroup) {
+      throw new NotFoundException('User not a member of this group');
+    }
+    // Remove the user from the group
+    await this.databaseService.prisma.userGroup.delete({
+      where: {
+        user_id_group_id: {
+          user_id: userId,
+          group_id: groupId,
+        },
+      },
+    });
   }
 }

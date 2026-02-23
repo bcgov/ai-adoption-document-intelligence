@@ -33,3 +33,58 @@ describe('GroupService', () => {
     await expect(service.assignUserToGroups('user1', ['group1', 'group2'])).resolves.toBeUndefined();
   });
 });
+
+describe('removeUserFromGroup', () => {
+  it('should remove a user from a group', async () => {
+    const groupId = 'test-group';
+    const userId = 'test-user';
+    const group = { id: groupId, users: [{ id: userId }] };
+    const findOneMock = jest.fn().mockResolvedValue(group);
+    const saveMock = jest.fn().mockResolvedValue(undefined);
+    const databaseService = {
+      prisma: {
+        group: {
+          findOne: findOneMock,
+          save: saveMock,
+        },
+      },
+    };
+    const service = new GroupService(databaseService as any);
+    await service.removeUserFromGroup(groupId, userId);
+    expect(group.users.length).toBe(0);
+    expect(saveMock).toHaveBeenCalledWith(group);
+  });
+
+  it('should throw if group not found', async () => {
+    const groupId = 'missing-group';
+    const userId = 'user';
+    const findOneMock = jest.fn().mockResolvedValue(undefined);
+    const databaseService = {
+      prisma: {
+        group: {
+          findOne: findOneMock,
+          save: jest.fn(),
+        },
+      },
+    };
+    const service = new GroupService(databaseService as any);
+    await expect(service.removeUserFromGroup(groupId, userId)).rejects.toThrow('Group not found');
+  });
+
+  it('should throw if user not a member', async () => {
+    const groupId = 'group';
+    const userId = 'not-member';
+    const group = { id: groupId, users: [{ id: 'other-user' }] };
+    const findOneMock = jest.fn().mockResolvedValue(group);
+    const databaseService = {
+      prisma: {
+        group: {
+          findOne: findOneMock,
+          save: jest.fn(),
+        },
+      },
+    };
+    const service = new GroupService(databaseService as any);
+    await expect(service.removeUserFromGroup(groupId, userId)).rejects.toThrow('User not a member of this group');
+  });
+});

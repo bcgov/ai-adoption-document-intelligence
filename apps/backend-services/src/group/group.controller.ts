@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Param, HttpException, HttpStatus, Delete } from '@nestjs/common';
 import { GroupService } from './group.service';
 
 @Controller('api/users')
@@ -23,5 +23,17 @@ export class GroupController {
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+  /**
+   * Remove a user from a group
+   * DELETE /api/users/:groupId/users/:userId
+   */
+  @Delete(':groupId/users/:userId')
+  async removeUserFromGroup(
+    @Param('groupId') groupId: string,
+    @Param('userId') userId: string
+  ): Promise<{ success: boolean }> {
+    await this.groupService.removeUserFromGroup(groupId, userId);
+    return { success: true };
   }
 }
