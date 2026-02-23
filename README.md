@@ -292,9 +292,10 @@ TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=ocr-processing
 
 # Keycloak SSO (Optional)
-# KEYCLOAK_ISSUER=https://keycloak.example.com/realms/myrealm
-# KEYCLOAK_JWKS_URI=https://keycloak.example.com/realms/myrealm/protocol/openid-connect/certs
-# KEYCLOAK_AUDIENCE=account
+# SSO_AUTH_SERVER_URL=https://keycloak.example.com/auth/realms/standard/protocol/openid-connect
+# SSO_REALM=standard
+# SSO_CLIENT_ID=your-client-id
+# SSO_CLIENT_SECRET=your-client-secret
 ```
 
 **Frontend Configuration:**
@@ -305,12 +306,12 @@ Edit `apps/frontend/.env`:
 # API Configuration (empty for Vite proxy in development)
 VITE_API_BASE_URL=
 
-# OIDC Authentication
-VITE_OIDC_AUTHORITY=https://keycloak.example.com/realms/myrealm
-VITE_OIDC_CLIENT_ID=document-intelligence-ui
-VITE_OIDC_REDIRECT_URI=http://localhost:3000
-VITE_OIDC_SCOPE=openid profile email
+# Application Configuration
+VITE_APP_NAME=Document Intelligence Platform
+VITE_APP_VERSION=1.0.0
 ```
+
+Note: All OAuth/OIDC configuration is handled by the backend. The frontend has no OIDC settings.
 
 **Temporal Worker Configuration:**
 
@@ -785,17 +786,18 @@ TEMPORAL_ADDRESS=temporal:7233
 TEMPORAL_NAMESPACE=default
 
 # Authentication
-KEYCLOAK_ISSUER=https://keycloak.example.com/realms/...
-KEYCLOAK_JWKS_URI=https://...
+SSO_AUTH_SERVER_URL=https://keycloak.example.com/auth/realms/standard/protocol/openid-connect
+SSO_REALM=standard
+SSO_CLIENT_ID=your-client-id
+SSO_CLIENT_SECRET=your-client-secret
 ```
 
 **Frontend:**
 ```env
 VITE_API_BASE_URL=https://api.example.com
-VITE_OIDC_AUTHORITY=https://keycloak.example.com/realms/...
-VITE_OIDC_CLIENT_ID=document-intelligence-ui
-VITE_OIDC_REDIRECT_URI=https://app.example.com
 ```
+
+Note: All OAuth/OIDC configuration is handled by the backend. The frontend has no OIDC settings.
 
 ## Documentation
 
@@ -924,7 +926,7 @@ docker logs <container-id>
 cd apps/temporal
 npm run dev
 
-# Temporal UI: http://localhost:8080
+# Temporal UI: http://localhost:8088
 ```
 
 ## Contributing

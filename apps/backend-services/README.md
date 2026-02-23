@@ -233,10 +233,10 @@ TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=ocr-processing
 
 # Keycloak SSO (Optional)
-KEYCLOAK_ISSUER=https://keycloak.example.com/realms/myrealm
-KEYCLOAK_JWKS_URI=https://keycloak.example.com/realms/myrealm/protocol/openid-connect/certs
-KEYCLOAK_AUDIENCE=account
-KEYCLOAK_TOKEN_SIGNING_ALG=RS256
+SSO_AUTH_SERVER_URL=https://keycloak.example.com/auth/realms/standard/protocol/openid-connect
+SSO_REALM=standard
+SSO_CLIENT_ID=your-client-id
+SSO_CLIENT_SECRET=your-client-secret
 
 # Request Limits
 BODY_LIMIT=50mb

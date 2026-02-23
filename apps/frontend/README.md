@@ -413,9 +413,10 @@ Set environment variables at build time:
 
 ```bash
 VITE_API_BASE_URL=https://api.example.com \
-VITE_OIDC_AUTHORITY=https://keycloak.example.com/realms/myrealm \
 npm run build
 ```
+
+Note: All OAuth/OIDC configuration is handled by the backend. The frontend has no OIDC settings.
 
 ## Troubleshooting
 
@@ -426,10 +427,10 @@ In production, ensure backend CORS settings allow frontend origin.
 
 ### Authentication Issues
 
-- Verify `VITE_OIDC_*` environment variables
+- Verify backend SSO environment variables (`SSO_AUTH_SERVER_URL`, `SSO_REALM`, etc.)
 - Check Keycloak client configuration (allowed redirect URIs)
-- Inspect browser console for OIDC errors
-- Verify backend accepts Bearer tokens
+- Inspect browser console for authentication errors
+- Verify backend CORS settings allow frontend origin
 
 ### Build Errors
 
