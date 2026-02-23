@@ -103,7 +103,6 @@ export class AzureService {
       result = await pollResp.json();
       status = getStatus(result);
       this.logger.debug(`Operation status: ${status}`);
-      this.logger.debug(result);
     }
     if (status === "succeeded") {
       await onSuccess(

@@ -18,7 +18,7 @@ export class UploadClassifierDocumentsResponseDto {
 export class DeleteClassifierDocumentsResponseDto {}
 
 export class ClassifierResponseDto {
-  @ApiProperty({ example: "Classification complete" })
+  @ApiProperty({ example: "succeeded" })
   status: string;
 
   @ApiProperty({ example: "result content" })

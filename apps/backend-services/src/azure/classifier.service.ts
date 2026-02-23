@@ -19,7 +19,7 @@ interface DocType {
 export class ClassifierService {
   private readonly logger = new Logger(ClassifierService.name);
   private readonly client: DocumentIntelligenceClient;
-  private readonly classifierContainer: string = "classification";
+  public readonly classifierContainer: string = "classification";
 
   constructor(
     private databaseService: DatabaseService,

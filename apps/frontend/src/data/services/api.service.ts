@@ -91,15 +91,24 @@ class ApiService {
   }
 
   private async request<T>(
-    method: "GET" | "POST" | "PUT" | "DELETE",
+    method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
     endpoint: string,
     data?: unknown,
   ): Promise<ApiResponse<T>> {
     try {
+      let headers = undefined;
+      const payload = data;
+      // If data is FormData, remove Content-Type so browser/axios sets it correctly
+      if (typeof FormData !== "undefined" && data instanceof FormData) {
+        headers = { ...this.axiosInstance.defaults.headers.common };
+        // Remove Content-Type so axios/browser sets it with boundary
+        if (headers["Content-Type"]) delete headers["Content-Type"];
+      }
       const response: AxiosResponse<T> = await this.axiosInstance({
         method,
         url: endpoint,
-        data,
+        data: payload,
+        ...(headers ? { headers } : {}),
       });
 
       return {
@@ -126,6 +135,10 @@ class ApiService {
 
   async put<T>(endpoint: string, data: unknown): Promise<ApiResponse<T>> {
     return this.request<T>("PUT", endpoint, data);
+  }
+
+  async patch<T>(endpoint: string, data: unknown): Promise<ApiResponse<T>> {
+    return this.request<T>("PATCH", endpoint, data);
   }
 
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {

@@ -233,4 +233,54 @@ describe("StorageService", () => {
       expect(result.some((f) => f.name === "file2.txt")).toBe(true);
     });
   });
+  describe("listBlobsInFolder", () => {
+    it("should warn and return [] if folder does not exist", async () => {
+      jest.spyOn(fs, "existsSync").mockReturnValue(false);
+      const loggerWarn = jest
+        .spyOn(service["logger"], "warn")
+        .mockImplementation();
+      const result = await service.listBlobsInFolder("nofolder");
+      expect(result).toEqual([]);
+      expect(loggerWarn).toHaveBeenCalled();
+    });
+
+    it("should list files in a flat folder", async () => {
+      jest.spyOn(fs, "existsSync").mockReturnValue(true);
+      jest.spyOn(fs.promises, "readdir").mockResolvedValue([
+        { name: "file1.txt", isDirectory: () => false },
+        { name: "file2.txt", isDirectory: () => false },
+      ] as any);
+      const result = await service.listBlobsInFolder("folder");
+      expect(result).toEqual(["file1.txt", "file2.txt"]);
+    });
+
+    it("should list files and folders recursively", async () => {
+      jest.spyOn(fs, "existsSync").mockReturnValue(true);
+      const mockReaddir = jest.spyOn(fs.promises, "readdir");
+      mockReaddir.mockImplementation(async (dir) => {
+        if (dir.toString().endsWith("folder")) {
+          return [
+            { name: "file1.txt", isDirectory: () => false },
+            { name: "sub", isDirectory: () => true },
+          ] as any;
+        } else if (dir.toString().endsWith("sub")) {
+          return [
+            { name: "file2.txt", isDirectory: () => false },
+            { name: "deep", isDirectory: () => true },
+          ] as any;
+        } else if (dir.toString().endsWith("deep")) {
+          return [{ name: "file3.txt", isDirectory: () => false }] as any;
+        }
+        return [];
+      });
+      const result = await service.listBlobsInFolder("folder");
+      expect(result).toEqual([
+        "file1.txt",
+        "sub/",
+        "sub/deep/",
+        "sub/deep/file3.txt",
+        "sub/file2.txt",
+      ]);
+    });
+  });
 });
