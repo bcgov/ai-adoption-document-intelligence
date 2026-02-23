@@ -1,34 +1,49 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { IsArray, IsEnum, IsOptional, IsString } from "class-validator";
-import {
-  ClassifierSource,
-  ClassifierStatus,
-} from "@/azure/dto/classifier-constants.dto";
+import { ClassifierSource } from "@/azure/dto/classifier-constants.dto";
 
 export class ClassifierCreationDto {
   @ApiProperty()
   @IsString()
-  classifierName: string;
+  name: string;
 
   @ApiProperty()
   @IsString()
   description: string;
 
   @ApiProperty({ enum: ClassifierSource })
+  @IsEnum(ClassifierSource)
   source: ClassifierSource;
-
-  @ApiProperty({ enum: ClassifierStatus })
-  status: ClassifierStatus;
 
   @ApiProperty()
   @IsString()
-  groupId: string;
+  group_id: string;
+}
+
+export class UpdateClassifierDto {
+  @ApiProperty()
+  @IsString()
+  name: string;
+
+  @ApiProperty()
+  @IsString()
+  group_id: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiProperty({ enum: ClassifierSource, required: false })
+  @IsOptional()
+  @IsEnum(ClassifierSource)
+  source?: ClassifierSource;
 }
 
 export class UploadClassifierDocumentsDto {
   @ApiProperty()
   @IsString()
-  classifierName: string;
+  name: string;
 
   @ApiProperty()
   @IsString()
@@ -36,42 +51,56 @@ export class UploadClassifierDocumentsDto {
 
   @ApiProperty()
   @IsString()
-  groupId: string;
+  group_id: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  files?: Express.Multer.File[];
 }
 
 export class DeleteClassifierDocumentsDto {
   @ApiProperty()
   @IsString()
-  classifierName: string;
+  name: string;
 
   @ApiProperty()
   @IsString()
-  groupId: string;
+  group_id: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsArray()
-  folders?: string[];
+  @IsString()
+  folder?: string;
+}
+
+export class GetClassifierDocumentsQueryDto {
+  @ApiProperty()
+  @IsString()
+  name: string;
+
+  @ApiProperty()
+  @IsString()
+  group_id: string;
 }
 
 export class RequestClassifierTrainingDto {
   @ApiProperty()
   @IsString()
-  classifierName: string;
+  name: string;
 
   @ApiProperty()
   @IsString()
-  groupId: string;
+  group_id: string;
 }
 
 export class RequestClassificationDto {
   @ApiProperty()
   @IsString()
-  classifierName: string;
+  name: string;
 
   @ApiProperty()
   @IsString()
-  groupId: string;
+  group_id: string;
 }
 
 export class GetClassificationResultQueryDto {
@@ -83,9 +112,9 @@ export class GetClassificationResultQueryDto {
 export class GetTrainingResultQueryDto {
   @ApiProperty()
   @IsString()
-  classifierName: string;
+  name: string;
 
   @ApiProperty()
   @IsString()
-  groupId: string;
+  group_id: string;
 }
