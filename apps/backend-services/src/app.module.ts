@@ -15,6 +15,7 @@ import { TemporalModule } from "./temporal/temporal.module";
 import { TrainingModule } from "./training/training.module";
 import { UploadModule } from "./upload/upload.module";
 import { WorkflowModule } from "./workflow/workflow.module";
+import { GroupModule } from "./group/group.module";
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     TrainingModule,
     WorkflowModule,
     AzureModule,
+    GroupModule,
   ],
 })
 export class AppModule {}
