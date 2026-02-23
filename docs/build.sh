@@ -9,6 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARTIALS_DIR="$SCRIPT_DIR/_partials"
 PAGES_DIR="$SCRIPT_DIR/_pages"
 DIAGRAMS_DIR="$SCRIPT_DIR/_diagrams"
+MERMAID_CONFIG="$DIAGRAMS_DIR/mermaid.config.json"
 ASSETS_DIR="$SCRIPT_DIR/assets"
 
 # Get current date/time dynamically from system
@@ -30,7 +31,7 @@ if [ -d "$DIAGRAMS_DIR" ]; then
             diagram_name=$(basename "$mmd_file" .mmd)
             output_svg="$ASSETS_DIR/${diagram_name}.svg"
             echo "  Compiling: ${diagram_name}.mmd → assets/${diagram_name}.svg"
-            npx --yes @mermaid-js/mermaid-cli -i "$mmd_file" -o "$output_svg" --quiet
+            npx --yes @mermaid-js/mermaid-cli -i "$mmd_file" -o "$output_svg" -c "$MERMAID_CONFIG" --quiet
         done
         echo "Diagrams built successfully."
     fi
@@ -76,6 +77,7 @@ for page in "$PAGES_DIR"/*.html; do
         header="${header//\{\{NAV_API\}\}/}"
         header="${header//\{\{NAV_DIAGRAMS\}\}/}"
         header="${header//\{\{NAV_INTEGRATIONS\}\}/}"
+        header="${header//\{\{NAV_AUTHENTICATION\}\}/}"
 
         # Replace date variables in footer
         footer="${footer//\{\{YEAR\}\}/$CURRENT_YEAR}"

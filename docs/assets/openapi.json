@@ -5,19 +5,9 @@
       "post": {
         "operationId": "AuthController_refreshToken",
         "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RefreshTokenDto"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "Returns refreshed token if successful",
+            "description": "Returns expires_in and sets new auth cookies",
             "content": {
               "application/json": {
                 "schema": {
@@ -27,15 +17,16 @@
             }
           },
           "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "example": "Failed to refresh access token"
-              }
-            }
+            "description": "Failed to refresh access token"
+          },
+          "401": {
+            "description": "No refresh token cookie present"
+          },
+          "429": {
+            "description": "Rate limit exceeded — max 5 requests per window"
           }
         },
-        "summary": "Refresh provider tokens using a refresh token",
+        "summary": "Refresh provider tokens using the refresh_token cookie",
         "tags": [
           "Authorization"
         ]
@@ -57,13 +48,11 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded — max 10 requests per window"
+          },
           "500": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "example": "Failed to generate login URL"
-              }
-            }
+            "description": "Failed to generate login URL"
           }
         },
         "summary": "Redirect to Keycloak authorization endpoint",
@@ -75,19 +64,10 @@
     "/api/auth/logout": {
       "get": {
         "operationId": "AuthController_logout",
-        "parameters": [
-          {
-            "name": "id_token_hint",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "302": {
-            "description": "Redirects to the Keycloak logout endpoint",
+            "description": "Clears auth cookies and redirects to the Keycloak logout endpoint",
             "headers": {
               "Location": {
                 "description": "URL to redirect the client to",
@@ -97,16 +77,14 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded — max 10 requests per window"
+          },
           "500": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "example": "Failed to generate logout URL"
-              }
-            }
+            "description": "Failed to generate logout URL"
           }
         },
-        "summary": "Redirect to Keycloak logout endpoint",
+        "summary": "Clear auth cookies and redirect to Keycloak logout",
         "tags": [
           "Authorization"
         ]
@@ -151,7 +129,7 @@
         ],
         "responses": {
           "302": {
-            "description": "Redirects to the application with an auth result or error",
+            "description": "Sets auth cookies and redirects to the application",
             "headers": {
               "Location": {
                 "description": "URL to redirect the client to",
@@ -162,44 +140,35 @@
             }
           }
         },
-        "summary": "Handle Keycloak OAuth callback and redirect to application",
+        "summary": "Handle Keycloak OAuth callback, set auth cookies, and redirect to application",
         "tags": [
           "Authorization"
         ]
       }
     },
-    "/api/auth/result": {
+    "/api/auth/me": {
       "get": {
-        "operationId": "AuthController_consumeResult",
-        "parameters": [
-          {
-            "name": "result",
-            "required": true,
-            "in": "query",
-            "schema": {}
-          }
-        ],
+        "operationId": "AuthController_getMe",
+        "parameters": [],
         "responses": {
           "200": {
-            "description": "Returns the provider tokens for a valid resultId",
+            "description": "Returns current user profile and token expiry",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TokenResponseDto"
+                  "$ref": "#/components/schemas/MeResponseDto"
                 }
               }
             }
           },
-          "404": {
-            "description": "No stored session was found",
-            "content": {
-              "application/json": {
-                "example": "Auth result expired or invalid"
-              }
-            }
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Invalid token"
           }
         },
-        "summary": "Retrieve provider tokens using a resultId after OAuth flow",
+        "summary": "Get current user profile from validated JWT",
         "tags": [
           "Authorization"
         ]
@@ -745,7 +714,7 @@
             "keycloak-sso": []
           }
         ],
-        "summary": "Get a list of available OCR models",
+        "summary": "Get a list of available OCR models (prebuilt + trained)",
         "tags": [
           "OCR"
         ]
@@ -2988,65 +2957,53 @@
       }
     },
     "schemas": {
-      "RefreshTokenDto": {
-        "type": "object",
-        "properties": {
-          "refresh_token": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "refresh_token"
-        ]
-      },
       "RefreshReturnDto": {
         "type": "object",
         "properties": {
-          "refresh_token": {
-            "type": "string"
-          },
-          "access_token": {
-            "type": "string"
-          },
-          "id_token": {
-            "type": "string"
-          },
           "expires_in": {
-            "type": "number"
+            "type": "number",
+            "description": "Seconds until the new access token expires"
           }
         },
         "required": [
-          "refresh_token",
-          "access_token",
-          "id_token",
           "expires_in"
         ]
       },
-      "TokenResponseDto": {
+      "MeResponseDto": {
         "type": "object",
         "properties": {
-          "access_token": {
-            "type": "string"
+          "sub": {
+            "type": "string",
+            "description": "Keycloak subject identifier"
           },
-          "refresh_token": {
-            "type": "string"
+          "name": {
+            "type": "string",
+            "description": "User display name"
           },
-          "id_token": {
-            "type": "string"
+          "preferred_username": {
+            "type": "string",
+            "description": "Keycloak preferred username or IDIR username"
+          },
+          "email": {
+            "type": "string",
+            "description": "User email address"
+          },
+          "roles": {
+            "description": "Normalized roles from Keycloak JWT",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "expires_in": {
-            "type": "number"
-          },
-          "token_type": {
-            "type": "string"
+            "type": "number",
+            "description": "Seconds until the current access token expires"
           }
         },
         "required": [
-          "access_token",
-          "refresh_token",
-          "id_token",
-          "expires_in",
-          "token_type"
+          "sub",
+          "roles",
+          "expires_in"
         ]
       },
       "ApiKeyInfoDto": {
@@ -3061,6 +3018,13 @@
           "userEmail": {
             "type": "string"
           },
+          "roles": {
+            "description": "Roles inherited from the creating user at key generation time",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -3074,6 +3038,7 @@
           "id",
           "keyPrefix",
           "userEmail",
+          "roles",
           "createdAt",
           "lastUsed"
         ]
@@ -3101,6 +3066,13 @@
           "userEmail": {
             "type": "string"
           },
+          "roles": {
+            "description": "Roles inherited from the creating user at key generation time",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -3117,6 +3089,7 @@
           "id",
           "keyPrefix",
           "userEmail",
+          "roles",
           "createdAt",
           "lastUsed",
           "key"
@@ -3721,7 +3694,8 @@
             "type": "string"
           },
           "ocr_result": {
-            "type": "object"
+            "type": "object",
+            "additionalProperties": true
           }
         },
         "required": [
@@ -3758,7 +3732,8 @@
             "type": "number"
           },
           "bounding_box": {
-            "type": "object"
+            "type": "object",
+            "additionalProperties": true
           },
           "created_at": {
             "format": "date-time",
@@ -4040,7 +4015,8 @@
         "properties": {
           "fields": {
             "type": "object",
-            "description": "Extracted key-value pairs with confidence scores"
+            "description": "Extracted key-value pairs with confidence scores",
+            "additionalProperties": true
           }
         },
         "required": [
@@ -4601,7 +4577,8 @@
           },
           "docTypes": {
             "type": "object",
-            "description": "Azure document type definitions"
+            "description": "Azure document type definitions",
+            "additionalProperties": true
           },
           "fieldCount": {
             "type": "number",

@@ -23,7 +23,6 @@ The frontend provides a comprehensive UI for managing the entire document intell
 - **React Konva** - Canvas-based document labeling and bounding box annotation
 - **React PDF** - PDF rendering and viewing
 - **TanStack Query** - Powerful data fetching and caching
-- **oidc-client-ts** - OpenID Connect authentication
 - **Axios** - HTTP client with interceptors
 - **CodeMirror** - JSON editor for workflow configuration
 
@@ -127,8 +126,8 @@ The frontend provides a comprehensive UI for managing the entire document intell
 ```
 src/
 ├── auth/                      # Authentication
-│   ├── AuthContext.tsx        # React context for auth state
-│   └── AuthProvider.tsx       # OIDC provider integration
+│   ├── AuthContext.tsx        # React context for auth state, token refresh, and hooks
+│   └── README.md              # Auth implementation documentation
 │
 ├── components/                # Reusable UI components
 │   ├── document/              # Document viewing
@@ -176,8 +175,9 @@ src/
 ### API Integration
 
 All API calls go through a centralized `ApiService` class with:
-- Automatic Bearer token injection
-- Request/response interceptors
+- Cookie-based authentication (`withCredentials: true`)
+- Automatic CSRF token header injection on state-changing requests
+- 401 response interceptor with single-flight token refresh
 - Error handling
 - Type-safe response wrappers
 
@@ -203,22 +203,14 @@ Create a `.env` file in `apps/frontend/`:
 # API Configuration (empty for Vite proxy in development)
 VITE_API_BASE_URL=
 
-# OIDC Authentication
-VITE_OIDC_AUTHORITY=https://keycloak.example.com/realms/myrealm
-VITE_OIDC_CLIENT_ID=document-intelligence-ui
-VITE_OIDC_REDIRECT_URI=http://localhost:3000
-VITE_OIDC_SCOPE=openid profile email
-
 # Application Configuration
 VITE_APP_NAME=Document Intelligence Platform
 VITE_APP_VERSION=1.0.0
 ```
 
-**OIDC Configuration:**
-- `VITE_OIDC_AUTHORITY` - Keycloak realm URL (base URL without `/protocol/openid-connect`)
-- `VITE_OIDC_CLIENT_ID` - Client ID configured in Keycloak
-- `VITE_OIDC_REDIRECT_URI` - Frontend URL for redirect after authentication
-- `VITE_OIDC_SCOPE` - OAuth scopes (typically `openid profile email`)
+**Configuration Notes:**
+- `VITE_API_BASE_URL` — Backend API URL; leave empty during development to use the Vite proxy
+- All OIDC/OAuth configuration is on the backend; the frontend has no OIDC settings
 
 ### Development
 
@@ -320,21 +312,25 @@ Field-by-field review interface:
 
 ## Authentication
 
-The app uses OpenID Connect (OIDC) with `oidc-client-ts`:
+The app uses a **backend-driven OAuth 2.0 Authorization Code flow** with cookie-based sessions:
 
-1. User clicks "Login"
-2. Redirected to Keycloak/OIDC provider
-3. After successful authentication, redirected back with authorization code
-4. Frontend exchanges code for tokens
-5. Access token stored and used for API requests
-6. Token refresh handled automatically
+1. User clicks "Login" → browser navigates to `/api/auth/login`
+2. Backend generates PKCE challenge, stores verifier in HttpOnly cookie, redirects to Keycloak
+3. User authenticates with Keycloak
+4. Keycloak redirects back to backend callback with authorization code
+5. Backend exchanges code for tokens, sets HttpOnly auth cookies, redirects to SPA
+6. SPA calls `GET /api/auth/me` to load user profile (cookies sent automatically)
+7. Proactive token refresh at 75% of token lifetime via `POST /api/auth/refresh`
+
+The frontend **never handles raw tokens** — all tokens are stored in HttpOnly cookies by the backend. The only cookie readable by JavaScript is `csrf_token` (for the CSRF double-submit pattern).
 
 **Auth Context:**
 - `isAuthenticated` - Auth status
 - `isLoading` - Loading state
-- `user` - User profile (name, email, sub)
+- `user` - User profile (sub, name, email, roles, expires_at)
 - `login()` - Initiate login flow
 - `logout()` - Clear session and logout
+- `refreshToken()` - Manually trigger token refresh
 
 ## Styling
 
@@ -417,9 +413,10 @@ Set environment variables at build time:
 
 ```bash
 VITE_API_BASE_URL=https://api.example.com \
-VITE_OIDC_AUTHORITY=https://keycloak.example.com/realms/myrealm \
 npm run build
 ```
+
+Note: All OAuth/OIDC configuration is handled by the backend. The frontend has no OIDC settings.
 
 ## Troubleshooting
 
@@ -430,10 +427,10 @@ In production, ensure backend CORS settings allow frontend origin.
 
 ### Authentication Issues
 
-- Verify `VITE_OIDC_*` environment variables
+- Verify backend SSO environment variables (`SSO_AUTH_SERVER_URL`, `SSO_REALM`, etc.)
 - Check Keycloak client configuration (allowed redirect URIs)
-- Inspect browser console for OIDC errors
-- Verify backend accepts Bearer tokens
+- Inspect browser console for authentication errors
+- Verify backend CORS settings allow frontend origin
 
 ### Build Errors
 

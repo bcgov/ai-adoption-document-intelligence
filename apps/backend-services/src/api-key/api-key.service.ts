@@ -1,32 +1,25 @@
-import { PrismaClient } from "@generated/client";
 import {
   ConflictException,
   Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PrismaPg } from "@prisma/adapter-pg";
 import * as bcrypt from "bcrypt";
 import * as crypto from "crypto";
 import {
   ApiKeyInfoDto,
   GeneratedApiKeyDto,
 } from "@/api-key/dto/api-key-info.dto";
-import { getPrismaPgOptions } from "@/utils/database-url";
+import { PrismaService } from "@/database/prisma.service";
 
 @Injectable()
 export class ApiKeyService {
   private readonly logger = new Logger(ApiKeyService.name);
-  private prisma: PrismaClient;
 
-  constructor(private configService: ConfigService) {
-    const dbOptions = getPrismaPgOptions(
-      this.configService.get("DATABASE_URL"),
-    );
-    this.prisma = new PrismaClient({
-      adapter: new PrismaPg(dbOptions),
-    });
+  constructor(private readonly prismaService: PrismaService) {}
+
+  private get prisma() {
+    return this.prismaService.prisma;
   }
 
   async getUserApiKey(userId: string): Promise<ApiKeyInfoDto | null> {
@@ -42,6 +35,7 @@ export class ApiKeyService {
       id: apiKey.id,
       keyPrefix: apiKey.key_prefix,
       userEmail: apiKey.user_email,
+      roles: apiKey.roles,
       createdAt: apiKey.created_at,
       lastUsed: apiKey.last_used,
     };
@@ -50,6 +44,7 @@ export class ApiKeyService {
   async generateApiKey(
     userId: string,
     userEmail: string,
+    roles: string[],
   ): Promise<GeneratedApiKeyDto> {
     // Check if user already has a key
     const existingKey = await this.prisma.apiKey.findUnique({
@@ -75,6 +70,7 @@ export class ApiKeyService {
         key_prefix: keyPrefix,
         user_id: userId,
         user_email: userEmail,
+        roles,
       },
     });
 
@@ -85,6 +81,7 @@ export class ApiKeyService {
       key, // Return full key only once
       keyPrefix,
       userEmail: apiKey.user_email,
+      roles: apiKey.roles,
       createdAt: apiKey.created_at,
       lastUsed: null,
     };
@@ -109,6 +106,7 @@ export class ApiKeyService {
   async regenerateApiKey(
     userId: string,
     userEmail: string,
+    roles: string[],
   ): Promise<GeneratedApiKeyDto> {
     // Delete existing key if any
     try {
@@ -118,12 +116,12 @@ export class ApiKeyService {
     }
 
     // Generate new key
-    return this.generateApiKey(userId, userEmail);
+    return this.generateApiKey(userId, userEmail, roles);
   }
 
   async validateApiKey(
     key: string,
-  ): Promise<{ userId: string; userEmail: string } | null> {
+  ): Promise<{ userId: string; userEmail: string; roles: string[] } | null> {
     // Extract prefix from the incoming key for indexed lookup
     const prefix = key.substring(0, 8);
 
@@ -144,6 +142,7 @@ export class ApiKeyService {
         return {
           userId: apiKey.user_id,
           userEmail: apiKey.user_email,
+          roles: apiKey.roles,
         };
       }
     }

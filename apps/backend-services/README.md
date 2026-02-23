@@ -16,7 +16,7 @@ The backend services provide a modular, scalable API for:
 
 ## Architecture
 
-- **Framework**: NestJS with Fastify HTTP server
+- **Framework**: NestJS with Express HTTP server
 - **Database**: PostgreSQL with Prisma ORM
 - **Workflow Engine**: Temporal.io for durable, distributed workflows
 - **OCR**: Azure Document Intelligence (formerly Form Recognizer)
@@ -233,13 +233,30 @@ TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=ocr-processing
 
 # Keycloak SSO (Optional)
-KEYCLOAK_ISSUER=https://keycloak.example.com/realms/myrealm
-KEYCLOAK_JWKS_URI=https://keycloak.example.com/realms/myrealm/protocol/openid-connect/certs
-KEYCLOAK_AUDIENCE=account
-KEYCLOAK_TOKEN_SIGNING_ALG=RS256
+SSO_AUTH_SERVER_URL=https://keycloak.example.com/auth/realms/standard/protocol/openid-connect
+SSO_REALM=standard
+SSO_CLIENT_ID=your-client-id
+SSO_CLIENT_SECRET=your-client-secret
 
 # Request Limits
 BODY_LIMIT=50mb
+
+# Rate Limiting — Global Default (all endpoints, via @nestjs/throttler)
+THROTTLE_GLOBAL_TTL_MS=60000        # Time window in milliseconds (default: 60 000 = 1 minute)
+THROTTLE_GLOBAL_LIMIT=100           # Max requests per IP per window (default: 100)
+
+# Rate Limiting — Auth Endpoints (login, callback, logout)
+THROTTLE_AUTH_TTL_MS=60000          # Time window in milliseconds (default: 60 000 = 1 minute)
+THROTTLE_AUTH_LIMIT=10              # Max requests per IP per window (default: 10)
+
+# Rate Limiting — Token Refresh Endpoint
+THROTTLE_AUTH_REFRESH_TTL_MS=60000  # Time window in milliseconds (default: 60 000 = 1 minute)
+THROTTLE_AUTH_REFRESH_LIMIT=5       # Max requests per IP per window (default: 5)
+
+# API Key Failed-Attempt Throttling
+API_KEY_MAX_FAILED_ATTEMPTS=20      # Max failed API key validations per IP before 429 (default: 20)
+API_KEY_FAILED_WINDOW_MS=60000      # Tracking window in milliseconds (default: 60 000 = 1 minute)
+API_KEY_SWEEP_INTERVAL_MS=60000     # Cleanup interval for stale records in milliseconds (default: 60 000)
 ```
 
 ### 3. Database Setup
@@ -353,18 +370,6 @@ npm run test:int:workflow:with-worker
 ```
 
 See [TESTING.md](./TESTING.md) for comprehensive testing documentation.
-
-### Manual Testing
-
-Test scripts are provided for quick validation:
-
-```bash
-# Upload a document (bash)
-./test-upload.sh path/to/document.pdf
-
-# Upload a document (Node.js)
-node test-upload.js path/to/document.pdf
-```
 
 ## Database Operations
 

@@ -10,6 +10,13 @@ export class ApiKeyInfoDto {
   @ApiProperty()
   userEmail: string;
 
+  @ApiProperty({
+    description:
+      "Roles inherited from the creating user at key generation time",
+    type: [String],
+  })
+  roles: string[];
+
   @ApiProperty()
   createdAt: Date;
 

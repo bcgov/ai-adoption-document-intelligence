@@ -19,7 +19,7 @@ graph TB
         subgraph BEPod ["Backend Pod"]
             direction TB
             InitMigrate["Init Container<br/>prisma migrate deploy"]
-            NestJS["NestJS / Fastify<br/>:3002<br/>Liveness: /health<br/>Readiness: /health"]
+            NestJS["NestJS / Express<br/>:3002<br/>Liveness: /health<br/>Readiness: /health"]
             InitMigrate -->|"runs before"| NestJS
         end
 
@@ -47,7 +47,7 @@ graph TB
         subgraph Config ["Configuration"]
             direction LR
             ConfigMap["ConfigMaps<br/>• PORT, NODE_ENV<br/>• TEMPORAL_ADDRESS<br/>• TEMPORAL_NAMESPACE<br/>• FRONTEND_URL"]
-            Secrets["Secrets<br/>• DATABASE_URL<br/>• AZURE_DI_ENDPOINT<br/>• AZURE_DI_API_KEY<br/>• AZURE_STORAGE_CONN<br/>• KEYCLOAK_ISSUER<br/>• KEYCLOAK_JWKS_URI"]
+            Secrets["Secrets<br/>• DATABASE_URL<br/>• AZURE_DI_ENDPOINT<br/>• AZURE_DI_API_KEY<br/>• AZURE_STORAGE_CONN<br/>• SSO_AUTH_SERVER_URL<br/>• SSO_CLIENT_SECRET"]
         end
 
         %% ── Platform Features ────────────────────────────────────

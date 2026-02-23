@@ -1,11 +1,5 @@
 // Shared types for the application
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-}
-
 export type DocumentStatus =
   | "pre_ocr"
   | "ongoing_ocr"

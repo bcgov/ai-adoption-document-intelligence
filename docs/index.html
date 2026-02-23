@@ -711,6 +711,15 @@
                     </a>
                 </div>
             </div>
+            <div class="nav-dropdown">
+                <span class="nav-trigger">Technical Documentation</span>
+                <div class="nav-dropdown-menu">
+                    <a href="authentication.html">
+                        Authentication
+                        <small>OAuth 2.0, PKCE, RBAC &amp; API keys</small>
+                    </a>
+                </div>
+            </div>
             <a href="api-reference.html" class="">API Reference</a>
             <a href="diagrams.html" class="">Diagrams</a>
         </nav>
@@ -757,7 +766,7 @@
     <div class="card" style="border-left-color: #003366;">
         <h3 style="margin-top:0;">🏗️ Architecture</h3>
         <ul>
-            <li><strong>Backend</strong> - NestJS with Fastify, Prisma ORM, PostgreSQL</li>
+            <li><strong>Backend</strong> - NestJS with Express, Prisma ORM, PostgreSQL</li>
             <li><strong>Frontend</strong> - React with TypeScript, Mantine UI</li>
             <li><strong>Orchestration</strong> - Temporal workflow engine with durable execution</li>
             <li><strong>Storage</strong> - Pluggable blob storage (Azure, S3, filesystem)</li>
@@ -818,7 +827,7 @@
     </div>
     <div>
         <strong>Prerequisites</strong><br>
-        Node.js 20+, PostgreSQL 14+, Temporal Server, Azure Document Intelligence resource (for OCR)
+        Node.js 24+, PostgreSQL 14+, Temporal Server, Azure Document Intelligence resource (for OCR)
     </div>
 </div>
 
@@ -894,7 +903,7 @@ cd apps/frontend && npm run dev</code></pre>
         <div>
             <h4>Backend Services</h4>
             <ul>
-                <li>NestJS 11 + Fastify</li>
+                <li>NestJS 11 + Express</li>
                 <li>Prisma ORM</li>
                 <li>PostgreSQL 14+</li>
                 <li>Temporal Workflow Engine</li>
@@ -904,7 +913,7 @@ cd apps/frontend && npm run dev</code></pre>
         <div>
             <h4>Frontend Application</h4>
             <ul>
-                <li>React 18 + TypeScript</li>
+                <li>React 19 + TypeScript</li>
                 <li>Vite</li>
                 <li>Mantine UI Components</li>
                 <li>React Flow (workflow visualization)</li>
