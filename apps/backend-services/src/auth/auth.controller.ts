@@ -22,13 +22,13 @@ import {
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
-import { AuthService } from "./auth.service";
 import {
   THROTTLE_AUTH_LIMIT,
   THROTTLE_AUTH_REFRESH_LIMIT,
   THROTTLE_AUTH_REFRESH_TTL_MS,
   THROTTLE_AUTH_TTL_MS,
 } from "./auth.config";
+import { AuthService } from "./auth.service";
 import {
   AUTH_COOKIE_NAMES,
   COOKIE_OPTIONS,
@@ -58,7 +58,12 @@ export class AuthController {
    */
   @Public()
   @Post("refresh")
-  @Throttle({ default: { ttl: THROTTLE_AUTH_REFRESH_TTL_MS, limit: THROTTLE_AUTH_REFRESH_LIMIT } })
+  @Throttle({
+    default: {
+      ttl: THROTTLE_AUTH_REFRESH_TTL_MS,
+      limit: THROTTLE_AUTH_REFRESH_LIMIT,
+    },
+  })
   @ApiOperation({
     summary: "Refresh provider tokens using the refresh_token cookie",
   })
@@ -93,7 +98,9 @@ export class AuthController {
    */
   @Public()
   @Get("login")
-  @Throttle({ default: { ttl: THROTTLE_AUTH_TTL_MS, limit: THROTTLE_AUTH_LIMIT } })
+  @Throttle({
+    default: { ttl: THROTTLE_AUTH_TTL_MS, limit: THROTTLE_AUTH_LIMIT },
+  })
   @ApiOperation({ summary: "Redirect to Keycloak authorization endpoint" })
   @ApiResponse({
     status: 302,
@@ -138,7 +145,9 @@ export class AuthController {
    */
   @Public()
   @Get("logout")
-  @Throttle({ default: { ttl: THROTTLE_AUTH_TTL_MS, limit: THROTTLE_AUTH_LIMIT } })
+  @Throttle({
+    default: { ttl: THROTTLE_AUTH_TTL_MS, limit: THROTTLE_AUTH_LIMIT },
+  })
   @ApiOperation({
     summary: "Clear auth cookies and redirect to Keycloak logout",
   })
@@ -181,7 +190,9 @@ export class AuthController {
    */
   @Public()
   @Get("callback")
-  @Throttle({ default: { ttl: THROTTLE_AUTH_TTL_MS, limit: THROTTLE_AUTH_LIMIT } })
+  @Throttle({
+    default: { ttl: THROTTLE_AUTH_TTL_MS, limit: THROTTLE_AUTH_LIMIT },
+  })
   @ApiOperation({
     summary:
       "Handle Keycloak OAuth callback, set auth cookies, and redirect to application",

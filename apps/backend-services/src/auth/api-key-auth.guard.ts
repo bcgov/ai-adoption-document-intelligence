@@ -4,7 +4,6 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
-  Logger,
   OnModuleDestroy,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -28,7 +27,6 @@ interface FailedAttemptRecord {
 
 @Injectable()
 export class ApiKeyAuthGuard implements CanActivate, OnModuleDestroy {
-  private readonly logger = new Logger(ApiKeyAuthGuard.name);
   private readonly failedAttempts = new Map<string, FailedAttemptRecord>();
   private readonly sweepInterval: ReturnType<typeof setInterval>;
 

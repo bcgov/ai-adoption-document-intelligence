@@ -95,8 +95,9 @@ class StubJwtAuthGuard extends JwtAuthGuard {
     // Stub JWT validation: check for our known test tokens
     const authHeader: string | undefined = req.headers["authorization"];
     const cookieToken: string | undefined = req.cookies?.access_token;
-    const token =
-      authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : cookieToken;
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : cookieToken;
 
     if (!token || !token.startsWith("valid-")) {
       throw new UnauthorizedException("Invalid or missing JWT");
@@ -198,7 +199,9 @@ describe("Guard Composition Integration", () => {
     jest.clearAllMocks();
 
     mockApiKeyService.validateApiKey.mockImplementation(
-      (key: string): Promise<{
+      (
+        key: string,
+      ): Promise<{
         userId: string;
         userEmail: string;
         roles: string[];

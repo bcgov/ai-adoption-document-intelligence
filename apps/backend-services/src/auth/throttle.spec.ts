@@ -3,13 +3,13 @@ import { APP_GUARD, Reflector } from "@nestjs/core";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Throttle, ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import * as request from "supertest";
-import { AuthController } from "./auth.controller";
 import {
   THROTTLE_AUTH_LIMIT,
   THROTTLE_AUTH_REFRESH_LIMIT,
   THROTTLE_AUTH_REFRESH_TTL_MS,
   THROTTLE_AUTH_TTL_MS,
 } from "./auth.config";
+import { AuthController } from "./auth.controller";
 
 /**
  * Verifies that rate limiting decorators are correctly applied

@@ -41,9 +41,7 @@ describe("JwtAuthGuard", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockReflector = { getAllAndOverride: jest.fn() };
-    guard = new JwtAuthGuard(
-      mockReflector as unknown as Reflector,
-    );
+    guard = new JwtAuthGuard(mockReflector as unknown as Reflector);
   });
 
   describe("@Public() routes", () => {
@@ -130,9 +128,9 @@ describe("JwtAuthGuard", () => {
     it("should delegate to Passport JWT strategy for authenticated routes", () => {
       mockReflector.getAllAndOverride.mockReturnValue(false);
 
-      const context = createMockExecutionContext(
-        { authorization: "Bearer some-jwt-token" },
-      );
+      const context = createMockExecutionContext({
+        authorization: "Bearer some-jwt-token",
+      });
       guard.canActivate(context);
 
       expect(mockSuperCanActivate).toHaveBeenCalledWith(context);
