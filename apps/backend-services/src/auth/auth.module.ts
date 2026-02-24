@@ -10,12 +10,14 @@ import { CsrfGuard } from "./csrf.guard";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { KeycloakJwtStrategy } from "./keycloak-jwt.strategy";
 import { RolesGuard } from "./roles.guard";
+import { DatabaseModule } from "../database/database.module";
 
 @Module({
   imports: [
     ConfigModule,
     PassportModule.register({ defaultStrategy: "jwt" }),
     ApiKeyModule,
+    DatabaseModule,
   ],
   controllers: [AuthController],
   providers: [

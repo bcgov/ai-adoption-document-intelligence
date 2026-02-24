@@ -9,6 +9,7 @@ import { ConfigService } from "@nestjs/config";
 import * as client from "openid-client";
 import { URL } from "url";
 import { TokenResponseDto } from "@/auth/dto/token-response.dto";
+import { PrismaService } from "../database/prisma.service";
 
 /**
  * Result returned by getLoginUrl(), containing the Keycloak authorization URL
@@ -39,7 +40,10 @@ export class AuthService implements OnModuleInit {
   private readonly redirectUri: string;
   private readonly frontendUrl: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private prismaService: PrismaService
+  ) {
     const authServerUrl = this.configService.get<string>("SSO_AUTH_SERVER_URL");
     const realm = this.configService.get<string>("SSO_REALM");
 
@@ -223,5 +227,32 @@ export class AuthService implements OnModuleInit {
     const url = new URL(this.frontendUrl);
     url.searchParams.set("auth_error", error);
     return url.toString();
+  }
+
+  /**
+   * Decodes a JWT ID token and returns the payload.
+   */
+  decodeIdToken(idToken: string): Record<string, any> {
+    const [, payload] = idToken.split(".");
+    return JSON.parse(Buffer.from(payload, "base64").toString());
+  }
+
+  /**
+   * Upserts user in DB from token payload.
+   */
+  async upsertUserFromToken(tokenPayload: Record<string, any>): Promise<void> {
+    const email = tokenPayload.email;
+    const lastLogin = new Date();
+    if (!email) return;
+    await this.prismaService.prisma.user.upsert({
+      where: { email },
+      update: {
+        last_login_at: lastLogin,
+      },
+      create: {
+        email,
+        last_login_at: lastLogin,
+      },
+    });
   }
 }

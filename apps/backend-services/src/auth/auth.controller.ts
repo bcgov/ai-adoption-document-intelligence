@@ -239,6 +239,10 @@ export class AuthController {
         query.iss,
       );
 
+      // Decode ID token and upsert user
+      const decodedToken = this.authService.decodeIdToken(tokens.id_token);
+      await this.authService.upsertUserFromToken(decodedToken);
+
       // Set auth cookies
       const csrfToken = generateCsrfToken();
       setAuthCookies(res, tokens, csrfToken);
