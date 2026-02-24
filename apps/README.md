@@ -62,12 +62,13 @@ This is a microservices monorepo containing:
 
 ### Backend Services (Node.js/TypeScript)
 - **NestJS** - Modular backend framework
-- **Fastify** - High-performance HTTP server
+- **Express** - HTTP server (via @nestjs/platform-express)
 - **Prisma** - Type-safe database ORM
 - **@azure-rest/ai-document-intelligence** - Azure OCR SDK
 - **@azure/storage-blob** - Azure Blob Storage client
 - **@temporalio/client** - Temporal workflow client
-- **JWT/bcrypt** - Authentication and security
+- **openid-client / passport-jwt** - OAuth 2.0 and JWT authentication
+- **bcrypt** - Password/key hashing
 - **Swagger/OpenAPI** - API documentation
 
 ### Frontend (React/TypeScript)
@@ -78,7 +79,6 @@ This is a microservices monorepo containing:
 - **React Konva** - Canvas-based labeling editor
 - **React PDF** - PDF rendering and annotation
 - **TanStack Query** - Data fetching and state management
-- **oidc-client-ts** - OpenID Connect authentication
 
 ### Temporal Worker (Node.js/TypeScript)
 - **@temporalio/worker** - Workflow execution engine

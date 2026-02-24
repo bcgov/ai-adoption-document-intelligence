@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { APP_GUARD } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { AzureModule } from "@/azure/azure.module";
 import { ApiKeyModule } from "./api-key/api-key.module";
 import { AuthModule } from "./auth/auth.module";
@@ -25,6 +27,19 @@ import { GroupModule } from "./group/group.module";
       cache: true,
     }),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            name: "default",
+            ttl: config.get<number>("THROTTLE_GLOBAL_TTL_MS", 60_000),
+            limit: config.get<number>("THROTTLE_GLOBAL_LIMIT", 100),
+          },
+        ],
+      }),
+    }),
     AuthModule,
     ApiKeyModule,
     DatabaseModule,
@@ -40,6 +55,12 @@ import { GroupModule } from "./group/group.module";
     WorkflowModule,
     AzureModule,
     GroupModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

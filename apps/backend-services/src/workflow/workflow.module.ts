@@ -1,10 +1,10 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { DatabaseModule } from "@/database/database.module";
 import { WorkflowController } from "./workflow.controller";
 import { WorkflowService } from "./workflow.service";
 
 @Module({
-  imports: [ConfigModule],
+  imports: [DatabaseModule],
   controllers: [WorkflowController],
   providers: [WorkflowService],
   exports: [WorkflowService],

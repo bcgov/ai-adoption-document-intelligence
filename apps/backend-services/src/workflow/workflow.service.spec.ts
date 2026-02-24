@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import { PrismaService } from "@/database/prisma.service";
 import type { GraphWorkflowConfig } from "./graph-workflow-types";
 import { WorkflowService } from "./workflow.service";
 
@@ -41,21 +41,11 @@ const mockWorkflow = {
   delete: jest.fn(),
 };
 
-jest.mock("@/utils/database-url", () => ({
-  getPrismaPgOptions: jest.fn().mockReturnValue({
-    connectionString: "postgresql://test",
-  }),
-}));
-
-jest.mock("@generated/client", () => ({
-  PrismaClient: jest.fn().mockImplementation(() => ({
+const mockPrismaService = {
+  prisma: {
     workflow: mockWorkflow,
-  })),
-}));
-
-jest.mock("@prisma/adapter-pg", () => ({
-  PrismaPg: jest.fn(),
-}));
+  },
+};
 
 describe("WorkflowService", () => {
   let service: WorkflowService;
@@ -73,8 +63,8 @@ describe("WorkflowService", () => {
       providers: [
         WorkflowService,
         {
-          provide: ConfigService,
-          useValue: { get: jest.fn().mockReturnValue("postgresql://test") },
+          provide: PrismaService,
+          useValue: mockPrismaService,
         },
       ],
     }).compile();

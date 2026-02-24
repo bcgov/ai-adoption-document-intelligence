@@ -80,6 +80,7 @@ model ApiKey {
   key_prefix String
   user_id    String    @unique
   user_email String
+  roles      String[]  @default([])
   created_at DateTime  @default(now())
   last_used  DateTime?
 

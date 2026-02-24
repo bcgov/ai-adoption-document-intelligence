@@ -1,6 +1,6 @@
 # Documentation System
 
-This folder contains the documentation site for AI Hub Tracking, built with a **zero-dependency template engine** using Bash.
+This folder contains the documentation site for the Document Intelligence Platform, built with a **zero-dependency template engine** using Bash.
 
 ## Table of Contents
 
@@ -10,7 +10,7 @@ This folder contains the documentation site for AI Hub Tracking, built with a **
 - [Adding New Pages](#adding-new-pages)
 - [The Build Process](#the-build-process)
 - [SVG Viewer Explained](#svg-viewer-explained)
-- [Terraform Docs Generator](#terraform-docs-generator)
+- [OpenAPI Spec Generator](#openapi-spec-generator)
 - [GitHub Actions Deployment](#github-actions-deployment)
 
 ---
@@ -62,30 +62,39 @@ docs/
 │   └── footer.html            # Footer, closing tags
 │
 ├── _pages/                    # Source content files (not published)
+│   ├── _template.html         # Template for new pages
 │   ├── index.html             # Homepage content
-│   ├── oidc-setup.html        # OIDC documentation
-│   ├── terraform.html         # Terraform modules docs
-│   ├── workflows.html         # GitHub Actions docs
-│   └── diagrams.html          # Interactive SVG viewer
+│   ├── api-reference.html     # API reference (Redoc)
+│   ├── authentication.html    # Authentication guide
+│   ├── diagrams.html          # Interactive SVG viewer
+│   └── integrations.html      # Integrations guide
+│
+├── _diagrams/                 # Mermaid diagram sources
+│   ├── mermaid.config.json
+│   ├── system-overview.mmd
+│   ├── document-ingestion.mmd
+│   ├── deployment.mmd
+│   └── authentication-flow.mmd
 │
 ├── assets/                    # Static assets (published)
 │   ├── bc_citz_logo.jpg       # BC Government logo
 │   ├── favicon.svg            # Browser favicon
-│   ├── azure-oidc-complete-guide.svg
-│   ├── token-flow.svg
-│   ├── network-architecture.svg
-│   └── deployment-pipeline.svg
+│   ├── openapi.json           # Generated OpenAPI spec
+│   ├── system-overview.svg    # Built Mermaid diagrams
+│   ├── document-ingestion.svg
+│   ├── deployment.svg
+│   └── authentication-flow.svg
 │
 ├── build.sh                   # Template engine script
-├── generate-tf-docs.sh        # Terraform docs generator
+├── generate-openapi.ts        # OpenAPI spec generator
 ├── README.md                  # This file
 │
 └── [generated HTML files]     # Output (published to GitHub Pages)
     ├── index.html
-    ├── oidc-setup.html
-    ├── terraform.html
-    ├── workflows.html
-    └── diagrams.html
+    ├── api-reference.html
+    ├── authentication.html
+    ├── diagrams.html
+    └── integrations.html
 ```
 
 ---
@@ -114,10 +123,10 @@ Each page in `_pages/` starts with HTML comment metadata:
 The header partial contains placeholder variables:
 
 ```html
-<title>{{PAGE_TITLE}} | AI Hub Tracking</title>
+<title>{{PAGE_TITLE}} | BC Gov Document Intelligence</title>
 ...
 <a href="index.html" class="{{NAV_INDEX}}">Home</a>
-<a href="terraform.html" class="{{NAV_TERRAFORM}}">Terraform</a>
+<a href="api-reference.html" class="{{NAV_API}}">API Reference</a>
 ```
 
 ### Step 3: Variable Replacement
@@ -128,8 +137,8 @@ The build script replaces these variables:
 # Replace page title
 header="${header//\{\{PAGE_TITLE\}\}/$page_title}"
 
-# Set active nav item (e.g., if NAV: terraform)
-header="${header//\{\{NAV_TERRAFORM\}\}/active}"
+# Set active nav item (e.g., if NAV: api)
+header="${header//\{\{NAV_API\}\}/active}"
 ```
 
 ### Step 4: Concatenation
@@ -227,7 +236,7 @@ Add the new variable to `build.sh`:
 ```bash
 # Set active nav item
 header="${header//\{\{NAV_INDEX\}\}/}"
-header="${header//\{\{NAV_OIDC\}\}/}"
+header="${header//\{\{NAV_API\}\}/}"
 ...
 header="${header//\{\{NAV_MYNEWPAGE\}\}/}"  # Add this line
 ```
@@ -249,10 +258,6 @@ header="${header//\{\{NAV_MYNEWPAGE\}\}/}"  # Add this line
 cd docs
 
 # Build all pages
-./build.sh
-
-# Optional: Generate Terraform docs first
-./generate-tf-docs.sh
 ./build.sh
 
 # Open in browser
@@ -493,60 +498,6 @@ document.getElementById('diagramContainer').addEventListener('wheel', function(e
 
 ---
 
-## Terraform Docs Generator
-
-The `generate-tf-docs.sh` script automatically creates documentation from Terraform source files.
-
-### How It Works
-
-1. **Scans** all `.tf` files in `infra/` directory
-2. **Extracts** descriptions from file header comments
-3. **Parses** `variables.tf` for variable name, type, default, description
-4. **Parses** `outputs.tf` for output name and description
-5. **Lists** all resources defined in `main.tf`
-6. **Generates** HTML documentation page
-
-### Usage
-
-```bash
-# Generate from default location (../infra)
-./generate-tf-docs.sh
-
-# Specify custom paths
-./generate-tf-docs.sh -i /path/to/infra -o _pages/tf-docs.html
-
-# Show help
-./generate-tf-docs.sh --help
-```
-
-### Comment Conventions
-
-For best results, add description comments to your Terraform files:
-
-```hcl
-# Description: Creates the virtual network with subnets for the landing zone
-# Author: Platform Team
-# Last Updated: 2025-01-15
-
-resource "azurerm_virtual_network" "main" {
-  # ...
-}
-```
-
-### Variable Documentation
-
-Always include `description` in your variables:
-
-```hcl
-variable "environment" {
-  type        = string
-  default     = "dev"
-  description = "Deployment environment (dev, staging, prod)"
-}
-```
-
----
-
 ## OpenAPI Spec Generator
 
 The `generate-openapi.ts` script bootstraps the NestJS backend application and exports a fully-resolved OpenAPI (Swagger) JSON file to `docs/assets/openapi.json`. This file is consumed by the `api-reference.html` page to render the interactive API documentation.
@@ -627,8 +578,7 @@ jobs:
       - name: Build documentation
         run: |
           cd docs
-          chmod +x build.sh generate-tf-docs.sh
-          ./generate-tf-docs.sh  # Optional: generate TF docs
+          chmod +x build.sh
           ./build.sh
 
       - uses: actions/upload-pages-artifact@v3
@@ -711,4 +661,4 @@ The `header.html` includes a complete CSS framework. Here are the main classes:
 
 ## License
 
-This documentation system is part of the AI Hub Tracking project, licensed under Apache 2.0.
+This documentation system is part of the Document Intelligence Platform project, licensed under Apache 2.0.
