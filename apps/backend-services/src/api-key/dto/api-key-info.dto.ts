@@ -11,8 +11,7 @@ export class ApiKeyInfoDto {
   userEmail?: string;
 
   @ApiProperty({
-    description:
-      "Roles inherited from the user table",
+    description: "Roles inherited from the user table",
     type: [String],
     required: false,
   })

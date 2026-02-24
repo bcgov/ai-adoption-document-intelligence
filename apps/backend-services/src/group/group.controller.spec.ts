@@ -1,8 +1,8 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { GroupController } from './group.controller';
-import { GroupService } from './group.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import { GroupController } from "./group.controller";
+import { GroupService } from "./group.service";
 
-describe('GroupController', () => {
+describe("GroupController", () => {
   let controller: GroupController;
   let service: GroupService;
 
@@ -23,16 +23,16 @@ describe('GroupController', () => {
     service = module.get<GroupService>(GroupService);
   });
 
-  it('should assign user to groups', async () => {
-    const userId = 'user1';
-    const groupIds = ['group1', 'group2'];
-    jest.spyOn(service, 'assignUserToGroups').mockResolvedValueOnce();
+  it("should assign user to groups", async () => {
+    const userId = "user1";
+    const groupIds = ["group1", "group2"];
+    jest.spyOn(service, "assignUserToGroups").mockResolvedValueOnce();
     const result = await controller.assignUserToGroups(userId, groupIds);
     expect(service.assignUserToGroups).toHaveBeenCalledWith(userId, groupIds);
     expect(result).toEqual({ success: true });
   });
 
-  it('should throw if groupIds is empty', async () => {
-    await expect(controller.assignUserToGroups('user1', [])).rejects.toThrow();
+  it("should throw if groupIds is empty", async () => {
+    await expect(controller.assignUserToGroups("user1", [])).rejects.toThrow();
   });
 });

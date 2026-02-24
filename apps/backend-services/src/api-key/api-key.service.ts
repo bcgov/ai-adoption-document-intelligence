@@ -52,9 +52,7 @@ export class ApiKeyService {
     };
   }
 
-  async generateApiKey(
-    userId: string,
-  ): Promise<GeneratedApiKeyDto> {
+  async generateApiKey(userId: string): Promise<GeneratedApiKeyDto> {
     // Check if user already has a key
     const existingKey = await this.prisma.apiKey.findFirst({
       where: { user_id: userId },
@@ -113,18 +111,18 @@ export class ApiKeyService {
     this.logger.log(`API key(s) deleted for user ${userId}`);
   }
 
-  async regenerateApiKey(
-    userId: string,
-  ): Promise<GeneratedApiKeyDto> {
+  async regenerateApiKey(userId: string): Promise<GeneratedApiKeyDto> {
     // Delete existing key(s) if any
     await this.prisma.apiKey.deleteMany({ where: { user_id: userId } });
     // Generate new key
     return this.generateApiKey(userId);
   }
 
-  async validateApiKey(
-    key: string,
-  ): Promise<{ userId: string; userEmail: string | null; roles: string[] } | null> {
+  async validateApiKey(key: string): Promise<{
+    userId: string;
+    userEmail: string | null;
+    roles: string[];
+  } | null> {
     // Extract prefix from the incoming key for indexed lookup
     const prefix = key.substring(0, 8);
 

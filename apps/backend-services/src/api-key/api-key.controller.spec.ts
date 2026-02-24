@@ -129,6 +129,5 @@ describe("ApiKeyController", () => {
       expect(result).toEqual({ apiKey: mockRegeneratedKey });
       expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith("testuser");
     });
-
-    });
   });
+});

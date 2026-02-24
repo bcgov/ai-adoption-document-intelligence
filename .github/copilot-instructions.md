@@ -11,6 +11,7 @@
 - Functions in js/ts and jsx/tsx files should be documented with JSDoc comments, including parameter and return types, and a description of the function's purpose.
 - In the backend-services app, all controller functions should be documented with the @nestjs/swagger decorators to generate API documentation. This includes @ApiOperation for describing the endpoint's purpose, @ApiResponse for detailing possible responses, and @ApiParam for any parameters the endpoint accepts. Types for @Body should be defined using DTO classes, and these classes should also be documented with JSDoc comments to explain the structure and purpose of the data they represent.
 - When creating or updating backend code also create and update related tests. If backend code was updated, run tests to ensure they still pass. Adjust tests if they fail and re-run.
+- Do not use the `any` type. Use proper typing for all variables, function parameters, and return types. This ensures type safety and improves code readability and maintainability.
 
 ## Prisma and Database Guidelines
 - If you need to run `npx prisma generate`, run `npm run db:generate` from `apps/backend-services` - it's a special script that writes models into apps/temporal/src and apps/backend-services/src. Don't forget to run migrations as normal if necessary.

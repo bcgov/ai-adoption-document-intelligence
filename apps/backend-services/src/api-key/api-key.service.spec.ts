@@ -28,8 +28,8 @@ describe("ApiKeyService", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     // Reset all user mocks
-    Object.values(mockPrismaApiKey).forEach(fn => fn.mockReset());
-    Object.values(mockPrismaUser).forEach(fn => fn.mockReset());
+    Object.values(mockPrismaApiKey).forEach((fn) => fn.mockReset());
+    Object.values(mockPrismaUser).forEach((fn) => fn.mockReset());
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -71,9 +71,7 @@ describe("ApiKeyService", () => {
         last_used: new Date("2024-01-02"),
         user: {
           email: "test@example.com",
-          userRoles: [
-            { role: { name: "viewer" } },
-          ],
+          userRoles: [{ role: { name: "viewer" } }],
         },
       };
       mockPrismaApiKey.findFirst.mockResolvedValue(mockKey);
@@ -94,17 +92,16 @@ describe("ApiKeyService", () => {
   describe("generateApiKey", () => {
     it("should throw ConflictException if user already has a key", async () => {
       mockPrismaApiKey.findFirst.mockResolvedValue({ id: "existing" });
-      await expect(service.generateApiKey("user123")).rejects.toThrow(ConflictException);
+      await expect(service.generateApiKey("user123")).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it("should generate and return a new key with roles", async () => {
       mockPrismaApiKey.findFirst.mockResolvedValue(null);
       mockPrismaUser.findUnique.mockResolvedValue({
         email: "test@example.com",
-        userRoles: [
-          { role: { name: "admin" } },
-          { role: { name: "editor" } },
-        ],
+        userRoles: [{ role: { name: "admin" } }, { role: { name: "editor" } }],
       });
       mockPrismaApiKey.create.mockImplementation(async ({ data }) => ({
         id: "newkey123",
@@ -149,7 +146,9 @@ describe("ApiKeyService", () => {
   describe("deleteApiKey", () => {
     it("should throw NotFoundException if no key exists", async () => {
       mockPrismaApiKey.deleteMany.mockResolvedValue({ count: 0 });
-      await expect(service.deleteApiKey("user123")).rejects.toThrow(NotFoundException);
+      await expect(service.deleteApiKey("user123")).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it("should delete existing key", async () => {
@@ -192,9 +191,7 @@ describe("ApiKeyService", () => {
           user_id: "user123",
           user: {
             email: "test@example.com",
-            userRoles: [
-              { role: { name: "admin" } },
-            ],
+            userRoles: [{ role: { name: "admin" } }],
           },
         },
       ]);

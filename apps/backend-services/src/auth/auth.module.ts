@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { PassportModule } from "@nestjs/passport";
 import { ApiKeyModule } from "../api-key/api-key.module";
+import { DatabaseModule } from "../database/database.module";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
@@ -10,7 +11,6 @@ import { CsrfGuard } from "./csrf.guard";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { KeycloakJwtStrategy } from "./keycloak-jwt.strategy";
 import { RolesGuard } from "./roles.guard";
-import { DatabaseModule } from "../database/database.module";
 
 @Module({
   imports: [

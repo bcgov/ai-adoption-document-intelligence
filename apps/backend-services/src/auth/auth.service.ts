@@ -42,7 +42,7 @@ export class AuthService implements OnModuleInit {
 
   constructor(
     private configService: ConfigService,
-    private prismaService: PrismaService
+    private prismaService: PrismaService,
   ) {
     const authServerUrl = this.configService.get<string>("SSO_AUTH_SERVER_URL");
     const realm = this.configService.get<string>("SSO_REALM");
@@ -231,16 +231,21 @@ export class AuthService implements OnModuleInit {
 
   /**
    * Decodes a JWT ID token and returns the payload.
+   * @param idToken - The JWT ID token string.
+   * @returns The decoded payload as a generic object.
    */
-  decodeIdToken(idToken: string): Record<string, any> {
+  decodeIdToken<T extends object = Record<string, unknown>>(
+    idToken: string,
+  ): T {
     const [, payload] = idToken.split(".");
     return JSON.parse(Buffer.from(payload, "base64").toString());
   }
 
   /**
    * Upserts user in DB from token payload.
+   * @param tokenPayload - The decoded token payload object (must have an email property).
    */
-  async upsertUserFromToken(tokenPayload: Record<string, any>): Promise<void> {
+  async upsertUserFromToken(tokenPayload: { email?: string }): Promise<void> {
     const email = tokenPayload.email;
     const lastLogin = new Date();
     if (!email) return;
