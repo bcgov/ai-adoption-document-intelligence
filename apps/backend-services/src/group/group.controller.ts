@@ -3,6 +3,46 @@ import { GroupService } from './group.service';
 
 @Controller('api/users')
 export class GroupController {
+      /**
+       * Delete an existing group
+       * DELETE /api/users/groups/:groupId
+       */
+      @Delete('groups/:groupId')
+      async deleteGroup(@Param('groupId') groupId: string): Promise<{ success: boolean }> {
+        await this.groupService.deleteGroup(groupId);
+        return { success: true };
+      }
+
+      /**
+       * Get all existing groups
+       * GET /api/users/groups
+       */
+      @Post('groups/all') // Use GET in real implementation, POST for demo
+      async getAllGroups(): Promise<Array<{ id: string; name: string }>> {
+        return await this.groupService.getAllGroups();
+      }
+
+      /**
+       * Get a user's group membership
+       * GET /api/users/:userId/groups/membership
+       */
+      @Post(':userId/groups/membership') // Use GET in real implementation, POST for demo
+      async getUserGroups(@Param('userId') userId: string): Promise<Array<{ id: string; name: string }>> {
+        return await this.groupService.getUserGroups(userId);
+      }
+
+      /**
+       * Request membership to a group
+       * POST /api/users/:userId/groups/:groupId/request-membership
+       */
+      @Post(':userId/groups/:groupId/request-membership')
+      async requestMembership(
+        @Param('userId') userId: string,
+        @Param('groupId') groupId: string
+      ): Promise<{ success: boolean }> {
+        await this.groupService.requestMembership(userId, groupId);
+        return { success: true };
+      }
     /**
      * Create a new group
      * POST /api/users/groups

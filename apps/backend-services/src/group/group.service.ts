@@ -3,6 +3,44 @@ import { DatabaseService } from '../database/database.service';
 
 @Injectable()
 export class GroupService {
+      /**
+       * Deletes an existing group by ID.
+       */
+      async deleteGroup(groupId: string): Promise<void> {
+        const group = await this.databaseService.prisma.group.findUnique({ where: { id: groupId } });
+        if (!group) {
+          throw new NotFoundException('Group not found');
+        }
+        await this.databaseService.prisma.group.delete({ where: { id: groupId } });
+      }
+
+      /**
+       * Returns all existing groups.
+       */
+      async getAllGroups(): Promise<Array<{ id: string; name: string }>> {
+        return await this.databaseService.prisma.group.findMany({ select: { id: true, name: true } });
+      }
+
+      /**
+       * Returns all groups a user is a member of.
+       */
+      async getUserGroups(userId: string): Promise<Array<{ id: string; name: string }>> {
+        const userGroups = await this.databaseService.prisma.userGroup.findMany({
+          where: { user_id: userId },
+          include: { group: true },
+        });
+        return userGroups.map(ug => ({ id: ug.group.id, name: ug.group.name }));
+      }
+
+      /**
+       * Allows a user to request membership to a group (creates a pending request).
+       * NOTE: Implementation assumes a MembershipRequest model exists. If not, this should be clarified.
+       */
+      async requestMembership(userId: string, groupId: string): Promise<void> {
+        // Placeholder: implement actual request logic if MembershipRequest model exists
+        // For now, just throw to indicate this needs clarification
+        throw new Error('Membership request logic not implemented. Please define MembershipRequest model.');
+      }
     /**
      * Creates a new group with the given name and optional description.
      * Throws an error if a group with the same name already exists.

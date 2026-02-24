@@ -1,3 +1,77 @@
+describe('deleteGroup', () => {
+  it('should delete a group by ID', async () => {
+    const mockPrisma = {
+      group: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'g1', name: 'Test Group' }),
+        delete: jest.fn().mockResolvedValue(undefined),
+      },
+    };
+    const service = new GroupService({ prisma: mockPrisma } as any);
+    await service.deleteGroup('g1');
+    expect(mockPrisma.group.findUnique).toHaveBeenCalledWith({ where: { id: 'g1' } });
+    expect(mockPrisma.group.delete).toHaveBeenCalledWith({ where: { id: 'g1' } });
+  });
+  it('should throw if group not found', async () => {
+    const mockPrisma = {
+      group: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        delete: jest.fn(),
+      },
+    };
+    const service = new GroupService({ prisma: mockPrisma } as any);
+    await expect(service.deleteGroup('g1')).rejects.toThrow('Group not found');
+  });
+});
+
+describe('getAllGroups', () => {
+  it('should return all groups', async () => {
+    const mockGroups = [
+      { id: 'g1', name: 'Group 1' },
+      { id: 'g2', name: 'Group 2' },
+    ];
+    const mockPrisma = {
+      group: {
+        findMany: jest.fn().mockResolvedValue(mockGroups),
+      },
+    };
+    const service = new GroupService({ prisma: mockPrisma } as any);
+    const result = await service.getAllGroups();
+    expect(result).toEqual(mockGroups);
+    expect(mockPrisma.group.findMany).toHaveBeenCalledWith({ select: { id: true, name: true } });
+  });
+});
+
+describe('getUserGroups', () => {
+  it('should return user group memberships', async () => {
+    const mockUserGroups = [
+      { group: { id: 'g1', name: 'Group 1' } },
+      { group: { id: 'g2', name: 'Group 2' } },
+    ];
+    const mockPrisma = {
+      userGroup: {
+        findMany: jest.fn().mockResolvedValue(mockUserGroups),
+      },
+    };
+    const service = new GroupService({ prisma: mockPrisma } as any);
+    const result = await service.getUserGroups('user1');
+    expect(result).toEqual([
+      { id: 'g1', name: 'Group 1' },
+      { id: 'g2', name: 'Group 2' },
+    ]);
+    expect(mockPrisma.userGroup.findMany).toHaveBeenCalledWith({
+      where: { user_id: 'user1' },
+      include: { group: true },
+    });
+  });
+});
+
+describe('requestMembership', () => {
+  it('should throw not implemented error', async () => {
+    const mockPrisma = {};
+    const service = new GroupService({ prisma: mockPrisma } as any);
+    await expect(service.requestMembership('user1', 'g1')).rejects.toThrow('Membership request logic not implemented. Please define MembershipRequest model.');
+  });
+});
 describe('createGroup', () => {
   it('should create a new group', async () => {
     const mockGroup = { id: 'g1', name: 'Test Group' };
