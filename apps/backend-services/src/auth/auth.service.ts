@@ -243,18 +243,23 @@ export class AuthService implements OnModuleInit {
 
   /**
    * Upserts user in DB from token payload.
-   * @param tokenPayload - The decoded token payload object (must have an email property).
+   * @param tokenPayload - The decoded token payload object (must have a sub and email property).
    */
-  async upsertUserFromToken(tokenPayload: { email?: string }): Promise<void> {
-    const email = tokenPayload.email;
+  async upsertUserFromToken(tokenPayload: {
+    sub?: string;
+    email?: string;
+  }): Promise<void> {
+    const { sub, email } = tokenPayload;
     const lastLogin = new Date();
-    if (!email) return;
+    if (!sub || !email) return;
     await this.prismaService.prisma.user.upsert({
-      where: { email },
+      where: { id: sub },
       update: {
+        email,
         last_login_at: lastLogin,
       },
       create: {
+        id: sub,
         email,
         last_login_at: lastLogin,
       },

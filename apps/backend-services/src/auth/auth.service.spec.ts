@@ -6,7 +6,6 @@ import { AuthService } from "./auth.service";
 // Mock openid-client
 jest.mock("openid-client");
 
-
 describe("AuthService", () => {
   let service: AuthService;
   let configService: ConfigService;
@@ -100,9 +99,9 @@ describe("AuthService", () => {
   describe("constructor", () => {
     it("should throw if config missing", () => {
       (configService.get as jest.Mock).mockReturnValueOnce(undefined);
-      expect(() => new AuthService(configService, prismaService as any)).toThrow(
-        "SSO_AUTH_SERVER_URL and SSO_REALM must be configured",
-      );
+      expect(
+        () => new AuthService(configService, prismaService as any),
+      ).toThrow("SSO_AUTH_SERVER_URL and SSO_REALM must be configured");
     });
 
     it("should throw if client credentials missing", () => {
@@ -115,9 +114,9 @@ describe("AuthService", () => {
         };
         return config[key];
       });
-      expect(() => new AuthService(configService, prismaService as any)).toThrow(
-        "SSO_CLIENT_ID and SSO_CLIENT_SECRET must be configured",
-      );
+      expect(
+        () => new AuthService(configService, prismaService as any),
+      ).toThrow("SSO_CLIENT_ID and SSO_CLIENT_SECRET must be configured");
     });
   });
 
@@ -345,6 +344,45 @@ describe("AuthService", () => {
     it("should build error redirect with auth_error param", () => {
       const url = service.buildErrorRedirect("fail");
       expect(url).toContain("auth_error=fail");
+    });
+  });
+
+  describe("upsertUserFromToken", () => {
+    it("should upsert user using sub as id", async () => {
+      await service.upsertUserFromToken({
+        sub: "user-sub-123",
+        email: "user@example.com",
+      });
+
+      expect(prismaService.prisma.user.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "user-sub-123" },
+          update: expect.objectContaining({
+            email: "user@example.com",
+            last_login_at: expect.any(Date),
+          }),
+          create: expect.objectContaining({
+            id: "user-sub-123",
+            email: "user@example.com",
+            last_login_at: expect.any(Date),
+          }),
+        }),
+      );
+    });
+
+    it("should return early when sub is missing", async () => {
+      await service.upsertUserFromToken({ email: "user@example.com" });
+      expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
+    });
+
+    it("should return early when email is missing", async () => {
+      await service.upsertUserFromToken({ sub: "user-sub-123" });
+      expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
+    });
+
+    it("should return early when both sub and email are missing", async () => {
+      await service.upsertUserFromToken({});
+      expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
     });
   });
 });
