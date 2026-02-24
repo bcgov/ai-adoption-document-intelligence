@@ -23,3 +23,41 @@ The database layer in `apps/backend-services/src/database/` is split into focuse
 ## Module
 
 `DatabaseModule` provides and exports: `PrismaService`, `DocumentDbService`, `LabelingDocumentDbService`, `LabelingProjectDbService`, `ReviewDbService`, `DatabaseService`.
+
+# User Model
+
+## Overview
+The `User` model tracks users separately in its own table. This enables referencing users via foreign keys in other tables, such as `created_by`, `updated_by`, and `user_id`.
+
+## Fields
+- `id`: Unique identifier for the user (UUID).
+- `email`: Unique email address for the user.
+- `roles`: Array of roles assigned to the user.
+- `last_login_at`: Timestamp of the user's last login.
+- `created_at`: Timestamp when the user was created.
+- `updated_at`: Timestamp when the user was last updated.
+
+## Usage
+- The `ApiKey` table now references `User` via `user_id` foreign key.
+- Other tables can reference `User` for audit fields (e.g., `created_by`, `updated_by`).
+
+## Migration Notes
+- `user_email` and `roles` have been removed from `ApiKey`.
+- Use `user_id` to link API keys to users.
+
+## Example
+```prisma
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  roles         String[]
+  last_login_at DateTime?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+}
+```
+
+## Next Steps
+- Update backend code to use the new `User` model.
+- Update tests to reflect schema changes.
+- Run migrations and regenerate Prisma client.

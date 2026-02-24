@@ -139,32 +139,41 @@ describe('removeUserFromGroup', () => {
   it('should remove a user from a group', async () => {
     const groupId = 'test-group';
     const userId = 'test-user';
-    const group = { id: groupId, users: [{ id: userId }] };
-    const findOneMock = jest.fn().mockResolvedValue(group);
-    const saveMock = jest.fn().mockResolvedValue(undefined);
+    const mockGroup = { id: groupId };
+    const mockUserGroup = { user_id: userId, group_id: groupId };
+    const findUniqueGroup = jest.fn().mockResolvedValue(mockGroup);
+    const findUniqueUserGroup = jest.fn().mockResolvedValue(mockUserGroup);
+    const deleteUserGroup = jest.fn().mockResolvedValue(undefined);
     const databaseService = {
       prisma: {
         group: {
-          findOne: findOneMock,
-          save: saveMock,
+          findUnique: findUniqueGroup,
+        },
+        userGroup: {
+          findUnique: findUniqueUserGroup,
+          delete: deleteUserGroup,
         },
       },
     };
     const service = new GroupService(databaseService as any);
     await service.removeUserFromGroup(groupId, userId);
-    expect(group.users.length).toBe(0);
-    expect(saveMock).toHaveBeenCalledWith(group);
+    expect(findUniqueGroup).toHaveBeenCalledWith({ where: { id: groupId } });
+    expect(findUniqueUserGroup).toHaveBeenCalledWith({ where: { user_id_group_id: { user_id: userId, group_id: groupId } } });
+    expect(deleteUserGroup).toHaveBeenCalledWith({ where: { user_id_group_id: { user_id: userId, group_id: groupId } } });
   });
 
   it('should throw if group not found', async () => {
     const groupId = 'missing-group';
     const userId = 'user';
-    const findOneMock = jest.fn().mockResolvedValue(undefined);
+    const findUniqueGroup = jest.fn().mockResolvedValue(undefined);
     const databaseService = {
       prisma: {
         group: {
-          findOne: findOneMock,
-          save: jest.fn(),
+          findUnique: findUniqueGroup,
+        },
+        userGroup: {
+          findUnique: jest.fn(),
+          delete: jest.fn(),
         },
       },
     };
@@ -175,13 +184,17 @@ describe('removeUserFromGroup', () => {
   it('should throw if user not a member', async () => {
     const groupId = 'group';
     const userId = 'not-member';
-    const group = { id: groupId, users: [{ id: 'other-user' }] };
-    const findOneMock = jest.fn().mockResolvedValue(group);
+    const mockGroup = { id: groupId };
+    const findUniqueGroup = jest.fn().mockResolvedValue(mockGroup);
+    const findUniqueUserGroup = jest.fn().mockResolvedValue(undefined);
     const databaseService = {
       prisma: {
         group: {
-          findOne: findOneMock,
-          save: jest.fn(),
+          findUnique: findUniqueGroup,
+        },
+        userGroup: {
+          findUnique: findUniqueUserGroup,
+          delete: jest.fn(),
         },
       },
     };

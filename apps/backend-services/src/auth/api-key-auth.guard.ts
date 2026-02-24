@@ -94,7 +94,7 @@ export class ApiKeyAuthGuard implements CanActivate, OnModuleDestroy {
     // Successful validation — reset failure counter for this IP
     this.failedAttempts.delete(clientIp);
 
-    // Set user info from API key (roles are inherited from the creating user)
+    // Set user info from API key (roles and email from User relation)
     request.user = {
       sub: keyInfo.userId,
       email: keyInfo.userEmail,

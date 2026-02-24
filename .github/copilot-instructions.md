@@ -6,3 +6,5 @@
 - When creating or modifying features, create/update documentation in /docs-md folder
 - If you need to run `npx prisma generate`, run `npm run db:generate` from `apps/backend-services` - it's a special script that writes models into apps/temporal/src and apps/backend-services/src. Don't forget to run migrations as normal if necessary.
 - Do not include any document-specific implementation, the system is generic and must support arbitrary workloads
+- Functions in js/ts and jsx/tsx files should be documented with JSDoc comments, including parameter and return types, and a description of the function's purpose.
+- In the backend-services app, all controller functions should be documented with the @nestjs/swagger decorators to generate API documentation. This includes @ApiOperation for describing the endpoint's purpose, @ApiResponse for detailing possible responses, and @ApiParam for any parameters the endpoint accepts. Types for @Body should be defined using DTO classes, and these classes should also be documented with JSDoc comments to explain the structure and purpose of the data they represent.

@@ -43,8 +43,6 @@ export class ApiKeyService {
 
   async generateApiKey(
     userId: string,
-    userEmail: string,
-    roles: string[],
   ): Promise<GeneratedApiKeyDto> {
     // Check if user already has a key
     const existingKey = await this.prisma.apiKey.findUnique({
@@ -69,19 +67,18 @@ export class ApiKeyService {
         key_hash: keyHash,
         key_prefix: keyPrefix,
         user_id: userId,
-        user_email: userEmail,
-        roles,
       },
+      include: { user: true },
     });
 
     this.logger.log(`API key generated for user ${userId}`);
 
     return {
       id: apiKey.id,
-      key, // Return full key only once
+      key,
       keyPrefix,
-      userEmail: apiKey.user_email,
-      roles: apiKey.roles,
+      userEmail: apiKey.user?.email ?? null,
+      roles: apiKey.user?.roles ?? [],
       createdAt: apiKey.created_at,
       lastUsed: null,
     };
@@ -105,8 +102,6 @@ export class ApiKeyService {
 
   async regenerateApiKey(
     userId: string,
-    userEmail: string,
-    roles: string[],
   ): Promise<GeneratedApiKeyDto> {
     // Delete existing key if any
     try {
@@ -116,18 +111,19 @@ export class ApiKeyService {
     }
 
     // Generate new key
-    return this.generateApiKey(userId, userEmail, roles);
+    return this.generateApiKey(userId);
   }
 
   async validateApiKey(
     key: string,
-  ): Promise<{ userId: string; userEmail: string; roles: string[] } | null> {
+  ): Promise<{ userId: string; userEmail: string | null; roles: string[] } | null> {
     // Extract prefix from the incoming key for indexed lookup
     const prefix = key.substring(0, 8);
 
     // Query only keys with matching prefix (O(1) lookup instead of O(n))
     const apiKeys = await this.prisma.apiKey.findMany({
       where: { key_prefix: prefix },
+      include: { user: true },
     });
 
     for (const apiKey of apiKeys) {
@@ -141,8 +137,8 @@ export class ApiKeyService {
 
         return {
           userId: apiKey.user_id,
-          userEmail: apiKey.user_email,
-          roles: apiKey.roles,
+          userEmail: apiKey.user?.email ?? null,
+          roles: apiKey.user?.roles ?? [],
         };
       }
     }
