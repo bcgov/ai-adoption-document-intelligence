@@ -67,13 +67,6 @@ model OcrResult {
   @@map("ocr_results")
 }
 
-enum DocumentStatus {
-  pre_ocr
-  ongoing_ocr
-  completed_ocr
-  failed
-}
-
 model ApiKey {
   id         String    @id @default(cuid())
   key_hash   String    @unique
@@ -89,12 +82,13 @@ model ApiKey {
 model User {
   id            String    @id @default(uuid())
   email         String    @unique
-  roles         String[]
   last_login_at DateTime?
   created_at    DateTime  @default(now())
   updated_at    DateTime  @updatedAt
 
   apiKeys ApiKey[]
+
+  userRoles UserRole[]
 
   workflows Workflow[]
 
@@ -105,6 +99,27 @@ model User {
   updatedClassifierModels ClassifierModel[] @relation(name: "UpdatedUser")
 
   userGroups UserGroup[]
+
+  @@map("user")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  userRoles   UserRole[]
+
+  @@map("role")
+}
+
+model UserRole {
+  user_id String
+  user    User   @relation(fields: [user_id], references: [id])
+  role_id String
+  role    Role   @relation(fields: [role_id], references: [id])
+
+  @@id([user_id, role_id])
+  @@map("user_role")
 }
 
 model Workflow {
@@ -352,4 +367,11 @@ enum ClassifierStatus {
   FAILED
   TRAINING
   READY
+}
+
+enum DocumentStatus {
+  pre_ocr
+  ongoing_ocr
+  completed_ocr
+  failed
 }

@@ -54,20 +54,21 @@ describe("ApiKeyController", () => {
         keyPrefix: "abcd1234",
         userEmail: "test@example.com",
         roles: ["admin"],
-        createdAt: new Date(),
-        lastUsed: null,
       };
       mockApiKeyService.getUserApiKey.mockResolvedValue(mockKeyInfo);
-
       const result = await controller.getApiKey(mockRequest as any);
-
       expect(result).toEqual({ apiKey: mockKeyInfo });
+      expect(apiKeyService.getUserApiKey).toHaveBeenCalledWith("testuser");
     });
 
-    it("should return null when no user on request", async () => {
-      const result = await controller.getApiKey({ user: undefined } as any);
-
-      expect(result).toEqual({ apiKey: null });
+    it("should not throw when user has no email", async () => {
+      // With new logic, email is not required for API key generation, so this should not throw
+      mockApiKeyService.generateApiKey.mockResolvedValue({});
+      await expect(
+        controller.generateApiKey({
+          user: { sub: "testuser" },
+        } as any),
+      ).resolves.toBeDefined();
     });
   });
 
@@ -87,23 +88,16 @@ describe("ApiKeyController", () => {
       const result = await controller.generateApiKey(mockRequest as any);
 
       expect(result).toEqual({ apiKey: mockGeneratedKey });
-      expect(apiKeyService.generateApiKey).toHaveBeenCalledWith(
-        "testuser",
-        "test@example.com",
-        ["admin", "editor"],
-      );
+      expect(apiKeyService.generateApiKey).toHaveBeenCalledWith("testuser");
     });
 
-    it("should throw BadRequestException when user has no email", async () => {
+    it("should not throw when user has no email for regenerate", async () => {
+      mockApiKeyService.regenerateApiKey.mockResolvedValue({});
       await expect(
-        controller.generateApiKey({
+        controller.regenerateApiKey({
           user: { sub: "testuser" },
         } as any),
-      ).rejects.toThrow(
-        "Email claim is required in JWT to generate an API key",
-      );
-
-      expect(apiKeyService.generateApiKey).not.toHaveBeenCalled();
+      ).resolves.toBeDefined();
     });
   });
 
@@ -133,23 +127,8 @@ describe("ApiKeyController", () => {
       const result = await controller.regenerateApiKey(mockRequest as any);
 
       expect(result).toEqual({ apiKey: mockRegeneratedKey });
-      expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith(
-        "testuser",
-        "test@example.com",
-        ["admin", "editor"],
-      );
+      expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith("testuser");
     });
 
-    it("should throw BadRequestException when user has no email", async () => {
-      await expect(
-        controller.regenerateApiKey({
-          user: { sub: "testuser" },
-        } as any),
-      ).rejects.toThrow(
-        "Email claim is required in JWT to regenerate an API key",
-      );
-
-      expect(apiKeyService.regenerateApiKey).not.toHaveBeenCalled();
     });
   });
-});

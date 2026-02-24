@@ -23,19 +23,30 @@ export class ApiKeyService {
   }
 
   async getUserApiKey(userId: string): Promise<ApiKeyInfoDto | null> {
-    const apiKey = await this.prisma.apiKey.findUnique({
+    const apiKey = await this.prisma.apiKey.findFirst({
       where: { user_id: userId },
+      include: {
+        user: {
+          include: {
+            userRoles: {
+              include: { role: true },
+            },
+          },
+        },
+      },
     });
 
-    if (!apiKey) {
+    if (!apiKey || !apiKey.user) {
       return null;
     }
+
+    const roles = apiKey.user.userRoles.map((ur) => ur.role.name);
 
     return {
       id: apiKey.id,
       keyPrefix: apiKey.key_prefix,
-      userEmail: apiKey.user_email,
-      roles: apiKey.roles,
+      userEmail: apiKey.user.email,
+      roles,
       createdAt: apiKey.created_at,
       lastUsed: apiKey.last_used,
     };
@@ -45,7 +56,7 @@ export class ApiKeyService {
     userId: string,
   ): Promise<GeneratedApiKeyDto> {
     // Check if user already has a key
-    const existingKey = await this.prisma.apiKey.findUnique({
+    const existingKey = await this.prisma.apiKey.findFirst({
       where: { user_id: userId },
     });
 
@@ -62,13 +73,21 @@ export class ApiKeyService {
     // Hash the key for storage
     const keyHash = await bcrypt.hash(key, 10);
 
+    // Fetch user and roles for response
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        userRoles: { include: { role: true } },
+      },
+    });
+    const roles = user?.userRoles?.map((ur) => ur.role.name) ?? [];
+
     const apiKey = await this.prisma.apiKey.create({
       data: {
         key_hash: keyHash,
         key_prefix: keyPrefix,
         user_id: userId,
       },
-      include: { user: true },
     });
 
     this.logger.log(`API key generated for user ${userId}`);
@@ -77,39 +96,28 @@ export class ApiKeyService {
       id: apiKey.id,
       key,
       keyPrefix,
-      userEmail: apiKey.user?.email ?? null,
-      roles: apiKey.user?.roles ?? [],
+      userEmail: user?.email ?? null,
+      roles,
       createdAt: apiKey.created_at,
       lastUsed: null,
     };
   }
 
   async deleteApiKey(userId: string): Promise<void> {
-    const existingKey = await this.prisma.apiKey.findUnique({
+    const deleted = await this.prisma.apiKey.deleteMany({
       where: { user_id: userId },
     });
-
-    if (!existingKey) {
+    if (deleted.count === 0) {
       throw new NotFoundException("No API key found for this user");
     }
-
-    await this.prisma.apiKey.delete({
-      where: { user_id: userId },
-    });
-
-    this.logger.log(`API key deleted for user ${userId}`);
+    this.logger.log(`API key(s) deleted for user ${userId}`);
   }
 
   async regenerateApiKey(
     userId: string,
   ): Promise<GeneratedApiKeyDto> {
-    // Delete existing key if any
-    try {
-      await this.deleteApiKey(userId);
-    } catch {
-      // Ignore if no key exists
-    }
-
+    // Delete existing key(s) if any
+    await this.prisma.apiKey.deleteMany({ where: { user_id: userId } });
     // Generate new key
     return this.generateApiKey(userId);
   }
@@ -123,7 +131,13 @@ export class ApiKeyService {
     // Query only keys with matching prefix (O(1) lookup instead of O(n))
     const apiKeys = await this.prisma.apiKey.findMany({
       where: { key_prefix: prefix },
-      include: { user: true },
+      include: {
+        user: {
+          include: {
+            userRoles: { include: { role: true } },
+          },
+        },
+      },
     });
 
     for (const apiKey of apiKeys) {
@@ -135,10 +149,12 @@ export class ApiKeyService {
           data: { last_used: new Date() },
         });
 
+        const roles = apiKey.user?.userRoles?.map((ur) => ur.role.name) ?? [];
+
         return {
           userId: apiKey.user_id,
           userEmail: apiKey.user?.email ?? null,
-          roles: apiKey.user?.roles ?? [],
+          roles,
         };
       }
     }
