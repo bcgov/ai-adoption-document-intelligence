@@ -18,10 +18,10 @@ After implementing the user story check it off at the bottom of this file
 | `US-007-request-membership-to-group.md` | Endpoints for users to request membership to a group |
 
 ## Acceptance Checklist
-- [ ] US-001-assign-users-to-groups.md
-- [ ] US-002-remove-users-from-groups.md
-- [ ] US-003-create-new-group.md
-- [ ] US-004-delete-existing-group.md
-- [ ] US-005-get-all-existing-groups.md
-- [ ] US-006-get-user-group-membership.md
-- [ ] US-007-request-membership-to-group.md
+ [x] US-001-assign-users-to-groups.md
+ [x] US-002-remove-users-from-groups.md
+ [x] US-003-create-new-group.md
+ [x] US-004-delete-existing-group.md
+ [x] US-005-get-all-existing-groups.md
+ [x] US-006-get-user-group-membership.md
+ [x] US-007-request-membership-to-group.md
