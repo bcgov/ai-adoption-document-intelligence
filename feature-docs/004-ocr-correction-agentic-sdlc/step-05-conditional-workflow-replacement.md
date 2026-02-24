@@ -1,0 +1,32 @@
+# Step 5: Conditional workflow replacement (no degradation)
+
+**Parent:** [OCR Correction and Agentic SDLC Requirements](../../docs/OCR_CORRECTION_AND_AGENTIC_SDLC_REQUIREMENTS.md) — Section 7  
+**Implementation order:** 5  
+**Depends on:** Step 4 (baseline comparison result must be available to consume).
+
+---
+
+## Goal
+
+When the benchmarking system's baseline comparison for the candidate run reports **no degradation**, set the candidate workflow as the new **current** production workflow using **workflow versioning**. The benchmarking system does not store "production workflow"; this step implements the automation that performs the update.
+
+## Trigger
+
+- After a candidate workflow is tested (Step 4) and the **baseline comparison for that run reports no degradation** (pass for all thresholds).
+
+## Requirements
+
+- **Workflow versioning:** The system SHALL maintain a notion of "current" production workflow (e.g. a designated workflow id, or a pointer such as default workflow id used at upload when `workflow_config_id` is not provided). Replacement SHALL set the **candidate as the new current version** (e.g. update the active workflow pointer to the new workflow id). Replacement SHALL **not** overwrite the previous workflow record in place; it SHALL create or designate a new version so history and rollback remain possible.
+- **Replacement:** When the comparison reports no degradation, the automation SHALL update whatever store or config holds the active workflow (e.g. default workflow id in settings, or the workflow record designated as "current" for a given workflow name). In this codebase, workflow config is stored in the **`Workflow` model** (Prisma); documents use **workflow_config_id** at upload. The active workflow SHALL resolve via that id (e.g. upload default or per-document override). See [DAG_WORKFLOW_ENGINE.md](../../docs/graph-workflows/DAG_WORKFLOW_ENGINE.md) and `WorkflowService.getWorkflowById` / `TemporalClientService.startGraphWorkflow(workflowConfigId)`.
+- **Safety:** Replacement SHALL occur **only** when the baseline comparison has explicitly reported no degradation. Rollback or versioning strategy (e.g. keep previous workflow as fallback) MAY be specified in a separate implementation note.
+
+## Acceptance criteria
+
+- [ ] There is a **defined process or automation** that: (1) reads the baseline comparison result for the candidate run from the benchmarking system, (2) if no degradation, sets the candidate workflow as the new current version (updates active workflow pointer; does not overwrite previous workflow in place), (3) persists the update.
+- [ ] No replacement occurs when degradation is detected or when the comparison has not been run.
+
+## References
+
+- Step 4: [step-04-benchmark-integration-workflow-comparison.md](./step-04-benchmark-integration-workflow-comparison.md) — how comparison result is obtained
+- [docs/benchmarking/BENCHMARKING_GUIDE.md](../../docs/benchmarking/BENCHMARKING_GUIDE.md) — baseline comparison API/data
+- [docs/graph-workflows/DAG_WORKFLOW_ENGINE.md](../../docs/graph-workflows/DAG_WORKFLOW_ENGINE.md) — workflow config storage; `Workflow` model, `WorkflowService.getWorkflowById`, `TemporalClientService.startGraphWorkflow(workflowConfigId)`
