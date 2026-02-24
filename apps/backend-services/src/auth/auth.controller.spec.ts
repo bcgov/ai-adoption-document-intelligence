@@ -20,6 +20,8 @@ describe("AuthController", () => {
       handleCallback: jest.fn(),
       buildErrorRedirect: jest.fn(),
       getFrontendUrl: jest.fn().mockReturnValue("http://localhost:3000"),
+      decodeIdToken: jest.fn().mockReturnValue({}),
+      upsertUserFromToken: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<AuthService>;
 
     res = {

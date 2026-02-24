@@ -6,9 +6,11 @@ import { AuthService } from "./auth.service";
 // Mock openid-client
 jest.mock("openid-client");
 
+
 describe("AuthService", () => {
   let service: AuthService;
   let configService: ConfigService;
+  let prismaService: { prisma: { user: { upsert: jest.Mock } } };
 
   beforeEach(async () => {
     configService = {
@@ -25,6 +27,14 @@ describe("AuthService", () => {
         return config[key];
       }),
     } as unknown as ConfigService;
+
+    prismaService = {
+      prisma: {
+        user: {
+          upsert: jest.fn(),
+        },
+      },
+    };
 
     // Mock openid-client functions
     (client.discovery as jest.Mock) = jest.fn().mockResolvedValue({
@@ -68,8 +78,14 @@ describe("AuthService", () => {
       providers: [
         AuthService,
         { provide: ConfigService, useValue: configService },
+        { provide: "PrismaService", useValue: prismaService },
       ],
-    }).compile();
+    })
+      .overrideProvider(AuthService)
+      .useFactory({
+        factory: () => new AuthService(configService, prismaService as any),
+      })
+      .compile();
 
     service = module.get<AuthService>(AuthService);
 
@@ -84,7 +100,7 @@ describe("AuthService", () => {
   describe("constructor", () => {
     it("should throw if config missing", () => {
       (configService.get as jest.Mock).mockReturnValueOnce(undefined);
-      expect(() => new AuthService(configService)).toThrow(
+      expect(() => new AuthService(configService, prismaService as any)).toThrow(
         "SSO_AUTH_SERVER_URL and SSO_REALM must be configured",
       );
     });
@@ -99,7 +115,7 @@ describe("AuthService", () => {
         };
         return config[key];
       });
-      expect(() => new AuthService(configService)).toThrow(
+      expect(() => new AuthService(configService, prismaService as any)).toThrow(
         "SSO_CLIENT_ID and SSO_CLIENT_SECRET must be configured",
       );
     });
@@ -115,7 +131,7 @@ describe("AuthService", () => {
     });
 
     it("should throw if discovery fails", async () => {
-      const newService = new AuthService(configService);
+      const newService = new AuthService(configService, prismaService as any);
       (client.discovery as jest.Mock).mockRejectedValueOnce(
         new Error("Discovery failed"),
       );
