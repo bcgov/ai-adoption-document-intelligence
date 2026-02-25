@@ -8,7 +8,9 @@ import {
   Param,
   Post,
   Query,
+  Req,
 } from "@nestjs/common";
+import { Request } from "express";
 import {
   ApiBody,
   ApiOperation,
@@ -17,6 +19,8 @@ import {
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
+import { User } from "../auth/types";
+import { RequestMembershipDto } from "./dto/request-membership.dto";
 import { GroupService } from "./group.service";
 
 /**
@@ -80,14 +84,17 @@ export class GroupController {
     status: 200,
     description: "Membership requested successfully.",
   })
-  @ApiParam({ name: "userId", description: "User ID", type: String })
-  @ApiParam({ name: "groupId", description: "Group ID", type: String })
+  @ApiResponse({ status: 404, description: "Group not found." })
   @Post("/request")
   async requestMembership(
-    @Body("userId") userId: string,
-    @Body("groupId") groupId: string,
+    @Req() req: Request & { user?: User },
+    @Body() body: RequestMembershipDto,
   ): Promise<{ success: boolean }> {
-    await this.groupService.requestMembership(userId, groupId);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+    await this.groupService.requestMembership(userId, body.groupId);
     return { success: true };
   }
 

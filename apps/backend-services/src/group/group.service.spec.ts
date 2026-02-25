@@ -193,12 +193,87 @@ describe("removeUserFromGroup", () => {
   });
 
   describe("requestMembership", () => {
-    it("should throw not implemented error", async () => {
-      const mockPrisma = {};
-      const service = new GroupService({ prisma: mockPrisma } as any);
-      await expect(service.requestMembership("user1", "g1")).rejects.toThrow(
-        "Membership request logic not implemented. Please define MembershipRequest model.",
+    const userId = "user1";
+    const groupId = "group1";
+    const mockGroup = { id: groupId };
+
+    it("should create a PENDING request when user is not a member and has no pending request", async () => {
+      const createRequest = jest.fn().mockResolvedValue({});
+      const databaseService = {
+        prisma: {
+          group: { findUnique: jest.fn().mockResolvedValue(mockGroup) },
+          userGroup: { findUnique: jest.fn().mockResolvedValue(null) },
+          groupMembershipRequest: {
+            findFirst: jest.fn().mockResolvedValue(null),
+            create: createRequest,
+          },
+        },
+      };
+      const svc = new GroupService(databaseService as any);
+      await svc.requestMembership(userId, groupId);
+      expect(createRequest).toHaveBeenCalledWith({
+        data: {
+          user_id: userId,
+          group_id: groupId,
+          status: "PENDING",
+          created_by: userId,
+          updated_by: userId,
+        },
+      });
+    });
+
+    it("should throw NotFoundException when group does not exist", async () => {
+      const databaseService = {
+        prisma: {
+          group: { findUnique: jest.fn().mockResolvedValue(null) },
+          userGroup: { findUnique: jest.fn() },
+          groupMembershipRequest: { findFirst: jest.fn(), create: jest.fn() },
+        },
+      };
+      const svc = new GroupService(databaseService as any);
+      await expect(svc.requestMembership(userId, groupId)).rejects.toThrow(
+        "Group not found",
       );
+    });
+
+    it("should return silently when user is already a member", async () => {
+      const createRequest = jest.fn();
+      const databaseService = {
+        prisma: {
+          group: { findUnique: jest.fn().mockResolvedValue(mockGroup) },
+          userGroup: {
+            findUnique: jest
+              .fn()
+              .mockResolvedValue({ user_id: userId, group_id: groupId }),
+          },
+          groupMembershipRequest: {
+            findFirst: jest.fn(),
+            create: createRequest,
+          },
+        },
+      };
+      const svc = new GroupService(databaseService as any);
+      await svc.requestMembership(userId, groupId);
+      expect(createRequest).not.toHaveBeenCalled();
+    });
+
+    it("should return silently when user already has a PENDING request", async () => {
+      const createRequest = jest.fn();
+      const databaseService = {
+        prisma: {
+          group: { findUnique: jest.fn().mockResolvedValue(mockGroup) },
+          userGroup: { findUnique: jest.fn().mockResolvedValue(null) },
+          groupMembershipRequest: {
+            findFirst: jest
+              .fn()
+              .mockResolvedValue({ id: "req1", status: "PENDING" }),
+            create: createRequest,
+          },
+        },
+      };
+      const svc = new GroupService(databaseService as any);
+      await svc.requestMembership(userId, groupId);
+      expect(createRequest).not.toHaveBeenCalled();
     });
   });
   describe("createGroup", () => {

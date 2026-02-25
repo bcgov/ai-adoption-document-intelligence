@@ -1,9 +1,8 @@
 import {
-  forwardRef,
-  Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { $Enums } from "@generated/client";
 import { DatabaseService } from "../database/database.service";
 
 @Injectable()
@@ -45,15 +44,50 @@ export class GroupService {
   }
 
   /**
-   * Allows a user to request membership to a group (creates a pending request).
-   * NOTE: Implementation assumes a MembershipRequest model exists. If not, this should be clarified.
+   * Allows a user to request membership to a group.
+   * - Returns silently if the user is already a member.
+   * - Returns silently if a PENDING request already exists.
+   * - Throws NotFoundException if the group does not exist.
+   * @param userId - The ID of the requesting user (from JWT sub claim).
+   * @param groupId - The ID of the group to request membership for.
    */
   async requestMembership(userId: string, groupId: string): Promise<void> {
-    // Placeholder: implement actual request logic if MembershipRequest model exists
-    // For now, just throw to indicate this needs clarification
-    throw new Error(
-      "Membership request logic not implemented. Please define MembershipRequest model.",
-    );
+    const group = await this.databaseService.prisma.group.findUnique({
+      where: { id: groupId },
+    });
+    if (!group) {
+      throw new NotFoundException("Group not found");
+    }
+
+    const existingMembership =
+      await this.databaseService.prisma.userGroup.findUnique({
+        where: { user_id_group_id: { user_id: userId, group_id: groupId } },
+      });
+    if (existingMembership) {
+      return;
+    }
+
+    const existingRequest =
+      await this.databaseService.prisma.groupMembershipRequest.findFirst({
+        where: {
+          user_id: userId,
+          group_id: groupId,
+          status: $Enums.GroupMembershipRequestStatus.PENDING,
+        },
+      });
+    if (existingRequest) {
+      return;
+    }
+
+    await this.databaseService.prisma.groupMembershipRequest.create({
+      data: {
+        user_id: userId,
+        group_id: groupId,
+        status: $Enums.GroupMembershipRequestStatus.PENDING,
+        created_by: userId,
+        updated_by: userId,
+      },
+    });
   }
   /**
    * Creates a new group with the given name and optional description.
