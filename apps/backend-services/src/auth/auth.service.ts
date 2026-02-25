@@ -8,7 +8,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import * as client from "openid-client";
 import { URL } from "url";
-import { TokenResponseDto } from "@/auth/dto/token-response.dto";
+import { TokenClaims, TokenResponseDto } from "@/auth/dto/token-response.dto";
 import { PrismaService } from "../database/prisma.service";
 
 /**
@@ -180,6 +180,7 @@ export class AuthService implements OnModuleInit {
         id_token: tokens.id_token,
         expires_in: tokens.expires_in || 300,
         token_type: tokens.token_type || "Bearer",
+        claims: tokens.claims() as unknown as TokenClaims,
       };
     } catch (error) {
       this.logger.error(
@@ -203,6 +204,7 @@ export class AuthService implements OnModuleInit {
         id_token: tokens.id_token,
         expires_in: tokens.expires_in || 300,
         token_type: tokens.token_type || "Bearer",
+        claims: tokens.claims() as unknown as TokenClaims,
       };
     } catch (error) {
       this.logger.error(
@@ -245,13 +247,15 @@ export class AuthService implements OnModuleInit {
    * Upserts user in DB from token payload.
    * @param tokenPayload - The decoded token payload object (must have a sub and email property).
    */
-  async upsertUserFromToken(tokenPayload: {
-    sub?: string;
-    email?: string;
-  }): Promise<void> {
+  async upsertUserFromToken(tokenPayload: TokenClaims): Promise<void> {
     const { sub, email } = tokenPayload;
     const lastLogin = new Date();
-    if (!sub || !email) return;
+    if (!sub || !email) {
+      throw new HttpException(
+        "Token payload missing required fields: sub and email",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
     await this.prismaService.prisma.user.upsert({
       where: { id: sub },
       update: {

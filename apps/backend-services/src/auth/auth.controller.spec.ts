@@ -4,6 +4,7 @@ import { AuthController } from "./auth.controller";
 import { AuthService, LoginUrlResult } from "./auth.service";
 import { AUTH_COOKIE_NAMES, COOKIE_OPTIONS } from "./cookie-auth.utils";
 import { OAuthCallbackQueryDto } from "./dto";
+import { TokenResponseDto } from "./dto/token-response.dto";
 import { User } from "./types";
 
 describe("AuthController", () => {
@@ -56,7 +57,7 @@ describe("AuthController", () => {
         id_token: "new-id",
         expires_in: 3600,
         token_type: "Bearer",
-      });
+      } as unknown as TokenResponseDto);
 
       const result = await controller.refreshToken(
         req as Request,
@@ -198,7 +199,7 @@ describe("AuthController", () => {
         id_token: "id-token",
         expires_in: 3600,
         token_type: "Bearer",
-      });
+      } as unknown as TokenResponseDto);
 
       const query: OAuthCallbackQueryDto = {
         code: "auth-code",
