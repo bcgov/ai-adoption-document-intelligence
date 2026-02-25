@@ -5,6 +5,7 @@
 - Do not create features that are not explicitly described in specifications, if there is a gap, include it summary notes after implementing the task. If there is a question regarding the implementation, do not make assumptions, stop and clarify from the user.
 - When creating or modifying features, create/update documentation in /docs-md folder
 - Do not include any document-specific implementation, the system is generic and must support arbitrary workloads
+- Changes to files must pass any linting and formatting checks. If there are any errors, fix them before submitting the code for review.
 
 
 ## Backend Implementation Guidelines

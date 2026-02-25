@@ -48,6 +48,8 @@ When an operation targets a sub-resource, the system must traverse to the parent
 - A requestor with the **`system-admin` role** bypasses all group membership checks entirely.
 - If a resource has **no `group_id`** (orphaned/legacy record), access is **blocked** for all non-system-admin users. There is no migration mechanism; orphaned records remain inaccessible.
 
+> **Dependency — Roles & Claims System Not Yet Implemented**: The `system-admin` role bypass described above depends on a roles and claims system that has **not yet been built**. Until that system is in place, the `system-admin` bypass cannot be enforced and should be treated as a placeholder in implementation. The group membership enforcement rules (non-admin path) can proceed independently.
+
 ### 3.2 Authentication Coverage
 
 Group enforcement must work for both authentication methods:
@@ -57,11 +59,18 @@ Group enforcement must work for both authentication methods:
 
 ### 3.3 Implementation Approach
 
-Group enforcement should be implemented as a reusable NestJS guard or decorator that can be applied at the controller or route level, rather than duplicating logic in individual services. The guard must:
+Group enforcement should be implemented as reusable, shared logic rather than duplicating checks in individual services. However, enforcement **cannot be applied purely at the route level** for most operations, because the target resource's `group_id` is not known until it has been fetched from the database.
 
-1. Identify the requestor (from JWT or API key).
-2. Short-circuit with `200 OK` (or proceed) if `system-admin` role is present.
-3. Resolve the target resource's `group_id` (directly or via parent traversal).
+The recommended approach is:
+
+- **Route-level (guard)**: Verify the requestor's identity (JWT or API key) and short-circuit for `system-admin`. This part can live in a NestJS guard applied at the controller level.
+- **Service-level (shared helper)**: After fetching the resource, call a shared authorization helper that performs the group membership check. This avoids double-fetching the resource and keeps the check close to where the data is resolved.
+
+The shared authorization logic must:
+
+1. Identify the requestor (from JWT or API key) — resolved in the route-level guard and passed via request context.
+2. Short-circuit (proceed) if `system-admin` role is present *(pending roles & claims system — see §9)*.
+3. Accept the resolved `group_id` of the fetched resource (directly or traversed from a parent).
 4. Check whether the requestor's memberships include the resource's group.
 5. Return `403 Forbidden` if the check fails; return `404 Not Found` if the resource has no `group_id`.
 
@@ -126,11 +135,11 @@ When creating any top-level resource (`Document`, `Workflow`, `LabelingProject`,
 ## 8. Out of Scope
 
 - `FieldCorrection`, `DocumentLabel`, `OcrResult` — deeply nested sub-resources; access is governed by their parent chain.
-- Role-based write restrictions within a group (e.g., only creator can delete) — all group members have equal read/write access.
+- Role-based write restrictions within a group (e.g., only group-admin can delete) — all group members have equal read/write access in this iteration.
 - Any UI/frontend changes are not described here and should be handled separately.
 
 ---
 
 ## 9. Open Questions / Gaps
 
-- None identified at this time.
+- **Roles & Claims System (Blocker for `system-admin` bypass)**: The roles and claims system required to identify a `system-admin` user is not yet implemented. All references to `system-admin` role bypasses in this document are forward-looking and cannot be fully implemented until that system is in place. Group membership enforcement for regular users is unaffected and can proceed.
