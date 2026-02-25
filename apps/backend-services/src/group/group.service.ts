@@ -105,32 +105,19 @@ export class GroupService {
     requestId: string,
     reason?: string,
   ): Promise<void> {
-    const request =
-      await this.databaseService.prisma.groupMembershipRequest.findUnique({
-        where: { id: requestId },
-      });
-    if (!request) {
-      throw new NotFoundException("Membership request not found");
-    }
+    const request = await this.getValidPendingRequest(requestId, "cancelled");
     if (request.user_id !== userId) {
       throw new ForbiddenException(
         "Cannot cancel a request belonging to another user",
       );
     }
-    if (request.status !== $Enums.GroupMembershipRequestStatus.PENDING) {
-      throw new BadRequestException(
-        "Only PENDING requests can be cancelled",
-      );
-    }
     await this.databaseService.prisma.groupMembershipRequest.update({
       where: { id: requestId },
-      data: {
-        status: $Enums.GroupMembershipRequestStatus.CANCELLED,
-        actor_id: userId,
-        resolved_at: new Date(),
-        updated_by: userId,
-        ...(reason !== undefined ? { reason } : {}),
-      },
+      data: this.buildResolutionData(
+        userId,
+        $Enums.GroupMembershipRequestStatus.CANCELLED,
+        reason,
+      ),
     });
   }
 
@@ -148,17 +135,7 @@ export class GroupService {
     requestId: string,
     reason?: string,
   ): Promise<void> {
-    const request =
-      await this.databaseService.prisma.groupMembershipRequest.findUnique({
-        where: { id: requestId },
-      });
-    if (!request) {
-      throw new NotFoundException("Membership request not found");
-    }
-    if (request.status !== $Enums.GroupMembershipRequestStatus.PENDING) {
-      throw new BadRequestException("Only PENDING requests can be approved");
-    }
-
+    const request = await this.getValidPendingRequest(requestId, "approved");
     await this.databaseService.prisma.$transaction([
       this.databaseService.prisma.userGroup.upsert({
         where: {
@@ -175,13 +152,11 @@ export class GroupService {
       }),
       this.databaseService.prisma.groupMembershipRequest.update({
         where: { id: requestId },
-        data: {
-          status: $Enums.GroupMembershipRequestStatus.APPROVED,
-          actor_id: adminId,
-          resolved_at: new Date(),
-          updated_by: adminId,
-          ...(reason !== undefined ? { reason } : {}),
-        },
+        data: this.buildResolutionData(
+          adminId,
+          $Enums.GroupMembershipRequestStatus.APPROVED,
+          reason,
+        ),
       }),
     ]);
   }
@@ -199,6 +174,28 @@ export class GroupService {
     requestId: string,
     reason?: string,
   ): Promise<void> {
+    await this.getValidPendingRequest(requestId, "denied");
+    await this.databaseService.prisma.groupMembershipRequest.update({
+      where: { id: requestId },
+      data: this.buildResolutionData(
+        adminId,
+        $Enums.GroupMembershipRequestStatus.DENIED,
+        reason,
+      ),
+    });
+  }
+
+  /**
+   * Fetches a membership request by ID and validates it is in PENDING state.
+   * @param requestId - The ID of the membership request.
+   * @param action - Verb describing the intended action (e.g. "approved"), used in error messages.
+   * @throws NotFoundException if the request does not exist.
+   * @throws BadRequestException if the request is not in PENDING state.
+   */
+  private async getValidPendingRequest(
+    requestId: string,
+    action: string,
+  ) {
     const request =
       await this.databaseService.prisma.groupMembershipRequest.findUnique({
         where: { id: requestId },
@@ -207,19 +204,31 @@ export class GroupService {
       throw new NotFoundException("Membership request not found");
     }
     if (request.status !== $Enums.GroupMembershipRequestStatus.PENDING) {
-      throw new BadRequestException("Only PENDING requests can be denied");
+      throw new BadRequestException(
+        `Only PENDING requests can be ${action}`,
+      );
     }
+    return request;
+  }
 
-    await this.databaseService.prisma.groupMembershipRequest.update({
-      where: { id: requestId },
-      data: {
-        status: $Enums.GroupMembershipRequestStatus.DENIED,
-        actor_id: adminId,
-        resolved_at: new Date(),
-        updated_by: adminId,
-        ...(reason !== undefined ? { reason } : {}),
-      },
-    });
+  /**
+   * Builds the data payload for resolving a membership request.
+   * @param actorId - The ID of the user performing the action.
+   * @param status - The new status to set on the request.
+   * @param reason - Optional reason for the action.
+   */
+  private buildResolutionData(
+    actorId: string,
+    status: $Enums.GroupMembershipRequestStatus,
+    reason?: string,
+  ) {
+    return {
+      status,
+      actor_id: actorId,
+      resolved_at: new Date(),
+      updated_by: actorId,
+      ...(reason !== undefined ? { reason } : {}),
+    };
   }
 
   /**

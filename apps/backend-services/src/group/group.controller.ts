@@ -21,9 +21,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { User } from "../auth/types";
-import { ApproveMembershipRequestDto } from "./dto/approve-membership-request.dto";
-import { CancelMembershipRequestDto } from "./dto/cancel-membership-request.dto";
-import { DenyMembershipRequestDto } from "./dto/deny-membership-request.dto";
+import { MembershipRequestActionDto } from "./dto/membership-request-action.dto";
 import { RequestMembershipDto } from "./dto/request-membership.dto";
 import { GroupService } from "./group.service";
 
@@ -126,7 +124,7 @@ export class GroupController {
   async cancelMembershipRequest(
     @Req() req: Request & { user?: User },
     @Param("requestId") requestId: string,
-    @Body() body: CancelMembershipRequestDto,
+    @Body() body: MembershipRequestActionDto,
   ): Promise<{ success: boolean }> {
     const userId = req.user?.sub;
     if (!userId) {
@@ -160,7 +158,7 @@ export class GroupController {
   async approveMembershipRequest(
     @Req() req: Request & { user?: User },
     @Param("requestId") requestId: string,
-    @Body() body: ApproveMembershipRequestDto,
+    @Body() body: MembershipRequestActionDto,
   ): Promise<{ success: boolean }> {
     // TODO: Add check to ensure req.user has admin privileges before allowing approval of membership requests
     const adminId = req.user?.sub;
@@ -196,7 +194,7 @@ export class GroupController {
   async denyMembershipRequest(
     @Req() req: Request & { user?: User },
     @Param("requestId") requestId: string,
-    @Body() body: DenyMembershipRequestDto,
+    @Body() body: MembershipRequestActionDto,
   ): Promise<{ success: boolean }> {
     // TODO: Add check to ensure req.user has admin privileges before allowing denial of membership requests
     const adminId = req.user?.sub;
