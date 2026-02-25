@@ -16,4 +16,4 @@ Stories derived from [REQUIREMENTS.md](../REQUIREMENTS.md).
 ## Phase 3: Admin Operations
 
 - [x] [US-004: Approve a Group Membership Request](US-004-approve-membership-request.md)
-- [ ] [US-005: Deny a Group Membership Request](US-005-deny-membership-request.md)
+- [x] [US-005: Deny a Group Membership Request](US-005-deny-membership-request.md)

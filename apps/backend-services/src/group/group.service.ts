@@ -187,6 +187,42 @@ export class GroupService {
   }
 
   /**
+   * Denies a pending group membership request without adding the user to the group.
+   * - Throws NotFoundException if the request does not exist.
+   * - Throws BadRequestException if the request is not in PENDING state.
+   * @param adminId - The ID of the denying admin (from JWT sub claim).
+   * @param requestId - The ID of the membership request to deny.
+   * @param reason - Optional reason for denial.
+   */
+  async denyMembershipRequest(
+    adminId: string,
+    requestId: string,
+    reason?: string,
+  ): Promise<void> {
+    const request =
+      await this.databaseService.prisma.groupMembershipRequest.findUnique({
+        where: { id: requestId },
+      });
+    if (!request) {
+      throw new NotFoundException("Membership request not found");
+    }
+    if (request.status !== $Enums.GroupMembershipRequestStatus.PENDING) {
+      throw new BadRequestException("Only PENDING requests can be denied");
+    }
+
+    await this.databaseService.prisma.groupMembershipRequest.update({
+      where: { id: requestId },
+      data: {
+        status: $Enums.GroupMembershipRequestStatus.DENIED,
+        actor_id: adminId,
+        resolved_at: new Date(),
+        updated_by: adminId,
+        ...(reason !== undefined ? { reason } : {}),
+      },
+    });
+  }
+
+  /**
    * Creates a new group with the given name and optional description.
    * Throws an error if a group with the same name already exists.
    */

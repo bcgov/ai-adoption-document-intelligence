@@ -511,4 +511,93 @@ describe("removeUserFromGroup", () => {
       }
     });
   });
+
+  describe("denyMembershipRequest", () => {
+    const adminId = "admin1";
+    const requestId = "req1";
+    const pendingRequest = {
+      id: requestId,
+      user_id: "user1",
+      group_id: "group1",
+      status: "PENDING",
+    };
+
+    const buildDb = (findUniqueResult: unknown) => ({
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(findUniqueResult),
+          update: jest.fn().mockResolvedValue({}),
+        },
+      },
+    });
+
+    it("should update the request to DENIED with actor_id, resolved_at, and updated_by", async () => {
+      const updateFn = jest.fn().mockResolvedValue({});
+      const prisma = {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: updateFn,
+        },
+      };
+      const svc = new GroupService({ prisma } as any);
+      await svc.denyMembershipRequest(adminId, requestId);
+
+      expect(updateFn).toHaveBeenCalledWith({
+        where: { id: requestId },
+        data: expect.objectContaining({
+          status: "DENIED",
+          actor_id: adminId,
+          updated_by: adminId,
+          resolved_at: expect.any(Date),
+        }),
+      });
+    });
+
+    it("should store reason when provided", async () => {
+      const updateFn = jest.fn().mockResolvedValue({});
+      const prisma = {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: updateFn,
+        },
+      };
+      const svc = new GroupService({ prisma } as any);
+      await svc.denyMembershipRequest(adminId, requestId, "Not eligible");
+      expect(updateFn).toHaveBeenCalledWith({
+        where: { id: requestId },
+        data: expect.objectContaining({ reason: "Not eligible" }),
+      });
+    });
+
+    it("should not include reason key when reason is not provided", async () => {
+      const updateFn = jest.fn().mockResolvedValue({});
+      const prisma = {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: updateFn,
+        },
+      };
+      const svc = new GroupService({ prisma } as any);
+      await svc.denyMembershipRequest(adminId, requestId);
+      const callData = updateFn.mock.calls[0][0].data;
+      expect(callData).not.toHaveProperty("reason");
+    });
+
+    it("should throw NotFoundException when request does not exist", async () => {
+      const svc = new GroupService(buildDb(null) as any);
+      await expect(
+        svc.denyMembershipRequest(adminId, requestId),
+      ).rejects.toThrow("Membership request not found");
+    });
+
+    it("should throw BadRequestException when request is not PENDING", async () => {
+      for (const status of ["APPROVED", "DENIED", "CANCELLED"] as const) {
+        const resolvedRequest = { ...pendingRequest, status };
+        const svc = new GroupService(buildDb(resolvedRequest) as any);
+        await expect(
+          svc.denyMembershipRequest(adminId, requestId),
+        ).rejects.toThrow("Only PENDING requests can be denied");
+      }
+    });
+  });
 });
