@@ -52,7 +52,10 @@ export class ApiKeyService {
     };
   }
 
-  async generateApiKey(userId: string): Promise<GeneratedApiKeyDto> {
+  async generateApiKey(
+    userId: string,
+    groupId: string,
+  ): Promise<GeneratedApiKeyDto> {
     // Check if user already has a key
     const existingKey = await this.prisma.apiKey.findFirst({
       where: { user_id: userId },
@@ -85,10 +88,11 @@ export class ApiKeyService {
         key_hash: keyHash,
         key_prefix: keyPrefix,
         user_id: userId,
+        group_id: groupId,
       },
     });
 
-    this.logger.log(`API key generated for user ${userId}`);
+    this.logger.log(`API key generated for user ${userId} in group ${groupId}`);
 
     return {
       id: apiKey.id,
@@ -111,11 +115,14 @@ export class ApiKeyService {
     this.logger.log(`API key(s) deleted for user ${userId}`);
   }
 
-  async regenerateApiKey(userId: string): Promise<GeneratedApiKeyDto> {
+  async regenerateApiKey(
+    userId: string,
+    groupId: string,
+  ): Promise<GeneratedApiKeyDto> {
     // Delete existing key(s) if any
     await this.prisma.apiKey.deleteMany({ where: { user_id: userId } });
     // Generate new key
-    return this.generateApiKey(userId);
+    return this.generateApiKey(userId, groupId);
   }
 
   async validateApiKey(key: string): Promise<{

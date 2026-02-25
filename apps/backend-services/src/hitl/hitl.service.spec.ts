@@ -42,6 +42,7 @@ describe("HitlService", () => {
     workflow_id: null,
     workflow_config_id: null,
     workflow_execution_id: null,
+    group_id: "group-1",
   };
 
   const mockOcrResult = {

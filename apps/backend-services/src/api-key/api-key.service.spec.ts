@@ -92,9 +92,9 @@ describe("ApiKeyService", () => {
   describe("generateApiKey", () => {
     it("should throw ConflictException if user already has a key", async () => {
       mockPrismaApiKey.findFirst.mockResolvedValue({ id: "existing" });
-      await expect(service.generateApiKey("user123")).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.generateApiKey("user123", "group123"),
+      ).rejects.toThrow(ConflictException);
     });
 
     it("should generate and return a new key with roles", async () => {
@@ -108,11 +108,12 @@ describe("ApiKeyService", () => {
         key_hash: data.key_hash,
         key_prefix: data.key_prefix,
         user_id: data.user_id,
+        group_id: data.group_id,
         created_at: new Date(),
         last_used: null,
       }));
 
-      const result = await service.generateApiKey("user123");
+      const result = await service.generateApiKey("user123", "group123");
 
       expect(result.id).toBe("newkey123");
       expect(result.key).toBeDefined();
@@ -134,11 +135,12 @@ describe("ApiKeyService", () => {
         key_hash: data.key_hash,
         key_prefix: data.key_prefix,
         user_id: data.user_id,
+        group_id: data.group_id,
         created_at: new Date(),
         last_used: null,
       }));
 
-      const result = await service.generateApiKey("user123");
+      const result = await service.generateApiKey("user123", "group123");
       expect(result.roles).toEqual([]);
     });
   });

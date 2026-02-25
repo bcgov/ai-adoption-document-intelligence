@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Delete,
   Get,
@@ -9,6 +10,7 @@ import {
   Req,
 } from "@nestjs/common";
 import {
+  ApiBody,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiNoContentResponse,
@@ -21,6 +23,7 @@ import { Request } from "express";
 import {
   ApiKeyInfoDto,
   ApiKeyInfoWrapperDto,
+  GenerateApiKeyRequestDto,
   GeneratedApiKeyDto,
   GeneratedApiKeyWrapperDto,
 } from "@/api-key/dto/api-key-info.dto";
@@ -58,6 +61,7 @@ export class ApiKeyController {
   @HttpCode(HttpStatus.CREATED)
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Generate a new API key for the current user" })
+  @ApiBody({ type: GenerateApiKeyRequestDto })
   @ApiCreatedResponse({
     description: "Returns the newly generated API key",
     type: GeneratedApiKeyWrapperDto,
@@ -69,6 +73,7 @@ export class ApiKeyController {
   @ApiUnauthorizedResponse({ description: "User is not authenticated" })
   async generateApiKey(
     @Req() req: Request,
+    @Body() body: GenerateApiKeyRequestDto,
   ): Promise<{ apiKey: GeneratedApiKeyDto }> {
     const user = req.user;
     const userId = user?.sub as string;
@@ -77,7 +82,10 @@ export class ApiKeyController {
         "User ID is required to generate an API key",
       );
     }
-    const apiKey = await this.apiKeyService.generateApiKey(userId);
+    const apiKey = await this.apiKeyService.generateApiKey(
+      userId,
+      body.groupId,
+    );
     return { apiKey };
   }
 
@@ -97,6 +105,7 @@ export class ApiKeyController {
   @Post("regenerate")
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Regenerate the current user's API key" })
+  @ApiBody({ type: GenerateApiKeyRequestDto })
   @ApiOkResponse({
     description: "Returns the newly generated API key",
     type: GeneratedApiKeyWrapperDto,
@@ -104,6 +113,7 @@ export class ApiKeyController {
   @ApiUnauthorizedResponse({ description: "User is not authenticated" })
   async regenerateApiKey(
     @Req() req: Request,
+    @Body() body: GenerateApiKeyRequestDto,
   ): Promise<{ apiKey: GeneratedApiKeyDto }> {
     const user = req.user;
     const userId = user?.sub as string;
@@ -112,7 +122,10 @@ export class ApiKeyController {
         "User ID is required to regenerate an API key",
       );
     }
-    const apiKey = await this.apiKeyService.regenerateApiKey(userId);
+    const apiKey = await this.apiKeyService.regenerateApiKey(
+      userId,
+      body.groupId,
+    );
     return { apiKey };
   }
 }

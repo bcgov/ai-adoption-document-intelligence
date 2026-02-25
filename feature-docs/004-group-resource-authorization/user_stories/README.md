@@ -91,11 +91,11 @@ Ensure legacy records without a `group_id` are inaccessible.
 
 ## Acceptance Checklist
 
-- [ ] US-001-add-group-id-to-document.md
-- [ ] US-002-add-group-id-to-workflow.md
-- [ ] US-003-add-group-id-to-labeling-project.md
-- [ ] US-004-add-group-id-to-labeling-document.md
-- [ ] US-005-add-group-id-to-api-key.md
+- [x] US-001-add-group-id-to-document.md
+- [x] US-002-add-group-id-to-workflow.md
+- [x] US-003-add-group-id-to-labeling-project.md
+- [x] US-004-add-group-id-to-labeling-document.md
+- [x] US-005-add-group-id-to-api-key.md
 - [ ] US-006-route-level-identity-resolution-guard.md
 - [ ] US-007-shared-group-authorization-helper.md
 - [ ] US-008-enforce-group-membership-on-resource-creation.md

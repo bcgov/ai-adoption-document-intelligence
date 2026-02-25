@@ -65,9 +65,9 @@ describe("ApiKeyController", () => {
       // With new logic, email is not required for API key generation, so this should not throw
       mockApiKeyService.generateApiKey.mockResolvedValue({});
       await expect(
-        controller.generateApiKey({
-          user: { sub: "testuser" },
-        } as any),
+        controller.generateApiKey({ user: { sub: "testuser" } } as any, {
+          groupId: "group123",
+        }),
       ).resolves.toBeDefined();
     });
   });
@@ -85,18 +85,23 @@ describe("ApiKeyController", () => {
       };
       mockApiKeyService.generateApiKey.mockResolvedValue(mockGeneratedKey);
 
-      const result = await controller.generateApiKey(mockRequest as any);
+      const result = await controller.generateApiKey(mockRequest as any, {
+        groupId: "group123",
+      });
 
       expect(result).toEqual({ apiKey: mockGeneratedKey });
-      expect(apiKeyService.generateApiKey).toHaveBeenCalledWith("testuser");
+      expect(apiKeyService.generateApiKey).toHaveBeenCalledWith(
+        "testuser",
+        "group123",
+      );
     });
 
     it("should not throw when user has no email for regenerate", async () => {
       mockApiKeyService.regenerateApiKey.mockResolvedValue({});
       await expect(
-        controller.regenerateApiKey({
-          user: { sub: "testuser" },
-        } as any),
+        controller.regenerateApiKey({ user: { sub: "testuser" } } as any, {
+          groupId: "group123",
+        }),
       ).resolves.toBeDefined();
     });
   });
@@ -124,10 +129,15 @@ describe("ApiKeyController", () => {
       };
       mockApiKeyService.regenerateApiKey.mockResolvedValue(mockRegeneratedKey);
 
-      const result = await controller.regenerateApiKey(mockRequest as any);
+      const result = await controller.regenerateApiKey(mockRequest as any, {
+        groupId: "group123",
+      });
 
       expect(result).toEqual({ apiKey: mockRegeneratedKey });
-      expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith("testuser");
+      expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith(
+        "testuser",
+        "group123",
+      );
     });
   });
 });

@@ -24,6 +24,7 @@ export interface CreateWorkflowDto {
   name: string;
   description?: string;
   config: GraphWorkflowConfig;
+  groupId: string;
 }
 
 @Injectable()
@@ -171,6 +172,7 @@ export class WorkflowService {
         description: dto.description || null,
         user_id: userId,
         config: dto.config as object,
+        group_id: dto.groupId,
       },
     });
 

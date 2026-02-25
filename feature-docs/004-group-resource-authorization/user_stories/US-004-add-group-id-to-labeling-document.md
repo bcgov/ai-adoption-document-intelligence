@@ -5,17 +5,17 @@
 **So that** every LabelingDocument record can be associated with a group for authorization enforcement.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Schema migration adds group_id
+- [x] **Scenario 1**: Schema migration adds group_id
     - **Given** the `labeling_documents` table exists without a `group_id` column
     - **When** the migration is applied
     - **Then** the `labeling_documents` table has a nullable `group_id` column that is a foreign key referencing the `group` table
 
-- [ ] **Scenario 2**: Prisma model reflects the new column
+- [x] **Scenario 2**: Prisma model reflects the new column
     - **Given** the migration has been applied
     - **When** `db:generate` is run
     - **Then** the Prisma `LabelingDocument` model includes an optional `group_id` field and the corresponding `group` relation
 
-- [ ] **Scenario 3**: Existing records remain intact
+- [x] **Scenario 3**: Existing records remain intact
     - **Given** pre-existing `LabelingDocument` records exist
     - **When** the migration is applied
     - **Then** all existing records remain present with `group_id` set to `null`

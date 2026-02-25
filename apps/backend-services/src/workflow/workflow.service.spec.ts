@@ -30,6 +30,7 @@ const mockWorkflowRecord = {
   version: 1,
   created_at: new Date(),
   updated_at: new Date(),
+  group_id: "group-1",
 };
 
 const mockWorkflow = {
@@ -126,6 +127,7 @@ describe("WorkflowService", () => {
     it("creates workflow with valid config", async () => {
       const result = await service.createWorkflow("user-1", {
         name: "New",
+        groupId: "group-1",
         config: makeGraphConfig(),
       });
       expect(result.id).toBe("wf-1");
@@ -136,6 +138,7 @@ describe("WorkflowService", () => {
       await expect(
         service.createWorkflow("user-1", {
           name: "New",
+          groupId: "group-1",
           config: { schemaVersion: "2.0" } as any,
         }),
       ).rejects.toThrow(BadRequestException);

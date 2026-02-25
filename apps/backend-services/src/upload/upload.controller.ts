@@ -83,6 +83,7 @@ export class UploadController {
         uploadDto.file_type,
         originalFilename,
         uploadDto.model_id,
+        uploadDto.group_id,
         uploadDto.metadata,
         workflowConfigId,
       );

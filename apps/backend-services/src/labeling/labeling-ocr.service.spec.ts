@@ -30,6 +30,7 @@ describe("LabelingOcrService", () => {
     apim_request_id: null,
     model_id: "prebuilt-layout",
     ocr_result: null,
+    group_id: "group-1",
   };
 
   beforeEach(async () => {
@@ -98,6 +99,7 @@ describe("LabelingOcrService", () => {
         file_type: LabelingFileType.PDF,
         original_filename: "test.pdf",
         metadata: {},
+        group_id: "group-1",
       };
 
       mockDbService.createLabelingDocument.mockResolvedValueOnce(
@@ -130,6 +132,7 @@ describe("LabelingOcrService", () => {
         title: "Test Doc",
         file: "dGVzdA==",
         file_type: LabelingFileType.PDF,
+        group_id: "group-1",
       };
 
       mockDbService.createLabelingDocument.mockResolvedValueOnce(
@@ -147,6 +150,7 @@ describe("LabelingOcrService", () => {
         title: "Test Doc",
         file: "dGVzdA==",
         file_type: LabelingFileType.PDF,
+        group_id: "group-1",
       };
 
       mockDbService.createLabelingDocument.mockResolvedValueOnce(
@@ -165,6 +169,7 @@ describe("LabelingOcrService", () => {
         file: "dGVzdA==",
         file_type: LabelingFileType.IMAGE,
         original_filename: "test.jpg",
+        group_id: "group-1",
       };
 
       mockDbService.createLabelingDocument.mockResolvedValueOnce({

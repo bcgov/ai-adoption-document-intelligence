@@ -32,6 +32,7 @@ export class LabelingDocumentDbService {
         apim_request_id: data.apim_request_id,
         model_id: data.model_id,
         ocr_result: data.ocr_result as JsonValue,
+        group_id: data.group_id,
       },
     });
     return labelingDocument as LabelingDocumentData;

@@ -98,6 +98,7 @@ describe("WorkflowController", () => {
       const req = { user: { sub: "user-1" } } as Request;
       const dto: CreateWorkflowDto = {
         name: "New",
+        groupId: "group-1",
         config: mockGraphConfig,
       };
       workflowService.createWorkflow.mockResolvedValue(mockWorkflowInfo);

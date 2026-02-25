@@ -44,6 +44,7 @@ export class DocumentDbService {
           workflow_id: data.workflow_id || null,
           workflow_config_id: data.workflow_config_id || null,
           workflow_execution_id: data.workflow_execution_id || null,
+          group_id: data.group_id,
         },
       });
       this.logger.debug("Document created: %s", document.id);

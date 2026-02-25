@@ -1,4 +1,14 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { IsNotEmpty, IsString } from "class-validator";
+
+export class GenerateApiKeyRequestDto {
+  @ApiProperty({
+    description: "The ID of the group this API key should be scoped to",
+  })
+  @IsString()
+  @IsNotEmpty()
+  groupId: string;
+}
 
 export class ApiKeyInfoDto {
   @ApiProperty()

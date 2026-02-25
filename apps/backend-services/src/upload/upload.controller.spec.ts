@@ -28,6 +28,7 @@ describe("UploadController", () => {
       original_filename: "test.pdf",
       metadata: { foo: "bar" },
       model_id: "test-model-id",
+      group_id: "group-1",
     };
     const uploadedDoc = {
       id: "1",
@@ -55,6 +56,7 @@ describe("UploadController", () => {
         baseDto.file_type,
         baseDto.original_filename,
         baseDto.model_id,
+        baseDto.group_id,
         baseDto.metadata,
         undefined, // workflow_config_id or workflow_id
       );

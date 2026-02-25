@@ -119,6 +119,7 @@ export class DatabaseService {
     name: string;
     description?: string;
     created_by: string;
+    group_id: string;
   }): Promise<LabelingProjectData> {
     return this.labelingProjectDb.createLabelingProject(data);
   }

@@ -181,6 +181,7 @@ describe("LabelingService", () => {
       const dto: CreateProjectDto = {
         name: "New Project",
         description: "Test Description",
+        group_id: "group-1",
       };
 
       mockDbService.createLabelingProject.mockResolvedValueOnce(mockProject);
@@ -191,6 +192,7 @@ describe("LabelingService", () => {
         name: dto.name,
         description: dto.description,
         created_by: "user-1",
+        group_id: "group-1",
       });
       expect(result).toEqual(mockProject);
     });
@@ -908,6 +910,7 @@ describe("LabelingService", () => {
         file: "data:application/pdf;base64,dGVzdA==",
         file_type: LabelingFileType.PDF,
         original_filename: "invoice.pdf",
+        group_id: "group-1",
       };
 
       mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
@@ -948,6 +951,7 @@ describe("LabelingService", () => {
           title: "test",
           file: "base64",
           file_type: LabelingFileType.PDF,
+          group_id: "group-1",
         }),
       ).rejects.toThrow(NotFoundException);
     });

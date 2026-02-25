@@ -43,6 +43,7 @@ export class DocumentService {
     fileType: string,
     originalFilename: string,
     modelId: string,
+    groupId: string,
     metadata?: Record<string, unknown>,
     workflowId?: string,
   ): Promise<UploadedDocument> {
@@ -91,6 +92,7 @@ export class DocumentService {
         workflow_config_id: workflowId || null, // New field for workflow configuration ID
         workflow_execution_id: null, // Will be set when workflow starts
         model_id: modelId,
+        group_id: groupId,
       };
 
       const savedDocument =

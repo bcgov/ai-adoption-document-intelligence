@@ -50,6 +50,7 @@ describe("DocumentService", () => {
         created_at: new Date(),
         updated_at: new Date(),
         model_id: "test-model-id",
+        group_id: "group-1",
       };
       (databaseService.createDocument as jest.Mock).mockResolvedValue(mockDoc);
       const result = await service.uploadDocument(
@@ -58,6 +59,7 @@ describe("DocumentService", () => {
         "pdf",
         "file.pdf",
         "test-model-id",
+        "group-1",
         {},
       );
       expect(result.id).toBe("1");
@@ -78,6 +80,7 @@ describe("DocumentService", () => {
           "pdf",
           "file.pdf",
           "test-model-id",
+          "group-1",
         ),
       ).rejects.toThrow("Invalid base64 file data");
     });
@@ -98,6 +101,7 @@ describe("DocumentService", () => {
         created_at: new Date(),
         updated_at: new Date(),
         model_id: "test-model-id",
+        group_id: "group-1",
       };
       (databaseService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
       const result = await service.getDocument("1");

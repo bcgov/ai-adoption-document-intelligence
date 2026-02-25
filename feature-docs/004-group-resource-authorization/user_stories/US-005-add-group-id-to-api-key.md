@@ -5,17 +5,17 @@
 **So that** every ApiKey record is scoped to a specific group, enabling group-based authorization for API key authentication.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Schema migration adds group_id
+- [x] **Scenario 1**: Schema migration adds group_id
     - **Given** the `api_keys` table exists without a `group_id` column
     - **When** the migration is applied
     - **Then** the `api_keys` table has a `group_id` column that is a non-nullable foreign key referencing the `group` table
 
-- [ ] **Scenario 2**: Prisma model reflects the new column
+- [x] **Scenario 2**: Prisma model reflects the new column
     - **Given** the migration has been applied
     - **When** `db:generate` is run
     - **Then** the Prisma `ApiKey` model includes a required `group_id` field and the corresponding `group` relation, alongside the retained `user_id` field
 
-- [ ] **Scenario 3**: Existing user_id field is retained
+- [x] **Scenario 3**: Existing user_id field is retained
     - **Given** the migration has been applied
     - **When** an `ApiKey` record is queried
     - **Then** both `user_id` and `group_id` are present on the record

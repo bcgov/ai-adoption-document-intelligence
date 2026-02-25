@@ -49,6 +49,7 @@ export class LabelingService {
       name: dto.name,
       description: dto.description,
       created_by: userId,
+      group_id: dto.group_id,
     });
   }
 

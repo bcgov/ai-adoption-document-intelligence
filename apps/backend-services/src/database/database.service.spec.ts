@@ -474,6 +474,7 @@ describe("DatabaseService", () => {
         apim_request_id: defaultLabelingDocument.apim_request_id,
         model_id: defaultLabelingDocument.model_id,
         ocr_result: defaultLabelingDocument.ocr_result,
+        group_id: "group-1",
       });
       expect(result).toEqual(defaultLabelingDocument);
       expect(mockPrisma.labelingDocument.create).toHaveBeenCalledTimes(1);
@@ -548,6 +549,7 @@ describe("DatabaseService", () => {
         name: "Test Project",
         description: "Test description",
         created_by: "user-1",
+        group_id: "group-1",
       });
       expect(result).toEqual(defaultLabelingProject);
       expect(mockPrisma.labelingProject.create).toHaveBeenCalledWith({
@@ -555,6 +557,7 @@ describe("DatabaseService", () => {
           name: "Test Project",
           description: "Test description",
           created_by: "user-1",
+          group_id: "group-1",
           status: ProjectStatus.active,
         },
         include: {
