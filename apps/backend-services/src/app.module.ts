@@ -9,6 +9,7 @@ import { AuthModule } from "./auth/auth.module";
 import { BlobStorageModule } from "./blob-storage/blob-storage.module";
 import { DatabaseModule } from "./database/database.module";
 import { DocumentModule } from "./document/document.module";
+import { GroupModule } from "./group/group.module";
 import { HitlModule } from "./hitl/hitl.module";
 import { LabelingModule } from "./labeling/labeling.module";
 import { OcrModule } from "./ocr/ocr.module";
@@ -53,6 +54,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     TrainingModule,
     WorkflowModule,
     AzureModule,
+    GroupModule,
   ],
   providers: [
     {

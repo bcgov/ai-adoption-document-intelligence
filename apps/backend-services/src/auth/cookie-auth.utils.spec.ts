@@ -54,13 +54,13 @@ describe("cookie-auth.utils", () => {
 
   describe("setAuthCookies", () => {
     let res: jest.Mocked<Response>;
-    const tokens: TokenResponseDto = {
+    const tokens = {
       access_token: "test-access-token",
       refresh_token: "test-refresh-token",
       id_token: "test-id-token",
       expires_in: 3600,
       token_type: "Bearer",
-    };
+    } as unknown as TokenResponseDto;
 
     beforeEach(() => {
       res = {
@@ -98,11 +98,11 @@ describe("cookie-auth.utils", () => {
     });
 
     it("should use default 300s when expires_in is missing", () => {
-      const tokensNoExpiry: TokenResponseDto = {
+      const tokensNoExpiry = {
         access_token: "at",
         token_type: "Bearer",
         expires_in: 0,
-      };
+      } as unknown as TokenResponseDto;
 
       setAuthCookies(res, tokensNoExpiry, "csrf");
 

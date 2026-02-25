@@ -72,19 +72,12 @@ export class ApiKeyController {
   ): Promise<{ apiKey: GeneratedApiKeyDto }> {
     const user = req.user;
     const userId = user?.sub as string;
-    const userEmail = user?.email as string | undefined;
-    if (!userEmail) {
+    if (!userId) {
       throw new BadRequestException(
-        "Email claim is required in JWT to generate an API key",
+        "User ID is required to generate an API key",
       );
     }
-    const roles = user?.roles || [];
-
-    const apiKey = await this.apiKeyService.generateApiKey(
-      userId,
-      userEmail,
-      roles,
-    );
+    const apiKey = await this.apiKeyService.generateApiKey(userId);
     return { apiKey };
   }
 
@@ -114,19 +107,12 @@ export class ApiKeyController {
   ): Promise<{ apiKey: GeneratedApiKeyDto }> {
     const user = req.user;
     const userId = user?.sub as string;
-    const userEmail = user?.email as string | undefined;
-    if (!userEmail) {
+    if (!userId) {
       throw new BadRequestException(
-        "Email claim is required in JWT to regenerate an API key",
+        "User ID is required to regenerate an API key",
       );
     }
-    const roles = user?.roles || [];
-
-    const apiKey = await this.apiKeyService.regenerateApiKey(
-      userId,
-      userEmail,
-      roles,
-    );
+    const apiKey = await this.apiKeyService.regenerateApiKey(userId);
     return { apiKey };
   }
 }

@@ -14,30 +14,30 @@ datasource db {
 }
 
 model Document {
-  id                   String   @id @default(cuid())
-  title                String
-  original_filename    String
-  file_path            String
-  file_type            String
-  file_size            Int
-  metadata             Json?
-  source               String
-  status               DocumentStatus @default(pre_ocr)
-  created_at           DateTime @default(now())
-  updated_at           DateTime @updatedAt
-  apim_request_id      String?
-  workflow_id          String?  // @deprecated: Use workflow_config_id and workflow_execution_id instead
-  workflow_config_id   String?  // Reference to Workflow.id (workflow configuration)
-  workflow_execution_id String? @unique // Temporal workflow execution ID
-  model_id             String   @default("prebuilt-layout")
-  ocr_result           OcrResult?
-  review_sessions   ReviewSession[]
+  id                    String          @id @default(cuid())
+  title                 String
+  original_filename     String
+  file_path             String
+  file_type             String
+  file_size             Int
+  metadata              Json?
+  source                String
+  status                DocumentStatus  @default(pre_ocr)
+  created_at            DateTime        @default(now())
+  updated_at            DateTime        @updatedAt
+  apim_request_id       String?
+  workflow_id           String? // @deprecated: Use workflow_config_id and workflow_execution_id instead
+  workflow_config_id    String? // Reference to Workflow.id (workflow configuration)
+  workflow_execution_id String?         @unique // Temporal workflow execution ID
+  model_id              String          @default("prebuilt-layout")
+  ocr_result            OcrResult?
+  review_sessions       ReviewSession[]
 
   @@map("documents")
 }
 
 model LabelingDocument {
-  id                String   @id @default(cuid())
+  id                String            @id @default(cuid())
   title             String
   original_filename String
   file_path         String
@@ -45,11 +45,11 @@ model LabelingDocument {
   file_size         Int
   metadata          Json?
   source            String
-  status            DocumentStatus @default(pre_ocr)
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
+  status            DocumentStatus    @default(pre_ocr)
+  created_at        DateTime          @default(now())
+  updated_at        DateTime          @updatedAt
   apim_request_id   String?
-  model_id          String   @default("prebuilt-layout")
+  model_id          String            @default("prebuilt-layout")
   ocr_result        Json?
   labeled_documents LabeledDocument[]
 
@@ -67,24 +67,59 @@ model OcrResult {
   @@map("ocr_results")
 }
 
-enum DocumentStatus {
-  pre_ocr
-  ongoing_ocr
-  completed_ocr
-  failed
-}
-
 model ApiKey {
   id         String    @id @default(cuid())
   key_hash   String    @unique
   key_prefix String
-  user_id    String    @unique
-  user_email String
-  roles      String[]  @default([])
+  user_id    String?
+  user       User?     @relation(fields: [user_id], references: [id])
   created_at DateTime  @default(now())
   last_used  DateTime?
 
   @@map("api_keys")
+}
+
+model User {
+  id            String    @id
+  email         String    @unique
+  last_login_at DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  apiKeys ApiKey[]
+
+  userRoles UserRole[]
+
+  workflows Workflow[]
+
+  labelingProjects LabelingProject[]
+
+  createdClassifierModels ClassifierModel[] @relation(name: "CreatedUser")
+
+  updatedClassifierModels ClassifierModel[] @relation(name: "UpdatedUser")
+
+  userGroups UserGroup[]
+
+  @@map("user")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  userRoles   UserRole[]
+
+  @@map("role")
+}
+
+model UserRole {
+  user_id String
+  user    User   @relation(fields: [user_id], references: [id])
+  role_id String
+  role    Role   @relation(fields: [role_id], references: [id])
+
+  @@id([user_id, role_id])
+  @@map("user_role")
 }
 
 model Workflow {
@@ -92,7 +127,8 @@ model Workflow {
   name        String
   description String?
   user_id     String
-  config      Json     // GraphWorkflowConfig stored as JSON
+  user        User     @relation(fields: [user_id], references: [id])
+  config      Json // GraphWorkflowConfig stored as JSON
   version     Int      @default(1)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
@@ -103,56 +139,61 @@ model Workflow {
 // ========== LABELING MODELS ==========
 
 model LabelingProject {
-  id              String           @id @default(cuid())
-  name            String
-  description     String?
-  created_by      String
-  created_at      DateTime         @default(now())
-  updated_at      DateTime         @updatedAt
-  status          ProjectStatus    @default(active)
-  field_schema    FieldDefinition[]
-  documents       LabeledDocument[]
-  training_jobs   TrainingJob[]
-  trained_models  TrainedModel[]
+  id             String            @id @default(cuid())
+  name           String
+  description    String?
+  created_by     String
+  user           User?             @relation(fields: [created_by], references: [id])
+  created_at     DateTime          @default(now())
+  updated_at     DateTime          @updatedAt
+  status         ProjectStatus     @default(active)
+  field_schema   FieldDefinition[]
+  documents      LabeledDocument[]
+  training_jobs  TrainingJob[]
+  trained_models TrainedModel[]
+
   @@map("labeling_projects")
 }
 
 model FieldDefinition {
-  id              String           @id @default(cuid())
-  project_id      String
-  project         LabelingProject  @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  field_key       String
-  field_type      FieldType        @default(string)
-  field_format    String?
-  display_order   Int              @default(0)
+  id            String          @id @default(cuid())
+  project_id    String
+  project       LabelingProject @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  field_key     String
+  field_type    FieldType       @default(string)
+  field_format  String?
+  display_order Int             @default(0)
+
   @@unique([project_id, field_key])
   @@map("field_definitions")
 }
 
 model LabeledDocument {
-  id              String           @id @default(cuid())
-  project_id      String
-  project         LabelingProject  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  id                   String           @id @default(cuid())
+  project_id           String
+  project              LabelingProject  @relation(fields: [project_id], references: [id], onDelete: Cascade)
   labeling_document_id String
   labeling_document    LabelingDocument @relation(fields: [labeling_document_id], references: [id], onDelete: Cascade)
-  status          LabelingStatus   @default(unlabeled)
-  labels          DocumentLabel[]
-  created_at      DateTime         @default(now())
-  updated_at      DateTime         @updatedAt
+  status               LabelingStatus   @default(unlabeled)
+  labels               DocumentLabel[]
+  created_at           DateTime         @default(now())
+  updated_at           DateTime         @updatedAt
+
   @@unique([project_id, labeling_document_id])
   @@map("labeled_documents")
 }
 
 model DocumentLabel {
-  id              String           @id @default(cuid())
-  labeled_doc_id  String
-  labeled_doc     LabeledDocument  @relation(fields: [labeled_doc_id], references: [id], onDelete: Cascade)
-  field_key       String
-  label_name      String
-  value           String?
-  page_number     Int
-  bounding_box    Json
-  created_at      DateTime         @default(now())
+  id             String          @id @default(cuid())
+  labeled_doc_id String
+  labeled_doc    LabeledDocument @relation(fields: [labeled_doc_id], references: [id], onDelete: Cascade)
+  field_key      String
+  label_name     String
+  value          String?
+  page_number    Int
+  bounding_box   Json
+  created_at     DateTime        @default(now())
+
   @@index([labeled_doc_id, field_key])
   @@map("document_labels")
 }
@@ -160,23 +201,23 @@ model DocumentLabel {
 // ========== TRAINING MODELS ==========
 
 model TrainingJob {
-  id              String         @id @default(cuid())
-  project_id      String
-  project         LabelingProject @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  id         String          @id @default(cuid())
+  project_id String
+  project    LabelingProject @relation(fields: [project_id], references: [id], onDelete: Cascade)
 
-  status          TrainingStatus @default(PENDING)
-  container_name  String
-  sas_url         String?
-  blob_count      Int            @default(0)
+  status         TrainingStatus @default(PENDING)
+  container_name String
+  sas_url        String?
+  blob_count     Int            @default(0)
 
-  model_id        String?
-  operation_id    String?
-  error_message   String?
+  model_id      String?
+  operation_id  String?
+  error_message String?
 
-  started_at      DateTime       @default(now())
-  completed_at    DateTime?
+  started_at   DateTime  @default(now())
+  completed_at DateTime?
 
-  trained_models  TrainedModel[]
+  trained_models TrainedModel[]
 
   @@index([project_id])
   @@index([status])
@@ -184,34 +225,77 @@ model TrainingJob {
 }
 
 model TrainedModel {
-  id              String         @id @default(cuid())
+  id              String          @id @default(cuid())
   project_id      String
   project         LabelingProject @relation(fields: [project_id], references: [id], onDelete: Cascade)
   training_job_id String
-  training_job    TrainingJob    @relation(fields: [training_job_id], references: [id])
+  training_job    TrainingJob     @relation(fields: [training_job_id], references: [id])
 
-  model_id        String         @unique
-  description     String?
-  doc_types       Json?
-  field_count     Int            @default(0)
+  model_id    String  @unique
+  description String?
+  doc_types   Json?
+  field_count Int     @default(0)
 
-  created_at      DateTime       @default(now())
+  created_at DateTime @default(now())
 
   @@index([project_id])
   @@map("trained_models")
 }
 
+model ClassifierModel {
+  name               String
+  description        String
+  created_by         String
+  updated_by         String
+  createduser        User?            @relation(name: "CreatedUser", fields: [created_by], references: [id])
+  updateduser        User?            @relation(name: "UpdatedUser", fields: [updated_by], references: [id])
+  group_id           String
+  group              Group            @relation(fields: [group_id], references: [id])
+  config             Json
+  created_at         DateTime         @default(now())
+  updated_at         DateTime         @updatedAt
+  last_used_at       DateTime?
+  version            Int              @default(1)
+  source             ClassifierSource
+  status             ClassifierStatus @default(PRETRAINING)
+  operation_location String?
+
+  @@id([name, group_id])
+  @@index([group_id])
+  @@map("classifier_model")
+}
+
+model Group {
+  id                String            @id @default(cuid())
+  name              String            @unique
+  classifier_models ClassifierModel[]
+  user_groups       UserGroup[]
+
+  @@map("group")
+}
+
+model UserGroup {
+  user_id  String
+  user     User?  @relation(fields: [user_id], references: [id])
+  group_id String
+  group    Group? @relation(fields: [group_id], references: [id])
+
+  @@id([user_id, group_id])
+  @@map("user_group")
+}
+
 // ========== HITL MODELS ==========
 
 model ReviewSession {
-  id              String           @id @default(cuid())
-  document_id     String
-  document        Document         @relation(fields: [document_id], references: [id], onDelete: Cascade)
-  reviewer_id     String
-  status          ReviewStatus     @default(in_progress)
-  started_at      DateTime         @default(now())
-  completed_at    DateTime?
-  corrections     FieldCorrection[]
+  id           String            @id @default(cuid())
+  document_id  String
+  document     Document          @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  reviewer_id  String
+  status       ReviewStatus      @default(in_progress)
+  started_at   DateTime          @default(now())
+  completed_at DateTime?
+  corrections  FieldCorrection[]
+
   @@map("review_sessions")
 }
 
@@ -225,6 +309,7 @@ model FieldCorrection {
   original_conf   Float?
   action          CorrectionAction @default(confirmed)
   created_at      DateTime         @default(now())
+
   @@map("field_corrections")
 }
 
@@ -272,6 +357,7 @@ enum TrainingStatus {
   SUCCEEDED
   FAILED
 }
+
 enum ClassifierSource {
   AZURE
 }
@@ -283,41 +369,9 @@ enum ClassifierStatus {
   READY
 }
 
-model ClassifierModel {
-  name               String           
-  description        String
-  created_by         String
-  updated_by         String
-  group_id           String
-  group              Group            @relation(fields: [group_id], references: [id])
-  config             Json
-  created_at         DateTime         @default(now())
-  updated_at         DateTime         @updatedAt
-  last_used_at       DateTime?
-  version            Int              @default(1)
-  source             ClassifierSource
-  status             ClassifierStatus @default(PRETRAINING)
-  operation_location String?
-
-  @@id([name, group_id])
-  @@index([group_id])
-  @@map("classifier_model")
-}
-
-model Group {
-  id               String            @id @default(cuid())
-  name             String            @unique
-  classifier_models ClassifierModel[]
-  user_groups UserGroup[]
-
-  @@map("group")
-}
-
-model UserGroup {
-  user_id String
-  group_id String 
-  group Group @relation(fields: [group_id], references: [id])
-
-  @@id([user_id, group_id])
-  @@map("user_group")
+enum DocumentStatus {
+  pre_ocr
+  ongoing_ocr
+  completed_ocr
+  failed
 }

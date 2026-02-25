@@ -8,7 +8,8 @@ import {
 import { ConfigService } from "@nestjs/config";
 import * as client from "openid-client";
 import { URL } from "url";
-import { TokenResponseDto } from "@/auth/dto/token-response.dto";
+import { TokenClaims, TokenResponseDto } from "@/auth/dto/token-response.dto";
+import { PrismaService } from "../database/prisma.service";
 
 /**
  * Result returned by getLoginUrl(), containing the Keycloak authorization URL
@@ -39,7 +40,10 @@ export class AuthService implements OnModuleInit {
   private readonly redirectUri: string;
   private readonly frontendUrl: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private prismaService: PrismaService,
+  ) {
     const authServerUrl = this.configService.get<string>("SSO_AUTH_SERVER_URL");
     const realm = this.configService.get<string>("SSO_REALM");
 
@@ -176,6 +180,7 @@ export class AuthService implements OnModuleInit {
         id_token: tokens.id_token,
         expires_in: tokens.expires_in || 300,
         token_type: tokens.token_type || "Bearer",
+        claims: tokens.claims() as unknown as TokenClaims,
       };
     } catch (error) {
       this.logger.error(
@@ -199,6 +204,7 @@ export class AuthService implements OnModuleInit {
         id_token: tokens.id_token,
         expires_in: tokens.expires_in || 300,
         token_type: tokens.token_type || "Bearer",
+        claims: tokens.claims() as unknown as TokenClaims,
       };
     } catch (error) {
       this.logger.error(
@@ -223,5 +229,44 @@ export class AuthService implements OnModuleInit {
     const url = new URL(this.frontendUrl);
     url.searchParams.set("auth_error", error);
     return url.toString();
+  }
+
+  /**
+   * Decodes a JWT ID token and returns the payload.
+   * @param idToken - The JWT ID token string.
+   * @returns The decoded payload as a generic object.
+   */
+  decodeIdToken<T extends object = Record<string, unknown>>(
+    idToken: string,
+  ): T {
+    const [, payload] = idToken.split(".");
+    return JSON.parse(Buffer.from(payload, "base64").toString());
+  }
+
+  /**
+   * Upserts user in DB from token payload.
+   * @param tokenPayload - The decoded token payload object (must have a sub and email property).
+   */
+  async upsertUserFromToken(tokenPayload: TokenClaims): Promise<void> {
+    const { sub, email } = tokenPayload;
+    const lastLogin = new Date();
+    if (!sub || !email) {
+      throw new HttpException(
+        "Token payload missing required fields: sub and email",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    await this.prismaService.prisma.user.upsert({
+      where: { id: sub },
+      update: {
+        email,
+        last_login_at: lastLogin,
+      },
+      create: {
+        id: sub,
+        email,
+        last_login_at: lastLogin,
+      },
+    });
   }
 }

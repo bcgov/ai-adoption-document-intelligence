@@ -125,7 +125,7 @@ describe("ApiKeyAuthGuard", () => {
       userId: "user123",
       userEmail: "test@example.com",
       roles: ["admin", "editor"],
-    });
+    }); // userEmail and roles from User relation
 
     const mockRequest = {
       headers: { "x-api-key": "validkey" },
@@ -156,7 +156,7 @@ describe("ApiKeyAuthGuard", () => {
       userId: "user456",
       userEmail: "noroles@example.com",
       roles: [],
-    });
+    }); // userEmail and roles from User relation
 
     const mockRequest = {
       headers: { "x-api-key": "validkey2" },

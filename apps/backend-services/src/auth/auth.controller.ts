@@ -239,6 +239,8 @@ export class AuthController {
         query.iss,
       );
 
+      await this.authService.upsertUserFromToken(tokens.claims);
+
       // Set auth cookies
       const csrfToken = generateCsrfToken();
       setAuthCookies(res, tokens, csrfToken);

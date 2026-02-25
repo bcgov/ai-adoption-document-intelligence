@@ -6,16 +6,19 @@ import { ApiKeyService } from "./api-key.service";
 
 // Mock Prisma
 const mockPrismaApiKey = {
-  findUnique: jest.fn(),
+  findFirst: jest.fn(),
   findMany: jest.fn(),
   create: jest.fn(),
-  delete: jest.fn(),
+  deleteMany: jest.fn(),
   update: jest.fn(),
 };
-
+const mockPrismaUser = {
+  findUnique: jest.fn(),
+};
 const mockPrismaService = {
   prisma: {
     apiKey: mockPrismaApiKey,
+    user: mockPrismaUser,
   },
 };
 
@@ -24,6 +27,9 @@ describe("ApiKeyService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    // Reset all user mocks
+    Object.values(mockPrismaApiKey).forEach((fn) => fn.mockReset());
+    Object.values(mockPrismaUser).forEach((fn) => fn.mockReset());
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -40,13 +46,20 @@ describe("ApiKeyService", () => {
 
   describe("getUserApiKey", () => {
     it("should return null when no key exists", async () => {
-      mockPrismaApiKey.findUnique.mockResolvedValue(null);
+      mockPrismaApiKey.findFirst.mockResolvedValue(null);
 
       const result = await service.getUserApiKey("user123");
 
       expect(result).toBeNull();
-      expect(mockPrismaApiKey.findUnique).toHaveBeenCalledWith({
+      expect(mockPrismaApiKey.findFirst).toHaveBeenCalledWith({
         where: { user_id: "user123" },
+        include: {
+          user: {
+            include: {
+              userRoles: { include: { role: true } },
+            },
+          },
+        },
       });
     });
 
@@ -54,12 +67,14 @@ describe("ApiKeyService", () => {
       const mockKey = {
         id: "key123",
         key_prefix: "abcd1234",
-        user_email: "test@example.com",
-        roles: ["viewer"],
         created_at: new Date("2024-01-01"),
         last_used: new Date("2024-01-02"),
+        user: {
+          email: "test@example.com",
+          userRoles: [{ role: { name: "viewer" } }],
+        },
       };
-      mockPrismaApiKey.findUnique.mockResolvedValue(mockKey);
+      mockPrismaApiKey.findFirst.mockResolvedValue(mockKey);
 
       const result = await service.getUserApiKey("user123");
 
@@ -76,31 +91,28 @@ describe("ApiKeyService", () => {
 
   describe("generateApiKey", () => {
     it("should throw ConflictException if user already has a key", async () => {
-      mockPrismaApiKey.findUnique.mockResolvedValue({ id: "existing" });
-
-      await expect(
-        service.generateApiKey("user123", "test@example.com", ["admin"]),
-      ).rejects.toThrow(ConflictException);
+      mockPrismaApiKey.findFirst.mockResolvedValue({ id: "existing" });
+      await expect(service.generateApiKey("user123")).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it("should generate and return a new key with roles", async () => {
-      mockPrismaApiKey.findUnique.mockResolvedValue(null);
+      mockPrismaApiKey.findFirst.mockResolvedValue(null);
+      mockPrismaUser.findUnique.mockResolvedValue({
+        email: "test@example.com",
+        userRoles: [{ role: { name: "admin" } }, { role: { name: "editor" } }],
+      });
       mockPrismaApiKey.create.mockImplementation(async ({ data }) => ({
         id: "newkey123",
         key_hash: data.key_hash,
         key_prefix: data.key_prefix,
         user_id: data.user_id,
-        user_email: data.user_email,
-        roles: data.roles,
         created_at: new Date(),
         last_used: null,
       }));
 
-      const result = await service.generateApiKey(
-        "user123",
-        "test@example.com",
-        ["admin", "editor"],
-      );
+      const result = await service.generateApiKey("user123");
 
       expect(result.id).toBe("newkey123");
       expect(result.key).toBeDefined();
@@ -109,50 +121,40 @@ describe("ApiKeyService", () => {
       expect(result.userEmail).toBe("test@example.com");
       expect(result.roles).toEqual(["admin", "editor"]);
       expect(mockPrismaApiKey.create).toHaveBeenCalled();
-      // Verify roles were passed to Prisma create
-      const createCall = mockPrismaApiKey.create.mock.calls[0][0];
-      expect(createCall.data.roles).toEqual(["admin", "editor"]);
     });
 
     it("should generate a key with empty roles when none provided", async () => {
-      mockPrismaApiKey.findUnique.mockResolvedValue(null);
+      mockPrismaApiKey.findFirst.mockResolvedValue(null);
+      mockPrismaUser.findUnique.mockResolvedValue({
+        email: "test@example.com",
+        userRoles: [],
+      });
       mockPrismaApiKey.create.mockImplementation(async ({ data }) => ({
         id: "newkey456",
         key_hash: data.key_hash,
         key_prefix: data.key_prefix,
         user_id: data.user_id,
-        user_email: data.user_email,
-        roles: data.roles,
         created_at: new Date(),
         last_used: null,
       }));
 
-      const result = await service.generateApiKey(
-        "user123",
-        "test@example.com",
-        [],
-      );
-
+      const result = await service.generateApiKey("user123");
       expect(result.roles).toEqual([]);
     });
   });
 
   describe("deleteApiKey", () => {
     it("should throw NotFoundException if no key exists", async () => {
-      mockPrismaApiKey.findUnique.mockResolvedValue(null);
-
+      mockPrismaApiKey.deleteMany.mockResolvedValue({ count: 0 });
       await expect(service.deleteApiKey("user123")).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it("should delete existing key", async () => {
-      mockPrismaApiKey.findUnique.mockResolvedValue({ id: "key123" });
-      mockPrismaApiKey.delete.mockResolvedValue({});
-
+      mockPrismaApiKey.deleteMany.mockResolvedValue({ count: 1 });
       await service.deleteApiKey("user123");
-
-      expect(mockPrismaApiKey.delete).toHaveBeenCalledWith({
+      expect(mockPrismaApiKey.deleteMany).toHaveBeenCalledWith({
         where: { user_id: "user123" },
       });
     });
@@ -167,6 +169,13 @@ describe("ApiKeyService", () => {
       expect(result).toBeNull();
       expect(mockPrismaApiKey.findMany).toHaveBeenCalledWith({
         where: { key_prefix: "invalidk" },
+        include: {
+          user: {
+            include: {
+              userRoles: { include: { role: true } },
+            },
+          },
+        },
       });
     });
 
@@ -180,8 +189,10 @@ describe("ApiKeyService", () => {
           key_hash: hashedKey,
           key_prefix: "testkey1",
           user_id: "user123",
-          user_email: "test@example.com",
-          roles: ["admin"],
+          user: {
+            email: "test@example.com",
+            userRoles: [{ role: { name: "admin" } }],
+          },
         },
       ]);
       mockPrismaApiKey.update.mockResolvedValue({});
@@ -195,6 +206,13 @@ describe("ApiKeyService", () => {
       });
       expect(mockPrismaApiKey.findMany).toHaveBeenCalledWith({
         where: { key_prefix: "testkey1" },
+        include: {
+          user: {
+            include: {
+              userRoles: { include: { role: true } },
+            },
+          },
+        },
       });
       expect(mockPrismaApiKey.update).toHaveBeenCalledWith({
         where: { id: "key123" },
@@ -213,7 +231,10 @@ describe("ApiKeyService", () => {
           key_hash: hashedDifferentKey,
           key_prefix: "testkey1",
           user_id: "user123",
-          user_email: "test@example.com",
+          user: {
+            email: "test@example.com",
+            userRoles: [],
+          },
         },
       ]);
 
