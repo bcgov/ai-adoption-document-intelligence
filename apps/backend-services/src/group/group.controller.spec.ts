@@ -1,8 +1,8 @@
-import { Test, TestingModule } from "@nestjs/testing";
 import { HttpException, HttpStatus } from "@nestjs/common";
+import { Test, TestingModule } from "@nestjs/testing";
+import { RequestMembershipDto } from "./dto/request-membership.dto";
 import { GroupController } from "./group.controller";
 import { GroupService } from "./group.service";
-import { RequestMembershipDto } from "./dto/request-membership.dto";
 
 describe("GroupController", () => {
   let controller: GroupController;
@@ -76,15 +76,11 @@ describe("GroupController", () => {
     it("should call service with userId from JWT, requestId from param, and reason from body", async () => {
       const sub = "jwt-user-id";
       const requestId = "req1";
-      jest
-        .spyOn(service, "cancelMembershipRequest")
-        .mockResolvedValueOnce();
+      jest.spyOn(service, "cancelMembershipRequest").mockResolvedValueOnce();
       const req = { user: { sub } } as any;
-      const result = await controller.cancelMembershipRequest(
-        req,
-        requestId,
-        { reason: "No longer needed" },
-      );
+      const result = await controller.cancelMembershipRequest(req, requestId, {
+        reason: "No longer needed",
+      });
       expect(service.cancelMembershipRequest).toHaveBeenCalledWith(
         sub,
         requestId,
@@ -96,9 +92,7 @@ describe("GroupController", () => {
     it("should call service without reason when body has no reason", async () => {
       const sub = "jwt-user-id";
       const requestId = "req1";
-      jest
-        .spyOn(service, "cancelMembershipRequest")
-        .mockResolvedValueOnce();
+      jest.spyOn(service, "cancelMembershipRequest").mockResolvedValueOnce();
       const req = { user: { sub } } as any;
       await controller.cancelMembershipRequest(req, requestId, {});
       expect(service.cancelMembershipRequest).toHaveBeenCalledWith(
@@ -131,15 +125,11 @@ describe("GroupController", () => {
     it("should call service with adminId from JWT, requestId from param, and reason from body", async () => {
       const sub = "jwt-admin-id";
       const requestId = "req1";
-      jest
-        .spyOn(service, "approveMembershipRequest")
-        .mockResolvedValueOnce();
+      jest.spyOn(service, "approveMembershipRequest").mockResolvedValueOnce();
       const req = { user: { sub } } as any;
-      const result = await controller.approveMembershipRequest(
-        req,
-        requestId,
-        { reason: "Approved" },
-      );
+      const result = await controller.approveMembershipRequest(req, requestId, {
+        reason: "Approved",
+      });
       expect(service.approveMembershipRequest).toHaveBeenCalledWith(
         sub,
         requestId,
@@ -151,9 +141,7 @@ describe("GroupController", () => {
     it("should call service without reason when body has no reason", async () => {
       const sub = "jwt-admin-id";
       const requestId = "req1";
-      jest
-        .spyOn(service, "approveMembershipRequest")
-        .mockResolvedValueOnce();
+      jest.spyOn(service, "approveMembershipRequest").mockResolvedValueOnce();
       const req = { user: { sub } } as any;
       await controller.approveMembershipRequest(req, requestId, {});
       expect(service.approveMembershipRequest).toHaveBeenCalledWith(
@@ -186,15 +174,11 @@ describe("GroupController", () => {
     it("should call service with adminId from JWT, requestId from param, and reason from body", async () => {
       const sub = "jwt-admin-id";
       const requestId = "req1";
-      jest
-        .spyOn(service, "denyMembershipRequest")
-        .mockResolvedValueOnce();
+      jest.spyOn(service, "denyMembershipRequest").mockResolvedValueOnce();
       const req = { user: { sub } } as any;
-      const result = await controller.denyMembershipRequest(
-        req,
-        requestId,
-        { reason: "Not eligible" },
-      );
+      const result = await controller.denyMembershipRequest(req, requestId, {
+        reason: "Not eligible",
+      });
       expect(service.denyMembershipRequest).toHaveBeenCalledWith(
         sub,
         requestId,
@@ -206,9 +190,7 @@ describe("GroupController", () => {
     it("should call service without reason when body has no reason", async () => {
       const sub = "jwt-admin-id";
       const requestId = "req1";
-      jest
-        .spyOn(service, "denyMembershipRequest")
-        .mockResolvedValueOnce();
+      jest.spyOn(service, "denyMembershipRequest").mockResolvedValueOnce();
       const req = { user: { sub } } as any;
       await controller.denyMembershipRequest(req, requestId, {});
       expect(service.denyMembershipRequest).toHaveBeenCalledWith(

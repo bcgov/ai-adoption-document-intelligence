@@ -11,7 +11,6 @@ import {
   Query,
   Req,
 } from "@nestjs/common";
-import { Request } from "express";
 import {
   ApiBody,
   ApiOperation,
@@ -20,6 +19,7 @@ import {
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
+import { Request } from "express";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { User } from "../auth/types";
 import { MembershipRequestActionDto } from "./dto/membership-request-action.dto";

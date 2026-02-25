@@ -1,10 +1,10 @@
+import { $Enums } from "@generated/client";
 import {
   BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { $Enums } from "@generated/client";
 import { DatabaseService } from "../database/database.service";
 
 @Injectable()
@@ -192,10 +192,7 @@ export class GroupService {
    * @throws NotFoundException if the request does not exist.
    * @throws BadRequestException if the request is not in PENDING state.
    */
-  private async getValidPendingRequest(
-    requestId: string,
-    action: string,
-  ) {
+  private async getValidPendingRequest(requestId: string, action: string) {
     const request =
       await this.databaseService.prisma.groupMembershipRequest.findUnique({
         where: { id: requestId },
@@ -204,9 +201,7 @@ export class GroupService {
       throw new NotFoundException("Membership request not found");
     }
     if (request.status !== $Enums.GroupMembershipRequestStatus.PENDING) {
-      throw new BadRequestException(
-        `Only PENDING requests can be ${action}`,
-      );
+      throw new BadRequestException(`Only PENDING requests can be ${action}`);
     }
     return request;
   }
