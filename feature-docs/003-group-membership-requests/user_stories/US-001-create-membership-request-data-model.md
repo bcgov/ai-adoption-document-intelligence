@@ -5,22 +5,22 @@
 **So that** membership requests can be persisted and queried throughout their lifecycle.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Table is created with all required columns
+- [x] **Scenario 1**: Table is created with all required columns
     - **Given** the Prisma schema is updated
     - **When** migrations are applied
     - **Then** a `GroupMembershipRequest` table exists with columns: `id`, `user_id`, `group_id`, `status`, `actor_id`, `reason`, `resolved_at`, `created_at`, `created_by`, `updated_at`, `updated_by`
 
-- [ ] **Scenario 2**: Status is an enumerated type
+- [x] **Scenario 2**: Status is an enumerated type
     - **Given** the schema includes a status field
     - **When** a record is created or updated
     - **Then** only `PENDING`, `APPROVED`, `DENIED`, or `CANCELLED` are valid values for `status`
 
-- [ ] **Scenario 3**: Nullable fields are properly configured
+- [x] **Scenario 3**: Nullable fields are properly configured
     - **Given** the schema definition
     - **When** a new request is created
     - **Then** `actor_id`, `reason`, and `resolved_at` may be null; `created_at` defaults to now; `updated_at` is auto-updated on change
 
-- [ ] **Scenario 4**: Foreign keys are enforced
+- [x] **Scenario 4**: Foreign keys are enforced
     - **Given** the schema relations
     - **When** a record references a `user_id` or `group_id`
     - **Then** those values must correspond to existing `User` and `Group` records respectively

@@ -311,4 +311,81 @@ describe("removeUserFromGroup", () => {
       );
     });
   });
+
+  describe("cancelMembershipRequest", () => {
+    const userId = "user1";
+    const requestId = "req1";
+    const pendingRequest = {
+      id: requestId,
+      user_id: userId,
+      status: "PENDING",
+    };
+
+    const buildDb = (findUniqueResult: unknown, updateFn = jest.fn()) => ({
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(findUniqueResult),
+          update: updateFn,
+        },
+      },
+    });
+
+    it("should update the request to CANCELLED with actor, resolved_at, and updated_by", async () => {
+      const updateFn = jest.fn().mockResolvedValue(undefined);
+      const svc = new GroupService(buildDb(pendingRequest, updateFn) as any);
+      await svc.cancelMembershipRequest(userId, requestId);
+      expect(updateFn).toHaveBeenCalledWith({
+        where: { id: requestId },
+        data: expect.objectContaining({
+          status: "CANCELLED",
+          actor_id: userId,
+          updated_by: userId,
+          resolved_at: expect.any(Date),
+        }),
+      });
+    });
+
+    it("should store reason when provided", async () => {
+      const updateFn = jest.fn().mockResolvedValue(undefined);
+      const svc = new GroupService(buildDb(pendingRequest, updateFn) as any);
+      await svc.cancelMembershipRequest(userId, requestId, "No longer needed");
+      expect(updateFn).toHaveBeenCalledWith({
+        where: { id: requestId },
+        data: expect.objectContaining({ reason: "No longer needed" }),
+      });
+    });
+
+    it("should not include reason key when not provided", async () => {
+      const updateFn = jest.fn().mockResolvedValue(undefined);
+      const svc = new GroupService(buildDb(pendingRequest, updateFn) as any);
+      await svc.cancelMembershipRequest(userId, requestId);
+      const callData = updateFn.mock.calls[0][0].data;
+      expect(callData).not.toHaveProperty("reason");
+    });
+
+    it("should throw NotFoundException when request does not exist", async () => {
+      const svc = new GroupService(buildDb(null) as any);
+      await expect(
+        svc.cancelMembershipRequest(userId, requestId),
+      ).rejects.toThrow("Membership request not found");
+    });
+
+    it("should throw ForbiddenException when request belongs to a different user", async () => {
+      const otherUserRequest = { ...pendingRequest, user_id: "other-user" };
+      const svc = new GroupService(buildDb(otherUserRequest) as any);
+      await expect(
+        svc.cancelMembershipRequest(userId, requestId),
+      ).rejects.toThrow("Cannot cancel a request belonging to another user");
+    });
+
+    it("should throw BadRequestException when request is not PENDING", async () => {
+      for (const status of ["APPROVED", "DENIED", "CANCELLED"] as const) {
+        const resolvedRequest = { ...pendingRequest, status };
+        const svc = new GroupService(buildDb(resolvedRequest) as any);
+        await expect(
+          svc.cancelMembershipRequest(userId, requestId),
+        ).rejects.toThrow("Only PENDING requests can be cancelled");
+      }
+    });
+  });
 });

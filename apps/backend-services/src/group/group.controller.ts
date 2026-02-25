@@ -6,6 +6,7 @@ import {
   HttpException,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -20,6 +21,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { User } from "../auth/types";
+import { CancelMembershipRequestDto } from "./dto/cancel-membership-request.dto";
 import { RequestMembershipDto } from "./dto/request-membership.dto";
 import { GroupService } from "./group.service";
 
@@ -95,6 +97,44 @@ export class GroupController {
       throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
     }
     await this.groupService.requestMembership(userId, body.groupId);
+    return { success: true };
+  }
+
+  /**
+   * Cancel a pending membership request
+   * PATCH /api/groups/requests/:requestId/cancel
+   */
+  @ApiOperation({ summary: "Cancel a pending group membership request" })
+  @ApiResponse({
+    status: 200,
+    description: "Membership request cancelled successfully.",
+  })
+  @ApiResponse({ status: 400, description: "Request is not in PENDING state." })
+  @ApiResponse({
+    status: 403,
+    description: "Request belongs to a different user.",
+  })
+  @ApiResponse({ status: 404, description: "Membership request not found." })
+  @ApiParam({
+    name: "requestId",
+    description: "Membership request ID",
+    type: String,
+  })
+  @Patch("requests/:requestId/cancel")
+  async cancelMembershipRequest(
+    @Req() req: Request & { user?: User },
+    @Param("requestId") requestId: string,
+    @Body() body: CancelMembershipRequestDto,
+  ): Promise<{ success: boolean }> {
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+    await this.groupService.cancelMembershipRequest(
+      userId,
+      requestId,
+      body.reason,
+    );
     return { success: true };
   }
 

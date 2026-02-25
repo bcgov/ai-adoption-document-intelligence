@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -89,6 +91,49 @@ export class GroupService {
       },
     });
   }
+  /**
+   * Cancels a pending group membership request made by the given user.
+   * - Throws NotFoundException if the request does not exist.
+   * - Throws ForbiddenException if the request belongs to a different user.
+   * - Throws BadRequestException if the request is not in PENDING state.
+   * @param userId - The ID of the requesting user (from JWT sub claim).
+   * @param requestId - The ID of the membership request to cancel.
+   * @param reason - Optional reason for cancellation.
+   */
+  async cancelMembershipRequest(
+    userId: string,
+    requestId: string,
+    reason?: string,
+  ): Promise<void> {
+    const request =
+      await this.databaseService.prisma.groupMembershipRequest.findUnique({
+        where: { id: requestId },
+      });
+    if (!request) {
+      throw new NotFoundException("Membership request not found");
+    }
+    if (request.user_id !== userId) {
+      throw new ForbiddenException(
+        "Cannot cancel a request belonging to another user",
+      );
+    }
+    if (request.status !== $Enums.GroupMembershipRequestStatus.PENDING) {
+      throw new BadRequestException(
+        "Only PENDING requests can be cancelled",
+      );
+    }
+    await this.databaseService.prisma.groupMembershipRequest.update({
+      where: { id: requestId },
+      data: {
+        status: $Enums.GroupMembershipRequestStatus.CANCELLED,
+        actor_id: userId,
+        resolved_at: new Date(),
+        updated_by: userId,
+        ...(reason !== undefined ? { reason } : {}),
+      },
+    });
+  }
+
   /**
    * Creates a new group with the given name and optional description.
    * Throws an error if a group with the same name already exists.

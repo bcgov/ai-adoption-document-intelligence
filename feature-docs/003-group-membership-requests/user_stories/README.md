@@ -10,8 +10,8 @@ Stories derived from [REQUIREMENTS.md](../REQUIREMENTS.md).
 
 ## Phase 2: User Operations
 
-- [ ] [US-002: Submit a Group Membership Request](US-002-submit-membership-request.md)
-- [ ] [US-003: Cancel a Group Membership Request](US-003-cancel-membership-request.md)
+- [x] [US-002: Submit a Group Membership Request](US-002-submit-membership-request.md)
+- [x] [US-003: Cancel a Group Membership Request](US-003-cancel-membership-request.md)
 
 ## Phase 3: Admin Operations
 
