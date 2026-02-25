@@ -388,4 +388,127 @@ describe("removeUserFromGroup", () => {
       }
     });
   });
+
+  describe("approveMembershipRequest", () => {
+    const adminId = "admin1";
+    const requestId = "req1";
+    const pendingRequest = {
+      id: requestId,
+      user_id: "user1",
+      group_id: "group1",
+      status: "PENDING",
+    };
+
+    const buildDb = (
+      findUniqueResult: unknown,
+      transactionFn = jest.fn().mockResolvedValue([{}, {}]),
+    ) => ({
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(findUniqueResult),
+          update: jest.fn(),
+        },
+        userGroup: {
+          upsert: jest.fn(),
+        },
+        $transaction: transactionFn,
+      },
+    });
+
+    it("should execute a transaction adding the user to the group and updating the request to APPROVED", async () => {
+      const transactionFn = jest.fn().mockResolvedValue([{}, {}]);
+      const mockUpsert = { then: jest.fn() };
+      const mockUpdate = { then: jest.fn() };
+      const prisma = {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: jest.fn().mockReturnValue(mockUpdate),
+        },
+        userGroup: {
+          upsert: jest.fn().mockReturnValue(mockUpsert),
+        },
+        $transaction: transactionFn,
+      };
+      const svc = new GroupService({ prisma } as any);
+      await svc.approveMembershipRequest(adminId, requestId);
+
+      expect(prisma.userGroup.upsert).toHaveBeenCalledWith({
+        where: {
+          user_id_group_id: {
+            user_id: pendingRequest.user_id,
+            group_id: pendingRequest.group_id,
+          },
+        },
+        update: {},
+        create: {
+          user_id: pendingRequest.user_id,
+          group_id: pendingRequest.group_id,
+        },
+      });
+      expect(prisma.groupMembershipRequest.update).toHaveBeenCalledWith({
+        where: { id: requestId },
+        data: expect.objectContaining({
+          status: "APPROVED",
+          actor_id: adminId,
+          updated_by: adminId,
+          resolved_at: expect.any(Date),
+        }),
+      });
+      expect(transactionFn).toHaveBeenCalledWith([mockUpsert, mockUpdate]);
+    });
+
+    it("should store reason when provided", async () => {
+      const prisma = {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: jest.fn().mockReturnValue({}),
+        },
+        userGroup: {
+          upsert: jest.fn().mockReturnValue({}),
+        },
+        $transaction: jest.fn().mockResolvedValue([{}, {}]),
+      };
+      const svc = new GroupService({ prisma } as any);
+      await svc.approveMembershipRequest(adminId, requestId, "Looks good");
+      expect(prisma.groupMembershipRequest.update).toHaveBeenCalledWith({
+        where: { id: requestId },
+        data: expect.objectContaining({ reason: "Looks good" }),
+      });
+    });
+
+    it("should not include reason key when reason is not provided", async () => {
+      const updateFn = jest.fn().mockReturnValue({});
+      const prisma = {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: updateFn,
+        },
+        userGroup: {
+          upsert: jest.fn().mockReturnValue({}),
+        },
+        $transaction: jest.fn().mockResolvedValue([{}, {}]),
+      };
+      const svc = new GroupService({ prisma } as any);
+      await svc.approveMembershipRequest(adminId, requestId);
+      const callData = updateFn.mock.calls[0][0].data;
+      expect(callData).not.toHaveProperty("reason");
+    });
+
+    it("should throw NotFoundException when request does not exist", async () => {
+      const svc = new GroupService(buildDb(null) as any);
+      await expect(
+        svc.approveMembershipRequest(adminId, requestId),
+      ).rejects.toThrow("Membership request not found");
+    });
+
+    it("should throw BadRequestException when request is not PENDING", async () => {
+      for (const status of ["APPROVED", "DENIED", "CANCELLED"] as const) {
+        const resolvedRequest = { ...pendingRequest, status };
+        const svc = new GroupService(buildDb(resolvedRequest) as any);
+        await expect(
+          svc.approveMembershipRequest(adminId, requestId),
+        ).rejects.toThrow("Only PENDING requests can be approved");
+      }
+    });
+  });
 });

@@ -135,6 +135,58 @@ export class GroupService {
   }
 
   /**
+   * Approves a pending group membership request, atomically adding the user
+   * to the group and updating the request status within a single transaction.
+   * - Throws NotFoundException if the request does not exist.
+   * - Throws BadRequestException if the request is not in PENDING state.
+   * @param adminId - The ID of the approving admin (from JWT sub claim).
+   * @param requestId - The ID of the membership request to approve.
+   * @param reason - Optional reason for approval.
+   */
+  async approveMembershipRequest(
+    adminId: string,
+    requestId: string,
+    reason?: string,
+  ): Promise<void> {
+    const request =
+      await this.databaseService.prisma.groupMembershipRequest.findUnique({
+        where: { id: requestId },
+      });
+    if (!request) {
+      throw new NotFoundException("Membership request not found");
+    }
+    if (request.status !== $Enums.GroupMembershipRequestStatus.PENDING) {
+      throw new BadRequestException("Only PENDING requests can be approved");
+    }
+
+    await this.databaseService.prisma.$transaction([
+      this.databaseService.prisma.userGroup.upsert({
+        where: {
+          user_id_group_id: {
+            user_id: request.user_id,
+            group_id: request.group_id,
+          },
+        },
+        update: {},
+        create: {
+          user_id: request.user_id,
+          group_id: request.group_id,
+        },
+      }),
+      this.databaseService.prisma.groupMembershipRequest.update({
+        where: { id: requestId },
+        data: {
+          status: $Enums.GroupMembershipRequestStatus.APPROVED,
+          actor_id: adminId,
+          resolved_at: new Date(),
+          updated_by: adminId,
+          ...(reason !== undefined ? { reason } : {}),
+        },
+      }),
+    ]);
+  }
+
+  /**
    * Creates a new group with the given name and optional description.
    * Throws an error if a group with the same name already exists.
    */

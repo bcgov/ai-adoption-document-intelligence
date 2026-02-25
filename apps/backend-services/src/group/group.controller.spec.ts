@@ -18,6 +18,7 @@ describe("GroupController", () => {
             assignUserToGroups: jest.fn(),
             requestMembership: jest.fn(),
             cancelMembershipRequest: jest.fn(),
+            approveMembershipRequest: jest.fn(),
           },
         },
       ],
@@ -119,6 +120,61 @@ describe("GroupController", () => {
       const req = { user: {} } as any;
       await expect(
         controller.cancelMembershipRequest(req, "req1", {}),
+      ).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+  });
+
+  describe("approveMembershipRequest", () => {
+    it("should call service with adminId from JWT, requestId from param, and reason from body", async () => {
+      const sub = "jwt-admin-id";
+      const requestId = "req1";
+      jest
+        .spyOn(service, "approveMembershipRequest")
+        .mockResolvedValueOnce();
+      const req = { user: { sub } } as any;
+      const result = await controller.approveMembershipRequest(
+        req,
+        requestId,
+        { reason: "Approved" },
+      );
+      expect(service.approveMembershipRequest).toHaveBeenCalledWith(
+        sub,
+        requestId,
+        "Approved",
+      );
+      expect(result).toEqual({ success: true });
+    });
+
+    it("should call service without reason when body has no reason", async () => {
+      const sub = "jwt-admin-id";
+      const requestId = "req1";
+      jest
+        .spyOn(service, "approveMembershipRequest")
+        .mockResolvedValueOnce();
+      const req = { user: { sub } } as any;
+      await controller.approveMembershipRequest(req, requestId, {});
+      expect(service.approveMembershipRequest).toHaveBeenCalledWith(
+        sub,
+        requestId,
+        undefined,
+      );
+    });
+
+    it("should throw 401 if no user in request", async () => {
+      const req = { user: undefined } as any;
+      await expect(
+        controller.approveMembershipRequest(req, "req1", {}),
+      ).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should throw 401 if user has no sub claim", async () => {
+      const req = { user: {} } as any;
+      await expect(
+        controller.approveMembershipRequest(req, "req1", {}),
       ).rejects.toThrow(
         new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
       );

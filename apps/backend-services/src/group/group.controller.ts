@@ -21,6 +21,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { User } from "../auth/types";
+import { ApproveMembershipRequestDto } from "./dto/approve-membership-request.dto";
 import { CancelMembershipRequestDto } from "./dto/cancel-membership-request.dto";
 import { RequestMembershipDto } from "./dto/request-membership.dto";
 import { GroupService } from "./group.service";
@@ -132,6 +133,41 @@ export class GroupController {
     }
     await this.groupService.cancelMembershipRequest(
       userId,
+      requestId,
+      body.reason,
+    );
+    return { success: true };
+  }
+
+  /**
+   * Approve a pending membership request
+   * PATCH /api/groups/requests/:requestId/approve
+   */
+  @ApiOperation({ summary: "Approve a pending group membership request" })
+  @ApiResponse({
+    status: 200,
+    description: "Membership request approved successfully.",
+  })
+  @ApiResponse({ status: 400, description: "Request is not in PENDING state." })
+  @ApiResponse({ status: 404, description: "Membership request not found." })
+  @ApiParam({
+    name: "requestId",
+    description: "Membership request ID",
+    type: String,
+  })
+  @Patch("requests/:requestId/approve")
+  async approveMembershipRequest(
+    @Req() req: Request & { user?: User },
+    @Param("requestId") requestId: string,
+    @Body() body: ApproveMembershipRequestDto,
+  ): Promise<{ success: boolean }> {
+    // TODO: Add check to ensure req.user has admin privileges before allowing approval of membership requests
+    const adminId = req.user?.sub;
+    if (!adminId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+    await this.groupService.approveMembershipRequest(
+      adminId,
       requestId,
       body.reason,
     );
