@@ -2,6 +2,7 @@ import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as client from "openid-client";
 import { AuthService } from "./auth.service";
+import { TokenClaims } from "./dto/token-response.dto";
 
 // Mock openid-client
 jest.mock("openid-client");
@@ -64,6 +65,7 @@ describe("AuthService", () => {
       id_token: "id-token",
       expires_in: 3600,
       token_type: "Bearer",
+      claims: () => ({ sub: "user-sub-123", email: "user@example.com" }),
     });
     (client.refreshTokenGrant as jest.Mock) = jest.fn().mockResolvedValue({
       access_token: "new-access-token",
@@ -71,6 +73,7 @@ describe("AuthService", () => {
       id_token: "new-id-token",
       expires_in: 3600,
       token_type: "Bearer",
+      claims: () => ({ sub: "user-sub-123", email: "user@example.com" }),
     });
 
     const module: TestingModule = await Test.createTestingModule({
@@ -210,6 +213,7 @@ describe("AuthService", () => {
         id_token: "id-token",
         expires_in: 3600,
         token_type: "Bearer",
+        claims: { sub: "user-sub-123", email: "user@example.com" },
       });
     });
 
@@ -297,6 +301,7 @@ describe("AuthService", () => {
         id_token: "new-id-token",
         expires_in: 3600,
         token_type: "Bearer",
+        claims: { sub: "user-sub-123", email: "user@example.com" },
       });
     });
 
@@ -352,7 +357,7 @@ describe("AuthService", () => {
       await service.upsertUserFromToken({
         sub: "user-sub-123",
         email: "user@example.com",
-      });
+      } as unknown as TokenClaims);
 
       expect(prismaService.prisma.user.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -370,18 +375,24 @@ describe("AuthService", () => {
       );
     });
 
-    it("should return early when sub is missing", async () => {
-      await service.upsertUserFromToken({ email: "user@example.com" });
+    it("should throw when sub is missing", async () => {
+      await expect(
+        service.upsertUserFromToken({ email: "user@example.com" } as unknown as TokenClaims),
+      ).rejects.toThrow("Token payload missing required fields: sub and email");
       expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
     });
 
-    it("should return early when email is missing", async () => {
-      await service.upsertUserFromToken({ sub: "user-sub-123" });
+    it("should throw when email is missing", async () => {
+      await expect(
+        service.upsertUserFromToken({ sub: "user-sub-123" } as unknown as TokenClaims),
+      ).rejects.toThrow("Token payload missing required fields: sub and email");
       expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
     });
 
-    it("should return early when both sub and email are missing", async () => {
-      await service.upsertUserFromToken({});
+    it("should throw when both sub and email are missing", async () => {
+      await expect(service.upsertUserFromToken({} as unknown as TokenClaims)).rejects.toThrow(
+        "Token payload missing required fields: sub and email",
+      );
       expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
     });
   });
