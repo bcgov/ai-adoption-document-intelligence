@@ -377,22 +377,26 @@ describe("AuthService", () => {
 
     it("should throw when sub is missing", async () => {
       await expect(
-        service.upsertUserFromToken({ email: "user@example.com" } as unknown as TokenClaims),
+        service.upsertUserFromToken({
+          email: "user@example.com",
+        } as unknown as TokenClaims),
       ).rejects.toThrow("Token payload missing required fields: sub and email");
       expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
     });
 
     it("should throw when email is missing", async () => {
       await expect(
-        service.upsertUserFromToken({ sub: "user-sub-123" } as unknown as TokenClaims),
+        service.upsertUserFromToken({
+          sub: "user-sub-123",
+        } as unknown as TokenClaims),
       ).rejects.toThrow("Token payload missing required fields: sub and email");
       expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
     });
 
     it("should throw when both sub and email are missing", async () => {
-      await expect(service.upsertUserFromToken({} as unknown as TokenClaims)).rejects.toThrow(
-        "Token payload missing required fields: sub and email",
-      );
+      await expect(
+        service.upsertUserFromToken({} as unknown as TokenClaims),
+      ).rejects.toThrow("Token payload missing required fields: sub and email");
       expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
     });
   });
