@@ -5,7 +5,7 @@
  * Temporal activity implementations. The graph runner resolves activityType
  * from node definitions to actual activity functions via this registry.
  *
- * See docs/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5.5 for the full specification.
+ * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5.5 for the full specification.
  */
 
 import type { RetryPolicy } from "./graph-workflow-types";

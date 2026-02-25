@@ -129,37 +129,34 @@ describe("ClassifierService", () => {
       expect(mockGetBlobSasUrl).not.toHaveBeenCalled();
     });
 
-    xit("should process image files (jpg)", async () => {
+    it("should process image files and upload layout JSON on 202", async () => {
       const mockGetBlobSasUrl = jest
         .fn()
         .mockReturnValue("https://mockbloburl/file.jpg");
-      const mockGetBlockBlobClient = jest.fn().mockReturnValue({});
+      const mockGetBlockBlobClient = jest.fn().mockReturnValue({
+        upload: jest.fn().mockResolvedValue(undefined),
+      });
       (blobService.getContainerClient as jest.Mock).mockReturnValue({
         getBlockBlobClient: mockGetBlockBlobClient,
       });
       blobService.getBlobSasUrl = mockGetBlobSasUrl;
 
-      const mockPostStart = jest.fn().mockResolvedValue({
-        status: "202",
-        headers: { "operation-location": "https://mockendpoint/operation/123" },
+      const pollCallback = jest.fn(async (opLoc, onSuccess, onError) => {
+        await onSuccess({ result: "layout" });
       });
-      const mockPostPoll = jest.fn().mockResolvedValue({
-        status: "200",
-        body: { content: "layout-result" },
-      });
+      azureService.pollOperationUntilResolved = pollCallback;
 
       (service as any).client = {
-        path: (url: string) => {
-          if (url.includes("analyze")) {
-            return { post: mockPostStart };
-          }
-          if (url.includes("operation")) {
-            return { post: mockPostPoll };
-          }
-          return { post: jest.fn().mockResolvedValue({ status: "500" }) };
-        },
+        path: () => ({
+          post: jest.fn().mockResolvedValue({
+            status: "202",
+            headers: {
+              "operation-location": "https://mockendpoint/operation/123",
+            },
+          }),
+        }),
       };
-      (blobService.uploadFile as jest.Mock).mockResolvedValue(undefined);
+
       await expect(
         service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
@@ -167,9 +164,193 @@ describe("ClassifierService", () => {
         "classification",
         "file.jpg",
       );
-      expect(blobService.uploadFile).toHaveBeenCalled();
-      expect(mockPostStart).toHaveBeenCalled();
-      expect(mockPostPoll).toHaveBeenCalled();
+      expect(pollCallback).toHaveBeenCalled();
+      expect(mockGetBlockBlobClient).toHaveBeenCalledWith("file.jpg.ocr.json");
+    });
+
+    it("should handle 404 and upload fallback layout JSON", async () => {
+      const mockGetBlobSasUrl = jest
+        .fn()
+        .mockReturnValue("https://mockbloburl/file.jpg");
+      const mockGetBlockBlobClient = jest.fn().mockReturnValue({
+        upload: jest.fn().mockResolvedValue(undefined),
+      });
+      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+        getBlockBlobClient: mockGetBlockBlobClient,
+      });
+      blobService.getBlobSasUrl = mockGetBlobSasUrl;
+
+      // Mock fetch for fallback
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => Buffer.from("imgdata"),
+      }) as any;
+
+      (service as any).client = {
+        path: (url: string) => ({
+          post: jest.fn().mockImplementation(({ body }) => {
+            if (body && body.base64Source) {
+              return Promise.resolve({
+                status: "200",
+                body: { fallback: true },
+              });
+            }
+            return Promise.resolve({
+              status: "404",
+              body: "not found",
+            });
+          }),
+        }),
+      };
+
+      Object.defineProperty(service, "logger", {
+        value: { debug: jest.fn(), error: jest.fn(), warn: jest.fn() },
+      });
+
+      await expect(
+        service.createLayoutJson(["file.jpg"]),
+      ).resolves.toBeUndefined();
+      expect(global.fetch).toHaveBeenCalled();
+      expect(mockGetBlockBlobClient).toHaveBeenCalledWith("file.jpg.ocr.json");
+    });
+
+    it("should log error if fallback download fails", async () => {
+      const mockGetBlobSasUrl = jest
+        .fn()
+        .mockReturnValue("https://mockbloburl/file.jpg");
+      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+        getBlockBlobClient: jest.fn(),
+      });
+      blobService.getBlobSasUrl = mockGetBlobSasUrl;
+
+      global.fetch = jest.fn().mockResolvedValue({ ok: false }) as any;
+      (service as any).client = {
+        path: () => ({
+          post: jest.fn().mockResolvedValue({
+            status: "404",
+            body: "not found",
+          }),
+        }),
+      };
+      const errorLogger = jest.fn();
+      Object.defineProperty(service, "logger", {
+        value: { error: errorLogger, warn: jest.fn(), debug: jest.fn() },
+      });
+
+      await expect(
+        service.createLayoutJson(["file.jpg"]),
+      ).resolves.toBeUndefined();
+      expect(errorLogger).toHaveBeenCalledWith(
+        "Failed to download blob for fallback: file.jpg",
+      );
+    });
+
+    it("should log error if fallback analyze fails", async () => {
+      const mockGetBlobSasUrl = jest
+        .fn()
+        .mockReturnValue("https://mockbloburl/file.jpg");
+      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+        getBlockBlobClient: jest.fn(),
+      });
+      blobService.getBlobSasUrl = mockGetBlobSasUrl;
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => Buffer.from("imgdata"),
+      }) as any;
+
+      (service as any).client = {
+        path: (url: string) => ({
+          post: jest.fn().mockImplementation(({ body }) => {
+            if (body && body.base64Source) {
+              return Promise.resolve({
+                status: "500",
+                body: "fail",
+              });
+            }
+            return Promise.resolve({
+              status: "404",
+              body: "not found",
+            });
+          }),
+        }),
+      };
+      const errorLogger = jest.fn();
+      Object.defineProperty(service, "logger", {
+        value: { error: errorLogger, warn: jest.fn(), debug: jest.fn() },
+      });
+
+      await expect(
+        service.createLayoutJson(["file.jpg"]),
+      ).resolves.toBeUndefined();
+      expect(errorLogger).toHaveBeenCalledWith(
+        "Fallback analyze failed for file.jpg:",
+        "500",
+        "fail",
+      );
+    });
+
+    it("should log error for non-202/404 analyze response", async () => {
+      const mockGetBlobSasUrl = jest
+        .fn()
+        .mockReturnValue("https://mockbloburl/file.jpg");
+      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+        getBlockBlobClient: jest.fn(),
+      });
+      blobService.getBlobSasUrl = mockGetBlobSasUrl;
+
+      (service as any).client = {
+        path: () => ({
+          post: jest.fn().mockResolvedValue({
+            status: "500",
+            body: "fail",
+          }),
+        }),
+      };
+      const errorLogger = jest.fn();
+      Object.defineProperty(service, "logger", {
+        value: { error: errorLogger, warn: jest.fn(), debug: jest.fn() },
+      });
+
+      await expect(
+        service.createLayoutJson(["file.jpg"]),
+      ).resolves.toBeUndefined();
+      expect(errorLogger).toHaveBeenCalledWith(
+        "Failed to analyze blob file.jpg:",
+        "url: https://mockbloburl/file.jpg",
+        "500",
+        "fail",
+      );
+    });
+
+    it("should log error if operation-location header is missing", async () => {
+      const mockGetBlobSasUrl = jest
+        .fn()
+        .mockReturnValue("https://mockbloburl/file.jpg");
+      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+        getBlockBlobClient: jest.fn(),
+      });
+      blobService.getBlobSasUrl = mockGetBlobSasUrl;
+
+      (service as any).client = {
+        path: () => ({
+          post: jest.fn().mockResolvedValue({
+            status: "202",
+            headers: {},
+          }),
+        }),
+      };
+      const errorLogger = jest.fn();
+      Object.defineProperty(service, "logger", {
+        value: { error: errorLogger, warn: jest.fn(), debug: jest.fn() },
+      });
+
+      await expect(
+        service.createLayoutJson(["file.jpg"]),
+      ).resolves.toBeUndefined();
+      expect(errorLogger).toHaveBeenCalledWith(
+        "No operation-location header returned for 202 response",
+      );
     });
   });
 

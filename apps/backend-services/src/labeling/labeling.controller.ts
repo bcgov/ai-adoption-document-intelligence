@@ -12,7 +12,14 @@ import {
   Req,
   Res,
 } from "@nestjs/common";
-import { ApiOperation, ApiParam, ApiQuery, ApiTags } from "@nestjs/swagger";
+import {
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from "@nestjs/swagger";
 import { Response } from "express";
 import {
   ApiKeyAuth,
@@ -27,6 +34,15 @@ import {
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
+import {
+  DeleteDocumentResponseDto,
+  DeleteResponseDto,
+  FieldDefinitionResponseDto,
+  LabeledDocumentResponseDto,
+  LabelingProjectResponseDto,
+  LabelResponseDto,
+  UploadLabelingResponseDto,
+} from "./dto/labeling-responses.dto";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { LabelingService } from "./labeling.service";
@@ -57,6 +73,10 @@ export class LabelingController {
     required: false,
     description: "Filter by creator",
   })
+  @ApiOkResponse({
+    description: "List of labeling projects with their field schemas",
+    type: [LabelingProjectResponseDto],
+  })
   async getProjects(@Query("userId") userId?: string) {
     return this.labelingService.getProjects(userId);
   }
@@ -65,11 +85,14 @@ export class LabelingController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Create a new labeling project" })
+  @ApiCreatedResponse({
+    description: "Newly created labeling project",
+    type: LabelingProjectResponseDto,
+  })
   async createProject(
     @Body() dto: CreateProjectDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    // Extract user ID from request (set by auth guard)
     const userId = req.user?.sub || req.user?.id || "anonymous";
     return this.labelingService.createProject(dto, userId);
   }
@@ -79,6 +102,10 @@ export class LabelingController {
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get project details with field schema" })
   @ApiParam({ name: "id", description: "Project ID" })
+  @ApiOkResponse({
+    description: "Labeling project with full field schema",
+    type: LabelingProjectResponseDto,
+  })
   async getProject(@Param("id") id: string) {
     return this.labelingService.getProject(id);
   }
@@ -88,6 +115,10 @@ export class LabelingController {
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Update project" })
   @ApiParam({ name: "id", description: "Project ID" })
+  @ApiOkResponse({
+    description: "Updated labeling project",
+    type: LabelingProjectResponseDto,
+  })
   async updateProject(@Param("id") id: string, @Body() dto: UpdateProjectDto) {
     return this.labelingService.updateProject(id, dto);
   }
@@ -97,6 +128,10 @@ export class LabelingController {
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Delete project and all associated data" })
   @ApiParam({ name: "id", description: "Project ID" })
+  @ApiOkResponse({
+    description: "Project deleted successfully",
+    type: DeleteResponseDto,
+  })
   async deleteProject(@Param("id") id: string) {
     return this.labelingService.deleteProject(id);
   }
@@ -108,6 +143,10 @@ export class LabelingController {
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get field schema for project" })
   @ApiParam({ name: "id", description: "Project ID" })
+  @ApiOkResponse({
+    description: "Ordered list of field definitions for the project",
+    type: [FieldDefinitionResponseDto],
+  })
   async getFieldSchema(@Param("id") id: string) {
     return this.labelingService.getFieldSchema(id);
   }
@@ -117,6 +156,10 @@ export class LabelingController {
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Add a field to the project schema" })
   @ApiParam({ name: "id", description: "Project ID" })
+  @ApiCreatedResponse({
+    description: "Newly created field definition",
+    type: FieldDefinitionResponseDto,
+  })
   async addField(
     @Param("id") projectId: string,
     @Body() dto: CreateFieldDefinitionDto,
@@ -130,6 +173,10 @@ export class LabelingController {
   @ApiOperation({ summary: "Update a field definition" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "fieldId", description: "Field ID" })
+  @ApiOkResponse({
+    description: "Updated field definition",
+    type: FieldDefinitionResponseDto,
+  })
   async updateField(
     @Param("id") projectId: string,
     @Param("fieldId") fieldId: string,
@@ -144,6 +191,10 @@ export class LabelingController {
   @ApiOperation({ summary: "Delete a field from schema" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "fieldId", description: "Field ID" })
+  @ApiOkResponse({
+    description: "Field deleted successfully",
+    type: DeleteResponseDto,
+  })
   async deleteField(
     @Param("id") projectId: string,
     @Param("fieldId") fieldId: string,
@@ -158,6 +209,10 @@ export class LabelingController {
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get all documents in project" })
   @ApiParam({ name: "id", description: "Project ID" })
+  @ApiOkResponse({
+    description: "List of labeled documents with their labels",
+    type: [LabeledDocumentResponseDto],
+  })
   async getProjectDocuments(@Param("id") projectId: string) {
     return this.labelingService.getProjectDocuments(projectId);
   }
@@ -167,6 +222,10 @@ export class LabelingController {
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Add a document to project" })
   @ApiParam({ name: "id", description: "Project ID" })
+  @ApiCreatedResponse({
+    description: "Document added to the project",
+    type: LabeledDocumentResponseDto,
+  })
   async addDocumentToProject(
     @Param("id") projectId: string,
     @Body() dto: AddDocumentDto,
@@ -180,6 +239,10 @@ export class LabelingController {
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Upload a document into a labeling project" })
   @ApiParam({ name: "id", description: "Project ID" })
+  @ApiCreatedResponse({
+    description: "Document uploaded and queued for OCR processing",
+    type: UploadLabelingResponseDto,
+  })
   async uploadLabelingDocument(
     @Param("id") projectId: string,
     @Body() dto: LabelingUploadDto,
@@ -193,6 +256,11 @@ export class LabelingController {
   @ApiOperation({ summary: "Get document with labels" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
+  @ApiOkResponse({
+    description:
+      "Labeled document with all its labels and underlying document data",
+    type: LabeledDocumentResponseDto,
+  })
   async getProjectDocument(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
@@ -207,6 +275,7 @@ export class LabelingController {
   @ApiOperation({ summary: "Download a labeling document file" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Labeling Document ID" })
+  @ApiOkResponse({ description: "Binary file content (PDF or image)" })
   async downloadLabelingDocument(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
@@ -240,6 +309,10 @@ export class LabelingController {
   @ApiOperation({ summary: "Remove document from project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
+  @ApiOkResponse({
+    description: "Document removed from project",
+    type: DeleteDocumentResponseDto,
+  })
   async removeDocumentFromProject(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
@@ -258,6 +331,10 @@ export class LabelingController {
   @ApiOperation({ summary: "Get labels for document" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
+  @ApiOkResponse({
+    description: "All labels for the document",
+    type: [LabelResponseDto],
+  })
   async getDocumentLabels(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
@@ -271,6 +348,10 @@ export class LabelingController {
   @ApiOperation({ summary: "Save labels for document" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
+  @ApiOkResponse({
+    description: "Updated labeled document with all saved labels",
+    type: LabeledDocumentResponseDto,
+  })
   async saveDocumentLabels(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
@@ -286,6 +367,10 @@ export class LabelingController {
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
   @ApiParam({ name: "labelId", description: "Label ID" })
+  @ApiOkResponse({
+    description: "Label deleted successfully",
+    type: DeleteResponseDto,
+  })
   async deleteLabel(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
@@ -302,6 +387,9 @@ export class LabelingController {
   @ApiOperation({ summary: "Get OCR data for document" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
+  @ApiOkResponse({
+    description: "Raw OCR result from Azure Document Intelligence",
+  })
   async getDocumentOcr(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
@@ -335,6 +423,16 @@ export class LabelingController {
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Export labeled data for training" })
   @ApiParam({ name: "id", description: "Project ID" })
+  @ApiOkResponse({
+    description:
+      "Exported project data. Shape depends on format: azure returns fieldsJson/labelsFiles, json returns project/documents.",
+    schema: {
+      oneOf: [
+        { $ref: "#/components/schemas/AzureExportResponseDto" },
+        { $ref: "#/components/schemas/JsonExportResponseDto" },
+      ],
+    },
+  })
   async exportProject(
     @Param("id") projectId: string,
     @Body() options: ExportDto,

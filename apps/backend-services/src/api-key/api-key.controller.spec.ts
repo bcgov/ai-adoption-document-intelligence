@@ -17,6 +17,7 @@ describe("ApiKeyController", () => {
     user: {
       sub: "testuser",
       email: "test@example.com",
+      roles: ["admin", "editor"],
     },
   };
 
@@ -52,20 +53,22 @@ describe("ApiKeyController", () => {
         id: "key123",
         keyPrefix: "abcd1234",
         userEmail: "test@example.com",
-        createdAt: new Date(),
-        lastUsed: null,
+        roles: ["admin"],
       };
       mockApiKeyService.getUserApiKey.mockResolvedValue(mockKeyInfo);
-
       const result = await controller.getApiKey(mockRequest as any);
-
       expect(result).toEqual({ apiKey: mockKeyInfo });
+      expect(apiKeyService.getUserApiKey).toHaveBeenCalledWith("testuser");
     });
 
-    it("should return null when no user on request", async () => {
-      const result = await controller.getApiKey({ user: undefined } as any);
-
-      expect(result).toEqual({ apiKey: null });
+    it("should not throw when user has no email", async () => {
+      // With new logic, email is not required for API key generation, so this should not throw
+      mockApiKeyService.generateApiKey.mockResolvedValue({});
+      await expect(
+        controller.generateApiKey({
+          user: { sub: "testuser" },
+        } as any),
+      ).resolves.toBeDefined();
     });
   });
 
@@ -76,6 +79,7 @@ describe("ApiKeyController", () => {
         key: "fullkeyvalue",
         keyPrefix: "fullkeyv",
         userEmail: "test@example.com",
+        roles: ["admin", "editor"],
         createdAt: new Date(),
         lastUsed: null,
       };
@@ -84,32 +88,16 @@ describe("ApiKeyController", () => {
       const result = await controller.generateApiKey(mockRequest as any);
 
       expect(result).toEqual({ apiKey: mockGeneratedKey });
-      expect(apiKeyService.generateApiKey).toHaveBeenCalledWith(
-        "testuser",
-        "test@example.com",
-      );
+      expect(apiKeyService.generateApiKey).toHaveBeenCalledWith("testuser");
     });
 
-    it("should use unknown@example.com when user has no email", async () => {
-      const mockGeneratedKey = {
-        id: "key123",
-        key: "fullkeyvalue",
-        keyPrefix: "fullkeyv",
-        userEmail: "unknown@example.com",
-        createdAt: new Date(),
-        lastUsed: null,
-      };
-      mockApiKeyService.generateApiKey.mockResolvedValue(mockGeneratedKey);
-
-      const result = await controller.generateApiKey({
-        user: { sub: "testuser" },
-      } as any);
-
-      expect(result).toEqual({ apiKey: mockGeneratedKey });
-      expect(apiKeyService.generateApiKey).toHaveBeenCalledWith(
-        "testuser",
-        "unknown@example.com",
-      );
+    it("should not throw when user has no email for regenerate", async () => {
+      mockApiKeyService.regenerateApiKey.mockResolvedValue({});
+      await expect(
+        controller.regenerateApiKey({
+          user: { sub: "testuser" },
+        } as any),
+      ).resolves.toBeDefined();
     });
   });
 
@@ -130,6 +118,7 @@ describe("ApiKeyController", () => {
         key: "newfullkeyvalue",
         keyPrefix: "newfullk",
         userEmail: "test@example.com",
+        roles: ["admin", "editor"],
         createdAt: new Date(),
         lastUsed: null,
       };
@@ -138,31 +127,7 @@ describe("ApiKeyController", () => {
       const result = await controller.regenerateApiKey(mockRequest as any);
 
       expect(result).toEqual({ apiKey: mockRegeneratedKey });
-      expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith(
-        "testuser",
-        "test@example.com",
-      );
-    });
-
-    it("should use unknown@example.com when user has no email", async () => {
-      const mockRegeneratedKey = {
-        id: "newkey123",
-        key: "newfullkeyvalue",
-        keyPrefix: "newfullk",
-        userEmail: "unknown@example.com",
-        createdAt: new Date(),
-        lastUsed: null,
-      };
-      mockApiKeyService.regenerateApiKey.mockResolvedValue(mockRegeneratedKey);
-
-      const _result = await controller.regenerateApiKey({
-        user: { sub: "testuser" },
-      } as any);
-
-      expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith(
-        "testuser",
-        "unknown@example.com",
-      );
+      expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith("testuser");
     });
   });
 });

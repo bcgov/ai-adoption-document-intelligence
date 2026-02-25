@@ -1,0 +1,110 @@
+sequenceDiagram
+    autonumber
+
+    actor User as User<br/>(Browser)
+    participant SPA as React SPA<br/>(AuthContext)
+    participant API as API Service<br/>(Axios + Cookies)
+    participant BE as NestJS Backend<br/>(/api/auth)
+    participant Guard as JwtAuthGuard<br/>(Passport JWT)
+    participant CSRF as CsrfGuard<br/>(Double-Submit)
+    participant KC as Keycloak<br/>(Identity Provider)
+
+    Note over User,KC: LOGIN FLOW (OAuth 2.0 Authorization Code + PKCE)
+
+    User ->> SPA: Click "Login"
+    SPA ->> BE: GET /api/auth/login
+    BE ->> BE: Generate PKCE<br/>(code_verifier + code_challenge)<br/>+ state + nonce
+    BE ->> BE: Set pkce_verifier cookie<br/>(HttpOnly, 2min TTL,<br/>scoped to /api/auth/callback)
+    BE -->> User: 302 Redirect to Keycloak<br/>/auth?response_type=code<br/>&code_challenge=...&state=...
+
+    User ->> KC: Enter credentials (IDIR)
+    KC ->> KC: Authenticate user
+    KC -->> User: 302 Redirect to callback<br/>?code=AUTH_CODE&state=...
+
+    User ->> BE: GET /api/auth/callback<br/>?code=AUTH_CODE&state=...
+    BE ->> BE: Read pkce_verifier cookie<br/>(code_verifier, nonce, state)<br/>Validate state match
+    BE ->> KC: Exchange code for tokens<br/>(openid-client authorizationCodeGrant)<br/>code + code_verifier + client_secret
+    KC -->> BE: access_token + refresh_token<br/>+ id_token + expires_in
+    BE ->> BE: openid-client validates<br/>ID token (signature, nonce,<br/>iss, aud)
+    BE ->> BE: Set HttpOnly cookies:<br/>access_token, refresh_token,<br/>id_token, csrf_token
+    BE -->> User: 302 Redirect to SPA<br/>(clean URL, no tokens)
+
+    SPA ->> BE: GET /api/auth/me<br/>(cookies sent automatically)
+    BE ->> Guard: JwtAuthGuard intercepts
+    Guard ->> Guard: Extract JWT from<br/>access_token cookie
+    Guard ->> KC: Fetch JWKS public key<br/>(cached 24h)
+    KC -->> Guard: RS256 signing key
+    Guard ->> Guard: Verify token signature<br/>Validate iss, aud, exp<br/>Normalize Keycloak roles
+    Guard -->> BE: request.user = { sub, roles, ... }
+    BE -->> SPA: 200 OK { sub, name,<br/>email, roles, expires_in }
+    SPA ->> SPA: Set user state<br/>Schedule refresh timer (75%)
+
+    Note over User,KC: AUTHENTICATED API REQUESTS
+
+    User ->> SPA: Interact with app
+    SPA ->> API: API call
+    API ->> BE: GET /api/documents<br/>(cookies sent automatically)
+    BE ->> Guard: JwtAuthGuard intercepts
+    Guard ->> Guard: Extract JWT from<br/>access_token cookie
+    Guard ->> Guard: Verify token<br/>Set request.user
+    Guard -->> BE: Authenticated
+    BE -->> API: 200 OK (response data)
+
+    Note over User,KC: STATE-CHANGING REQUEST (with CSRF)
+
+    SPA ->> API: POST /api/documents/upload
+    API ->> API: Read csrf_token cookie<br/>Set X-CSRF-Token header
+    API ->> BE: POST /api/documents/upload<br/>Cookies + X-CSRF-Token header<br/>sent automatically
+    BE ->> Guard: JwtAuthGuard validates JWT
+    BE ->> CSRF: CsrfGuard validates<br/>X-CSRF-Token header<br/>matches csrf_token cookie
+    CSRF -->> BE: CSRF valid
+    BE -->> API: 200 OK
+
+    Note over User,KC: PROACTIVE TOKEN REFRESH
+
+    SPA ->> SPA: Timer fires at 75%<br/>of token lifetime
+    SPA ->> BE: POST /api/auth/refresh<br/>(refresh_token cookie sent<br/>automatically to /api/auth/refresh)<br/>X-CSRF-Token: csrf_value
+    BE ->> BE: Read refresh_token<br/>from cookie
+    BE ->> KC: Refresh token grant<br/>(openid-client refreshTokenGrant)
+    KC -->> BE: New access_token<br/>+ refresh_token + expires_in
+    BE ->> BE: Set new HttpOnly cookies<br/>+ new csrf_token
+    BE -->> SPA: { expires_in }
+    SPA ->> SPA: Update expires_at<br/>Reset refresh timer
+
+    Note over User,KC: 401 INTERCEPTOR (Fallback)
+
+    User ->> SPA: API call (expired token)
+    SPA ->> API: API call
+    API ->> BE: Request with expired cookie
+    BE -->> API: 401 Unauthorized
+    API ->> API: Interceptor catches 401<br/>Single-flight refresh
+    API ->> BE: POST /api/auth/refresh<br/>(cookies auto-sent)
+    BE ->> KC: Refresh token grant
+    KC -->> BE: New tokens
+    BE ->> BE: Set new cookies
+    BE -->> API: { expires_in }
+    API ->> BE: Retry original request<br/>(new cookies auto-sent)
+    BE -->> API: 200 OK
+
+    Note over User,KC: LOGOUT FLOW
+
+    User ->> SPA: Click "Logout"
+    SPA ->> SPA: Clear user state
+    SPA -->> User: Navigate to<br/>/api/auth/logout
+    User ->> BE: GET /api/auth/logout
+    BE ->> BE: Read id_token from cookie<br/>Clear all auth cookies
+    BE -->> User: 302 Redirect to<br/>Keycloak logout endpoint<br/>with client_id, id_token_hint,<br/>post_logout_redirect_uri
+    User ->> KC: End session
+    KC -->> User: Redirect to post-logout URL
+
+    Note over User,KC: API KEY AUTHENTICATION (Alternative)
+
+    rect rgb(236, 253, 245)
+        Note over API,Guard: Machine-to-Machine (M2M)
+        API ->> BE: POST /api/upload<br/>X-API-Key: api_key_value
+        BE ->> Guard: JwtAuthGuard skips<br/>(@ApiKeyAuth route + x-api-key present)
+        BE ->> BE: ApiKeyAuthGuard checks<br/>failed attempts for IP<br/>(max 20/min, else 429)
+        BE ->> BE: Validate key via ApiKeyService<br/>(prefix lookup + bcrypt)
+        BE ->> BE: Set request.user from key<br/>(sub, email, roles)
+        BE -->> API: 200 OK
+    end

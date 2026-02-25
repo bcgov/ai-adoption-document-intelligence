@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsJWT, IsNotEmpty, IsOptional, IsString } from "class-validator";
+import { IsNotEmpty, IsOptional, IsString } from "class-validator";
 
 export class OAuthCallbackQueryDto {
   @IsString()
@@ -9,7 +9,6 @@ export class OAuthCallbackQueryDto {
 
   @IsString()
   @IsNotEmpty()
-  @IsJWT()
   @ApiProperty()
   state!: string;
 

@@ -45,7 +45,7 @@ npm run test:int:workflow
 ## What the Test Does
 
 1. ✓ Checks that Temporal (port 7233) and Backend (port 3002) are running
-2. ✓ Loads `docs/templates/standard-ocr-workflow.json`
+2. ✓ Loads `docs-md/templates/standard-ocr-workflow.json`
 3. ✓ Loads test image from `integration-tests/test-document.jpg`
 4. ✓ Creates workflow config in database
 5. ✓ Uploads test document

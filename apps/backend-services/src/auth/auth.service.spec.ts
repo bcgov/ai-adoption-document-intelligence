@@ -1,15 +1,16 @@
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import axios from "axios";
-import * as jwt from "jsonwebtoken";
-import { JwksClient, SigningKey } from "jwks-rsa";
+import * as client from "openid-client";
 import { AuthService } from "./auth.service";
-import { AuthSessionStore } from "./auth-session.store";
+import { TokenClaims } from "./dto/token-response.dto";
+
+// Mock openid-client
+jest.mock("openid-client");
 
 describe("AuthService", () => {
   let service: AuthService;
   let configService: ConfigService;
-  let authSessionStore: AuthSessionStore;
+  let prismaService: { prisma: { user: { upsert: jest.Mock } } };
 
   beforeEach(async () => {
     configService = {
@@ -21,35 +22,77 @@ describe("AuthService", () => {
           SSO_CLIENT_SECRET: "client-secret",
           SSO_REDIRECT_URI: "http://localhost:3002/api/auth/callback",
           FRONTEND_URL: "http://localhost:3000",
-          AUTH_STATE_SECRET: "state-secret",
+          SSO_POST_LOGOUT_REDIRECT_URI: "http://localhost:3000",
         };
         return config[key];
       }),
-    } as any;
-    authSessionStore = {
-      save: jest.fn().mockReturnValue("result-id"),
-      consume: jest.fn().mockReturnValue({
-        access_token: "token",
-        expires_in: 3600,
-        token_type: "Bearer",
-      }),
-    } as any;
-    jest.spyOn(jwt, "sign").mockImplementation(() => "signed-state" as any);
-    jest
-      .spyOn(jwt, "verify")
-      .mockImplementation(() => ({ nonce: "nonce" }) as any);
-    jest
-      .spyOn(jwt, "decode")
-      .mockImplementation(() => ({ header: { kid: "kid" } }) as any);
-    jest.spyOn(JwksClient.prototype, "getSigningKey");
+    } as unknown as ConfigService;
+
+    prismaService = {
+      prisma: {
+        user: {
+          upsert: jest.fn(),
+        },
+      },
+    };
+
+    // Mock openid-client functions
+    (client.discovery as jest.Mock) = jest.fn().mockResolvedValue({
+      issuer: "https://auth.example.com/realms/test-realm",
+      authorization_endpoint:
+        "https://auth.example.com/realms/test-realm/protocol/openid-connect/auth",
+      token_endpoint:
+        "https://auth.example.com/realms/test-realm/protocol/openid-connect/token",
+    });
+    (client.randomPKCECodeVerifier as jest.Mock) = jest
+      .fn()
+      .mockReturnValue("code-verifier");
+    (client.calculatePKCECodeChallenge as jest.Mock) = jest
+      .fn()
+      .mockResolvedValue("code-challenge");
+    (client.randomState as jest.Mock) = jest.fn().mockReturnValue("state");
+    (client.randomNonce as jest.Mock) = jest.fn().mockReturnValue("nonce");
+    (client.buildAuthorizationUrl as jest.Mock) = jest
+      .fn()
+      .mockReturnValue(
+        new URL(
+          "https://auth.example.com/realms/test-realm/protocol/openid-connect/auth?client_id=client-id",
+        ),
+      );
+    (client.authorizationCodeGrant as jest.Mock) = jest.fn().mockResolvedValue({
+      access_token: "access-token",
+      refresh_token: "refresh-token",
+      id_token: "id-token",
+      expires_in: 3600,
+      token_type: "Bearer",
+      claims: () => ({ sub: "user-sub-123", email: "user@example.com" }),
+    });
+    (client.refreshTokenGrant as jest.Mock) = jest.fn().mockResolvedValue({
+      access_token: "new-access-token",
+      refresh_token: "new-refresh-token",
+      id_token: "new-id-token",
+      expires_in: 3600,
+      token_type: "Bearer",
+      claims: () => ({ sub: "user-sub-123", email: "user@example.com" }),
+    });
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: ConfigService, useValue: configService },
-        { provide: AuthSessionStore, useValue: authSessionStore },
+        { provide: "PrismaService", useValue: prismaService },
       ],
-    }).compile();
+    })
+      .overrideProvider(AuthService)
+      .useFactory({
+        factory: () => new AuthService(configService, prismaService as any),
+      })
+      .compile();
+
     service = module.get<AuthService>(AuthService);
+
+    // Initialize the service (calls onModuleInit)
+    await service.onModuleInit();
   });
 
   afterEach(() => {
@@ -59,146 +102,302 @@ describe("AuthService", () => {
   describe("constructor", () => {
     it("should throw if config missing", () => {
       (configService.get as jest.Mock).mockReturnValueOnce(undefined);
-      expect(() => new AuthService(configService, authSessionStore)).toThrow();
+      expect(
+        () => new AuthService(configService, prismaService as any),
+      ).toThrow("SSO_AUTH_SERVER_URL and SSO_REALM must be configured");
+    });
+
+    it("should throw if client credentials missing", () => {
+      (configService.get as jest.Mock).mockImplementation((key: string) => {
+        const config: Record<string, string> = {
+          SSO_AUTH_SERVER_URL: "https://auth.example.com",
+          SSO_REALM: "test-realm",
+          SSO_CLIENT_ID: "", // Missing
+          SSO_CLIENT_SECRET: "",
+        };
+        return config[key];
+      });
+      expect(
+        () => new AuthService(configService, prismaService as any),
+      ).toThrow("SSO_CLIENT_ID and SSO_CLIENT_SECRET must be configured");
     });
   });
 
-  describe("getLoginUrl", () => {
-    it("should build login url", () => {
-      const url = service.getLoginUrl();
-      expect(url).toContain("client_id=client-id");
-      expect(url).toContain(
-        "redirect_uri=" +
-          encodeURIComponent("http://localhost:3002/api/auth/callback"),
+  describe("onModuleInit", () => {
+    it("should discover OIDC endpoints", async () => {
+      expect(client.discovery).toHaveBeenCalledWith(
+        expect.any(URL),
+        "client-id",
+        "client-secret",
+      );
+    });
+
+    it("should throw if discovery fails", async () => {
+      const newService = new AuthService(configService, prismaService as any);
+      (client.discovery as jest.Mock).mockRejectedValueOnce(
+        new Error("Discovery failed"),
+      );
+
+      await expect(newService.onModuleInit()).rejects.toThrow(
+        /Failed to discover OIDC endpoints/,
       );
     });
   });
 
-  describe("getLogoutUrl", () => {
-    it("should build logout url", () => {
-      const url = service.getLogoutUrl("idtoken");
-      expect(url).toContain("id_token_hint=idtoken");
+  describe("getLoginUrl", () => {
+    it("should return LoginUrlResult with url, state, codeVerifier, and nonce", async () => {
+      const result = await service.getLoginUrl();
+
+      expect(client.randomPKCECodeVerifier).toHaveBeenCalled();
+      expect(client.calculatePKCECodeChallenge).toHaveBeenCalledWith(
+        "code-verifier",
+      );
+      expect(client.randomState).toHaveBeenCalled();
+      expect(client.randomNonce).toHaveBeenCalled();
+      expect(client.buildAuthorizationUrl).toHaveBeenCalled();
+
+      expect(result).toEqual({
+        url: expect.stringContaining("auth.example.com"),
+        state: "state",
+        codeVerifier: "code-verifier",
+        nonce: "nonce",
+      });
     });
   });
 
-  describe("buildAuthResultRedirect", () => {
-    it("should build auth result redirect", () => {
-      const url = service.buildAuthResultRedirect("result-id");
-      expect(url).toContain("auth_result=result-id");
+  describe("getLogoutUrl", () => {
+    it("should build logout url with id_token_hint and client_id", () => {
+      const url = service.getLogoutUrl("idtoken");
+      expect(url).toContain("id_token_hint=idtoken");
+      expect(url).toContain("post_logout_redirect_uri");
+      expect(url).toContain("client_id=client-id");
+    });
+
+    it("should build logout url without id_token_hint but with client_id", () => {
+      const url = service.getLogoutUrl();
+      expect(url).toContain("post_logout_redirect_uri");
+      expect(url).toContain("client_id=client-id");
+      expect(url).not.toContain("id_token_hint");
+    });
+
+    it("should include client_id before post_logout_redirect_uri in params", () => {
+      const url = service.getLogoutUrl();
+      const params = new URL(url).searchParams;
+      expect(params.get("client_id")).toBe("client-id");
+      expect(params.has("post_logout_redirect_uri")).toBe(true);
+    });
+  });
+
+  describe("handleCallback", () => {
+    it("should exchange code for tokens with PKCE validation", async () => {
+      const result = await service.handleCallback(
+        "auth-code",
+        "state",
+        "code-verifier",
+        "nonce",
+        "https://auth.example.com/realms/test-realm",
+      );
+
+      expect(client.authorizationCodeGrant).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.any(URL),
+        expect.objectContaining({
+          pkceCodeVerifier: "code-verifier",
+          expectedNonce: "nonce",
+          expectedState: "state",
+        }),
+      );
+      expect(result).toEqual({
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        id_token: "id-token",
+        expires_in: 3600,
+        token_type: "Bearer",
+        claims: { sub: "user-sub-123", email: "user@example.com" },
+      });
+    });
+
+    it("should include iss parameter in callback URL when provided", async () => {
+      await service.handleCallback(
+        "auth-code",
+        "state",
+        "code-verifier",
+        "nonce",
+        "https://auth.example.com/realms/test-realm",
+      );
+
+      const callbackUrl = (client.authorizationCodeGrant as jest.Mock).mock
+        .calls[0][1] as URL;
+      expect(callbackUrl.searchParams.get("iss")).toBe(
+        "https://auth.example.com/realms/test-realm",
+      );
+    });
+
+    it("should work without iss parameter", async () => {
+      const result = await service.handleCallback(
+        "auth-code",
+        "state",
+        "code-verifier",
+        "nonce",
+      );
+
+      const callbackUrl = (client.authorizationCodeGrant as jest.Mock).mock
+        .calls[0][1] as URL;
+      expect(callbackUrl.searchParams.has("iss")).toBe(false);
+      expect(result).toHaveProperty("access_token");
+    });
+
+    it("should throw generic error on callback failure", async () => {
+      (client.authorizationCodeGrant as jest.Mock).mockRejectedValueOnce(
+        new Error("Invalid code"),
+      );
+
+      await expect(
+        service.handleCallback("bad-code", "state", "code-verifier", "nonce"),
+      ).rejects.toThrow("Authentication failed");
+    });
+
+    it("should not leak internal error details on callback failure", async () => {
+      const internalError = new Error(
+        "invalid_grant: Token endpoint returned 400",
+      );
+      (client.authorizationCodeGrant as jest.Mock).mockRejectedValueOnce(
+        internalError,
+      );
+
+      try {
+        await service.handleCallback(
+          "bad-code",
+          "state",
+          "code-verifier",
+          "nonce",
+        );
+        fail("Expected error to be thrown");
+      } catch (error) {
+        expect((error as { message: string }).message).toBe(
+          "Authentication failed",
+        );
+        expect((error as { message: string }).message).not.toContain(
+          "invalid_grant",
+        );
+        expect((error as { message: string }).message).not.toContain(
+          "Token endpoint",
+        );
+      }
+    });
+  });
+
+  describe("refreshAccessToken", () => {
+    it("should refresh access token using openid-client", async () => {
+      const result = await service.refreshAccessToken("old-refresh-token");
+
+      expect(client.refreshTokenGrant).toHaveBeenCalledWith(
+        expect.anything(),
+        "old-refresh-token",
+      );
+      expect(result).toEqual({
+        access_token: "new-access-token",
+        refresh_token: "new-refresh-token",
+        id_token: "new-id-token",
+        expires_in: 3600,
+        token_type: "Bearer",
+        claims: { sub: "user-sub-123", email: "user@example.com" },
+      });
+    });
+
+    it("should throw generic error on refresh failure", async () => {
+      (client.refreshTokenGrant as jest.Mock).mockRejectedValueOnce(
+        new Error("Invalid refresh token"),
+      );
+
+      await expect(service.refreshAccessToken("bad-token")).rejects.toThrow(
+        "Token refresh failed",
+      );
+    });
+
+    it("should not leak internal error details on refresh failure", async () => {
+      const internalError = new Error("invalid_grant: Session not active");
+      (client.refreshTokenGrant as jest.Mock).mockRejectedValueOnce(
+        internalError,
+      );
+
+      try {
+        await service.refreshAccessToken("bad-token");
+        fail("Expected error to be thrown");
+      } catch (error) {
+        expect((error as { message: string }).message).toBe(
+          "Token refresh failed",
+        );
+        expect((error as { message: string }).message).not.toContain(
+          "invalid_grant",
+        );
+        expect((error as { message: string }).message).not.toContain(
+          "Session not active",
+        );
+      }
+    });
+  });
+
+  describe("getFrontendUrl", () => {
+    it("should return the configured frontend URL", () => {
+      const url = service.getFrontendUrl();
+      expect(url).toBe("http://localhost:3000");
     });
   });
 
   describe("buildErrorRedirect", () => {
-    it("should build error redirect", () => {
+    it("should build error redirect with auth_error param", () => {
       const url = service.buildErrorRedirect("fail");
       expect(url).toContain("auth_error=fail");
     });
   });
 
-  describe("createStateToken", () => {
-    it("should create a state token and nonce", () => {
-      const { state, nonce } = (service as any).createStateToken();
-      expect(state).toBe("signed-state");
-      expect(nonce).toBeDefined();
-    });
-  });
+  describe("upsertUserFromToken", () => {
+    it("should upsert user using sub as id", async () => {
+      await service.upsertUserFromToken({
+        sub: "user-sub-123",
+        email: "user@example.com",
+      } as unknown as TokenClaims);
 
-  describe("verifyStateToken", () => {
-    it("should verify a valid state token and return nonce", () => {
-      const { state } = (service as any).createStateToken();
-      const verified = (service as any).verifyStateToken(state);
-      expect(verified.nonce).toBe("nonce");
-    });
-
-    it("should throw on invalid state token", () => {
-      (jwt.verify as jest.Mock).mockImplementationOnce(() => {
-        throw new Error();
-      });
-      expect(() => (service as any).verifyStateToken("bad")).toThrow();
-    });
-  });
-
-  describe("handleCallback", () => {
-    it("should handle callback and save session", async () => {
-      jest
-        .spyOn(service, "exchangeCodeForTokens")
-        .mockResolvedValue({ id_token: "idtoken" } as any);
-      jest
-        .spyOn(service as any, "validateIdTokenNonce")
-        .mockResolvedValue(undefined);
-      const result = await service.handleCallback("code", "state");
-      expect(result).toBe("result-id");
-      expect(authSessionStore.save).toHaveBeenCalled();
-    });
-  });
-
-  describe("consumeAuthResult", () => {
-    it("should consume auth result", () => {
-      const result = service.consumeAuthResult("result-id");
-      expect(result).toHaveProperty("access_token");
-      expect(authSessionStore.consume).toHaveBeenCalledWith("result-id");
-    });
-  });
-
-  describe("validateIdTokenNonce", () => {
-    it("should throw on invalid id token nonce", async () => {
-      (jwt.decode as jest.Mock).mockReturnValue({ header: {} });
-      await expect(
-        (service as any).validateIdTokenNonce("bad", "nonce"),
-      ).rejects.toThrow();
-    });
-
-    it("should throw on nonce mismatch", async () => {
-      (jwt.decode as jest.Mock).mockReturnValue({ header: { kid: "kid" } });
-      jest
-        .spyOn(JwksClient.prototype, "getSigningKey")
-        .mockResolvedValue({ getPublicKey: () => "key" } as unknown as never);
-      (jwt.verify as jest.Mock).mockReturnValue({ nonce: "wrong" });
-      // This error message is because it's caught and re-thrown. Maybe should rethink this implementation
-      await expect(
-        (service as any).validateIdTokenNonce("idtoken", "expectedNonce"),
-      ).rejects.toThrow("Invalid ID token");
-    });
-
-    it("should throw HttpException on error", async () => {
-      (jwt.decode as jest.Mock).mockImplementation(() => {
-        throw new Error("decode fail");
-      });
-      await expect(
-        (service as any).validateIdTokenNonce("idtoken", "nonce"),
-      ).rejects.toThrow("Invalid ID token");
-    });
-  });
-
-  describe("exchangeCodeForTokens", () => {
-    it("should return response data on success", async () => {
-      const mockData = { access_token: "abc", id_token: "def" };
-      jest.spyOn(axios, "post").mockResolvedValueOnce({ data: mockData });
-      const result = await service.exchangeCodeForTokens("code", "identifier");
-      expect(result).toEqual(mockData);
-    });
-
-    it("should throw HttpException on axios error", async () => {
-      jest.spyOn(axios, "post").mockRejectedValueOnce(new Error("fail"));
-      await expect(service.exchangeCodeForTokens("code")).rejects.toThrow(
-        "Failed to exchange authorization code for tokens",
+      expect(prismaService.prisma.user.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "user-sub-123" },
+          update: expect.objectContaining({
+            email: "user@example.com",
+            last_login_at: expect.any(Date),
+          }),
+          create: expect.objectContaining({
+            id: "user-sub-123",
+            email: "user@example.com",
+            last_login_at: expect.any(Date),
+          }),
+        }),
       );
     });
-  });
 
-  describe("refreshAccessToken", () => {
-    it("should return response data on success", async () => {
-      const mockData = { access_token: "abc", id_token: "def" };
-      jest.spyOn(axios, "post").mockResolvedValueOnce({ data: mockData });
-      const result = await service.refreshAccessToken("refreshToken");
-      expect(result).toEqual(mockData);
+    it("should throw when sub is missing", async () => {
+      await expect(
+        service.upsertUserFromToken({
+          email: "user@example.com",
+        } as unknown as TokenClaims),
+      ).rejects.toThrow("Token payload missing required fields: sub and email");
+      expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
     });
 
-    it("should throw HttpException on axios error", async () => {
-      jest.spyOn(axios, "post").mockRejectedValueOnce(new Error("fail"));
-      await expect(service.refreshAccessToken("refreshToken")).rejects.toThrow(
-        "Failed to refresh access token",
-      );
+    it("should throw when email is missing", async () => {
+      await expect(
+        service.upsertUserFromToken({
+          sub: "user-sub-123",
+        } as unknown as TokenClaims),
+      ).rejects.toThrow("Token payload missing required fields: sub and email");
+      expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
+    });
+
+    it("should throw when both sub and email are missing", async () => {
+      await expect(
+        service.upsertUserFromToken({} as unknown as TokenClaims),
+      ).rejects.toThrow("Token payload missing required fields: sub and email");
+      expect(prismaService.prisma.user.upsert).not.toHaveBeenCalled();
     });
   });
 });

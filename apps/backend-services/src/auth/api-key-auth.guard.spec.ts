@@ -1,5 +1,9 @@
-import { ExecutionContext, UnauthorizedException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import {
+  ExecutionContext,
+  HttpException,
+  HttpStatus,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ApiKeyService } from "../api-key/api-key.service";
@@ -9,23 +13,20 @@ describe("ApiKeyAuthGuard", () => {
   let guard: ApiKeyAuthGuard;
   let reflector: Reflector;
   let apiKeyService: ApiKeyService;
-  let configService: ConfigService;
 
   const mockApiKeyService = {
     validateApiKey: jest.fn(),
   };
 
-  const mockConfigService = {
-    get: jest.fn(),
-  };
-
   const createMockExecutionContext = (
     headers: Record<string, string> = {},
     user?: object,
+    ip = "127.0.0.1",
   ): ExecutionContext => {
     const mockRequest = {
       headers,
       user,
+      ip,
     };
 
     return {
@@ -53,20 +54,16 @@ describe("ApiKeyAuthGuard", () => {
           provide: ApiKeyService,
           useValue: mockApiKeyService,
         },
-        {
-          provide: ConfigService,
-          useValue: mockConfigService,
-        },
       ],
     }).compile();
 
     guard = module.get<ApiKeyAuthGuard>(ApiKeyAuthGuard);
     reflector = module.get<Reflector>(Reflector);
     apiKeyService = module.get<ApiKeyService>(ApiKeyService);
-    configService = module.get<ConfigService>(ConfigService);
+  });
 
-    // Default to non-test mode
-    mockConfigService.get.mockReturnValue("development");
+  afterEach(() => {
+    guard.onModuleDestroy();
   });
 
   it("should return true if endpoint does not allow API key auth", async () => {
@@ -89,10 +86,21 @@ describe("ApiKeyAuthGuard", () => {
     expect(apiKeyService.validateApiKey).not.toHaveBeenCalled();
   });
 
-  it("should return true if no API key header is provided", async () => {
+  it("should throw UnauthorizedException if no API key header and no authenticated user", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
 
     const context = createMockExecutionContext({});
+
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
+    expect(apiKeyService.validateApiKey).not.toHaveBeenCalled();
+  });
+
+  it("should return true if no API key header but user is already authenticated", async () => {
+    (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
+
+    const context = createMockExecutionContext({}, { sub: "testuser" });
     const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
@@ -116,7 +124,8 @@ describe("ApiKeyAuthGuard", () => {
     mockApiKeyService.validateApiKey.mockResolvedValue({
       userId: "user123",
       userEmail: "test@example.com",
-    });
+      roles: ["admin", "editor"],
+    }); // userEmail and roles from User relation
 
     const mockRequest = {
       headers: { "x-api-key": "validkey" },
@@ -137,29 +146,143 @@ describe("ApiKeyAuthGuard", () => {
     expect(mockRequest.user).toEqual({
       sub: "user123",
       email: "test@example.com",
+      roles: ["admin", "editor"],
+    });
+  });
+
+  it("should set empty roles when API key has no roles stored", async () => {
+    (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
+    mockApiKeyService.validateApiKey.mockResolvedValue({
+      userId: "user456",
+      userEmail: "noroles@example.com",
+      roles: [],
+    }); // userEmail and roles from User relation
+
+    const mockRequest = {
+      headers: { "x-api-key": "validkey2" },
+      user: undefined,
+    };
+
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => mockRequest,
+      }),
+      getHandler: () => ({}),
+      getClass: () => ({}),
+    } as unknown as ExecutionContext;
+
+    const result = await guard.canActivate(context);
+
+    expect(result).toBe(true);
+    expect(mockRequest.user).toEqual({
+      sub: "user456",
+      email: "noroles@example.com",
       roles: [],
     });
   });
 
-  describe("Test Mode Behavior", () => {
+  describe("failed-attempt throttling", () => {
     beforeEach(() => {
-      // Set NODE_ENV to 'test'
-      mockConfigService.get.mockReturnValue("test");
+      (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
+      mockApiKeyService.validateApiKey.mockResolvedValue(null);
     });
 
-    it("should resolve API key even without @ApiKeyAuth decorator in test mode", async () => {
-      (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false); // No decorator
-      mockApiKeyService.validateApiKey.mockResolvedValue({
-        userId: "testuser123",
-        userEmail: "testuser@example.com",
+    it("should allow up to 20 failed attempts from the same IP", async () => {
+      for (let i = 0; i < 20; i++) {
+        const context = createMockExecutionContext(
+          { "x-api-key": `bad-key-${i}` },
+          undefined,
+          "10.0.0.1",
+        );
+        await expect(guard.canActivate(context)).rejects.toThrow(
+          UnauthorizedException,
+        );
+      }
+
+      expect(apiKeyService.validateApiKey).toHaveBeenCalledTimes(20);
+    });
+
+    it("should block the 21st failed attempt with 429", async () => {
+      // Exhaust the 20-attempt limit
+      for (let i = 0; i < 20; i++) {
+        const context = createMockExecutionContext(
+          { "x-api-key": `bad-key-${i}` },
+          undefined,
+          "10.0.0.2",
+        );
+        await expect(guard.canActivate(context)).rejects.toThrow(
+          UnauthorizedException,
+        );
+      }
+
+      // 21st attempt should be blocked before reaching validateApiKey
+      const context = createMockExecutionContext(
+        { "x-api-key": "bad-key-21" },
+        undefined,
+        "10.0.0.2",
+      );
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        new HttpException(
+          "Too many failed API key attempts",
+          HttpStatus.TOO_MANY_REQUESTS,
+        ),
+      );
+
+      // validateApiKey should NOT have been called for the 21st attempt
+      expect(apiKeyService.validateApiKey).toHaveBeenCalledTimes(20);
+    });
+
+    it("should track different IPs independently", async () => {
+      // Exhaust limit for IP A
+      for (let i = 0; i < 20; i++) {
+        const context = createMockExecutionContext(
+          { "x-api-key": `bad-key-${i}` },
+          undefined,
+          "10.0.0.3",
+        );
+        await expect(guard.canActivate(context)).rejects.toThrow(
+          UnauthorizedException,
+        );
+      }
+
+      // IP B should still be allowed
+      const contextB = createMockExecutionContext(
+        { "x-api-key": "bad-key-b" },
+        undefined,
+        "10.0.0.4",
+      );
+      await expect(guard.canActivate(contextB)).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(apiKeyService.validateApiKey).toHaveBeenCalledTimes(21);
+    });
+
+    it("should reset failure counter on successful validation", async () => {
+      // Record some failures
+      for (let i = 0; i < 10; i++) {
+        const context = createMockExecutionContext(
+          { "x-api-key": `bad-key-${i}` },
+          undefined,
+          "10.0.0.5",
+        );
+        await expect(guard.canActivate(context)).rejects.toThrow(
+          UnauthorizedException,
+        );
+      }
+
+      // Successful validation should reset the counter
+      mockApiKeyService.validateApiKey.mockResolvedValueOnce({
+        userId: "user1",
+        userEmail: "user@example.com",
+        roles: [],
       });
 
       const mockRequest = {
-        headers: { "x-api-key": "testkey" },
+        headers: { "x-api-key": "valid-key" },
         user: undefined,
+        ip: "10.0.0.5",
       };
-
-      const context = {
+      const successContext = {
         switchToHttp: () => ({
           getRequest: () => mockRequest,
         }),
@@ -167,45 +290,40 @@ describe("ApiKeyAuthGuard", () => {
         getClass: () => ({}),
       } as unknown as ExecutionContext;
 
-      const result = await guard.canActivate(context);
-
+      const result = await guard.canActivate(successContext);
       expect(result).toBe(true);
-      expect(apiKeyService.validateApiKey).toHaveBeenCalledWith("testkey");
-      expect(mockRequest.user).toEqual({
-        sub: "testuser123",
-        email: "testuser@example.com",
-        roles: [],
-      });
-    });
 
-    it("should throw UnauthorizedException for invalid API key in test mode", async () => {
-      (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false); // No decorator
+      // After reset, should be able to fail 20 more times
       mockApiKeyService.validateApiKey.mockResolvedValue(null);
+      for (let i = 0; i < 20; i++) {
+        const context = createMockExecutionContext(
+          { "x-api-key": `bad-key-again-${i}` },
+          undefined,
+          "10.0.0.5",
+        );
+        await expect(guard.canActivate(context)).rejects.toThrow(
+          UnauthorizedException,
+        );
+      }
 
-      const context = createMockExecutionContext({ "x-api-key": "invalidkey" });
-
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
+      // 21st after reset should be blocked
+      const blockedContext = createMockExecutionContext(
+        { "x-api-key": "bad-key-blocked" },
+        undefined,
+        "10.0.0.5",
       );
-      expect(apiKeyService.validateApiKey).toHaveBeenCalledWith("invalidkey");
+      await expect(guard.canActivate(blockedContext)).rejects.toThrow(
+        HttpException,
+      );
     });
 
-    it("should return true if no API key provided in test mode without decorator", async () => {
-      (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false); // No decorator
-
-      const context = createMockExecutionContext({});
-      const result = await guard.canActivate(context);
-
-      expect(result).toBe(true);
-      expect(apiKeyService.validateApiKey).not.toHaveBeenCalled();
-    });
-
-    it("should still respect existing user authentication in test mode", async () => {
-      (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false); // No decorator
+    it("should not affect non-API-key-auth routes", async () => {
+      (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false);
 
       const context = createMockExecutionContext(
-        { "x-api-key": "somekey" },
-        { sub: "existinguser" },
+        { "x-api-key": "some-key" },
+        undefined,
+        "10.0.0.6",
       );
       const result = await guard.canActivate(context);
 

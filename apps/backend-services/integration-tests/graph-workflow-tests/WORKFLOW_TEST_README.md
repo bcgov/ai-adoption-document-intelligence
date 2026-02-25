@@ -104,7 +104,7 @@ TEST_FILE=my-test-file.pdf WORKFLOW_TEMPLATE=multi-page-report-workflow npm run 
    └─ Check Backend API health endpoint
 
 2. Test Setup
-   ├─ Load workflow config from docs/templates/{WORKFLOW_TEMPLATE}.json
+   ├─ Load workflow config from docs-md/templates/{WORKFLOW_TEMPLATE}.json
    ├─ Load test file (from integration-tests/{TEST_FILE})
    ├─ Create workflow configuration in database
    └─ Upload document via /api/upload
@@ -181,7 +181,7 @@ When running successfully, you'll see output like:
 
 ### "Workflow template not found"
 
-- Verify the template exists: `ls docs/templates/standard-ocr-workflow.json`
+- Verify the template exists: `ls docs-md/templates/standard-ocr-workflow.json`
 
 ### "Test file not found"
 
@@ -190,8 +190,8 @@ When running successfully, you'll see output like:
 ## Test Data
 
 - **Workflow Templates**:
-  - `docs/templates/standard-ocr-workflow.json` (default)
-  - `docs/templates/multi-page-report-workflow.json`
+  - `docs-md/templates/standard-ocr-workflow.json` (default)
+  - `docs-md/templates/multi-page-report-workflow.json`
 - **Test Documents**:
   - `apps/backend-services/integration-tests/test-document.jpg` (default)
   - You can add your own test files and reference them via `TEST_FILE` env var

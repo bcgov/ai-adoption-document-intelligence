@@ -1,34 +1,48 @@
-import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+  OnModuleInit,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import axios, { AxiosResponse } from "axios";
-import { randomBytes } from "crypto";
-import * as jwt from "jsonwebtoken";
-import { JwksClient } from "jwks-rsa";
+import * as client from "openid-client";
 import { URL } from "url";
-import { TokenResponseDto } from "@/auth/dto/token-response.dto";
-import { AuthSessionStore } from "./auth-session.store";
+import { TokenClaims, TokenResponseDto } from "@/auth/dto/token-response.dto";
+import { PrismaService } from "../database/prisma.service";
 
 /**
- * Central orchestrator for the OAuth Authorization Code flow.
- * Responsible for constructing auth URLs, handling callbacks, verifying ID tokens,
- * persisting short-lived auth results, and proxying refresh operations.
+ * Result returned by getLoginUrl(), containing the Keycloak authorization URL
+ * and PKCE data that the controller stores in an HttpOnly cookie.
+ */
+export interface LoginUrlResult {
+  url: string;
+  state: string;
+  codeVerifier: string;
+  nonce: string;
+}
+
+/**
+ * Central orchestrator for the OAuth Authorization Code flow using openid-client.
+ * Responsible for OIDC discovery, constructing auth URLs with PKCE, handling callbacks,
+ * verifying ID tokens, and proxying refresh operations.
+ *
+ * This service is stateless — PKCE state is stored in HttpOnly cookies on the browser,
+ * and tokens are set as HttpOnly cookies by the controller.
  */
 @Injectable()
-export class AuthService {
-  private readonly tokenEndpoint: string;
-  private readonly authEndpoint: string;
-  private readonly logoutEndpoint: string;
+export class AuthService implements OnModuleInit {
+  private readonly logger = new Logger(AuthService.name);
+  private config: client.Configuration;
   private readonly issuer: string;
   private readonly clientId: string;
   private readonly clientSecret: string;
   private readonly redirectUri: string;
   private readonly frontendUrl: string;
-  private readonly stateSecret: string;
-  private readonly jwksClient: JwksClient;
 
   constructor(
     private configService: ConfigService,
-    private authSessionStore: AuthSessionStore,
+    private prismaService: PrismaService,
   ) {
     const authServerUrl = this.configService.get<string>("SSO_AUTH_SERVER_URL");
     const realm = this.configService.get<string>("SSO_REALM");
@@ -37,17 +51,13 @@ export class AuthService {
       throw new Error("SSO_AUTH_SERVER_URL and SSO_REALM must be configured");
     }
 
-    let baseUrl: string;
+    // Normalize the issuer URL
     if (authServerUrl.includes("/protocol/openid-connect")) {
-      baseUrl = authServerUrl.replace("/protocol/openid-connect", "");
+      this.issuer = authServerUrl.replace("/protocol/openid-connect", "");
     } else {
-      baseUrl = `${authServerUrl}/realms/${realm}`;
+      this.issuer = `${authServerUrl}/realms/${realm}`;
     }
 
-    this.tokenEndpoint = `${baseUrl}/protocol/openid-connect/token`;
-    this.authEndpoint = `${baseUrl}/protocol/openid-connect/auth`;
-    this.logoutEndpoint = `${baseUrl}/protocol/openid-connect/logout`;
-    this.issuer = baseUrl;
     this.clientId = this.configService.get<string>("SSO_CLIENT_ID") || "";
     this.clientSecret =
       this.configService.get<string>("SSO_CLIENT_SECRET") || "";
@@ -56,112 +66,65 @@ export class AuthService {
       "http://localhost:3002/api/auth/callback";
     this.frontendUrl =
       this.configService.get<string>("FRONTEND_URL") || "http://localhost:3000";
-    this.stateSecret =
-      this.configService.get<string>("AUTH_STATE_SECRET") || this.clientSecret;
 
     if (!this.clientId || !this.clientSecret) {
       throw new Error("SSO_CLIENT_ID and SSO_CLIENT_SECRET must be configured");
     }
+  }
 
-    this.jwksClient = new JwksClient({
-      jwksUri: `${baseUrl}/protocol/openid-connect/certs`,
-      cache: true,
-      cacheMaxAge: 86400000,
+  /**
+   * Performs OIDC discovery on module initialization.
+   * Auto-discovers all Keycloak endpoints from .well-known/openid-configuration
+   */
+  async onModuleInit() {
+    try {
+      this.config = await client.discovery(
+        new URL(this.issuer),
+        this.clientId,
+        this.clientSecret,
+      );
+    } catch (error) {
+      throw new Error(
+        `Failed to discover OIDC endpoints at ${this.issuer}: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Builds the authorization URL with PKCE and nonce protection.
+   * Returns the URL and PKCE data so the controller can store them in an HttpOnly cookie.
+   */
+  async getLoginUrl(): Promise<LoginUrlResult> {
+    const codeVerifier = client.randomPKCECodeVerifier();
+    const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
+    const state = client.randomState();
+    const nonce = client.randomNonce();
+
+    const authUrl = client.buildAuthorizationUrl(this.config, {
+      redirect_uri: this.redirectUri,
+      scope: "openid profile email",
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256",
+      state,
+      nonce,
     });
-  }
 
-  /**
-   * Exchanges an authorization code for provider-issued tokens.
-   * This call is made server-to-server and therefore uses the confidential client secret.
-   */
-  async exchangeCodeForTokens(
-    code: string,
-    codeVerifier?: string,
-  ): Promise<TokenResponseDto> {
-    try {
-      const params = new URLSearchParams();
-      params.append("grant_type", "authorization_code");
-      params.append("client_id", this.clientId);
-      params.append("client_secret", this.clientSecret);
-      params.append("code", code);
-      params.append("redirect_uri", this.redirectUri);
-
-      if (codeVerifier) {
-        params.append("code_verifier", codeVerifier);
-      }
-
-      const response: AxiosResponse<TokenResponseDto> = await axios.post(
-        this.tokenEndpoint,
-        params,
-        {
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-        },
-      );
-
-      return response.data;
-    } catch (_error) {
-      throw new HttpException(
-        "Failed to exchange authorization code for tokens",
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-  }
-
-  /**
-   * Refreshes an access token using the provider refresh token.
-   * The refresh token is never validated client-side; the backend performs this step
-   * so we can keep the client secret and refresh permission on the server.
-   */
-  async refreshAccessToken(refreshToken: string): Promise<TokenResponseDto> {
-    try {
-      const params = new URLSearchParams();
-      params.append("grant_type", "refresh_token");
-      params.append("client_id", this.clientId);
-      params.append("client_secret", this.clientSecret);
-      params.append("refresh_token", refreshToken);
-
-      const response: AxiosResponse<TokenResponseDto> = await axios.post(
-        this.tokenEndpoint,
-        params,
-        {
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-        },
-      );
-
-      return response.data;
-    } catch (_error) {
-      throw new HttpException(
-        "Failed to refresh access token",
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-  }
-
-  /**
-   * Builds the Keycloak authorization URL with signed state + nonce protection.
-   */
-  getLoginUrl(): string {
-    const { state, nonce } = this.createStateToken();
-    const params = new URLSearchParams();
-    params.append("client_id", this.clientId);
-    params.append("redirect_uri", this.redirectUri);
-    params.append("response_type", "code");
-    params.append("scope", "openid profile email");
-    params.append("state", state);
-    params.append("nonce", nonce);
-
-    return `${this.authEndpoint}?${params.toString()}`;
+    return {
+      url: authUrl.href,
+      state,
+      codeVerifier,
+      nonce,
+    };
   }
 
   /**
    * Builds the Keycloak logout URL so the browser can end the realm session.
+   * Always includes client_id alongside post_logout_redirect_uri so Keycloak
+   * can validate the redirect destination even when id_token_hint is absent.
    */
   getLogoutUrl(idTokenHint?: string): string {
     const params = new URLSearchParams();
+    params.append("client_id", this.clientId);
     params.append(
       "post_logout_redirect_uri",
       this.configService.get<string>("SSO_POST_LOGOUT_REDIRECT_URI") ||
@@ -172,42 +135,91 @@ export class AuthService {
       params.append("id_token_hint", idTokenHint);
     }
 
-    return `${this.logoutEndpoint}?${params.toString()}`;
+    // Build logout URL manually since openid-client doesn't have a helper for this
+    const logoutEndpoint = `${this.issuer}/protocol/openid-connect/logout`;
+    return `${logoutEndpoint}?${params.toString()}`;
   }
 
   /**
    * Handles the redirect back from Keycloak.
-   * - Validates the state/nonce token to mitigate CSRF + replay.
-   * - Exchanges the code for tokens.
-   * - Persists the provider tokens in a short-lived in-memory store.
-   * Returns the opaque `resultId` that the frontend will redeem once.
+   * - Validates PKCE using the code_verifier from the cookie
+   * - Exchanges the authorization code for tokens
+   * - Validates ID token (signature, issuer, audience, nonce)
+   * Returns the token response directly — the controller sets cookies.
    */
-  async handleCallback(code: string, state: string): Promise<string> {
-    const { nonce } = this.verifyStateToken(state);
-    const tokens = await this.exchangeCodeForTokens(code);
+  async handleCallback(
+    code: string,
+    state: string,
+    codeVerifier: string,
+    nonce: string,
+    iss?: string,
+  ): Promise<TokenResponseDto> {
+    try {
+      // Build the callback URL for openid-client
+      const callbackUrl = new URL(this.redirectUri);
+      callbackUrl.searchParams.set("code", code);
+      callbackUrl.searchParams.set("state", state);
+      if (iss) {
+        callbackUrl.searchParams.set("iss", iss);
+      }
 
-    if (tokens.id_token) {
-      await this.validateIdTokenNonce(tokens.id_token, nonce);
+      // Exchange code for tokens with PKCE validation
+      const tokens = await client.authorizationCodeGrant(
+        this.config,
+        callbackUrl,
+        {
+          pkceCodeVerifier: codeVerifier,
+          expectedNonce: nonce,
+          expectedState: state,
+        },
+      );
+
+      return {
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        id_token: tokens.id_token,
+        expires_in: tokens.expires_in || 300,
+        token_type: tokens.token_type || "Bearer",
+        claims: tokens.claims() as unknown as TokenClaims,
+      };
+    } catch (error) {
+      this.logger.error(
+        `OAuth callback failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new HttpException("Authentication failed", HttpStatus.BAD_REQUEST);
     }
-
-    return this.authSessionStore.save(tokens);
   }
 
   /**
-   * Exposes a one-time read for the frontend to retrieve tokens after redirect.
+   * Refreshes an access token using the provider refresh token.
    */
-  consumeAuthResult(resultId: string): TokenResponseDto {
-    return this.authSessionStore.consume(resultId);
+  async refreshAccessToken(refreshToken: string): Promise<TokenResponseDto> {
+    try {
+      const tokens = await client.refreshTokenGrant(this.config, refreshToken);
+
+      return {
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        id_token: tokens.id_token,
+        expires_in: tokens.expires_in || 300,
+        token_type: tokens.token_type || "Bearer",
+        claims: tokens.claims() as unknown as TokenClaims,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Token refresh failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new HttpException("Token refresh failed", HttpStatus.BAD_REQUEST);
+    }
   }
 
   /**
-   * Produces the frontend redirect URL with an `auth_result` query parameter.
-   * The frontend will immediately exchange this value for provider tokens.
+   * Returns the frontend URL for redirect after successful callback.
    */
-  buildAuthResultRedirect(resultId: string): string {
-    const url = new URL(this.frontendUrl);
-    url.searchParams.set("auth_result", resultId);
-    return url.toString();
+  getFrontendUrl(): string {
+    return this.frontendUrl;
   }
 
   /**
@@ -220,68 +232,41 @@ export class AuthService {
   }
 
   /**
-   * Creates a signed JWT which stores the nonce we expect to see in the ID token.
-   * We piggyback on JWT so we can leverage expiry, issuer/audience checks, and signature.
+   * Decodes a JWT ID token and returns the payload.
+   * @param idToken - The JWT ID token string.
+   * @returns The decoded payload as a generic object.
    */
-  private createStateToken(): { state: string; nonce: string } {
-    const nonce = randomBytes(16).toString("hex");
-    const payload = { nonce };
-
-    const state = jwt.sign(payload, this.stateSecret, {
-      expiresIn: "5m",
-      audience: this.clientId,
-      issuer: "auth-service",
-    });
-
-    return { state, nonce };
+  decodeIdToken<T extends object = Record<string, unknown>>(
+    idToken: string,
+  ): T {
+    const [, payload] = idToken.split(".");
+    return JSON.parse(Buffer.from(payload, "base64").toString());
   }
 
   /**
-   * Verifies the previously issued state token and returns the embedded nonce.
+   * Upserts user in DB from token payload.
+   * @param tokenPayload - The decoded token payload object (must have a sub and email property).
    */
-  private verifyStateToken(state: string): { nonce: string } {
-    try {
-      const decoded = jwt.verify(state, this.stateSecret, {
-        audience: this.clientId,
-        issuer: "auth-service",
-      }) as { nonce: string };
-      return decoded;
-    } catch {
+  async upsertUserFromToken(tokenPayload: TokenClaims): Promise<void> {
+    const { sub, email } = tokenPayload;
+    const lastLogin = new Date();
+    if (!sub || !email) {
       throw new HttpException(
-        "Invalid state parameter",
+        "Token payload missing required fields: sub and email",
         HttpStatus.BAD_REQUEST,
       );
     }
-  }
-
-  /**
-   * Ensures the ID token we received was issued for this client and contains the nonce
-    we generated before redirecting. This gives defense-in-depth against token replay.
-   */
-  private async validateIdTokenNonce(
-    idToken: string,
-    expectedNonce: string,
-  ): Promise<void> {
-    try {
-      const decoded = jwt.decode(idToken, { complete: true });
-      if (!decoded || !decoded.header.kid) {
-        throw new Error("Invalid ID token");
-      }
-
-      const key = await this.jwksClient.getSigningKey(decoded.header.kid);
-      const signingKey = key.getPublicKey();
-
-      const verified = jwt.verify(idToken, signingKey, {
-        algorithms: ["RS256"],
-        issuer: this.issuer,
-        audience: this.clientId,
-      }) as jwt.JwtPayload;
-
-      if (verified.nonce !== expectedNonce) {
-        throw new Error("Nonce mismatch");
-      }
-    } catch (_error) {
-      throw new HttpException("Invalid ID token", HttpStatus.BAD_REQUEST);
-    }
+    await this.prismaService.prisma.user.upsert({
+      where: { id: sub },
+      update: {
+        email,
+        last_login_at: lastLogin,
+      },
+      create: {
+        id: sub,
+        email,
+        last_login_at: lastLogin,
+      },
+    });
   }
 }

@@ -162,6 +162,47 @@ export class StorageService {
     return files;
   }
 
+  /**
+   * Lists all folders and files within a given path
+   * @param folderPath Relative path to the folder
+   * @returns Array of paths (folders end with '/')
+   */
+  async listBlobsInFolder(folderPath: string): Promise<string[]> {
+    const fullPath = path.join(this.storagePath, folderPath);
+
+    if (!existsSync(fullPath)) {
+      this.logger.warn(`Folder does not exist: ${fullPath}`);
+      return [];
+    }
+
+    const items: string[] = [];
+
+    async function listRecursive(
+      currentPath: string,
+      relativePath: string = "",
+    ) {
+      const entries = await readdir(currentPath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const itemRelativePath = path.join(relativePath, entry.name);
+
+        if (entry.isDirectory()) {
+          items.push(`${itemRelativePath}/`);
+          // Recursively list contents of subdirectories
+          await listRecursive(
+            path.join(currentPath, entry.name),
+            itemRelativePath,
+          );
+        } else {
+          items.push(itemRelativePath);
+        }
+      }
+    }
+
+    await listRecursive(fullPath);
+    return items.sort();
+  }
+
   getStoragePath(groupId: string, operation: Operation, subpath: string) {
     return path.join(groupId, operation, subpath);
   }

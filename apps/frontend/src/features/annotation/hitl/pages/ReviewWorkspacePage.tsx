@@ -133,7 +133,6 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
     isEscalating,
     isSkipping,
   } = useReviewSession(sessionId);
-  const { getAccessToken } = useAuth();
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const {
     ref: canvasRef,
@@ -163,12 +162,9 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
         return;
       }
       try {
-        const token = getAccessToken?.() ?? null;
-        const headers: Record<string, string> = {};
-        if (token) headers.Authorization = `Bearer ${token}`;
         const response = await fetch(
           `/api/documents/${session.document.id}/download`,
-          { headers },
+          { credentials: "include" },
         );
         if (!response.ok) return;
         const blob = await response.blob();
@@ -180,7 +176,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
     };
 
     void loadDocument();
-  }, [session?.document?.id, getAccessToken]);
+  }, [session?.document?.id]);
 
   useEffect(() => {
     return () => {

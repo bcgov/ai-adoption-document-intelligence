@@ -14,7 +14,6 @@ import {
   IconFileDownload,
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
-import { useAuth } from "../../auth/useAuth";
 import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
 import { Document, DocumentField, ExtractedFields } from "../../shared/types";
 import { DocumentValidation } from "./DocumentValidation";
@@ -105,7 +104,6 @@ export function DocumentViewerModal({
 }: DocumentViewerModalProps) {
   const documentId = document?.id;
   const { data: ocrResult, error: ocrError } = useDocumentOcr(documentId);
-  const { getAccessToken } = useAuth();
   const [imageUrl, setImageUrl] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
@@ -135,15 +133,9 @@ export function DocumentViewerModal({
     setError("");
 
     try {
-      const token = getAccessToken?.() ?? null;
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-
       // Try to get the document file from the download endpoint
       const response = await fetch(`/api/documents/${doc.id}/download`, {
-        headers,
+        credentials: "include",
       });
 
       if (!response.ok) {

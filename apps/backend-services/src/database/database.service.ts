@@ -308,7 +308,7 @@ export class DatabaseService {
     classifierName: string,
     groupId: string,
     properties: Partial<ClassifierEditableProperties>,
-    userId: string,
+    userId?: string,
   ) {
     return await this.prisma.classifierModel.update({
       where: {
@@ -333,6 +333,17 @@ export class DatabaseService {
           name: classifierName,
           group_id: groupId,
         },
+      },
+    });
+  }
+
+  async getClassifierModelsForGroups(groupIds: string[]) {
+    return await this.prisma.classifierModel.findMany({
+      where: {
+        group_id: { in: groupIds },
+      },
+      include: {
+        group: true,
       },
     });
   }

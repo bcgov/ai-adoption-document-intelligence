@@ -376,6 +376,27 @@ export class BlobService {
     }
   }
 
+  /**
+   * Delete all blobs with a specific prefix in a container
+   * @param prefix The prefix of the blobs to delete
+   * @param containerName The name of the container
+   */
+  async deleteFilesWithPrefix(
+    prefix: string,
+    containerName: string,
+  ): Promise<void> {
+    const containerClient =
+      this.blobServiceClient.getContainerClient(containerName);
+    let deleted = 0;
+    for await (const blob of containerClient.listBlobsFlat({ prefix })) {
+      await containerClient.deleteBlob(blob.name);
+      deleted += 1;
+    }
+    this.logger.log(
+      `Deleted ${deleted} blob(s) with prefix '${prefix}' from container '${containerName}'`,
+    );
+  }
+
   private async delay(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
   }

@@ -19,7 +19,6 @@ import {
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { useNavigate, useParams } from "react-router-dom";
-import { useAuth } from "@/auth/useAuth";
 import {
   colorForFieldKeyWithAlpha,
   colorForFieldKeyWithBorder,
@@ -120,7 +119,6 @@ export const LabelingWorkspacePage: FC = () => {
     projectId,
     documentId,
   );
-  const { getAccessToken } = useAuth();
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [labelState, setLabelState] = useState<Record<string, LabelState>>({});
   const [wordAssignments, setWordAssignments] = useState<
@@ -244,12 +242,9 @@ export const LabelingWorkspacePage: FC = () => {
     const loadDocument = async () => {
       if (!projectDocument?.labeling_document) return;
       try {
-        const token = getAccessToken?.() ?? null;
-        const headers: Record<string, string> = {};
-        if (token) headers.Authorization = `Bearer ${token}`;
         const response = await fetch(
           `/api/labeling/projects/${projectId}/documents/${documentId}/download`,
-          { headers },
+          { credentials: "include" },
         );
         if (!response.ok) return;
         const blob = await response.blob();
@@ -261,12 +256,7 @@ export const LabelingWorkspacePage: FC = () => {
     };
 
     void loadDocument();
-  }, [
-    projectDocument?.labeling_document,
-    getAccessToken,
-    projectId,
-    documentId,
-  ]);
+  }, [projectDocument?.labeling_document, projectId, documentId]);
 
   useEffect(() => {
     return () => {

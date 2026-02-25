@@ -1,4 +1,4 @@
-NOTE: The requirements document for this feature is available here: `docs/graph-workflows/DAG_WORKFLOW_ENGINE.md`.
+NOTE: The requirements document for this feature is available here: `docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md`.
 
 All user stories files are located in `feature-docs/001-graph-workflows/user_stories/`.
 
