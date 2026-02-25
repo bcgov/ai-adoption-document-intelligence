@@ -5,22 +5,22 @@
 **So that** an admin can review and approve my access.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Successful request submission
+- [x] **Scenario 1**: Successful request submission
     - **Given** an authenticated user and a valid `group_id` for a group they are not already a member of
     - **When** the user calls the request-membership endpoint with that `group_id`
     - **Then** a new `GroupMembershipRequest` record is created with `status = PENDING`, `user_id` from the JWT `sub` claim, and `created_at` / `created_by` set to now / the requesting user
 
-- [ ] **Scenario 2**: Group does not exist
+- [x] **Scenario 2**: Group does not exist
     - **Given** an authenticated user
     - **When** they submit a request with a `group_id` that does not exist
     - **Then** the endpoint returns `404 Not Found`
 
-- [ ] **Scenario 3**: User is already a member of the group
+- [x] **Scenario 3**: User is already a member of the group
     - **Given** an authenticated user who is already a member of the target group
     - **When** they submit a membership request for that group
     - **Then** the endpoint returns success silently and no new record is created
 
-- [ ] **Scenario 4**: User already has a pending request for the group
+- [x] **Scenario 4**: User already has a pending request for the group
     - **Given** an authenticated user who already has a `PENDING` request for the target group
     - **When** they submit another membership request for the same group
     - **Then** the endpoint returns success silently and no duplicate record is created

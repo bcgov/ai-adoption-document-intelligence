@@ -6,7 +6,7 @@ Stories derived from [REQUIREMENTS.md](../REQUIREMENTS.md).
 
 ## Phase 1: Data Foundation
 
-- [ ] [US-001: Create GroupMembershipRequest Data Model](US-001-create-membership-request-data-model.md)
+- [x] [US-001: Create GroupMembershipRequest Data Model](US-001-create-membership-request-data-model.md)
 
 ## Phase 2: User Operations
 
