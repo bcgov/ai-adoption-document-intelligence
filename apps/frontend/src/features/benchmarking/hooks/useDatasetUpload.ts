@@ -2,8 +2,22 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService } from "@/data/services/api.service";
 
 interface UploadResponse {
-  uploadedFiles: string[];
+  datasetId: string;
+  uploadedFiles: Array<{
+    filename: string;
+    path: string;
+    size: number;
+    mimeType: string;
+  }>;
   manifestUpdated: boolean;
+  totalFiles: number;
+  version: {
+    id: string;
+    version: string;
+    gitRevision: string;
+    status: string;
+    documentCount: number;
+  };
 }
 
 export const useDatasetUpload = (datasetId: string) => {

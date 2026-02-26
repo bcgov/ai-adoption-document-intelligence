@@ -588,7 +588,7 @@ export class DatasetService {
   }
 
   /**
-   * Upload files to a dataset
+   * Upload files to a dataset, commit them to the git repo, and auto-create a version.
    */
   async uploadFiles(
     datasetId: string,
@@ -600,6 +600,7 @@ export class DatasetService {
       buffer: Buffer;
       size: number;
     }>,
+    userId: string,
   ): Promise<UploadResponseDto> {
     this.logger.log(`Uploading ${files.length} files to dataset ${datasetId}`);
 
@@ -612,16 +613,32 @@ export class DatasetService {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    // Create temporary directory for dataset operations
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-upload-"));
+    // Determine if repository is remote or local
+    const expandedUrl = dataset.repositoryUrl.startsWith("~")
+      ? dataset.repositoryUrl.replace(/^~/, os.homedir())
+      : dataset.repositoryUrl;
+    const isRemoteUrl =
+      expandedUrl.startsWith("http://") ||
+      expandedUrl.startsWith("https://") ||
+      expandedUrl.startsWith("git@");
+
+    let workingDir: string;
+    let tempDir: string | null = null;
+
+    if (isRemoteUrl) {
+      // Remote repos: clone to temp dir, will push back after commit
+      tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-upload-"));
+      await this.dvcService.cloneRepository(dataset.repositoryUrl, tempDir);
+      workingDir = tempDir;
+    } else {
+      // Local repos: work directly in the repo to avoid push-back issues
+      workingDir = expandedUrl;
+    }
 
     try {
-      // Clone the dataset repository
-      await this.dvcService.cloneRepository(dataset.repositoryUrl, tempDir);
-
       // Create inputs and ground-truth directories if they don't exist
-      const inputsDir = path.join(tempDir, "inputs");
-      const groundTruthDir = path.join(tempDir, "ground-truth");
+      const inputsDir = path.join(workingDir, "inputs");
+      const groundTruthDir = path.join(workingDir, "ground-truth");
       await fs.promises.mkdir(inputsDir, { recursive: true });
       await fs.promises.mkdir(groundTruthDir, { recursive: true });
 
@@ -629,7 +646,6 @@ export class DatasetService {
 
       // Process each file
       for (const file of files) {
-        // Determine if file is input or ground truth based on mimetype/extension
         const isGroundTruth = this.isGroundTruthFile(file);
         const targetDir = isGroundTruth ? groundTruthDir : inputsDir;
         const relativePath = isGroundTruth
@@ -637,7 +653,6 @@ export class DatasetService {
           : `inputs/${file.originalname}`;
         const targetPath = path.join(targetDir, file.originalname);
 
-        // Write file to appropriate directory
         await fs.promises.writeFile(targetPath, file.buffer);
 
         uploadedFiles.push({
@@ -651,7 +666,7 @@ export class DatasetService {
       }
 
       // Load or create manifest
-      const manifestPath = path.join(tempDir, "dataset-manifest.json");
+      const manifestFilePath = path.join(workingDir, "dataset-manifest.json");
       let manifest: {
         schemaVersion: string;
         samples: Array<{
@@ -664,12 +679,11 @@ export class DatasetService {
 
       try {
         const manifestContent = await fs.promises.readFile(
-          manifestPath,
+          manifestFilePath,
           "utf-8",
         );
         manifest = JSON.parse(manifestContent);
-      } catch (error) {
-        // Create new manifest if it doesn't exist
+      } catch {
         manifest = {
           schemaVersion: "1.0",
           samples: [],
@@ -677,11 +691,9 @@ export class DatasetService {
       }
 
       // Update manifest with new file references
-      // Group files by sample ID (derived from filename pattern)
       const filesBySample = this.groupFilesBySampleId(uploadedFiles);
 
       for (const [sampleId, sampleFiles] of Object.entries(filesBySample)) {
-        // Find or create sample entry
         let sample = manifest.samples.find((s) => s.id === sampleId);
         if (!sample) {
           sample = {
@@ -692,7 +704,6 @@ export class DatasetService {
           manifest.samples.push(sample);
         }
 
-        // Add file references
         for (const file of sampleFiles) {
           if (file.path.startsWith("inputs/")) {
             sample.inputs.push({
@@ -710,12 +721,41 @@ export class DatasetService {
 
       // Write updated manifest
       await fs.promises.writeFile(
-        manifestPath,
+        manifestFilePath,
         JSON.stringify(manifest, null, 2),
       );
 
+      // Commit files to git
+      const existingVersionCount = await this.prisma.datasetVersion.count({
+        where: { datasetId },
+      });
+      const versionLabel = `v${existingVersionCount + 1}`;
+      const commitMessage = `Add dataset version ${versionLabel}`;
+      const gitRevision = await this.dvcService.commitChanges(
+        workingDir,
+        commitMessage,
+      );
+
+      // For remote repos, push the commit back to origin
+      if (isRemoteUrl) {
+        await this.dvcService.pushToOrigin(workingDir);
+      }
+
+      // Create DatasetVersion record
+      const version = await this.prisma.datasetVersion.create({
+        data: {
+          datasetId: datasetId,
+          version: versionLabel,
+          gitRevision: gitRevision,
+          manifestPath: "dataset-manifest.json",
+          documentCount: manifest.samples.length,
+          groundTruthSchema: null as Prisma.JsonValue,
+          status: "draft",
+        },
+      });
+
       this.logger.log(
-        `Upload complete: ${uploadedFiles.length} files, manifest updated`,
+        `Upload complete: ${uploadedFiles.length} files, version ${versionLabel} created (${version.id})`,
       );
 
       return {
@@ -723,6 +763,13 @@ export class DatasetService {
         uploadedFiles: uploadedFiles,
         manifestUpdated: true,
         totalFiles: uploadedFiles.length,
+        version: {
+          id: version.id,
+          version: version.version,
+          gitRevision: version.gitRevision,
+          status: version.status,
+          documentCount: version.documentCount,
+        },
       };
     } catch (error) {
       this.logger.error(
@@ -731,14 +778,16 @@ export class DatasetService {
       );
       throw error;
     } finally {
-      // Clean up temporary directory
-      try {
-        await rm(tempDir, { recursive: true, force: true });
-      } catch (cleanupError) {
-        this.logger.warn(
-          `Failed to clean up temp directory: ${tempDir}`,
-          cleanupError,
-        );
+      // Clean up temporary directory (only used for remote repos)
+      if (tempDir) {
+        try {
+          await rm(tempDir, { recursive: true, force: true });
+        } catch (cleanupError) {
+          this.logger.warn(
+            `Failed to clean up temp directory: ${tempDir}`,
+            cleanupError,
+          );
+        }
       }
     }
   }

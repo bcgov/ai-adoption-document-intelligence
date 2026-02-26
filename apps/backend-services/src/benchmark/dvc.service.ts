@@ -254,13 +254,15 @@ export class DvcService {
    */
   async commitChanges(repoPath: string, message: string): Promise<string> {
     try {
-      // Stage all .dvc files, .gitignore changes, and manifest
-      await execAsync("git add *.dvc .gitignore manifest.json", {
+      // Stage all tracked and new files (handles cases where .dvc files
+      // may not exist yet, e.g. initial version creation)
+      await execAsync("git add -A", {
         cwd: repoPath,
       });
 
-      // Commit the changes
-      await execAsync(`git commit -m "${message}"`, { cwd: repoPath });
+      // Commit the changes (--allow-empty handles the case where
+      // git add -A found nothing new to stage)
+      await execAsync(`git commit --allow-empty -m "${message}"`, { cwd: repoPath });
 
       // Get the commit SHA
       const { stdout } = await execAsync("git rev-parse HEAD", {
@@ -273,6 +275,23 @@ export class DvcService {
     } catch (error) {
       this.logger.error(`Failed to commit changes in ${repoPath}`, error.stack);
       throw new Error(`Failed to commit changes: ${error.message}`);
+    }
+  }
+
+  /**
+   * Push Git commits to the origin remote.
+   * Used for remote repositories after committing changes in a temp clone.
+   */
+  async pushToOrigin(repoPath: string): Promise<void> {
+    try {
+      await execAsync("git push origin HEAD", { cwd: repoPath });
+      this.logger.log(`Pushed changes to origin from ${repoPath}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to push to origin from ${repoPath}`,
+        error.stack,
+      );
+      throw new Error(`Failed to push to origin: ${error.message}`);
     }
   }
 

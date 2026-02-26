@@ -116,11 +116,10 @@ const EnrichmentSummaryPanel: FC<{
   </Accordion>
 );
 
-export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
-  sessionId,
-  onBack,
-  readOnly = false,
-}) => {
+export const ReviewWorkspacePage: FC = () => {
+  const { sessionId } = useParams<{ sessionId: string }>();
+  const navigate = useNavigate();
+  const readOnly = false;
   const {
     session,
     corrections,

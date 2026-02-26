@@ -253,11 +253,11 @@ describe("DvcService", () => {
 
       expect(result).toBe("abc123def456");
       expect(mockExec).toHaveBeenCalledWith(
-        "git add *.dvc .gitignore manifest.json",
+        "git add -A",
         expect.objectContaining({ cwd: "/tmp/repo" }),
       );
       expect(mockExec).toHaveBeenCalledWith(
-        'git commit -m "Add dataset v1"',
+        'git commit --allow-empty -m "Add dataset v1"',
         expect.objectContaining({ cwd: "/tmp/repo" }),
       );
       expect(mockExec).toHaveBeenCalledWith(
@@ -272,6 +272,30 @@ describe("DvcService", () => {
       await expect(
         service.commitChanges("/tmp/repo", "Add dataset v1"),
       ).rejects.toThrow("Failed to commit changes");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Scenario 3b: Push Git commits to origin
+  // -----------------------------------------------------------------------
+  describe("pushToOrigin", () => {
+    it("pushes Git commits to origin", async () => {
+      mockSuccessfulExec();
+
+      await service.pushToOrigin("/tmp/repo");
+
+      expect(mockExec).toHaveBeenCalledWith(
+        "git push origin HEAD",
+        expect.objectContaining({ cwd: "/tmp/repo" }),
+      );
+    });
+
+    it("throws error when push fails", async () => {
+      mockFailedExec(new Error("Permission denied"));
+
+      await expect(service.pushToOrigin("/tmp/repo")).rejects.toThrow(
+        "Failed to push to origin",
+      );
     });
   });
 

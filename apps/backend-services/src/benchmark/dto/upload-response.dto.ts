@@ -5,9 +5,18 @@ export class UploadedFileDto {
   mimeType: string;
 }
 
+export class UploadVersionDto {
+  id: string;
+  version: string;
+  gitRevision: string;
+  status: string;
+  documentCount: number;
+}
+
 export class UploadResponseDto {
   datasetId: string;
   uploadedFiles: UploadedFileDto[];
   manifestUpdated: boolean;
   totalFiles: number;
+  version: UploadVersionDto;
 }

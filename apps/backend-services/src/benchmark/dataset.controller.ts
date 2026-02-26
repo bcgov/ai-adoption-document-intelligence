@@ -191,7 +191,15 @@ export class DatasetController {
       buffer: Buffer;
       size: number;
     }>,
+    @Req() req: Request,
   ): Promise<UploadResponseDto> {
+    const user = req.user;
+    const userId = user?.sub as string;
+
+    if (!userId) {
+      throw new BadRequestException("User ID not found in request");
+    }
+
     if (!files || files.length === 0) {
       throw new BadRequestException("No files provided for upload");
     }
@@ -207,7 +215,7 @@ export class DatasetController {
       }
     }
 
-    return this.datasetService.uploadFiles(id, files);
+    return this.datasetService.uploadFiles(id, files, userId);
   }
 
   @Post(":id/versions")

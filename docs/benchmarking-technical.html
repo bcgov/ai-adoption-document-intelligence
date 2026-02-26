@@ -1,0 +1,1831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BenchmarkingTechnicalReference | BC Gov Document Intelligence</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <style>
+        :root {
+            --bc-blue: #003366;
+            --bc-gold: #fcba19;
+            --bc-blue-dark: #002244;
+            --bc-blue-light: #1a5a96;
+            --text-primary: #313132;
+            --text-secondary: #606060;
+            --bg-light: #f2f2f2;
+            --white: #ffffff;
+            --gradient-hero: linear-gradient(135deg, #003366 0%, #1a5a96 50%, #003366 100%);
+            --shadow-sm: 0 2px 4px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.12);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.16);
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'BC Sans', 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: var(--bg-light);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .bc-header {
+            background: var(--gradient-hero);
+            border-bottom: 4px solid var(--bc-gold);
+            padding: 0.5rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: var(--shadow-md);
+        }
+
+        .bc-header-brand {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            text-decoration: none;
+        }
+
+        .bc-header-logo {
+            height: 36px;
+            width: auto;
+            border-radius: 4px;
+        }
+
+        .bc-header-title {
+            color: var(--white);
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .bc-header-subtitle {
+            color: var(--bc-gold);
+            font-size: 0.875rem;
+        }
+
+        /* Navigation with Dropdowns */
+        .bc-nav {
+            display: flex;
+            gap: 0.25rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .bc-nav > a,
+        .nav-dropdown > .nav-trigger {
+            color: var(--white);
+            text-decoration: none;
+            padding: 0.6rem 1rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            border: none;
+            background: transparent;
+            font-family: inherit;
+        }
+
+        .bc-nav > a:hover,
+        .nav-dropdown:hover > .nav-trigger {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .bc-nav > a.active {
+            background: var(--bc-gold);
+            color: var(--bc-blue);
+            font-weight: 600;
+        }
+
+        /* Dropdown */
+        .nav-dropdown {
+            position: relative;
+        }
+
+        .nav-trigger::after {
+            content: '';
+            border: solid currentColor;
+            border-width: 0 2px 2px 0;
+            display: inline-block;
+            padding: 3px;
+            transform: rotate(45deg);
+            margin-top: -3px;
+            transition: transform 0.2s;
+        }
+
+        .nav-dropdown:hover .nav-trigger::after {
+            transform: rotate(-135deg);
+            margin-top: 3px;
+        }
+
+        .nav-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: var(--white);
+            border-radius: 8px;
+            box-shadow: var(--shadow-lg);
+            min-width: 220px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: var(--transition);
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .nav-dropdown:hover .nav-dropdown-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .nav-dropdown-menu a {
+            display: block;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: var(--transition);
+            border-left: 3px solid transparent;
+        }
+
+        .nav-dropdown-menu a:hover {
+            background: var(--bg-light);
+            border-left-color: var(--bc-gold);
+            color: var(--bc-blue);
+        }
+
+        .nav-dropdown-menu a small {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            margin-top: 0.2rem;
+        }
+
+        /* Main Content */
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            flex: 1;
+            width: 100%;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: var(--gradient-hero);
+            color: var(--white);
+            padding: 3rem 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            text-align: center;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .hero h1 {
+            color: var(--white);
+            border: none;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Typography */
+        h1 {
+            color: var(--bc-blue);
+            font-size: 2.25rem;
+            margin-bottom: 1rem;
+            border-bottom: 3px solid var(--bc-gold);
+            padding-bottom: 0.5rem;
+        }
+
+        h2 {
+            color: var(--bc-blue);
+            font-size: 1.5rem;
+            margin: 2rem 0 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        h2::before {
+            content: '';
+            width: 4px;
+            height: 1.5rem;
+            background: var(--bc-gold);
+            border-radius: 2px;
+        }
+
+        h3 {
+            color: var(--bc-blue-light);
+            font-size: 1.25rem;
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+        }
+
+        /* Cards - Enhanced */
+        .card {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            border-left: 4px solid var(--bc-blue);
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .card-gold {
+            border-left-color: var(--bc-gold);
+        }
+
+        .card h3 {
+            margin-top: 0;
+        }
+
+        /* Clickable Cards */
+        a.card-link {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        a.card-link .card {
+            cursor: pointer;
+        }
+
+        a.card-link .card:hover {
+            border-left-width: 6px;
+        }
+
+        .card-arrow {
+            color: var(--bc-blue-light);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            transition: var(--transition);
+        }
+
+        a.card-link:hover .card-arrow {
+            gap: 0.75rem;
+            color: var(--bc-blue);
+        }
+
+        /* Feature Cards */
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-icon.gold { background: rgba(252, 186, 25, 0.15); }
+        .feature-icon.blue { background: rgba(0, 51, 102, 0.1); }
+        .feature-icon.green { background: rgba(34, 197, 94, 0.1); }
+        .feature-icon.purple { background: rgba(139, 92, 246, 0.1); }
+
+        /* Stats */
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--bc-gold);
+            line-height: 1;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Code blocks */
+        pre {
+            background: var(--bc-blue-dark);
+            color: #e2e8f0;
+            padding: 1.25rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1rem 0;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 0.875rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        code {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            background: #e2e8f0;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: var(--white);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        th {
+            background: var(--bc-blue);
+            color: var(--white);
+            padding: 0.875rem 1rem;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 0.875rem 1rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        tr:hover {
+            background: #f8fafc;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Lists */
+        ul, ol {
+            margin: 1rem 0;
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        /* Links */
+        a {
+            color: var(--bc-blue-light);
+            transition: var(--transition);
+        }
+
+        a:hover {
+            color: var(--bc-blue);
+        }
+
+        /* Grid */
+        .grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .grid-3 {
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        }
+
+        .grid-4 {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+
+        .alert > * {
+            min-width: 0;
+        }
+
+        .alert-icon {
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .alert-info {
+            background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+            border-left: 4px solid #0ea5e9;
+        }
+
+        .alert-warning {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid var(--bc-gold);
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+            border-left: 4px solid #22c55e;
+        }
+
+        /* Image containers */
+        .img-container {
+            margin: 1.5rem 0;
+            text-align: center;
+        }
+
+        .img-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-gold {
+            background: var(--bc-gold);
+            color: var(--bc-blue);
+        }
+
+        .badge-blue {
+            background: var(--bc-blue);
+            color: var(--white);
+        }
+
+        /* Accordion / Collapsible */
+        details {
+            background: var(--white);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            box-shadow: var(--shadow-sm);
+            border-left: 4px solid var(--bc-blue);
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        details:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        details[open] {
+            border-left-color: var(--bc-gold);
+        }
+
+        summary {
+            padding: 1rem 1.25rem;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--bc-blue);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            list-style: none;
+            user-select: none;
+            transition: var(--transition);
+        }
+
+        summary::-webkit-details-marker {
+            display: none;
+        }
+
+        summary::after {
+            content: '';
+            border: solid var(--bc-blue-light);
+            border-width: 0 2px 2px 0;
+            display: inline-block;
+            padding: 4px;
+            transform: rotate(-45deg);
+            transition: transform 0.2s ease;
+            flex-shrink: 0;
+            margin-left: 1rem;
+        }
+
+        details[open] summary::after {
+            transform: rotate(45deg);
+        }
+
+        summary:hover {
+            background: var(--bg-light);
+        }
+
+        details[open] summary {
+            border-bottom: 1px solid #e2e8f0;
+            background: var(--bg-light);
+        }
+
+        .accordion-content {
+            padding: 1rem 1.25rem;
+        }
+
+        .accordion-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Accordion with badge */
+        summary .badge {
+            margin-left: auto;
+            margin-right: 1rem;
+        }
+
+        /* Accordion group */
+        .accordion-group {
+            margin: 1rem 0;
+        }
+
+        .accordion-group details:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Footer */
+        .site-footer {
+            background: var(--bc-blue);
+            color: var(--white);
+            padding: 3rem 2rem;
+            margin-top: auto;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+        }
+
+        .footer-brand h4,
+        .footer-links h4 {
+            color: var(--bc-gold);
+            margin-bottom: 0.75rem;
+            font-size: 1rem;
+        }
+
+        .footer-brand p {
+            color: #94a3b8;
+            font-size: 0.875rem;
+            margin: 0;
+        }
+
+        .footer-links ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .footer-links li {
+            margin-bottom: 0.5rem;
+        }
+
+        .footer-links a {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: var(--transition);
+        }
+
+        .footer-links a:hover {
+            color: var(--bc-gold);
+        }
+
+        .footer-copyright {
+            text-align: right;
+        }
+
+        .footer-copyright p {
+            color: #64748b;
+            font-size: 0.75rem;
+            margin: 0;
+        }
+
+        .footer-meta {
+            margin-top: 0.5rem !important;
+            opacity: 0.7;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .bc-header {
+                flex-direction: column;
+                text-align: center;
+                padding: 1rem;
+            }
+
+            .bc-nav {
+                justify-content: center;
+            }
+
+            .nav-dropdown-menu {
+                position: fixed;
+                left: 1rem;
+                right: 1rem;
+                width: auto;
+            }
+
+            main {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 1.75rem;
+            }
+
+            .hero {
+                padding: 2rem 1rem;
+            }
+
+            .hero h1 {
+                font-size: 1.75rem;
+            }
+
+            .footer-content {
+                text-align: center;
+            }
+
+            .footer-copyright {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="bc-header">
+        <a href="index.html" class="bc-header-brand">
+            <img src="assets/bc_citz_logo.jpg" alt="BC Government" class="bc-header-logo">
+            <div>
+                <div class="bc-header-title">Document Intelligence</div>
+                <div class="bc-header-subtitle">BC Gov Document Processing Platform</div>
+            </div>
+        </a>
+        <nav class="bc-nav">
+            <a href="index.html" class="">Home</a>
+            <div class="nav-dropdown">
+                <span class="nav-trigger">Guides</span>
+                <div class="nav-dropdown-menu">
+                    <a href="integrations.html">
+                        Integrations
+                        <small>Getting data in and out</small>
+                    </a>
+                    <a href="benchmarking-guide.html">
+                        Benchmarking
+                        <small>Evaluate workflows &amp; detect regressions</small>
+                    </a>
+                </div>
+            </div>
+            <div class="nav-dropdown">
+                <span class="nav-trigger">Technical Documentation</span>
+                <div class="nav-dropdown-menu">
+                    <a href="authentication.html">
+                        Authentication
+                        <small>OAuth 2.0, PKCE, RBAC &amp; API keys</small>
+                    </a>
+                    <a href="benchmarking-technical.html">
+                        Benchmarking Architecture
+                        <small>Data model, services &amp; infrastructure</small>
+                    </a>
+                </div>
+            </div>
+            <a href="api-reference.html" class="">API Reference</a>
+            <a href="diagrams.html" class="">Diagrams</a>
+        </nav>
+    </header>
+    <main>
+
+<h1>Benchmarking System — Technical Reference</h1>
+
+<p>This page covers the internal architecture, infrastructure setup, data model, and development configuration of the benchmarking system. For a usage-focused guide, see the <a href="benchmarking-guide.html">Benchmarking Guide</a>.</p>
+
+<h2>Architecture Overview</h2>
+
+<p>The benchmarking system is built on four infrastructure components that work together with the existing NestJS backend and Temporal workflow engine:</p>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h3 style="margin-top:0;">MinIO (S3-Compatible Storage)</h3>
+        <p>Unified object storage for DVC-managed dataset files, MLflow artifacts, and benchmark run outputs. Provides S3-compatible APIs consumed by DVC, MLflow, and the application's <code>MinioBlobStorageService</code>.</p>
+        <p><strong>Ports:</strong> 19000 (API), 19001 (Console)</p>
+    </div>
+    <div class="card" style="border-left-color: #003366;">
+        <h3 style="margin-top:0;">MLflow (Experiment Tracking)</h3>
+        <p>Tracks benchmark experiments, runs, parameters, metrics, and artifacts. Backend store uses PostgreSQL (separate <code>mlflow</code> database on the same instance). Artifact store uses MinIO.</p>
+        <p><strong>Port:</strong> 5000</p>
+    </div>
+    <div class="card" style="border-left-color: #8b5cf6;">
+        <h3 style="margin-top:0;">PostgreSQL (Metadata Store)</h3>
+        <p>Existing PostgreSQL 15 instance extended with benchmark tables (via Prisma). Also hosts the MLflow backend store in a separate <code>mlflow</code> database with a dedicated role.</p>
+        <p><strong>Port:</strong> 5432</p>
+    </div>
+    <div class="card" style="border-left-color: #e96d13;">
+        <h3 style="margin-top:0;">Temporal (Workflow Orchestration)</h3>
+        <p>Existing Temporal deployment. Benchmark runs execute as <code>benchmarkRunWorkflow</code> on a dedicated <code>benchmark-processing</code> task queue, isolated from production workloads.</p>
+        <p><strong>Port:</strong> 7233 (gRPC), 8088 (UI)</p>
+    </div>
+</div>
+
+<h3>System Flow</h3>
+
+<div class="card">
+<pre style="margin: 0; background: transparent; box-shadow: none; font-size: 0.85rem;">User creates Dataset
+  → Backend inits Git repo + DVC → files stored in MinIO (s3://datasets)
+       ↓
+User creates BenchmarkProject
+  → MLflow Experiment created automatically
+       ↓
+User creates BenchmarkDefinition
+  → Pins dataset version + split + workflow + evaluator
+       ↓
+User starts BenchmarkRun
+  → MLflow Run created → Temporal workflow launched
+       ↓
+Temporal benchmarkRunWorkflow (7 phases):
+  1. materializeDataset   — git clone + dvc pull from MinIO
+  2. loadManifest         — read manifest, filter by split
+  3. fan-out execution    — each sample → child graphWorkflow
+  4. evaluate             — evaluator scores each (prediction, ground truth)
+  5. aggregate            — compute stats (mean, median, p5–p95, failure analysis)
+  6. logToMlflow          — params, metrics, tags, artifacts
+  7. compareBaseline      — threshold checks → update BenchmarkRun in Postgres
+  8. cleanup              — remove temp files
+       ↓
+Results viewable in frontend + MLflow UI</pre>
+</div>
+
+<h2>Local Development Setup</h2>
+
+<h3>Prerequisites</h3>
+
+<ul>
+    <li><strong>Docker &amp; Docker Compose</strong> — Required for MinIO, MLflow, PostgreSQL, and Temporal</li>
+    <li><strong>Node.js 18+</strong> and <strong>npm</strong></li>
+    <li><strong>Git</strong> — Required on the backend for DVC operations (dataset repository management)</li>
+    <li><strong>DVC</strong> — Data Version Control CLI, installed on the backend service. The Dockerfile installs it automatically; for local development, install via <code>pip install dvc[s3]</code></li>
+</ul>
+
+<h3>1. Start Infrastructure Services</h3>
+
+<p>The MinIO and MLflow services are defined in <code>apps/backend-services/docker-compose.yml</code> alongside the existing PostgreSQL container:</p>
+
+<pre>cd apps/backend-services
+docker compose up -d</pre>
+
+<p>This starts five services:</p>
+
+<table>
+    <thead>
+        <tr><th>Service</th><th>Image</th><th>Ports</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>postgres</code></td>
+            <td><code>postgres:15</code></td>
+            <td>5432</td>
+            <td>Main application DB + MLflow backend store (<code>mlflow</code> database)</td>
+        </tr>
+        <tr>
+            <td><code>minio</code></td>
+            <td><code>minio/minio</code></td>
+            <td>19000, 19001</td>
+            <td>S3-compatible object storage for DVC, MLflow artifacts, benchmark outputs</td>
+        </tr>
+        <tr>
+            <td><code>minio-init</code></td>
+            <td><code>minio/mc</code></td>
+            <td>—</td>
+            <td>Init container: creates required MinIO buckets</td>
+        </tr>
+        <tr>
+            <td><code>postgres-init</code></td>
+            <td><code>postgres:15</code></td>
+            <td>—</td>
+            <td>Init container: bootstraps <code>mlflow</code> database and role</td>
+        </tr>
+        <tr>
+            <td><code>mlflow</code></td>
+            <td><code>ghcr.io/mlflow/mlflow:latest</code></td>
+            <td>5000</td>
+            <td>MLflow tracking server</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>VS Code tasks</strong><br>
+        The project includes VS Code tasks for health-checking all services: <code>wait: minio ready</code>, <code>wait: mlflow ready</code>, <code>wait: backend postgres ready</code>. The <code>Dev: prerequisites</code> compound task runs them all in sequence.
+    </div>
+</div>
+
+<h3>2. Configure Environment Variables</h3>
+
+<p>Add the following to your <code>apps/backend-services/.env</code> file:</p>
+
+<pre># MinIO Configuration
+MINIO_ENDPOINT=http://localhost:19000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=benchmark-datasets
+MINIO_ARTIFACT_BUCKET=benchmark-outputs
+
+# MLflow Configuration
+MLFLOW_TRACKING_URI=http://localhost:5000
+
+# Temporal Benchmark Configuration
+TEMPORAL_ADDRESS=localhost:7233
+TEMPORAL_NAMESPACE=default
+BENCHMARK_TASK_QUEUE=benchmark-processing
+BENCHMARK_CACHE_DIR=/tmp/benchmark-cache
+
+# Dataset Git Repository Credentials (optional, for remote repos)
+DATASET_GIT_USERNAME=
+DATASET_GIT_PASSWORD=
+
+# Default Dataset Repository Path (optional, supports ~ expansion)
+DEFAULT_DATASET_REPOSITORY_PATH=~/Github/datasets-repo
+
+# Worker identification (optional, auto-detected from git)
+WORKER_IMAGE_DIGEST=</pre>
+
+<h3>3. Run Database Migrations</h3>
+
+<p>The benchmark tables are part of the shared Prisma schema. Run migrations as usual:</p>
+
+<pre>cd apps/backend-services
+npm run db:generate
+npx prisma migrate dev</pre>
+
+<h3>4. Start the Temporal Worker</h3>
+
+<p>The benchmark workflow and activities are registered in the Temporal worker. Start it with:</p>
+
+<pre>cd apps/temporal
+npm run dev</pre>
+
+<p>The worker polls both the production <code>ocr-processing</code> queue and the <code>benchmark-processing</code> queue.</p>
+
+<h3>5. Access Service UIs</h3>
+
+<table>
+    <thead>
+        <tr><th>Service</th><th>URL</th><th>Credentials</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Application Frontend</td>
+            <td><a href="http://localhost:5173">http://localhost:5173</a></td>
+            <td>Via Keycloak SSO</td>
+        </tr>
+        <tr>
+            <td>MLflow UI</td>
+            <td><a href="http://localhost:5000">http://localhost:5000</a></td>
+            <td>No auth (local dev)</td>
+        </tr>
+        <tr>
+            <td>MinIO Console</td>
+            <td><a href="http://localhost:19001">http://localhost:19001</a></td>
+            <td><code>minioadmin</code> / <code>minioadmin</code></td>
+        </tr>
+        <tr>
+            <td>Temporal UI</td>
+            <td><a href="http://localhost:8088">http://localhost:8088</a></td>
+            <td>No auth (local dev)</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2>Data Model</h2>
+
+<p>All benchmark models are defined in <code>apps/shared/prisma/schema.prisma</code> and extend the existing Prisma schema. No existing models are modified.</p>
+
+<h3>Entity Relationship</h3>
+
+<div class="card">
+<pre style="margin: 0; background: transparent; box-shadow: none; font-size: 0.85rem;">Dataset
+  └── DatasetVersion (many)
+        ├── Split (many)
+        └── BenchmarkDefinition ← references version + split
+              │
+BenchmarkProject
+  └── BenchmarkDefinition (many)
+        ├── workflowId → Workflow (existing model)
+        ├── workflowConfigHash (SHA-256 snapshot)
+        ├── immutable, revision
+        └── BenchmarkRun (many)
+              ├── mlflowRunId, temporalWorkflowId
+              ├── workerGitSha, workerImageDigest
+              ├── metrics (JSONB), params (JSONB), tags (JSONB)
+              ├── isBaseline, baselineThresholds, baselineComparison
+              └── BenchmarkArtifact (many)
+                    ├── type (per_doc_output, diff_report, evaluation_report, ...)
+                    └── path (MinIO key)
+
+BenchmarkAuditLog (standalone — records all mutations)</pre>
+</div>
+
+<h3>Key Models</h3>
+
+<details>
+    <summary><strong>Dataset &amp; DatasetVersion</strong></summary>
+    <div class="accordion-content">
+        <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>Dataset.id</code></td><td>UUID</td><td>Primary key</td></tr>
+                <tr><td><code>Dataset.name</code></td><td>String</td><td>Human-readable dataset name</td></tr>
+                <tr><td><code>Dataset.repositoryUrl</code></td><td>String</td><td>Git repository URL (supports ~ expansion)</td></tr>
+                <tr><td><code>Dataset.dvcRemote</code></td><td>String</td><td>DVC remote identifier (MinIO bucket)</td></tr>
+                <tr><td><code>Dataset.metadata</code></td><td>JSONB</td><td>Arbitrary metadata (domain, doc type, tags)</td></tr>
+                <tr><td><code>DatasetVersion.gitRevision</code></td><td>String</td><td>Git commit SHA pinning exact DVC state</td></tr>
+                <tr><td><code>DatasetVersion.manifestPath</code></td><td>String</td><td>Path to manifest file in repo</td></tr>
+                <tr><td><code>DatasetVersion.documentCount</code></td><td>Int</td><td>Number of samples</td></tr>
+                <tr><td><code>DatasetVersion.groundTruthSchema</code></td><td>JSONB?</td><td>Schema describing ground truth format</td></tr>
+                <tr><td><code>DatasetVersion.status</code></td><td>Enum</td><td><code>draft</code>, <code>published</code>, <code>archived</code></td></tr>
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<details>
+    <summary><strong>Split</strong></summary>
+    <div class="accordion-content">
+        <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>id</code></td><td>UUID</td><td>Primary key</td></tr>
+                <tr><td><code>datasetVersionId</code></td><td>UUID</td><td>FK → DatasetVersion</td></tr>
+                <tr><td><code>name</code></td><td>String</td><td>Split name (e.g., <code>test</code>, <code>golden-regression</code>)</td></tr>
+                <tr><td><code>type</code></td><td>Enum</td><td><code>train</code>, <code>val</code>, <code>test</code>, <code>golden</code></td></tr>
+                <tr><td><code>sampleIds</code></td><td>JSONB</td><td>Array of sample identifiers</td></tr>
+                <tr><td><code>frozen</code></td><td>Boolean</td><td>If true, split cannot be modified</td></tr>
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<details>
+    <summary><strong>BenchmarkProject</strong></summary>
+    <div class="accordion-content">
+        <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>id</code></td><td>UUID</td><td>Primary key</td></tr>
+                <tr><td><code>name</code></td><td>String</td><td>Project name</td></tr>
+                <tr><td><code>mlflowExperimentId</code></td><td>String</td><td>Corresponding MLflow Experiment ID</td></tr>
+                <tr><td><code>createdBy</code></td><td>String</td><td>Creator user</td></tr>
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<details>
+    <summary><strong>BenchmarkDefinition</strong></summary>
+    <div class="accordion-content">
+        <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>id</code></td><td>UUID</td><td>Primary key</td></tr>
+                <tr><td><code>projectId</code></td><td>UUID</td><td>FK → BenchmarkProject</td></tr>
+                <tr><td><code>datasetVersionId</code></td><td>UUID</td><td>FK → DatasetVersion</td></tr>
+                <tr><td><code>splitId</code></td><td>UUID</td><td>FK → Split</td></tr>
+                <tr><td><code>workflowId</code></td><td>UUID</td><td>FK → Workflow (existing model)</td></tr>
+                <tr><td><code>workflowConfigHash</code></td><td>String</td><td>SHA-256 hash of workflow config at definition time</td></tr>
+                <tr><td><code>evaluatorType</code></td><td>String</td><td>Evaluator identifier from registry</td></tr>
+                <tr><td><code>evaluatorConfig</code></td><td>JSONB</td><td>Evaluator-specific configuration</td></tr>
+                <tr><td><code>runtimeSettings</code></td><td>JSONB</td><td>Concurrency, timeouts, queue selection</td></tr>
+                <tr><td><code>artifactPolicy</code></td><td>JSONB</td><td>What artifacts to store</td></tr>
+                <tr><td><code>immutable</code></td><td>Boolean</td><td>Locked after first run</td></tr>
+                <tr><td><code>revision</code></td><td>Int</td><td>Incremented on edit of immutable definition</td></tr>
+                <tr><td><code>scheduleEnabled</code></td><td>Boolean</td><td>Whether scheduled execution is active</td></tr>
+                <tr><td><code>scheduleCron</code></td><td>String?</td><td>Cron expression for scheduled runs</td></tr>
+                <tr><td><code>scheduleId</code></td><td>String?</td><td>Temporal Schedule ID</td></tr>
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<details>
+    <summary><strong>BenchmarkRun</strong></summary>
+    <div class="accordion-content">
+        <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>id</code></td><td>UUID</td><td>Primary key</td></tr>
+                <tr><td><code>definitionId</code></td><td>UUID</td><td>FK → BenchmarkDefinition</td></tr>
+                <tr><td><code>projectId</code></td><td>UUID</td><td>FK → BenchmarkProject</td></tr>
+                <tr><td><code>status</code></td><td>Enum</td><td><code>pending</code>, <code>running</code>, <code>completed</code>, <code>failed</code>, <code>cancelled</code></td></tr>
+                <tr><td><code>mlflowRunId</code></td><td>String</td><td>Corresponding MLflow Run ID</td></tr>
+                <tr><td><code>temporalWorkflowId</code></td><td>String</td><td>Temporal workflow execution ID</td></tr>
+                <tr><td><code>workerGitSha</code></td><td>String</td><td>Git SHA of worker code</td></tr>
+                <tr><td><code>workerImageDigest</code></td><td>String?</td><td>Docker image digest</td></tr>
+                <tr><td><code>metrics</code></td><td>JSONB</td><td>Aggregated metrics from evaluator</td></tr>
+                <tr><td><code>params</code></td><td>JSONB</td><td>Run parameters logged to MLflow</td></tr>
+                <tr><td><code>tags</code></td><td>JSONB</td><td>Run tags logged to MLflow</td></tr>
+                <tr><td><code>isBaseline</code></td><td>Boolean</td><td>Whether this is the baseline run</td></tr>
+                <tr><td><code>baselineThresholds</code></td><td>JSONB?</td><td>Threshold config for baseline comparisons</td></tr>
+                <tr><td><code>baselineComparison</code></td><td>JSONB?</td><td>Result of comparison against baseline</td></tr>
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<details>
+    <summary><strong>BenchmarkArtifact</strong></summary>
+    <div class="accordion-content">
+        <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>id</code></td><td>UUID</td><td>Primary key</td></tr>
+                <tr><td><code>runId</code></td><td>UUID</td><td>FK → BenchmarkRun</td></tr>
+                <tr><td><code>type</code></td><td>Enum</td><td><code>per_doc_output</code>, <code>intermediate_node_output</code>, <code>diff_report</code>, <code>evaluation_report</code>, <code>error_log</code></td></tr>
+                <tr><td><code>path</code></td><td>String</td><td>MinIO storage key</td></tr>
+                <tr><td><code>sampleId</code></td><td>String?</td><td>Specific sample this artifact relates to</td></tr>
+                <tr><td><code>nodeId</code></td><td>String?</td><td>Graph node that produced this artifact</td></tr>
+                <tr><td><code>sizeBytes</code></td><td>BigInt</td><td>File size</td></tr>
+                <tr><td><code>mimeType</code></td><td>String</td><td>Content type</td></tr>
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<details>
+    <summary><strong>BenchmarkAuditLog</strong></summary>
+    <div class="accordion-content">
+        <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>id</code></td><td>UUID</td><td>Primary key</td></tr>
+                <tr><td><code>timestamp</code></td><td>DateTime</td><td>When the event occurred</td></tr>
+                <tr><td><code>userId</code></td><td>String</td><td>User who performed the action</td></tr>
+                <tr><td><code>action</code></td><td>Enum</td><td><code>dataset_created</code>, <code>version_published</code>, <code>run_started</code>, <code>run_completed</code>, <code>baseline_promoted</code>, <code>config_changed</code></td></tr>
+                <tr><td><code>entityType</code></td><td>String</td><td>Type of entity affected</td></tr>
+                <tr><td><code>entityId</code></td><td>String</td><td>ID of entity affected</td></tr>
+                <tr><td><code>metadata</code></td><td>JSONB?</td><td>Additional context</td></tr>
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<h2>Backend Architecture</h2>
+
+<h3>Module Structure</h3>
+
+<p>The benchmarking backend is organized as a single NestJS module at <code>apps/backend-services/src/benchmark/</code>:</p>
+
+<div class="card">
+<pre style="margin: 0; background: transparent; box-shadow: none; font-size: 0.85rem;">apps/backend-services/src/benchmark/
+├── benchmark.module.ts              # NestJS module — wires all components
+├── benchmark-project.controller.ts  # /api/benchmark/projects endpoints
+├── benchmark-project.service.ts     # Project CRUD + MLflow experiment management
+├── benchmark-definition.controller.ts  # Definition CRUD + scheduling
+├── benchmark-definition.service.ts  # Validation, revision management, schedule config
+├── benchmark-run.controller.ts      # Run lifecycle, drill-down, artifacts, baseline
+├── benchmark-run.service.ts         # Start/cancel/query runs, baseline promotion
+├── dataset.controller.ts            # Dataset CRUD, upload, version, split management
+├── dataset.service.ts               # DVC automation, manifest generation, validation
+├── dvc.service.ts                   # Git + DVC CLI wrapper
+├── mlflow-client.service.ts         # MLflow REST API client (v2.0)
+├── benchmark-temporal.service.ts    # Temporal client wrapper for benchmark workflows
+├── benchmark-artifact.service.ts    # Artifact storage in MinIO
+├── audit-log.service.ts             # Audit event logging
+├── evaluator-registry.service.ts    # Map-based evaluator registry
+├── evaluator.interface.ts           # Shared evaluator types
+├── evaluators/                      # Evaluator implementations (backend stubs)
+│   ├── field-accuracy.evaluator.ts
+│   ├── schema-aware.evaluator.ts
+│   └── black-box.evaluator.ts
+└── dto/                             # 28 DTO files for request/response shapes</pre>
+</div>
+
+<h3>Key Services</h3>
+
+<details>
+    <summary><strong>DatasetService</strong> (1906 lines)</summary>
+    <div class="accordion-content">
+        <p>The largest service — orchestrates all dataset operations:</p>
+        <ul>
+            <li><strong><code>createDataset()</code></strong> — Clones or creates Git repository, initializes DVC with MinIO remote, creates Postgres record. Supports tilde (<code>~</code>) expansion for portable paths.</li>
+            <li><strong><code>uploadFiles()</code></strong> — Writes uploaded files to the dataset repo on disk</li>
+            <li><strong><code>createVersion()</code></strong> — Clones repo → generates manifest → runs <code>dvc add</code> → commits to Git → creates DatasetVersion record</li>
+            <li><strong><code>publishVersion()</code></strong> — Transitions version from draft to published</li>
+            <li><strong>Split management</strong> — Create/manage splits with stratification rules and freeze support</li>
+            <li><strong>Ground truth validation</strong> — Uses JSON Schema (Ajv) to validate against declared schema</li>
+        </ul>
+    </div>
+</details>
+
+<details>
+    <summary><strong>DvcService</strong> (364 lines)</summary>
+    <div class="accordion-content">
+        <p>Wraps Git and DVC CLI operations. All DVC automation is transparent to the user — they never interact with Git or DVC directly.</p>
+        <ul>
+            <li><code>cloneRepository()</code> — Git clone with optional credentials injection</li>
+            <li><code>createNewRepository()</code> — <code>git init</code> + initial commit</li>
+            <li><code>initRepository()</code> — <code>dvc init</code> + configure MinIO S3 remote</li>
+            <li><code>configureRemote()</code> — Set DVC remote endpoint, access keys, SSL settings for MinIO</li>
+            <li><code>addFiles()</code> — <code>dvc add</code> to track files</li>
+            <li><code>commitChanges()</code> — Git commit of DVC metadata</li>
+            <li><code>pushData()</code> — <code>dvc push</code> to MinIO</li>
+            <li><code>pullData()</code> — <code>dvc pull</code> from MinIO</li>
+            <li><code>checkoutRevision()</code> — Checkout specific Git commit</li>
+        </ul>
+        <p>Supports tilde expansion (<code>~/path</code> → <code>/home/user/path</code>) for repository URLs.</p>
+    </div>
+</details>
+
+<details>
+    <summary><strong>MLflowClientService</strong> (330 lines)</summary>
+    <div class="accordion-content">
+        <p>HTTP client wrapping the MLflow REST API (v2.0). All MLflow interactions go through this service.</p>
+        <ul>
+            <li><code>createExperiment(name)</code> → experiment_id</li>
+            <li><code>createRun(experimentId, runName)</code> → run_id</li>
+            <li><code>logParams(runId, params)</code> — Log key-value parameters</li>
+            <li><code>logMetrics(runId, metrics)</code> — Log numeric metrics with timestamps</li>
+            <li><code>logTags(runId, tags)</code> — Log string tags</li>
+            <li><code>updateRunStatus(runId, status)</code> — RUNNING/FINISHED/FAILED/KILLED</li>
+            <li><code>logArtifact(runId, artifactPath)</code> — Upload file artifact</li>
+            <li><code>getRunDetails(runId)</code> — Fetch run info from MLflow</li>
+            <li><code>searchRuns(experimentId)</code> — Query runs within an experiment</li>
+        </ul>
+        <p>Configured via <code>MLFLOW_TRACKING_URI</code> (default: <code>http://localhost:5000</code>).</p>
+    </div>
+</details>
+
+<details>
+    <summary><strong>BenchmarkTemporalService</strong> (369 lines)</summary>
+    <div class="accordion-content">
+        <p>Temporal client wrapper for starting and managing benchmark workflows.</p>
+        <ul>
+            <li><code>startBenchmarkRunWorkflow(runId, definition)</code> — Starts <code>benchmarkRunWorkflow</code> on <code>benchmark-processing</code> task queue with 24h timeout</li>
+            <li><code>cancelBenchmarkRunWorkflow(workflowId)</code> — Cancel via Temporal handle</li>
+            <li><code>getWorkflowStatus(workflowId)</code> — Describe workflow state</li>
+            <li><code>createSchedule(workflowId, cron, ...)</code> — Create Temporal Schedule for recurring runs</li>
+            <li><code>pauseSchedule()</code>, <code>resumeSchedule()</code>, <code>deleteSchedule()</code>, <code>getScheduleInfo()</code></li>
+        </ul>
+    </div>
+</details>
+
+<details>
+    <summary><strong>BenchmarkRunService</strong> (809 lines)</summary>
+    <div class="accordion-content">
+        <p>Manages the run lifecycle:</p>
+        <ul>
+            <li><strong><code>startRun()</code></strong> — Validates definition → gets <code>workerGitSha</code> via <code>git rev-parse HEAD</code> → creates MLflow run → creates Postgres record → starts Temporal workflow → marks definition immutable → writes audit log</li>
+            <li><strong><code>cancelRun()</code></strong> — Sends cancel signal to Temporal workflow, updates status</li>
+            <li><strong><code>getDrillDown()</code></strong> — Returns worst-performing samples, field error breakdown, error clusters</li>
+            <li><strong><code>getPerSampleResults()</code></strong> — Paginated per-sample results with metadata dimension filtering</li>
+            <li><strong><code>promoteToBaseline()</code></strong> — Demotes previous baseline, sets thresholds, records audit log</li>
+        </ul>
+    </div>
+</details>
+
+<details>
+    <summary><strong>BenchmarkArtifactService</strong> (230 lines)</summary>
+    <div class="accordion-content">
+        <p>Manages artifact storage in MinIO:</p>
+        <ul>
+            <li><code>createArtifact(input)</code> — Writes to MinIO with key format <code>{runId}/{type}/{sampleId}-{nodeId}-{timestamp}.ext</code></li>
+            <li><code>listArtifacts(projectId, runId, type?)</code> — List with optional type filter</li>
+            <li><code>getArtifactContent(projectId, runId, artifactId)</code> — Stream from MinIO</li>
+        </ul>
+        <p>Uses <code>MinioBlobStorageService</code> and bucket <code>MINIO_ARTIFACT_BUCKET</code> (default: <code>benchmark-outputs</code>).</p>
+    </div>
+</details>
+
+<h2>Temporal Workflows &amp; Activities</h2>
+
+<h3>Benchmark Workflow</h3>
+
+<p>The central orchestrator is <code>benchmarkRunWorkflow</code> defined in <code>apps/temporal/src/benchmark-workflow.ts</code> (778 lines). It coordinates the 7-phase pipeline described above.</p>
+
+<table>
+    <thead>
+        <tr><th>Feature</th><th>Details</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Task Queue</strong></td>
+            <td><code>benchmark-processing</code> (isolated from production <code>ocr-processing</code>)</td>
+        </tr>
+        <tr>
+            <td><strong>Timeout</strong></td>
+            <td>24 hours (configurable)</td>
+        </tr>
+        <tr>
+            <td><strong>Signal</strong></td>
+            <td><code>cancelBenchmarkSignal</code> — for cancellation</td>
+        </tr>
+        <tr>
+            <td><strong>Query</strong></td>
+            <td><code>getProgress</code> — returns current phase, processed/total counts, percent complete</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Activities</h3>
+
+<table>
+    <thead>
+        <tr><th>Activity</th><th>File</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>materializeDataset</code></td>
+            <td><code>activities/benchmark-materialize.ts</code></td>
+            <td>Clones dataset Git repo at pinned revision, runs <code>dvc pull</code>, caches results in <code>/tmp/benchmark-cache/{datasetId}-{gitRevision}</code></td>
+        </tr>
+        <tr>
+            <td><code>benchmarkEvaluate</code></td>
+            <td><code>activities/benchmark-evaluate.ts</code></td>
+            <td>Routes evaluation to the appropriate evaluator from the registry, runs per-sample scoring</td>
+        </tr>
+        <tr>
+            <td><code>benchmarkAggregate</code></td>
+            <td><code>activities/benchmark-evaluate.ts</code></td>
+            <td>Computes aggregate metrics (mean, median, stdDev, percentiles) and failure analysis</td>
+        </tr>
+        <tr>
+            <td><code>benchmarkLogToMlflow</code></td>
+            <td><code>activities/benchmark-logging.ts</code></td>
+            <td>Logs params, metrics, tags, and artifacts to MLflow REST API</td>
+        </tr>
+        <tr>
+            <td><code>benchmarkCleanup</code></td>
+            <td><code>activities/benchmark-logging.ts</code></td>
+            <td>Removes temporary materialized files from worker filesystem</td>
+        </tr>
+        <tr>
+            <td><code>benchmarkUpdateRunStatus</code></td>
+            <td><code>activities/benchmark-update-run.ts</code></td>
+            <td>Updates BenchmarkRun record in Postgres with status, metrics, and timing</td>
+        </tr>
+        <tr>
+            <td><code>benchmarkCompareAgainstBaseline</code></td>
+            <td><code>activities/benchmark-baseline-comparison.ts</code></td>
+            <td>Finds baseline run, computes metric deltas, checks absolute/relative thresholds</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Child workflow execution</strong><br>
+        During the fan-out phase, each sample is processed by spawning a child <code>graphWorkflow</code> — the same workflow function that production documents use. This is handled at the workflow level (not an activity) in <code>activities/benchmark-execute.ts</code>, which uses <code>executeChild('graphWorkflow', ...)</code> to run on the <code>benchmark-processing</code> queue.
+    </div>
+</div>
+
+<h3>Evaluator Implementations</h3>
+
+<p>The real evaluator logic runs in the Temporal worker (at <code>apps/temporal/src/evaluators/</code>), while the backend has lightweight stubs for registration purposes.</p>
+
+<details>
+    <summary><strong>Schema-Aware Evaluator</strong> (497 lines)</summary>
+    <div class="accordion-content">
+        <p>Field-level comparison engine with configurable matching rules:</p>
+        <ul>
+            <li><strong>Exact match</strong> — Strict string equality</li>
+            <li><strong>Fuzzy match</strong> — Levenshtein/Jaro-Winkler distance with configurable similarity threshold</li>
+            <li><strong>Numeric tolerance</strong> — Absolute or relative numeric comparison</li>
+            <li><strong>Date normalization</strong> — Parses dates across multiple formats and compares normalized values</li>
+            <li><strong>Boolean match</strong> — Boolean/checkbox accuracy</li>
+        </ul>
+        <p>Produces per-field <strong>precision</strong>, <strong>recall</strong>, and <strong>F1 score</strong>. Supports <code>FieldMatchingRule</code> config with fuzzy thresholds and numeric tolerances.</p>
+    </div>
+</details>
+
+<details>
+    <summary><strong>Black-Box Evaluator</strong> (376 lines)</summary>
+    <div class="accordion-content">
+        <p>JSON deep-equal comparison with detailed diff output:</p>
+        <ul>
+            <li>Attempts JSON parse of both prediction and ground truth files</li>
+            <li>If both are valid JSON: performs deep-equal comparison, generates field-level diff</li>
+            <li>If either is not JSON: falls back to raw byte comparison</li>
+            <li>Produces <code>exact_match</code> (0 or 1) and <code>field_overlap</code> (percentage of matching fields) metrics</li>
+            <li>Generates diff artifacts showing differences between prediction and ground truth</li>
+        </ul>
+    </div>
+</details>
+
+<h3>Aggregation Engine</h3>
+
+<p>The statistical aggregation engine (<code>apps/temporal/src/benchmark-aggregation.ts</code>, 717 lines) computes:</p>
+
+<ul>
+    <li><strong>Per-metric statistics</strong>: mean, median, standard deviation, p5, p25, p75, p95, min, max</li>
+    <li><strong>Failure analysis</strong>: worst-performing samples by any metric, per-field error statistics, error clustering by type/pattern</li>
+    <li><strong>Types</strong>: <code>MetricStatistics</code>, <code>AggregatedMetrics</code>, <code>WorstSample</code>, <code>FieldErrorStats</code>, <code>ErrorCluster</code>, <code>FailureAnalysis</code></li>
+</ul>
+
+<h2>Blob Storage Layer</h2>
+
+<p>The benchmarking system uses <code>MinioBlobStorageService</code> for all object storage, alongside the existing Azure and local filesystem implementations:</p>
+
+<div class="card">
+<pre style="margin: 0; background: transparent; box-shadow: none; font-size: 0.85rem;">apps/backend-services/src/blob-storage/
+├── blob-storage.module.ts          # Provides all three implementations
+├── blob-storage.interface.ts       # BlobStorageInterface (write/read/exists/delete)
+├── blob-storage.service.ts         # Azure Blob Storage (production documents)
+├── local-blob-storage.service.ts   # Local filesystem (development)
+└── minio-blob-storage.service.ts   # S3-compatible MinIO (benchmarking)</pre>
+</div>
+
+<p><code>MinioBlobStorageService</code> implements <code>BlobStorageInterface</code> using <code>@aws-sdk/client-s3</code> with <code>forcePathStyle: true</code> for MinIO compatibility. It handles:</p>
+
+<ul>
+    <li><code>write(key, data)</code> — PutObject to MinIO</li>
+    <li><code>read(key)</code> — GetObject from MinIO (returns Buffer)</li>
+    <li><code>exists(key)</code> — HeadObject check</li>
+    <li><code>delete(key)</code> — DeleteObject</li>
+</ul>
+
+<h3>MinIO Buckets</h3>
+
+<table>
+    <thead>
+        <tr><th>Bucket</th><th>Purpose</th><th>Used By</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>datasets</code></td>
+            <td>DVC remote for dataset large files</td>
+            <td>DvcService (via DVC CLI)</td>
+        </tr>
+        <tr>
+            <td><code>mlflow-artifacts</code></td>
+            <td>MLflow artifact store</td>
+            <td>MLflow server</td>
+        </tr>
+        <tr>
+            <td><code>benchmark-outputs</code></td>
+            <td>Benchmark run artifacts (per-doc outputs, diffs, reports)</td>
+            <td>BenchmarkArtifactService (via MinioBlobStorageService)</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2>Frontend Architecture</h2>
+
+<h3>Routing</h3>
+
+<p>Benchmark routes are defined in <code>apps/frontend/src/App.tsx</code>:</p>
+
+<table>
+    <thead>
+        <tr><th>Route</th><th>Component</th></tr>
+    </thead>
+    <tbody>
+        <tr><td><code>/benchmarking/datasets</code></td><td><code>DatasetListPage</code></td></tr>
+        <tr><td><code>/benchmarking/datasets/:id</code></td><td><code>DatasetDetailPage</code></td></tr>
+        <tr><td><code>/benchmarking/projects</code></td><td><code>BenchmarkProjectListPage</code></td></tr>
+        <tr><td><code>/benchmarking/projects/:id</code></td><td><code>BenchmarkProjectDetailPage</code></td></tr>
+        <tr><td><code>/benchmarking/projects/:id/runs/:runId</code></td><td><code>RunDetailPage</code></td></tr>
+        <tr><td><code>/benchmarking/projects/:id/runs/:runId/regression</code></td><td><code>RegressionReportPage</code></td></tr>
+        <tr><td><code>/benchmarking/projects/:projectId/runs/:runId/drill-down</code></td><td><code>ResultsDrillDownPage</code></td></tr>
+        <tr><td><code>/benchmarking/projects/:id/compare</code></td><td><code>RunComparisonPage</code></td></tr>
+    </tbody>
+</table>
+
+<h3>Component Library</h3>
+
+<p>Located in <code>apps/frontend/src/features/benchmarking/</code>:</p>
+
+<table>
+    <thead>
+        <tr><th>Component</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+        <tr><td><code>CreateDatasetDialog</code></td><td>Dataset creation form</td></tr>
+        <tr><td><code>FileUploadDialog</code></td><td>Drag-and-drop file upload to datasets</td></tr>
+        <tr><td><code>CreateProjectDialog</code></td><td>Project creation form</td></tr>
+        <tr><td><code>CreateDefinitionDialog</code></td><td>Definition creation with dataset/workflow/evaluator selectors</td></tr>
+        <tr><td><code>DefinitionDetailView</code></td><td>Expanded definition info with baseline history and schedule</td></tr>
+        <tr><td><code>BaselineThresholdDialog</code></td><td>Configure absolute/relative thresholds for baseline promotion</td></tr>
+        <tr><td><code>ScheduleConfig</code></td><td>Cron schedule configuration for definitions</td></tr>
+        <tr><td><code>SplitManagement</code></td><td>Manage dataset splits (create, freeze)</td></tr>
+        <tr><td><code>ArtifactViewer</code></td><td>Browse and view run artifacts from MinIO</td></tr>
+        <tr><td><code>GroundTruthViewer</code></td><td>View ground truth annotations for samples</td></tr>
+        <tr><td><code>TrendChart</code></td><td>Metric trend visualization across runs</td></tr>
+        <tr><td><code>ValidationReport</code></td><td>Dataset validation results display</td></tr>
+    </tbody>
+</table>
+
+<h3>Hooks (React Query)</h3>
+
+<p>All data fetching uses <code>@tanstack/react-query</code> via custom hooks in <code>apps/frontend/src/features/benchmarking/hooks/</code>. Hooks include: <code>useProjects</code>, <code>useProject</code>, <code>useRuns</code>, <code>useRun</code>, <code>useStartRun</code>, <code>useDrillDown</code>, <code>useArtifacts</code>, <code>usePromoteBaseline</code>, <code>useDefinitions</code>, <code>useDefinition</code>, <code>useDatasets</code>, <code>useDatasetVersions</code>, <code>useDatasetUpload</code>, <code>useDatasetValidation</code>, <code>useSplits</code>, <code>useWorkflows</code>, <code>useSchedule</code>.</p>
+
+<h3>Extensible Drill-Down Panels</h3>
+
+<p>The drill-down view uses a panel registry (<code>features/benchmarking/registry/drillDownPanelRegistry.ts</code>) for pluggable, workflow-specific result panels. New panel types can be registered without modifying core drill-down code.</p>
+
+<h2>Dataset Repository Configuration</h2>
+
+<h3>Repository URL Formats</h3>
+
+<p>The <code>repositoryUrl</code> field supports multiple formats:</p>
+
+<table>
+    <thead>
+        <tr><th>Format</th><th>Example</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Local path with tilde</td>
+            <td><code>~/Github/datasets-repo</code></td>
+            <td>Tilde expanded to home directory</td>
+        </tr>
+        <tr>
+            <td>File URL with tilde</td>
+            <td><code>file://~/Github/datasets-repo</code></td>
+            <td>Tilde expanded, file:// prefix handled</td>
+        </tr>
+        <tr>
+            <td>Absolute local path</td>
+            <td><code>/home/user/datasets</code></td>
+            <td>Used directly</td>
+        </tr>
+        <tr>
+            <td>HTTPS remote</td>
+            <td><code>https://github.com/org/repo.git</code></td>
+            <td>Git credentials injected from env vars</td>
+        </tr>
+        <tr>
+            <td>SSH remote</td>
+            <td><code>git@github.com:org/repo.git</code></td>
+            <td>Uses SSH key authentication</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Test Utilities</h3>
+
+<p>For automated testing, use the helper functions in <code>apps/backend-services/src/testUtils/datasetTestHelpers.ts</code>:</p>
+
+<ul>
+    <li><code>createTempDatasetRepo()</code> — Creates a fully initialized Git repository in <code>/tmp</code> with auto-cleanup</li>
+    <li><code>createMultipleTempDatasetRepos()</code> — Creates multiple isolated repos for parallel tests</li>
+    <li><code>cleanupTempRepos()</code> — Cleans up all temporary repos created during a test run</li>
+</ul>
+
+<pre>// Example test setup
+const { repoPath, cleanup } = await createTempDatasetRepo();
+try {
+    // Use repoPath as the dataset repositoryUrl
+    await datasetService.create({ repositoryUrl: repoPath, ... });
+    // ... test assertions
+} finally {
+    await cleanup();
+}</pre>
+
+<h2>Docker Compose Configuration</h2>
+
+<p>The benchmarking infrastructure services are defined in <code>apps/backend-services/docker-compose.yml</code>:</p>
+
+<details>
+    <summary><strong>MLflow Service Configuration</strong></summary>
+    <div class="accordion-content">
+        <p>MLflow tracking server with PostgreSQL backend store and MinIO artifact store:</p>
+        <ul>
+            <li><strong>Image</strong>: <code>ghcr.io/mlflow/mlflow:latest</code></li>
+            <li><strong>Backend store</strong>: <code>postgresql://mlflow:mlflow_password@postgres:5432/mlflow</code></li>
+            <li><strong>Artifact root</strong>: <code>s3://mlflow-artifacts/</code> (pointing to MinIO)</li>
+            <li><strong>S3 endpoint</strong>: <code>http://minio:9000</code> (internal Docker network)</li>
+            <li><strong>Port</strong>: 5000</li>
+            <li><strong>Depends on</strong>: postgres (backend store), minio (artifact store)</li>
+        </ul>
+    </div>
+</details>
+
+<details>
+    <summary><strong>MinIO Service Configuration</strong></summary>
+    <div class="accordion-content">
+        <p>S3-compatible object storage:</p>
+        <ul>
+            <li><strong>Image</strong>: <code>minio/minio</code></li>
+            <li><strong>API Port</strong>: 19000 (mapped from 9000)</li>
+            <li><strong>Console Port</strong>: 19001 (mapped from 9001)</li>
+            <li><strong>Root user</strong>: <code>minioadmin</code></li>
+            <li><strong>Volume</strong>: <code>minio_data</code> (persistent)</li>
+        </ul>
+        <p><strong>Init container</strong> (<code>minio-init</code>) creates required buckets on first startup:</p>
+        <ul>
+            <li><code>datasets</code> — DVC remote for dataset files</li>
+            <li><code>mlflow-artifacts</code> — MLflow artifact store</li>
+            <li><code>benchmark-outputs</code> — Run output artifacts</li>
+        </ul>
+    </div>
+</details>
+
+<details>
+    <summary><strong>PostgreSQL Init</strong></summary>
+    <div class="accordion-content">
+        <p>A <code>postgres-init</code> container runs <code>init-postgres.sh</code> on first startup to:</p>
+        <ul>
+            <li>Create the <code>mlflow</code> database</li>
+            <li>Create the <code>mlflow</code> role with a dedicated password</li>
+            <li>Grant necessary permissions</li>
+        </ul>
+        <p>This keeps the MLflow backend store logically separated from the application database while sharing the same PostgreSQL instance.</p>
+    </div>
+</details>
+
+<h2>Environment Variables Reference</h2>
+
+<table>
+    <thead>
+        <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>MINIO_ENDPOINT</code></td>
+            <td><code>http://localhost:19000</code></td>
+            <td>MinIO S3 API endpoint (used by DvcService and MinioBlobStorageService)</td>
+        </tr>
+        <tr>
+            <td><code>MINIO_ACCESS_KEY</code></td>
+            <td><code>minioadmin</code></td>
+            <td>MinIO access key</td>
+        </tr>
+        <tr>
+            <td><code>MINIO_SECRET_KEY</code></td>
+            <td><code>minioadmin</code></td>
+            <td>MinIO secret key</td>
+        </tr>
+        <tr>
+            <td><code>MINIO_BUCKET</code></td>
+            <td><code>benchmark-datasets</code></td>
+            <td>Default bucket for MinioBlobStorageService</td>
+        </tr>
+        <tr>
+            <td><code>MINIO_ARTIFACT_BUCKET</code></td>
+            <td><code>benchmark-outputs</code></td>
+            <td>Bucket for benchmark artifacts</td>
+        </tr>
+        <tr>
+            <td><code>MLFLOW_TRACKING_URI</code></td>
+            <td><code>http://localhost:5000</code></td>
+            <td>MLflow server URL for API calls</td>
+        </tr>
+        <tr>
+            <td><code>TEMPORAL_ADDRESS</code></td>
+            <td><code>localhost:7233</code></td>
+            <td>Temporal gRPC endpoint</td>
+        </tr>
+        <tr>
+            <td><code>TEMPORAL_NAMESPACE</code></td>
+            <td><code>default</code></td>
+            <td>Temporal namespace</td>
+        </tr>
+        <tr>
+            <td><code>BENCHMARK_TASK_QUEUE</code></td>
+            <td><code>benchmark-processing</code></td>
+            <td>Temporal task queue for benchmark workflows</td>
+        </tr>
+        <tr>
+            <td><code>BENCHMARK_CACHE_DIR</code></td>
+            <td><code>/tmp/benchmark-cache</code></td>
+            <td>Local cache directory for materialized datasets</td>
+        </tr>
+        <tr>
+            <td><code>DATASET_GIT_USERNAME</code></td>
+            <td><em>(empty)</em></td>
+            <td>Git credentials for remote dataset repositories</td>
+        </tr>
+        <tr>
+            <td><code>DATASET_GIT_PASSWORD</code></td>
+            <td><em>(empty)</em></td>
+            <td>Git password/token for remote dataset repositories</td>
+        </tr>
+        <tr>
+            <td><code>DEFAULT_DATASET_REPOSITORY_PATH</code></td>
+            <td><code>~/Github/datasets-repo</code></td>
+            <td>Default path for dataset repositories (supports tilde expansion)</td>
+        </tr>
+        <tr>
+            <td><code>WORKER_IMAGE_DIGEST</code></td>
+            <td><em>(empty)</em></td>
+            <td>Docker image digest recorded on each run (auto-detected in containers)</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2>Troubleshooting</h2>
+
+<details>
+    <summary><strong>MLflow connection refused</strong></summary>
+    <div class="accordion-content">
+        <p>If MLflow is not reachable at <code>http://localhost:5000</code>:</p>
+        <ol>
+            <li>Check that the MLflow container is running: <code>docker ps | grep mlflow</code></li>
+            <li>Check MLflow logs: <code>docker logs ai-doc-intelligence-mlflow</code></li>
+            <li>Verify the PostgreSQL <code>mlflow</code> database exists: connect to Postgres and run <code>\l</code></li>
+            <li>Ensure MinIO is healthy (MLflow needs MinIO for artifact storage)</li>
+        </ol>
+    </div>
+</details>
+
+<details>
+    <summary><strong>MinIO bucket not found</strong></summary>
+    <div class="accordion-content">
+        <p>If you get "NoSuchBucket" errors:</p>
+        <ol>
+            <li>Check that the <code>minio-init</code> container ran successfully: <code>docker logs ai-doc-intelligence-minio-init</code></li>
+            <li>Manually create buckets via the MinIO Console at <code>http://localhost:19001</code></li>
+            <li>Or use the MinIO CLI: <code>mc mb local/datasets local/mlflow-artifacts local/benchmark-outputs</code></li>
+        </ol>
+    </div>
+</details>
+
+<details>
+    <summary><strong>DVC operations failing</strong></summary>
+    <div class="accordion-content">
+        <p>Common DVC issues:</p>
+        <ul>
+            <li><strong>DVC not installed</strong>: Install with <code>pip install dvc[s3]</code>. The <code>[s3]</code> extra is required for MinIO/S3 support.</li>
+            <li><strong>Remote not configured</strong>: DVC remote is configured automatically when creating a dataset. Check the repo's <code>.dvc/config</code> file.</li>
+            <li><strong>MinIO connection issues</strong>: DVC uses <code>MINIO_ENDPOINT</code>, <code>MINIO_ACCESS_KEY</code>, and <code>MINIO_SECRET_KEY</code> env vars. Verify they match your MinIO instance.</li>
+            <li><strong>SSL errors</strong>: For local MinIO without SSL, ensure DVC remote has <code>endpointurl</code> set to <code>http://</code> (not <code>https://</code>) and <code>use_ssl = false</code>.</li>
+        </ul>
+    </div>
+</details>
+
+<details>
+    <summary><strong>Dataset repository path not found</strong></summary>
+    <div class="accordion-content">
+        <p>Tilde expansion issues:</p>
+        <ul>
+            <li>Tilde (<code>~</code>) is expanded to the current user's home directory on the backend server, not the frontend user's machine</li>
+            <li>Ensure the expanded path exists and is accessible by the backend process</li>
+            <li>For Docker deployments, tilde expands to the container user's home directory</li>
+            <li>Prefer <code>DEFAULT_DATASET_REPOSITORY_PATH</code> env var for consistent configuration across environments</li>
+        </ul>
+    </div>
+</details>
+
+<details>
+    <summary><strong>Benchmark workflow stuck in pending</strong></summary>
+    <div class="accordion-content">
+        <p>If runs stay in <code>pending</code> status:</p>
+        <ol>
+            <li>Verify the Temporal worker is running and polling the <code>benchmark-processing</code> queue</li>
+            <li>Check the Temporal UI at <code>http://localhost:8088</code> for the workflow execution</li>
+            <li>Ensure the <code>BENCHMARK_TASK_QUEUE</code> env var matches between the backend service and the Temporal worker</li>
+            <li>Check Temporal worker logs for registration errors</li>
+        </ol>
+    </div>
+</details>
+
+<details>
+    <summary><strong>Port conflicts</strong></summary>
+    <div class="accordion-content">
+        <table>
+            <thead><tr><th>Service</th><th>Port</th><th>Check</th></tr></thead>
+            <tbody>
+                <tr><td>MinIO API</td><td>19000</td><td><code>curl http://localhost:19000/minio/health/live</code></td></tr>
+                <tr><td>MinIO Console</td><td>19001</td><td>Open in browser</td></tr>
+                <tr><td>MLflow</td><td>5000</td><td><code>curl http://localhost:5000/health</code></td></tr>
+                <tr><td>PostgreSQL</td><td>5432</td><td><code>pg_isready -h localhost -p 5432</code></td></tr>
+                <tr><td>Temporal gRPC</td><td>7233</td><td><code>tctl cluster health</code></td></tr>
+                <tr><td>Temporal UI</td><td>8088</td><td>Open in browser</td></tr>
+            </tbody>
+        </table>
+        <p>If ports conflict, update mappings in the respective <code>docker-compose.yml</code> files and corresponding environment variables.</p>
+    </div>
+</details>
+    </main>
+    <footer class="site-footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <h4>BC Gov Document Intelligence</h4>
+                <p>Enterprise document processing platform for BC Government</p>
+            </div>
+            <div class="footer-links">
+                <h4>Resources</h4>
+                <ul>
+                    <li><a href="https://github.com/bcgov/ai-adoption-document-intelligence">GitHub Repository</a></li>
+                    <li><a href="api-reference.html">API Reference</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>BC Government</h4>
+                <ul>
+                    <li><a href="https://www2.gov.bc.ca">gov.bc.ca</a></li>
+                    <li><a href="https://digital.gov.bc.ca">Digital Office</a></li>
+                </ul>
+            </div>
+            <div class="footer-copyright">
+                <p>&copy; 2026 Province of British Columbia</p>
+                <p class="footer-meta">Built with zero dependencies</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        (function () {
+            function scrollToWithHeaderOffset(el) {
+                if (!el) return;
+                const header = document.querySelector('.bc-header');
+                const offset = (header ? header.getBoundingClientRect().height : 0) + 16;
+
+                const top = el.getBoundingClientRect().top + window.scrollY - offset;
+                window.scrollTo({ top: Math.max(0, top) });
+            }
+
+            function openDetailsFromHash() {
+                const hash = window.location.hash;
+                if (!hash || hash.length < 2) return;
+
+                const id = hash.substring(1);
+                const el = document.getElementById(id);
+                if (el && el.tagName && el.tagName.toLowerCase() === 'details') {
+                    el.open = true;
+                    // Opening can change layout; adjust scroll after paint so the
+                    // sticky header doesn't cover the <summary> title.
+                    requestAnimationFrame(function () {
+                        requestAnimationFrame(function () {
+                            scrollToWithHeaderOffset(el);
+                        });
+                    });
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                openDetailsFromHash();
+            });
+
+            window.addEventListener('hashchange', function () {
+                openDetailsFromHash();
+            });
+
+            // If user clicks the same #hash twice, hashchange won't fire.
+            // This ensures ADR links always expand.
+            document.addEventListener('click', function (e) {
+                const link = e.target.closest && e.target.closest('a[href^="#"]');
+                if (!link) return;
+
+                const href = link.getAttribute('href');
+                if (!href || href.length < 2) return;
+
+                const id = href.substring(1);
+                const el = document.getElementById(id);
+                if (el && el.tagName && el.tagName.toLowerCase() === 'details') {
+                    el.open = true;
+                    requestAnimationFrame(function () {
+                        requestAnimationFrame(function () {
+                            scrollToWithHeaderOffset(el);
+                        });
+                    });
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

@@ -48,6 +48,7 @@ const mockPrismaClient = {
     update: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
+    count: jest.fn(),
   },
   benchmarkAuditLog: {
     create: jest.fn(),
@@ -65,6 +66,7 @@ const mockDvcService = {
   createNewRepository: jest.fn(),
   initRepository: jest.fn(),
   commitChanges: jest.fn(),
+  pushToOrigin: jest.fn(),
   checkout: jest.fn(),
 };
 
@@ -674,6 +676,21 @@ describe("DatasetService", () => {
       },
     ];
 
+    const mockVersionRecord = {
+      id: "version-abc",
+      version: "v1",
+      gitRevision: "abc123sha",
+      status: "draft",
+      documentCount: 1,
+    };
+
+    beforeEach(() => {
+      mockDvcService.commitChanges.mockResolvedValue("abc123sha");
+      mockDvcService.pushToOrigin.mockResolvedValue(undefined);
+      mockPrismaClient.datasetVersion.count.mockResolvedValue(0);
+      mockPrismaClient.datasetVersion.create.mockResolvedValue(mockVersionRecord);
+    });
+
     it("uploads files successfully and updates manifest", async () => {
       const mockDataset = {
         id: "dataset-123",
@@ -683,7 +700,7 @@ describe("DatasetService", () => {
       mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
       mockDvcService.cloneRepository.mockResolvedValue(undefined);
 
-      const result = await service.uploadFiles("dataset-123", mockFiles);
+      const result = await service.uploadFiles("dataset-123", mockFiles, "user-123");
 
       expect(mockDvcService.cloneRepository).toHaveBeenCalled();
       expect(mockMkdir).toHaveBeenCalledTimes(2); // inputs and ground-truth dirs
@@ -696,6 +713,58 @@ describe("DatasetService", () => {
       expect(result.uploadedFiles[1].path).toBe(
         "ground-truth/sample-001_gt.json",
       );
+      // Verify version creation
+      expect(mockDvcService.commitChanges).toHaveBeenCalled();
+      expect(mockDvcService.pushToOrigin).toHaveBeenCalled(); // remote URL
+      expect(mockPrismaClient.datasetVersion.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            datasetId: "dataset-123",
+            version: "v1",
+            gitRevision: "abc123sha",
+            status: "draft",
+          }),
+        }),
+      );
+      expect(result.version).toBeDefined();
+      expect(result.version.id).toBe("version-abc");
+      expect(result.version.version).toBe("v1");
+    });
+
+    it("does not push to origin for local repos", async () => {
+      const mockDataset = {
+        id: "dataset-123",
+        repositoryUrl: "/tmp/local-repo",
+      };
+
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+
+      await service.uploadFiles("dataset-123", mockFiles, "user-123");
+
+      expect(mockDvcService.cloneRepository).not.toHaveBeenCalled();
+      expect(mockDvcService.pushToOrigin).not.toHaveBeenCalled();
+      expect(mockDvcService.commitChanges).toHaveBeenCalled();
+      expect(mockPrismaClient.datasetVersion.create).toHaveBeenCalled();
+    });
+
+    it("increments version label based on existing count", async () => {
+      const mockDataset = {
+        id: "dataset-123",
+        repositoryUrl: "/tmp/local-repo",
+      };
+
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockPrismaClient.datasetVersion.count.mockResolvedValue(3);
+
+      await service.uploadFiles("dataset-123", mockFiles, "user-123");
+
+      expect(mockPrismaClient.datasetVersion.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            version: "v4",
+          }),
+        }),
+      );
     });
 
     it("groups files by sample ID in manifest", async () => {
@@ -707,7 +776,7 @@ describe("DatasetService", () => {
       mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
       mockDvcService.cloneRepository.mockResolvedValue(undefined);
 
-      await service.uploadFiles("dataset-123", mockFiles);
+      await service.uploadFiles("dataset-123", mockFiles, "user-123");
 
       // Verify manifest was written with grouped samples
       expect(mockWriteFile).toHaveBeenCalledWith(
@@ -720,7 +789,7 @@ describe("DatasetService", () => {
       mockPrismaClient.dataset.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.uploadFiles("nonexistent", mockFiles),
+        service.uploadFiles("nonexistent", mockFiles, "user-123"),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -750,7 +819,7 @@ describe("DatasetService", () => {
       mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
       mockDvcService.cloneRepository.mockResolvedValue(undefined);
 
-      const result = await service.uploadFiles("dataset-123", mixedFiles);
+      const result = await service.uploadFiles("dataset-123", mixedFiles, "user-123");
 
       const inputFile = result.uploadedFiles.find((f) =>
         f.path.startsWith("inputs/"),

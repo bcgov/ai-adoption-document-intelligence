@@ -1,40 +1,26 @@
 import { Page } from '@playwright/test';
 
 /**
- * Creates a fake JWT token for testing
- * The frontend only decodes the payload to display user info, doesn't validate signature
- */
-export function createFakeJWT(payload: Record<string, unknown>): string {
-  const header = { alg: 'none', typ: 'JWT' };
-
-  const base64UrlEncode = (obj: Record<string, unknown>) => {
-    const json = JSON.stringify(obj);
-    const base64 = Buffer.from(json).toString('base64');
-    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-  };
-
-  const encodedHeader = base64UrlEncode(header);
-  const encodedPayload = base64UrlEncode(payload);
-
-  // No signature needed for frontend testing
-  return `${encodedHeader}.${encodedPayload}.fake-signature`;
-}
-
-/**
- * Injects mock authentication tokens into localStorage
- * This bypasses SSO authentication for testing
+ * Sets up mock authentication by intercepting the /auth/me endpoint.
+ *
+ * The frontend uses HttpOnly cookie-based auth: on load, it calls
+ * GET /api/auth/me to check the session. We intercept this request
+ * and return a mock user profile so the frontend considers the user
+ * authenticated without needing real cookies.
  *
  * @param page - Playwright page object
+ * @param backendUrl - The backend URL to intercept
  * @param userProfile - Optional user profile data (defaults to Test User)
  */
-export async function injectMockAuth(
+export async function setupMockAuth(
   page: Page,
+  backendUrl: string,
   userProfile?: {
     name?: string;
     email?: string;
     sub?: string;
     preferred_username?: string;
-  }
+  },
 ): Promise<void> {
   const profile = {
     name: userProfile?.name || 'Test User',
@@ -43,29 +29,32 @@ export async function injectMockAuth(
     sub: userProfile?.sub || 'test-user',
   };
 
-  await page.evaluate((profile) => {
-    const createFakeJWT = (payload: Record<string, unknown>) => {
-      const header = { alg: 'none', typ: 'JWT' };
-      const base64UrlEncode = (obj: Record<string, unknown>) => {
-        const json = JSON.stringify(obj);
-        const base64 = btoa(json);
-        return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-      };
-      return `${base64UrlEncode(header)}.${base64UrlEncode(payload)}.fake-signature`;
-    };
+  // Intercept /auth/me to return a mock authenticated user
+  await page.route(`${backendUrl}/api/auth/me`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        sub: profile.sub,
+        name: profile.name,
+        preferred_username: profile.preferred_username,
+        email: profile.email,
+        roles: ['user'],
+        expires_in: 3600,
+      }),
+    });
+  });
 
-    const fakeIdToken = createFakeJWT(profile);
-
-    const mockAuthTokens = {
-      access_token: 'mock-access-token',
-      refresh_token: 'mock-refresh-token',
-      id_token: fakeIdToken,
-      expires_in: 3600,
-      expires_at: Math.floor(Date.now() / 1000) + 3600,
-    };
-
-    localStorage.setItem('auth_tokens', JSON.stringify(mockAuthTokens));
-  }, profile);
+  // Intercept /auth/refresh to return a mock refresh response
+  await page.route(`${backendUrl}/api/auth/refresh`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        expires_in: 3600,
+      }),
+    });
+  });
 }
 
 /**
@@ -98,6 +87,10 @@ export async function setupApiKeyAuth(
  * Complete setup for E2E tests with both frontend auth and backend API key auth
  * This is the most common setup needed for testing authenticated pages
  *
+ * The frontend uses HttpOnly cookie-based auth (GET /api/auth/me).
+ * We intercept this endpoint to return a mock user, and intercept all
+ * other backend requests to add the x-api-key header.
+ *
  * @param page - Playwright page object
  * @param options - Configuration options
  *
@@ -127,16 +120,14 @@ export async function setupAuthenticatedTest(
     };
   }
 ): Promise<void> {
-  // Set up API key interception first
+  // Set up API key interception for all backend requests first
   await setupApiKeyAuth(page, options.apiKey, options.backendUrl);
 
-  // Navigate to the app
+  // Set up mock auth (intercept /auth/me) AFTER the general route —
+  // Playwright gives priority to the most recently registered matching route
+  await setupMockAuth(page, options.backendUrl, options.userProfile);
+
+  // Navigate to the app — the mock /auth/me intercept will authenticate the user
   await page.goto(options.frontendUrl);
-
-  // Inject mock auth tokens
-  await injectMockAuth(page, options.userProfile);
-
-  // Reload to pick up the auth tokens
-  await page.reload();
   await page.waitForLoadState('networkidle');
 }

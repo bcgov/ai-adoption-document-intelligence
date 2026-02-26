@@ -1,0 +1,747 @@
+<!-- TITLE: Benchmarking Guide -->
+<!-- NAV: benchmarkingguide -->
+
+<h1>Benchmarking System Guide</h1>
+
+<p>The benchmarking system lets you systematically evaluate your document processing workflows by running them against curated datasets with ground truth, then measuring accuracy, detecting regressions, and comparing results across workflow versions.</p>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Prerequisites</strong><br>
+        The benchmarking system requires <strong>MinIO</strong> (S3-compatible object storage), <strong>MLflow</strong> (experiment tracking), and <strong>Temporal</strong> (workflow orchestration) to be running. See the <a href="benchmarking-technical.html">Benchmarking Technical Reference</a> for setup instructions.
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2>Overview</h2>
+
+<p>The benchmarking system is designed to answer one question: <strong>"How well does my workflow perform, and has it gotten worse?"</strong> It is workflow-agnostic — it can evaluate any graph workflow configuration, not just OCR. The system wraps your existing workflow execution with dataset management, automated evaluation, metric tracking, and regression detection.</p>
+
+<div class="grid grid-3">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h3 style="margin-top:0;">Datasets</h3>
+        <p>Versioned collections of test documents with ground truth annotations, stored in Git and DVC. Upload documents and ground truth through the UI; the backend handles all version control operations automatically.</p>
+    </div>
+    <div class="card" style="border-left-color: #003366;">
+        <h3 style="margin-top:0;">Evaluation</h3>
+        <p>Pluggable evaluators compare workflow outputs against ground truth. Schema-aware evaluators provide per-field precision/recall; black-box evaluators do JSON deep-equal comparison.</p>
+    </div>
+    <div class="card" style="border-left-color: #8b5cf6;">
+        <h3 style="margin-top:0;">Tracking</h3>
+        <p>Every run is logged to MLflow with parameters, metrics, tags, and artifacts. Set baselines, configure thresholds, and detect regressions automatically.</p>
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2>Core Concepts</h2>
+
+<h3>Projects, Definitions, and Runs</h3>
+
+<p>The benchmarking system has a three-level hierarchy:</p>
+
+<div class="card">
+    <pre style="margin: 0; background: transparent; box-shadow: none;">Project (organizational container — maps to an MLflow Experiment)
+  └── Definition (the benchmark recipe — pins dataset, workflow, evaluator)
+        └── Run (a single execution of that recipe)</pre>
+</div>
+
+<div class="grid grid-3">
+    <div class="card card-gold">
+        <h3 style="margin-top:0;">Project</h3>
+        <p>A logical grouping for related benchmarking work. When you create a project, an MLflow Experiment is automatically created to track all runs within it.</p>
+        <p><em>Example: "Invoice Extraction Quality Q1 2026"</em></p>
+    </div>
+    <div class="card card-gold">
+        <h3 style="margin-top:0;">Definition</h3>
+        <p>A precise, reproducible specification of <em>what</em> to benchmark. Pins together a dataset version, split, workflow, evaluator, runtime settings, and artifact storage policy.</p>
+    </div>
+    <div class="card card-gold">
+        <h3 style="margin-top:0;">Run</h3>
+        <p>A single execution of a definition. Produces aggregated metrics, per-sample results, and artifacts. Maps to an MLflow Run for detailed inspection.</p>
+    </div>
+</div>
+
+<h3>Immutability Model</h3>
+
+<p>A definition starts as <strong>mutable</strong>. You can edit it freely before running it. The moment you trigger the first run, the definition becomes <strong>immutable</strong>. This ensures that every run against that definition used identical settings, making results directly comparable.</p>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+        <strong>Editing an immutable definition</strong><br>
+        If you need to change something on an immutable definition, the system creates a <strong>new definition</strong> with an incremented <code>revision</code> number. The original and all its runs remain untouched.
+    </div>
+</div>
+
+<h3>Why Multiple Runs?</h3>
+
+<p>A definition pins the workflow <em>configuration</em> (the DAG shape), but not the <em>implementation</em>. Several things can change between runs:</p>
+
+<table>
+    <thead>
+        <tr><th>Source of Variation</th><th>Example</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Activity code updates</strong></td>
+            <td>You deploy a new version of an extraction activity with a better prompt or algorithm. The DAG shape is the same, but the code running inside has changed.</td>
+        </tr>
+        <tr>
+            <td><strong>External model/API changes</strong></td>
+            <td>A workflow node calls an external LLM or OCR service whose model has been updated.</td>
+        </tr>
+        <tr>
+            <td><strong>Worker version</strong></td>
+            <td>You rebuild and deploy new worker Docker images. Each run records the <code>workerGitSha</code> and <code>workerImageDigest</code> so you can trace which code was running.</td>
+        </tr>
+        <tr>
+            <td><strong>Non-deterministic behavior</strong></td>
+            <td>LLM responses with temperature &gt; 0, race conditions in parallel processing, or external services returning different results.</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- ====================================================================== -->
+<h2>Step 1: Prepare a Dataset</h2>
+
+<p>A dataset is a versioned collection of test documents with their expected outputs (ground truth). The platform manages dataset storage through <strong>Git + DVC</strong> backed by MinIO — you interact only through the UI and API.</p>
+
+<h3>Create a Dataset</h3>
+
+<p>Navigate to <strong>Benchmarking &rarr; Datasets</strong> in the sidebar and click <strong>Create Dataset</strong>. Provide:</p>
+
+<table>
+    <thead>
+        <tr><th>Field</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Name</strong></td>
+            <td>Human-readable name (e.g., "Income Declaration Forms")</td>
+        </tr>
+        <tr>
+            <td><strong>Repository URL</strong></td>
+            <td>Path to the dataset Git repository. Supports local paths (<code>~/Github/datasets-repo</code>), <code>file://</code> URLs, and remote HTTPS/SSH URLs.</td>
+        </tr>
+        <tr>
+            <td><strong>Metadata</strong></td>
+            <td>Optional JSON metadata — domain, document type, language, source, tags.</td>
+        </tr>
+    </tbody>
+</table>
+
+<p>The backend automatically initializes a Git repository with DVC configured to use MinIO as the remote storage backend.</p>
+
+<h3>Upload Files</h3>
+
+<p>After creating a dataset, upload your test documents and ground truth files using the <strong>Upload Files</strong> button on the dataset detail page. You can upload up to 100 files at a time (max 100 MB each).</p>
+
+<p>Organize your files into two categories:</p>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h3 style="margin-top:0;">Input Documents</h3>
+        <p>The files your workflow will process — PDFs, images, scanned forms. Place them in an <code>inputs/</code> directory within your upload.</p>
+    </div>
+    <div class="card" style="border-left-color: #8b5cf6;">
+        <h3 style="margin-top:0;">Ground Truth</h3>
+        <p>The expected outputs — JSON files containing the correct extraction results. Place them in a <code>ground-truth/</code> directory. Supports JSON, JSONL, CSV, or any file format your evaluator can parse.</p>
+    </div>
+</div>
+
+<h3>Ground Truth Format</h3>
+
+<p>Ground truth files are flexible — the evaluator is responsible for parsing them. A typical key-value extraction ground truth JSON looks like:</p>
+
+<pre>{
+  "name": "Edward Shaw",
+  "sin": "104125381",
+  "date": "2013-09-21",
+  "income1": "999.91",
+  "checkbox_need_assistance_no": true,
+  "explain_changes": "Moving to a new address",
+  "signature": "Edward Shaw"
+}</pre>
+
+<h3>Dataset Manifest</h3>
+
+<p>When you create a version, the system generates a <strong>manifest</strong> — a JSON file that maps each sample to its input files, ground truth files, and metadata:</p>
+
+<pre>{
+  "schemaVersion": "1.0",
+  "samples": [
+    {
+      "id": "sample-001",
+      "inputs": [
+        { "path": "inputs/form_image_0.jpg", "mimeType": "image/jpeg" }
+      ],
+      "groundTruth": [
+        { "path": "ground-truth/form_data_0.json", "format": "json" }
+      ],
+      "metadata": {
+        "docType": "income-declaration",
+        "pageCount": 1,
+        "language": "en"
+      }
+    }
+  ]
+}</pre>
+
+<h3>Create and Publish a Version</h3>
+
+<p>After uploading files, create a <strong>Dataset Version</strong>. The backend automatically:</p>
+
+<ol>
+    <li>Runs <code>dvc add</code> on the uploaded files to track them</li>
+    <li>Generates the manifest file</li>
+    <li>Commits DVC metadata to Git</li>
+    <li>Pushes large files to MinIO via <code>dvc push</code></li>
+    <li>Creates a <code>DatasetVersion</code> record with the Git commit SHA</li>
+</ol>
+
+<p>Versions start in <strong>draft</strong> status. When you're satisfied with the data, click <strong>Publish</strong> to make it available for benchmarking. Only published versions can be used in benchmark definitions.</p>
+
+<h3>Splits</h3>
+
+<p>A <strong>split</strong> defines a subset of a dataset version used for evaluation. You can create multiple splits to test different subsets:</p>
+
+<table>
+    <thead>
+        <tr><th>Split Type</th><th>Use Case</th></tr>
+    </thead>
+    <tbody>
+        <tr><td><code>test</code></td><td>Standard evaluation subset</td></tr>
+        <tr><td><code>val</code></td><td>Validation/tuning subset</td></tr>
+        <tr><td><code>golden</code></td><td>Frozen regression test set — cannot be modified once frozen</td></tr>
+        <tr><td><code>train</code></td><td>Training subset (for reference only; not used by evaluators)</td></tr>
+    </tbody>
+</table>
+
+<p>Freeze a golden split to lock its sample list permanently. This ensures your regression tests always use the same documents.</p>
+
+<!-- ====================================================================== -->
+<h2>Step 2: Create a Project</h2>
+
+<p>Navigate to <strong>Benchmarking &rarr; Projects</strong> and click <strong>Create Project</strong>. Provide a name and optional description.</p>
+
+<p>Creating a project also creates a corresponding <strong>MLflow Experiment</strong> automatically. All runs within the project are tracked under this experiment in MLflow.</p>
+
+<!-- ====================================================================== -->
+<h2>Step 3: Create a Benchmark Definition</h2>
+
+<p>Within a project, click <strong>Create Definition</strong>. A definition specifies exactly what to benchmark:</p>
+
+<table>
+    <thead>
+        <tr><th>Setting</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Dataset Version</strong></td>
+            <td>Select a published dataset version</td>
+        </tr>
+        <tr>
+            <td><strong>Split</strong></td>
+            <td>Choose which subset of the dataset to evaluate</td>
+        </tr>
+        <tr>
+            <td><strong>Workflow</strong></td>
+            <td>Select a graph workflow to evaluate — the system records the workflow config hash at creation time</td>
+        </tr>
+        <tr>
+            <td><strong>Evaluator Type</strong></td>
+            <td>Choose how results are scored (see Evaluators section below)</td>
+        </tr>
+        <tr>
+            <td><strong>Evaluator Config</strong></td>
+            <td>Evaluator-specific settings (matching rules, thresholds, field types)</td>
+        </tr>
+        <tr>
+            <td><strong>Runtime Settings</strong></td>
+            <td>Concurrency limits, timeouts, and queue selection</td>
+        </tr>
+        <tr>
+            <td><strong>Artifact Policy</strong></td>
+            <td>What outputs to store after the run completes</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Evaluator Types</h3>
+
+<p>The system includes three built-in evaluators:</p>
+
+<div class="card" style="border-left-color: #2E8540;">
+    <h3 style="margin-top:0;">Schema-Aware Evaluator</h3>
+    <p>Compares structured field outputs against typed ground truth at the field level. Produces <strong>precision</strong>, <strong>recall</strong>, and <strong>F1 score</strong> per field. Supports configurable matching rules:</p>
+    <ul>
+        <li><strong>Exact match</strong> — String equality comparison</li>
+        <li><strong>Fuzzy match</strong> — Levenshtein/Jaro-Winkler distance with configurable similarity threshold</li>
+        <li><strong>Numeric tolerance</strong> — Absolute or relative numeric comparison (e.g., ±0.01)</li>
+        <li><strong>Date normalization</strong> — Parses and compares dates across multiple formats</li>
+        <li><strong>Boolean match</strong> — Checkbox/boolean accuracy</li>
+    </ul>
+    <p>Best for: Structured data extraction workflows where you know the expected output fields.</p>
+</div>
+
+<div class="card" style="border-left-color: #8b5cf6;">
+    <h3 style="margin-top:0;">Black-Box Evaluator</h3>
+    <p>JSON deep-equal comparison with diff output. Falls back to raw byte comparison for non-JSON files. Produces <code>exact_match</code> and <code>field_overlap</code> metrics along with detailed diff artifacts.</p>
+    <p>Best for: Comparing workflow outputs where you don't need field-level granularity, or when the output schema isn't formalized.</p>
+</div>
+
+<div class="card" style="border-left-color: #e96d13;">
+    <h3 style="margin-top:0;">Field Accuracy Evaluator</h3>
+    <p>Lightweight evaluator that computes <code>field_accuracy</code>, <code>character_accuracy</code>, and <code>word_accuracy</code> metrics. Useful for quick character-level and word-level comparison.</p>
+</div>
+
+<h3>Evaluator Configuration Example</h3>
+
+<p>For the schema-aware evaluator, you can specify per-field matching rules:</p>
+
+<pre>{
+  "matchingRules": {
+    "name": { "type": "fuzzy", "threshold": 0.85 },
+    "income1": { "type": "numeric", "tolerance": 0.01 },
+    "date": { "type": "date", "formats": ["YYYY-MM-DD", "MM/DD/YYYY"] },
+    "checkbox_need_assistance_no": { "type": "boolean" }
+  },
+  "defaultRule": { "type": "exact" }
+}</pre>
+
+<h3>Runtime Settings</h3>
+
+<pre>{
+  "maxParallelDocuments": 10,
+  "perDocumentTimeout": 300000,
+  "perRunTimeout": 86400000,
+  "useProductionQueue": false
+}</pre>
+
+<table>
+    <thead>
+        <tr><th>Setting</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>maxParallelDocuments</code></td>
+            <td>Maximum number of documents processed in parallel within a single run (default: 10)</td>
+        </tr>
+        <tr>
+            <td><code>perDocumentTimeout</code></td>
+            <td>Timeout in milliseconds per document (default: 5 minutes)</td>
+        </tr>
+        <tr>
+            <td><code>perRunTimeout</code></td>
+            <td>Overall timeout for the entire benchmark run (default: 24 hours)</td>
+        </tr>
+        <tr>
+            <td><code>useProductionQueue</code></td>
+            <td>If <code>true</code>, use the production task queue instead of the isolated benchmark queue. Requires deliberate opt-in.</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Artifact Policies</h3>
+
+<table>
+    <thead>
+        <tr><th>Policy</th><th>Behavior</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>full</code></td>
+            <td>Store all outputs for every document</td>
+        </tr>
+        <tr>
+            <td><code>failures_only</code></td>
+            <td>Only store outputs for documents that had errors or low scores</td>
+        </tr>
+        <tr>
+            <td><code>sampled</code></td>
+            <td>Store a configurable percentage of outputs</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- ====================================================================== -->
+<h2>Step 4: Start a Benchmark Run</h2>
+
+<p>From a definition's detail page, click <strong>Start Run</strong>. This triggers the following sequence:</p>
+
+<ol>
+    <li>A <code>BenchmarkRun</code> record is created with status <strong>pending</strong></li>
+    <li>The definition is locked to <strong>immutable</strong> (on first run)</li>
+    <li>An MLflow Run is created in the project's MLflow Experiment</li>
+    <li>A <code>benchmarkRunWorkflow</code> Temporal workflow is started on the <code>benchmark-processing</code> task queue</li>
+</ol>
+
+<h3>What Happens During a Run</h3>
+
+<p>The Temporal workflow executes a 7-phase pipeline:</p>
+
+<div class="card">
+    <h3 style="margin-top:0;">Phase 1: Materialize Dataset</h3>
+    <p>Clones the dataset Git repository at the pinned version, runs <code>dvc pull</code> to fetch the actual data files from MinIO. Results are cached on the worker to avoid redundant downloads.</p>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Phase 2: Load Manifest &amp; Filter by Split</h3>
+    <p>Reads the dataset manifest and filters samples to only include those in the selected split.</p>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Phase 3: Fan-Out Execution</h3>
+    <p>Processes samples in configurable batches. Each sample is executed through the selected workflow by spawning a child <code>graphWorkflow</code> — the <strong>same workflow function</strong> that production documents use. This ensures benchmarks test the actual execution path.</p>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Phase 4: Evaluate Each Sample</h3>
+    <p>Runs the configured evaluator on each (prediction, ground truth) pair, producing per-sample metrics and diagnostics.</p>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Phase 5: Aggregate Metrics</h3>
+    <p>Computes dataset-level statistics: mean, median, standard deviation, percentiles (p5, p25, p75, p95), min, and max for each metric. Also performs failure analysis — identifies worst-performing samples, per-field error breakdowns, and error clustering.</p>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Phase 6: Log to MLflow</h3>
+    <p>Logs all parameters, metrics, tags, and artifacts to the corresponding MLflow Run. Artifact upload follows the definition's artifact policy.</p>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Phase 7: Baseline Comparison &amp; Cleanup</h3>
+    <p>If a baseline run exists for this definition, computes metric deltas and checks thresholds. Cleans up temporary materialized files on the worker.</p>
+</div>
+
+<h3>Monitoring Progress</h3>
+
+<p>While a run is in progress, the run detail page shows real-time progress including the current phase, document counts (processed/total), and percentage completion. You can also:</p>
+
+<ul>
+    <li><strong>Cancel</strong> — Stop a running benchmark at any time</li>
+    <li><strong>View in Temporal UI</strong> — Click the Temporal link to see the workflow execution in the Temporal UI (port 8088)</li>
+</ul>
+
+<!-- ====================================================================== -->
+<h2>Step 5: View Results</h2>
+
+<p>After a run completes, the <strong>Run Detail Page</strong> (<code>/benchmarking/projects/:id/runs/:runId</code>) shows:</p>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h3 style="margin-top:0;">Metrics Summary</h3>
+        <ul>
+            <li>Aggregated metrics (mean, median, std dev, percentiles)</li>
+            <li>Per-field accuracy breakdown (for schema-aware evaluator)</li>
+            <li>Pass/fail counts</li>
+            <li>Timing information (duration, per-document average)</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #003366;">
+        <h3 style="margin-top:0;">Baseline Comparison</h3>
+        <ul>
+            <li>Metric deltas vs. baseline</li>
+            <li>Threshold pass/fail status</li>
+            <li>Severity classification (Warning / Critical)</li>
+            <li>Regression badges on metrics that dropped</li>
+        </ul>
+    </div>
+</div>
+
+<h3>Drill-Down Analysis</h3>
+
+<p>Click through to the <strong>Drill-Down</strong> page (<code>/benchmarking/projects/:id/runs/:runId/drill-down</code>) for detailed failure analysis:</p>
+
+<ul>
+    <li><strong>Worst-performing samples</strong> — Ranked by any metric, configurable N</li>
+    <li><strong>Per-field error breakdown</strong> — Which fields are causing the most errors (schema-aware evaluator)</li>
+    <li><strong>Error clustering</strong> — Groups failures by error type/pattern</li>
+    <li><strong>Metadata filtering</strong> — Slice results by document type, language, page count, or other metadata dimensions</li>
+</ul>
+
+<h3>Per-Sample Results</h3>
+
+<p>The <strong>Samples</strong> tab shows paginated per-sample results with:</p>
+<ul>
+    <li>Individual metrics per document</li>
+    <li>Pass/fail status</li>
+    <li>Filterable by metadata dimensions</li>
+    <li>Ground truth vs. prediction comparison</li>
+</ul>
+
+<h3>Artifacts</h3>
+
+<p>The <strong>Artifacts</strong> tab lists all output files produced during the run, filterable by type:</p>
+
+<table>
+    <thead>
+        <tr><th>Artifact Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+        <tr><td><code>per_doc_output</code></td><td>Workflow output for each document</td></tr>
+        <tr><td><code>intermediate_node_output</code></td><td>Output from individual graph nodes</td></tr>
+        <tr><td><code>diff_report</code></td><td>Comparison diffs between prediction and ground truth</td></tr>
+        <tr><td><code>evaluation_report</code></td><td>Evaluator output files</td></tr>
+        <tr><td><code>error_log</code></td><td>Error details for failed samples</td></tr>
+    </tbody>
+</table>
+
+<h3>MLflow Integration</h3>
+
+<p>Each run links directly to MLflow for deeper inspection. In MLflow you can:</p>
+<ul>
+    <li>Compare parameters and metrics across multiple runs</li>
+    <li>Browse and download artifacts</li>
+    <li>Use MLflow's built-in charting and comparison tools</li>
+    <li>Search runs by tags, parameters, or metric values</li>
+</ul>
+
+<!-- ====================================================================== -->
+<h2>Step 6: Establish a Baseline</h2>
+
+<p>Once you have a run with satisfactory results, promote it to <strong>baseline</strong>. This sets the reference point for regression detection.</p>
+
+<p>On the run detail page, click <strong>Promote to Baseline</strong> and configure thresholds:</p>
+
+<pre>{
+  "thresholds": {
+    "f1_score": { "type": "absolute", "value": 0.90 },
+    "precision": { "type": "relative", "value": 0.05 }
+  }
+}</pre>
+
+<h3>Threshold Types</h3>
+
+<table>
+    <thead>
+        <tr><th>Type</th><th>Meaning</th><th>Example</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>absolute</code></td>
+            <td>Metric must be at or above this value</td>
+            <td>F1 &ge; 0.90</td>
+        </tr>
+        <tr>
+            <td><code>relative</code></td>
+            <td>Metric must not drop by more than this fraction relative to the baseline</td>
+            <td>Precision must not decrease by more than 5%</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>One baseline per definition.</strong> Only one run can be the baseline for a given definition at a time. Promoting a new baseline automatically demotes the previous one. All baseline changes are recorded in the audit log.
+    </div>
+</div>
+
+<p>After a baseline is established, every subsequent completed run is <strong>automatically compared</strong> against it. Regressions are flagged with severity levels (Warning / Critical) on the run list and detail pages.</p>
+
+<!-- ====================================================================== -->
+<h2>Step 7: Schedule Recurring Runs</h2>
+
+<p>Set up automated benchmark runs on a cron schedule for continuous regression monitoring.</p>
+
+<p>From the definition detail page, click <strong>Configure Schedule</strong>:</p>
+
+<pre>{
+  "enabled": true,
+  "cron": "0 2 * * *"
+}</pre>
+
+<p>This example runs the benchmark every night at 2:00 AM. Schedules are managed by Temporal's built-in scheduling system.</p>
+
+<p>Use nightly schedules with a baseline to automatically detect regressions after each deployment. Check the project page each morning for regression badges on the latest run.</p>
+
+<!-- ====================================================================== -->
+<h2>Step 8: Compare Runs</h2>
+
+<p>Select 2–5 runs from the project page and click <strong>Compare</strong> to open a side-by-side comparison view at <code>/benchmarking/projects/:id/compare?runs=id1,id2,...</code></p>
+
+<p>The comparison page shows:</p>
+<ul>
+    <li><strong>Metrics comparison</strong> — All metrics side by side with deltas</li>
+    <li><strong>Parameter differences</strong> — Highlighted with "Changed" badges when parameters differ</li>
+    <li><strong>Trend charts</strong> — Metric trends across selected runs</li>
+    <li><strong>Export</strong> — Download comparison as CSV or JSON</li>
+</ul>
+
+<!-- ====================================================================== -->
+<h2>Step 9: Regression Reports</h2>
+
+<p>When a run has a baseline comparison, view the full regression report at <code>/benchmarking/projects/:id/runs/:runId/regression</code></p>
+
+<p>The report includes:</p>
+<ul>
+    <li><strong>Pass/fail status</strong> per metric with threshold details</li>
+    <li><strong>Delta and delta %</strong> for each metric</li>
+    <li><strong>Severity classification</strong> — Warning vs. Critical based on how far the metric dropped</li>
+    <li><strong>Historical trend chart</strong> — Metric values across recent runs</li>
+    <li><strong>Filtering</strong> — Show only regressions</li>
+    <li><strong>Export</strong> — Download as JSON or HTML</li>
+</ul>
+
+<!-- ====================================================================== -->
+<h2>Common Scenarios</h2>
+
+<h3>Evaluating a New Model Version</h3>
+<ol>
+    <li>You already have a project with a definition and a baseline run</li>
+    <li>Deploy the new model version to your workers</li>
+    <li>Re-run the same definition — the new run uses the updated model code</li>
+    <li>Compare the new run against the baseline on the run detail page</li>
+    <li>If metrics improved, promote the new run to the new baseline</li>
+</ol>
+
+<h3>Nightly Regression Monitoring</h3>
+<ol>
+    <li>Create a definition with your production workflow and a frozen golden dataset split</li>
+    <li>Promote an initial run to baseline with thresholds</li>
+    <li>Enable a nightly cron schedule on the definition</li>
+    <li>Every morning, check the project page for regression badges on the latest run</li>
+</ol>
+
+<h3>A/B Testing Two Workflow Approaches</h3>
+<ol>
+    <li>Create two definitions in the same project — one for each workflow variant</li>
+    <li>Run both against the same dataset version and split</li>
+    <li>Use the comparison page to evaluate metrics side by side</li>
+</ol>
+
+<h3>Editing a Definition After It Has Been Run</h3>
+<ol>
+    <li>You realize you need to change the evaluator config</li>
+    <li>Update the definition — the system creates a new definition (revision 2) since the original is immutable</li>
+    <li>The original definition and all its runs remain intact</li>
+    <li>Run the new definition to get results with the updated config</li>
+</ol>
+
+<!-- ====================================================================== -->
+<h2>Navigation Reference</h2>
+
+<p>The benchmarking system is accessible from the <strong>Benchmarking</strong> section in the sidebar navigation:</p>
+
+<table>
+    <thead>
+        <tr><th>Page</th><th>Route</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Dataset List</td>
+            <td><code>/benchmarking/datasets</code></td>
+            <td>Browse and create datasets</td>
+        </tr>
+        <tr>
+            <td>Dataset Detail</td>
+            <td><code>/benchmarking/datasets/:id</code></td>
+            <td>Manage versions, uploads, splits, sample previews</td>
+        </tr>
+        <tr>
+            <td>Project List</td>
+            <td><code>/benchmarking/projects</code></td>
+            <td>Browse and create benchmark projects</td>
+        </tr>
+        <tr>
+            <td>Project Detail</td>
+            <td><code>/benchmarking/projects/:id</code></td>
+            <td>Manage definitions, view runs, start comparisons</td>
+        </tr>
+        <tr>
+            <td>Run Detail</td>
+            <td><code>/benchmarking/projects/:id/runs/:runId</code></td>
+            <td>Metrics, baseline comparison, artifacts, MLflow/Temporal links</td>
+        </tr>
+        <tr>
+            <td>Drill-Down</td>
+            <td><code>/benchmarking/projects/:id/runs/:runId/drill-down</code></td>
+            <td>Worst samples, field errors, error clusters</td>
+        </tr>
+        <tr>
+            <td>Run Comparison</td>
+            <td><code>/benchmarking/projects/:id/compare</code></td>
+            <td>Side-by-side comparison of selected runs</td>
+        </tr>
+        <tr>
+            <td>Regression Report</td>
+            <td><code>/benchmarking/projects/:id/runs/:runId/regression</code></td>
+            <td>Baseline regression analysis</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- ====================================================================== -->
+<h2>API Quick Reference</h2>
+
+<p>All benchmarking endpoints are under <code>/api/benchmark/</code>. See the <a href="api-reference.html">full API Reference</a> for complete details.</p>
+
+<details>
+    <summary><strong>Dataset Endpoints</strong></summary>
+    <div class="accordion-content">
+        <table>
+            <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets</code></td><td>Create a new dataset</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets</code></td><td>List datasets</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id</code></td><td>Get dataset details</td></tr>
+                <tr><td><code>DELETE</code></td><td><code>/api/benchmark/datasets/:id</code></td><td>Delete dataset (cascading)</td></tr>
+                <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/upload</code></td><td>Upload files</td></tr>
+                <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/versions</code></td><td>Create version</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id/versions</code></td><td>List versions</td></tr>
+                <tr><td><code>PATCH</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/publish</code></td><td>Publish version</td></tr>
+                <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/splits</code></td><td>Create split</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/splits</code></td><td>List splits</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/samples</code></td><td>Preview samples</td></tr>
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<details>
+    <summary><strong>Project &amp; Definition Endpoints</strong></summary>
+    <div class="accordion-content">
+        <table>
+            <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>POST</code></td><td><code>/api/benchmark/projects</code></td><td>Create project</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/projects</code></td><td>List projects</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/projects/:id</code></td><td>Get project details</td></tr>
+                <tr><td><code>POST</code></td><td><code>/api/benchmark/projects/:id/definitions</code></td><td>Create definition</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/projects/:id/definitions</code></td><td>List definitions</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/projects/:id/definitions/:defId</code></td><td>Get definition details</td></tr>
+                <tr><td><code>PUT</code></td><td><code>/api/benchmark/projects/:id/definitions/:defId</code></td><td>Update definition (new revision if immutable)</td></tr>
+                <tr><td><code>POST</code></td><td><code>/api/benchmark/projects/:id/definitions/:defId/schedule</code></td><td>Configure cron schedule</td></tr>
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<details>
+    <summary><strong>Run Endpoints</strong></summary>
+    <div class="accordion-content">
+        <table>
+            <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>POST</code></td><td><code>/api/benchmark/projects/:id/definitions/:defId/runs</code></td><td>Start run</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/projects/:id/runs</code></td><td>List runs</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/projects/:id/runs/:runId</code></td><td>Run details + metrics</td></tr>
+                <tr><td><code>POST</code></td><td><code>/api/benchmark/projects/:id/runs/:runId/cancel</code></td><td>Cancel running benchmark</td></tr>
+                <tr><td><code>POST</code></td><td><code>/api/benchmark/projects/:id/runs/:runId/baseline</code></td><td>Promote to baseline</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/projects/:id/runs/:runId/drill-down</code></td><td>Failure analysis</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/projects/:id/runs/:runId/samples</code></td><td>Per-sample results (paginated)</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/projects/:id/runs/:runId/artifacts</code></td><td>List artifacts</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/projects/:id/runs/:runId/artifacts/:artId/content</code></td><td>Download artifact</td></tr>
+            </tbody>
+        </table>
+    </div>
+</details>
