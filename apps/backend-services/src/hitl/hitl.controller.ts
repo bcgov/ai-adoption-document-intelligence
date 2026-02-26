@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  NotFoundException,
   Param,
   Post,
   Put,
@@ -10,16 +11,21 @@ import {
 } from "@nestjs/common";
 import {
   ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
+import { Request } from "express";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
+import { DatabaseService } from "../database/database.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import {
   AnalyticsResponseDto,
@@ -35,17 +41,13 @@ import { ReviewSessionDto } from "./dto/review-session.dto";
 import { ReviewStatusFilter } from "./dto/status-constants.dto";
 import { HitlService } from "./hitl.service";
 
-interface AuthenticatedRequest {
-  user?: {
-    sub?: string;
-    id?: string;
-  };
-}
-
 @ApiTags("hitl")
 @Controller("api/hitl")
 export class HitlController {
-  constructor(private readonly hitlService: HitlService) {}
+  constructor(
+    private readonly hitlService: HitlService,
+    private readonly databaseService: DatabaseService,
+  ) {}
 
   @Get("queue")
   @ApiKeyAuth()
@@ -89,11 +91,20 @@ export class HitlController {
     description: "Review session created with document and OCR data",
     type: ReviewSessionResponseDto,
   })
-  async startSession(
-    @Body() dto: ReviewSessionDto,
-    @Req() req: AuthenticatedRequest,
-  ) {
-    const reviewerId = req.user?.sub || req.user?.id || "anonymous";
+  @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async startSession(@Body() dto: ReviewSessionDto, @Req() req: Request) {
+    const document = await this.databaseService.findDocument(dto.documentId);
+    if (!document) {
+      throw new NotFoundException(`Document ${dto.documentId} not found`);
+    }
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      document.group_id,
+      this.databaseService,
+    );
+    const reviewerId =
+      req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
     return this.hitlService.startSession(dto, reviewerId);
   }
 
@@ -106,7 +117,18 @@ export class HitlController {
     description: "Review session with document, OCR data, and corrections",
     type: ReviewSessionResponseDto,
   })
-  async getSession(@Param("id") id: string) {
+  @ApiNotFoundResponse({ description: "Session not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getSession(@Param("id") id: string, @Req() req: Request) {
+    const session = await this.databaseService.findReviewSession(id);
+    if (!session) {
+      throw new NotFoundException(`Review session ${id} not found`);
+    }
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      session.document.group_id,
+      this.databaseService,
+    );
     return this.hitlService.getSession(id);
   }
 
@@ -119,10 +141,22 @@ export class HitlController {
     description: "Corrections saved successfully",
     type: SubmitCorrectionsResponseDto,
   })
+  @ApiNotFoundResponse({ description: "Session not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async submitCorrections(
     @Param("id") sessionId: string,
     @Body() dto: SubmitCorrectionsDto,
+    @Req() req: Request,
   ) {
+    const session = await this.databaseService.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      session.document.group_id,
+      this.databaseService,
+    );
     return this.hitlService.submitCorrections(sessionId, dto);
   }
 
@@ -135,7 +169,18 @@ export class HitlController {
     description: "List of all corrections submitted for the session",
     type: CorrectionsListResponseDto,
   })
-  async getCorrections(@Param("id") sessionId: string) {
+  @ApiNotFoundResponse({ description: "Session not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getCorrections(@Param("id") sessionId: string, @Req() req: Request) {
+    const session = await this.databaseService.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      session.document.group_id,
+      this.databaseService,
+    );
     return this.hitlService.getCorrections(sessionId);
   }
 
@@ -148,7 +193,18 @@ export class HitlController {
     description: "Session approved and marked complete",
     type: SessionActionResponseDto,
   })
-  async approveSession(@Param("id") sessionId: string) {
+  @ApiNotFoundResponse({ description: "Session not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async approveSession(@Param("id") sessionId: string, @Req() req: Request) {
+    const session = await this.databaseService.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      session.document.group_id,
+      this.databaseService,
+    );
     return this.hitlService.approveSession(sessionId);
   }
 
@@ -161,10 +217,22 @@ export class HitlController {
     description: "Session escalated for expert review",
     type: SessionActionResponseDto,
   })
+  @ApiNotFoundResponse({ description: "Session not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async escalateSession(
     @Param("id") sessionId: string,
     @Body() dto: EscalateDto,
+    @Req() req: Request,
   ) {
+    const session = await this.databaseService.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      session.document.group_id,
+      this.databaseService,
+    );
     return this.hitlService.escalateSession(sessionId, dto);
   }
 
@@ -177,7 +245,18 @@ export class HitlController {
     description: "Session skipped",
     type: SessionActionResponseDto,
   })
-  async skipSession(@Param("id") sessionId: string) {
+  @ApiNotFoundResponse({ description: "Session not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async skipSession(@Param("id") sessionId: string, @Req() req: Request) {
+    const session = await this.databaseService.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      session.document.group_id,
+      this.databaseService,
+    );
     return this.hitlService.skipSession(sessionId);
   }
 

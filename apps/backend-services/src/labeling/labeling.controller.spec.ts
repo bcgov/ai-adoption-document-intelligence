@@ -75,6 +75,12 @@ describe("LabelingController", () => {
       deleteLabel: jest.fn(),
       getDocumentOcr: jest.fn(),
       addDocumentToProject: jest.fn(),
+      getFieldSchema: jest.fn(),
+      addField: jest.fn(),
+      updateField: jest.fn(),
+      deleteField: jest.fn(),
+      getProjectDocuments: jest.fn(),
+      exportProject: jest.fn(),
     } as unknown as jest.Mocked<LabelingService>;
 
     databaseService = {
@@ -670,6 +676,259 @@ describe("LabelingController", () => {
         controller.getDocumentOcr("project-1", "labeled-doc-1", req),
       ).rejects.toThrow(ForbiddenException);
       expect(labelingService.getDocumentOcr).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getProjectDocuments", () => {
+    it("returns documents for a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      labelingService.getProjectDocuments.mockResolvedValue([]);
+      const result = await controller.getProjectDocuments("project-1", req);
+      expect(result).toEqual([]);
+      expect(labelingService.getProjectDocuments).toHaveBeenCalledWith(
+        "project-1",
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.getProjectDocuments("project-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.getProjectDocuments).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when no identity is provided", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      await expect(
+        controller.getProjectDocuments("project-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.getProjectDocuments).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getFieldSchema", () => {
+    it("returns field schema for a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      labelingService.getFieldSchema.mockResolvedValue([]);
+      const result = await controller.getFieldSchema("project-1", req);
+      expect(result).toEqual([]);
+      expect(labelingService.getFieldSchema).toHaveBeenCalledWith("project-1");
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(controller.getFieldSchema("project-1", req)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(labelingService.getFieldSchema).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when no identity is provided", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      await expect(controller.getFieldSchema("project-1", req)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(labelingService.getFieldSchema).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("addField", () => {
+    const dto = {
+      name: "invoice_number",
+      field_type: "string" as any,
+      display_order: 1,
+    };
+
+    it("adds field for a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      const mockField = { id: "field-1", ...dto };
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      labelingService.addField.mockResolvedValue(mockField as any);
+      const result = await controller.addField("project-1", dto as any, req);
+      expect(result).toEqual(mockField);
+      expect(labelingService.addField).toHaveBeenCalledWith("project-1", dto);
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.addField("project-1", dto as any, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.addField).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when no identity is provided", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      await expect(
+        controller.addField("project-1", dto as any, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.addField).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("updateField", () => {
+    const dto = { name: "updated_field" };
+
+    it("updates field for a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      const mockField = { id: "field-1", name: "updated_field" };
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      labelingService.updateField.mockResolvedValue(mockField as any);
+      const result = await controller.updateField(
+        "project-1",
+        "field-1",
+        dto as any,
+        req,
+      );
+      expect(result).toEqual(mockField);
+      expect(labelingService.updateField).toHaveBeenCalledWith(
+        "project-1",
+        "field-1",
+        dto,
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.updateField("project-1", "field-1", dto as any, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.updateField).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when no identity is provided", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      await expect(
+        controller.updateField("project-1", "field-1", dto as any, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.updateField).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("deleteField", () => {
+    it("deletes field for a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      labelingService.deleteField.mockResolvedValue({
+        success: true,
+        id: "field-1",
+      });
+      const result = await controller.deleteField("project-1", "field-1", req);
+      expect(result).toEqual({ success: true, id: "field-1" });
+      expect(labelingService.deleteField).toHaveBeenCalledWith(
+        "project-1",
+        "field-1",
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.deleteField("project-1", "field-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.deleteField).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when no identity is provided", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      await expect(
+        controller.deleteField("project-1", "field-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.deleteField).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("exportProject", () => {
+    const dto = { format: "json" as any };
+
+    it("exports project for a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      const mockExport = { project: {}, documents: [] };
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      labelingService.exportProject.mockResolvedValue(mockExport as any);
+      const result = await controller.exportProject(
+        "project-1",
+        dto as any,
+        req,
+      );
+      expect(result).toEqual(mockExport);
+      expect(labelingService.exportProject).toHaveBeenCalledWith(
+        "project-1",
+        dto,
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.exportProject("project-1", dto as any, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.exportProject).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when no identity is provided", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      await expect(
+        controller.exportProject("project-1", dto as any, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.exportProject).not.toHaveBeenCalled();
     });
   });
 });

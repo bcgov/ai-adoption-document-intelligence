@@ -176,7 +176,15 @@ export class LabelingController {
     description: "Ordered list of field definitions for the project",
     type: [FieldDefinitionResponseDto],
   })
-  async getFieldSchema(@Param("id") id: string) {
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getFieldSchema(@Param("id") id: string, @Req() req: Request) {
+    const project = await this.labelingService.getProject(id);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
     return this.labelingService.getFieldSchema(id);
   }
 
@@ -189,10 +197,19 @@ export class LabelingController {
     description: "Newly created field definition",
     type: FieldDefinitionResponseDto,
   })
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async addField(
     @Param("id") projectId: string,
     @Body() dto: CreateFieldDefinitionDto,
+    @Req() req: Request,
   ) {
+    const project = await this.labelingService.getProject(projectId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
     return this.labelingService.addField(projectId, dto);
   }
 
@@ -206,11 +223,20 @@ export class LabelingController {
     description: "Updated field definition",
     type: FieldDefinitionResponseDto,
   })
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async updateField(
     @Param("id") projectId: string,
     @Param("fieldId") fieldId: string,
     @Body() dto: UpdateFieldDefinitionDto,
+    @Req() req: Request,
   ) {
+    const project = await this.labelingService.getProject(projectId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
     return this.labelingService.updateField(projectId, fieldId, dto);
   }
 
@@ -224,10 +250,19 @@ export class LabelingController {
     description: "Field deleted successfully",
     type: DeleteResponseDto,
   })
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async deleteField(
     @Param("id") projectId: string,
     @Param("fieldId") fieldId: string,
+    @Req() req: Request,
   ) {
+    const project = await this.labelingService.getProject(projectId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
     return this.labelingService.deleteField(projectId, fieldId);
   }
 
@@ -242,7 +277,18 @@ export class LabelingController {
     description: "List of labeled documents with their labels",
     type: [LabeledDocumentResponseDto],
   })
-  async getProjectDocuments(@Param("id") projectId: string) {
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getProjectDocuments(
+    @Param("id") projectId: string,
+    @Req() req: Request,
+  ) {
+    const project = await this.labelingService.getProject(projectId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
     return this.labelingService.getProjectDocuments(projectId);
   }
 
@@ -545,10 +591,19 @@ export class LabelingController {
       ],
     },
   })
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async exportProject(
     @Param("id") projectId: string,
     @Body() options: ExportDto,
+    @Req() req: Request,
   ) {
+    const project = await this.labelingService.getProject(projectId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
     return this.labelingService.exportProject(projectId, options);
   }
 }

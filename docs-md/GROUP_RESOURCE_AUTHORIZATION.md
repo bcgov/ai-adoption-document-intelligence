@@ -4,7 +4,7 @@ This document describes how group membership is enforced when creating or access
 
 ## Overview
 
-When a user or API key creates or accesses a top-level resource (`Document`, `Workflow`, `LabelingProject`, or `LabelingDocument`), the system verifies that the requestor belongs to the resource's group before allowing the operation to proceed. This prevents resources from being created, read, updated, or deleted by users not authorized to access the group.
+When a user or API key creates or accesses a top-level or sub-resource (`Document`, `Workflow`, `LabelingProject`, `LabelingDocument`, `FieldDefinition`, `DocumentLabel`, `TrainingJob`, `TrainedModel`, or `ReviewSession`), the system verifies that the requestor belongs to the resource's group before allowing the operation to proceed. This prevents resources from being created, read, updated, or deleted by users not authorized to access the group.
 
 ## Enforcement Location
 
@@ -44,10 +44,35 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 | LabelingDocument | `POST /api/labeling/projects/:id/documents/:docId/labels` | `LabelingController.saveDocumentLabels` |
 | LabelingDocument | `DELETE /api/labeling/projects/:id/documents/:docId/labels/:labelId` | `LabelingController.deleteLabel` |
 | LabelingDocument | `GET /api/labeling/projects/:id/documents/:docId/ocr` | `LabelingController.getDocumentOcr` |
+| LabelingProject | `GET /api/labeling/projects/:id/documents` | `LabelingController.getProjectDocuments` |
+| FieldDefinition | `GET /api/labeling/projects/:id/fields` | `LabelingController.getFieldSchema` |
+| FieldDefinition | `POST /api/labeling/projects/:id/fields` | `LabelingController.addField` |
+| FieldDefinition | `PUT /api/labeling/projects/:id/fields/:fieldId` | `LabelingController.updateField` |
+| FieldDefinition | `DELETE /api/labeling/projects/:id/fields/:fieldId` | `LabelingController.deleteField` |
+| LabelingProject | `POST /api/labeling/projects/:id/export` | `LabelingController.exportProject` |
+| TrainingJob | `GET /api/training/projects/:projectId/validate` | `TrainingController.validateProject` |
+| TrainingJob | `POST /api/training/projects/:projectId/train` | `TrainingController.startTraining` |
+| TrainingJob | `GET /api/training/projects/:projectId/jobs` | `TrainingController.getTrainingJobs` |
+| TrainingJob | `GET /api/training/jobs/:jobId` | `TrainingController.getJobStatus` |
+| TrainedModel | `GET /api/training/projects/:projectId/models` | `TrainingController.getTrainedModels` |
+| TrainingJob | `DELETE /api/training/jobs/:jobId` | `TrainingController.cancelJob` |
+| ReviewSession | `POST /api/hitl/sessions` | `HitlController.startSession` |
+| ReviewSession | `GET /api/hitl/sessions/:id` | `HitlController.getSession` |
+| ReviewSession | `POST /api/hitl/sessions/:id/corrections` | `HitlController.submitCorrections` |
+| ReviewSession | `GET /api/hitl/sessions/:id/corrections` | `HitlController.getCorrections` |
+| ReviewSession | `POST /api/hitl/sessions/:id/submit` | `HitlController.approveSession` |
+| ReviewSession | `POST /api/hitl/sessions/:id/escalate` | `HitlController.escalateSession` |
+| ReviewSession | `POST /api/hitl/sessions/:id/skip` | `HitlController.skipSession` |
 
 For read/update/delete endpoints, the resource is fetched first to obtain its `group_id`, and then `identityCanAccessGroup` is called with that value before the operation continues.
 
 For `LabelingDocument` endpoints accessed via a project route (e.g. `GET /api/labeling/projects/:id/documents/:docId`), the `LabeledDocument` is fetched first to retrieve the nested `LabelingDocument.group_id`, which is then used for the group membership check.
+
+For `FieldDefinition`, `GET /projects/:id/documents`, and `POST /projects/:id/export` endpoints, the parent `LabelingProject` is fetched first and its `group_id` is used for the check.
+
+For `TrainingJob` and `TrainedModel` endpoints accessed via project route (e.g. `GET /api/training/projects/:projectId/jobs`), the parent `LabelingProject` is fetched and its `group_id` is checked. For job-level endpoints (e.g. `GET /api/training/jobs/:jobId`), the job is fetched first to get its `project_id`, then the parent `LabelingProject` is fetched to obtain the `group_id`.
+
+For `ReviewSession` endpoints, the parent `Document` is fetched (either directly from the request body for creation, or via the session record for existing sessions) and its `group_id` is used for the check.
 
 ## Authorization Logic
 
@@ -83,3 +108,4 @@ All creation DTOs include a required `group_id` (or `groupId`) field. A missing 
 - Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-009-enforce-group-authorization-on-document.md`
 - Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-010-enforce-group-authorization-on-workflow.md`
 - Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-012-enforce-group-authorization-on-labeling-document.md`
+- Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-013-enforce-group-authorization-on-sub-resources.md`

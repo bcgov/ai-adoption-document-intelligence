@@ -9,15 +9,21 @@ import {
 } from "@nestjs/common";
 import {
   ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
 } from "@nestjs/swagger";
+import { Request } from "express";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
+import { DatabaseService } from "../database/database.service";
+import { LabelingService } from "../labeling/labeling.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainedModelDto } from "./dto/trained-model.dto";
 import {
@@ -27,16 +33,14 @@ import {
 } from "./dto/training-job.dto";
 import { TrainingService } from "./training.service";
 
-interface AuthenticatedRequest {
-  user?: {
-    sub?: string;
-  };
-}
-
 @ApiTags("Training")
 @Controller("api/training")
 export class TrainingController {
-  constructor(private readonly trainingService: TrainingService) {}
+  constructor(
+    private readonly trainingService: TrainingService,
+    private readonly labelingService: LabelingService,
+    private readonly databaseService: DatabaseService,
+  ) {}
 
   /**
    * Validate if a project is ready for training
@@ -51,7 +55,18 @@ export class TrainingController {
       "Validation result indicating whether the project is ready for training",
     type: ValidationResultDto,
   })
-  async validateProject(@Param("projectId") projectId: string) {
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async validateProject(
+    @Param("projectId") projectId: string,
+    @Req() req: Request,
+  ) {
+    const project = await this.labelingService.getProject(projectId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
     return this.trainingService.validateTrainingData(projectId);
   }
 
@@ -67,12 +82,21 @@ export class TrainingController {
     description: "Training job created and started",
     type: TrainingJobDto,
   })
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async startTraining(
     @Param("projectId") projectId: string,
     @Body() dto: StartTrainingDto,
-    @Req() req: AuthenticatedRequest,
+    @Req() req: Request,
   ) {
-    const userId = req.user?.sub || "unknown";
+    const project = await this.labelingService.getProject(projectId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
+    const userId =
+      req.user?.sub || (req.user as { id?: string })?.id || "unknown";
     return this.trainingService.startTraining(projectId, dto, userId);
   }
 
@@ -88,7 +112,18 @@ export class TrainingController {
     description: "List of training jobs for the project",
     type: [TrainingJobDto],
   })
-  async getTrainingJobs(@Param("projectId") projectId: string) {
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getTrainingJobs(
+    @Param("projectId") projectId: string,
+    @Req() req: Request,
+  ) {
+    const project = await this.labelingService.getProject(projectId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
     return this.trainingService.getTrainingJobs(projectId);
   }
 
@@ -104,8 +139,17 @@ export class TrainingController {
     description: "Training job details and current status",
     type: TrainingJobDto,
   })
-  async getJobStatus(@Param("jobId") jobId: string) {
-    return this.trainingService.getTrainingJob(jobId);
+  @ApiNotFoundResponse({ description: "Training job not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getJobStatus(@Param("jobId") jobId: string, @Req() req: Request) {
+    const job = await this.trainingService.getTrainingJob(jobId);
+    const project = await this.labelingService.getProject(job.projectId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
+    return job;
   }
 
   /**
@@ -120,7 +164,18 @@ export class TrainingController {
     description: "List of trained models produced from this project",
     type: [TrainedModelDto],
   })
-  async getTrainedModels(@Param("projectId") projectId: string) {
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getTrainedModels(
+    @Param("projectId") projectId: string,
+    @Req() req: Request,
+  ) {
+    const project = await this.labelingService.getProject(projectId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
     return this.trainingService.getTrainedModels(projectId);
   }
 
@@ -136,7 +191,16 @@ export class TrainingController {
     description: "Training job cancelled",
     type: CancelJobResponseDto,
   })
-  async cancelJob(@Param("jobId") jobId: string) {
+  @ApiNotFoundResponse({ description: "Training job not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async cancelJob(@Param("jobId") jobId: string, @Req() req: Request) {
+    const job = await this.trainingService.getTrainingJob(jobId);
+    const project = await this.labelingService.getProject(job.projectId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
     await this.trainingService.cancelTrainingJob(jobId);
     return { success: true, message: "Training job cancelled" };
   }
