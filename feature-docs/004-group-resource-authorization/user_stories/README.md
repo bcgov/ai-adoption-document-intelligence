@@ -89,6 +89,16 @@ Ensure legacy records without a `group_id` are inaccessible.
 
 ---
 
+## Phase 8: List and Aggregate Endpoint Filtering (US-017)
+
+Filter list and aggregate endpoints so requestors only see resources from groups they belong to.
+
+| File | Title |
+|---|---|
+| `US-017-filter-list-endpoints-by-group-membership.md` | Filter list and aggregate endpoints by group membership |
+
+---
+
 ## Acceptance Checklist
 
 - [x] US-001-add-group-id-to-document.md
@@ -107,3 +117,4 @@ Ensure legacy records without a `group_id` are inaccessible.
 - [ ] US-014-api-key-group-scoped-access-enforcement.md
 - [ ] US-015-user-requests-api-key-for-group.md
 - [ ] US-016-block-access-to-orphaned-records.md
+- [ ] US-017-filter-list-endpoints-by-group-membership.md
