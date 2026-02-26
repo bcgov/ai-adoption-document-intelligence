@@ -5,24 +5,24 @@
 **So that** API key authentication enforces the same group-based authorization as JWT authentication.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: API key accesses a resource in its group
+- [x] **Scenario 1**: API key accesses a resource in its group
     - **Given** an API key scoped to group X
     - **And** a resource with `group_id` = X exists
     - **When** a request is made using this API key to read or modify that resource
     - **Then** the request is permitted and succeeds
 
-- [ ] **Scenario 2**: API key attempts to access a resource in a different group
+- [x] **Scenario 2**: API key attempts to access a resource in a different group
     - **Given** an API key scoped to group X
     - **And** a resource with `group_id` = Y (Y ≠ X) exists
     - **When** a request is made using this API key to access that resource
     - **Then** the API returns `403 Forbidden`
 
-- [ ] **Scenario 3**: API key group_id is used directly without a DB user lookup
+- [x] **Scenario 3**: API key group_id is used directly without a DB user lookup
     - **Given** a request authenticated via API key
     - **When** the authorization helper resolves group membership
     - **Then** the API key's `group_id` is used directly (no user group lookup is performed)
 
-- [ ] **Scenario 4**: Unit tests cover API key enforcement paths
+- [x] **Scenario 4**: Unit tests cover API key enforcement paths
     - **Given** the API key enforcement implementation
     - **When** unit tests are run
     - **Then** authorized and unauthorized access cases for API key auth are covered and pass
