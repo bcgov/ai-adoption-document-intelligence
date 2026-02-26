@@ -1,3 +1,4 @@
+import { ForbiddenException } from "@nestjs/common";
 import { DatabaseService } from "@/database/database.service";
 import { identityCanAccessGroup } from "./identity.helpers";
 
@@ -11,41 +12,39 @@ describe("identityCanAccessGroup", () => {
   });
 
   describe("when identity is undefined", () => {
-    it("should return false", async () => {
-      const result = await identityCanAccessGroup(undefined, "group-1", mockDb);
-      expect(result).toBe(false);
+    it("should throw ForbiddenException", async () => {
+      await expect(
+        identityCanAccessGroup(undefined, "group-1", mockDb),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it("should not call isUserInGroup", async () => {
-      await identityCanAccessGroup(undefined, "group-1", mockDb);
+      await expect(
+        identityCanAccessGroup(undefined, "group-1", mockDb),
+      ).rejects.toThrow();
       expect(mockDb.isUserInGroup).not.toHaveBeenCalled();
     });
   });
 
   describe("when identity is an empty object", () => {
-    it("should return false", async () => {
-      const result = await identityCanAccessGroup({}, "group-1", mockDb);
-      expect(result).toBe(false);
+    it("should throw ForbiddenException", async () => {
+      await expect(
+        identityCanAccessGroup({}, "group-1", mockDb),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe("API key path (groupId on identity)", () => {
-    it("should return true when the identity groupId matches the requested groupId", async () => {
-      const result = await identityCanAccessGroup(
-        { groupId: "group-1" },
-        "group-1",
-        mockDb,
-      );
-      expect(result).toBe(true);
+    it("should resolve without throwing when the identity groupId matches the requested groupId", async () => {
+      await expect(
+        identityCanAccessGroup({ groupId: "group-1" }, "group-1", mockDb),
+      ).resolves.not.toThrow();
     });
 
-    it("should return false when the identity groupId does not match the requested groupId", async () => {
-      const result = await identityCanAccessGroup(
-        { groupId: "group-2" },
-        "group-1",
-        mockDb,
-      );
-      expect(result).toBe(false);
+    it("should throw ForbiddenException when the identity groupId does not match the requested groupId", async () => {
+      await expect(
+        identityCanAccessGroup({ groupId: "group-2" }, "group-1", mockDb),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it("should not call isUserInGroup", async () => {
@@ -55,24 +54,18 @@ describe("identityCanAccessGroup", () => {
   });
 
   describe("JWT path (userId on identity)", () => {
-    it("should return true when the user is a member of the group", async () => {
+    it("should resolve without throwing when the user is a member of the group", async () => {
       (mockDb.isUserInGroup as jest.Mock).mockResolvedValue(true);
-      const result = await identityCanAccessGroup(
-        { userId: "user-abc" },
-        "group-1",
-        mockDb,
-      );
-      expect(result).toBe(true);
+      await expect(
+        identityCanAccessGroup({ userId: "user-abc" }, "group-1", mockDb),
+      ).resolves.not.toThrow();
     });
 
-    it("should return false when the user is not a member of the group", async () => {
+    it("should throw ForbiddenException when the user is not a member of the group", async () => {
       (mockDb.isUserInGroup as jest.Mock).mockResolvedValue(false);
-      const result = await identityCanAccessGroup(
-        { userId: "user-abc" },
-        "group-1",
-        mockDb,
-      );
-      expect(result).toBe(false);
+      await expect(
+        identityCanAccessGroup({ userId: "user-abc" }, "group-1", mockDb),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it("should call isUserInGroup with the correct userId and groupId", async () => {
