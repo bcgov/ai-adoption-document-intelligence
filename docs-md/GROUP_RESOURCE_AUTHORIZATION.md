@@ -81,9 +81,10 @@ For `ReviewSession` endpoints, the parent `Document` is fetched (either directly
 
 The `identityCanAccessGroup(identity, groupId, db)` helper performs the following checks:
 
-1. If `identity` is `undefined`, throws `403 Forbidden`.
-2. If the identity is an **API key** identity (`identity.groupId` is set), verifies the key's group matches the requested `groupId`. Throws `403 Forbidden` if they differ.
-3. If the identity is a **JWT user** identity (`identity.userId` is set), queries the database to confirm the user is a member of the group. Throws `403 Forbidden` if not a member.
+1. If `groupId` is `null` (orphaned record with no group assignment), throws `404 Not Found`. This prevents leaking the existence of orphaned records to any caller, regardless of identity.
+2. If `identity` is `undefined`, throws `403 Forbidden`.
+3. If the identity is an **API key** identity (`identity.groupId` is set), verifies the key's group matches the requested `groupId`. Throws `403 Forbidden` if they differ.
+4. If the identity is a **JWT user** identity (`identity.userId` is set), queries the database to confirm the user is a member of the group. Throws `403 Forbidden` if not a member.
 
 ## Request DTOs
 
@@ -103,6 +104,7 @@ All creation DTOs include a required `group_id` (or `groupId`) field. A missing 
 |---|---|
 | `400 Bad Request` | `group_id` is missing or empty in the request body |
 | `403 Forbidden` | Requestor identity is absent, or identity does not belong to the specified group |
+| `404 Not Found` | The fetched resource has `group_id = null` (orphaned record) — returned to all non-system-admin callers |
 
 ## Related
 
@@ -114,3 +116,4 @@ All creation DTOs include a required `group_id` (or `groupId`) field. A missing 
 - Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-012-enforce-group-authorization-on-labeling-document.md`
 - Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-013-enforce-group-authorization-on-sub-resources.md`
 - Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-015-user-requests-api-key-for-group.md`
+- Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-016-block-access-to-orphaned-records.md`

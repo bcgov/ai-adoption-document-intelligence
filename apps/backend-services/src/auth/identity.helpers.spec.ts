@@ -1,4 +1,4 @@
-import { ForbiddenException } from "@nestjs/common";
+import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "@/database/database.service";
 import { identityCanAccessGroup } from "./identity.helpers";
 
@@ -9,6 +9,33 @@ describe("identityCanAccessGroup", () => {
     mockDb = {
       isUserInGroup: jest.fn(),
     } as unknown as DatabaseService;
+  });
+
+  describe("when groupId is null (orphaned record)", () => {
+    it("should throw NotFoundException regardless of identity", async () => {
+      await expect(
+        identityCanAccessGroup({ userId: "user-abc" }, null, mockDb),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw NotFoundException when identity is an API key identity", async () => {
+      await expect(
+        identityCanAccessGroup({ groupId: "group-1" }, null, mockDb),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw NotFoundException when identity is undefined", async () => {
+      await expect(
+        identityCanAccessGroup(undefined, null, mockDb),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should not call isUserInGroup", async () => {
+      await expect(
+        identityCanAccessGroup({ userId: "user-abc" }, null, mockDb),
+      ).rejects.toThrow();
+      expect(mockDb.isUserInGroup).not.toHaveBeenCalled();
+    });
   });
 
   describe("when identity is undefined", () => {

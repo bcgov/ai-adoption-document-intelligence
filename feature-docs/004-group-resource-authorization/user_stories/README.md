@@ -112,9 +112,9 @@ Filter list and aggregate endpoints so requestors only see resources from groups
 - [x] US-009-enforce-group-authorization-on-document.md
 - [x] US-010-enforce-group-authorization-on-workflow.md
 - [x] US-011-enforce-group-authorization-on-labeling-project.md
-- [ ] US-012-enforce-group-authorization-on-labeling-document.md
-- [ ] US-013-enforce-group-authorization-on-sub-resources.md
+- [x] US-012-enforce-group-authorization-on-labeling-document.md
+- [x] US-013-enforce-group-authorization-on-sub-resources.md
 - [x] US-014-api-key-group-scoped-access-enforcement.md
-- [ ] US-015-user-requests-api-key-for-group.md
-- [ ] US-016-block-access-to-orphaned-records.md
+- [x] US-015-user-requests-api-key-for-group.md
+- [x] US-016-block-access-to-orphaned-records.md
 - [ ] US-017-filter-list-endpoints-by-group-membership.md

@@ -1,4 +1,4 @@
-import { ForbiddenException } from "@nestjs/common";
+import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "@/database/database.service";
 import { ResolvedIdentity } from "./types";
 
@@ -6,6 +6,8 @@ import { ResolvedIdentity } from "./types";
  * Asserts that the resolved identity has access to the specified group,
  * throwing an appropriate HTTP exception if access is denied.
  *
+ * - **Null groupId**: throws `404 Not Found` to prevent leaking the existence
+ *   of orphaned records that have no group assignment.
  * - **API key path** (`identity.groupId` is set): throws `403 Forbidden` when
  *   the identity's group does not match the requested `groupId`.
  * - **JWT path** (`identity.userId` is set): throws `403 Forbidden` when the
@@ -14,16 +16,23 @@ import { ResolvedIdentity } from "./types";
  *
  * @param identity - The resolved identity from `request.resolvedIdentity`, or
  *   `undefined` for unauthenticated requests.
- * @param groupId - The group ID to validate access against.
+ * @param groupId - The group ID to validate access against, or `null` for
+ *   orphaned records with no group assignment.
  * @param db - The database service used to check user group membership on the
  *   JWT path.
+ * @throws {NotFoundException} When the resource has no group (`groupId` is null),
+ *   preventing leakage of orphaned record existence.
  * @throws {ForbiddenException} When the identity is not authorised to access the group.
  */
 export async function identityCanAccessGroup(
   identity: ResolvedIdentity | undefined,
-  groupId: string,
+  groupId: string | null,
   db: DatabaseService,
 ): Promise<void> {
+  if (groupId === null) {
+    throw new NotFoundException("Resource not found.");
+  }
+
   if (!identity) {
     throw new ForbiddenException("User does not belong to requested group.");
   }
