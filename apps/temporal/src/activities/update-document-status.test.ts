@@ -76,7 +76,18 @@ describe('updateDocumentStatus activity', () => {
     );
   });
 
-  it('throws error when document not found', async () => {
+  it('skips gracefully when document not found (P2025 - benchmark mode)', async () => {
+    const prismaNotFound = new Error('Record to update not found');
+    Object.assign(prismaNotFound, { code: 'P2025' });
+    prismaMock.document.update.mockRejectedValue(prismaNotFound);
+
+    // Should NOT throw — just log and return
+    await expect(
+      updateDocumentStatus({ documentId: 'benchmark-Receipt', status: 'ongoing_ocr' }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('throws error when document not found without P2025 code', async () => {
     const notFoundError = new Error('Record to update not found');
     prismaMock.document.update.mockRejectedValue(notFoundError);
 

@@ -229,6 +229,35 @@ describe('upsertOcrResult activity', () => {
     });
   });
 
+  it('skips gracefully on FK constraint violation (P2003 - benchmark mode)', async () => {
+    const ocrResult: OCRResult = {
+      success: true,
+      status: 'succeeded',
+      apimRequestId: 'test-apim-id',
+      fileName: 'receipt.jpg',
+      fileType: 'image',
+      modelId: 'prebuilt-layout',
+      extractedText: 'Content',
+      pages: [],
+      tables: [],
+      paragraphs: [],
+      keyValuePairs: [],
+      sections: [],
+      figures: [],
+      documents: [],
+      processedAt: '2024-01-01T00:00:00Z',
+    };
+
+    const fkError = new Error('Foreign key constraint violated');
+    Object.assign(fkError, { code: 'P2003' });
+    prismaMock.ocrResult.upsert.mockRejectedValue(fkError);
+
+    // Should NOT throw — just log and return
+    await expect(
+      upsertOcrResult({ documentId: 'benchmark-Receipt', ocrResult }),
+    ).resolves.toBeUndefined();
+  });
+
   it('throws error when database operation fails', async () => {
     const ocrResult: OCRResult = {
       success: true,

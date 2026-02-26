@@ -47,6 +47,26 @@ export async function updateDocumentStatus(params: {
     }));
   } catch (error) {
     const duration = Date.now() - startTime;
+
+    // P2025 = record not found. In benchmark mode, documents don't exist in the
+    // database so the update is expected to find nothing. Log and move on.
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as { code: string }).code === 'P2025'
+    ) {
+      console.log(JSON.stringify({
+        activity: activityName,
+        event: 'skipped',
+        reason: 'document_not_found',
+        documentId,
+        status,
+        durationMs: duration,
+        timestamp: new Date().toISOString(),
+      }));
+      return;
+    }
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(JSON.stringify({
       activity: activityName,

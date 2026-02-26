@@ -148,6 +148,26 @@ export async function upsertOcrResult(params: {
     }));
   } catch (error) {
     const duration = Date.now() - startTime;
+
+    // P2003 = FK constraint violation, P2025 = record not found.
+    // In benchmark mode the document doesn't exist in the DB, so DB writes
+    // are expected to fail. Log and move on.
+    const prismaCode =
+      error instanceof Error && 'code' in error
+        ? (error as { code: string }).code
+        : undefined;
+    if (prismaCode === 'P2003' || prismaCode === 'P2025') {
+      console.log(JSON.stringify({
+        activity: activityName,
+        event: 'skipped',
+        reason: 'document_not_found',
+        documentId,
+        durationMs: duration,
+        timestamp: new Date().toISOString(),
+      }));
+      return;
+    }
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(JSON.stringify({
       activity: activityName,
