@@ -153,6 +153,7 @@ const SDPR_MONTHLY_REPORT_FIELDS: SeedFieldDefinition[] = [
 // ========== BENCHMARKING SEED DATA ==========
 
 const SEED_WORKFLOW_ID = "seed-workflow-standard-ocr";
+const SEED_WORKFLOW_ID_MULTI_PAGE = "seed-workflow-multi-page-report";
 const SEED_DATASET_ID = "seed-dataset-invoices";
 const SEED_DATASET_ID_2 = "seed-dataset-receipts";
 const SEED_DATASET_ID_3 = "seed-dataset-forms";
@@ -549,42 +550,56 @@ async function createValidationErrorTestData(
 }
 
 async function seedBenchmarkingData() {
-  // Create a workflow if it doesn't exist
+  // Load workflow configs from template files
+  const standardOcrConfig = JSON.parse(
+    fs.readFileSync(
+      path.resolve(__dirname, "../../../docs-md/graph-workflows/templates/standard-ocr-workflow.json"),
+      "utf-8",
+    ),
+  );
+  const multiPageReportConfig = JSON.parse(
+    fs.readFileSync(
+      path.resolve(__dirname, "../../../docs-md/graph-workflows/templates/multi-page-report-workflow.json"),
+      "utf-8",
+    ),
+  );
+
+  // Create Standard OCR Workflow
   const workflow = await prisma.workflow.upsert({
     where: { id: SEED_WORKFLOW_ID },
     update: {
-      name: "Standard OCR Workflow",
-      description: "Standard OCR processing workflow for testing",
+      name: standardOcrConfig.metadata.name,
+      description: standardOcrConfig.metadata.description,
       user_id: "test-user",
-      config: {
-        nodes: [
-          { id: "start", type: "start" },
-          { id: "ocr", type: "activity", activityType: "document.ocr" },
-          { id: "end", type: "end" },
-        ],
-        edges: [
-          { from: "start", to: "ocr" },
-          { from: "ocr", to: "end" },
-        ],
-      },
+      config: standardOcrConfig,
       version: 1,
     },
     create: {
       id: SEED_WORKFLOW_ID,
-      name: "Standard OCR Workflow",
-      description: "Standard OCR processing workflow for testing",
+      name: standardOcrConfig.metadata.name,
+      description: standardOcrConfig.metadata.description,
       user_id: "test-user",
-      config: {
-        nodes: [
-          { id: "start", type: "start" },
-          { id: "ocr", type: "activity", activityType: "document.ocr" },
-          { id: "end", type: "end" },
-        ],
-        edges: [
-          { from: "start", to: "ocr" },
-          { from: "ocr", to: "end" },
-        ],
-      },
+      config: standardOcrConfig,
+      version: 1,
+    },
+  });
+
+  // Create Multi-Page Report Workflow
+  await prisma.workflow.upsert({
+    where: { id: SEED_WORKFLOW_ID_MULTI_PAGE },
+    update: {
+      name: multiPageReportConfig.metadata.name,
+      description: multiPageReportConfig.metadata.description,
+      user_id: "test-user",
+      config: multiPageReportConfig,
+      version: 1,
+    },
+    create: {
+      id: SEED_WORKFLOW_ID_MULTI_PAGE,
+      name: multiPageReportConfig.metadata.name,
+      description: multiPageReportConfig.metadata.description,
+      user_id: "test-user",
+      config: multiPageReportConfig,
       version: 1,
     },
   });
@@ -1651,15 +1666,13 @@ async function seedTestApiKey() {
   const keyHash = await bcrypt.hash(TEST_API_KEY, 10);
 
   await prisma.apiKey.upsert({
-    where: { user_id: "test-user" },
+    where: { key_hash: keyHash },
     update: {
-      key_hash: keyHash,
       key_prefix: keyPrefix,
-      user_email: "test@example.com",
+      user_id: "test-user",
     },
     create: {
       user_id: "test-user",
-      user_email: "test@example.com",
       key_hash: keyHash,
       key_prefix: keyPrefix,
     },
@@ -1668,9 +1681,28 @@ async function seedTestApiKey() {
   console.log(`  ✓ Test API key created (prefix: ${keyPrefix})`);
 }
 
+async function seedUsers() {
+  console.log("👤 Seeding users...");
+
+  await prisma.user.upsert({
+    where: { id: "test-user" },
+    update: {},
+    create: { id: "test-user", email: "test@example.com" },
+  });
+
+  await prisma.user.upsert({
+    where: { id: "seed" },
+    update: {},
+    create: { id: "seed", email: "seed@example.com" },
+  });
+
+  console.log("  ✓ Users seeded");
+}
+
 async function main() {
   console.log("🌱 Starting database seed...\n");
 
+  await seedUsers();
   await seedTestApiKey();
   await seedLabelingData();
   await seedBenchmarkingData();

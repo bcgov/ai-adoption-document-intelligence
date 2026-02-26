@@ -24,7 +24,7 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "db:status": "prisma migrate status",
-    "db:studio": "prisma studio",
+    "db:studio": "BROWSER=none prisma studio --port 5555",
     "db:seed": "prisma db seed"
   },
   "dependencies": {
