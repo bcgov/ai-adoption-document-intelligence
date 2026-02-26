@@ -18,8 +18,13 @@ function resolveBlobBasePath(): string {
 
 export function resolveBlobKeyToPath(blobKey: string): string {
   const normalized = path.normalize(blobKey);
-  if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
+  if (normalized.startsWith('..')) {
     throw new Error(`Invalid blob key: "${blobKey}"`);
+  }
+
+  // Absolute paths are used in benchmark mode where files are materialized on disk
+  if (path.isAbsolute(normalized)) {
+    return normalized;
   }
 
   return path.join(resolveBlobBasePath(), normalized);

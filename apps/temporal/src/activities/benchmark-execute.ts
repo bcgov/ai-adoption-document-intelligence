@@ -121,12 +121,29 @@ export async function benchmarkExecuteWorkflow(
   }));
 
   try {
-    // Build initial context for the child workflow
+    // Build initial context for the child workflow.
+    // The graph workflow nodes expect fields like blobKey, documentId, fileName, etc.
+    // In benchmark mode, we populate these from the materialized input files.
+    const primaryInput = inputPaths[0] || '';
+    const fileName = primaryInput.split('/').pop() || 'document';
+    const lowerName = fileName.toLowerCase();
+    const isImage = /\.(jpg|jpeg|png|gif|bmp|tiff|webp)$/i.test(lowerName);
+    const fileType = isImage ? 'image' : 'pdf';
+    const contentType = isImage
+      ? (lowerName.endsWith('.png') ? 'image/png' : 'image/jpeg')
+      : 'application/pdf';
+
     const initialCtx: Record<string, unknown> = {
       ...sampleMetadata,
       inputPaths,
       outputBaseDir,
       sampleId,
+      // Fields expected by graph workflow nodes (e.g., file.prepare)
+      documentId: `benchmark-${sampleId}`,
+      blobKey: primaryInput,
+      fileName,
+      fileType,
+      contentType,
     };
 
     const childWorkflowInput: GraphWorkflowInput = {

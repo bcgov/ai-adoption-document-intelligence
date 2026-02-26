@@ -43,6 +43,12 @@ describe('resolveBlobKeyToPath', () => {
     expect(resolved).toBe(path.join('/tmp/blobs', 'documents/doc-1/original.pdf'));
   });
 
+  it('passes through absolute blob keys for benchmark mode', () => {
+    const absolutePath = '/tmp/benchmark-cache/dataset-1/inputs/doc.pdf';
+    const resolved = resolveBlobKeyToPath(absolutePath);
+    expect(resolved).toBe(absolutePath);
+  });
+
   it('rejects path traversal blob keys', () => {
     expect(() => resolveBlobKeyToPath('../../../etc/passwd')).toThrow(
       'Invalid blob key: "../../../etc/passwd"',
