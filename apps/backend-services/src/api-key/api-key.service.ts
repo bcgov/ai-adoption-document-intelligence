@@ -22,31 +22,19 @@ export class ApiKeyService {
     return this.prismaService.prisma;
   }
 
-  async getUserApiKey(userId: string): Promise<ApiKeyInfoDto | null> {
+  async getApiKey(userId: string): Promise<ApiKeyInfoDto | null> {
     const apiKey = await this.prisma.apiKey.findFirst({
-      where: { user_id: userId },
-      include: {
-        user: {
-          include: {
-            userRoles: {
-              include: { role: true },
-            },
-          },
-        },
-      },
+      where: { generating_user_id: userId },
     });
 
-    if (!apiKey || !apiKey.user) {
+    if (!apiKey) {
       return null;
     }
-
-    const roles = apiKey.user.userRoles.map((ur) => ur.role.name);
 
     return {
       id: apiKey.id,
       keyPrefix: apiKey.key_prefix,
-      userEmail: apiKey.user.email,
-      roles,
+      groupId: apiKey.group_id,
       createdAt: apiKey.created_at,
       lastUsed: apiKey.last_used,
     };
@@ -58,7 +46,7 @@ export class ApiKeyService {
   ): Promise<GeneratedApiKeyDto> {
     // Check if user already has a key
     const existingKey = await this.prisma.apiKey.findFirst({
-      where: { user_id: userId },
+      where: { generating_user_id: userId },
     });
 
     if (existingKey) {
@@ -74,20 +62,11 @@ export class ApiKeyService {
     // Hash the key for storage
     const keyHash = await bcrypt.hash(key, 10);
 
-    // Fetch user and roles for response
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        userRoles: { include: { role: true } },
-      },
-    });
-    const roles = user?.userRoles?.map((ur) => ur.role.name) ?? [];
-
     const apiKey = await this.prisma.apiKey.create({
       data: {
         key_hash: keyHash,
         key_prefix: keyPrefix,
-        user_id: userId,
+        generating_user_id: userId,
         group_id: groupId,
       },
     });
@@ -98,21 +77,20 @@ export class ApiKeyService {
       id: apiKey.id,
       key,
       keyPrefix,
-      userEmail: user?.email ?? null,
-      roles,
+      groupId: apiKey.group_id,
       createdAt: apiKey.created_at,
       lastUsed: null,
     };
   }
 
-  async deleteApiKey(userId: string): Promise<void> {
+  async deleteApiKey(groupId: string): Promise<void> {
     const deleted = await this.prisma.apiKey.deleteMany({
-      where: { user_id: userId },
+      where: { group_id: groupId },
     });
     if (deleted.count === 0) {
-      throw new NotFoundException("No API key found for this user");
+      throw new NotFoundException("No API key found for this group");
     }
-    this.logger.log(`API key(s) deleted for user ${userId}`);
+    this.logger.log(`API key(s) deleted for group ${groupId}`);
   }
 
   async regenerateApiKey(
@@ -120,29 +98,19 @@ export class ApiKeyService {
     groupId: string,
   ): Promise<GeneratedApiKeyDto> {
     // Delete existing key(s) if any
-    await this.prisma.apiKey.deleteMany({ where: { user_id: userId } });
+    await this.prisma.apiKey.deleteMany({ where: { group_id: groupId } });
     // Generate new key
     return this.generateApiKey(userId, groupId);
   }
 
-  async validateApiKey(key: string): Promise<{
-    userId: string;
-    userEmail: string | null;
-    roles: string[];
-  } | null> {
+  async validateApiKey(key: string): Promise<{ groupId: string } | null> {
     // Extract prefix from the incoming key for indexed lookup
     const prefix = key.substring(0, 8);
 
-    // Query only keys with matching prefix (O(1) lookup instead of O(n))
+    // Query only keys with matching prefix (O(1) lookup instead of O(n)).
+    // No user JOIN needed — the key is group-scoped for auth purposes.
     const apiKeys = await this.prisma.apiKey.findMany({
       where: { key_prefix: prefix },
-      include: {
-        user: {
-          include: {
-            userRoles: { include: { role: true } },
-          },
-        },
-      },
     });
 
     for (const apiKey of apiKeys) {
@@ -154,13 +122,7 @@ export class ApiKeyService {
           data: { last_used: new Date() },
         });
 
-        const roles = apiKey.user?.userRoles?.map((ur) => ur.role.name) ?? [];
-
-        return {
-          userId: apiKey.user_id,
-          userEmail: apiKey.user?.email ?? null,
-          roles,
-        };
+        return { groupId: apiKey.group_id };
       }
     }
 

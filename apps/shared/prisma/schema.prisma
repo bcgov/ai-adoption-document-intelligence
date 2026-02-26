@@ -74,15 +74,17 @@ model OcrResult {
 }
 
 model ApiKey {
-  id         String    @id @default(cuid())
-  key_hash   String    @unique
-  key_prefix String
-  user_id    String?
-  user       User?     @relation(fields: [user_id], references: [id])
-  group_id   String    
-  group      Group     @relation(fields: [group_id], references: [id])
-  created_at DateTime  @default(now())
-  last_used  DateTime?
+  id                   String    @id @default(cuid())
+  key_hash             String    @unique
+  key_prefix           String
+  /// The user who most recently generated or regenerated this key. Recorded for
+  /// audit purposes only; not used for authentication identity resolution.
+  generating_user_id   String?
+  generating_user      User?     @relation(fields: [generating_user_id], references: [id])
+  group_id             String
+  group                Group     @relation(fields: [group_id], references: [id])
+  created_at           DateTime  @default(now())
+  last_used            DateTime?
 
   @@index([group_id])
   @@map("api_keys")

@@ -5,22 +5,22 @@
 **So that** downstream authorization checks have consistent access to the requestor's identity without duplicating extraction logic across controllers.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: JWT requestor identity resolved
+- [x] **Scenario 1**: JWT requestor identity resolved
     - **Given** an incoming request with a valid Keycloak JWT
     - **When** the guard processes the request
     - **Then** the requestor's user identity (e.g., user ID) is extracted from the JWT payload and attached to the request context
 
-- [ ] **Scenario 2**: API key requestor identity resolved
+- [x] **Scenario 2**: API key requestor identity resolved
     - **Given** an incoming request authenticated via an API key
     - **When** the guard processes the request
     - **Then** the `group_id` from the `ApiKey` record is attached to the request context for use by downstream authorization logic
 
-- [ ] **Scenario 3**: Guard is composable with existing auth guards
+- [x] **Scenario 3**: Guard is composable with existing auth guards
     - **Given** the route-level guard is applied alongside existing JWT/API key auth guards
     - **When** a request is processed
     - **Then** the existing auth guards continue to function correctly and the identity guard does not interfere with or replace them
 
-- [ ] **Scenario 4**: Unit tests cover all identity resolution paths
+- [x] **Scenario 4**: Unit tests cover all identity resolution paths
     - **Given** the guard implementation
     - **When** unit tests are run
     - **Then** all JWT and API key extraction paths are covered and pass

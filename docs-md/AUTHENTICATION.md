@@ -705,6 +705,10 @@ export class AppModule {}
     },
     {
       provide: APP_GUARD,
+      useClass: IdentityGuard,  // Resolves requestor identity onto request.resolvedIdentity
+    },
+    {
+      provide: APP_GUARD,
       useClass: RolesGuard,  // Enforces @Roles decorator
     },
     {
@@ -720,9 +724,10 @@ export class AuthModule {}
 **Guard Execution Order:**
 1. `ThrottlerGuard` → Enforces per-IP rate limits (global default or per-route override)
 2. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
-3. `ApiKeyAuthGuard` → Checks per-IP failed-attempt limit (configurable, default 20/min) → Validates API key (if applicable) → Sets `request.user`
-4. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
-5. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
+3. `ApiKeyAuthGuard` → Checks per-IP failed-attempt limit (configurable, default 20/min) → Validates API key (if applicable) → Sets `request.user` and `request.apiKeyGroupId`
+4. `IdentityGuard` → Resolves requestor identity from `request.user` → Sets `request.resolvedIdentity` (includes `userId`; includes `groupId` for API key auth)
+5. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
+6. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
 
 ### Security Mechanisms
 
@@ -1445,7 +1450,7 @@ user.roles = ["user", "offline_access", "document-editor", "workflow-viewer"]
 
 ## Decorator Composition Rules
 
-The guard chain runs globally in this order: `JwtAuthGuard` → `ApiKeyAuthGuard` → `RolesGuard` → `CsrfGuard`. Decorators control which guards activate. The following rules define how to combine decorators safely.
+The guard chain runs globally in this order: `JwtAuthGuard` → `ApiKeyAuthGuard` → `IdentityGuard` → `RolesGuard` → `CsrfGuard`. Decorators control which guards activate. The following rules define how to combine decorators safely.
 
 ### Available Decorators
 
@@ -1455,6 +1460,8 @@ The guard chain runs globally in this order: `JwtAuthGuard` → `ApiKeyAuthGuard
 | `@ApiKeyAuth()` | Allows API key authentication | Sets metadata read by both `JwtAuthGuard` (to skip JWT when API key header present) and `ApiKeyAuthGuard` (to validate the key) |
 | `@KeycloakSSOAuth()` | Swagger documentation only | Adds `ApiBearerAuth` and `ApiUnauthorizedResponse` to OpenAPI spec. **No runtime effect** — JWT is enforced globally |
 | `@Roles(...)` | Requires specific roles | `RolesGuard` checks `request.user.roles` for at least one match. Applies to both JWT and API key users |
+
+> **Identity resolution**: `IdentityGuard` runs after every authenticated request (JWT or API key) and populates `request.resolvedIdentity` with `{ userId }` for JWT users and `{ userId, groupId }` for API key users. This is consumed by service-layer group authorization helpers.
 
 ### Valid Decorator Combinations
 

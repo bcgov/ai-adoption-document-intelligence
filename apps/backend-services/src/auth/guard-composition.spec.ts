@@ -16,6 +16,7 @@ import {
 import { ApiKeyService } from "../api-key/api-key.service";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
 import { CsrfGuard } from "./csrf.guard";
+import { IdentityGuard } from "./identity.guard";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { Public } from "./public.decorator";
 import { Roles } from "./roles.decorator";
@@ -52,17 +53,8 @@ const JWT_ADMIN = {
   roles: ["admin", "user"],
 };
 
-const API_KEY_USER = {
-  userId: "apikey-user-id",
-  userEmail: "apikey@example.com",
-  roles: ["user"],
-};
-
-const API_KEY_ADMIN = {
-  userId: "apikey-admin-id",
-  userEmail: "apikey-admin@example.com",
-  roles: ["admin", "user"],
-};
+const API_KEY_USER = { groupId: "group-user" };
+const API_KEY_ADMIN = { groupId: "group-admin" };
 
 // ---------------------------------------------------------------------------
 // Stub: replaces Passport JWT validation with a simple token check.
@@ -181,6 +173,7 @@ describe("Guard Composition Integration", () => {
         Reflector,
         { provide: APP_GUARD, useClass: StubJwtAuthGuard },
         { provide: APP_GUARD, useClass: ApiKeyAuthGuard },
+        { provide: APP_GUARD, useClass: IdentityGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
         { provide: APP_GUARD, useClass: CsrfGuard },
         { provide: ApiKeyService, useValue: mockApiKeyService },
@@ -201,11 +194,7 @@ describe("Guard Composition Integration", () => {
     mockApiKeyService.validateApiKey.mockImplementation(
       (
         key: string,
-      ): Promise<{
-        userId: string;
-        userEmail: string;
-        roles: string[];
-      } | null> => {
+      ): Promise<{ groupId: string } | null> => {
         if (key === VALID_API_KEY) return Promise.resolve(API_KEY_USER);
         if (key === "valid-admin-api-key")
           return Promise.resolve(API_KEY_ADMIN);
@@ -411,15 +400,14 @@ describe("Guard Composition Integration", () => {
         .expect(HttpStatus.FORBIDDEN);
     });
 
-    it("should allow API key with admin role", () => {
+    it("should reject API key with 403 (API keys carry no roles)", () => {
       return request(app.getHttpServer())
         .get("/test-guards/api-key-roles-admin")
         .set("X-API-Key", "valid-admin-api-key")
-        .expect(HttpStatus.OK)
-        .expect({ route: "api-key-roles-admin" });
+        .expect(HttpStatus.FORBIDDEN);
     });
 
-    it("should reject API key without admin role with 403", () => {
+    it("should reject API key with 403", () => {
       return request(app.getHttpServer())
         .get("/test-guards/api-key-roles-admin")
         .set("X-API-Key", VALID_API_KEY)

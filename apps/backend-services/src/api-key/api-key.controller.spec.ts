@@ -7,7 +7,7 @@ describe("ApiKeyController", () => {
   let apiKeyService: ApiKeyService;
 
   const mockApiKeyService = {
-    getUserApiKey: jest.fn(),
+    getApiKey: jest.fn(),
     generateApiKey: jest.fn(),
     deleteApiKey: jest.fn(),
     regenerateApiKey: jest.fn(),
@@ -40,25 +40,24 @@ describe("ApiKeyController", () => {
 
   describe("getApiKey", () => {
     it("should return null when user has no key", async () => {
-      mockApiKeyService.getUserApiKey.mockResolvedValue(null);
+      mockApiKeyService.getApiKey.mockResolvedValue(null);
 
       const result = await controller.getApiKey(mockRequest as any);
 
       expect(result).toEqual({ apiKey: null });
-      expect(apiKeyService.getUserApiKey).toHaveBeenCalledWith("testuser");
+      expect(apiKeyService.getApiKey).toHaveBeenCalledWith("testuser");
     });
 
     it("should return api key info when user has a key", async () => {
       const mockKeyInfo = {
         id: "key123",
         keyPrefix: "abcd1234",
-        userEmail: "test@example.com",
-        roles: ["admin"],
+        groupId: "group123",
       };
-      mockApiKeyService.getUserApiKey.mockResolvedValue(mockKeyInfo);
+      mockApiKeyService.getApiKey.mockResolvedValue(mockKeyInfo);
       const result = await controller.getApiKey(mockRequest as any);
       expect(result).toEqual({ apiKey: mockKeyInfo });
-      expect(apiKeyService.getUserApiKey).toHaveBeenCalledWith("testuser");
+      expect(apiKeyService.getApiKey).toHaveBeenCalledWith("testuser");
     });
 
     it("should not throw when user has no email", async () => {
@@ -78,8 +77,7 @@ describe("ApiKeyController", () => {
         id: "key123",
         key: "fullkeyvalue",
         keyPrefix: "fullkeyv",
-        userEmail: "test@example.com",
-        roles: ["admin", "editor"],
+        groupId: "group123",
         createdAt: new Date(),
         lastUsed: null,
       };
@@ -110,9 +108,9 @@ describe("ApiKeyController", () => {
     it("should delete user api key", async () => {
       mockApiKeyService.deleteApiKey.mockResolvedValue(undefined);
 
-      await controller.deleteApiKey(mockRequest as any);
+      await controller.deleteApiKey(mockRequest as any, { groupId: "group123" });
 
-      expect(apiKeyService.deleteApiKey).toHaveBeenCalledWith("testuser");
+      expect(apiKeyService.deleteApiKey).toHaveBeenCalledWith("group123");
     });
   });
 
@@ -122,8 +120,7 @@ describe("ApiKeyController", () => {
         id: "newkey123",
         key: "newfullkeyvalue",
         keyPrefix: "newfullk",
-        userEmail: "test@example.com",
-        roles: ["admin", "editor"],
+        groupId: "group123",
         createdAt: new Date(),
         lastUsed: null,
       };

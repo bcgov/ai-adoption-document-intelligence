@@ -94,12 +94,10 @@ export class ApiKeyAuthGuard implements CanActivate, OnModuleDestroy {
     // Successful validation — reset failure counter for this IP
     this.failedAttempts.delete(clientIp);
 
-    // Set user info from API key (roles and email from User relation)
-    request.user = {
-      sub: keyInfo.userId,
-      email: keyInfo.userEmail,
-      roles: keyInfo.roles,
-    };
+    // Attach the API key's group_id for use by IdentityGuard and downstream
+    // service-layer authorization helpers. The key is group-scoped; there is
+    // no user identity to apply.
+    request.apiKeyGroupId = keyInfo.groupId;
 
     return true;
   }

@@ -119,17 +119,14 @@ describe("ApiKeyAuthGuard", () => {
     expect(apiKeyService.validateApiKey).toHaveBeenCalledWith("invalidkey");
   });
 
-  it("should set user on request for valid API key", async () => {
+  it("should set apiKeyGroupId for valid API key", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
     mockApiKeyService.validateApiKey.mockResolvedValue({
-      userId: "user123",
-      userEmail: "test@example.com",
-      roles: ["admin", "editor"],
-    }); // userEmail and roles from User relation
+      groupId: "group-abc",
+    });
 
-    const mockRequest = {
+    const mockRequest: Record<string, unknown> = {
       headers: { "x-api-key": "validkey" },
-      user: undefined,
     };
 
     const context = {
@@ -143,42 +140,8 @@ describe("ApiKeyAuthGuard", () => {
     const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
-    expect(mockRequest.user).toEqual({
-      sub: "user123",
-      email: "test@example.com",
-      roles: ["admin", "editor"],
-    });
-  });
-
-  it("should set empty roles when API key has no roles stored", async () => {
-    (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
-    mockApiKeyService.validateApiKey.mockResolvedValue({
-      userId: "user456",
-      userEmail: "noroles@example.com",
-      roles: [],
-    }); // userEmail and roles from User relation
-
-    const mockRequest = {
-      headers: { "x-api-key": "validkey2" },
-      user: undefined,
-    };
-
-    const context = {
-      switchToHttp: () => ({
-        getRequest: () => mockRequest,
-      }),
-      getHandler: () => ({}),
-      getClass: () => ({}),
-    } as unknown as ExecutionContext;
-
-    const result = await guard.canActivate(context);
-
-    expect(result).toBe(true);
-    expect(mockRequest.user).toEqual({
-      sub: "user456",
-      email: "noroles@example.com",
-      roles: [],
-    });
+    expect(mockRequest.user).toBeUndefined();
+    expect(mockRequest.apiKeyGroupId).toBe("group-abc");
   });
 
   describe("failed-attempt throttling", () => {
@@ -272,9 +235,7 @@ describe("ApiKeyAuthGuard", () => {
 
       // Successful validation should reset the counter
       mockApiKeyService.validateApiKey.mockResolvedValueOnce({
-        userId: "user1",
-        userEmail: "user@example.com",
-        roles: [],
+        groupId: "group-reset",
       });
 
       const mockRequest = {

@@ -53,7 +53,7 @@ export class ApiKeyController {
       return { apiKey: null };
     }
 
-    const apiKey = await this.apiKeyService.getUserApiKey(userId as string);
+    const apiKey = await this.apiKeyService.getApiKey(userId as string);
     return { apiKey };
   }
 
@@ -93,13 +93,14 @@ export class ApiKeyController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Delete the current user's API key" })
+  @ApiBody({ type: GenerateApiKeyRequestDto })
   @ApiNoContentResponse({ description: "API key deleted successfully" })
   @ApiUnauthorizedResponse({ description: "User is not authenticated" })
-  async deleteApiKey(@Req() req: Request): Promise<void> {
-    const user = req.user;
-    const userId = user?.sub as string;
-
-    await this.apiKeyService.deleteApiKey(userId);
+  async deleteApiKey(
+    @Req() req: Request,
+    @Body() body: GenerateApiKeyRequestDto,
+  ): Promise<void> {
+    await this.apiKeyService.deleteApiKey(body.groupId);
   }
 
   @Post("regenerate")
