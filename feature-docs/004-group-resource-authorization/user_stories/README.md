@@ -99,7 +99,7 @@ Ensure legacy records without a `group_id` are inaccessible.
 - [x] US-006-route-level-identity-resolution-guard.md
 - [x] US-007-shared-group-authorization-helper.md
 - [x] US-008-enforce-group-membership-on-resource-creation.md
-- [ ] US-009-enforce-group-authorization-on-document.md
+- [x] US-009-enforce-group-authorization-on-document.md
 - [ ] US-010-enforce-group-authorization-on-workflow.md
 - [ ] US-011-enforce-group-authorization-on-labeling-project.md
 - [ ] US-012-enforce-group-authorization-on-labeling-document.md

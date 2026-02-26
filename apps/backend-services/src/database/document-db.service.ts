@@ -232,4 +232,36 @@ export class DocumentDbService {
       throw error;
     }
   }
+
+  /**
+   * Deletes a document by its ID.
+   *
+   * @param id - The unique identifier of the document to delete.
+   * @returns `true` if the document was deleted, `false` if not found.
+   */
+  async deleteDocument(id: string): Promise<boolean> {
+    this.logger.debug("Deleting document: %s", id);
+    try {
+      await this.prisma.document.delete({
+        where: { id },
+      });
+      this.logger.debug("Document deleted: %s", id);
+      return true;
+    } catch (error: unknown) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code: string }).code === "P2025"
+      ) {
+        this.logger.debug("Document not found for deletion: %s", id);
+        return false;
+      }
+      this.logger.error(
+        "Failed to delete document: %s",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    }
+  }
 }

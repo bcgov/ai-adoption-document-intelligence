@@ -101,7 +101,6 @@ describe("ApiKeyService", () => {
       expect(result.groupId).toBe("group123");
       expect(mockPrismaApiKey.create).toHaveBeenCalled();
     });
-
   });
 
   describe("deleteApiKey", () => {

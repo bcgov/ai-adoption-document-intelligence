@@ -103,6 +103,10 @@ export class DatabaseService {
     return this.documentDb.updateDocument(id, data);
   }
 
+  async deleteDocument(id: string): Promise<boolean> {
+    return this.documentDb.deleteDocument(id);
+  }
+
   async findOcrResult(documentId: string) {
     return this.documentDb.findOcrResult(documentId);
   }

@@ -84,11 +84,9 @@ export class LabelingController {
     description: "Newly created labeling project",
     type: LabelingProjectResponseDto,
   })
-  async createProject(
-    @Body() dto: CreateProjectDto,
-    @Req() req: Request,
-  ) {
-    const userId = req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
+  async createProject(@Body() dto: CreateProjectDto, @Req() req: Request) {
+    const userId =
+      req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
     await identityCanAccessGroup(
       req.resolvedIdentity,
       dto.group_id,

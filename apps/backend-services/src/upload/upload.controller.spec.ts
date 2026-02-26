@@ -54,6 +54,7 @@ describe("UploadController", () => {
       metadata: { foo: "bar" },
       source: "api",
       model_id: "test-model-id",
+      group_id: "group-1",
     };
 
     it("should upload document and queue OCR", async () => {

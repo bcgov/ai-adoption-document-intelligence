@@ -5,35 +5,35 @@
 **So that** Document data is only accessible to authorized group members.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Member reads a Document in their group
+- [x] **Scenario 1**: Member reads a Document in their group
     - **Given** a requestor who is a member of group X
     - **And** a Document with `group_id` = X exists
     - **When** the requestor fetches the Document
     - **Then** the Document is returned successfully
 
-- [ ] **Scenario 2**: Non-member attempts to read a Document
+- [x] **Scenario 2**: Non-member attempts to read a Document
     - **Given** a requestor who is NOT a member of group X
     - **And** a Document with `group_id` = X exists
     - **When** the requestor attempts to fetch the Document
     - **Then** the API returns `403 Forbidden`
 
-- [ ] **Scenario 3**: Member updates a Document in their group
+- [x] **Scenario 3**: Member updates a Document in their group
     - **Given** a requestor who is a member of group X
     - **And** a Document with `group_id` = X exists
     - **When** the requestor submits an update for the Document
     - **Then** the update is applied successfully
 
-- [ ] **Scenario 4**: Non-member attempts to update a Document
+- [x] **Scenario 4**: Non-member attempts to update a Document
     - **Given** a requestor who is NOT a member of group X
     - **When** the requestor attempts to update a Document in group X
     - **Then** the API returns `403 Forbidden`
 
-- [ ] **Scenario 5**: Non-member attempts to delete a Document
+- [x] **Scenario 5**: Non-member attempts to delete a Document
     - **Given** a requestor who is NOT a member of group X
     - **When** the requestor attempts to delete a Document in group X
     - **Then** the API returns `403 Forbidden`
 
-- [ ] **Scenario 6**: Unit tests cover all enforcement paths
+- [x] **Scenario 6**: Unit tests cover all enforcement paths
     - **Given** the enforcement implementation
     - **When** unit tests are run
     - **Then** authorized and unauthorized read, update, and delete cases are covered and pass

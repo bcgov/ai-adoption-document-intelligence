@@ -7,9 +7,7 @@ describe("IdentityGuard", () => {
   /**
    * Builds a minimal mock ExecutionContext backed by the given request object.
    */
-  const createContext = (
-    request: Record<string, unknown>,
-  ): ExecutionContext =>
+  const createContext = (request: Record<string, unknown>): ExecutionContext =>
     ({
       switchToHttp: () => ({
         getRequest: () => request,
@@ -42,7 +40,9 @@ describe("IdentityGuard", () => {
 
     guard.canActivate(createContext(request));
 
-    expect((request.resolvedIdentity as { groupId?: string }).groupId).toBeUndefined();
+    expect(
+      (request.resolvedIdentity as { groupId?: string }).groupId,
+    ).toBeUndefined();
   });
 
   // ---------------------------------------------------------------------------
@@ -68,7 +68,9 @@ describe("IdentityGuard", () => {
 
     guard.canActivate(createContext(request));
 
-    expect((request.resolvedIdentity as { userId?: string }).userId).toBeUndefined();
+    expect(
+      (request.resolvedIdentity as { userId?: string }).userId,
+    ).toBeUndefined();
   });
 
   it("should prefer API key path over JWT path when apiKeyGroupId is set", () => {

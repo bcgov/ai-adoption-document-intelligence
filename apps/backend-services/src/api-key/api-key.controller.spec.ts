@@ -108,7 +108,9 @@ describe("ApiKeyController", () => {
     it("should delete user api key", async () => {
       mockApiKeyService.deleteApiKey.mockResolvedValue(undefined);
 
-      await controller.deleteApiKey(mockRequest as any, { groupId: "group123" });
+      await controller.deleteApiKey(mockRequest as any, {
+        groupId: "group123",
+      });
 
       expect(apiKeyService.deleteApiKey).toHaveBeenCalledWith("group123");
     });

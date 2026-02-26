@@ -28,6 +28,7 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
 import { ClassificationResultDto } from "@/azure/dto/classification-result.dto";
@@ -52,7 +53,6 @@ import {
   DeleteClassifierDocumentsResponseDto,
   UploadClassifierDocumentsResponseDto,
 } from "@/azure/dto/classifier-responses.dto";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { DatabaseService } from "@/database/database.service";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { Operation, StorageService } from "@/storage/storage.service";
@@ -106,7 +106,11 @@ export class AzureController {
   async createClassifier(@Request() req, @Body() body: ClassifierCreationDto) {
     const { name, description, source, group_id } = body;
     const userId = req.user.sub;
-    await identityCanAccessGroup(req.resolvedIdentity, group_id, this.databaseService);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      group_id,
+      this.databaseService,
+    );
 
     // Does this classifier already exist?
     const classifier = await this.databaseService.getClassifierModel(
@@ -148,7 +152,11 @@ export class AzureController {
     const { name, group_id, description, source } = body;
     const userId = req.user.sub;
 
-    await identityCanAccessGroup(req.resolvedIdentity, group_id, this.databaseService);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      group_id,
+      this.databaseService,
+    );
 
     // Check if classifier exists
     const classifier = await this.databaseService.getClassifierModel(
@@ -215,7 +223,11 @@ export class AzureController {
     @Body() body: UploadClassifierDocumentsDto,
   ): Promise<UploadClassifierDocumentsResponseDto> {
     const { name, label, group_id } = body;
-    await identityCanAccessGroup(req.resolvedIdentity, group_id, this.databaseService);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      group_id,
+      this.databaseService,
+    );
 
     const existingModelData = await this.databaseService.getClassifierModel(
       name,
@@ -254,7 +266,11 @@ export class AzureController {
     @Query() query: GetClassifierDocumentsQueryDto,
   ): Promise<string[]> {
     const { name, group_id } = query;
-    await identityCanAccessGroup(req.resolvedIdentity, group_id, this.databaseService);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      group_id,
+      this.databaseService,
+    );
 
     const existingModelData = await this.databaseService.getClassifierModel(
       name,
@@ -289,7 +305,11 @@ export class AzureController {
     @Query() query: DeleteClassifierDocumentsDto,
   ): Promise<void> {
     const { name, group_id, folder } = query;
-    await identityCanAccessGroup(req.resolvedIdentity, group_id, this.databaseService);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      group_id,
+      this.databaseService,
+    );
 
     const existingModelData = await this.databaseService.getClassifierModel(
       name,
@@ -345,7 +365,11 @@ export class AzureController {
   ): Promise<ClassifierModelResponseDto> {
     const { name, group_id } = body;
     const userId = req.user.sub;
-    await identityCanAccessGroup(req.resolvedIdentity, group_id, this.databaseService);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      group_id,
+      this.databaseService,
+    );
 
     // Respond immediately and run the heavy work in the background
     const model = await this.databaseService.updateClassifierModel(
@@ -429,7 +453,11 @@ export class AzureController {
   ): Promise<ClassifierResponseDto> {
     const { name, group_id } = body;
     const userId = req.user.sub;
-    await identityCanAccessGroup(req.resolvedIdentity, group_id, this.databaseService);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      group_id,
+      this.databaseService,
+    );
     // Is there a classifier trained for this group?
     const classifier = await this.databaseService.getClassifierModel(
       name,
@@ -506,7 +534,11 @@ export class AzureController {
       );
     }
     const userId = req.user.sub;
-    await identityCanAccessGroup(req.resolvedIdentity, group_id, this.databaseService);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      group_id,
+      this.databaseService,
+    );
     const classifier = await this.databaseService.getClassifierModel(
       name,
       group_id,

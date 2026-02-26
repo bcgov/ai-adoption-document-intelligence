@@ -192,9 +192,7 @@ describe("Guard Composition Integration", () => {
     jest.clearAllMocks();
 
     mockApiKeyService.validateApiKey.mockImplementation(
-      (
-        key: string,
-      ): Promise<{ groupId: string } | null> => {
+      (key: string): Promise<{ groupId: string } | null> => {
         if (key === VALID_API_KEY) return Promise.resolve(API_KEY_USER);
         if (key === "valid-admin-api-key")
           return Promise.resolve(API_KEY_ADMIN);

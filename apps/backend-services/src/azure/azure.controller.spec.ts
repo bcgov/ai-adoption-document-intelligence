@@ -15,7 +15,10 @@ describe("AzureController", () => {
   let storageService: any;
   let databaseService: any;
   let azureService: any;
-  const createMockReq = (sub = "user1") => ({ user: { sub }, resolvedIdentity: { userId: sub } });
+  const createMockReq = (sub = "user1") => ({
+    user: { sub },
+    resolvedIdentity: { userId: sub },
+  });
 
   beforeEach(() => {
     classifierService = {
