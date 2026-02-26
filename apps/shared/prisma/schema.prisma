@@ -100,12 +100,17 @@ model User {
 
   userGroups UserGroup[]
 
+  membershipRequests        GroupMembershipRequest[] @relation(name: "MembershipRequestUser")
+  actedMembershipRequests   GroupMembershipRequest[] @relation(name: "MembershipRequestActor")
+  createdMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestCreatedBy")
+  updatedMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestUpdatedBy")
+
   @@map("user")
 }
 
 model Role {
-  id          String   @id @default(cuid())
-  name        String   @unique
+  id          String     @id @default(cuid())
+  name        String     @unique
   description String?
   userRoles   UserRole[]
 
@@ -266,10 +271,11 @@ model ClassifierModel {
 }
 
 model Group {
-  id                String            @id @default(cuid())
-  name              String            @unique
-  classifier_models ClassifierModel[]
-  user_groups       UserGroup[]
+  id                  String                   @id @default(cuid())
+  name                String                   @unique
+  classifier_models   ClassifierModel[]
+  user_groups         UserGroup[]
+  membership_requests GroupMembershipRequest[]
 
   @@map("group")
 }
@@ -282,6 +288,27 @@ model UserGroup {
 
   @@id([user_id, group_id])
   @@map("user_group")
+}
+
+model GroupMembershipRequest {
+  id          String                       @id @default(cuid())
+  user_id     String
+  user        User                         @relation(name: "MembershipRequestUser", fields: [user_id], references: [id])
+  group_id    String
+  group       Group                        @relation(fields: [group_id], references: [id])
+  status      GroupMembershipRequestStatus @default(PENDING)
+  actor_id    String?
+  actor       User?                        @relation(name: "MembershipRequestActor", fields: [actor_id], references: [id])
+  reason      String?
+  resolved_at DateTime?
+  created_at  DateTime                     @default(now())
+  created_by  String
+  creator     User                         @relation(name: "MembershipRequestCreatedBy", fields: [created_by], references: [id])
+  updated_at  DateTime                     @updatedAt
+  updated_by  String
+  updator     User                         @relation(name: "MembershipRequestUpdatedBy", fields: [updated_by], references: [id])
+
+  @@map("group_membership_request")
 }
 
 // ========== HITL MODELS ==========
@@ -374,4 +401,11 @@ enum DocumentStatus {
   ongoing_ocr
   completed_ocr
   failed
+}
+
+enum GroupMembershipRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+  CANCELLED
 }

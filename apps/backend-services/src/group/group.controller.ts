@@ -6,8 +6,10 @@ import {
   HttpException,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
+  Req,
 } from "@nestjs/common";
 import {
   ApiBody,
@@ -17,6 +19,11 @@ import {
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
+import { Request } from "express";
+import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
+import { User } from "../auth/types";
+import { MembershipRequestActionDto } from "./dto/membership-request-action.dto";
+import { RequestMembershipDto } from "./dto/request-membership.dto";
 import { GroupService } from "./group.service";
 
 /**
@@ -35,6 +42,7 @@ export class GroupController {
   @ApiResponse({ status: 200, description: "Group deleted successfully." })
   @ApiResponse({ status: 404, description: "Group not found." })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
+  @KeycloakSSOAuth()
   @Delete(":groupId")
   async deleteGroup(
     @Param("groupId") groupId: string,
@@ -49,6 +57,7 @@ export class GroupController {
    */
   @ApiOperation({ summary: "Get all existing groups" })
   @ApiResponse({ status: 200, description: "List of groups." })
+  @KeycloakSSOAuth()
   @Get()
   async getAllGroups(): Promise<Array<{ id: string; name: string }>> {
     return await this.groupService.getAllGroups();
@@ -64,6 +73,7 @@ export class GroupController {
     description: "List of groups the user is a member of.",
   })
   @ApiParam({ name: "userId", description: "User ID", type: String })
+  @KeycloakSSOAuth()
   @Get("/user/:userId")
   async getUserGroups(
     @Param("userId") userId: string,
@@ -80,14 +90,130 @@ export class GroupController {
     status: 200,
     description: "Membership requested successfully.",
   })
-  @ApiParam({ name: "userId", description: "User ID", type: String })
-  @ApiParam({ name: "groupId", description: "Group ID", type: String })
+  @ApiResponse({ status: 404, description: "Group not found." })
+  @KeycloakSSOAuth()
   @Post("/request")
   async requestMembership(
-    @Body("userId") userId: string,
-    @Body("groupId") groupId: string,
+    @Req() req: Request & { user?: User },
+    @Body() body: RequestMembershipDto,
   ): Promise<{ success: boolean }> {
-    await this.groupService.requestMembership(userId, groupId);
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+    await this.groupService.requestMembership(userId, body.groupId);
+    return { success: true };
+  }
+
+  /**
+   * Cancel a pending membership request
+   * PATCH /api/groups/requests/:requestId/cancel
+   */
+  @ApiOperation({ summary: "Cancel a pending group membership request" })
+  @ApiResponse({
+    status: 200,
+    description: "Membership request cancelled successfully.",
+  })
+  @ApiResponse({ status: 400, description: "Request is not in PENDING state." })
+  @ApiResponse({
+    status: 403,
+    description: "Request belongs to a different user.",
+  })
+  @ApiResponse({ status: 404, description: "Membership request not found." })
+  @ApiParam({
+    name: "requestId",
+    description: "Membership request ID",
+    type: String,
+  })
+  @KeycloakSSOAuth()
+  @Patch("requests/:requestId/cancel")
+  async cancelMembershipRequest(
+    @Req() req: Request & { user?: User },
+    @Param("requestId") requestId: string,
+    @Body() body: MembershipRequestActionDto,
+  ): Promise<{ success: boolean }> {
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+    await this.groupService.cancelMembershipRequest(
+      userId,
+      requestId,
+      body.reason,
+    );
+    return { success: true };
+  }
+
+  /**
+   * Approve a pending membership request
+   * PATCH /api/groups/requests/:requestId/approve
+   */
+  @ApiOperation({ summary: "Approve a pending group membership request" })
+  @ApiResponse({
+    status: 200,
+    description: "Membership request approved successfully.",
+  })
+  @ApiResponse({ status: 400, description: "Request is not in PENDING state." })
+  @ApiResponse({ status: 404, description: "Membership request not found." })
+  @ApiParam({
+    name: "requestId",
+    description: "Membership request ID",
+    type: String,
+  })
+  @KeycloakSSOAuth()
+  @Patch("requests/:requestId/approve")
+  async approveMembershipRequest(
+    @Req() req: Request & { user?: User },
+    @Param("requestId") requestId: string,
+    @Body() body: MembershipRequestActionDto,
+  ): Promise<{ success: boolean }> {
+    // TODO: Add check to ensure req.user has admin privileges before allowing approval of membership requests
+    const adminId = req.user?.sub;
+    if (!adminId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+    await this.groupService.approveMembershipRequest(
+      adminId,
+      requestId,
+      body.reason,
+    );
+    return { success: true };
+  }
+
+  /**
+   * Deny a pending membership request
+   * PATCH /api/groups/requests/:requestId/deny
+   */
+  @ApiOperation({ summary: "Deny a pending group membership request" })
+  @ApiResponse({
+    status: 200,
+    description: "Membership request denied successfully.",
+  })
+  @ApiResponse({ status: 400, description: "Request is not in PENDING state." })
+  @ApiResponse({ status: 401, description: "Unauthorized." })
+  @ApiResponse({ status: 404, description: "Membership request not found." })
+  @ApiParam({
+    name: "requestId",
+    description: "Membership request ID",
+    type: String,
+  })
+  @KeycloakSSOAuth()
+  @Patch("requests/:requestId/deny")
+  async denyMembershipRequest(
+    @Req() req: Request & { user?: User },
+    @Param("requestId") requestId: string,
+    @Body() body: MembershipRequestActionDto,
+  ): Promise<{ success: boolean }> {
+    // TODO: Add check to ensure req.user has admin privileges before allowing denial of membership requests
+    const adminId = req.user?.sub;
+    if (!adminId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+    await this.groupService.denyMembershipRequest(
+      adminId,
+      requestId,
+      body.reason,
+    );
     return { success: true };
   }
 
@@ -103,6 +229,7 @@ export class GroupController {
       properties: { name: { type: "string", description: "Group name" } },
     },
   })
+  @KeycloakSSOAuth()
   @Post()
   async createGroup(
     @Body("name") name: string,
@@ -139,6 +266,7 @@ export class GroupController {
       },
     },
   })
+  @KeycloakSSOAuth()
   @Post("user/:userId")
   async assignUserToGroups(
     @Param("userId") userId: string,
@@ -170,6 +298,7 @@ export class GroupController {
   })
   @ApiQuery({ name: "groupId", description: "Group ID", type: String })
   @ApiParam({ name: "userId", description: "User ID", type: String })
+  @KeycloakSSOAuth()
   @Delete("user/:userId")
   async removeUserFromGroup(
     @Query("groupId") groupId: string,

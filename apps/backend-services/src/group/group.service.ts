@@ -1,6 +1,7 @@
+import { $Enums } from "@generated/client";
 import {
-  forwardRef,
-  Inject,
+  BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -45,16 +46,186 @@ export class GroupService {
   }
 
   /**
-   * Allows a user to request membership to a group (creates a pending request).
-   * NOTE: Implementation assumes a MembershipRequest model exists. If not, this should be clarified.
+   * Allows a user to request membership to a group.
+   * - Returns silently if the user is already a member.
+   * - Returns silently if a PENDING request already exists.
+   * - Throws NotFoundException if the group does not exist.
+   * @param userId - The ID of the requesting user (from JWT sub claim).
+   * @param groupId - The ID of the group to request membership for.
    */
   async requestMembership(userId: string, groupId: string): Promise<void> {
-    // Placeholder: implement actual request logic if MembershipRequest model exists
-    // For now, just throw to indicate this needs clarification
-    throw new Error(
-      "Membership request logic not implemented. Please define MembershipRequest model.",
-    );
+    const group = await this.databaseService.prisma.group.findUnique({
+      where: { id: groupId },
+    });
+    if (!group) {
+      throw new NotFoundException("Group not found");
+    }
+
+    const existingMembership =
+      await this.databaseService.prisma.userGroup.findUnique({
+        where: { user_id_group_id: { user_id: userId, group_id: groupId } },
+      });
+    if (existingMembership) {
+      return;
+    }
+
+    const existingRequest =
+      await this.databaseService.prisma.groupMembershipRequest.findFirst({
+        where: {
+          user_id: userId,
+          group_id: groupId,
+          status: $Enums.GroupMembershipRequestStatus.PENDING,
+        },
+      });
+    if (existingRequest) {
+      return;
+    }
+
+    await this.databaseService.prisma.groupMembershipRequest.create({
+      data: {
+        user_id: userId,
+        group_id: groupId,
+        status: $Enums.GroupMembershipRequestStatus.PENDING,
+        created_by: userId,
+        updated_by: userId,
+      },
+    });
   }
+  /**
+   * Cancels a pending group membership request made by the given user.
+   * - Throws NotFoundException if the request does not exist.
+   * - Throws ForbiddenException if the request belongs to a different user.
+   * - Throws BadRequestException if the request is not in PENDING state.
+   * @param userId - The ID of the requesting user (from JWT sub claim).
+   * @param requestId - The ID of the membership request to cancel.
+   * @param reason - Optional reason for cancellation.
+   */
+  async cancelMembershipRequest(
+    userId: string,
+    requestId: string,
+    reason?: string,
+  ): Promise<void> {
+    const request = await this.getValidPendingRequest(requestId, "cancelled");
+    if (request.user_id !== userId) {
+      throw new ForbiddenException(
+        "Cannot cancel a request belonging to another user",
+      );
+    }
+    await this.databaseService.prisma.groupMembershipRequest.update({
+      where: { id: requestId },
+      data: this.buildResolutionData(
+        userId,
+        $Enums.GroupMembershipRequestStatus.CANCELLED,
+        reason,
+      ),
+    });
+  }
+
+  /**
+   * Approves a pending group membership request, atomically adding the user
+   * to the group and updating the request status within a single transaction.
+   * - Throws NotFoundException if the request does not exist.
+   * - Throws BadRequestException if the request is not in PENDING state.
+   * @param adminId - The ID of the approving admin (from JWT sub claim).
+   * @param requestId - The ID of the membership request to approve.
+   * @param reason - Optional reason for approval.
+   */
+  async approveMembershipRequest(
+    adminId: string,
+    requestId: string,
+    reason?: string,
+  ): Promise<void> {
+    const request = await this.getValidPendingRequest(requestId, "approved");
+    await this.databaseService.prisma.$transaction([
+      this.databaseService.prisma.userGroup.upsert({
+        where: {
+          user_id_group_id: {
+            user_id: request.user_id,
+            group_id: request.group_id,
+          },
+        },
+        update: {},
+        create: {
+          user_id: request.user_id,
+          group_id: request.group_id,
+        },
+      }),
+      this.databaseService.prisma.groupMembershipRequest.update({
+        where: { id: requestId },
+        data: this.buildResolutionData(
+          adminId,
+          $Enums.GroupMembershipRequestStatus.APPROVED,
+          reason,
+        ),
+      }),
+    ]);
+  }
+
+  /**
+   * Denies a pending group membership request without adding the user to the group.
+   * - Throws NotFoundException if the request does not exist.
+   * - Throws BadRequestException if the request is not in PENDING state.
+   * @param adminId - The ID of the denying admin (from JWT sub claim).
+   * @param requestId - The ID of the membership request to deny.
+   * @param reason - Optional reason for denial.
+   */
+  async denyMembershipRequest(
+    adminId: string,
+    requestId: string,
+    reason?: string,
+  ): Promise<void> {
+    await this.getValidPendingRequest(requestId, "denied");
+    await this.databaseService.prisma.groupMembershipRequest.update({
+      where: { id: requestId },
+      data: this.buildResolutionData(
+        adminId,
+        $Enums.GroupMembershipRequestStatus.DENIED,
+        reason,
+      ),
+    });
+  }
+
+  /**
+   * Fetches a membership request by ID and validates it is in PENDING state.
+   * @param requestId - The ID of the membership request.
+   * @param action - Verb describing the intended action (e.g. "approved"), used in error messages.
+   * @throws NotFoundException if the request does not exist.
+   * @throws BadRequestException if the request is not in PENDING state.
+   */
+  private async getValidPendingRequest(requestId: string, action: string) {
+    const request =
+      await this.databaseService.prisma.groupMembershipRequest.findUnique({
+        where: { id: requestId },
+      });
+    if (!request) {
+      throw new NotFoundException("Membership request not found");
+    }
+    if (request.status !== $Enums.GroupMembershipRequestStatus.PENDING) {
+      throw new BadRequestException(`Only PENDING requests can be ${action}`);
+    }
+    return request;
+  }
+
+  /**
+   * Builds the data payload for resolving a membership request.
+   * @param actorId - The ID of the user performing the action.
+   * @param status - The new status to set on the request.
+   * @param reason - Optional reason for the action.
+   */
+  private buildResolutionData(
+    actorId: string,
+    status: $Enums.GroupMembershipRequestStatus,
+    reason?: string,
+  ) {
+    return {
+      status,
+      actor_id: actorId,
+      resolved_at: new Date(),
+      updated_by: actorId,
+      ...(reason !== undefined ? { reason } : {}),
+    };
+  }
+
   /**
    * Creates a new group with the given name and optional description.
    * Throws an error if a group with the same name already exists.
