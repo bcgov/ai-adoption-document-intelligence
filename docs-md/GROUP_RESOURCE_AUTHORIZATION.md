@@ -22,6 +22,9 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 | Workflow | `POST /api/workflows` | `WorkflowController.createWorkflow` |
 | LabelingProject | `POST /api/labeling/projects` | `LabelingController.createProject` |
 | LabelingDocument | `POST /api/labeling/projects/:id/upload` | `LabelingController.uploadLabelingDocument` |
+| ApiKey | `POST /api/api-key` | `ApiKeyController.generateApiKey` |
+| ApiKey | `POST /api/api-key/regenerate` | `ApiKeyController.regenerateApiKey` |
+| ApiKey | `DELETE /api/api-key` | `ApiKeyController.deleteApiKey` |
 
 ### Resource Read / Update / Delete (group derived from fetched resource)
 
@@ -92,6 +95,7 @@ All creation DTOs include a required `group_id` (or `groupId`) field. A missing 
 | `CreateWorkflowDto` | `groupId` |
 | `CreateProjectDto` | `group_id` |
 | `LabelingUploadDto` | `group_id` |
+| `GenerateApiKeyRequestDto` | `groupId` |
 
 ## Error Responses
 
@@ -109,3 +113,4 @@ All creation DTOs include a required `group_id` (or `groupId`) field. A missing 
 - Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-010-enforce-group-authorization-on-workflow.md`
 - Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-012-enforce-group-authorization-on-labeling-document.md`
 - Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-013-enforce-group-authorization-on-sub-resources.md`
+- Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-015-user-requests-api-key-for-group.md`

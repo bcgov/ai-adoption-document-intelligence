@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from "@nestjs/common";
+import { NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as bcrypt from "bcrypt";
 import { PrismaService } from "@/database/prisma.service";
@@ -39,18 +39,18 @@ describe("ApiKeyService", () => {
   });
 
   describe("getApiKey", () => {
-    it("should return null when no key exists", async () => {
+    it("should return null when no key exists for the group", async () => {
       mockPrismaApiKey.findFirst.mockResolvedValue(null);
 
-      const result = await service.getApiKey("user123");
+      const result = await service.getApiKey("group123");
 
       expect(result).toBeNull();
       expect(mockPrismaApiKey.findFirst).toHaveBeenCalledWith({
-        where: { generating_user_id: "user123" },
+        where: { group_id: "group123" },
       });
     });
 
-    it("should return key info when key exists", async () => {
+    it("should return key info when a key exists for the group", async () => {
       const mockKey = {
         id: "key123",
         key_prefix: "abcd1234",
@@ -60,7 +60,7 @@ describe("ApiKeyService", () => {
       };
       mockPrismaApiKey.findFirst.mockResolvedValue(mockKey);
 
-      const result = await service.getApiKey("user123");
+      const result = await service.getApiKey("group123");
 
       expect(result).toEqual({
         id: "key123",
@@ -73,15 +73,8 @@ describe("ApiKeyService", () => {
   });
 
   describe("generateApiKey", () => {
-    it("should throw ConflictException if user already has a key", async () => {
-      mockPrismaApiKey.findFirst.mockResolvedValue({ id: "existing" });
-      await expect(
-        service.generateApiKey("user123", "group123"),
-      ).rejects.toThrow(ConflictException);
-    });
-
-    it("should generate and return a new key", async () => {
-      mockPrismaApiKey.findFirst.mockResolvedValue(null);
+    it("should create a new key when none exists for the group", async () => {
+      mockPrismaApiKey.deleteMany.mockResolvedValue({ count: 0 });
       mockPrismaApiKey.create.mockImplementation(async ({ data }) => ({
         id: "newkey123",
         key_hash: data.key_hash,
@@ -99,7 +92,38 @@ describe("ApiKeyService", () => {
       expect(result.key.length).toBeGreaterThan(20);
       expect(result.keyPrefix).toBe(result.key.substring(0, 8));
       expect(result.groupId).toBe("group123");
+      expect(mockPrismaApiKey.deleteMany).toHaveBeenCalledWith({
+        where: { group_id: "group123" },
+      });
       expect(mockPrismaApiKey.create).toHaveBeenCalled();
+    });
+
+    it("should replace existing key and update generating_user_id when group already has a key", async () => {
+      mockPrismaApiKey.deleteMany.mockResolvedValue({ count: 1 });
+      mockPrismaApiKey.create.mockImplementation(async ({ data }) => ({
+        id: "newkey456",
+        key_hash: data.key_hash,
+        key_prefix: data.key_prefix,
+        generating_user_id: data.generating_user_id,
+        group_id: data.group_id,
+        created_at: new Date(),
+        last_used: null,
+      }));
+
+      const result = await service.generateApiKey("newuser456", "group123");
+
+      expect(result.id).toBe("newkey456");
+      expect(result.key).toBeDefined();
+      expect(result.groupId).toBe("group123");
+      // generating_user_id must reflect the new requesting user
+      expect(mockPrismaApiKey.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ generating_user_id: "newuser456" }),
+        }),
+      );
+      expect(mockPrismaApiKey.deleteMany).toHaveBeenCalledWith({
+        where: { group_id: "group123" },
+      });
     });
   });
 

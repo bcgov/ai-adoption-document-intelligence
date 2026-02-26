@@ -7,15 +7,17 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
 } from "@nestjs/common";
 import {
   ApiBody,
-  ApiConflictResponse,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -27,49 +29,58 @@ import {
   GeneratedApiKeyDto,
   GeneratedApiKeyWrapperDto,
 } from "@/api-key/dto/api-key-info.dto";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { DatabaseService } from "@/database/database.service";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { ApiKeyService } from "./api-key.service";
 
 @ApiTags("API Keys")
 @Controller("api/api-key")
 export class ApiKeyController {
-  constructor(private readonly apiKeyService: ApiKeyService) {}
+  constructor(
+    private readonly apiKeyService: ApiKeyService,
+    private readonly databaseService: DatabaseService,
+  ) {}
 
   @Get()
   @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Get the current user's API key information" })
+  @ApiOperation({ summary: "Get API key information for a group" })
+  @ApiQuery({
+    name: "groupId",
+    description: "The group ID to look up the API key for",
+  })
   @ApiOkResponse({
-    description: "Returns the user's API key if it exists",
+    description: "Returns the group's API key info if it exists",
     type: ApiKeyInfoWrapperDto,
   })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   @ApiUnauthorizedResponse({ description: "User is not authenticated" })
   async getApiKey(
     @Req() req: Request,
+    @Query("groupId") groupId: string,
   ): Promise<{ apiKey: ApiKeyInfoDto | null }> {
-    const user = req.user;
-    const userId = user?.sub;
-
-    if (!userId) {
-      return { apiKey: null };
+    if (!groupId) {
+      throw new BadRequestException("groupId query parameter is required");
     }
-
-    const apiKey = await this.apiKeyService.getApiKey(userId as string);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      groupId,
+      this.databaseService,
+    );
+    const apiKey = await this.apiKeyService.getApiKey(groupId);
     return { apiKey };
   }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Generate a new API key for the current user" })
+  @ApiOperation({ summary: "Generate a new API key for a group" })
   @ApiBody({ type: GenerateApiKeyRequestDto })
   @ApiCreatedResponse({
     description: "Returns the newly generated API key",
     type: GeneratedApiKeyWrapperDto,
   })
-  @ApiConflictResponse({
-    description:
-      "User already has an API key. Delete it first or use regenerate.",
-  })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   @ApiUnauthorizedResponse({ description: "User is not authenticated" })
   async generateApiKey(
     @Req() req: Request,
@@ -82,6 +93,11 @@ export class ApiKeyController {
         "User ID is required to generate an API key",
       );
     }
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      body.groupId,
+      this.databaseService,
+    );
     const apiKey = await this.apiKeyService.generateApiKey(
       userId,
       body.groupId,
@@ -92,25 +108,32 @@ export class ApiKeyController {
   @Delete()
   @HttpCode(HttpStatus.NO_CONTENT)
   @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Delete the current user's API key" })
+  @ApiOperation({ summary: "Delete the API key for a group" })
   @ApiBody({ type: GenerateApiKeyRequestDto })
   @ApiNoContentResponse({ description: "API key deleted successfully" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   @ApiUnauthorizedResponse({ description: "User is not authenticated" })
   async deleteApiKey(
     @Req() req: Request,
     @Body() body: GenerateApiKeyRequestDto,
   ): Promise<void> {
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      body.groupId,
+      this.databaseService,
+    );
     await this.apiKeyService.deleteApiKey(body.groupId);
   }
 
   @Post("regenerate")
   @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Regenerate the current user's API key" })
+  @ApiOperation({ summary: "Regenerate the API key for a group" })
   @ApiBody({ type: GenerateApiKeyRequestDto })
   @ApiOkResponse({
     description: "Returns the newly generated API key",
     type: GeneratedApiKeyWrapperDto,
   })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   @ApiUnauthorizedResponse({ description: "User is not authenticated" })
   async regenerateApiKey(
     @Req() req: Request,
@@ -123,6 +146,11 @@ export class ApiKeyController {
         "User ID is required to regenerate an API key",
       );
     }
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      body.groupId,
+      this.databaseService,
+    );
     const apiKey = await this.apiKeyService.regenerateApiKey(
       userId,
       body.groupId,

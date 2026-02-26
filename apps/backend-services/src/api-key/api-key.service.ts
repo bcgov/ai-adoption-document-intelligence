@@ -1,9 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import * as bcrypt from "bcrypt";
 import * as crypto from "crypto";
 import {
@@ -22,9 +17,9 @@ export class ApiKeyService {
     return this.prismaService.prisma;
   }
 
-  async getApiKey(userId: string): Promise<ApiKeyInfoDto | null> {
+  async getApiKey(groupId: string): Promise<ApiKeyInfoDto | null> {
     const apiKey = await this.prisma.apiKey.findFirst({
-      where: { generating_user_id: userId },
+      where: { group_id: groupId },
     });
 
     if (!apiKey) {
@@ -44,16 +39,8 @@ export class ApiKeyService {
     userId: string,
     groupId: string,
   ): Promise<GeneratedApiKeyDto> {
-    // Check if user already has a key
-    const existingKey = await this.prisma.apiKey.findFirst({
-      where: { generating_user_id: userId },
-    });
-
-    if (existingKey) {
-      throw new ConflictException(
-        "User already has an API key. Delete it first or use regenerate.",
-      );
-    }
+    // Delete any existing key for this group (upsert: one key per group)
+    await this.prisma.apiKey.deleteMany({ where: { group_id: groupId } });
 
     // Generate a secure random key
     const key = crypto.randomBytes(32).toString("base64url");
@@ -97,9 +84,6 @@ export class ApiKeyService {
     userId: string,
     groupId: string,
   ): Promise<GeneratedApiKeyDto> {
-    // Delete existing key(s) if any
-    await this.prisma.apiKey.deleteMany({ where: { group_id: groupId } });
-    // Generate new key
     return this.generateApiKey(userId, groupId);
   }
 
