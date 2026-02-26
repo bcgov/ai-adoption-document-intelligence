@@ -14,6 +14,8 @@ import {
 } from "@nestjs/common";
 import {
   ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -104,8 +106,16 @@ export class LabelingController {
     description: "Labeling project with full field schema",
     type: LabelingProjectResponseDto,
   })
-  async getProject(@Param("id") id: string) {
-    return this.labelingService.getProject(id);
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getProject(@Param("id") id: string, @Req() req: Request) {
+    const project = await this.labelingService.getProject(id);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
+    return project;
   }
 
   @Put("projects/:id")
@@ -117,7 +127,19 @@ export class LabelingController {
     description: "Updated labeling project",
     type: LabelingProjectResponseDto,
   })
-  async updateProject(@Param("id") id: string, @Body() dto: UpdateProjectDto) {
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async updateProject(
+    @Param("id") id: string,
+    @Body() dto: UpdateProjectDto,
+    @Req() req: Request,
+  ) {
+    const project = await this.labelingService.getProject(id);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
     return this.labelingService.updateProject(id, dto);
   }
 
@@ -130,7 +152,15 @@ export class LabelingController {
     description: "Project deleted successfully",
     type: DeleteResponseDto,
   })
-  async deleteProject(@Param("id") id: string) {
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async deleteProject(@Param("id") id: string, @Req() req: Request) {
+    const project = await this.labelingService.getProject(id);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.group_id,
+      this.databaseService,
+    );
     return this.labelingService.deleteProject(id);
   }
 

@@ -33,6 +33,9 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 | Workflow | `GET /api/workflows/:id` | `WorkflowController.getWorkflow` |
 | Workflow | `PUT /api/workflows/:id` | `WorkflowController.updateWorkflow` |
 | Workflow | `DELETE /api/workflows/:id` | `WorkflowController.deleteWorkflow` |
+| LabelingProject | `GET /api/labeling/projects/:id` | `LabelingController.getProject` |
+| LabelingProject | `PUT /api/labeling/projects/:id` | `LabelingController.updateProject` |
+| LabelingProject | `DELETE /api/labeling/projects/:id` | `LabelingController.deleteProject` |
 
 For read/update/delete endpoints, the resource is fetched first to obtain its `group_id`, and then `identityCanAccessGroup` is called with that value before the operation continues.
 
