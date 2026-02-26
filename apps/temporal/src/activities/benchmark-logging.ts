@@ -104,6 +104,15 @@ export async function benchmarkLogToMlflow(
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : String(error);
+    const responseData = axios.isAxiosError(error) ? error.response?.data : undefined;
+    console.error(JSON.stringify({
+      activity: 'benchmarkLogToMlflow',
+      event: 'error',
+      mlflowRunId,
+      errorMessage,
+      responseData,
+      timestamp: new Date().toISOString(),
+    }));
     throw new Error(`Failed to log to MLflow: ${errorMessage}`);
   }
 }

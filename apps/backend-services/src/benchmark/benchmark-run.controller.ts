@@ -56,6 +56,8 @@ export class BenchmarkRunController {
    */
   @Post("definitions/:definitionId/runs")
   @HttpCode(HttpStatus.CREATED)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async startRun(
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,
@@ -109,6 +111,8 @@ export class BenchmarkRunController {
    */
   @Post("runs/:runId/cancel")
   @HttpCode(HttpStatus.OK)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async cancelRun(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
@@ -125,6 +129,8 @@ export class BenchmarkRunController {
    * GET /api/benchmark/projects/:projectId/runs/:runId/drill-down
    */
   @Get("runs/:runId/drill-down")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async getDrillDown(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
@@ -145,6 +151,8 @@ export class BenchmarkRunController {
    *   - Any metadata dimension key (e.g., docType=invoice, language=en)
    */
   @Get("runs/:runId/samples")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async getPerSampleResults(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
@@ -184,6 +192,8 @@ export class BenchmarkRunController {
    * Query params: type (optional) - filter by BenchmarkArtifactType
    */
   @Get("runs/:runId/artifacts")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async listArtifacts(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
@@ -201,6 +211,8 @@ export class BenchmarkRunController {
    * GET /api/benchmark/projects/:projectId/runs/:runId/artifacts/:artifactId/content
    */
   @Get("runs/:runId/artifacts/:artifactId/content")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async getArtifactContent(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
@@ -242,6 +254,8 @@ export class BenchmarkRunController {
    */
   @Post("runs/:runId/baseline")
   @HttpCode(HttpStatus.OK)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
   async promoteToBaseline(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,

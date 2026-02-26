@@ -42,6 +42,7 @@ type BenchmarkActivities = {
 
   'benchmark.loadDatasetManifest': (params: {
     materializedPath: string;
+    datasetVersionId: string;
   }) => Promise<{ manifest: DatasetManifest }>;
 
   'benchmark.evaluate': (input: {
@@ -358,6 +359,7 @@ export async function benchmarkRunWorkflow(
     // Load manifest via activity
     const { manifest } = await customActivities['benchmark.loadDatasetManifest']({
       materializedPath,
+      datasetVersionId,
     });
 
     // Determine which samples to process (based on split)

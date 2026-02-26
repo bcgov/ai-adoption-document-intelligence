@@ -77,14 +77,20 @@ export class BenchmarkTemporalService {
     runId: string,
     benchmarkDefinition: {
       definitionId: string;
+      projectId: string;
       datasetVersionId: string;
+      gitRevision: string;
       splitId: string;
       workflowId: string;
       workflowConfigHash: string;
       evaluatorType: string;
       evaluatorConfig: Record<string, unknown>;
+      evaluatorConfigHash: string;
       runtimeSettings: Record<string, unknown>;
       artifactPolicy: Record<string, unknown>;
+      mlflowRunId: string;
+      workerGitSha: string;
+      workerImageDigest?: string;
     },
   ): Promise<string> {
     await this.ensureClient();
@@ -103,14 +109,20 @@ export class BenchmarkTemporalService {
             {
               runId,
               definitionId: benchmarkDefinition.definitionId,
+              projectId: benchmarkDefinition.projectId,
               datasetVersionId: benchmarkDefinition.datasetVersionId,
+              gitRevision: benchmarkDefinition.gitRevision,
               splitId: benchmarkDefinition.splitId,
               workflowId: benchmarkDefinition.workflowId,
               workflowConfigHash: benchmarkDefinition.workflowConfigHash,
               evaluatorType: benchmarkDefinition.evaluatorType,
               evaluatorConfig: benchmarkDefinition.evaluatorConfig,
+              evaluatorConfigHash: benchmarkDefinition.evaluatorConfigHash,
               runtimeSettings: benchmarkDefinition.runtimeSettings,
               artifactPolicy: benchmarkDefinition.artifactPolicy,
+              mlflowRunId: benchmarkDefinition.mlflowRunId,
+              workerGitSha: benchmarkDefinition.workerGitSha,
+              workerImageDigest: benchmarkDefinition.workerImageDigest,
             },
           ],
           taskQueue: this.taskQueue,

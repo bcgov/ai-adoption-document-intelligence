@@ -17,6 +17,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { createHash } from "crypto";
 import { execSync } from "child_process";
 import { getPrismaPgOptions } from "@/utils/database-url";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
@@ -200,10 +201,16 @@ export class BenchmarkRunService {
     // Start Temporal workflow
     let temporalWorkflowId: string;
     try {
+      const evaluatorConfigHash = createHash("sha256")
+        .update(JSON.stringify(definition.evaluatorConfig))
+        .digest("hex");
+
       temporalWorkflowId =
         await this.benchmarkTemporal.startBenchmarkRunWorkflow(run.id, {
           definitionId: definition.id,
+          projectId,
           datasetVersionId: definition.datasetVersionId,
+          gitRevision: definition.datasetVersion.gitRevision,
           splitId: definition.splitId,
           workflowId: definition.workflowId,
           workflowConfigHash: definition.workflowConfigHash,
@@ -212,11 +219,15 @@ export class BenchmarkRunService {
             string,
             unknown
           >,
+          evaluatorConfigHash,
           runtimeSettings: {
             ...(definition.runtimeSettings as Record<string, unknown>),
             ...(dto.runtimeSettingsOverride || {}),
           } as Record<string, unknown>,
           artifactPolicy: definition.artifactPolicy as Record<string, unknown>,
+          mlflowRunId,
+          workerGitSha,
+          workerImageDigest: workerImageDigest ?? undefined,
         });
 
       // Update run with temporal workflow ID and status

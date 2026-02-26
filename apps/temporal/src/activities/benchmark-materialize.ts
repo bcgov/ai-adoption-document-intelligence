@@ -1,10 +1,22 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 import { getPrismaClient } from './database-client';
 
 const execAsync = promisify(exec);
+
+/**
+ * Resolve tilde (~) in a path to the user's home directory.
+ * Shell does not expand ~ inside double quotes, so we handle it in code.
+ */
+function resolveTilde(filePath: string): string {
+  if (filePath.startsWith('~/') || filePath === '~') {
+    return path.join(os.homedir(), filePath.slice(1));
+  }
+  return filePath;
+}
 
 interface MaterializeDatasetParams {
   datasetVersionId: string;
@@ -51,7 +63,8 @@ export async function materializeDataset(
     }
 
     const { dataset, gitRevision } = datasetVersion;
-    const { id: datasetId, repositoryUrl } = dataset;
+    const { id: datasetId, repositoryUrl: rawRepositoryUrl } = dataset;
+    const repositoryUrl = resolveTilde(rawRepositoryUrl);
 
     // Determine cache directory
     const cacheBaseDir = process.env.BENCHMARK_CACHE_DIR || '/tmp/benchmark-cache';
@@ -200,106 +213,124 @@ export async function materializeDataset(
       throw new Error(`Git checkout failed: ${errorMessage}`);
     }
 
-    // Configure DVC remote for MinIO
-    console.log(JSON.stringify({
-      activity: activityName,
-      event: 'dvc_configure_start',
-      timestamp: new Date().toISOString()
-    }));
-
+    // Check if repo uses DVC before attempting DVC operations
+    let hasDvc = false;
     try {
-      const minioEndpoint = process.env.MINIO_ENDPOINT || 'http://localhost:9000';
-      const minioAccessKey = process.env.MINIO_ACCESS_KEY || 'minioadmin';
-      const minioSecretKey = process.env.MINIO_SECRET_KEY || 'minioadmin';
-      const remoteName = 'minio';
-
-      // Configure DVC remote to use MinIO
-      // Check if remote already exists in the repo
-      let remoteExists = false;
-      try {
-        await execAsync(`dvc remote list`, { cwd: materializedPath });
-        remoteExists = true;
-      } catch {
-        remoteExists = false;
-      }
-
-      if (!remoteExists) {
-        await execAsync(`dvc remote add -d ${remoteName} s3://datasets`, {
-          cwd: materializedPath
-        });
-      }
-
-      // Configure remote settings
-      await execAsync(
-        `dvc remote modify ${remoteName} endpointurl ${minioEndpoint}`,
-        { cwd: materializedPath }
-      );
-
-      await execAsync(
-        `dvc remote modify ${remoteName} access_key_id ${minioAccessKey}`,
-        { cwd: materializedPath }
-      );
-
-      await execAsync(
-        `dvc remote modify ${remoteName} secret_access_key ${minioSecretKey}`,
-        { cwd: materializedPath }
-      );
-
-      console.log(JSON.stringify({
-        activity: activityName,
-        event: 'dvc_configure_complete',
-        timestamp: new Date().toISOString()
-      }));
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(JSON.stringify({
-        activity: activityName,
-        event: 'dvc_configure_warning',
-        error: errorMessage,
-        timestamp: new Date().toISOString()
-      }));
-      // Continue even if DVC configure fails - the repo might already have correct settings
+      await fs.access(path.join(materializedPath, '.dvc'));
+      hasDvc = true;
+    } catch {
+      // .dvc directory does not exist - repo does not use DVC
     }
 
-    // Pull DVC data from MinIO
-    console.log(JSON.stringify({
-      activity: activityName,
-      event: 'dvc_pull_start',
-      timestamp: new Date().toISOString()
-    }));
-
-    try {
-      const { stderr: pullStderr } = await execAsync('dvc pull', {
-        cwd: materializedPath
-      });
-
-      if (pullStderr && !pullStderr.includes('files downloaded')) {
-        console.log(JSON.stringify({
-          activity: activityName,
-          event: 'dvc_pull_warning',
-          stderr: pullStderr,
-          timestamp: new Date().toISOString()
-        }));
-      }
-
+    if (hasDvc) {
+      // Configure DVC remote for MinIO
       console.log(JSON.stringify({
         activity: activityName,
-        event: 'dvc_pull_complete',
+        event: 'dvc_configure_start',
         timestamp: new Date().toISOString()
       }));
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(JSON.stringify({
+
+      try {
+        const minioEndpoint = process.env.MINIO_ENDPOINT || 'http://localhost:9000';
+        const minioAccessKey = process.env.MINIO_ACCESS_KEY || 'minioadmin';
+        const minioSecretKey = process.env.MINIO_SECRET_KEY || 'minioadmin';
+        const remoteName = 'minio';
+
+        // Configure DVC remote to use MinIO
+        // Check if remote already exists in the repo
+        let remoteExists = false;
+        try {
+          const { stdout: remoteListOutput } = await execAsync(`dvc remote list`, { cwd: materializedPath });
+          remoteExists = remoteListOutput.trim().length > 0;
+        } catch {
+          remoteExists = false;
+        }
+
+        if (!remoteExists) {
+          await execAsync(`dvc remote add -d ${remoteName} s3://datasets`, {
+            cwd: materializedPath
+          });
+        }
+
+        // Configure remote settings
+        await execAsync(
+          `dvc remote modify ${remoteName} endpointurl ${minioEndpoint}`,
+          { cwd: materializedPath }
+        );
+
+        await execAsync(
+          `dvc remote modify ${remoteName} access_key_id ${minioAccessKey}`,
+          { cwd: materializedPath }
+        );
+
+        await execAsync(
+          `dvc remote modify ${remoteName} secret_access_key ${minioSecretKey}`,
+          { cwd: materializedPath }
+        );
+
+        console.log(JSON.stringify({
+          activity: activityName,
+          event: 'dvc_configure_complete',
+          timestamp: new Date().toISOString()
+        }));
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.warn(JSON.stringify({
+          activity: activityName,
+          event: 'dvc_configure_warning',
+          error: errorMessage,
+          timestamp: new Date().toISOString()
+        }));
+        // Continue even if DVC configure fails - the repo might already have correct settings
+      }
+
+      // Pull DVC data from MinIO
+      console.log(JSON.stringify({
         activity: activityName,
-        event: 'dvc_pull_failed',
-        error: errorMessage,
+        event: 'dvc_pull_start',
         timestamp: new Date().toISOString()
       }));
 
-      // Clean up on failure
-      await fs.rm(materializedPath, { recursive: true, force: true }).catch(() => {});
+      try {
+        const { stderr: pullStderr } = await execAsync('dvc pull', {
+          cwd: materializedPath
+        });
 
-      throw new Error(`DVC pull failed: ${errorMessage}`);
+        if (pullStderr && !pullStderr.includes('files downloaded')) {
+          console.log(JSON.stringify({
+            activity: activityName,
+            event: 'dvc_pull_warning',
+            stderr: pullStderr,
+            timestamp: new Date().toISOString()
+          }));
+        }
+
+        console.log(JSON.stringify({
+          activity: activityName,
+          event: 'dvc_pull_complete',
+          timestamp: new Date().toISOString()
+        }));
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(JSON.stringify({
+          activity: activityName,
+          event: 'dvc_pull_failed',
+          error: errorMessage,
+          timestamp: new Date().toISOString()
+        }));
+
+        // Clean up on failure
+        await fs.rm(materializedPath, { recursive: true, force: true }).catch(() => {});
+
+        throw new Error(`DVC pull failed: ${errorMessage}`);
+      }
+    } else {
+      console.log(JSON.stringify({
+        activity: activityName,
+        event: 'dvc_skipped',
+        reason: 'No .dvc directory found - repo does not use DVC',
+        timestamp: new Date().toISOString()
+      }));
     }
 
     const durationMs = Date.now() - startTime;
@@ -351,6 +382,7 @@ export interface DatasetManifest {
 
 interface LoadManifestParams {
   materializedPath: string;
+  datasetVersionId: string;
 }
 
 interface LoadManifestResult {
@@ -360,13 +392,14 @@ interface LoadManifestResult {
 /**
  * Activity: Load dataset manifest from materialized dataset directory
  *
- * Reads and parses the manifest.json file from the materialized dataset.
+ * Reads and parses the manifest file from the materialized dataset,
+ * using the manifestPath stored in the dataset version record.
  */
 export async function loadDatasetManifest(
   params: LoadManifestParams
 ): Promise<LoadManifestResult> {
   const activityName = 'loadDatasetManifest';
-  const { materializedPath } = params;
+  const { materializedPath, datasetVersionId } = params;
 
   console.log(JSON.stringify({
     activity: activityName,
@@ -376,7 +409,18 @@ export async function loadDatasetManifest(
   }));
 
   try {
-    const manifestPath = path.join(materializedPath, 'manifest.json');
+    // Look up the manifest path from the dataset version record
+    const prisma = getPrismaClient();
+    const datasetVersion = await prisma.datasetVersion.findUnique({
+      where: { id: datasetVersionId },
+      select: { manifestPath: true }
+    });
+
+    if (!datasetVersion) {
+      throw new Error(`Dataset version not found: ${datasetVersionId}`);
+    }
+
+    const manifestPath = path.join(materializedPath, datasetVersion.manifestPath);
     const manifestContent = await fs.readFile(manifestPath, 'utf-8');
     const manifest: DatasetManifest = JSON.parse(manifestContent);
 

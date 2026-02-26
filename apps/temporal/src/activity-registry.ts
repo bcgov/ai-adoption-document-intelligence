@@ -250,7 +250,7 @@ register({
 });
 
 register({
-  activityType: "benchmark.loadManifest",
+  activityType: "benchmark.loadDatasetManifest",
   activityFn: loadDatasetManifest as (...args: unknown[]) => Promise<unknown>,
   defaultTimeout: "1m",
   defaultRetry: { maximumAttempts: 3 },

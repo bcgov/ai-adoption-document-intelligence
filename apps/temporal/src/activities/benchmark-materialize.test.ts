@@ -1,4 +1,4 @@
-import { materializeDataset } from './benchmark-materialize';
+import { materializeDataset, loadDatasetManifest } from './benchmark-materialize';
 import { getPrismaClient } from './database-client';
 import * as fs from 'fs/promises';
 
@@ -22,6 +22,7 @@ jest.mock('fs/promises', () => ({
   access: jest.fn(),
   mkdir: jest.fn(),
   rm: jest.fn(),
+  readFile: jest.fn(),
 }));
 
 const getPrismaClientMock = getPrismaClient as jest.Mock;
@@ -30,7 +31,23 @@ const fsMock = {
   access: fs.access as jest.Mock,
   mkdir: fs.mkdir as jest.Mock,
   rm: fs.rm as jest.Mock,
+  readFile: (fs as unknown as { readFile: jest.Mock }).readFile as jest.Mock,
 };
+
+/**
+ * Helper to set up fs.access mock that:
+ * - Handles cache check (first call with materializedPath)
+ * - Handles DVC check (call with path ending in '.dvc')
+ */
+function setupAccessMock(opts: { cacheHit: boolean; hasDvc: boolean }) {
+  fsMock.access.mockImplementation((filePath: string) => {
+    if (filePath.endsWith('.dvc')) {
+      return opts.hasDvc ? Promise.resolve(undefined) : Promise.reject(new Error('ENOENT'));
+    }
+    // Cache check
+    return opts.cacheHit ? Promise.resolve(undefined) : Promise.reject(new Error('ENOENT'));
+  });
+}
 
 // Helper to create mock execAsync function
 const mockExecAsync = (
@@ -104,7 +121,7 @@ describe('materializeDataset activity', () => {
   describe('Scenario 1: Clone and checkout dataset repo at pinned revision', () => {
     it('clones repository and checks out specific revision', async () => {
       prismaMock.datasetVersion.findUnique.mockResolvedValue(mockDatasetVersion);
-      fsMock.access.mockRejectedValue(new Error('ENOENT')); // Cache miss
+      setupAccessMock({ cacheHit: false, hasDvc: true });
       fsMock.mkdir.mockResolvedValue(undefined);
       fsMock.rm.mockResolvedValue(undefined);
 
@@ -134,17 +151,13 @@ describe('materializeDataset activity', () => {
       process.env.DATASET_GIT_PASSWORD = 'testpass';
 
       prismaMock.datasetVersion.findUnique.mockResolvedValue(mockDatasetVersion);
-      fsMock.access.mockRejectedValue(new Error('ENOENT'));
+      setupAccessMock({ cacheHit: false, hasDvc: false });
       fsMock.mkdir.mockResolvedValue(undefined);
       fsMock.rm.mockResolvedValue(undefined);
 
       mockExecAsync({
         'git clone': { stdout: '', stderr: 'Cloning into' },
         'git checkout': { stdout: '', stderr: '' },
-        'dvc remote list': { error: new Error('No remotes') },
-        'dvc remote add': { stdout: '', stderr: '' },
-        'dvc remote modify': { stdout: '', stderr: '' },
-        'dvc pull': { stdout: '', stderr: '' },
       });
 
       await materializeDataset({ datasetVersionId: 'version-1' });
@@ -158,7 +171,7 @@ describe('materializeDataset activity', () => {
   describe('Scenario 2: Pull data files from MinIO via DVC', () => {
     it('configures DVC remote and runs dvc pull', async () => {
       prismaMock.datasetVersion.findUnique.mockResolvedValue(mockDatasetVersion);
-      fsMock.access.mockRejectedValue(new Error('ENOENT'));
+      setupAccessMock({ cacheHit: false, hasDvc: true });
       fsMock.mkdir.mockResolvedValue(undefined);
       fsMock.rm.mockResolvedValue(undefined);
 
@@ -192,17 +205,13 @@ describe('materializeDataset activity', () => {
   describe('Scenario 3: Return path to materialized dataset', () => {
     it('returns absolute path to materialized dataset directory', async () => {
       prismaMock.datasetVersion.findUnique.mockResolvedValue(mockDatasetVersion);
-      fsMock.access.mockRejectedValue(new Error('ENOENT'));
+      setupAccessMock({ cacheHit: false, hasDvc: false });
       fsMock.mkdir.mockResolvedValue(undefined);
       fsMock.rm.mockResolvedValue(undefined);
 
       mockExecAsync({
         'git clone': { stdout: '', stderr: '' },
         'git checkout': { stdout: '', stderr: '' },
-        'dvc remote list': { error: new Error('No remotes') },
-        'dvc remote add': { stdout: '', stderr: '' },
-        'dvc remote modify': { stdout: '', stderr: '' },
-        'dvc pull': { stdout: '', stderr: '' },
       });
 
       const result = await materializeDataset({ datasetVersionId: 'version-1' });
@@ -245,7 +254,11 @@ describe('materializeDataset activity', () => {
   describe('Scenario 5: Cache invalidation on revision mismatch', () => {
     it('invalidates cache and re-materializes when gitRevision differs', async () => {
       prismaMock.datasetVersion.findUnique.mockResolvedValue(mockDatasetVersion);
-      fsMock.access.mockResolvedValue(undefined); // Cache exists
+      // Cache exists but then after re-clone, no DVC
+      fsMock.access.mockImplementation((filePath: string) => {
+        if (filePath.endsWith('.dvc')) return Promise.reject(new Error('ENOENT'));
+        return Promise.resolve(undefined); // Cache exists
+      });
       fsMock.mkdir.mockResolvedValue(undefined);
       fsMock.rm.mockResolvedValue(undefined);
 
@@ -253,10 +266,6 @@ describe('materializeDataset activity', () => {
         'git rev-parse HEAD': { stdout: 'old-revision\n', stderr: '' }, // Different revision
         'git clone': { stdout: '', stderr: '' },
         'git checkout': { stdout: '', stderr: '' },
-        'dvc remote list': { error: new Error('No remotes') },
-        'dvc remote add': { stdout: '', stderr: '' },
-        'dvc remote modify': { stdout: '', stderr: '' },
-        'dvc pull': { stdout: '', stderr: '' },
       });
 
       const result = await materializeDataset({ datasetVersionId: 'version-1' });
@@ -283,7 +292,7 @@ describe('materializeDataset activity', () => {
 
     it('throws descriptive error and cleans up when git clone fails', async () => {
       prismaMock.datasetVersion.findUnique.mockResolvedValue(mockDatasetVersion);
-      fsMock.access.mockRejectedValue(new Error('ENOENT'));
+      setupAccessMock({ cacheHit: false, hasDvc: false });
       fsMock.mkdir.mockResolvedValue(undefined);
       fsMock.rm.mockResolvedValue(undefined);
 
@@ -303,7 +312,7 @@ describe('materializeDataset activity', () => {
 
     it('throws descriptive error and cleans up when git checkout fails', async () => {
       prismaMock.datasetVersion.findUnique.mockResolvedValue(mockDatasetVersion);
-      fsMock.access.mockRejectedValue(new Error('ENOENT'));
+      setupAccessMock({ cacheHit: false, hasDvc: false });
       fsMock.mkdir.mockResolvedValue(undefined);
       fsMock.rm.mockResolvedValue(undefined);
 
@@ -324,7 +333,7 @@ describe('materializeDataset activity', () => {
 
     it('throws descriptive error and cleans up when dvc pull fails', async () => {
       prismaMock.datasetVersion.findUnique.mockResolvedValue(mockDatasetVersion);
-      fsMock.access.mockRejectedValue(new Error('ENOENT'));
+      setupAccessMock({ cacheHit: false, hasDvc: true });
       fsMock.mkdir.mockResolvedValue(undefined);
       fsMock.rm.mockResolvedValue(undefined);
 
@@ -348,22 +357,50 @@ describe('materializeDataset activity', () => {
     });
   });
 
+  describe('Tilde expansion in repository URL', () => {
+    it('resolves ~ to home directory in local repository paths', async () => {
+      const tildeDatasetVersion = {
+        ...mockDatasetVersion,
+        dataset: {
+          ...mockDatasetVersion.dataset,
+          repositoryUrl: '~/datasets/my-test-dataset',
+        },
+      };
+
+      prismaMock.datasetVersion.findUnique.mockResolvedValue(tildeDatasetVersion);
+      setupAccessMock({ cacheHit: false, hasDvc: false });
+      fsMock.mkdir.mockResolvedValue(undefined);
+      fsMock.rm.mockResolvedValue(undefined);
+
+      mockExecAsync({
+        'git clone': { stdout: '', stderr: 'Cloning into' },
+        'git checkout': { stdout: '', stderr: '' },
+      });
+
+      await materializeDataset({ datasetVersionId: 'version-1' });
+
+      // The git clone command should contain the resolved home directory, not ~
+      const cloneCall = mockExecAsyncImpl.mock.calls.find(
+        (call: string[]) => call[0].includes('git clone')
+      );
+      expect(cloneCall).toBeDefined();
+      expect(cloneCall[0]).not.toContain('~/');
+      expect(cloneCall[0]).toContain('/datasets/my-test-dataset');
+    });
+  });
+
   describe('Cache directory configuration', () => {
     it('uses default cache directory when env var not set', async () => {
       delete process.env.BENCHMARK_CACHE_DIR;
 
       prismaMock.datasetVersion.findUnique.mockResolvedValue(mockDatasetVersion);
-      fsMock.access.mockRejectedValue(new Error('ENOENT'));
+      setupAccessMock({ cacheHit: false, hasDvc: false });
       fsMock.mkdir.mockResolvedValue(undefined);
       fsMock.rm.mockResolvedValue(undefined);
 
       mockExecAsync({
         'git clone': { stdout: '', stderr: '' },
         'git checkout': { stdout: '', stderr: '' },
-        'dvc remote list': { error: new Error('No remotes') },
-        'dvc remote add': { stdout: '', stderr: '' },
-        'dvc remote modify': { stdout: '', stderr: '' },
-        'dvc pull': { stdout: '', stderr: '' },
       });
 
       const result = await materializeDataset({ datasetVersionId: 'version-1' });
@@ -371,5 +408,85 @@ describe('materializeDataset activity', () => {
       expect(result.materializedPath).toBe('/tmp/benchmark-cache/dataset-1-abc123');
       expect(fsMock.mkdir).toHaveBeenCalledWith('/tmp/benchmark-cache', { recursive: true });
     });
+  });
+});
+
+describe('loadDatasetManifest activity', () => {
+  let prismaMock: {
+    datasetVersion: {
+      findUnique: jest.Mock;
+    };
+  };
+
+  beforeEach(() => {
+    prismaMock = {
+      datasetVersion: {
+        findUnique: jest.fn(),
+      },
+    };
+    (getPrismaClient as jest.Mock).mockReturnValue(prismaMock);
+  });
+
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it('reads manifest using manifestPath from database', async () => {
+    const mockManifest = {
+      schemaVersion: '1.0',
+      samples: [
+        {
+          id: 'sample-1',
+          inputs: [{ path: 'inputs/doc1.pdf', mimeType: 'application/pdf' }],
+          groundTruth: [{ path: 'ground-truth/doc1.json', format: 'json' }],
+          metadata: {},
+        },
+      ],
+    };
+
+    prismaMock.datasetVersion.findUnique.mockResolvedValue({
+      manifestPath: 'dataset-manifest.json',
+    });
+    fsMock.readFile.mockResolvedValue(JSON.stringify(mockManifest));
+
+    const result = await loadDatasetManifest({
+      materializedPath: '/tmp/test-cache/dataset-1-abc123',
+      datasetVersionId: 'version-1',
+    });
+
+    expect(prismaMock.datasetVersion.findUnique).toHaveBeenCalledWith({
+      where: { id: 'version-1' },
+      select: { manifestPath: true },
+    });
+    expect(fsMock.readFile).toHaveBeenCalledWith(
+      '/tmp/test-cache/dataset-1-abc123/dataset-manifest.json',
+      'utf-8'
+    );
+    expect(result.manifest).toEqual(mockManifest);
+  });
+
+  it('throws when dataset version not found', async () => {
+    prismaMock.datasetVersion.findUnique.mockResolvedValue(null);
+
+    await expect(
+      loadDatasetManifest({
+        materializedPath: '/tmp/test-cache/dataset-1-abc123',
+        datasetVersionId: 'non-existent',
+      })
+    ).rejects.toThrow('Dataset version not found: non-existent');
+  });
+
+  it('throws when manifest file does not exist', async () => {
+    prismaMock.datasetVersion.findUnique.mockResolvedValue({
+      manifestPath: 'dataset-manifest.json',
+    });
+    fsMock.readFile.mockRejectedValue(new Error('ENOENT: no such file or directory'));
+
+    await expect(
+      loadDatasetManifest({
+        materializedPath: '/tmp/test-cache/dataset-1-abc123',
+        datasetVersionId: 'version-1',
+      })
+    ).rejects.toThrow('Failed to load manifest');
   });
 });
