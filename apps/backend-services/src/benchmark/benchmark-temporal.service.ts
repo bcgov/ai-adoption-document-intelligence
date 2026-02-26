@@ -82,6 +82,7 @@ export class BenchmarkTemporalService {
       gitRevision: string;
       splitId: string;
       workflowId: string;
+      workflowConfig: Record<string, unknown>;
       workflowConfigHash: string;
       evaluatorType: string;
       evaluatorConfig: Record<string, unknown>;
@@ -114,6 +115,7 @@ export class BenchmarkTemporalService {
               gitRevision: benchmarkDefinition.gitRevision,
               splitId: benchmarkDefinition.splitId,
               workflowId: benchmarkDefinition.workflowId,
+              workflowConfig: benchmarkDefinition.workflowConfig,
               workflowConfigHash: benchmarkDefinition.workflowConfigHash,
               evaluatorType: benchmarkDefinition.evaluatorType,
               evaluatorConfig: benchmarkDefinition.evaluatorConfig,

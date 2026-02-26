@@ -92,6 +92,7 @@ describe("BenchmarkRunService", () => {
       id: "workflow-1",
       name: "Test Workflow",
       version: 1,
+      config: { nodes: {}, edges: [] },
     },
   };
 

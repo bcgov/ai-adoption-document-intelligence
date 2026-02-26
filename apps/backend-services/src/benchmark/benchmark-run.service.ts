@@ -213,6 +213,7 @@ export class BenchmarkRunService {
           gitRevision: definition.datasetVersion.gitRevision,
           splitId: definition.splitId,
           workflowId: definition.workflowId,
+          workflowConfig: definition.workflow.config as Record<string, unknown>,
           workflowConfigHash: definition.workflowConfigHash,
           evaluatorType: definition.evaluatorType,
           evaluatorConfig: definition.evaluatorConfig as Record<
