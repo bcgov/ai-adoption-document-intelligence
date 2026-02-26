@@ -330,6 +330,7 @@ model GroupMembershipRequest {
   updated_by  String
   updator     User                         @relation(name: "MembershipRequestUpdatedBy", fields: [updated_by], references: [id])
 
+  @@unique([group_id, user_id, status])
   @@map("group_membership_request")
 }
 
