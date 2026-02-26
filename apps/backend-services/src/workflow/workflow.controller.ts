@@ -22,10 +22,12 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
+import { DatabaseService } from "@/database/database.service";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
 import {
   WorkflowListResponseDto,
@@ -36,7 +38,10 @@ import { WorkflowInfo, WorkflowService } from "./workflow.service";
 @ApiTags("Workflow")
 @Controller("api/workflows")
 export class WorkflowController {
-  constructor(private readonly workflowService: WorkflowService) {}
+  constructor(
+    private readonly workflowService: WorkflowService,
+    private readonly databaseService: DatabaseService,
+  ) {}
 
   @Get()
   @ApiKeyAuth()
@@ -105,6 +110,12 @@ export class WorkflowController {
   ): Promise<{ workflow: WorkflowInfo }> {
     const user = req.user;
     const userId = user?.sub as string;
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      dto.groupId,
+      this.databaseService,
+    );
 
     const workflow = await this.workflowService.createWorkflow(userId, dto);
     return { workflow };

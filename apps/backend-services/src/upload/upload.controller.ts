@@ -2,10 +2,12 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   HttpCode,
   HttpStatus,
   Logger,
   Post,
+  Req,
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
@@ -13,10 +15,13 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
+import { Request } from "express";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
+import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
@@ -30,6 +35,7 @@ export class UploadController {
   constructor(
     private readonly documentService: DocumentService,
     private readonly queueService: QueueService,
+    private readonly databaseService: DatabaseService,
   ) {}
 
   @Post()
@@ -45,6 +51,7 @@ export class UploadController {
   @ApiBadRequestResponse({ description: "Invalid input or upload failed" })
   async uploadDocument(
     @Body() uploadDto: UploadDocumentDto,
+    @Req() req: Request,
   ): Promise<UploadDocumentResponseDto> {
     this.logger.debug("=== UploadController.uploadDocument ===");
     this.logger.debug(
@@ -67,6 +74,12 @@ export class UploadController {
       if (!uploadDto.file || uploadDto.file.trim().length === 0) {
         throw new BadRequestException("File data is required");
       }
+
+      await identityCanAccessGroup(
+        req.resolvedIdentity,
+        uploadDto.group_id,
+        this.databaseService,
+      );
 
       // Use original_filename from DTO or default to title
       const originalFilename =
@@ -126,7 +139,10 @@ export class UploadController {
       this.logger.error(`Error in uploadDocument: ${error.message}`);
       this.logger.error(`Stack: ${error.stack}`);
 
-      if (error instanceof BadRequestException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException
+      ) {
         throw error;
       }
 

@@ -97,8 +97,8 @@ Ensure legacy records without a `group_id` are inaccessible.
 - [x] US-004-add-group-id-to-labeling-document.md
 - [x] US-005-add-group-id-to-api-key.md
 - [x] US-006-route-level-identity-resolution-guard.md
-- [ ] US-007-shared-group-authorization-helper.md
-- [ ] US-008-enforce-group-membership-on-resource-creation.md
+- [x] US-007-shared-group-authorization-helper.md
+- [x] US-008-enforce-group-membership-on-resource-creation.md
 - [ ] US-009-enforce-group-authorization-on-document.md
 - [ ] US-010-enforce-group-authorization-on-workflow.md
 - [ ] US-011-enforce-group-authorization-on-labeling-project.md

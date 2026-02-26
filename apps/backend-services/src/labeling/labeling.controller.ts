@@ -20,12 +20,14 @@ import {
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
-import { Response } from "express";
+import { Request, Response } from "express";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
 import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import { DatabaseService } from "../database/database.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
 import { ExportDto } from "./dto/export.dto";
@@ -46,19 +48,13 @@ import {
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingService } from "./labeling.service";
 
-interface AuthenticatedRequest {
-  user?: {
-    sub?: string;
-    id?: string;
-  };
-}
-
 @ApiTags("labeling")
 @Controller("api/labeling")
 export class LabelingController {
   constructor(
     private readonly labelingService: LabelingService,
     private readonly blobStorage: LocalBlobStorageService,
+    private readonly databaseService: DatabaseService,
   ) {}
 
   // ========== PROJECT ENDPOINTS ==========
@@ -90,9 +86,14 @@ export class LabelingController {
   })
   async createProject(
     @Body() dto: CreateProjectDto,
-    @Req() req: AuthenticatedRequest,
+    @Req() req: Request,
   ) {
-    const userId = req.user?.sub || req.user?.id || "anonymous";
+    const userId = req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      dto.group_id,
+      this.databaseService,
+    );
     return this.labelingService.createProject(dto, userId);
   }
 
@@ -245,7 +246,13 @@ export class LabelingController {
   async uploadLabelingDocument(
     @Param("id") projectId: string,
     @Body() dto: LabelingUploadDto,
+    @Req() req: Request,
   ) {
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      dto.group_id,
+      this.databaseService,
+    );
     return this.labelingService.uploadLabelingDocument(projectId, dto);
   }
 

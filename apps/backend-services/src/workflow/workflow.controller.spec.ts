@@ -1,5 +1,7 @@
+import { ForbiddenException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
+import { DatabaseService } from "../database/database.service";
 import type { GraphWorkflowConfig } from "./graph-workflow-types";
 import { WorkflowController } from "./workflow.controller";
 import {
@@ -40,6 +42,7 @@ const mockWorkflowInfo: WorkflowInfo = {
 describe("WorkflowController", () => {
   let controller: WorkflowController;
   let workflowService: jest.Mocked<WorkflowService>;
+  let databaseService: jest.Mocked<DatabaseService>;
 
   beforeEach(async () => {
     workflowService = {
@@ -50,12 +53,20 @@ describe("WorkflowController", () => {
       deleteWorkflow: jest.fn(),
     } as unknown as jest.Mocked<WorkflowService>;
 
+    databaseService = {
+      isUserInGroup: jest.fn().mockResolvedValue(true),
+    } as unknown as jest.Mocked<DatabaseService>;
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WorkflowController],
       providers: [
         {
           provide: WorkflowService,
           useValue: workflowService,
+        },
+        {
+          provide: DatabaseService,
+          useValue: databaseService,
         },
       ],
     }).compile();
@@ -95,7 +106,11 @@ describe("WorkflowController", () => {
 
   describe("createWorkflow", () => {
     it("creates workflow and returns it", async () => {
-      const req = { user: { sub: "user-1" } } as Request;
+      const identity = { userId: "user-1" };
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: identity,
+      } as Request;
       const dto: CreateWorkflowDto = {
         name: "New",
         groupId: "group-1",
@@ -108,6 +123,23 @@ describe("WorkflowController", () => {
         "user-1",
         dto,
       );
+    });
+
+    it("propagates ForbiddenException when user is not a group member", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      const dto: CreateWorkflowDto = {
+        name: "New",
+        groupId: "group-1",
+        config: mockGraphConfig,
+      };
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(controller.createWorkflow(dto, req)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(workflowService.createWorkflow).not.toHaveBeenCalled();
     });
   });
 

@@ -125,22 +125,20 @@ describe("WorkflowService", () => {
 
   describe("createWorkflow", () => {
     it("creates workflow with valid config", async () => {
-      const result = await service.createWorkflow("user-1", {
-        name: "New",
-        groupId: "group-1",
-        config: makeGraphConfig(),
-      });
+      const result = await service.createWorkflow(
+        "user-1",
+        { name: "New", groupId: "group-1", config: makeGraphConfig() },
+      );
       expect(result.id).toBe("wf-1");
       expect(mockWorkflow.create).toHaveBeenCalled();
     });
 
     it("throws BadRequestException for invalid config", async () => {
       await expect(
-        service.createWorkflow("user-1", {
-          name: "New",
-          groupId: "group-1",
-          config: { schemaVersion: "2.0" } as any,
-        }),
+        service.createWorkflow(
+          "user-1",
+          { name: "New", groupId: "group-1", config: { schemaVersion: "2.0" } as any },
+        ),
       ).rejects.toThrow(BadRequestException);
       expect(mockWorkflow.create).not.toHaveBeenCalled();
     });
