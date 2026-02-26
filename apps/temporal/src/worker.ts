@@ -69,7 +69,7 @@ async function run() {
     const benchmarkWorker = await Worker.create({
       connection,
       namespace,
-      workflowsPath: require.resolve('./benchmark-workflow'),
+      workflowsPath: require.resolve('./benchmark-workflows'),
       activities: activitiesMap,
       taskQueue: benchmarkTaskQueue,
     });

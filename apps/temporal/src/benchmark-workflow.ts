@@ -59,12 +59,30 @@ type BenchmarkActivities = {
     results: EvaluationResult[];
     metadata?: Record<string, unknown>;
   }) => Promise<{
-    aggregatedMetrics: Record<string, number>;
-    failureAnalysis: {
+    overall: {
       totalSamples: number;
-      failedSamples: number;
+      passingsSamples: number;
+      failingSamples: number;
       passRate: number;
-      commonErrors: Array<{ message: string; count: number }>;
+      metrics: Record<string, {
+        name: string;
+        mean: number;
+        median: number;
+        stdDev: number;
+        p5: number;
+        p25: number;
+        p75: number;
+        p95: number;
+        min: number;
+        max: number;
+      }>;
+    };
+    failureAnalysis?: {
+      totalSamples: number;
+      failingSamples: number;
+      passRate: number;
+      worstSamples: Array<{ sampleId: string; metric: string; value: number }>;
+      errorClusters: Array<{ pattern: string; count: number; sampleIds: string[] }>;
     };
   }>;
 
@@ -197,16 +215,14 @@ export interface BenchmarkRunWorkflowResult {
   /** Final status */
   status: 'completed' | 'failed' | 'cancelled';
 
-  /** Aggregated metrics */
+  /** Flat metrics for MLflow (metric_name.mean, metric_name.median, etc.) */
   metrics: Record<string, number>;
 
+  /** Full aggregation result for storage */
+  aggregateResult?: Record<string, unknown>;
+
   /** Failure analysis summary */
-  failureAnalysis?: {
-    totalSamples: number;
-    failedSamples: number;
-    passRate: number;
-    commonErrors: Array<{ message: string; count: number }>;
-  };
+  failureAnalysis?: Record<string, unknown>;
 
   /** Error message if failed */
   error?: string;
@@ -258,6 +274,39 @@ export const cancelBenchmarkSignal = defineSignal('cancel');
  */
 function joinPath(...segments: string[]): string {
   return segments.join('/').replace(/\/+/g, '/');
+}
+
+/**
+ * Flatten AggregatedMetrics into a flat Record<string, number> for MLflow.
+ * Produces keys like: pass_rate, total_samples, metric_name.mean, metric_name.median, etc.
+ */
+function flattenMetrics(overall: {
+  totalSamples: number;
+  passingsSamples: number;
+  failingSamples: number;
+  passRate: number;
+  metrics: Record<string, { name: string; mean: number; median: number; stdDev: number; p5: number; p25: number; p75: number; p95: number; min: number; max: number }>;
+}): Record<string, number> {
+  const flat: Record<string, number> = {
+    total_samples: overall.totalSamples,
+    passing_samples: overall.passingsSamples,
+    failing_samples: overall.failingSamples,
+    pass_rate: overall.passRate,
+  };
+
+  for (const [key, stats] of Object.entries(overall.metrics)) {
+    flat[`${key}.mean`] = stats.mean;
+    flat[`${key}.median`] = stats.median;
+    flat[`${key}.stdDev`] = stats.stdDev;
+    flat[`${key}.p5`] = stats.p5;
+    flat[`${key}.p25`] = stats.p25;
+    flat[`${key}.p75`] = stats.p75;
+    flat[`${key}.p95`] = stats.p95;
+    flat[`${key}.min`] = stats.min;
+    flat[`${key}.max`] = stats.max;
+  }
+
+  return flat;
 }
 
 // ---------------------------------------------------------------------------
@@ -328,15 +377,9 @@ export async function benchmarkRunWorkflow(
 
   let materializedPath: string | undefined;
   const outputPaths: string[] = [];
-  let aggregatedMetrics: Record<string, number> = {};
-  let failureAnalysis:
-    | {
-        totalSamples: number;
-        failedSamples: number;
-        passRate: number;
-        commonErrors: Array<{ message: string; count: number }>;
-      }
-    | undefined;
+  let flatMetrics: Record<string, number> = {};
+  let aggregateResultForStorage: Record<string, unknown> = {};
+  let failureAnalysis: Record<string, unknown> | undefined;
 
   try {
     // Update run status to running
@@ -572,8 +615,9 @@ export async function benchmarkRunWorkflow(
       metadata: { splitId },
     });
 
-    aggregatedMetrics = aggregateResult.aggregatedMetrics;
-    failureAnalysis = aggregateResult.failureAnalysis;
+    flatMetrics = flattenMetrics(aggregateResult.overall);
+    aggregateResultForStorage = aggregateResult as unknown as Record<string, unknown>;
+    failureAnalysis = aggregateResult.failureAnalysis as unknown as Record<string, unknown>;
 
     // ---------------------------------------------------------------------------
     // Phase 5: Log to MLflow
@@ -623,7 +667,7 @@ export async function benchmarkRunWorkflow(
     await customActivities['benchmark.logToMlflow']({
       mlflowRunId,
       params,
-      metrics: aggregatedMetrics,
+      metrics: flatMetrics,
       tags,
       artifactPaths,
       status: 'FINISHED',
@@ -635,7 +679,7 @@ export async function benchmarkRunWorkflow(
     await customActivities['benchmark.updateRunStatus']({
       runId,
       status: 'completed',
-      metrics: aggregatedMetrics,
+      metrics: aggregateResultForStorage,
       completedAt: new Date(),
     });
 
@@ -674,7 +718,8 @@ export async function benchmarkRunWorkflow(
 
     return {
       status: 'completed',
-      metrics: aggregatedMetrics,
+      metrics: flatMetrics,
+      aggregateResult: aggregateResultForStorage,
       failureAnalysis,
       totalSamples,
       successfulSamples: completedSamples - failedSamples,
@@ -703,7 +748,7 @@ export async function benchmarkRunWorkflow(
 
       return {
         status: 'cancelled',
-        metrics: aggregatedMetrics,
+        metrics: flatMetrics,
         totalSamples,
         successfulSamples: completedSamples - failedSamples,
         failedSamples,
@@ -748,7 +793,7 @@ export async function benchmarkRunWorkflow(
       await customActivities['benchmark.logToMlflow']({
         mlflowRunId,
         params,
-        metrics: aggregatedMetrics,
+        metrics: flatMetrics,
         tags,
         status: 'FAILED',
       });
@@ -762,14 +807,14 @@ export async function benchmarkRunWorkflow(
       runId,
       status: 'failed',
       error: errorMessage,
-      metrics: aggregatedMetrics,
+      metrics: aggregateResultForStorage,
       completedAt: new Date(),
     });
 
     return {
       status: 'failed',
       error: errorMessage,
-      metrics: aggregatedMetrics,
+      metrics: flatMetrics,
       failureAnalysis,
       totalSamples,
       successfulSamples: completedSamples - failedSamples,

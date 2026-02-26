@@ -86,13 +86,13 @@ export async function benchmarkLogToMlflow(
 
   try {
     // Log parameters (Section 6.3 required params)
-    await logParams(client, mlflowRunId, params);
+    await logParams(client, mlflowRunId, params ?? {});
 
     // Log aggregated metrics
-    await logMetrics(client, mlflowRunId, metrics);
+    await logMetrics(client, mlflowRunId, metrics ?? {});
 
     // Set run tags (Section 6.3 required tags)
-    await setTags(client, mlflowRunId, tags);
+    await setTags(client, mlflowRunId, tags ?? {});
 
     // Log artifacts if provided
     if (artifactPaths && artifactPaths.length > 0) {
