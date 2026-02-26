@@ -13,6 +13,7 @@ export interface WorkflowInfo {
   name: string;
   description: string | null;
   userId: string;
+  groupId: string;
   config: GraphWorkflowConfig;
   schemaVersion: string;
   version: number;
@@ -91,6 +92,7 @@ export class WorkflowService {
       name: w.name,
       description: w.description,
       userId: w.user_id,
+      groupId: w.group_id,
       config: this.asGraphConfig(w.config),
       schemaVersion: this.asGraphConfig(w.config).schemaVersion,
       version: w.version,
@@ -100,10 +102,9 @@ export class WorkflowService {
   }
 
   async getWorkflow(workflowId: string, userId: string): Promise<WorkflowInfo> {
-    const workflow = await this.prisma.workflow.findFirst({
+    const workflow = await this.prisma.workflow.findUnique({
       where: {
         id: workflowId,
-        user_id: userId,
       },
     });
 
@@ -111,11 +112,14 @@ export class WorkflowService {
       throw new NotFoundException(`Workflow not found: ${workflowId}`);
     }
 
+    this.logger.debug(`getWorkflow: ${workflowId} requested by user ${userId}`);
+
     return {
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
       userId: workflow.user_id,
+      groupId: workflow.group_id,
       config: this.asGraphConfig(workflow.config),
       schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
       version: workflow.version,
@@ -145,6 +149,7 @@ export class WorkflowService {
       name: workflow.name,
       description: workflow.description,
       userId: workflow.user_id,
+      groupId: workflow.group_id,
       config: this.asGraphConfig(workflow.config),
       schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
       version: workflow.version,
@@ -183,6 +188,7 @@ export class WorkflowService {
       name: workflow.name,
       description: workflow.description,
       userId: workflow.user_id,
+      groupId: workflow.group_id,
       config: this.asGraphConfig(workflow.config),
       schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
       version: workflow.version,
@@ -196,10 +202,9 @@ export class WorkflowService {
     userId: string,
     dto: Partial<CreateWorkflowDto>,
   ): Promise<WorkflowInfo> {
-    const existing = await this.prisma.workflow.findFirst({
+    const existing = await this.prisma.workflow.findUnique({
       where: {
         id: workflowId,
-        user_id: userId,
       },
     });
 
@@ -272,6 +277,7 @@ export class WorkflowService {
       name: workflow.name,
       description: workflow.description,
       userId: workflow.user_id,
+      groupId: workflow.group_id,
       config: this.asGraphConfig(workflow.config),
       schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
       version: workflow.version,
@@ -281,10 +287,9 @@ export class WorkflowService {
   }
 
   async deleteWorkflow(workflowId: string, userId: string): Promise<void> {
-    const existing = await this.prisma.workflow.findFirst({
+    const existing = await this.prisma.workflow.findUnique({
       where: {
         id: workflowId,
-        user_id: userId,
       },
     });
 

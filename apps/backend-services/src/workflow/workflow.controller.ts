@@ -14,6 +14,7 @@ import {
   ApiBadRequestResponse,
   ApiBody,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -76,6 +77,7 @@ export class WorkflowController {
     type: WorkflowResponseDto,
   })
   @ApiNotFoundResponse({ description: "Workflow not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getWorkflow(
     @Param("id") id: string,
     @Req() req: Request,
@@ -84,6 +86,13 @@ export class WorkflowController {
     const userId = user?.sub as string;
 
     const workflow = await this.workflowService.getWorkflow(id, userId);
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      workflow.groupId,
+      this.databaseService,
+    );
+
     return { workflow };
   }
 
@@ -139,6 +148,7 @@ export class WorkflowController {
     description: "Invalid request body or workflow config validation failed",
   })
   @ApiNotFoundResponse({ description: "Workflow not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async updateWorkflow(
     @Param("id") id: string,
     @Body() dto: Partial<CreateWorkflowDto>,
@@ -146,6 +156,14 @@ export class WorkflowController {
   ): Promise<{ workflow: WorkflowInfo }> {
     const user = req.user;
     const userId = user?.sub as string;
+
+    const existing = await this.workflowService.getWorkflow(id, userId);
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      existing.groupId,
+      this.databaseService,
+    );
 
     const workflow = await this.workflowService.updateWorkflow(id, userId, dto);
     return { workflow };
@@ -159,12 +177,21 @@ export class WorkflowController {
   @ApiParam({ name: "id", description: "Workflow ID" })
   @ApiNoContentResponse({ description: "Workflow deleted successfully" })
   @ApiNotFoundResponse({ description: "Workflow not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async deleteWorkflow(
     @Param("id") id: string,
     @Req() req: Request,
   ): Promise<void> {
     const user = req.user;
     const userId = user?.sub as string;
+
+    const existing = await this.workflowService.getWorkflow(id, userId);
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      existing.groupId,
+      this.databaseService,
+    );
 
     await this.workflowService.deleteWorkflow(id, userId);
   }

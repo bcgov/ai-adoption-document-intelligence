@@ -1,10 +1,10 @@
 # Group Resource Authorization
 
-This document describes how group membership is enforced when creating top-level resources in the system.
+This document describes how group membership is enforced when creating or accessing top-level resources in the system.
 
 ## Overview
 
-When a user or API key creates a top-level resource (`Document`, `Workflow`, `LabelingProject`, or `LabelingDocument`), the system verifies that the requestor belongs to the target group before allowing the operation to proceed. This prevents resources from being created in groups that the requestor is not authorized to access.
+When a user or API key creates or accesses a top-level resource (`Document`, `Workflow`, `LabelingProject`, or `LabelingDocument`), the system verifies that the requestor belongs to the resource's group before allowing the operation to proceed. This prevents resources from being created, read, updated, or deleted by users not authorized to access the group.
 
 ## Enforcement Location
 
@@ -14,12 +14,27 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 
 ## Covered Endpoints
 
+### Resource Creation (group derived from request body)
+
 | Resource | Endpoint | Controller |
 |---|---|---|
 | Document | `POST /api/upload` | `UploadController.uploadDocument` |
 | Workflow | `POST /api/workflows` | `WorkflowController.createWorkflow` |
 | LabelingProject | `POST /api/labeling/projects` | `LabelingController.createProject` |
 | LabelingDocument | `POST /api/labeling/projects/:id/upload` | `LabelingController.uploadLabelingDocument` |
+
+### Resource Read / Update / Delete (group derived from fetched resource)
+
+| Resource | Endpoint | Controller |
+|---|---|---|
+| Document | `GET /api/documents/:id` | `DocumentController.getDocument` |
+| Document | `PATCH /api/documents/:id` | `DocumentController.updateDocument` |
+| Document | `DELETE /api/documents/:id` | `DocumentController.deleteDocument` |
+| Workflow | `GET /api/workflows/:id` | `WorkflowController.getWorkflow` |
+| Workflow | `PUT /api/workflows/:id` | `WorkflowController.updateWorkflow` |
+| Workflow | `DELETE /api/workflows/:id` | `WorkflowController.deleteWorkflow` |
+
+For read/update/delete endpoints, the resource is fetched first to obtain its `group_id`, and then `identityCanAccessGroup` is called with that value before the operation continues.
 
 ## Authorization Logic
 
@@ -52,3 +67,5 @@ All creation DTOs include a required `group_id` (or `groupId`) field. A missing 
 - [Authentication](./AUTHENTICATION.md) — describes how `resolvedIdentity` is set on the request
 - `src/auth/identity.helpers.ts` — `identityCanAccessGroup` implementation
 - Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-008-enforce-group-membership-on-resource-creation.md`
+- Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-009-enforce-group-authorization-on-document.md`
+- Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-010-enforce-group-authorization-on-workflow.md`
