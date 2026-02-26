@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   Post,
   Put,
@@ -254,10 +255,26 @@ export class LabelingController {
     description: "Document added to the project",
     type: LabeledDocumentResponseDto,
   })
+  @ApiNotFoundResponse({ description: "Labeling document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async addDocumentToProject(
     @Param("id") projectId: string,
     @Body() dto: AddDocumentDto,
+    @Req() req: Request,
   ) {
+    const labelingDoc = await this.databaseService.findLabelingDocument(
+      dto.labelingDocumentId,
+    );
+    if (!labelingDoc) {
+      throw new NotFoundException(
+        `Labeling document with id ${dto.labelingDocumentId} not found`,
+      );
+    }
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      labelingDoc.group_id,
+      this.databaseService,
+    );
     return this.labelingService.addDocumentToProject(projectId, dto);
   }
 
@@ -295,11 +312,23 @@ export class LabelingController {
       "Labeled document with all its labels and underlying document data",
     type: LabeledDocumentResponseDto,
   })
+  @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getProjectDocument(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
+    @Req() req: Request,
   ) {
-    return this.labelingService.getProjectDocument(projectId, documentId);
+    const labeledDoc = await this.labelingService.getProjectDocument(
+      projectId,
+      documentId,
+    );
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      labeledDoc.labeling_document.group_id,
+      this.databaseService,
+    );
+    return labeledDoc;
   }
 
   @Get("projects/:id/documents/:docId/download")
@@ -310,14 +339,22 @@ export class LabelingController {
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Labeling Document ID" })
   @ApiOkResponse({ description: "Binary file content (PDF or image)" })
+  @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async downloadLabelingDocument(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
     @Res() res: Response,
+    @Req() req: Request,
   ) {
     const labeledDoc = await this.labelingService.getProjectDocument(
       projectId,
       documentId,
+    );
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      labeledDoc.labeling_document.group_id,
+      this.databaseService,
     );
     const labelingDocument = labeledDoc.labeling_document;
     const fileBuffer = await this.blobStorage.read(labelingDocument.file_path);
@@ -347,10 +384,22 @@ export class LabelingController {
     description: "Document removed from project",
     type: DeleteDocumentResponseDto,
   })
+  @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async removeDocumentFromProject(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
+    @Req() req: Request,
   ) {
+    const labeledDoc = await this.labelingService.getProjectDocument(
+      projectId,
+      documentId,
+    );
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      labeledDoc.labeling_document.group_id,
+      this.databaseService,
+    );
     return this.labelingService.removeDocumentFromProject(
       projectId,
       documentId,
@@ -369,10 +418,22 @@ export class LabelingController {
     description: "All labels for the document",
     type: [LabelResponseDto],
   })
+  @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getDocumentLabels(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
+    @Req() req: Request,
   ) {
+    const labeledDoc = await this.labelingService.getProjectDocument(
+      projectId,
+      documentId,
+    );
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      labeledDoc.labeling_document.group_id,
+      this.databaseService,
+    );
     return this.labelingService.getDocumentLabels(projectId, documentId);
   }
 
@@ -386,11 +447,23 @@ export class LabelingController {
     description: "Updated labeled document with all saved labels",
     type: LabeledDocumentResponseDto,
   })
+  @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async saveDocumentLabels(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
     @Body() dto: SaveLabelsDto,
+    @Req() req: Request,
   ) {
+    const labeledDoc = await this.labelingService.getProjectDocument(
+      projectId,
+      documentId,
+    );
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      labeledDoc.labeling_document.group_id,
+      this.databaseService,
+    );
     return this.labelingService.saveDocumentLabels(projectId, documentId, dto);
   }
 
@@ -405,11 +478,23 @@ export class LabelingController {
     description: "Label deleted successfully",
     type: DeleteResponseDto,
   })
+  @ApiNotFoundResponse({ description: "Document or label not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async deleteLabel(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
     @Param("labelId") labelId: string,
+    @Req() req: Request,
   ) {
+    const labeledDoc = await this.labelingService.getProjectDocument(
+      projectId,
+      documentId,
+    );
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      labeledDoc.labeling_document.group_id,
+      this.databaseService,
+    );
     return this.labelingService.deleteLabel(projectId, documentId, labelId);
   }
 
@@ -424,10 +509,22 @@ export class LabelingController {
   @ApiOkResponse({
     description: "Raw OCR result from Azure Document Intelligence",
   })
+  @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getDocumentOcr(
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
+    @Req() req: Request,
   ) {
+    const labeledDoc = await this.labelingService.getProjectDocument(
+      projectId,
+      documentId,
+    );
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      labeledDoc.labeling_document.group_id,
+      this.databaseService,
+    );
     return this.labelingService.getDocumentOcr(projectId, documentId);
   }
 

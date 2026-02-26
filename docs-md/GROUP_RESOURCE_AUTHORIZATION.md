@@ -36,8 +36,18 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 | LabelingProject | `GET /api/labeling/projects/:id` | `LabelingController.getProject` |
 | LabelingProject | `PUT /api/labeling/projects/:id` | `LabelingController.updateProject` |
 | LabelingProject | `DELETE /api/labeling/projects/:id` | `LabelingController.deleteProject` |
+| LabelingDocument | `POST /api/labeling/projects/:id/documents` | `LabelingController.addDocumentToProject` |
+| LabelingDocument | `GET /api/labeling/projects/:id/documents/:docId` | `LabelingController.getProjectDocument` |
+| LabelingDocument | `GET /api/labeling/projects/:id/documents/:docId/download` | `LabelingController.downloadLabelingDocument` |
+| LabelingDocument | `DELETE /api/labeling/projects/:id/documents/:docId` | `LabelingController.removeDocumentFromProject` |
+| LabelingDocument | `GET /api/labeling/projects/:id/documents/:docId/labels` | `LabelingController.getDocumentLabels` |
+| LabelingDocument | `POST /api/labeling/projects/:id/documents/:docId/labels` | `LabelingController.saveDocumentLabels` |
+| LabelingDocument | `DELETE /api/labeling/projects/:id/documents/:docId/labels/:labelId` | `LabelingController.deleteLabel` |
+| LabelingDocument | `GET /api/labeling/projects/:id/documents/:docId/ocr` | `LabelingController.getDocumentOcr` |
 
 For read/update/delete endpoints, the resource is fetched first to obtain its `group_id`, and then `identityCanAccessGroup` is called with that value before the operation continues.
+
+For `LabelingDocument` endpoints accessed via a project route (e.g. `GET /api/labeling/projects/:id/documents/:docId`), the `LabeledDocument` is fetched first to retrieve the nested `LabelingDocument.group_id`, which is then used for the group membership check.
 
 ## Authorization Logic
 
@@ -72,3 +82,4 @@ All creation DTOs include a required `group_id` (or `groupId`) field. A missing 
 - Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-008-enforce-group-membership-on-resource-creation.md`
 - Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-009-enforce-group-authorization-on-document.md`
 - Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-010-enforce-group-authorization-on-workflow.md`
+- Feature docs: `feature-docs/004-group-resource-authorization/user_stories/US-012-enforce-group-authorization-on-labeling-document.md`

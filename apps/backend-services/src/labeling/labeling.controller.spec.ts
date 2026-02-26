@@ -1,9 +1,11 @@
-import { ForbiddenException } from "@nestjs/common";
+import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
 import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService } from "../database/database.service";
+import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
+import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingController } from "./labeling.controller";
 import { LabelingService } from "./labeling.service";
@@ -24,6 +26,35 @@ describe("LabelingController", () => {
     group_id: "group-1",
   };
 
+  const mockLabelingDocument = {
+    id: "labeling-doc-1",
+    title: "Test Invoice",
+    original_filename: "invoice.pdf",
+    file_path: "labeling-documents/labeling-doc-1/original.pdf",
+    file_type: "pdf",
+    file_size: 1024,
+    metadata: {},
+    source: "labeling",
+    status: "completed_ocr",
+    created_at: new Date(),
+    updated_at: new Date(),
+    apim_request_id: null,
+    model_id: "prebuilt-layout",
+    ocr_result: null,
+    group_id: "group-1",
+  };
+
+  const mockLabeledDocument = {
+    id: "labeled-doc-1",
+    project_id: "project-1",
+    labeling_document_id: "labeling-doc-1",
+    status: "in_progress",
+    created_at: new Date(),
+    updated_at: new Date(),
+    labeling_document: mockLabelingDocument,
+    labels: [],
+  };
+
   const mockLabelingDocResult = {
     labeledDocument: { id: "labeled-1" },
     labelingDocument: { id: "labeling-1" },
@@ -37,10 +68,18 @@ describe("LabelingController", () => {
       getProject: jest.fn(),
       updateProject: jest.fn(),
       deleteProject: jest.fn(),
+      getProjectDocument: jest.fn(),
+      removeDocumentFromProject: jest.fn(),
+      getDocumentLabels: jest.fn(),
+      saveDocumentLabels: jest.fn(),
+      deleteLabel: jest.fn(),
+      getDocumentOcr: jest.fn(),
+      addDocumentToProject: jest.fn(),
     } as unknown as jest.Mocked<LabelingService>;
 
     databaseService = {
       isUserInGroup: jest.fn().mockResolvedValue(true),
+      findLabelingDocument: jest.fn().mockResolvedValue(mockLabelingDocument),
     } as unknown as jest.Mocked<DatabaseService>;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -200,9 +239,9 @@ describe("LabelingController", () => {
       } as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
       (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
-      await expect(
-        controller.deleteProject("project-1", req),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(controller.deleteProject("project-1", req)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(labelingService.deleteProject).not.toHaveBeenCalled();
     });
 
@@ -211,9 +250,9 @@ describe("LabelingController", () => {
         resolvedIdentity: undefined,
       } as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
-      await expect(
-        controller.deleteProject("project-1", req),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(controller.deleteProject("project-1", req)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(labelingService.deleteProject).not.toHaveBeenCalled();
     });
   });
@@ -268,6 +307,369 @@ describe("LabelingController", () => {
         controller.uploadLabelingDocument("project-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
       expect(labelingService.uploadLabelingDocument).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("addDocumentToProject", () => {
+    const dto: AddDocumentDto = { labelingDocumentId: "labeling-doc-1" };
+
+    it("adds document to project for a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.addDocumentToProject.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      const result = await controller.addDocumentToProject(
+        "project-1",
+        dto,
+        req,
+      );
+      expect(result).toEqual(mockLabeledDocument);
+      expect(labelingService.addDocumentToProject).toHaveBeenCalledWith(
+        "project-1",
+        dto,
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.addDocumentToProject("project-1", dto, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.addDocumentToProject).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException when labeling document does not exist", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      (databaseService.findLabelingDocument as jest.Mock).mockResolvedValueOnce(
+        null,
+      );
+      await expect(
+        controller.addDocumentToProject("project-1", dto, req),
+      ).rejects.toThrow(NotFoundException);
+      expect(labelingService.addDocumentToProject).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when no identity is provided", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      await expect(
+        controller.addDocumentToProject("project-1", dto, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.addDocumentToProject).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getProjectDocument", () => {
+    it("returns labeled document for a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      const result = await controller.getProjectDocument(
+        "project-1",
+        "labeled-doc-1",
+        req,
+      );
+      expect(result).toEqual(mockLabeledDocument);
+      expect(labelingService.getProjectDocument).toHaveBeenCalledWith(
+        "project-1",
+        "labeled-doc-1",
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.getProjectDocument("project-1", "labeled-doc-1", req),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it("throws ForbiddenException when no identity is provided", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      await expect(
+        controller.getProjectDocument("project-1", "labeled-doc-1", req),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe("removeDocumentFromProject", () => {
+    it("removes document for a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      labelingService.removeDocumentFromProject.mockResolvedValue({
+        success: true,
+        documentId: "labeled-doc-1",
+      });
+      const result = await controller.removeDocumentFromProject(
+        "project-1",
+        "labeled-doc-1",
+        req,
+      );
+      expect(result).toEqual({ success: true, documentId: "labeled-doc-1" });
+      expect(labelingService.removeDocumentFromProject).toHaveBeenCalledWith(
+        "project-1",
+        "labeled-doc-1",
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.removeDocumentFromProject("project-1", "labeled-doc-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.removeDocumentFromProject).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when no identity is provided", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      await expect(
+        controller.removeDocumentFromProject("project-1", "labeled-doc-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.removeDocumentFromProject).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getDocumentLabels", () => {
+    it("returns labels for a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      labelingService.getDocumentLabels.mockResolvedValue([]);
+      const result = await controller.getDocumentLabels(
+        "project-1",
+        "labeled-doc-1",
+        req,
+      );
+      expect(result).toEqual([]);
+      expect(labelingService.getDocumentLabels).toHaveBeenCalledWith(
+        "project-1",
+        "labeled-doc-1",
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.getDocumentLabels("project-1", "labeled-doc-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.getDocumentLabels).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when no identity is provided", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      await expect(
+        controller.getDocumentLabels("project-1", "labeled-doc-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.getDocumentLabels).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("saveDocumentLabels", () => {
+    const dto: SaveLabelsDto = { labels: [] };
+
+    it("saves labels for a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      labelingService.saveDocumentLabels.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      const result = await controller.saveDocumentLabels(
+        "project-1",
+        "labeled-doc-1",
+        dto,
+        req,
+      );
+      expect(result).toEqual(mockLabeledDocument);
+      expect(labelingService.saveDocumentLabels).toHaveBeenCalledWith(
+        "project-1",
+        "labeled-doc-1",
+        dto,
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.saveDocumentLabels("project-1", "labeled-doc-1", dto, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.saveDocumentLabels).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when no identity is provided", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      await expect(
+        controller.saveDocumentLabels("project-1", "labeled-doc-1", dto, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.saveDocumentLabels).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("deleteLabel", () => {
+    it("deletes label for a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      labelingService.deleteLabel.mockResolvedValue({
+        success: true,
+        id: "label-1",
+      });
+      const result = await controller.deleteLabel(
+        "project-1",
+        "labeled-doc-1",
+        "label-1",
+        req,
+      );
+      expect(result).toEqual({ success: true, id: "label-1" });
+      expect(labelingService.deleteLabel).toHaveBeenCalledWith(
+        "project-1",
+        "labeled-doc-1",
+        "label-1",
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.deleteLabel("project-1", "labeled-doc-1", "label-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.deleteLabel).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when no identity is provided", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      await expect(
+        controller.deleteLabel("project-1", "labeled-doc-1", "label-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.deleteLabel).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getDocumentOcr", () => {
+    it("returns OCR data for a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      const mockOcrResult = { analyzeResult: { content: "test" } };
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      labelingService.getDocumentOcr.mockResolvedValue(mockOcrResult as any);
+      const result = await controller.getDocumentOcr(
+        "project-1",
+        "labeled-doc-1",
+        req,
+      );
+      expect(result).toEqual(mockOcrResult);
+      expect(labelingService.getDocumentOcr).toHaveBeenCalledWith(
+        "project-1",
+        "labeled-doc-1",
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.getDocumentOcr("project-1", "labeled-doc-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.getDocumentOcr).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when no identity is provided", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      labelingService.getProjectDocument.mockResolvedValue(
+        mockLabeledDocument as any,
+      );
+      await expect(
+        controller.getDocumentOcr("project-1", "labeled-doc-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelingService.getDocumentOcr).not.toHaveBeenCalled();
     });
   });
 });

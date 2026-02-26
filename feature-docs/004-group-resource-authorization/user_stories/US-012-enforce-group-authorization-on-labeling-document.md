@@ -5,35 +5,35 @@
 **So that** LabelingDocument data is only accessible to authorized group members.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Member reads a LabelingDocument in their group
+- [x] **Scenario 1**: Member reads a LabelingDocument in their group
     - **Given** a requestor who is a member of group X
     - **And** a LabelingDocument with `group_id` = X exists
     - **When** the requestor fetches the LabelingDocument
     - **Then** the LabelingDocument is returned successfully
 
-- [ ] **Scenario 2**: Non-member attempts to read a LabelingDocument
+- [x] **Scenario 2**: Non-member attempts to read a LabelingDocument
     - **Given** a requestor who is NOT a member of group X
     - **And** a LabelingDocument with `group_id` = X exists
     - **When** the requestor attempts to fetch the LabelingDocument
     - **Then** the API returns `403 Forbidden`
 
-- [ ] **Scenario 3**: Member updates a LabelingDocument in their group
+- [x] **Scenario 3**: Member updates a LabelingDocument in their group
     - **Given** a requestor who is a member of group X
     - **And** a LabelingDocument with `group_id` = X exists
     - **When** the requestor submits an update for the LabelingDocument
     - **Then** the update is applied successfully
 
-- [ ] **Scenario 4**: Non-member attempts to update a LabelingDocument
+- [x] **Scenario 4**: Non-member attempts to update a LabelingDocument
     - **Given** a requestor who is NOT a member of group X
     - **When** the requestor attempts to update a LabelingDocument in group X
     - **Then** the API returns `403 Forbidden`
 
-- [ ] **Scenario 5**: Non-member attempts to delete a LabelingDocument
+- [x] **Scenario 5**: Non-member attempts to delete a LabelingDocument
     - **Given** a requestor who is NOT a member of group X
     - **When** the requestor attempts to delete a LabelingDocument in group X
     - **Then** the API returns `403 Forbidden`
 
-- [ ] **Scenario 6**: Unit tests cover all enforcement paths
+- [x] **Scenario 6**: Unit tests cover all enforcement paths
     - **Given** the enforcement implementation
     - **When** unit tests are run
     - **Then** authorized and unauthorized read, update, and delete cases are covered and pass
