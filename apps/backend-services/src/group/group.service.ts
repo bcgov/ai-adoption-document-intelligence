@@ -66,7 +66,7 @@ export class GroupService {
         where: { user_id_group_id: { user_id: userId, group_id: groupId } },
       });
     if (existingMembership) {
-      return;
+      throw new BadRequestException("User is already a member of this group");
     }
 
     const existingRequest =
@@ -78,7 +78,7 @@ export class GroupService {
         },
       });
     if (existingRequest) {
-      return;
+      throw new BadRequestException("A pending membership request already exists for this group");
     }
 
     await this.databaseService.prisma.groupMembershipRequest.create({

@@ -1,35 +1,199 @@
-import { Button, Center, Stack, Text, Title } from "@mantine/core";
-import { IconUsers } from "@tabler/icons-react";
+import {
+  Alert,
+  Badge,
+  Box,
+  Button,
+  Center,
+  Group,
+  Loader,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
+import {
+  IconAlertCircle,
+  IconCircleCheck,
+  IconLogout,
+  IconSearch,
+  IconUsers,
+} from "@tabler/icons-react";
 import type { JSX } from "react";
+import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { useAllGroups, useRequestMembership } from "../data/hooks/useGroups";
 
 /**
  * Page shown to authenticated users who have no group memberships.
+ * Displays a filterable table of all available groups, each with a
+ * per-row button to submit a membership request for administrator review.
+ *
  * Users are redirected here by the `NoGroupGuard` when they try to access
  * protected application routes without belonging to any group.
  */
 export function RequestMembershipPage(): JSX.Element {
   const { logout } = useAuth();
+  const {
+    data: groups,
+    isLoading: groupsLoading,
+    isError: groupsError,
+  } = useAllGroups();
+  const requestMutation = useRequestMembership();
+  const [filter, setFilter] = useState("");
+  const [submittedGroupId, setSubmittedGroupId] = useState<string | null>(null);
+
+  const filteredGroups =
+    groups?.filter((g) =>
+      g.name.toLowerCase().includes(filter.toLowerCase()),
+    ) ?? [];
+
+  /**
+   * Fires the membership request mutation for the given group.
+   *
+   * @param groupId - The ID of the group to request membership for.
+   */
+  const handleRequest = (groupId: string): void => {
+    setSubmittedGroupId(groupId);
+    requestMutation.mutate({ groupId });
+  };
 
   return (
-    <Center mih="100vh">
-      <Stack align="center" gap="lg" maw={480} px="md">
-        <IconUsers size={64} stroke={1.2} />
-        <Title order={2} ta="center">
-          No group memberships
-        </Title>
-        <Text c="dimmed" ta="center">
-          Your account does not belong to any groups. You must be a member of at
-          least one group to access the application.
-        </Text>
-        <Text c="dimmed" ta="center" size="sm">
-          Contact an administrator to request access, or use the button below to
-          sign out.
-        </Text>
-        <Button variant="light" color="red" onClick={() => logout()}>
+    <>
+      <Box pos="fixed" top={16} right={16} style={{ zIndex: 100 }}>
+        <Button
+          variant="light"
+          color="red"
+          leftSection={<IconLogout size={16} />}
+          onClick={() => logout()}
+          data-testid="sign-out-button"
+        >
           Sign out
         </Button>
-      </Stack>
-    </Center>
+      </Box>
+
+      <Center mih="100vh" justify="center" pt="xl">
+        <Stack gap="lg" w="100%" maw={700} px="md">
+          <Group gap="md">
+            <IconUsers size={40} stroke={1.2} />
+            <Stack gap={0}>
+              <Title order={2}>Request group membership</Title>
+              <Text c="dimmed" size="sm">
+                Select a group to request access — an administrator will review
+                your request before granting membership.
+              </Text>
+            </Stack>
+          </Group>
+
+          {/* Feedback alerts */}
+          {requestMutation.isSuccess && (
+            <Alert
+              icon={<IconCircleCheck size={16} />}
+              color="green"
+              data-testid="request-success"
+            >
+              Your membership request has been submitted and is pending admin
+              approval.
+            </Alert>
+          )}
+
+          {requestMutation.isError && (
+            <Alert
+              icon={<IconAlertCircle size={16} />}
+              color="red"
+              data-testid="request-error"
+            >
+              {requestMutation.error
+                ? requestMutation.error.message
+                : "Failed to submit membership request. Please try again."}
+            </Alert>
+          )}
+
+          {/* Groups table */}
+          {groupsLoading && <Loader data-testid="groups-loader" />}
+
+          {groupsError && (
+            <Alert
+              icon={<IconAlertCircle size={16} />}
+              color="red"
+              data-testid="groups-error"
+            >
+              Failed to load groups. Please refresh the page and try again.
+            </Alert>
+          )}
+
+          {!groupsLoading && !groupsError && (
+            <>
+              <TextInput
+                placeholder="Filter groups…"
+                leftSection={<IconSearch size={16} />}
+                value={filter}
+                onChange={(e) => setFilter(e.currentTarget.value)}
+                aria-label="Filter groups"
+                data-testid="group-filter"
+              />
+
+              {filteredGroups.length === 0 ? (
+                <Text
+                  c="dimmed"
+                  ta="center"
+                  size="sm"
+                  data-testid="no-groups-message"
+                >
+                  {groups?.length === 0
+                    ? "No groups are available. Contact an administrator."
+                    : "No groups match your filter."}
+                </Text>
+              ) : (
+                <Table striped highlightOnHover data-testid="groups-table">
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Group name</Table.Th>
+                      <Table.Th />
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {filteredGroups.map((group) => {
+                      const isThisRow = submittedGroupId === group.id;
+                      const requested = requestMutation.isSuccess && isThisRow;
+                      return (
+                        <Table.Tr key={group.id}>
+                          <Table.Td>{group.name}</Table.Td>
+                          <Table.Td ta="right">
+                            {requested ? (
+                              <Badge
+                                color="green"
+                                variant="light"
+                                data-testid={`requested-badge-${group.id}`}
+                              >
+                                Requested
+                              </Badge>
+                            ) : (
+                              <Button
+                                size="xs"
+                                variant="light"
+                                onClick={() => handleRequest(group.id)}
+                                disabled={
+                                  requestMutation.isPending ||
+                                  requestMutation.isSuccess
+                                }
+                                loading={requestMutation.isPending && isThisRow}
+                                data-testid={`request-button-${group.id}`}
+                              >
+                                Request access
+                              </Button>
+                            )}
+                          </Table.Td>
+                        </Table.Tr>
+                      );
+                    })}
+                  </Table.Tbody>
+                </Table>
+              )}
+            </>
+          )}
+        </Stack>
+      </Center>
+    </>
   );
 }

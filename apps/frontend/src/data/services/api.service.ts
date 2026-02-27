@@ -1,4 +1,5 @@
 import axios, {
+  AxiosError,
   AxiosInstance,
   AxiosResponse,
   InternalAxiosRequestConfig,
@@ -117,10 +118,20 @@ class ApiService {
       };
     } catch (error) {
       // Error handling - logging removed for lint compliance
+      let message = "Unknown error";
+      if (axios.isAxiosError(error)) {
+        const axiosError = error as AxiosError<{ message?: string }>;
+        message =
+          axiosError.response?.data?.message ??
+          axiosError.message ??
+          "Unknown error";
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
       return {
         data: null as T,
         success: false,
-        message: error instanceof Error ? error.message : "Unknown error",
+        message,
       };
     }
   }
