@@ -5,17 +5,17 @@
 **So that** workflows are correctly scoped to my current group without manual input.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: `groupId` is included in create-workflow request automatically
+- [x] **Scenario 1**: `groupId` is included in create-workflow request automatically
     - **Given** the user has an `activeGroup` set in `GroupContext`
     - **When** `useCreateWorkflow` mutation is invoked
     - **Then** the hook reads `activeGroup.id` from `GroupContext` and injects it as `groupId` in `CreateWorkflowDto` without the caller providing it
 
-- [ ] **Scenario 2**: Error is returned before API call when no active group
+- [x] **Scenario 2**: Error is returned before API call when no active group
     - **Given** the user's `activeGroup` is `null`
     - **When** the `useCreateWorkflow` mutation is triggered
     - **Then** the hook throws or returns an error without calling the API
 
-- [ ] **Scenario 3**: Callers do not pass `groupId`
+- [x] **Scenario 3**: Callers do not pass `groupId`
     - **Given** existing callers of `useCreateWorkflow`
     - **When** the hook is invoked
     - **Then** no `groupId` argument is expected or accepted from callers
