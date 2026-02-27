@@ -21,6 +21,7 @@ describe("UploadController", () => {
     } as any;
     databaseService = {
       isUserInGroup: jest.fn().mockResolvedValue(true),
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
     } as any;
     controller = new UploadController(
       documentService,

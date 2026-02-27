@@ -7,7 +7,9 @@ import { ApiKeyService } from "./api-key.service";
 describe("ApiKeyController", () => {
   let controller: ApiKeyController;
   let apiKeyService: ApiKeyService;
-  let databaseService: jest.Mocked<Pick<DatabaseService, "isUserInGroup">>;
+  let databaseService: jest.Mocked<
+    Pick<DatabaseService, "isUserInGroup" | "isUserSystemAdmin">
+  >;
 
   const mockApiKeyService = {
     getApiKey: jest.fn(),
@@ -30,7 +32,10 @@ describe("ApiKeyController", () => {
 
     databaseService = {
       isUserInGroup: jest.fn().mockResolvedValue(true),
-    } as jest.Mocked<Pick<DatabaseService, "isUserInGroup">>;
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    } as jest.Mocked<
+      Pick<DatabaseService, "isUserInGroup" | "isUserSystemAdmin">
+    >;
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ApiKeyController],

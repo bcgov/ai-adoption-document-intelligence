@@ -63,6 +63,7 @@ describe("identityCanAccessGroup", () => {
   beforeEach(() => {
     mockDb = {
       isUserInGroup: jest.fn(),
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
     } as unknown as DatabaseService;
   });
 

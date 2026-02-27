@@ -34,6 +34,7 @@ describe("AzureController", () => {
     };
     databaseService = {
       isUserInGroup: jest.fn(),
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
       getClassifierModel: jest.fn(),
       createClassifierModel: jest.fn(),
       updateClassifierModel: jest.fn(),
