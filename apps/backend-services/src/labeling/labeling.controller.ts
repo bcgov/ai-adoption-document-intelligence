@@ -24,7 +24,10 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "@/auth/identity.helpers";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
@@ -66,17 +69,16 @@ export class LabelingController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get all labeling projects" })
-  @ApiQuery({
-    name: "userId",
-    required: false,
-    description: "Filter by creator",
-  })
   @ApiOkResponse({
     description: "List of labeling projects with their field schemas",
     type: [LabelingProjectResponseDto],
   })
-  async getProjects(@Query("userId") userId?: string) {
-    return this.labelingService.getProjects(userId);
+  async getProjects(@Req() req: Request) {
+    const groupIds = await getIdentityGroupIds(
+      req.resolvedIdentity,
+      this.databaseService,
+    );
+    return this.labelingService.getProjects(groupIds);
   }
 
   @Post("projects")

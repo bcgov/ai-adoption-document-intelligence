@@ -101,6 +101,31 @@ export class WorkflowService {
     }));
   }
 
+  /**
+   * Retrieve all workflows belonging to the specified groups.
+   * @param groupIds Array of group IDs to filter by
+   * @returns List of workflows in those groups
+   */
+  async getGroupWorkflows(groupIds: string[]): Promise<WorkflowInfo[]> {
+    const workflows = await this.prisma.workflow.findMany({
+      where: { group_id: { in: groupIds } },
+      orderBy: { created_at: "desc" },
+    });
+
+    return workflows.map((w) => ({
+      id: w.id,
+      name: w.name,
+      description: w.description,
+      userId: w.user_id,
+      groupId: w.group_id,
+      config: this.asGraphConfig(w.config),
+      schemaVersion: this.asGraphConfig(w.config).schemaVersion,
+      version: w.version,
+      createdAt: w.created_at,
+      updatedAt: w.updated_at,
+    }));
+  }
+
   async getWorkflow(workflowId: string, userId: string): Promise<WorkflowInfo> {
     const workflow = await this.prisma.workflow.findUnique({
       where: {

@@ -3,6 +3,52 @@ import { DatabaseService } from "@/database/database.service";
 import { ResolvedIdentity } from "./types";
 
 /**
+ * Resolves the set of group IDs the resolved identity has access to, or
+ * `undefined` when the identity has unrestricted access (system-admin).
+ *
+ * - **API key path** (`identity.groupId` is set): returns `[identity.groupId]`.
+ * - **JWT / system-admin path** (`identity.userId` is set): checks the database
+ *   for the `system-admin` role. If the user is a system-admin, returns
+ *   `undefined` so the caller applies no group filter and all records are
+ *   visible. Otherwise, returns the user's group IDs.
+ * - **Unauthenticated / no identity**: returns an empty array (no access).
+ *
+ * Callers that receive `undefined` should skip any group-membership `where`
+ * clause so that admin users can see resources across all groups.
+ *
+ * @param identity - The resolved identity from `request.resolvedIdentity`, or
+ *   `undefined` for unauthenticated requests.
+ * @param db - The database service used to check admin role and group membership.
+ * @returns An array of accessible group IDs, or `undefined` for unrestricted access.
+ */
+export async function getIdentityGroupIds(
+  identity: ResolvedIdentity | undefined,
+  db: DatabaseService,
+): Promise<string[] | undefined> {
+  if (!identity) {
+    return [];
+  }
+
+  if (identity.groupId !== undefined) {
+    return [identity.groupId];
+  }
+
+  if (identity.userId !== undefined) {
+    const isAdmin = await db.isUserSystemAdmin(identity.userId);
+    if (isAdmin) {
+      // What undefined means:
+      // - Caller should not apply any group filter (e.g. `where: { group_id: { in: ... } }`)
+      // - Admin users can see all records across all groups
+      return undefined;
+    }
+    const userGroups = await db.getUsersGroups(identity.userId);
+    return userGroups.map((ug) => ug.group_id);
+  }
+
+  return [];
+}
+
+/**
  * Asserts that the resolved identity has access to the specified group,
  * throwing an appropriate HTTP exception if access is denied.
  *
@@ -45,6 +91,10 @@ export async function identityCanAccessGroup(
   }
 
   if (identity.userId !== undefined) {
+    const isUserSystemAdmin = await db.isUserSystemAdmin(identity.userId);
+    if (isUserSystemAdmin) {
+      return;
+    }
     // TODO: Check role permissions here once the roles & claims system is implemented
     const isMember = await db.isUserInGroup(identity.userId, groupId);
     if (!isMember) {

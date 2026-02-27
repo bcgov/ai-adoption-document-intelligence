@@ -1,6 +1,58 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "@/database/database.service";
-import { identityCanAccessGroup } from "./identity.helpers";
+import { getIdentityGroupIds, identityCanAccessGroup } from "./identity.helpers";
+
+describe("getIdentityGroupIds", () => {
+  let mockDb: DatabaseService;
+
+  beforeEach(() => {
+    mockDb = {
+      getUsersGroups: jest.fn(),
+      isUserSystemAdmin: jest.fn(),
+    } as unknown as DatabaseService;
+  });
+
+  it("should return an empty array when identity is undefined", async () => {
+    const result = await getIdentityGroupIds(undefined, mockDb);
+    expect(result).toEqual([]);
+  });
+
+  it("should return a single-element array for an API key identity", async () => {
+    const result = await getIdentityGroupIds({ groupId: "group-abc" }, mockDb);
+    expect(result).toEqual(["group-abc"]);
+  });
+
+  it("should return undefined for a system-admin JWT user", async () => {
+    (mockDb.isUserSystemAdmin as jest.Mock).mockResolvedValue(true);
+    const result = await getIdentityGroupIds({ userId: "admin-id" }, mockDb);
+    expect(result).toBeUndefined();
+    expect(mockDb.isUserSystemAdmin).toHaveBeenCalledWith("admin-id");
+    expect(mockDb.getUsersGroups).not.toHaveBeenCalled();
+  });
+
+  it("should return mapped group IDs for a non-admin JWT user", async () => {
+    (mockDb.isUserSystemAdmin as jest.Mock).mockResolvedValue(false);
+    (mockDb.getUsersGroups as jest.Mock).mockResolvedValue([
+      { group_id: "group-1" },
+      { group_id: "group-2" },
+    ]);
+    const result = await getIdentityGroupIds({ userId: "user-abc" }, mockDb);
+    expect(result).toEqual(["group-1", "group-2"]);
+    expect(mockDb.getUsersGroups).toHaveBeenCalledWith("user-abc");
+  });
+
+  it("should return an empty array for a JWT user belonging to no groups", async () => {
+    (mockDb.isUserSystemAdmin as jest.Mock).mockResolvedValue(false);
+    (mockDb.getUsersGroups as jest.Mock).mockResolvedValue([]);
+    const result = await getIdentityGroupIds({ userId: "user-abc" }, mockDb);
+    expect(result).toEqual([]);
+  });
+
+  it("should return an empty array for an empty identity object", async () => {
+    const result = await getIdentityGroupIds({}, mockDb);
+    expect(result).toEqual([]);
+  });
+});
 
 describe("identityCanAccessGroup", () => {
   let mockDb: DatabaseService;

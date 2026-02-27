@@ -92,8 +92,8 @@ export class DatabaseService {
     return this.labelingDocumentDb.updateLabelingDocument(id, data);
   }
 
-  async findAllDocuments(): Promise<DocumentData[]> {
-    return this.documentDb.findAllDocuments();
+  async findAllDocuments(groupIds?: string[]): Promise<DocumentData[]> {
+    return this.documentDb.findAllDocuments(groupIds);
   }
 
   async updateDocument(
@@ -133,9 +133,9 @@ export class DatabaseService {
   }
 
   async findAllLabelingProjects(
-    userId?: string,
+    groupIds?: string[],
   ): Promise<LabelingProjectData[]> {
-    return this.labelingProjectDb.findAllLabelingProjects(userId);
+    return this.labelingProjectDb.findAllLabelingProjects(groupIds);
   }
 
   async updateLabelingProject(
@@ -254,6 +254,7 @@ export class DatabaseService {
     limit?: number;
     offset?: number;
     reviewStatus?: "pending" | "reviewed" | "all";
+    groupIds?: string[];
   }) {
     return this.reviewDb.findReviewQueue(filters);
   }
@@ -286,6 +287,7 @@ export class DatabaseService {
     startDate?: Date;
     endDate?: Date;
     reviewerId?: string;
+    groupIds?: string[];
   }) {
     return this.reviewDb.getReviewAnalytics(filters);
   }
@@ -364,6 +366,23 @@ export class DatabaseService {
           user_id: userId,
           group_id: groupId,
         },
+      },
+    });
+    return entry != null;
+  }
+
+  /**
+   * Checks whether a user holds the `system-admin` role.
+   *
+   * @param userId - The ID of the user to check.
+   * @returns `true` when the user has a UserRole record linked to a Role with
+   *   name `"system-admin"`, `false` otherwise.
+   */
+  async isUserSystemAdmin(userId: string): Promise<boolean> {
+    const entry = await this.prisma.userRole.findFirst({
+      where: {
+        user_id: userId,
+        role: { name: "system-admin" },
       },
     });
     return entry != null;

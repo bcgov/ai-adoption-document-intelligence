@@ -28,7 +28,10 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "@/auth/identity.helpers";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
@@ -177,19 +180,24 @@ export class DocumentController {
   // and align workflow query status contract. See: ./get-all-documents-fixes.md
   @Get()
   @HttpCode(HttpStatus.OK)
+  @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get all documents" })
   @ApiOkResponse({
     description: "Returns a list of all documents",
     type: [DocumentDataDto],
   })
-  async getAllDocuments(): Promise<
-    (DocumentData & { needsReview?: boolean })[]
-  > {
+  async getAllDocuments(
+    @Req() req: Request,
+  ): Promise<(DocumentData & { needsReview?: boolean })[]> {
     this.logger.debug("=== DocumentController.getAllDocuments ===");
 
     try {
-      const documents = await this.databaseService.findAllDocuments();
+      const groupIds = await getIdentityGroupIds(
+        req.resolvedIdentity,
+        this.databaseService,
+      );
+      const documents = await this.databaseService.findAllDocuments(groupIds);
 
       // Check workflow status for documents that have workflow_execution_id
       const documentsWithWorkflowStatus = await Promise.all(

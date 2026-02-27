@@ -65,11 +65,11 @@ export class LabelingProjectDbService {
   }
 
   async findAllLabelingProjects(
-    userId?: string,
+    groupIds?: string[],
   ): Promise<LabelingProjectData[]> {
     this.logger.debug("Finding all labeling projects");
     const projects = await this.prisma.labelingProject.findMany({
-      where: userId ? { created_by: userId } : undefined,
+      where: groupIds ? { group_id: { in: groupIds } } : undefined,
       orderBy: { updated_at: "desc" },
       include: {
         field_schema: { orderBy: { display_order: "asc" } },

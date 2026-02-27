@@ -26,6 +26,10 @@ describe("DocumentController", () => {
       updateDocument: jest.fn(),
       deleteDocument: jest.fn(),
       isUserInGroup: jest.fn().mockResolvedValue(true),
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+      getUsersGroups: jest
+        .fn()
+        .mockResolvedValue([{ group_id: mockGroupId }]),
     } as any;
     temporalClientService = {} as jest.Mocked<TemporalClientService>;
     blobStorage = {
@@ -42,17 +46,36 @@ describe("DocumentController", () => {
   });
 
   describe("getAllDocuments", () => {
-    it("should return all documents", async () => {
+    const mockReqWithIdentity = createMockReq();
+
+    it("should return documents for the user's groups", async () => {
       databaseService.findAllDocuments.mockResolvedValue([{ id: "1" } as any]);
-      const result = await controller.getAllDocuments();
+      const result = await controller.getAllDocuments(mockReqWithIdentity as any);
       expect(result).toEqual([{ id: "1" }]);
+      expect(databaseService.findAllDocuments).toHaveBeenCalledWith([mockGroupId]);
+    });
+
+    it("should return documents for an API key's group", async () => {
+      const apiKeyReq = createMockApiKeyReq();
+      databaseService.findAllDocuments.mockResolvedValue([{ id: "1" } as any]);
+      const result = await controller.getAllDocuments(apiKeyReq as any);
+      expect(result).toEqual([{ id: "1" }]);
+      expect(databaseService.findAllDocuments).toHaveBeenCalledWith([mockGroupId]);
+    });
+
+    it("should return empty array when there is no identity", async () => {
+      const noIdentityReq = { resolvedIdentity: undefined };
+      databaseService.findAllDocuments.mockResolvedValue([]);
+      const result = await controller.getAllDocuments(noIdentityReq as any);
+      expect(result).toEqual([]);
+      expect(databaseService.findAllDocuments).toHaveBeenCalledWith([]);
     });
 
     it("should throw NotFoundException on error", async () => {
       databaseService.findAllDocuments.mockRejectedValue(new Error("fail"));
-      await expect(controller.getAllDocuments()).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        controller.getAllDocuments(mockReqWithIdentity as any),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it("should update document status to failed when workflow has failed", async () => {
@@ -70,7 +93,7 @@ describe("DocumentController", () => {
         status: "FAILED",
       });
 
-      const result = await controller.getAllDocuments();
+      const result = await controller.getAllDocuments(mockReqWithIdentity as any);
 
       expect(temporalClientService.getWorkflowStatus).toHaveBeenCalledWith(
         "workflow-123",
@@ -95,7 +118,7 @@ describe("DocumentController", () => {
         status: "awaiting_review",
       });
 
-      const result = await controller.getAllDocuments();
+      const result = await controller.getAllDocuments(mockReqWithIdentity as any);
 
       expect(temporalClientService.getWorkflowStatus).toHaveBeenCalledWith(
         "workflow-123",

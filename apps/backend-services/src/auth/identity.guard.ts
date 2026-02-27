@@ -36,11 +36,6 @@ export class IdentityGuard implements CanActivate {
     } else if (request.user?.sub) {
       // JWT authentication path: resolve userId from the Passport-validated
       // user object. Group membership is determined by the service layer.
-      //
-      // TODO §9 — system-admin bypass: Once the roles & claims system is
-      // implemented, check for the `system-admin` role here and annotate
-      // `resolvedIdentity` accordingly so downstream helpers can skip the DB
-      // membership check.
       request.resolvedIdentity = { userId: request.user.sub };
     }
     // else: public route or unauthenticated request — skip identity resolution.

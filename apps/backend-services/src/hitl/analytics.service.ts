@@ -8,13 +8,14 @@ export class AnalyticsService {
 
   constructor(private readonly db: DatabaseService) {}
 
-  async getAnalytics(filters: AnalyticsFilterDto) {
+  async getAnalytics(filters: AnalyticsFilterDto, groupIds?: string[]) {
     this.logger.debug("Calculating analytics", filters);
 
     const analyticsData = await this.db.getReviewAnalytics({
       startDate: filters.startDate,
       endDate: filters.endDate,
       reviewerId: filters.reviewerId,
+      groupIds,
     });
 
     // Calculate average confidence from corrections

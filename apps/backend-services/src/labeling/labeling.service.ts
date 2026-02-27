@@ -38,9 +38,9 @@ export class LabelingService {
 
   // ========== PROJECT OPERATIONS ==========
 
-  async getProjects(userId?: string) {
+  async getProjects(groupIds?: string[]) {
     this.logger.debug("Getting all projects");
-    return this.db.findAllLabelingProjects(userId);
+    return this.db.findAllLabelingProjects(groupIds);
   }
 
   async createProject(dto: CreateProjectDto, userId: string) {

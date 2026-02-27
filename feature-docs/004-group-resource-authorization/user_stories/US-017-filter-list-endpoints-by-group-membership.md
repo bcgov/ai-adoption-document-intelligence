@@ -7,46 +7,46 @@
 ## Acceptance Criteria
 
 ### GET /api/documents
-- [ ] **Scenario 1**: Requestor only receives documents from their groups
+- [x] **Scenario 1**: Requestor only receives documents from their groups
     - **Given** a requestor who is a member of groups X and Y
     - **And** documents exist in groups X, Y, and Z
     - **When** the requestor calls `GET /api/documents`
     - **Then** only documents in groups X and Y are returned; group Z documents are excluded
 
-- [ ] **Scenario 2**: API key requestor only receives documents from their group
+- [x] **Scenario 2**: API key requestor only receives documents from their group
     - **Given** an API key scoped to group X
     - **And** documents exist in groups X and Y
     - **When** the requestor calls `GET /api/documents`
     - **Then** only documents in group X are returned
 
 ### GET /api/workflows
-- [ ] **Scenario 3**: Requestor only receives workflows from their groups
+- [x] **Scenario 3**: Requestor only receives workflows from their groups
     - **Given** a requestor who is a member of group X
     - **And** workflows exist in groups X and Y
     - **When** the requestor calls `GET /api/workflows`
     - **Then** only workflows in group X are returned
 
 ### GET /api/labeling/projects
-- [ ] **Scenario 4**: Requestor only receives labeling projects from their groups
+- [x] **Scenario 4**: Requestor only receives labeling projects from their groups
     - **Given** a requestor who is a member of group X
     - **And** labeling projects exist in groups X and Y
     - **When** the requestor calls `GET /api/labeling/projects`
     - **Then** only projects in group X are returned
 
 ### GET /api/hitl/queue and GET /api/hitl/queue/stats
-- [ ] **Scenario 5**: HITL queue is filtered to the requestor's groups
+- [x] **Scenario 5**: HITL queue is filtered to the requestor's groups
     - **Given** a requestor who is a member of group X
     - **And** review sessions exist for documents in groups X and Y
     - **When** the requestor calls `GET /api/hitl/queue` or `GET /api/hitl/queue/stats`
     - **Then** only sessions/counts belonging to group X documents are included
 
 ### GET /api/hitl/analytics
-- [ ] **Scenario 6**: HITL analytics are filtered to the requestor's groups
+- [x] **Scenario 6**: HITL analytics are filtered to the requestor's groups
     - **Given** a requestor who is a member of group X
     - **When** the requestor calls `GET /api/hitl/analytics`
     - **Then** only analytics data for group X documents and sessions is returned
 
-- [ ] **Scenario 7**: Unit tests cover group-scoped filtering for all list endpoints
+- [x] **Scenario 7**: Unit tests cover group-scoped filtering for all list endpoints
     - **Given** the group-filtering implementation
     - **When** unit tests are run
     - **Then** all list endpoints correctly include resources from the requestor's groups and exclude resources from non-member groups

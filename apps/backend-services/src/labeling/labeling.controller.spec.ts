@@ -85,7 +85,11 @@ describe("LabelingController", () => {
 
     databaseService = {
       isUserInGroup: jest.fn().mockResolvedValue(true),
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
       findLabelingDocument: jest.fn().mockResolvedValue(mockLabelingDocument),
+      getUsersGroups: jest
+        .fn()
+        .mockResolvedValue([{ group_id: "group-1" }]),
     } as unknown as jest.Mocked<DatabaseService>;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -107,6 +111,38 @@ describe("LabelingController", () => {
     }).compile();
 
     controller = module.get<LabelingController>(LabelingController);
+  });
+
+  describe("getProjects", () => {
+    it("returns projects for the user's groups (JWT)", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProjects.mockResolvedValue([mockProject as any]);
+      const result = await controller.getProjects(req);
+      expect(result).toEqual([mockProject]);
+      expect(labelingService.getProjects).toHaveBeenCalledWith(["group-1"]);
+    });
+
+    it("returns projects for an API key's group", async () => {
+      const req = {
+        resolvedIdentity: { groupId: "group-1" },
+      } as Request;
+      labelingService.getProjects.mockResolvedValue([mockProject as any]);
+      const result = await controller.getProjects(req);
+      expect(result).toEqual([mockProject]);
+      expect(labelingService.getProjects).toHaveBeenCalledWith(["group-1"]);
+    });
+
+    it("returns empty projects when user has no identity", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      labelingService.getProjects.mockResolvedValue([]);
+      const result = await controller.getProjects(req);
+      expect(result).toEqual([]);
+      expect(labelingService.getProjects).toHaveBeenCalledWith([]);
+    });
   });
 
   describe("createProject", () => {

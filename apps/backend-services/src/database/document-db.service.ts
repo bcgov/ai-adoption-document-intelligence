@@ -79,10 +79,11 @@ export class DocumentDbService {
     }
   }
 
-  async findAllDocuments(): Promise<DocumentData[]> {
+  async findAllDocuments(groupIds?: string[]): Promise<DocumentData[]> {
     this.logger.debug("Finding all documents");
     try {
       const documents = await this.prisma.document.findMany({
+        where: groupIds ? { group_id: { in: groupIds } } : undefined,
         orderBy: { created_at: "desc" },
       });
       this.logger.debug("Found %d documents", documents.length);

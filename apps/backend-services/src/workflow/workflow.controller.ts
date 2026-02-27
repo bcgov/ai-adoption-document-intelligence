@@ -23,7 +23,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { getIdentityGroupIds, identityCanAccessGroup } from "@/auth/identity.helpers";
 import { DatabaseService } from "@/database/database.service";
 import {
   ApiKeyAuth,
@@ -47,23 +47,25 @@ export class WorkflowController {
   @Get()
   @ApiKeyAuth()
   @KeycloakSSOAuth()
-  @ApiOperation({ summary: "List all workflows for the current user" })
+  @ApiOperation({ summary: "List all workflows for the current user's groups" })
   @ApiOkResponse({
     description:
-      "Returns the list of workflows owned by the authenticated user",
+      "Returns the list of workflows belonging to the authenticated user's groups",
     type: WorkflowListResponseDto,
   })
   async getWorkflows(
     @Req() req: Request,
   ): Promise<{ workflows: WorkflowInfo[] }> {
-    const user = req.user;
-    const userId = user?.sub as string;
+    const groupIds = await getIdentityGroupIds(
+      req.resolvedIdentity,
+      this.databaseService,
+    );
 
-    if (!userId) {
+    if (groupIds.length === 0) {
       return { workflows: [] };
     }
 
-    const workflows = await this.workflowService.getUserWorkflows(userId);
+    const workflows = await this.workflowService.getGroupWorkflows(groupIds);
     return { workflows };
   }
 

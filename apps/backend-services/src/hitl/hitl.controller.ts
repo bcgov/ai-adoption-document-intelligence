@@ -20,7 +20,10 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "@/auth/identity.helpers";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
@@ -57,8 +60,12 @@ export class HitlController {
     description: "Paginated list of documents requiring human review",
     type: QueueResponseDto,
   })
-  async getQueue(@Query() filters: QueueFilterDto) {
-    return this.hitlService.getQueue(filters);
+  async getQueue(@Query() filters: QueueFilterDto, @Req() req: Request) {
+    const groupIds = await getIdentityGroupIds(
+      req.resolvedIdentity,
+      this.databaseService,
+    );
+    return this.hitlService.getQueue(filters, groupIds);
   }
 
   @Get("queue/stats")
@@ -79,8 +86,13 @@ export class HitlController {
   })
   async getQueueStats(
     @Query("reviewStatus") reviewStatus?: ReviewStatusFilter,
+    @Req() req?: Request,
   ) {
-    return this.hitlService.getQueueStats(reviewStatus);
+    const groupIds = await getIdentityGroupIds(
+      req?.resolvedIdentity,
+      this.databaseService,
+    );
+    return this.hitlService.getQueueStats(reviewStatus, groupIds);
   }
 
   @Post("sessions")
@@ -269,7 +281,11 @@ export class HitlController {
       "Review analytics including correction rates and session summaries",
     type: AnalyticsResponseDto,
   })
-  async getAnalytics(@Query() filters: AnalyticsFilterDto) {
-    return this.hitlService.getAnalytics(filters);
+  async getAnalytics(@Query() filters: AnalyticsFilterDto, @Req() req: Request) {
+    const groupIds = await getIdentityGroupIds(
+      req.resolvedIdentity,
+      this.databaseService,
+    );
+    return this.hitlService.getAnalytics(filters, groupIds);
   }
 }

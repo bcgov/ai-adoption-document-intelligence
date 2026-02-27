@@ -616,14 +616,14 @@ describe("DatabaseService", () => {
       });
     });
 
-    it("should filter by userId when provided", async () => {
+    it("should filter by groupIds when provided", async () => {
       mockPrisma.labelingProject.findMany.mockResolvedValueOnce([
         defaultLabelingProject,
       ]);
-      const result = await service.findAllLabelingProjects("user-1");
+      const result = await service.findAllLabelingProjects(["group-1"]);
       expect(result).toEqual([defaultLabelingProject]);
       expect(mockPrisma.labelingProject.findMany).toHaveBeenCalledWith({
-        where: { created_by: "user-1" },
+        where: { group_id: { in: ["group-1"] } },
         orderBy: { updated_at: "desc" },
         include: {
           field_schema: { orderBy: { display_order: "asc" } },
@@ -1329,6 +1329,23 @@ describe("DatabaseService", () => {
           reviewer_id: "reviewer-1",
         },
       });
+    });
+  });
+
+  describe("isUserSystemAdmin", () => {
+    it("should return true when the user has the system-admin role", async () => {
+      mockPrisma.userRole = { findFirst: jest.fn().mockResolvedValueOnce({ user_id: "user-1", role_id: "role-1" }) };
+      const result = await service.isUserSystemAdmin("user-1");
+      expect(result).toBe(true);
+      expect(mockPrisma.userRole.findFirst).toHaveBeenCalledWith({
+        where: { user_id: "user-1", role: { name: "system-admin" } },
+      });
+    });
+
+    it("should return false when the user does not have the system-admin role", async () => {
+      mockPrisma.userRole = { findFirst: jest.fn().mockResolvedValueOnce(null) };
+      const result = await service.isUserSystemAdmin("user-1");
+      expect(result).toBe(false);
     });
   });
 });

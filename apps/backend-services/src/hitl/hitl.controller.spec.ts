@@ -48,8 +48,12 @@ describe("HitlController", () => {
 
     databaseService = {
       isUserInGroup: jest.fn().mockResolvedValue(true),
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
       findDocument: jest.fn().mockResolvedValue(mockDocument),
       findReviewSession: jest.fn().mockResolvedValue(mockSession),
+      getUsersGroups: jest
+        .fn()
+        .mockResolvedValue([{ group_id: "group-1" }]),
     } as unknown as jest.Mocked<DatabaseService>;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -67,6 +71,68 @@ describe("HitlController", () => {
     }).compile();
 
     controller = module.get<HitlController>(HitlController);
+  });
+
+  describe("getQueue", () => {
+    it("delegates to service with group IDs from JWT identity", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      const mockResult = { documents: [], total: 0 };
+      hitlService.getQueue.mockResolvedValue(mockResult as any);
+      const result = await controller.getQueue({} as any, req);
+      expect(result).toEqual(mockResult);
+      expect(hitlService.getQueue).toHaveBeenCalledWith({}, ["group-1"]);
+    });
+
+    it("delegates to service with group ID from API key identity", async () => {
+      const req = {
+        resolvedIdentity: { groupId: "group-1" },
+      } as Request;
+      hitlService.getQueue.mockResolvedValue({ documents: [], total: 0 } as any);
+      await controller.getQueue({} as any, req);
+      expect(hitlService.getQueue).toHaveBeenCalledWith({}, ["group-1"]);
+    });
+  });
+
+  describe("getQueueStats", () => {
+    it("delegates to service with group IDs from JWT identity", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      const mockResult = {
+        totalDocuments: 0,
+        requiresReview: 0,
+        averageConfidence: 0,
+        reviewedToday: 0,
+      };
+      hitlService.getQueueStats.mockResolvedValue(mockResult as any);
+      const result = await controller.getQueueStats(undefined, req);
+      expect(result).toEqual(mockResult);
+      expect(hitlService.getQueueStats).toHaveBeenCalledWith(undefined, ["group-1"]);
+    });
+  });
+
+  describe("getAnalytics", () => {
+    it("delegates to service with group IDs from JWT identity", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      const mockResult = { totalDocuments: 0 };
+      hitlService.getAnalytics.mockResolvedValue(mockResult as any);
+      const result = await controller.getAnalytics({} as any, req);
+      expect(result).toEqual(mockResult);
+      expect(hitlService.getAnalytics).toHaveBeenCalledWith({}, ["group-1"]);
+    });
+
+    it("delegates to service with empty groupIds when no identity", async () => {
+      const req = {
+        resolvedIdentity: undefined,
+      } as Request;
+      hitlService.getAnalytics.mockResolvedValue({} as any);
+      await controller.getAnalytics({} as any, req);
+      expect(hitlService.getAnalytics).toHaveBeenCalledWith({}, []);
+    });
   });
 
   describe("startSession", () => {

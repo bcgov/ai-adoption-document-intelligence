@@ -48,6 +48,7 @@ describe("WorkflowController", () => {
   beforeEach(async () => {
     workflowService = {
       getUserWorkflows: jest.fn(),
+      getGroupWorkflows: jest.fn(),
       getWorkflow: jest.fn(),
       createWorkflow: jest.fn(),
       updateWorkflow: jest.fn(),
@@ -56,6 +57,8 @@ describe("WorkflowController", () => {
 
     databaseService = {
       isUserInGroup: jest.fn().mockResolvedValue(true),
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+      getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "group-1" }]),
     } as unknown as jest.Mocked<DatabaseService>;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -76,19 +79,35 @@ describe("WorkflowController", () => {
   });
 
   describe("getWorkflows", () => {
-    it("returns empty array when user is not set", async () => {
-      const req = { user: undefined } as Request;
+    it("returns empty array when no identity is set", async () => {
+      const req = { resolvedIdentity: undefined } as Request;
       const result = await controller.getWorkflows(req);
       expect(result).toEqual({ workflows: [] });
-      expect(workflowService.getUserWorkflows).not.toHaveBeenCalled();
+      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
     });
 
-    it("returns workflows when user has sub", async () => {
-      const req = { user: { sub: "user-1" } } as Request;
-      workflowService.getUserWorkflows.mockResolvedValue([mockWorkflowInfo]);
+    it("returns empty array when user belongs to no groups", async () => {
+      const req = { resolvedIdentity: { userId: "user-1" } } as Request;
+      (databaseService.getUsersGroups as jest.Mock).mockResolvedValueOnce([]);
+      const result = await controller.getWorkflows(req);
+      expect(result).toEqual({ workflows: [] });
+      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
+    });
+
+    it("returns workflows for the user's groups", async () => {
+      const req = { resolvedIdentity: { userId: "user-1" } } as Request;
+      workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
       const result = await controller.getWorkflows(req);
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
-      expect(workflowService.getUserWorkflows).toHaveBeenCalledWith("user-1");
+      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(["group-1"]);
+    });
+
+    it("returns workflows for an API key's group", async () => {
+      const req = { resolvedIdentity: { groupId: "group-1" } } as Request;
+      workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
+      const result = await controller.getWorkflows(req);
+      expect(result).toEqual({ workflows: [mockWorkflowInfo] });
+      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(["group-1"]);
     });
   });
 

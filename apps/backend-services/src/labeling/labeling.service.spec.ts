@@ -163,14 +163,14 @@ describe("LabelingService", () => {
       expect(result).toEqual(projects);
     });
 
-    it("should return projects for specific user", async () => {
+    it("should return projects for specific groups", async () => {
       const projects = [mockProject];
       mockDbService.findAllLabelingProjects.mockResolvedValueOnce(projects);
 
-      const result = await service.getProjects("user-1");
+      const result = await service.getProjects(["group-1"]);
 
       expect(mockDbService.findAllLabelingProjects).toHaveBeenCalledWith(
-        "user-1",
+        ["group-1"],
       );
       expect(result).toEqual(projects);
     });
