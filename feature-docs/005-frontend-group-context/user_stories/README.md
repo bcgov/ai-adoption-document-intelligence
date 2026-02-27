@@ -17,7 +17,7 @@ User stories for **Frontend Group Context & Active Group Selector**.
 | # | Story | Status |
 |---|-------|--------|
 | US-002 | [Create `GroupContext` to Manage Active Group State](./US-002-group-context.md) | - [x] |
-| US-003 | [Add Searchable Group Selector to the App Header](./US-003-group-selector-ui.md) | - [ ] |
+| US-003 | [Add Searchable Group Selector to the App Header](./US-003-group-selector-ui.md) | - [x] |
 
 ---
 
