@@ -4,6 +4,7 @@ const mockWriteFile = jest.fn();
 const mockMkdir = jest.fn();
 const mockReadFile = jest.fn();
 const mockAccess = jest.fn();
+const mockUnlink = jest.fn();
 const mockFs = {
   mkdtemp: jest.fn(),
   rm: jest.fn(),
@@ -15,6 +16,7 @@ const mockFs = {
     mkdir: mockMkdir,
     readFile: mockReadFile,
     access: mockAccess,
+    unlink: mockUnlink,
   },
 };
 
@@ -114,6 +116,7 @@ describe("DatasetService", () => {
     mockWriteFile.mockResolvedValue(undefined);
     mockMkdir.mockResolvedValue(undefined);
     mockReadFile.mockRejectedValue(new Error("File not found")); // Default: no existing manifest
+    mockUnlink.mockResolvedValue(undefined);
   });
 
   // -----------------------------------------------------------------------
@@ -804,6 +807,73 @@ describe("DatasetService", () => {
         expect.stringContaining("dataset-manifest.json"),
         expect.stringContaining("sample-001"),
       );
+    });
+
+    it("cleans working directory when uploading to a new version with no prior gitRevision", async () => {
+      const mockDataset = {
+        id: "dataset-123",
+        repositoryUrl: "https://github.com/user/dataset.git",
+      };
+
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+
+      // version.gitRevision is null — first upload to a fresh version
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        ...mockVersionRecord,
+        gitRevision: null,
+      });
+
+      await service.uploadFilesToVersion("dataset-123", "version-abc", mockFiles, "user-123");
+
+      // Should have cleaned inputs and ground-truth directories
+      expect(mockRm).toHaveBeenCalledWith(
+        expect.stringContaining("inputs"),
+        { recursive: true, force: true },
+      );
+      expect(mockRm).toHaveBeenCalledWith(
+        expect.stringContaining("ground-truth"),
+        { recursive: true, force: true },
+      );
+      // Should have cleaned the manifest file
+      expect(mockUnlink).toHaveBeenCalledWith(
+        expect.stringContaining("dataset-manifest.json"),
+      );
+      // Should NOT have checked out any revision
+      expect(mockDvcService.checkout).not.toHaveBeenCalled();
+    });
+
+    it("does not clean working directory when uploading to a version with existing gitRevision", async () => {
+      const mockDataset = {
+        id: "dataset-123",
+        repositoryUrl: "https://github.com/user/dataset.git",
+      };
+
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockDvcService.cloneRepository.mockResolvedValue(undefined);
+
+      // version.gitRevision is set — incremental upload
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        ...mockVersionRecord,
+        gitRevision: "existing-sha-456",
+      });
+
+      // Reset mockRm to distinguish from cleanup calls
+      mockRm.mockClear();
+
+      await service.uploadFilesToVersion("dataset-123", "version-abc", mockFiles, "user-123");
+
+      // Should have checked out the existing revision instead of cleaning
+      expect(mockDvcService.checkout).toHaveBeenCalledWith(
+        expect.anything(),
+        "existing-sha-456",
+      );
+      // mockRm should only be called for temp dir cleanup (at the end), not for cleaning inputs/ground-truth
+      const rmCallArgs = mockRm.mock.calls.map((call: unknown[]) => call[0]);
+      const cleanupCalls = rmCallArgs.filter((arg: string) =>
+        arg.includes("inputs") || arg.includes("ground-truth"),
+      );
+      expect(cleanupCalls).toHaveLength(0);
     });
 
     it("throws NotFoundException when dataset not found", async () => {

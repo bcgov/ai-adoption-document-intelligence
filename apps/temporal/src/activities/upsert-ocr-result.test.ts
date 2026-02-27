@@ -16,6 +16,7 @@ describe('upsertOcrResult activity', () => {
     };
     document: {
       update: jest.Mock;
+      findUnique: jest.Mock;
     };
   };
 
@@ -26,6 +27,7 @@ describe('upsertOcrResult activity', () => {
       },
       document: {
         update: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue({ id: 'doc-1' }),
       },
     };
     getPrismaClientMock.mockReturnValue(prismaMock);
@@ -248,14 +250,45 @@ describe('upsertOcrResult activity', () => {
       processedAt: '2024-01-01T00:00:00Z',
     };
 
-    const fkError = new Error('Foreign key constraint violated');
-    Object.assign(fkError, { code: 'P2003' });
-    prismaMock.ocrResult.upsert.mockRejectedValue(fkError);
+    // Document not found — early exit before Prisma upsert
+    prismaMock.document.findUnique.mockResolvedValue(null);
 
     // Should NOT throw — just log and return
     await expect(
       upsertOcrResult({ documentId: 'benchmark-Receipt', ocrResult }),
     ).resolves.toBeUndefined();
+
+    // Should NOT have attempted the upsert at all
+    expect(prismaMock.ocrResult.upsert).not.toHaveBeenCalled();
+  });
+
+  it('proceeds normally for benchmark- prefixed docs that DO exist in DB', async () => {
+    const ocrResult: OCRResult = {
+      success: true,
+      status: 'succeeded',
+      apimRequestId: 'test-apim-id',
+      fileName: 'receipt.jpg',
+      fileType: 'image',
+      modelId: 'prebuilt-layout',
+      extractedText: 'Content',
+      pages: [],
+      tables: [],
+      paragraphs: [],
+      keyValuePairs: [],
+      sections: [],
+      figures: [],
+      documents: [],
+      processedAt: '2024-01-01T00:00:00Z',
+    };
+
+    // Document exists in DB
+    prismaMock.document.findUnique.mockResolvedValue({ id: 'benchmark-Receipt' });
+    prismaMock.ocrResult.upsert.mockResolvedValue({ id: 1, document_id: 'benchmark-Receipt' });
+    prismaMock.document.update.mockResolvedValue({ id: 'benchmark-Receipt', status: 'completed_ocr' });
+
+    await upsertOcrResult({ documentId: 'benchmark-Receipt', ocrResult });
+
+    expect(prismaMock.ocrResult.upsert).toHaveBeenCalled();
   });
 
   it('throws error when database operation fails', async () => {

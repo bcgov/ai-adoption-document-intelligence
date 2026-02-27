@@ -1,6 +1,10 @@
 import {
+  Accordion,
+  Badge,
   Button,
+  Code,
   Group,
+  List,
   Modal,
   Progress,
   rem,
@@ -8,7 +12,7 @@ import {
   Text,
 } from "@mantine/core";
 import { Dropzone } from "@mantine/dropzone";
-import { IconFile, IconUpload, IconX } from "@tabler/icons-react";
+import { IconFile, IconInfoCircle, IconUpload, IconX } from "@tabler/icons-react";
 import { useState } from "react";
 import { useDatasetUpload } from "../hooks/useDatasetUpload";
 
@@ -119,6 +123,56 @@ export function FileUploadDialog({
                 </div>
               </Group>
             </Dropzone>
+
+            <Accordion variant="contained" data-testid="upload-help-section">
+              <Accordion.Item value="help">
+                <Accordion.Control icon={<IconInfoCircle size={16} />}>
+                  <Text size="sm" fw={500}>How files are categorized &amp; paired</Text>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <Stack gap="xs">
+                    <div>
+                      <Text size="sm" fw={500} mb={4}>File categorization</Text>
+                      <Text size="sm" c="dimmed">
+                        Files are automatically categorized by type:
+                      </Text>
+                      <List size="sm" mt={4}>
+                        <List.Item>
+                          <Badge size="xs" variant="light" color="blue" mr={4}>Ground Truth</Badge>
+                          JSON, JSONL, CSV, XLSX, Parquet files
+                        </List.Item>
+                        <List.Item>
+                          <Badge size="xs" variant="light" color="gray" mr={4}>Input</Badge>
+                          Everything else (images, PDFs, etc.)
+                        </List.Item>
+                      </List>
+                    </div>
+                    <div>
+                      <Text size="sm" fw={500} mb={4}>Pairing ground truth with inputs</Text>
+                      <Text size="sm" c="dimmed">
+                        Ground truth files are paired with inputs by matching the <strong>sample ID</strong> —
+                        the filename without its extension, stripping any <Code>_gt</Code> suffix.
+                      </Text>
+                      <List size="sm" mt={4}>
+                        <List.Item>
+                          <Code>invoice-001.pdf</Code> → sample ID: <Code>invoice-001</Code>
+                        </List.Item>
+                        <List.Item>
+                          <Code>invoice-001_gt.json</Code> → sample ID: <Code>invoice-001</Code> (paired)
+                        </List.Item>
+                      </List>
+                    </div>
+                    <div>
+                      <Text size="sm" fw={500} mb={4}>Example</Text>
+                      <Text size="sm" c="dimmed">
+                        Uploading <Code>receipt.png</Code> and <Code>receipt_gt.json</Code> creates
+                        one sample with both an input document and ground truth.
+                      </Text>
+                    </div>
+                  </Stack>
+                </Accordion.Panel>
+              </Accordion.Item>
+            </Accordion>
 
             {selectedFiles.length > 0 && (
               <Stack gap="xs" data-testid="selected-files-list">

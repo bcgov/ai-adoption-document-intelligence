@@ -29,7 +29,7 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiService } from "@/data/services/api.service";
 import { FileUploadDialog } from "../components/FileUploadDialog";
-import { GroundTruthViewer } from "../components/GroundTruthViewer";
+import { SampleDetailViewer } from "../components/SampleDetailViewer";
 import { SplitManagement } from "../components/SplitManagement";
 import { ValidationReport } from "../components/ValidationReport";
 import { useDataset } from "../hooks/useDatasets";
@@ -54,6 +54,7 @@ export function DatasetDetailPage() {
     deleteVersionError,
     deleteSample,
     isDeletingSample,
+    deletingSampleId,
   } = useDatasetVersions(id || "");
 
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -72,6 +73,12 @@ export function DatasetDetailPage() {
     string,
     unknown
   > | null>(null);
+  const [selectedSample, setSelectedSample] = useState<{
+    id: string;
+    inputs: Array<{ path: string; mimeType: string }>;
+    groundTruth: Array<{ path: string; format: string }>;
+  } | null>(null);
+  const [isLoadingGroundTruth, setIsLoadingGroundTruth] = useState(false);
   const [validationDialogOpen, setValidationDialogOpen] = useState(false);
   const [deleteVersionDialogOpen, setDeleteVersionDialogOpen] = useState(false);
   const [versionToDelete, setVersionToDelete] = useState<{
@@ -181,9 +188,21 @@ export function DatasetDetailPage() {
 
   const handleViewGroundTruth = async (sampleId: string) => {
     const sample = samples.find((s) => s.id === sampleId);
-    if (sample?.groundTruth?.[0]?.path && selectedVersionId) {
+    if (!sample) return;
+
+    // Set sample info and open the viewer immediately
+    setSelectedSample({
+      id: sample.id,
+      inputs: sample.inputs,
+      groundTruth: sample.groundTruth,
+    });
+    setSelectedGroundTruth(null);
+    openGroundTruthViewer();
+
+    // Fetch ground truth content in the background if available
+    if (sample.groundTruth?.[0]?.path && selectedVersionId) {
+      setIsLoadingGroundTruth(true);
       try {
-        // Fetch the actual ground truth JSON from the API
         const response = await apiService.get<{
           sampleId: string;
           content: Record<string, unknown>;
@@ -192,11 +211,11 @@ export function DatasetDetailPage() {
         }>(
           `/benchmark/datasets/${id}/versions/${selectedVersionId}/samples/${sampleId}/ground-truth`,
         );
-
         setSelectedGroundTruth(response.data.content);
-        openGroundTruthViewer();
       } catch (error) {
         console.error("Error fetching ground truth:", error);
+      } finally {
+        setIsLoadingGroundTruth(false);
       }
     }
   };
@@ -476,7 +495,7 @@ export function DatasetDetailPage() {
                                         sample.id,
                                       )
                                     }
-                                    loading={isDeletingSample}
+                                    loading={isDeletingSample && deletingSampleId === sample.id}
                                     data-testid={`delete-sample-btn-${sample.id}`}
                                   >
                                     Delete
@@ -529,10 +548,18 @@ export function DatasetDetailPage() {
         }}
       />
 
-      <GroundTruthViewer
-        groundTruth={selectedGroundTruth}
+      <SampleDetailViewer
+        sampleId={selectedSample?.id ?? null}
+        inputs={selectedSample?.inputs ?? []}
+        groundTruthFiles={selectedSample?.groundTruth ?? []}
+        groundTruthContent={selectedGroundTruth}
+        isLoadingGroundTruth={isLoadingGroundTruth}
         opened={groundTruthViewerOpen}
-        onClose={closeGroundTruthViewer}
+        onClose={() => {
+          closeGroundTruthViewer();
+          setSelectedSample(null);
+          setSelectedGroundTruth(null);
+        }}
       />
 
       <Modal

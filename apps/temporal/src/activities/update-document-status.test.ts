@@ -11,6 +11,7 @@ describe('updateDocumentStatus activity', () => {
   let prismaMock: {
     document: {
       update: jest.Mock;
+      findUnique: jest.Mock;
     };
   };
 
@@ -18,6 +19,7 @@ describe('updateDocumentStatus activity', () => {
     prismaMock = {
       document: {
         update: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue({ id: 'doc-1' }),
       },
     };
     getPrismaClientMock.mockReturnValue(prismaMock);
@@ -76,7 +78,31 @@ describe('updateDocumentStatus activity', () => {
     );
   });
 
-  it('skips gracefully when document not found (P2025 - benchmark mode)', async () => {
+  it('skips gracefully when benchmark-mode document not found in DB (early check)', async () => {
+    // Document not found — early exit before Prisma update
+    prismaMock.document.findUnique.mockResolvedValue(null);
+
+    // Should NOT throw — just log and return
+    await expect(
+      updateDocumentStatus({ documentId: 'benchmark-Receipt', status: 'ongoing_ocr' }),
+    ).resolves.toBeUndefined();
+
+    // Should NOT have attempted the update at all
+    expect(prismaMock.document.update).not.toHaveBeenCalled();
+  });
+
+  it('proceeds normally for benchmark- prefixed docs that DO exist in DB', async () => {
+    prismaMock.document.findUnique.mockResolvedValue({ id: 'benchmark-Receipt' });
+    prismaMock.document.update.mockResolvedValue({ id: 'benchmark-Receipt', status: 'ongoing_ocr' });
+
+    await updateDocumentStatus({ documentId: 'benchmark-Receipt', status: 'ongoing_ocr' });
+
+    expect(prismaMock.document.update).toHaveBeenCalled();
+  });
+
+  it('skips gracefully when document not found (P2025 - benchmark mode fallback)', async () => {
+    // Document exists at early check time but disappears by the time update runs
+    prismaMock.document.findUnique.mockResolvedValue({ id: 'benchmark-Receipt' });
     const prismaNotFound = new Error('Record to update not found');
     Object.assign(prismaNotFound, { code: 'P2025' });
     prismaMock.document.update.mockRejectedValue(prismaNotFound);

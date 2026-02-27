@@ -35,8 +35,11 @@ progressive disclosure — Claude loads only what each task needs:
 
 **SKILL.md** — frontmatter + routing table + always-follow rules
 - `name`: kebab-case skill name
-- `description`: what it does, exact trigger phrases, and explicit 
-  exclusions ("Do NOT invoke for...")
+- `description`: what it does, exact trigger phrases, and explicit
+  exclusions ("Do NOT invoke for...").
+  **IMPORTANT:** The description MUST be a single-line quoted string, NOT a YAML
+  multiline block (`>` or `|`). Multiline descriptions break skill detection.
+  Example: `description: "Does X. Trigger phrases: a, b. Do NOT invoke for: c."`
 - Body: index of Workflows with links, and any rules that apply 
   to ALL workflows
 

@@ -268,7 +268,7 @@ export function CreateDefinitionDialog({
 
         <Select
           label={
-            <Group gap={4}>
+            <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
               <Text size="sm" fw={500}>Evaluator Type</Text>
               <Tooltip
                 label="Determines how workflow outputs are compared to ground truth. Schema-Aware compares structured JSON fields. Black-Box treats the evaluator as an opaque scoring function."
@@ -289,7 +289,7 @@ export function CreateDefinitionDialog({
         <Stack gap={4}>
           <Textarea
             label={
-              <Group gap={4}>
+              <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
                 <Text size="sm" fw={500}>Evaluator Config (JSON)</Text>
                 <Tooltip
                   label="Optional JSON configuration passed to the evaluator. Keys depend on the evaluator type."
@@ -343,7 +343,7 @@ export function CreateDefinitionDialog({
 
         <Radio.Group
           label={
-            <Group gap={4}>
+            <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
               <Text size="sm" fw={500}>Use Production Queue</Text>
               <Tooltip
                 label="When enabled, benchmark documents are processed on the production task queue instead of a dedicated benchmark queue. Useful for measuring real-world throughput, but may affect production traffic."
@@ -366,7 +366,7 @@ export function CreateDefinitionDialog({
 
         <Radio.Group
           label={
-            <Group gap={4}>
+            <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
               <Text size="sm" fw={500}>Artifact Policy</Text>
               <Tooltip
                 label="Controls which run outputs are stored. 'Full' saves all outputs, 'Failures Only' saves outputs only for failing samples, 'Sampled' saves a random subset."

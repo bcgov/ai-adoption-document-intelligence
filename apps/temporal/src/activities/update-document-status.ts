@@ -25,6 +25,26 @@ export async function updateDocumentStatus(params: {
   try {
     const prisma = getPrismaClient();
 
+    // In benchmark mode, the documentId has a "benchmark-" prefix and no
+    // corresponding document record exists in the DB.  Detect this early and
+    // skip the Prisma operation to avoid noisy P2025 error logs.
+    if (documentId.startsWith('benchmark-')) {
+      const doc = await prisma.document.findUnique({ where: { id: documentId }, select: { id: true } });
+      if (!doc) {
+        const duration = Date.now() - startTime;
+        console.log(JSON.stringify({
+          activity: activityName,
+          event: 'skipped',
+          reason: 'benchmark_mode_no_document',
+          documentId,
+          status,
+          durationMs: duration,
+          timestamp: new Date().toISOString(),
+        }));
+        return;
+      }
+    }
+
     const updateData: Record<string, unknown> = {
       status: status as unknown, // Cast to DocumentStatus enum
     };

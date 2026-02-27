@@ -172,6 +172,9 @@ export const useDatasetVersions = (datasetId: string) => {
     deleteVersionError: deleteVersionMutation.error,
     deleteSample: deleteSampleMutation.mutate,
     isDeletingSample: deleteSampleMutation.isPending,
+    deletingSampleId: deleteSampleMutation.isPending
+      ? deleteSampleMutation.variables?.sampleId ?? null
+      : null,
   };
 };
 

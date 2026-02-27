@@ -136,18 +136,55 @@ When creating a benchmark definition, a split is no longer required. If no split
 
 ## File Categorization
 
-Files are categorized by MIME type:
+Files are categorized by MIME type and extension:
 
-| Category | MIME Types |
-|----------|-----------|
-| Ground Truth | `application/json`, `text/csv`, `text/xml`, `application/xml` |
+| Category | MIME Types / Extensions |
+|----------|------------------------|
+| Ground Truth | `application/json`, `application/x-ndjson`, `text/csv`, `application/vnd.ms-excel`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` — and file extensions `.json`, `.jsonl`, `.csv`, `.xlsx`, `.parquet` |
 | Input | Everything else (images, PDFs, etc.) |
 
 ## Sample Grouping
 
-Files are grouped into samples by extracting a sample ID from the filename. The sample ID is the filename without its extension and any `_gt` suffix. For example:
-- `sample-001.pdf` → sample ID: `sample-001`
-- `sample-001_gt.json` → sample ID: `sample-001`
+Files are grouped into samples by extracting a sample ID from the filename:
+
+1. **Extension stripped** — `sample-001.pdf` → `sample-001`
+2. **Ground-truth suffixes stripped** — `_gt`, `_ground_truth`, `_groundtruth`, `_expected`, `_label` (case-insensitive) are removed. E.g. `invoice-001_gt.json` → `invoice-001`
+
+### Pairing Examples
+
+| Uploaded Files | Derived Sample ID | Result |
+|----------------|-------------------|--------|
+| `invoice-001.pdf` + `invoice-001_gt.json` | `invoice-001` | One sample with one input and one ground truth |
+| `receipt.png` | `receipt` | One sample with one input, no ground truth |
+| `doc.pdf` + `doc_expected.csv` | `doc` | One sample with input + ground truth |
+
+### Duplicate Filename Handling
+
+Duplicate handling occurs at **two levels**:
+
+#### Level 1: Filesystem Deduplication
+
+When two files have the **same filename** and both fall into the same category (both inputs or both ground truths), the second file is renamed with a numeric suffix to prevent overwrites:
+- Upload `report.pdf` twice → `report.pdf` + `report_2.pdf`
+- Upload `data.json` twice → `data.json` + `data_2.json`
+
+The counter increments (`_3`, `_4`, ...) as needed to find a unique filename.
+
+#### Level 2: Sample ID Deduplication
+
+After files are written to disk, the system groups them by derived sample ID. If two files produce the same sample ID **and** are of the same type (both inputs, or both ground truths), the second one gets a new sample ID with a numeric suffix:
+- `report.pdf` (input, sample `report`) + `report_2.pdf` (input, sample `report`) → sample `report` gets the first file, sample `report_2` gets the second
+
+However, if the two files are **naturally paired** (one input, one ground truth), they merge into a single sample:
+- `report.pdf` (input, sample `report`) + `report_gt.json` (ground truth, sample `report`) → both in sample `report`
+
+#### Incremental Upload Merging
+
+When uploading to a version that already has files (incremental upload), new files whose derived sample ID matches an existing sample in the manifest are **merged** into that existing sample. This allows you to upload ground truth files separately from input files.
+
+### Version Cleanup on Re-creation
+
+When a version is deleted and a new version is created, the new version starts completely empty. On the first upload to a new version, the system cleans the `inputs/`, `ground-truth/` directories and the `dataset-manifest.json` from the git working directory before writing new files. This prevents stale files from previously deleted versions from leaking into the new version.
 
 ## Key Files
 

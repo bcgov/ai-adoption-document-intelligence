@@ -628,9 +628,31 @@ export class DatasetService {
     }
 
     try {
-      // If version already has a git revision, check it out
+      // If version already has a git revision, check it out (incremental upload)
       if (version.gitRevision) {
         await this.dvcService.checkout(workingDir, version.gitRevision);
+      } else {
+        // First upload to a new version — clean the working directory so it
+        // does not inherit stale files from previously deleted versions whose
+        // commits are still on the main branch.
+        const inputsDirClean = path.join(workingDir, "inputs");
+        const groundTruthDirClean = path.join(workingDir, "ground-truth");
+        const manifestFileClean = path.join(workingDir, "dataset-manifest.json");
+
+        for (const target of [inputsDirClean, groundTruthDirClean]) {
+          try {
+            await rm(target, { recursive: true, force: true });
+            this.logger.debug(`Cleaned directory for new version: ${target}`);
+          } catch {
+            // Directory may not exist yet — that's fine
+          }
+        }
+        try {
+          await fs.promises.unlink(manifestFileClean);
+          this.logger.debug("Cleaned manifest for new version");
+        } catch {
+          // Manifest may not exist yet — that's fine
+        }
       }
 
       // Create inputs and ground-truth directories if they don't exist
