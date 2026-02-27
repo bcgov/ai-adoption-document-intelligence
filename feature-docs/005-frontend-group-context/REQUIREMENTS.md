@@ -134,29 +134,99 @@ Only the hooks that **explicitly pass `group_id`** in a request body or query pa
 
 ### 6.2 Hooks to Update
 
-#### `useDocuments` (or related upload hooks)
+#### Backend — `GET /api/documents` optional `group_id` filter
+Currently the endpoint returns documents across all groups the user belongs to:
+- The `GET /api/documents` endpoint must accept an optional `group_id` query parameter.
+- When provided, the controller must verify the requesting identity is a member of that group (via `identityCanAccessGroup`) and pass only `[group_id]` to the database query.
+- When omitted, behaviour is unchanged (all groups the identity belongs to).
+
+#### `useDocuments` — active group filter
+The `useDocuments` hook fetches all documents without a group filter. It must:
+- Read `activeGroup` from `GroupContext`.
+- When `activeGroup` is set, pass `group_id=<activeGroup.id>` as a query param to `GET /api/documents`.
+- Include `activeGroup.id` in the `queryKey` so the list automatically refreshes when the active group changes.
+
+#### `useDocuments` (or related upload hooks) — document upload
 The document upload flow sends `group_id` as part of `UploadDocumentDto`:
 - The upload hook / upload component must read `activeGroup.id` from `GroupContext` and include it as `group_id` in the upload request body.
 - If `activeGroup` is `null`, the upload action must be **disabled** (button greyed out) with a tooltip explaining that a group must be selected.
+
+#### Backend — `GET /api/workflows` optional `groupId` filter
+Currently the endpoint returns workflows across all groups the user belongs to:
+- The `GET /api/workflows` endpoint must accept an optional `groupId` query parameter.
+- When provided, the controller must verify the requesting identity is a member of that group (via `identityCanAccessGroup`) and pass only `[groupId]` to the service.
+- When omitted, behaviour is unchanged (all groups the identity belongs to).
+
+#### `useWorkflows` — active group filter
+The `useWorkflows` hook fetches all workflows without a group filter. It must:
+- Read `activeGroup` from `GroupContext`.
+- When `activeGroup` is set, pass `groupId=<activeGroup.id>` as a query param to `GET /api/workflows`.
+- Include `activeGroup.id` in the `queryKey` so the list automatically refreshes when the active group changes.
 
 #### `useWorkflows` — `useCreateWorkflow`
 `POST /api/workflows` requires `groupId` in the request body (`CreateWorkflowDto`):
 - `useCreateWorkflow` must read `activeGroup.id` from `GroupContext` and inject it as `groupId` automatically—callers do not pass `groupId` explicitly.
 - If `activeGroup` is `null`, the create mutation throws / returns an error before calling the API.
 
-### 6.3 Hooks NOT in Scope
-The following hooks use GET-all endpoints where the backend already scopes to the user's groups via their identity—no frontend group parameter is required:
-- `useDocuments` (GET list)
-- `useWorkflows` (GET list, GET by id)
-- Document detail / delete / update (scoped by document's own `group_id`)
-- HITL, training, labeling hooks (group is derived from the resource's stored `group_id`)
+#### `ClassifierPage` / `CreateClassifierModal` — Classifier creation group
+`POST /azure/classifier` requires `group_id` in the request body. The `ClassifierPage` currently has hardcoded placeholder group options and a group-selector dropdown inside `CreateClassifierModal`:
+- Remove the hardcoded `groupOptions` from `ClassifierPage.tsx`.
+- Remove the `groupOptions` prop from `CreateClassifierModal` and the Group dropdown within it.
+- `createClassifier` mutation must read `activeGroup.id` from `GroupContext` and include it as `group_id` automatically — the caller does not provide it.
+- If `activeGroup` is `null`, the "Create new model" button must be disabled.
 
-> **Note:** `useClassifier` already passes `group_id` in its calls and is out of scope.
+#### Backend — `GET /api/labeling/projects` optional `group_id` filter
+Currently the endpoint returns all projects across all groups the user belongs to. To match the active-group UX pattern:
+- The `GET /api/labeling/projects` endpoint must accept an optional `group_id` query parameter.
+- When provided, the controller must verify the requesting identity is a member of that group (via `identityCanAccessGroup`) and return only projects for that group.
+- When omitted, behaviour is unchanged (all groups the identity belongs to).
+
+#### `useProjects` — `projectsQuery` active group filter
+The `useProjects` hook fetches labeling projects without a group filter. It must:
+- Read `activeGroup` from `GroupContext`.
+- When `activeGroup` is set, pass `group_id=<activeGroup.id>` as a query param to `GET /api/labeling/projects`.
+- Include `activeGroup.id` in the `queryKey` so the list automatically refreshes when the active group changes.
+
+#### `useProjects` — `createProjectMutation` active group injection
+`POST /api/labeling/projects` requires `group_id` in the body (`CreateProjectDto`). The current frontend `CreateProjectDto` interface and mutation do not include it:
+- Update the frontend `CreateProjectDto` interface to include `group_id: string`.
+- `createProjectMutation` must read `activeGroup.id` from `GroupContext` and inject it as `group_id` automatically — callers do not pass `group_id` explicitly.
+- If `activeGroup` is `null`, the create mutation must throw / return an error before calling the API.
+- The "New Project" button on `ProjectListPage` must be disabled when `activeGroup` is `null`.
+
+#### `useApiKey` hooks — API key management
+All four API key management endpoints require a `groupId` that identifies which group the key belongs to. The current hooks send nothing:
+
+| Hook | Endpoint | `groupId` location | Current state |
+|---|---|---|---|
+| `useApiKey` | `GET /api/api-key` | query param | missing |
+| `useGenerateApiKey` | `POST /api/api-key` | request body | missing (sends `{}`) |
+| `useDeleteApiKey` | `DELETE /api/api-key` | request body | missing |
+| `useRegenerateApiKey` | `POST /api/api-key/regenerate` | request body | missing (sends `{}`) |
+
+Required changes:
+- All four hooks must read `activeGroup.id` from `GroupContext` and inject it as `groupId` automatically — callers do not pass `groupId`.
+- `useApiKey` (GET) must include `groupId=<activeGroup.id>` as a query param and include `activeGroup.id` in the `queryKey` so it refreshes when the active group changes.
+- `useGenerateApiKey`, `useDeleteApiKey`, and `useRegenerateApiKey` must include `{ groupId: activeGroup.id }` in the request body automatically.
+- If `activeGroup` is `null`, all four hooks must throw / return an error before calling the API, and any UI controls that trigger them must be disabled.
+
+### 6.3 Hooks NOT in Scope
+The following hooks operate on individual resources or endpoints where the resource's own stored `group_id` already provides scoping—no active-group parameter is needed:
+- `useWorkflow` (GET by id — scoped by the workflow's own `group_id`)
+- Document detail / delete / update (scoped by document's own `group_id`)
+- HITL and training hooks (group is derived from the resource's stored `group_id`)
+- `useClassifier` for read/update/delete operations (group is already carried in the classifier model's `group_id`)
 
 ### 6.4 Acceptance Criteria
-- `useCreateWorkflow` automatically includes `activeGroup.id` as `groupId` without callers needing to pass it.
+- `useDocuments` (GET list) passes `activeGroup.id` as `group_id` and refreshes when the active group changes.
 - Document upload automatically includes `activeGroup.id` as `group_id`.
-- When `activeGroup` is `null`, upload and workflow creation are gracefully blocked (not silent failures).
+- `useWorkflows` (GET list) passes `activeGroup.id` as `groupId` and refreshes when the active group changes.
+- `useCreateWorkflow` automatically includes `activeGroup.id` as `groupId` without callers needing to pass it.
+- `createClassifier` mutation automatically includes `activeGroup.id` as `group_id`; the `CreateClassifierModal` no longer contains a group selector.
+- `useProjects` list query passes `activeGroup.id` as `group_id` and refreshes when the active group changes.
+- `createProjectMutation` automatically includes `activeGroup.id` as `group_id`; callers do not pass `group_id`.
+- All four `useApiKey` hooks automatically inject `activeGroup.id` as `groupId` without callers providing it; the GET query key includes `activeGroup.id`.
+- When `activeGroup` is `null`, upload, workflow creation, classifier creation, project creation, and all API key operations are gracefully blocked (not silent failures).
 - No other hook interfaces change.
 
 ---
@@ -176,8 +246,7 @@ The following hooks use GET-all endpoints where the backend already scopes to th
 ## 8. Out of Scope
 
 - Approving/denying membership requests from within this UI (handled in a subsequent ticket).
-- Changing the GET-all endpoints to accept an explicit group filter query param.
-- API key authentication paths (group context applies only to Keycloak SSO users). This should not be needed for frontend changes, as frontend operations do not user the API key authentication option.
+- API key authentication paths (group context applies only to Keycloak SSO users). This should not be needed for frontend changes, as frontend operations do not use the API key authentication option.
 
 ---
 
