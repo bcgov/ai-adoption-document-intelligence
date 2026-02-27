@@ -67,6 +67,8 @@ interface CreateRunDto {
 }
 
 export const useRuns = (projectId: string) => {
+  const queryClient = useQueryClient();
+
   const runsQuery = useQuery({
     queryKey: ["benchmark-runs", projectId],
     queryFn: async () => {
@@ -78,10 +80,25 @@ export const useRuns = (projectId: string) => {
     enabled: !!projectId,
   });
 
+  const deleteRunMutation = useMutation({
+    mutationFn: async (runId: string) => {
+      await apiService.delete(
+        `/benchmark/projects/${projectId}/runs/${runId}`,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-runs", projectId],
+      });
+    },
+  });
+
   return {
     runs: runsQuery.data || [],
     isLoading: runsQuery.isLoading,
     error: runsQuery.error,
+    deleteRun: deleteRunMutation.mutate,
+    isDeletingRun: deleteRunMutation.isPending,
   };
 };
 
@@ -315,6 +332,7 @@ interface PerSampleResult {
   sampleId: string;
   metadata: Record<string, unknown>;
   metrics: Record<string, number>;
+  pass: boolean;
   diagnostics?: Record<string, unknown>;
   groundTruth?: unknown;
   prediction?: unknown;

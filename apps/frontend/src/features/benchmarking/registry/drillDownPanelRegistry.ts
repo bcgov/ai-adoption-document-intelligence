@@ -8,6 +8,7 @@ export interface DrillDownPanelProps {
   sampleId: string;
   metadata: Record<string, unknown>;
   metrics: Record<string, number>;
+  pass: boolean;
   groundTruth?: unknown;
   prediction?: unknown;
   evaluationDetails?: unknown;

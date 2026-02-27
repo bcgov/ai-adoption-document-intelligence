@@ -59,7 +59,7 @@ interface DefinitionDetails {
   projectId: string;
   name: string;
   datasetVersion: DatasetVersionInfo;
-  split: SplitInfo;
+  split?: SplitInfo;
   workflow: WorkflowInfo;
   workflowConfigHash: string;
   evaluatorType: string;
@@ -131,12 +131,30 @@ export const useDefinitions = (projectId: string) => {
     },
   });
 
+  const deleteDefinitionMutation = useMutation({
+    mutationFn: async (definitionId: string) => {
+      await apiService.delete(
+        `/benchmark/projects/${projectId}/definitions/${definitionId}`,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-definitions", projectId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-project", projectId],
+      });
+    },
+  });
+
   return {
     definitions: definitionsQuery.data || [],
     isLoading: definitionsQuery.isLoading,
     error: definitionsQuery.error,
     createDefinition: createDefinitionMutation.mutate,
     isCreating: createDefinitionMutation.isPending,
+    deleteDefinition: deleteDefinitionMutation.mutate,
+    isDeletingDefinition: deleteDefinitionMutation.isPending,
   };
 };
 

@@ -15,13 +15,20 @@ import { useDatasetUpload } from "../hooks/useDatasetUpload";
 interface FileUploadDialogProps {
   datasetId: string;
   versionId: string;
+  /** Optional version label (e.g. "v3") to display in the dialog title */
+  versionLabel?: string;
   opened: boolean;
   onClose: () => void;
 }
 
+/**
+ * Dialog for uploading files to a specific dataset version.
+ * @param props - FileUploadDialogProps
+ */
 export function FileUploadDialog({
   datasetId,
   versionId,
+  versionLabel,
   opened,
   onClose,
 }: FileUploadDialogProps) {
@@ -52,7 +59,7 @@ export function FileUploadDialog({
     <Modal
       opened={opened}
       onClose={handleClose}
-      title="Upload Files"
+      title={versionLabel ? `Upload Files to ${versionLabel}` : "Upload Files"}
       size="lg"
       data-testid="upload-files-dialog"
     >

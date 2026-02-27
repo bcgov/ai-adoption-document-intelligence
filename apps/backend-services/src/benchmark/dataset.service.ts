@@ -641,19 +641,41 @@ export class DatasetService {
 
       const uploadedFiles: UploadedFileDto[] = [];
 
+      // Track filenames per directory to detect and deduplicate collisions
+      const usedFilenames: Record<string, Set<string>> = {
+        inputs: new Set<string>(),
+        "ground-truth": new Set<string>(),
+      };
+
       // Process each file
       for (const file of files) {
         const isGroundTruth = this.isGroundTruthFile(file);
         const targetDir = isGroundTruth ? groundTruthDir : inputsDir;
-        const relativePath = isGroundTruth
-          ? `ground-truth/${file.originalname}`
-          : `inputs/${file.originalname}`;
-        const targetPath = path.join(targetDir, file.originalname);
+        const dirKey = isGroundTruth ? "ground-truth" : "inputs";
+
+        // Deduplicate filename if it already exists in this directory
+        let finalFilename = file.originalname;
+        if (usedFilenames[dirKey].has(finalFilename)) {
+          const extMatch = finalFilename.match(/(\.[^.]+)$/);
+          const ext = extMatch ? extMatch[1] : "";
+          const nameWithoutExt = ext
+            ? finalFilename.slice(0, -ext.length)
+            : finalFilename;
+          let counter = 2;
+          while (usedFilenames[dirKey].has(`${nameWithoutExt}_${counter}${ext}`)) {
+            counter++;
+          }
+          finalFilename = `${nameWithoutExt}_${counter}${ext}`;
+        }
+        usedFilenames[dirKey].add(finalFilename);
+
+        const relativePath = `${dirKey}/${finalFilename}`;
+        const targetPath = path.join(targetDir, finalFilename);
 
         await fs.promises.writeFile(targetPath, file.buffer);
 
         uploadedFiles.push({
-          filename: file.originalname,
+          filename: finalFilename,
           path: relativePath,
           size: file.size,
           mimeType: file.mimetype,
@@ -688,7 +710,8 @@ export class DatasetService {
       }
 
       // Update manifest with new file references
-      const filesBySample = this.groupFilesBySampleId(uploadedFiles);
+      const existingSampleIds = new Set(manifest.samples.map((s) => s.id));
+      const filesBySample = this.groupFilesBySampleId(uploadedFiles, existingSampleIds);
 
       for (const [sampleId, sampleFiles] of Object.entries(filesBySample)) {
         let sample = manifest.samples.find((s) => s.id === sampleId);
@@ -1406,22 +1429,71 @@ export class DatasetService {
    *   "invoice-001.pdf"       → sample "invoice-001"
    *   "invoice-001_gt.json"   → sample "invoice-001"
    */
+  /**
+   * Group uploaded files by derived sample ID.
+   * When multiple files produce the same sample ID (e.g. duplicate filenames),
+   * numeric suffixes (_2, _3, ...) are appended to disambiguate, unless the files
+   * are naturally paired (input + ground-truth) for the same sample.
+   * @param files - Array of uploaded file DTOs
+   * @param existingSampleIds - Set of sample IDs already in the manifest
+   * @returns Record mapping sample IDs to their associated files
+   */
   private groupFilesBySampleId(
     files: UploadedFileDto[],
+    existingSampleIds: Set<string> = new Set(),
   ): Record<string, UploadedFileDto[]> {
     const groups: Record<string, UploadedFileDto[]> = {};
+    // Track how many times each raw sampleId has appeared to detect duplicates
+    const sampleIdCounts: Record<string, number> = {};
+    // Track which file paths have already been assigned to prevent double-counting
+    const assignedPaths: Set<string> = new Set();
 
     for (const file of files) {
       // Strip file extension, then strip ground-truth suffixes
       const baseName = file.filename.replace(/\.[^.]+$/, "");
-      const sampleId =
+      let sampleId =
         baseName.replace(/(_gt|_ground[-_]?truth|_expected|_label)$/i, "") ||
         baseName;
+
+      // Check if this exact file path is already assigned (true duplicate)
+      if (assignedPaths.has(file.path)) {
+        continue;
+      }
+
+      // If this sampleId already has files in this batch, check if this is
+      // a natural pair (e.g. input + ground-truth) or a genuine duplicate
+      if (groups[sampleId]) {
+        const existingPaths = groups[sampleId].map((f) => f.path);
+        const thisIsInput = file.path.startsWith("inputs/");
+        const thisIsGt = file.path.startsWith("ground-truth/");
+        const hasInput = existingPaths.some((p) => p.startsWith("inputs/"));
+        const hasGt = existingPaths.some((p) => p.startsWith("ground-truth/"));
+
+        // If this file type already exists in the group, it's a duplicate
+        const isDuplicate =
+          (thisIsInput && hasInput) || (thisIsGt && hasGt);
+
+        if (isDuplicate) {
+          // Allocate a new unique sampleId with numeric suffix
+          sampleIdCounts[sampleId] = (sampleIdCounts[sampleId] || 1) + 1;
+          let candidateId = `${sampleId}_${sampleIdCounts[sampleId]}`;
+          while (groups[candidateId] || existingSampleIds.has(candidateId)) {
+            sampleIdCounts[sampleId]++;
+            candidateId = `${sampleId}_${sampleIdCounts[sampleId]}`;
+          }
+          sampleId = candidateId;
+        }
+      } else if (existingSampleIds.has(sampleId)) {
+        // sampleId collision with existing manifest — check if we should merge
+        // For new uploads that collide with existing samples, just merge into existing
+        // (the caller handles merging by finding the sample in the manifest)
+      }
 
       if (!groups[sampleId]) {
         groups[sampleId] = [];
       }
       groups[sampleId].push(file);
+      assignedPaths.add(file.path);
     }
 
     return groups;

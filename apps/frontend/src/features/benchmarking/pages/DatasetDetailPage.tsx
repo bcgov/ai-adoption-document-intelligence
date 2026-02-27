@@ -58,6 +58,7 @@ export function DatasetDetailPage() {
 
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploadVersionId, setUploadVersionId] = useState<string | null>(null);
+  const [uploadVersionLabel, setUploadVersionLabel] = useState<string | null>(null);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(
     null,
   );
@@ -72,6 +73,11 @@ export function DatasetDetailPage() {
     unknown
   > | null>(null);
   const [validationDialogOpen, setValidationDialogOpen] = useState(false);
+  const [deleteVersionDialogOpen, setDeleteVersionDialogOpen] = useState(false);
+  const [versionToDelete, setVersionToDelete] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
 
   const {
     samples,
@@ -129,22 +135,38 @@ export function DatasetDetailPage() {
     archiveVersion(versionId);
   };
 
-  const handleDeleteVersion = (versionId: string) => {
-    deleteVersion(versionId);
-    if (selectedVersionId === versionId) {
+  const handleDeleteVersionClick = (versionId: string, versionLabel: string) => {
+    setVersionToDelete({ id: versionId, label: versionLabel });
+    setDeleteVersionDialogOpen(true);
+  };
+
+  const handleDeleteVersionConfirm = () => {
+    if (!versionToDelete) return;
+    deleteVersion(versionToDelete.id);
+    if (selectedVersionId === versionToDelete.id) {
       setSelectedVersionId(null);
       setActiveTab("versions");
     }
+    setDeleteVersionDialogOpen(false);
+    setVersionToDelete(null);
+  };
+
+  const handleDeleteVersionCancel = () => {
+    setDeleteVersionDialogOpen(false);
+    setVersionToDelete(null);
   };
 
   const handleNewVersion = async () => {
     const version = await createVersion();
     setUploadVersionId(version.id);
+    setUploadVersionLabel(version.version);
     setUploadDialogOpen(true);
   };
 
   const handleUploadToVersion = (versionId: string) => {
+    const version = versions.find((v) => v.id === versionId);
     setUploadVersionId(versionId);
+    setUploadVersionLabel(version?.version || null);
     setUploadDialogOpen(true);
   };
 
@@ -349,7 +371,7 @@ export function DatasetDetailPage() {
                                 <Menu.Item
                                   leftSection={<IconTrash size={16} />}
                                   color="red"
-                                  onClick={() => handleDeleteVersion(version.id)}
+                                  onClick={() => handleDeleteVersionClick(version.id, version.version)}
                                   loading={isDeletingVersion}
                                   data-testid={`delete-version-menu-item-${version.id}`}
                                 >
@@ -370,6 +392,18 @@ export function DatasetDetailPage() {
           {selectedVersionId && (
             <Tabs.Panel value={selectedVersionId} pt="md">
               <Stack gap="md">
+                {selectedVersion?.status === "draft" && (
+                  <Group justify="flex-end">
+                    <Button
+                      leftSection={<IconUpload size={16} />}
+                      variant="light"
+                      onClick={() => handleUploadToVersion(selectedVersionId)}
+                      data-testid="sample-preview-upload-btn"
+                    >
+                      Upload Files
+                    </Button>
+                  </Group>
+                )}
                 {isLoadingSamples ? (
                   <Center h={200}>
                     <Loader />
@@ -486,10 +520,12 @@ export function DatasetDetailPage() {
       <FileUploadDialog
         datasetId={id || ""}
         versionId={uploadVersionId || ""}
+        versionLabel={uploadVersionLabel || undefined}
         opened={uploadDialogOpen}
         onClose={() => {
           setUploadDialogOpen(false);
           setUploadVersionId(null);
+          setUploadVersionLabel(null);
         }}
       />
 
@@ -498,6 +534,33 @@ export function DatasetDetailPage() {
         opened={groundTruthViewerOpen}
         onClose={closeGroundTruthViewer}
       />
+
+      <Modal
+        opened={deleteVersionDialogOpen}
+        onClose={handleDeleteVersionCancel}
+        title="Delete Version"
+        centered
+        data-testid="delete-version-confirm-dialog"
+      >
+        <Stack gap="md">
+          <Text>
+            Are you sure you want to delete version {versionToDelete?.label}? This action cannot be undone.
+          </Text>
+          <Group justify="flex-end" gap="xs">
+            <Button variant="subtle" onClick={handleDeleteVersionCancel} data-testid="delete-version-cancel-btn">
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              onClick={handleDeleteVersionConfirm}
+              loading={isDeletingVersion}
+              data-testid="delete-version-confirm-btn"
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Modal
         opened={validationDialogOpen}

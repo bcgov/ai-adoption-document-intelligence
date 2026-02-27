@@ -227,17 +227,19 @@ export const useAllDatasetVersions = () => {
     queryKey: ["benchmark-all-dataset-versions"],
     queryFn: async () => {
       const datasetsResponse = await apiService.get<{
-        data: Array<{ id: string }>;
+        data: Array<{ id: string; name: string }>;
       }>("/benchmark/datasets?limit=1000");
       const datasets = datasetsResponse.data?.data || [];
 
-      const allVersions: DatasetVersion[] = [];
+      const allVersions: (DatasetVersion & { datasetName: string })[] = [];
       for (const dataset of datasets) {
         const versionsResponse = await apiService.get<VersionListResponse>(
           `/benchmark/datasets/${dataset.id}/versions`,
         );
         if (versionsResponse.data?.versions) {
-          allVersions.push(...versionsResponse.data.versions);
+          for (const version of versionsResponse.data.versions) {
+            allVersions.push({ ...version, datasetName: dataset.name });
+          }
         }
       }
       return allVersions;

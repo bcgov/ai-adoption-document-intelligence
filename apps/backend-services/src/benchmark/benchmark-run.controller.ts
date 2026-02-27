@@ -11,6 +11,7 @@ import { BenchmarkArtifactType } from "@generated/client";
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   HttpCode,
@@ -269,5 +270,26 @@ export class BenchmarkRunController {
       runId,
       promoteBaselineDto,
     );
+  }
+
+  /**
+   * Delete a benchmark run
+   *
+   * Only completed, failed, or cancelled runs can be deleted.
+   *
+   * DELETE /api/benchmark/projects/:projectId/runs/:runId
+   */
+  @Delete("runs/:runId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  async deleteRun(
+    @Param("projectId") projectId: string,
+    @Param("runId") runId: string,
+  ): Promise<void> {
+    this.logger.log(
+      `DELETE /api/benchmark/projects/${projectId}/runs/${runId}`,
+    );
+    return this.benchmarkRunService.deleteRun(projectId, runId);
   }
 }

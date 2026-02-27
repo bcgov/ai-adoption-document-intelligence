@@ -62,7 +62,7 @@ interface DefinitionDetails {
   projectId: string;
   name: string;
   datasetVersion: DatasetVersionInfo;
-  split: SplitInfo;
+  split?: SplitInfo;
   workflow: WorkflowInfo;
   workflowConfigHash: string;
   evaluatorType: string;
@@ -153,12 +153,14 @@ export function DefinitionDetailView({
                   {definition.datasetVersion.version}
                 </Table.Td>
               </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Split</Table.Td>
-                <Table.Td>
-                  {definition.split.name} ({definition.split.type})
-                </Table.Td>
-              </Table.Tr>
+              {definition.split && (
+                <Table.Tr>
+                  <Table.Td fw={500}>Split</Table.Td>
+                  <Table.Td>
+                    {definition.split.name} ({definition.split.type})
+                  </Table.Td>
+                </Table.Tr>
+              )}
               <Table.Tr>
                 <Table.Td fw={500}>Workflow</Table.Td>
                 <Table.Td>

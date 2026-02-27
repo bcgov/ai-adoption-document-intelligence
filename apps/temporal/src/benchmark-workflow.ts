@@ -57,7 +57,13 @@ type BenchmarkActivities = {
 
   'benchmark.aggregate': (input: {
     results: EvaluationResult[];
-    metadata?: Record<string, unknown>;
+    options?: {
+      sliceDimensions?: string[];
+      failureAnalysis?: {
+        topN?: number;
+        metricName?: string;
+      };
+    };
   }) => Promise<{
     overall: {
       totalSamples: number;
@@ -689,12 +695,27 @@ export async function benchmarkRunWorkflow(
 
     const aggregateResult = await customActivities['benchmark.aggregate']({
       results: evaluationResults,
-      metadata: { splitId },
+      options: {
+        failureAnalysis: { topN: 10 },
+      },
     });
 
     flatMetrics = flattenMetrics(aggregateResult.overall);
-    aggregateResultForStorage = aggregateResult as unknown as Record<string, unknown>;
     failureAnalysis = aggregateResult.failureAnalysis as unknown as Record<string, unknown>;
+
+    // Build the stored metrics object: flat metrics at the top level for baseline
+    // comparison, plus structured data for drill-down and per-sample browsing.
+    aggregateResultForStorage = {
+      ...flatMetrics,
+      _aggregate: aggregateResult as unknown as Record<string, unknown>,
+      perSampleResults: evaluationResults.map((er) => ({
+        sampleId: er.sampleId,
+        metrics: er.metrics,
+        diagnostics: er.diagnostics,
+        pass: er.pass,
+        artifacts: er.artifacts,
+      })),
+    };
 
     // ---------------------------------------------------------------------------
     // Phase 5: Log to MLflow

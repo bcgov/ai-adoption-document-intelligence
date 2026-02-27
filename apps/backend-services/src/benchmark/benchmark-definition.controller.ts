@@ -10,6 +10,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -212,5 +213,29 @@ export class BenchmarkDefinitionController {
       });
 
     return history;
+  }
+
+  /**
+   * Delete a benchmark definition
+   *
+   * Cascade-deletes completed/failed runs. Rejects if there are active runs.
+   *
+   * DELETE /api/benchmark/projects/:projectId/definitions/:definitionId
+   */
+  @Delete(":definitionId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  async deleteDefinition(
+    @Param("projectId") projectId: string,
+    @Param("definitionId") definitionId: string,
+  ): Promise<void> {
+    this.logger.log(
+      `DELETE /api/benchmark/projects/${projectId}/definitions/${definitionId}`,
+    );
+    return this.benchmarkDefinitionService.deleteDefinition(
+      projectId,
+      definitionId,
+    );
   }
 }

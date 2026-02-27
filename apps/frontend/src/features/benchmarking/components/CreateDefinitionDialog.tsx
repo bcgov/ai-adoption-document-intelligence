@@ -1,5 +1,6 @@
 import {
   Button,
+  Code,
   Group,
   Modal,
   NumberInput,
@@ -9,7 +10,9 @@ import {
   Text,
   Textarea,
   TextInput,
+  Tooltip,
 } from "@mantine/core";
+import { IconInfoCircle } from "@tabler/icons-react";
 import { useState } from "react";
 import { useAllDatasetVersions } from "../hooks/useDatasetVersions";
 import { useWorkflows } from "../hooks/useWorkflows";
@@ -166,10 +169,21 @@ export function CreateDefinitionDialog({
     onClose();
   };
 
-  const versionOptions = versions.map((v) => ({
-    value: v.id,
-    label: `${v.version} (${v.documentCount} documents)${v.status === "draft" ? " [DRAFT]" : ""}`,
-  }));
+  const versionOptions = (() => {
+    const groups = new Map<string, { value: string; label: string }[]>();
+    for (const v of versions) {
+      const groupName = "datasetName" in v ? String(v.datasetName) : "Other";
+      const item = {
+        value: v.id,
+        label: `${v.version} (${v.documentCount} documents)${v.status === "draft" ? " [DRAFT]" : ""}`,
+      };
+      if (!groups.has(groupName)) {
+        groups.set(groupName, []);
+      }
+      groups.get(groupName)!.push(item);
+    }
+    return Array.from(groups.entries()).map(([group, items]) => ({ group, items }));
+  })();
 
   const splitOptions = splits.map((s) => ({
     value: s.id,
@@ -185,6 +199,7 @@ export function CreateDefinitionDialog({
     { value: "schema-aware", label: "Schema-Aware" },
     { value: "black-box", label: "Black-Box" },
   ];
+
 
   return (
     <Modal
@@ -252,7 +267,18 @@ export function CreateDefinitionDialog({
         />
 
         <Select
-          label="Evaluator Type"
+          label={
+            <Group gap={4}>
+              <Text size="sm" fw={500}>Evaluator Type</Text>
+              <Tooltip
+                label="Determines how workflow outputs are compared to ground truth. Schema-Aware compares structured JSON fields. Black-Box treats the evaluator as an opaque scoring function."
+                multiline
+                w={300}
+              >
+                <IconInfoCircle size={14} style={{ opacity: 0.6, cursor: "help" }} />
+              </Tooltip>
+            </Group>
+          }
           data={evaluatorOptions}
           value={evaluatorType}
           onChange={(value) => setEvaluatorType(value || "schema-aware")}
@@ -260,18 +286,34 @@ export function CreateDefinitionDialog({
           data-testid="evaluator-type-select"
         />
 
-        <Textarea
-          label="Evaluator Config (JSON)"
-          placeholder='{"key": "value"}'
-          value={evaluatorConfigJson}
-          onChange={(e) => {
-            setEvaluatorConfigJson(e.target.value);
-            setEvaluatorConfigError("");
-          }}
-          error={evaluatorConfigError}
-          minRows={3}
-          data-testid="evaluator-config-textarea"
-        />
+        <Stack gap={4}>
+          <Textarea
+            label={
+              <Group gap={4}>
+                <Text size="sm" fw={500}>Evaluator Config (JSON)</Text>
+                <Tooltip
+                  label="Optional JSON configuration passed to the evaluator. Keys depend on the evaluator type."
+                  multiline
+                  w={250}
+                >
+                  <IconInfoCircle size={14} style={{ opacity: 0.6, cursor: "help" }} />
+                </Tooltip>
+              </Group>
+            }
+            placeholder='{"thresholds": {"field_accuracy": 0.9}}'
+            value={evaluatorConfigJson}
+            onChange={(e) => {
+              setEvaluatorConfigJson(e.target.value);
+              setEvaluatorConfigError("");
+            }}
+            error={evaluatorConfigError}
+            minRows={3}
+            data-testid="evaluator-config-textarea"
+          />
+          <Text size="xs" c="dimmed">
+            Example: <Code>{'{"thresholds": {"field_accuracy": 0.9, "schema_coverage": 0.95}}'}</Code>
+          </Text>
+        </Stack>
 
         <Text size="sm" fw={500}>
           Runtime Settings
@@ -300,7 +342,18 @@ export function CreateDefinitionDialog({
         />
 
         <Radio.Group
-          label="Use Production Queue"
+          label={
+            <Group gap={4}>
+              <Text size="sm" fw={500}>Use Production Queue</Text>
+              <Tooltip
+                label="When enabled, benchmark documents are processed on the production task queue instead of a dedicated benchmark queue. Useful for measuring real-world throughput, but may affect production traffic."
+                multiline
+                w={300}
+              >
+                <IconInfoCircle size={14} style={{ opacity: 0.6, cursor: "help" }} />
+              </Tooltip>
+            </Group>
+          }
           value={useProductionQueue ? "true" : "false"}
           onChange={(value) => setUseProductionQueue(value === "true")}
           data-testid="production-queue-radio"
@@ -312,7 +365,18 @@ export function CreateDefinitionDialog({
         </Radio.Group>
 
         <Radio.Group
-          label="Artifact Policy"
+          label={
+            <Group gap={4}>
+              <Text size="sm" fw={500}>Artifact Policy</Text>
+              <Tooltip
+                label="Controls which run outputs are stored. 'Full' saves all outputs, 'Failures Only' saves outputs only for failing samples, 'Sampled' saves a random subset."
+                multiline
+                w={300}
+              >
+                <IconInfoCircle size={14} style={{ opacity: 0.6, cursor: "help" }} />
+              </Tooltip>
+            </Group>
+          }
           value={artifactPolicyMode}
           onChange={setArtifactPolicyMode}
           data-testid="artifact-policy-radio"

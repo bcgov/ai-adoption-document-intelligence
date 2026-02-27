@@ -897,6 +897,66 @@ describe("DatasetService", () => {
       expect(inputFile!.filename).toBe("doc.pdf");
       expect(gtFile!.filename).toBe("data.csv");
     });
+
+    it("deduplicates samples when files have identical names", async () => {
+      const duplicateFiles: Array<{
+        fieldname: string;
+        originalname: string;
+        encoding: string;
+        mimetype: string;
+        buffer: Buffer;
+        size: number;
+      }> = [
+        {
+          fieldname: "files",
+          originalname: "invoice.jpg",
+          encoding: "7bit",
+          mimetype: "image/jpeg",
+          buffer: Buffer.from("image data 1"),
+          size: 1024,
+        },
+        {
+          fieldname: "files",
+          originalname: "invoice.jpg",
+          encoding: "7bit",
+          mimetype: "image/jpeg",
+          buffer: Buffer.from("image data 2"),
+          size: 1024,
+        },
+      ];
+
+      const mockDataset = {
+        id: "dataset-123",
+        repositoryUrl: "/tmp/local-repo",
+      };
+
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+
+      const result = await service.uploadFilesToVersion(
+        "dataset-123",
+        "version-abc",
+        duplicateFiles,
+        "user-123",
+      );
+
+      // Both files should be uploaded
+      expect(result.uploadedFiles).toHaveLength(2);
+
+      // Verify manifest was written with two distinct sample entries
+      const manifestWriteCall = mockWriteFile.mock.calls.find(
+        ([path]: [string]) => path.includes("dataset-manifest.json"),
+      );
+      expect(manifestWriteCall).toBeDefined();
+      const manifestContent = JSON.parse(manifestWriteCall![1] as string);
+      // Should have 2 separate samples, not 1
+      expect(manifestContent.samples.length).toBe(2);
+      // Second sample should have a deduplicated ID
+      const sampleIds = manifestContent.samples.map(
+        (s: { id: string }) => s.id,
+      );
+      expect(sampleIds).toContain("invoice");
+      expect(sampleIds).toContain("invoice_2");
+    });
   });
 
   // -----------------------------------------------------------------------

@@ -16,6 +16,7 @@ import {
   IconAlertTriangle,
   IconGitCompare,
   IconPlus,
+  IconTrash,
   IconTrophy,
 } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
@@ -80,8 +81,10 @@ export function ProjectDetailPage() {
     isLoading: isLoadingDefinitions,
     createDefinition,
     isCreating,
+    deleteDefinition,
+    isDeletingDefinition,
   } = useDefinitions(projectId);
-  const { runs, isLoading: isLoadingRuns } = useRuns(projectId);
+  const { runs, isLoading: isLoadingRuns, deleteRun, isDeletingRun } = useRuns(projectId);
 
   const [createDialogOpened, setCreateDialogOpened] = useState(false);
   const [selectedDefinitionId, setSelectedDefinitionId] = useState<
@@ -89,6 +92,16 @@ export function ProjectDetailPage() {
   >(null);
   const [detailDialogOpened, setDetailDialogOpened] = useState(false);
   const [selectedRunIds, setSelectedRunIds] = useState<string[]>([]);
+  const [deleteDefDialogOpen, setDeleteDefDialogOpen] = useState(false);
+  const [defToDelete, setDefToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [deleteRunDialogOpen, setDeleteRunDialogOpen] = useState(false);
+  const [runToDelete, setRunToDelete] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
 
   const { definition, isLoading: isLoadingDefinition } = useDefinition(
     projectId,
@@ -116,6 +129,40 @@ export function ProjectDetailPage() {
   const handleCloseDetail = () => {
     setDetailDialogOpened(false);
     setSelectedDefinitionId(null);
+  };
+
+  const handleDeleteDefinitionClick = (defId: string, defName: string) => {
+    setDefToDelete({ id: defId, name: defName });
+    setDeleteDefDialogOpen(true);
+  };
+
+  const handleDeleteDefinitionConfirm = () => {
+    if (!defToDelete) return;
+    deleteDefinition(defToDelete.id);
+    setDeleteDefDialogOpen(false);
+    setDefToDelete(null);
+  };
+
+  const handleDeleteDefinitionCancel = () => {
+    setDeleteDefDialogOpen(false);
+    setDefToDelete(null);
+  };
+
+  const handleDeleteRunClick = (runId: string, runLabel: string) => {
+    setRunToDelete({ id: runId, label: runLabel });
+    setDeleteRunDialogOpen(true);
+  };
+
+  const handleDeleteRunConfirm = () => {
+    if (!runToDelete) return;
+    deleteRun(runToDelete.id);
+    setDeleteRunDialogOpen(false);
+    setRunToDelete(null);
+  };
+
+  const handleDeleteRunCancel = () => {
+    setDeleteRunDialogOpen(false);
+    setRunToDelete(null);
   };
 
   const handleToggleRunSelection = (runId: string) => {
@@ -223,6 +270,7 @@ export function ProjectDetailPage() {
                   <Table.Th>Evaluator</Table.Th>
                   <Table.Th>Status</Table.Th>
                   <Table.Th>Revision</Table.Th>
+                  <Table.Th>Actions</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -250,6 +298,19 @@ export function ProjectDetailPage() {
                       )}
                     </Table.Td>
                     <Table.Td>{def.revision}</Table.Td>
+                    <Table.Td onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        color="red"
+                        leftSection={<IconTrash size={14} />}
+                        onClick={() => handleDeleteDefinitionClick(def.id, def.name)}
+                        loading={isDeletingDefinition}
+                        data-testid={`delete-definition-btn-${def.id}`}
+                      >
+                        Delete
+                      </Button>
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -309,6 +370,7 @@ export function ProjectDetailPage() {
                   <Table.Th>Started</Table.Th>
                   <Table.Th>Duration</Table.Th>
                   <Table.Th>Metrics</Table.Th>
+                  <Table.Th>Actions</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -421,6 +483,28 @@ export function ProjectDetailPage() {
                             .join(", ")
                         : "-"}
                     </Table.Td>
+                    <Table.Td onClick={(e) => e.stopPropagation()}>
+                      {(run.status === "completed" || run.status === "failed" || run.status === "cancelled") && (
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          color="red"
+                          leftSection={<IconTrash size={14} />}
+                          onClick={() =>
+                            handleDeleteRunClick(
+                              run.id,
+                              run.tags && typeof run.tags === 'object' && 'version' in run.tags
+                                ? String(run.tags.version)
+                                : run.id.substring(0, 8),
+                            )
+                          }
+                          loading={isDeletingRun}
+                          data-testid={`delete-run-btn-${run.id}`}
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -451,6 +535,62 @@ export function ProjectDetailPage() {
         ) : (
           <Text c="dimmed">Definition not found</Text>
         )}
+      </Modal>
+
+      <Modal
+        opened={deleteDefDialogOpen}
+        onClose={handleDeleteDefinitionCancel}
+        title="Delete Benchmark Definition"
+        centered
+        data-testid="delete-definition-confirm-dialog"
+      >
+        <Stack gap="md">
+          <Text>
+            Are you sure you want to delete definition &quot;{defToDelete?.name}&quot;? All
+            associated completed runs will also be deleted. This action cannot be undone.
+          </Text>
+          <Group justify="flex-end" gap="xs">
+            <Button variant="subtle" onClick={handleDeleteDefinitionCancel} data-testid="delete-def-cancel-btn">
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              onClick={handleDeleteDefinitionConfirm}
+              loading={isDeletingDefinition}
+              data-testid="delete-def-confirm-btn"
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={deleteRunDialogOpen}
+        onClose={handleDeleteRunCancel}
+        title="Delete Benchmark Run"
+        centered
+        data-testid="delete-run-confirm-dialog"
+      >
+        <Stack gap="md">
+          <Text>
+            Are you sure you want to delete run &quot;{runToDelete?.label}&quot;? All
+            associated artifacts will also be deleted. This action cannot be undone.
+          </Text>
+          <Group justify="flex-end" gap="xs">
+            <Button variant="subtle" onClick={handleDeleteRunCancel} data-testid="delete-run-cancel-btn">
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              onClick={handleDeleteRunConfirm}
+              loading={isDeletingRun}
+              data-testid="delete-run-confirm-btn"
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
       </Modal>
     </Stack>
   );

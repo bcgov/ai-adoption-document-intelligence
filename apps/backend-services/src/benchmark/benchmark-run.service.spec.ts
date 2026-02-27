@@ -30,6 +30,7 @@ jest.mock("@generated/client", () => {
         findFirst: jest.fn(),
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        delete: jest.fn(),
       },
       benchmarkAuditLog: {
         create: jest.fn(),
@@ -608,24 +609,37 @@ describe("BenchmarkRunService", () => {
         status: "completed",
         completedAt: new Date(),
         metrics: {
+          total_samples: 2,
+          pass_rate: 0.5,
           perSampleResults: [
             {
               sampleId: "s1",
-              metricName: "accuracy",
-              metricValue: 0.5,
-              metadata: { type: "invoice" },
+              metrics: { accuracy: 0.5 },
+              diagnostics: { type: "invoice" },
+              pass: false,
             },
             {
               sampleId: "s2",
-              metricName: "accuracy",
-              metricValue: 0.9,
-              metadata: { type: "receipt" },
+              metrics: { accuracy: 0.9 },
+              diagnostics: { type: "receipt" },
+              pass: true,
             },
           ],
-          fieldErrorBreakdown: [
-            { fieldName: "total", errorCount: 5, errorRate: 0.25 },
-          ],
-          errorClusters: { ocr_error: 10, parsing_error: 3 },
+          _aggregate: {
+            overall: { totalSamples: 2, passingsSamples: 1, failingSamples: 1, passRate: 0.5, metrics: {} },
+            failureAnalysis: {
+              worstSamples: [
+                { sampleId: "s1", metricValue: 0.5, metrics: { accuracy: 0.5 }, diagnostics: { type: "invoice" } },
+              ],
+              perFieldErrors: [
+                { field: "total", totalOccurrences: 20, matchCount: 15, missingCount: 3, mismatchCount: 2, errorRate: 0.25 },
+              ],
+              errorClusters: [
+                { errorType: "ocr_error", count: 10, sampleIds: ["s1"] },
+                { errorType: "parsing_error", count: 3, sampleIds: ["s2"] },
+              ],
+            },
+          },
         },
       };
 
@@ -636,10 +650,14 @@ describe("BenchmarkRunService", () => {
       const result = await service.getDrillDown("project-1", "run-1");
 
       expect(result.runId).toBe("run-1");
-      expect(result.worstSamples).toHaveLength(2);
+      expect(result.worstSamples).toHaveLength(1);
       expect(result.worstSamples[0].sampleId).toBe("s1");
       expect(result.fieldErrorBreakdown).toHaveLength(1);
+      expect(result.fieldErrorBreakdown![0].fieldName).toBe("total");
+      expect(result.fieldErrorBreakdown![0].errorRate).toBe(0.25);
       expect(result.errorClusters).toEqual({ ocr_error: 10, parsing_error: 3 });
+      // aggregatedMetrics should only contain flat numeric values
+      expect(result.aggregatedMetrics).toEqual({ total_samples: 2, pass_rate: 0.5 });
     });
 
     it("should throw NotFoundException when run does not exist", async () => {
@@ -1070,6 +1088,95 @@ describe("BenchmarkRunService", () => {
 
       expect(page3.results).toHaveLength(5);
       expect(page3.results[0].sampleId).toBe("sample-021");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // deleteRun
+  // -----------------------------------------------------------------------
+  describe("deleteRun", () => {
+    it("deletes a completed run", async () => {
+      const mockRun = {
+        id: "run-1",
+        projectId: "project-1",
+        status: "completed",
+      };
+
+      jest
+        .spyOn(prisma.benchmarkRun, "findFirst")
+        .mockResolvedValue(mockRun as never);
+      jest
+        .spyOn(prisma.benchmarkRun, "delete")
+        .mockResolvedValue(mockRun as never);
+
+      await service.deleteRun("project-1", "run-1");
+
+      expect(prisma.benchmarkRun.delete).toHaveBeenCalledWith({
+        where: { id: "run-1" },
+      });
+    });
+
+    it("deletes a failed run", async () => {
+      const mockRun = {
+        id: "run-2",
+        projectId: "project-1",
+        status: "failed",
+      };
+
+      jest
+        .spyOn(prisma.benchmarkRun, "findFirst")
+        .mockResolvedValue(mockRun as never);
+      jest
+        .spyOn(prisma.benchmarkRun, "delete")
+        .mockResolvedValue(mockRun as never);
+
+      await service.deleteRun("project-1", "run-2");
+
+      expect(prisma.benchmarkRun.delete).toHaveBeenCalledWith({
+        where: { id: "run-2" },
+      });
+    });
+
+    it("throws NotFoundException when run does not exist", async () => {
+      jest
+        .spyOn(prisma.benchmarkRun, "findFirst")
+        .mockResolvedValue(null);
+
+      await expect(
+        service.deleteRun("project-1", "nonexistent"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws BadRequestException when run is still running", async () => {
+      const mockRun = {
+        id: "run-3",
+        projectId: "project-1",
+        status: "running",
+      };
+
+      jest
+        .spyOn(prisma.benchmarkRun, "findFirst")
+        .mockResolvedValue(mockRun as never);
+
+      await expect(
+        service.deleteRun("project-1", "run-3"),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("throws BadRequestException when run is pending", async () => {
+      const mockRun = {
+        id: "run-4",
+        projectId: "project-1",
+        status: "pending",
+      };
+
+      jest
+        .spyOn(prisma.benchmarkRun, "findFirst")
+        .mockResolvedValue(mockRun as never);
+
+      await expect(
+        service.deleteRun("project-1", "run-4"),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

@@ -208,9 +208,9 @@ export class DefinitionDetailsDto {
   datasetVersion: DatasetVersionInfo;
 
   /**
-   * Split info
+   * Split info (optional — definition may use full dataset)
    */
-  split: SplitInfo;
+  split?: SplitInfo;
 
   /**
    * Workflow info

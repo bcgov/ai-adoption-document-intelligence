@@ -340,6 +340,45 @@ export class BenchmarkRunService {
   }
 
   /**
+   * Delete a benchmark run.
+   *
+   * Only completed, failed or cancelled runs can be deleted.
+   * Running/pending runs must be cancelled first.
+   * @param projectId - The project this run belongs to
+   * @param runId - The run ID to delete
+   * @throws NotFoundException if the run does not exist
+   * @throws BadRequestException if the run is still active
+   */
+  async deleteRun(projectId: string, runId: string): Promise<void> {
+    const run = await this.prisma.benchmarkRun.findFirst({
+      where: {
+        id: runId,
+        projectId,
+      },
+    });
+
+    if (!run) {
+      throw new NotFoundException(
+        `Benchmark run with ID "${runId}" not found for project "${projectId}"`,
+      );
+    }
+
+    if (run.status === "running" || run.status === "pending") {
+      throw new BadRequestException(
+        `Cannot delete run in status "${run.status}". Cancel the run first.`,
+      );
+    }
+
+    await this.prisma.benchmarkRun.delete({
+      where: { id: runId },
+    });
+
+    this.logger.log(
+      `Deleted benchmark run ${runId} from project ${projectId}`,
+    );
+  }
+
+  /**
    * Get run details by ID
    */
   async getRunById(projectId: string, runId: string): Promise<RunDetailsDto> {
@@ -359,6 +398,17 @@ export class BenchmarkRunService {
       );
     }
 
+    // Extract only flat numeric metrics for the summary response.
+    // Structured data (_aggregate, perSampleResults) is accessible via
+    // dedicated getDrillDown and getPerSampleResults endpoints.
+    const rawMetrics = (run.metrics || {}) as Record<string, unknown>;
+    const flatMetrics: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(rawMetrics)) {
+      if (key !== "_aggregate" && key !== "perSampleResults" && typeof value === "number") {
+        flatMetrics[key] = value;
+      }
+    }
+
     return {
       id: run.id,
       definitionId: run.definitionId,
@@ -371,7 +421,7 @@ export class BenchmarkRunService {
       workerGitSha: run.workerGitSha,
       startedAt: run.startedAt,
       completedAt: run.completedAt,
-      metrics: run.metrics as Record<string, unknown>,
+      metrics: flatMetrics,
       params: run.params as Record<string, unknown>,
       tags: run.tags as Record<string, unknown>,
       error: run.error,
@@ -416,8 +466,14 @@ export class BenchmarkRunService {
           ? run.completedAt.getTime() - run.startedAt.getTime()
           : null;
 
-      const metrics = run.metrics as Record<string, unknown>;
-      const headlineMetrics = run.status === "completed" ? metrics : null;
+      const rawMetrics = run.metrics as Record<string, unknown>;
+      const flatOnlyMetrics: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(rawMetrics || {})) {
+        if (key !== "_aggregate" && key !== "perSampleResults" && typeof value === "number") {
+          flatOnlyMetrics[key] = value;
+        }
+      }
+      const headlineMetrics = run.status === "completed" ? flatOnlyMetrics : null;
 
       // Check for regression status
       const baselineComparison = run.baselineComparison as unknown as BaselineComparison | null;
@@ -473,39 +529,101 @@ export class BenchmarkRunService {
 
     const metrics = run.metrics as Record<string, unknown>;
 
-    // Extract per-sample results from metrics
-    // This is a placeholder structure - actual implementation depends on evaluator output format
+    // Extract per-sample results from stored metrics
     const perSampleResults = (metrics.perSampleResults || []) as Array<{
       sampleId: string;
-      metricName: string;
-      metricValue: number;
-      metadata?: Record<string, unknown>;
+      metrics?: Record<string, number>;
+      diagnostics?: Record<string, unknown>;
+      pass: boolean;
     }>;
 
-    // Get worst-performing samples (top 10 by metric value, assuming lower is worse)
-    const worstSamples: SampleFailureDto[] = perSampleResults
-      .sort((a, b) => a.metricValue - b.metricValue)
-      .slice(0, 10)
-      .map((sample) => ({
-        sampleId: sample.sampleId,
-        metricValue: sample.metricValue,
-        metricName: sample.metricName,
-        metadata: sample.metadata,
-      }));
+    // Extract the aggregate failure analysis (populated by workflow with options.failureAnalysis)
+    const aggregate = (metrics._aggregate || {}) as Record<string, unknown>;
+    const storedFailureAnalysis = (aggregate.failureAnalysis || {}) as {
+      worstSamples?: Array<{
+        sampleId: string;
+        metricValue: number;
+        metrics: Record<string, number>;
+        diagnostics: Record<string, unknown>;
+      }>;
+      perFieldErrors?: Array<{
+        field: string;
+        totalOccurrences: number;
+        matchCount: number;
+        missingCount: number;
+        mismatchCount: number;
+        errorRate: number;
+      }>;
+      errorClusters?: Array<{
+        errorType: string;
+        count: number;
+        sampleIds: string[];
+      }>;
+    };
 
-    // Extract field error breakdown if available (schema-aware evaluator)
+    // Build worst-performing samples from failure analysis or from per-sample results
+    let worstSamples: SampleFailureDto[] = [];
+    if (
+      storedFailureAnalysis.worstSamples &&
+      storedFailureAnalysis.worstSamples.length > 0
+    ) {
+      worstSamples = storedFailureAnalysis.worstSamples.map((ws) => {
+        const metricEntries = Object.entries(ws.metrics || {});
+        const firstMetric = metricEntries[0];
+        return {
+          sampleId: ws.sampleId,
+          metricValue: firstMetric ? firstMetric[1] : ws.metricValue,
+          metricName: firstMetric ? firstMetric[0] : "unknown",
+          metadata: ws.diagnostics,
+        };
+      });
+    } else {
+      // Fallback: derive from per-sample results (failing samples sorted by first metric)
+      worstSamples = perSampleResults
+        .filter((r) => !r.pass)
+        .map((r) => {
+          const metricEntries = Object.entries(r.metrics || {});
+          const firstMetric = metricEntries[0];
+          return {
+            sampleId: r.sampleId,
+            metricValue: firstMetric ? firstMetric[1] : 0,
+            metricName: firstMetric ? firstMetric[0] : "unknown",
+            metadata: r.diagnostics,
+          };
+        })
+        .sort((a, b) => a.metricValue - b.metricValue)
+        .slice(0, 10);
+    }
+
+    // Extract per-field error breakdown from failure analysis
     const fieldErrorBreakdown: FieldErrorBreakdownDto[] | null =
-      (metrics.fieldErrorBreakdown as FieldErrorBreakdownDto[]) || null;
+      storedFailureAnalysis.perFieldErrors
+        ? storedFailureAnalysis.perFieldErrors.map((fe) => ({
+            fieldName: fe.field,
+            errorCount: fe.missingCount + fe.mismatchCount,
+            errorRate: fe.errorRate,
+          }))
+        : null;
 
-    // Extract error clustering tags
-    const errorClusters = (metrics.errorClusters || {}) as Record<
-      string,
-      number
-    >;
+    // Extract error clusters from failure analysis
+    const errorClusters: Record<string, number> = {};
+    if (storedFailureAnalysis.errorClusters) {
+      for (const cluster of storedFailureAnalysis.errorClusters) {
+        errorClusters[cluster.errorType] = cluster.count;
+      }
+    }
+
+    // Build aggregated metrics (only the flat numeric values)
+    const aggregatedMetrics: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(metrics)) {
+      if (key !== "_aggregate" && key !== "perSampleResults" && typeof value === "number") {
+        aggregatedMetrics[key] = value;
+      }
+    }
 
     return {
       runId: run.id,
-      aggregatedMetrics: metrics,
+      aggregatedMetrics,
       worstSamples,
       fieldErrorBreakdown,
       errorClusters,
@@ -755,13 +873,15 @@ export class BenchmarkRunService {
       metadata?: Record<string, unknown>;
       metrics?: Record<string, number>;
       diagnostics?: Record<string, unknown>;
+      pass?: boolean;
       groundTruth?: unknown;
       prediction?: unknown;
       evaluationDetails?: unknown;
     }>;
 
-    // Collect available dimensions and their values
+    // Collect available dimensions: metadata keys plus "pass" as a synthetic dimension
     const dimensionValuesMap = new Map<string, Set<string | number>>();
+    dimensionValuesMap.set("pass", new Set(["true", "false"]));
 
     for (const result of allResults) {
       if (result.metadata) {
@@ -785,14 +905,16 @@ export class BenchmarkRunService {
       dimensionValues[key] = Array.from(values).sort();
     }
 
-    // Apply filters
+    // Apply filters (supports metadata keys and the synthetic "pass" dimension)
     let filteredResults = allResults;
     if (Object.keys(filters).length > 0) {
       filteredResults = allResults.filter((result) => {
-        if (!result.metadata) return false;
         for (const [key, value] of Object.entries(filters)) {
-          if (result.metadata[key] !== value) {
-            return false;
+          if (key === "pass") {
+            const passBool = value === "true";
+            if (result.pass !== passBool) return false;
+          } else {
+            if (!result.metadata || result.metadata[key] !== value) return false;
           }
         }
         return true;
@@ -810,6 +932,7 @@ export class BenchmarkRunService {
       sampleId: result.sampleId,
       metadata: result.metadata || {},
       metrics: result.metrics || {},
+      pass: result.pass ?? false,
       diagnostics: result.diagnostics,
       groundTruth: result.groundTruth,
       prediction: result.prediction,

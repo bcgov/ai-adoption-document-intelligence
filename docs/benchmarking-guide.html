@@ -855,12 +855,16 @@
             <td>Human-readable name (e.g., "Income Declaration Forms")</td>
         </tr>
         <tr>
+            <td><strong>Description</strong></td>
+            <td>Optional description of the dataset's contents and purpose</td>
+        </tr>
+        <tr>
             <td><strong>Repository URL</strong></td>
-            <td>Path to the dataset Git repository. Supports local paths (<code>~/Github/datasets-repo</code>), <code>file://</code> URLs, and remote HTTPS/SSH URLs.</td>
+            <td>Path to the dataset Git repository (must be unique). Supports local paths (<code>~/Github/datasets-repo</code>), <code>file://</code> URLs, and remote HTTPS/SSH URLs.</td>
         </tr>
         <tr>
             <td><strong>Metadata</strong></td>
-            <td>Optional JSON metadata — domain, document type, language, source, tags.</td>
+            <td>Optional key-value metadata pairs — add fields dynamically using the <strong>Add Metadata</strong> button (e.g., domain, document type, language, source)</td>
         </tr>
     </tbody>
 </table>
@@ -869,7 +873,7 @@
 
 <h3>Upload Files</h3>
 
-<p>After creating a dataset, upload your test documents and ground truth files using the <strong>Upload Files</strong> button on the dataset detail page. You can upload up to 100 files at a time (max 100 MB each).</p>
+<p>On the dataset detail page, click <strong>New Version</strong> to create a draft version — this automatically opens the file upload dialog. You can also upload additional files to an existing draft version using the <strong>Upload Files</strong> action in the version's menu. Upload up to 100 files at a time (max 100 MB each). The upload dialog supports drag-and-drop and lets you remove individual files before uploading.</p>
 
 <p>Organize your files into two categories:</p>
 
@@ -922,9 +926,9 @@
   ]
 }</pre>
 
-<h3>Create and Publish a Version</h3>
+<h3>Version Lifecycle</h3>
 
-<p>After uploading files, create a <strong>Dataset Version</strong>. The backend automatically:</p>
+<p>When you click <strong>New Version</strong>, the backend automatically:</p>
 
 <ol>
     <li>Runs <code>dvc add</code> on the uploaded files to track them</li>
@@ -934,25 +938,146 @@
     <li>Creates a <code>DatasetVersion</code> record with the Git commit SHA</li>
 </ol>
 
-<p>Versions start in <strong>draft</strong> status. When you're satisfied with the data, click <strong>Publish</strong> to make it available for benchmarking. Only published versions can be used in benchmark definitions.</p>
+<p>Versions follow a three-state lifecycle:</p>
+
+<div class="card">
+    <pre style="margin: 0; background: transparent; box-shadow: none;">Draft  ──▶  Published  ──▶  Archived</pre>
+</div>
+
+<table>
+    <thead>
+        <tr><th>Status</th><th>Description</th><th>Available Actions</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Draft</strong></td>
+            <td>Initial state. Files can still be uploaded, samples can be deleted.</td>
+            <td>Upload Files, Validate, Publish, Delete Version</td>
+        </tr>
+        <tr>
+            <td><strong>Published</strong></td>
+            <td>Available for use in benchmark definitions. No further uploads.</td>
+            <td>Validate, Archive</td>
+        </tr>
+        <tr>
+            <td><strong>Archived</strong></td>
+            <td>No longer available for new definitions. Existing definitions referencing it continue to work.</td>
+            <td>Validate</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+        <strong>Deletion restrictions</strong><br>
+        Published and archived versions cannot be deleted if they are referenced by any benchmark definition. Draft versions can be deleted freely.
+    </div>
+</div>
+
+<h3>Validate a Dataset Version</h3>
+
+<p>Before publishing, you should <strong>validate</strong> your dataset to catch common issues. Click <strong>Validate</strong> in the version's action menu (the three-dot icon) — this is available for versions in any status.</p>
+
+<p>The validation report opens in a modal and checks for:</p>
+
+<table>
+    <thead>
+        <tr><th>Check Category</th><th>What It Detects</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Schema Violations</strong></td>
+            <td>Ground truth files that don't match the expected structure</td>
+        </tr>
+        <tr>
+            <td><strong>Missing Ground Truth</strong></td>
+            <td>Input documents that have no corresponding ground truth file</td>
+        </tr>
+        <tr>
+            <td><strong>Duplicates</strong></td>
+            <td>Duplicate samples or files within the dataset</td>
+        </tr>
+        <tr>
+            <td><strong>File Corruption</strong></td>
+            <td>Files that cannot be read or are malformed</td>
+        </tr>
+    </tbody>
+</table>
+
+<p>Each issue is displayed with its sample ID, severity (error or warning), a message, and the affected file path. For large datasets, you can optionally specify a <strong>sample size</strong> to validate a random subset instead of the entire dataset.</p>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Tip</strong><br>
+        Run validation after uploading files and before publishing. The report clearly indicates whether the dataset passed or failed with an overall status badge and a summary of issue counts.
+    </div>
+</div>
+
+<h3>View Ground Truth</h3>
+
+<p>On the <strong>Sample Preview</strong> tab, click any sample's ground truth link to open the <strong>Ground Truth Viewer</strong> — a modal that displays the JSON contents in a formatted, scrollable view. This is useful for spot-checking annotation quality before publishing.</p>
+
+<h3>Delete Samples</h3>
+
+<p>While a version is in <strong>draft</strong> status, you can delete individual samples from the <strong>Sample Preview</strong> tab. This is useful for removing incorrectly uploaded or duplicated files before publishing.</p>
 
 <h3>Splits</h3>
 
-<p>A <strong>split</strong> defines a subset of a dataset version used for evaluation. You can create multiple splits to test different subsets:</p>
+<p>A <strong>split</strong> defines a subset of a dataset version used for evaluation. Manage splits from the <strong>Splits</strong> tab on the dataset detail page (select a version first).</p>
+
+<h4>Create a Split</h4>
+
+<p>Click <strong>Create Split</strong> and provide:</p>
+
+<table>
+    <thead>
+        <tr><th>Field</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Name</strong></td>
+            <td>Alphanumeric characters, hyphens, underscores, and dots only</td>
+        </tr>
+        <tr>
+            <td><strong>Type</strong></td>
+            <td>Select from: Train, Validation, Test, or Golden Regression</td>
+        </tr>
+        <tr>
+            <td><strong>Samples</strong></td>
+            <td>Multi-select picker listing all samples in the version</td>
+        </tr>
+    </tbody>
+</table>
+
+<h4>Split Types</h4>
 
 <table>
     <thead>
         <tr><th>Split Type</th><th>Use Case</th></tr>
     </thead>
     <tbody>
-        <tr><td><code>test</code></td><td>Standard evaluation subset</td></tr>
-        <tr><td><code>val</code></td><td>Validation/tuning subset</td></tr>
-        <tr><td><code>golden</code></td><td>Frozen regression test set — cannot be modified once frozen</td></tr>
         <tr><td><code>train</code></td><td>Training subset (for reference only; not used by evaluators)</td></tr>
+        <tr><td><code>val</code></td><td>Validation/tuning subset</td></tr>
+        <tr><td><code>test</code></td><td>Standard evaluation subset</td></tr>
+        <tr><td><code>golden</code></td><td>Regression test set — can be frozen to lock its sample list permanently</td></tr>
     </tbody>
 </table>
 
-<p>Freeze a golden split to lock its sample list permanently. This ensures your regression tests always use the same documents.</p>
+<h4>Edit and Freeze Splits</h4>
+
+<p>While a split is <strong>unfrozen</strong>, you can edit it to update the sample selection. The splits table shows each split's name, type, sample count, frozen/editable status, and creation date.</p>
+
+<p>Golden splits can be <strong>frozen</strong> to make them permanently immutable — this ensures your regression tests always use the exact same documents. Freezing is irreversible; a confirmation dialog is shown before proceeding.</p>
+
+<h3>Delete a Dataset</h3>
+
+<p>You can delete an entire dataset from the dataset detail page. This is a cascading operation — all versions, splits, samples, and uploaded files are permanently removed.</p>
 
 <h2>Step 2: Create a Project</h2>
 
@@ -1149,12 +1274,44 @@
 
 <h3>Monitoring Progress</h3>
 
-<p>While a run is in progress, the run detail page shows real-time progress including the current phase, document counts (processed/total), and percentage completion. You can also:</p>
+<p>While a run is in progress, the run detail page <strong>auto-polls</strong> for updates — you do not need to refresh the page. It shows real-time progress including the current phase, document counts (processed/total), and percentage completion.</p>
 
-<ul>
-    <li><strong>Cancel</strong> — Stop a running benchmark at any time</li>
-    <li><strong>View in Temporal UI</strong> — Click the Temporal link to see the workflow execution in the Temporal UI (port 8088)</li>
-</ul>
+<p>Available actions during and after a run:</p>
+
+<table>
+    <thead>
+        <tr><th>Action</th><th>When Available</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Cancel</strong></td>
+            <td>Pending or Running</td>
+            <td>Stop the benchmark immediately</td>
+        </tr>
+        <tr>
+            <td><strong>Re-run</strong></td>
+            <td>Completed or Failed</td>
+            <td>Start a new run from the same definition</td>
+        </tr>
+        <tr>
+            <td><strong>Promote to Baseline</strong></td>
+            <td>Completed (not already baseline)</td>
+            <td>Set this run as the reference for regression detection</td>
+        </tr>
+        <tr>
+            <td><strong>Edit Thresholds</strong></td>
+            <td>Baseline run</td>
+            <td>Update the regression thresholds on the current baseline</td>
+        </tr>
+        <tr>
+            <td><strong>View Regression Report</strong></td>
+            <td>Completed with baseline comparison</td>
+            <td>Navigate to the full regression analysis page</td>
+        </tr>
+    </tbody>
+</table>
+
+<p>The run detail page also displays links to <strong>MLflow</strong> (for metric exploration) and <strong>Temporal UI</strong> (for workflow execution details), along with worker metadata such as the Git SHA and Docker image digest.</p>
 
 <h2>Step 5: View Results</h2>
 
@@ -1183,13 +1340,14 @@
 
 <h3>Drill-Down Analysis</h3>
 
-<p>Click through to the <strong>Drill-Down</strong> page (<code>/benchmarking/projects/:id/runs/:runId/drill-down</code>) for detailed failure analysis:</p>
+<p>The run detail page includes a <strong>Drill-Down Summary</strong> at the bottom, showing the top worst-performing samples, per-field error breakdowns, and error cluster tags. Click <strong>View All Samples</strong> to open the full drill-down page at <code>/benchmarking/projects/:id/runs/:runId/drill-down</code>.</p>
+
+<p>The drill-down page provides:</p>
 
 <ul>
-    <li><strong>Worst-performing samples</strong> — Ranked by any metric, configurable N</li>
-    <li><strong>Per-field error breakdown</strong> — Which fields are causing the most errors (schema-aware evaluator)</li>
-    <li><strong>Error clustering</strong> — Groups failures by error type/pattern</li>
-    <li><strong>Metadata filtering</strong> — Slice results by document type, language, page count, or other metadata dimensions</li>
+    <li><strong>Dynamic metadata filters</strong> — Filter panel with dropdowns for each metadata dimension (document type, language, etc.), with an active filter count badge and a clear-all button</li>
+    <li><strong>Paginated results table</strong> — Sample ID, metadata dimensions, metrics badges, and a click action to view details</li>
+    <li><strong>Sample detail drawer</strong> — Opens from the right side when clicking a sample. Shows the sample's metadata, individual metrics, ground truth JSON, prediction JSON, evaluation details, and diagnostics</li>
 </ul>
 
 <h3>Per-Sample Results</h3>
@@ -1204,7 +1362,7 @@
 
 <h3>Artifacts</h3>
 
-<p>The <strong>Artifacts</strong> tab lists all output files produced during the run, filterable by type:</p>
+<p>The <strong>Artifacts</strong> section lists all output files produced during the run, filterable by type:</p>
 
 <table>
     <thead>
@@ -1218,6 +1376,15 @@
         <tr><td><code>error_log</code></td><td>Error details for failed samples</td></tr>
     </tbody>
 </table>
+
+<p>Click any artifact row to open the <strong>Artifact Viewer</strong>, a side drawer that shows:</p>
+
+<ul>
+    <li><strong>Metadata</strong> — Type, MIME type, sample ID, node ID, and file size</li>
+    <li><strong>Content preview</strong> — Images are rendered inline, JSON is formatted, and text/CSV/log files are shown in a monospace viewer</li>
+    <li><strong>Download</strong> — Save the artifact file locally</li>
+    <li><strong>Open in MLflow</strong> — Link directly to the artifact in the MLflow UI</li>
+</ul>
 
 <h3>MLflow Integration</h3>
 
@@ -1273,6 +1440,12 @@
 
 <p>After a baseline is established, every subsequent completed run is <strong>automatically compared</strong> against it. Regressions are flagged with severity levels (Warning / Critical) on the run list and detail pages.</p>
 
+<p>When viewing a completed run that has no baseline comparison, the run detail page shows a suggestion to promote it to baseline. This makes it easy to establish your first baseline.</p>
+
+<h3>Baseline Change History</h3>
+
+<p>All baseline promotions are recorded in an audit log. The definition detail view includes a <strong>Baseline Change History</strong> table showing when each baseline was promoted, which run was promoted, and by whom. This provides full traceability for your quality gates.</p>
+
 <h2>Step 7: Schedule Recurring Runs</h2>
 
 <p>Set up automated benchmark runs on a cron schedule for continuous regression monitoring.</p>
@@ -1286,6 +1459,8 @@
 
 <p>This example runs the benchmark every night at 2:00 AM. Schedules are managed by Temporal's built-in scheduling system.</p>
 
+<p>The schedule configuration panel shows the current status including the schedule ID, cron expression, next scheduled run time, and last run time, along with an Active/Paused badge.</p>
+
 <p>Use nightly schedules with a baseline to automatically detect regressions after each deployment. Check the project page each morning for regression badges on the latest run.</p>
 
 <h2>Step 8: Compare Runs</h2>
@@ -1294,10 +1469,12 @@
 
 <p>The comparison page shows:</p>
 <ul>
-    <li><strong>Metrics comparison</strong> — All metrics side by side with deltas</li>
-    <li><strong>Parameter differences</strong> — Highlighted with "Changed" badges when parameters differ</li>
-    <li><strong>Trend charts</strong> — Metric trends across selected runs</li>
-    <li><strong>Export</strong> — Download comparison as CSV or JSON</li>
+    <li><strong>Run information</strong> — Status, definition, and start time for each run</li>
+    <li><strong>Metrics comparison</strong> — All metrics side by side with delta and delta % (color-coded green/red)</li>
+    <li><strong>Parameter differences</strong> — Highlighted with "Changed" badges when parameters differ between runs</li>
+    <li><strong>Tags comparison</strong> — Side-by-side with "Changed" badges for differing values</li>
+    <li><strong>Export CSV</strong> — Download the comparison table as a CSV file</li>
+    <li><strong>Export JSON</strong> — Download the full comparison data as JSON</li>
 </ul>
 
 <h2>Step 9: Regression Reports</h2>
@@ -1305,14 +1482,57 @@
 <p>When a run has a baseline comparison, view the full regression report at <code>/benchmarking/projects/:id/runs/:runId/regression</code></p>
 
 <p>The report includes:</p>
-<ul>
-    <li><strong>Pass/fail status</strong> per metric with threshold details</li>
-    <li><strong>Delta and delta %</strong> for each metric</li>
-    <li><strong>Severity classification</strong> — Warning vs. Critical based on how far the metric dropped</li>
-    <li><strong>Historical trend chart</strong> — Metric values across recent runs</li>
-    <li><strong>Filtering</strong> — Show only regressions</li>
-    <li><strong>Export</strong> — Download as JSON or HTML</li>
-</ul>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h3 style="margin-top:0;">Metric-by-Metric Analysis</h3>
+        <ul>
+            <li>Current value vs. baseline value</li>
+            <li>Delta and delta % for each metric</li>
+            <li>Threshold configuration and pass/fail status</li>
+            <li>Severity classification (Warning / Critical)</li>
+            <li>Toggle to show only regressions</li>
+            <li>Click any metric row for a drill-down drawer with investigation suggestions</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #8b5cf6;">
+        <h3 style="margin-top:0;">Historical Trend Chart</h3>
+        <ul>
+            <li>Interactive line chart showing metric values over time</li>
+            <li>Multi-select metrics to display</li>
+            <li>Date range presets: Last 10/20 runs, Last 30/90 days, All runs</li>
+            <li>Current run highlighted with a distinct marker</li>
+            <li>Threshold reference lines shown as dashed red lines</li>
+            <li>Clickable legend to toggle metric visibility</li>
+        </ul>
+    </div>
+</div>
+
+<h3>Collaboration and Export</h3>
+
+<table>
+    <thead>
+        <tr><th>Action</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Add Annotation</strong></td>
+            <td>Add text comments to the report with your name and timestamp — useful for documenting investigation notes or action items</td>
+        </tr>
+        <tr>
+            <td><strong>Share</strong></td>
+            <td>Generate a shareable URL with a one-click copy button</td>
+        </tr>
+        <tr>
+            <td><strong>Export JSON</strong></td>
+            <td>Download the regression data as a JSON file</td>
+        </tr>
+        <tr>
+            <td><strong>Export HTML</strong></td>
+            <td>Download a self-contained HTML report with full styling — ideal for email distribution or archival</td>
+        </tr>
+    </tbody>
+</table>
 
 <h2>Common Scenarios</h2>
 
@@ -1411,16 +1631,25 @@
             <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
             <tbody>
                 <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets</code></td><td>Create a new dataset</td></tr>
-                <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets</code></td><td>List datasets</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets</code></td><td>List datasets (paginated)</td></tr>
                 <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id</code></td><td>Get dataset details</td></tr>
                 <tr><td><code>DELETE</code></td><td><code>/api/benchmark/datasets/:id</code></td><td>Delete dataset (cascading)</td></tr>
-                <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/upload</code></td><td>Upload files</td></tr>
                 <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/versions</code></td><td>Create version</td></tr>
                 <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id/versions</code></td><td>List versions</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId</code></td><td>Get version details</td></tr>
                 <tr><td><code>PATCH</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/publish</code></td><td>Publish version</td></tr>
+                <tr><td><code>PATCH</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/archive</code></td><td>Archive version</td></tr>
+                <tr><td><code>DELETE</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId</code></td><td>Delete version (draft only)</td></tr>
+                <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/upload</code></td><td>Upload files</td></tr>
+                <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/validate</code></td><td>Validate dataset version</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/samples</code></td><td>Preview samples (paginated)</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/samples/:sId/ground-truth</code></td><td>Get ground truth JSON</td></tr>
+                <tr><td><code>DELETE</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/samples/:sId</code></td><td>Delete sample (draft only)</td></tr>
                 <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/splits</code></td><td>Create split</td></tr>
                 <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/splits</code></td><td>List splits</td></tr>
-                <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/samples</code></td><td>Preview samples</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/splits/:splitId</code></td><td>Get split details</td></tr>
+                <tr><td><code>PATCH</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/splits/:splitId</code></td><td>Update split (blocked if frozen)</td></tr>
+                <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/versions/:vId/splits/:splitId/freeze</code></td><td>Freeze split</td></tr>
             </tbody>
         </table>
     </div>
@@ -1440,6 +1669,8 @@
                 <tr><td><code>GET</code></td><td><code>/api/benchmark/projects/:id/definitions/:defId</code></td><td>Get definition details</td></tr>
                 <tr><td><code>PUT</code></td><td><code>/api/benchmark/projects/:id/definitions/:defId</code></td><td>Update definition (new revision if immutable)</td></tr>
                 <tr><td><code>POST</code></td><td><code>/api/benchmark/projects/:id/definitions/:defId/schedule</code></td><td>Configure cron schedule</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/projects/:id/definitions/:defId/schedule</code></td><td>Get schedule info</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/benchmark/projects/:id/definitions/:defId/baseline-history</code></td><td>Get baseline promotion history</td></tr>
             </tbody>
         </table>
     </div>

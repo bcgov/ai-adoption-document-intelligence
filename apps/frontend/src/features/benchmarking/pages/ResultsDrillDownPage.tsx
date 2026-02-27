@@ -23,6 +23,7 @@ import {
 } from "@mantine/core";
 import {
   IconAlertCircle,
+  IconCheck,
   IconChevronRight,
   IconFilter,
   IconX,
@@ -44,6 +45,7 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
   sampleId,
   metadata,
   metrics,
+  pass,
   groundTruth,
   prediction,
   evaluationDetails,
@@ -52,12 +54,21 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
   return (
     <Stack gap="md">
       <Card withBorder>
-        <Stack gap="xs">
-          <Text fw={600} size="sm">
-            Sample ID
-          </Text>
-          <Code>{sampleId}</Code>
-        </Stack>
+        <Group justify="space-between">
+          <Stack gap="xs">
+            <Text fw={600} size="sm">
+              Sample ID
+            </Text>
+            <Code>{sampleId}</Code>
+          </Stack>
+          <Badge
+            size="lg"
+            color={pass ? "green" : "red"}
+            leftSection={pass ? <IconCheck size={14} /> : <IconX size={14} />}
+          >
+            {pass ? "PASS" : "FAIL"}
+          </Badge>
+        </Group>
       </Card>
 
       <Card withBorder>
@@ -193,6 +204,7 @@ export default function ResultsDrillDownPage() {
     sampleId: string;
     metadata: Record<string, unknown>;
     metrics: Record<string, number>;
+    pass: boolean;
     groundTruth?: unknown;
     prediction?: unknown;
     evaluationDetails?: unknown;
@@ -392,7 +404,8 @@ export default function ResultsDrillDownPage() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Sample ID</Table.Th>
-                  {availableDimensions.slice(0, 3).map((dim) => (
+                  <Table.Th>Status</Table.Th>
+                  {availableDimensions.filter((d) => d !== "pass").slice(0, 3).map((dim) => (
                     <Table.Th key={dim}>{dim}</Table.Th>
                   ))}
                   <Table.Th>Metrics</Table.Th>
@@ -405,7 +418,15 @@ export default function ResultsDrillDownPage() {
                     <Table.Td>
                       <Code>{result.sampleId}</Code>
                     </Table.Td>
-                    {availableDimensions.slice(0, 3).map((dim) => (
+                    <Table.Td>
+                      <Badge
+                        color={result.pass ? "green" : "red"}
+                        leftSection={result.pass ? <IconCheck size={12} /> : <IconX size={12} />}
+                      >
+                        {result.pass ? "PASS" : "FAIL"}
+                      </Badge>
+                    </Table.Td>
+                    {availableDimensions.filter((d) => d !== "pass").slice(0, 3).map((dim) => (
                       <Table.Td key={dim}>
                         {result.metadata[dim] !== undefined
                           ? String(result.metadata[dim])

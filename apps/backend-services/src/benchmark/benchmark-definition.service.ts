@@ -510,6 +510,61 @@ export class BenchmarkDefinitionService {
   }
 
   /**
+   * Delete a benchmark definition.
+   *
+   * Checks for active/running benchmark runs before allowing deletion.
+   * Completed/failed runs are cascade-deleted along with the definition.
+   * @param projectId - The parent project ID
+   * @param definitionId - The definition ID to delete
+   * @throws NotFoundException if the definition does not exist in the project
+   * @throws ConflictException-like BadRequestException if there are active runs
+   */
+  async deleteDefinition(
+    projectId: string,
+    definitionId: string,
+  ): Promise<void> {
+    const definition = await this.prisma.benchmarkDefinition.findFirst({
+      where: {
+        id: definitionId,
+        projectId,
+      },
+      include: {
+        benchmarkRuns: {
+          select: {
+            id: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!definition) {
+      throw new NotFoundException(
+        `Benchmark definition "${definitionId}" not found in project "${projectId}"`,
+      );
+    }
+
+    // Check for active (pending/running) runs
+    const activeRuns = definition.benchmarkRuns.filter(
+      (run) => run.status === "pending" || run.status === "running",
+    );
+
+    if (activeRuns.length > 0) {
+      throw new BadRequestException(
+        `Cannot delete definition "${definition.name}" because it has ${activeRuns.length} active run(s). Cancel or wait for them to complete first.`,
+      );
+    }
+
+    await this.prisma.benchmarkDefinition.delete({
+      where: { id: definitionId },
+    });
+
+    this.logger.log(
+      `Deleted benchmark definition "${definition.name}" (${definitionId}) from project ${projectId}`,
+    );
+  }
+
+  /**
    * Map Prisma result to DefinitionSummaryDto
    */
   private mapToDefinitionSummary(definition: {
@@ -585,7 +640,7 @@ export class BenchmarkDefinitionService {
         id: string;
         name: string;
         type: string;
-      };
+      } | null;
       workflow: {
         id: string;
         name: string;
@@ -620,11 +675,13 @@ export class BenchmarkDefinitionService {
       version: definition.workflow.version,
     };
 
-    const split: SplitInfo = {
-      id: definition.split.id,
-      name: definition.split.name,
-      type: definition.split.type,
-    };
+    const split: SplitInfo | undefined = definition.split
+      ? {
+          id: definition.split.id,
+          name: definition.split.name,
+          type: definition.split.type,
+        }
+      : undefined;
 
     const runHistory: RunHistorySummary[] = definition.benchmarkRuns.map(
       (run) => ({

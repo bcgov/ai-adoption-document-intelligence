@@ -25,6 +25,11 @@ export class PerSampleResultDto {
   metrics: Record<string, number>;
 
   /**
+   * Whether this sample passed the evaluator thresholds
+   */
+  pass: boolean;
+
+  /**
    * Per-sample diagnostics (arbitrary structured data for debugging)
    */
   diagnostics?: Record<string, unknown>;

@@ -733,8 +733,6 @@
         </nav>
     </header>
     <main>
-<!-- TITLE: Authentication Architecture -->
-<!-- NAV: authentication -->
 
 <h1>Authentication &amp; Authorization Architecture</h1>
 
@@ -750,7 +748,6 @@
     </div>
 </div>
 
-<!-- ====================================================================== -->
 <h2>Architecture Overview</h2>
 
 <p>The authentication system is split across the backend (NestJS) and frontend (React SPA), with Keycloak handling identity management.</p>
@@ -779,7 +776,6 @@
     </div>
 </div>
 
-<!-- ====================================================================== -->
 <h2>Authentication Flow Diagram</h2>
 
 <p>The following sequence diagram shows the complete authentication lifecycle — from login through to token refresh and logout.</p>
@@ -796,7 +792,6 @@
 
 <p>View this diagram in full in the <a href="diagrams.html#authentication-flow">interactive diagram viewer</a>.</p>
 
-<!-- ====================================================================== -->
 <h2>OAuth 2.0 Login Flow</h2>
 
 <p>The login process uses the <strong>Authorization Code Flow with PKCE</strong> and a confidential client. The backend orchestrates all interactions with Keycloak — the browser never sees the client secret, authorization code exchange, or PKCE verifier.</p>
@@ -880,7 +875,6 @@
     </div>
 </div>
 
-<!-- ====================================================================== -->
 <h2>Token Refresh Strategy</h2>
 
 <p>The platform uses a three-layer approach to keep sessions alive without requiring the user to re-authenticate.</p>
@@ -908,7 +902,6 @@ X-CSRF-Token: abc123...</code></pre>
 
 <p>The backend reads the <code>refresh_token</code> from the HttpOnly cookie, exchanges it with Keycloak via <code>openid-client.refreshTokenGrant()</code>, and sets updated auth cookies in the response. Returns <code>{ "expires_in": 300 }</code> in the body.</p>
 
-<!-- ====================================================================== -->
 <h2>Token Validation</h2>
 
 <p>All API requests (except routes marked <code>@Public()</code>) are validated by a global <strong>Passport JWT guard</strong>. The JWT strategy extracts tokens from HttpOnly cookies first, with a Bearer header fallback for API clients.</p>
@@ -967,7 +960,6 @@ X-CSRF-Token: abc123...</code></pre>
     </li>
 </ul>
 
-<!-- ====================================================================== -->
 <h2>Decorator Composition Rules</h2>
 
 <p>The guard chain runs globally in this order: <code>JwtAuthGuard</code> &rarr; <code>ApiKeyAuthGuard</code> &rarr; <code>RolesGuard</code> &rarr; <code>CsrfGuard</code>. Decorators control which guards activate. Follow these rules when protecting endpoints.</p>
@@ -1062,7 +1054,6 @@ createUser() {}</code></pre>
     <li>Does this endpoint require specific roles? &rarr; Add <code>@Roles('role1', 'role2')</code></li>
 </ol>
 
-<!-- ====================================================================== -->
 <h2>API Key Authentication</h2>
 
 <p>For machine-to-machine (M2M) integrations, routes decorated with <code>@ApiKeyAuth()</code> accept an API key via the <code>X-API-Key</code> header as an alternative to Bearer tokens.</p>
@@ -1092,7 +1083,6 @@ X-API-Key: your-api-key-here</code></pre>
     </div>
 </div>
 
-<!-- ====================================================================== -->
 <h2>Authorization (RBAC)</h2>
 
 <p>Role-Based Access Control is enforced via the <code>@Roles()</code> decorator and the global <code>RolesGuard</code>.</p>
@@ -1113,7 +1103,6 @@ export class AdminController {
     <li>Roles are sourced from the validated JWT (Keycloak realm and client roles, normalized by <code>KeycloakJwtStrategy</code>)</li>
 </ul>
 
-<!-- ====================================================================== -->
 <h2>Backend Module Structure</h2>
 
 <p>The auth system is contained within <code>apps/backend-services/src/auth/</code> with the following file structure:</p>
@@ -1139,7 +1128,6 @@ export class AdminController {
     </tbody>
 </table>
 
-<!-- ====================================================================== -->
 <h2>Frontend Auth Architecture</h2>
 
 <p>The React SPA uses a single <code>AuthContext</code> provider that encapsulates all authentication logic. No OIDC client library is used — the frontend relies entirely on the backend for OAuth interactions.</p>
@@ -1169,7 +1157,6 @@ export class AdminController {
     <li><strong>Response interceptor:</strong> On 401, triggers a single-flight refresh via <code>POST /api/auth/refresh</code> (cookies sent automatically), retries the original request, logs out if refresh fails</li>
 </ul>
 
-<!-- ====================================================================== -->
 <h2>Security Mechanisms</h2>
 
 <div class="grid grid-2">
@@ -1203,7 +1190,6 @@ export class AdminController {
     </div>
 </div>
 
-<!-- ====================================================================== -->
 <h2>Configuration</h2>
 
 <p>The following environment variables configure the authentication system:</p>
@@ -1224,7 +1210,6 @@ export class AdminController {
     </tbody>
 </table>
 
-<!-- ====================================================================== -->
 <h2>API Endpoints</h2>
 
 <p>Auth flow endpoints are under <code>/api/auth/</code>. The flow endpoints (<code>/login</code>, <code>/callback</code>, <code>/refresh</code>, <code>/logout</code>) are marked <code>@Public()</code> (no bearer token required). The <code>/me</code> endpoint requires a valid JWT.</p>
@@ -1262,7 +1247,6 @@ export class AdminController {
     </tbody>
 </table>
 
-<!-- ====================================================================== -->
 <h2>Technology Stack</h2>
 
 <h3>Backend Libraries</h3>
@@ -1295,7 +1279,6 @@ export class AdminController {
     </tbody>
 </table>
 
-<!-- ====================================================================== -->
 <h2>Critique &amp; Improvement Recommendations</h2>
 
 <p>The current implementation is functional and follows industry-standard patterns. The following areas have been identified as opportunities for further hardening, scalability, and operational improvements.</p>

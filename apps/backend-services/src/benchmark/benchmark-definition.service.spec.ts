@@ -35,6 +35,7 @@ jest.mock("@generated/client", () => {
         findMany: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn(),
+        delete: jest.fn(),
       },
       benchmarkRun: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -481,6 +482,47 @@ describe("BenchmarkDefinitionService", () => {
       expect(result.runHistory).toHaveLength(1);
       expect(result.runHistory[0].status).toBe("completed");
     });
+
+    it("returns definition details with null split", async () => {
+      const mockDefinition = {
+        id: "def-1",
+        projectId: "project-1",
+        name: "No Split Definition",
+        datasetVersionId: "ds-version-1",
+        splitId: null,
+        workflowId: "workflow-1",
+        workflowConfigHash: "abc123",
+        evaluatorType: "schema-aware",
+        evaluatorConfig: { threshold: 0.9 },
+        runtimeSettings: { timeout: 3600 },
+        artifactPolicy: { keepAll: true },
+        immutable: false,
+        revision: 1,
+        scheduleEnabled: false,
+        scheduleCron: null,
+        scheduleId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        datasetVersion: mockDatasetVersion,
+        split: null,
+        workflow: mockWorkflow,
+        benchmarkRuns: [],
+      };
+
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(mockDefinition as never);
+
+      jest
+        .spyOn(prisma.benchmarkRun, "findFirst")
+        .mockResolvedValue(null);
+
+      const result = await service.getDefinitionById("project-1", "def-1");
+
+      expect(result).toBeDefined();
+      expect(result.id).toBe("def-1");
+      expect(result.split).toBeUndefined();
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -829,6 +871,66 @@ describe("BenchmarkDefinitionService", () => {
       await expect(
         service.getScheduleInfo("project-1", "invalid-def"),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // deleteDefinition
+  // -----------------------------------------------------------------------
+  describe("deleteDefinition", () => {
+    it("deletes a definition with no active runs", async () => {
+      const mockDefinition = {
+        id: "def-1",
+        projectId: "project-1",
+        name: "Test Definition",
+        benchmarkRuns: [
+          { id: "run-1", status: "completed" },
+          { id: "run-2", status: "failed" },
+        ],
+      };
+
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(mockDefinition as never);
+      jest
+        .spyOn(prisma.benchmarkDefinition, "delete")
+        .mockResolvedValue(mockDefinition as never);
+
+      await service.deleteDefinition("project-1", "def-1");
+
+      expect(prisma.benchmarkDefinition.delete).toHaveBeenCalledWith({
+        where: { id: "def-1" },
+      });
+    });
+
+    it("throws NotFoundException when definition does not exist", async () => {
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(null);
+
+      await expect(
+        service.deleteDefinition("project-1", "nonexistent"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws BadRequestException when definition has active runs", async () => {
+      const mockDefinition = {
+        id: "def-1",
+        projectId: "project-1",
+        name: "Test Definition",
+        benchmarkRuns: [
+          { id: "run-1", status: "running" },
+          { id: "run-2", status: "completed" },
+        ],
+      };
+
+      jest
+        .spyOn(prisma.benchmarkDefinition, "findFirst")
+        .mockResolvedValue(mockDefinition as never);
+
+      await expect(
+        service.deleteDefinition("project-1", "def-1"),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

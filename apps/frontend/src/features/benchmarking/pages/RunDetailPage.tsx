@@ -566,9 +566,23 @@ export function RunDetailPage() {
       {run.status === "completed" && run.metrics && (
         <Card>
           <Stack gap="md">
-            <Title order={3} data-testid="aggregated-metrics-heading">
-              Aggregated Metrics
-            </Title>
+            <Group justify="space-between">
+              <Title order={3} data-testid="aggregated-metrics-heading">
+                Aggregated Metrics
+              </Title>
+              <Button
+                variant="light"
+                size="sm"
+                onClick={() =>
+                  navigate(
+                    `/benchmarking/projects/${projectId}/runs/${runId}/drill-down`,
+                  )
+                }
+                data-testid="browse-sample-results-btn"
+              >
+                Browse Sample Results
+              </Button>
+            </Group>
             <Table striped highlightOnHover data-testid="aggregated-metrics-table">
               <Table.Thead>
                 <Table.Tr>
