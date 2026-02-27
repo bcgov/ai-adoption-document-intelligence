@@ -354,13 +354,21 @@ async getMe(@Req() req: Request): Promise<MeResponseDto> {
   const user = req.user as User;
   const now = Math.floor(Date.now() / 1000);
   const exp = (user.exp as number) || now;
+  const userId = user.sub || "";
+
+  const isAdmin = await this.databaseService.isUserSystemAdmin(userId);
+  const groups = isAdmin
+    ? await this.groupService.getAllGroups()
+    : await this.groupService.getUserGroups(userId);
+
   return {
-    sub: user.sub || "",
+    sub: userId,
     name: (user.name as string) || (user.display_name as string),
     preferred_username: (user.preferred_username as string) || (user.idir_username as string),
     email: user.email,
     roles: user.roles || [],
     expires_in: Math.max(exp - now, 0),
+    groups,  // all groups for system-admin, otherwise user's memberships
   };
 }
 ```
@@ -940,7 +948,7 @@ const fetchMe = useCallback(async (): Promise<AuthUser | null> => {
 **How It Works:**
 1. Browser automatically sends auth cookies with the request
 2. Backend's `JwtAuthGuard` validates the `access_token` cookie
-3. If valid, returns `MeResponseDto` with user profile and `expires_in`
+3. If valid, returns `MeResponseDto` with user profile, `expires_in`, and `groups` (the user's group memberships, or all groups for system-admins)
 4. `meResponseToUser()` computes `expires_at` from `expires_in` and builds the `AuthUser` object
 5. If invalid/missing, returns 401 and frontend shows logged-out state
 

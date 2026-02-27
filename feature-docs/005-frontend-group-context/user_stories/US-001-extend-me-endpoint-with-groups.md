@@ -5,27 +5,27 @@
 **So that** the frontend can determine available groups without making an additional API call.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Groups included for a user with memberships
+- [x] **Scenario 1**: Groups included for a user with memberships
     - **Given** an authenticated user who is a member of one or more groups
     - **When** `GET /api/auth/me` is called
     - **Then** the response includes a `groups` array of `{ id, name }` objects for each group the user belongs to
 
-- [ ] **Scenario 2**: Empty array for a user with no memberships
+- [x] **Scenario 2**: Empty array for a user with no memberships
     - **Given** an authenticated user who has no group memberships
     - **When** `GET /api/auth/me` is called
     - **Then** the response includes an empty `groups` array (`[]`)
 
-- [ ] **Scenario 3**: System-admin receives all groups
+- [x] **Scenario 3**: System-admin receives all groups
     - **Given** an authenticated user who is a system-admin
     - **When** `GET /api/auth/me` is called
     - **Then** the `groups` array contains all groups in the system (equivalent to `GET /api/groups`)
 
-- [ ] **Scenario 4**: `MeResponseDto` is updated
+- [x] **Scenario 4**: `MeResponseDto` is updated
     - **Given** the API schema
     - **When** the DTO is inspected
     - **Then** `MeResponseDto` includes a `groups` field typed as `Array<{ id: string; name: string }>`
 
-- [ ] **Scenario 5**: Unit tests pass for the updated endpoint
+- [x] **Scenario 5**: Unit tests pass for the updated endpoint
     - **Given** the extended `AuthController.getMe` implementation
     - **When** unit tests are run
     - **Then** all existing and new tests pass with the updated response shape
