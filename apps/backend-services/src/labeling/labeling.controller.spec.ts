@@ -87,9 +87,7 @@ describe("LabelingController", () => {
       isUserInGroup: jest.fn().mockResolvedValue(true),
       isUserSystemAdmin: jest.fn().mockResolvedValue(false),
       findLabelingDocument: jest.fn().mockResolvedValue(mockLabelingDocument),
-      getUsersGroups: jest
-        .fn()
-        .mockResolvedValue([{ group_id: "group-1" }]),
+      getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "group-1" }]),
     } as unknown as jest.Mocked<DatabaseService>;
 
     const module: TestingModule = await Test.createTestingModule({

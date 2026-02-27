@@ -99,7 +99,9 @@ describe("WorkflowController", () => {
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
       const result = await controller.getWorkflows(req);
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
-      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(["group-1"]);
+      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith([
+        "group-1",
+      ]);
     });
 
     it("returns workflows for an API key's group", async () => {
@@ -107,7 +109,9 @@ describe("WorkflowController", () => {
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
       const result = await controller.getWorkflows(req);
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
-      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(["group-1"]);
+      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith([
+        "group-1",
+      ]);
     });
   });
 

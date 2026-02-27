@@ -51,9 +51,7 @@ describe("HitlController", () => {
       isUserSystemAdmin: jest.fn().mockResolvedValue(false),
       findDocument: jest.fn().mockResolvedValue(mockDocument),
       findReviewSession: jest.fn().mockResolvedValue(mockSession),
-      getUsersGroups: jest
-        .fn()
-        .mockResolvedValue([{ group_id: "group-1" }]),
+      getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "group-1" }]),
     } as unknown as jest.Mocked<DatabaseService>;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -89,7 +87,10 @@ describe("HitlController", () => {
       const req = {
         resolvedIdentity: { groupId: "group-1" },
       } as Request;
-      hitlService.getQueue.mockResolvedValue({ documents: [], total: 0 } as any);
+      hitlService.getQueue.mockResolvedValue({
+        documents: [],
+        total: 0,
+      } as any);
       await controller.getQueue({} as any, req);
       expect(hitlService.getQueue).toHaveBeenCalledWith({}, ["group-1"]);
     });
@@ -109,7 +110,9 @@ describe("HitlController", () => {
       hitlService.getQueueStats.mockResolvedValue(mockResult as any);
       const result = await controller.getQueueStats(undefined, req);
       expect(result).toEqual(mockResult);
-      expect(hitlService.getQueueStats).toHaveBeenCalledWith(undefined, ["group-1"]);
+      expect(hitlService.getQueueStats).toHaveBeenCalledWith(undefined, [
+        "group-1",
+      ]);
     });
   });
 

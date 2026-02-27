@@ -169,9 +169,9 @@ describe("LabelingService", () => {
 
       const result = await service.getProjects(["group-1"]);
 
-      expect(mockDbService.findAllLabelingProjects).toHaveBeenCalledWith(
-        ["group-1"],
-      );
+      expect(mockDbService.findAllLabelingProjects).toHaveBeenCalledWith([
+        "group-1",
+      ]);
       expect(result).toEqual(projects);
     });
   });

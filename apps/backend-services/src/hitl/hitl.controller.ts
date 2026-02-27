@@ -281,7 +281,10 @@ export class HitlController {
       "Review analytics including correction rates and session summaries",
     type: AnalyticsResponseDto,
   })
-  async getAnalytics(@Query() filters: AnalyticsFilterDto, @Req() req: Request) {
+  async getAnalytics(
+    @Query() filters: AnalyticsFilterDto,
+    @Req() req: Request,
+  ) {
     const groupIds = await getIdentityGroupIds(
       req.resolvedIdentity,
       this.databaseService,

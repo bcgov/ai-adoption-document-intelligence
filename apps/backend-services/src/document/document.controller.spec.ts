@@ -27,9 +27,7 @@ describe("DocumentController", () => {
       deleteDocument: jest.fn(),
       isUserInGroup: jest.fn().mockResolvedValue(true),
       isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-      getUsersGroups: jest
-        .fn()
-        .mockResolvedValue([{ group_id: mockGroupId }]),
+      getUsersGroups: jest.fn().mockResolvedValue([{ group_id: mockGroupId }]),
     } as any;
     temporalClientService = {} as jest.Mocked<TemporalClientService>;
     blobStorage = {
@@ -50,9 +48,13 @@ describe("DocumentController", () => {
 
     it("should return documents for the user's groups", async () => {
       databaseService.findAllDocuments.mockResolvedValue([{ id: "1" } as any]);
-      const result = await controller.getAllDocuments(mockReqWithIdentity as any);
+      const result = await controller.getAllDocuments(
+        mockReqWithIdentity as any,
+      );
       expect(result).toEqual([{ id: "1" }]);
-      expect(databaseService.findAllDocuments).toHaveBeenCalledWith([mockGroupId]);
+      expect(databaseService.findAllDocuments).toHaveBeenCalledWith([
+        mockGroupId,
+      ]);
     });
 
     it("should return documents for an API key's group", async () => {
@@ -60,7 +62,9 @@ describe("DocumentController", () => {
       databaseService.findAllDocuments.mockResolvedValue([{ id: "1" } as any]);
       const result = await controller.getAllDocuments(apiKeyReq as any);
       expect(result).toEqual([{ id: "1" }]);
-      expect(databaseService.findAllDocuments).toHaveBeenCalledWith([mockGroupId]);
+      expect(databaseService.findAllDocuments).toHaveBeenCalledWith([
+        mockGroupId,
+      ]);
     });
 
     it("should return empty array when there is no identity", async () => {
@@ -93,7 +97,9 @@ describe("DocumentController", () => {
         status: "FAILED",
       });
 
-      const result = await controller.getAllDocuments(mockReqWithIdentity as any);
+      const result = await controller.getAllDocuments(
+        mockReqWithIdentity as any,
+      );
 
       expect(temporalClientService.getWorkflowStatus).toHaveBeenCalledWith(
         "workflow-123",
@@ -118,7 +124,9 @@ describe("DocumentController", () => {
         status: "awaiting_review",
       });
 
-      const result = await controller.getAllDocuments(mockReqWithIdentity as any);
+      const result = await controller.getAllDocuments(
+        mockReqWithIdentity as any,
+      );
 
       expect(temporalClientService.getWorkflowStatus).toHaveBeenCalledWith(
         "workflow-123",

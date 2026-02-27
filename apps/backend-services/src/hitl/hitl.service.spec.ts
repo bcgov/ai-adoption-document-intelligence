@@ -747,7 +747,10 @@ describe("HitlService", () => {
 
       const result = await service.getAnalytics(filters);
 
-      expect(mockAnalyticsService.getAnalytics).toHaveBeenCalledWith(filters, undefined);
+      expect(mockAnalyticsService.getAnalytics).toHaveBeenCalledWith(
+        filters,
+        undefined,
+      );
       expect(result).toEqual(mockAnalytics);
     });
   });

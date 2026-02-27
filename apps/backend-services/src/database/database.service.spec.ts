@@ -1334,7 +1334,11 @@ describe("DatabaseService", () => {
 
   describe("isUserSystemAdmin", () => {
     it("should return true when the user has the system-admin role", async () => {
-      mockPrisma.userRole = { findFirst: jest.fn().mockResolvedValueOnce({ user_id: "user-1", role_id: "role-1" }) };
+      mockPrisma.userRole = {
+        findFirst: jest
+          .fn()
+          .mockResolvedValueOnce({ user_id: "user-1", role_id: "role-1" }),
+      };
       const result = await service.isUserSystemAdmin("user-1");
       expect(result).toBe(true);
       expect(mockPrisma.userRole.findFirst).toHaveBeenCalledWith({
@@ -1343,7 +1347,9 @@ describe("DatabaseService", () => {
     });
 
     it("should return false when the user does not have the system-admin role", async () => {
-      mockPrisma.userRole = { findFirst: jest.fn().mockResolvedValueOnce(null) };
+      mockPrisma.userRole = {
+        findFirst: jest.fn().mockResolvedValueOnce(null),
+      };
       const result = await service.isUserSystemAdmin("user-1");
       expect(result).toBe(false);
     });

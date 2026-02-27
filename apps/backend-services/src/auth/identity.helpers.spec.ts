@@ -1,6 +1,9 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "@/database/database.service";
-import { getIdentityGroupIds, identityCanAccessGroup } from "./identity.helpers";
+import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "./identity.helpers";
 
 describe("getIdentityGroupIds", () => {
   let mockDb: DatabaseService;

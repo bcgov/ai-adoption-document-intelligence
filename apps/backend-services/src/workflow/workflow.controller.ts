@@ -23,7 +23,10 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
-import { getIdentityGroupIds, identityCanAccessGroup } from "@/auth/identity.helpers";
+import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "@/auth/identity.helpers";
 import { DatabaseService } from "@/database/database.service";
 import {
   ApiKeyAuth,
