@@ -5,17 +5,17 @@
 **So that** documents are correctly associated with my current group without manual input.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: `group_id` is included in upload request automatically
+- [x] **Scenario 1**: `group_id` is included in upload request automatically
     - **Given** the user has an `activeGroup` set in `GroupContext`
     - **When** a document upload is initiated
-    - **Then** the upload hook reads `activeGroup.id` from `GroupContext` and includes it as `group_id` in `UploadDocumentDto`
+    - **Then** the upload hook reads `activeGroup.id` from `GroupContext` and includes it as `group_id` in `UploadDocumentPayload`
 
-- [ ] **Scenario 2**: Upload is disabled when no active group
+- [x] **Scenario 2**: Upload is disabled when no active group
     - **Given** the user's `activeGroup` is `null`
     - **When** the upload UI renders
     - **Then** the upload button is disabled (greyed out) with a tooltip explaining that a group must be selected
 
-- [ ] **Scenario 3**: Upload succeeds with group association
+- [x] **Scenario 3**: Upload succeeds with group association
     - **Given** the user has an `activeGroup` and selects a file
     - **When** the upload completes successfully
     - **Then** the document is stored with the correct `group_id`

@@ -28,6 +28,7 @@ import {
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useGroup } from "../../auth/GroupContext";
 import { useModels } from "../../data/hooks/useModels";
 import { useWorkflows } from "../../data/hooks/useWorkflows";
 import { apiService } from "../../data/services/api.service";
@@ -91,6 +92,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { activeGroup } = useGroup();
   const { data: models, isLoading: modelsLoading } = useModels();
   const { data: workflows, isLoading: workflowsLoading } = useWorkflows();
 
@@ -152,6 +154,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
             lastModified: item.file.lastModified,
           },
           model_id: selectedModel!,
+          group_id: activeGroup!.id,
           ...(selectedWorkflow && { workflow_id: selectedWorkflow }),
         };
 
@@ -213,6 +216,15 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
   };
 
   const uploadDocuments = async () => {
+    if (!activeGroup) {
+      notifications.show({
+        title: "Select a group",
+        message: "Please select a group before uploading.",
+        color: "yellow",
+      });
+      return;
+    }
+
     if (!selectedModel) {
       notifications.show({
         title: "Select a model",
@@ -332,13 +344,24 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
             >
               Clear all
             </Button>
-            <Button
-              onClick={uploadDocuments}
-              disabled={queue.length === 0 || isUploading || !selectedModel}
-              loading={isUploading}
+            <Tooltip
+              label="Select a group before uploading"
+              disabled={activeGroup !== null}
             >
-              {isUploading ? "Uploading..." : "Upload"}
-            </Button>
+              <Button
+                onClick={uploadDocuments}
+                disabled={
+                  queue.length === 0 ||
+                  isUploading ||
+                  !selectedModel ||
+                  activeGroup === null
+                }
+                loading={isUploading}
+                data-disabled={activeGroup === null || undefined}
+              >
+                {isUploading ? "Uploading..." : "Upload"}
+              </Button>
+            </Tooltip>
           </Group>
         </Group>
       </Paper>

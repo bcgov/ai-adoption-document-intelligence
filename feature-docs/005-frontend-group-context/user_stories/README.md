@@ -25,8 +25,8 @@ User stories for **Frontend Group Context & Active Group Selector**.
 
 | # | Story | Status |
 |---|-------|--------|
-| US-004 | [Block Navigation for Users with No Group Membership](./US-004-no-group-route-guard.md) | - [ ] |
-| US-005 | [Group Membership Request Page](./US-005-membership-request-page.md) | - [ ] |
+| US-004 | [Block Navigation for Users with No Group Membership](./US-004-no-group-route-guard.md) | - [x] |
+| US-005 | [Group Membership Request Page](./US-005-membership-request-page.md) | - [x] |
 
 ---
 
@@ -34,5 +34,5 @@ User stories for **Frontend Group Context & Active Group Selector**.
 
 | # | Story | Status |
 |---|-------|--------|
-| US-006 | [Inject Active Group into Document Upload Hook](./US-006-document-upload-active-group.md) | - [ ] |
+| US-006 | [Inject Active Group into Document Upload Hook](./US-006-document-upload-active-group.md) | - [x] |
 | US-007 | [Inject Active Group into `useCreateWorkflow` Hook](./US-007-create-workflow-active-group.md) | - [ ] |
