@@ -35,4 +35,4 @@ User stories for **Frontend Group Context & Active Group Selector**.
 | # | Story | Status |
 |---|-------|--------|
 | US-006 | [Inject Active Group into Document Upload Hook](./US-006-document-upload-active-group.md) | - [x] |
-| US-007 | [Inject Active Group into `useCreateWorkflow` Hook](./US-007-create-workflow-active-group.md) | - [ ] |
+| US-007 | [Inject Active Group into `useCreateWorkflow` Hook](./US-007-create-workflow-active-group.md) | - [x] |
