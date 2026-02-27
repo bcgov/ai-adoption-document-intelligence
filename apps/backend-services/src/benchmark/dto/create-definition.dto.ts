@@ -23,11 +23,11 @@ export class CreateDefinitionDto {
   datasetVersionId: string;
 
   /**
-   * Split ID
+   * Split ID (optional — if omitted, the benchmark runs on all samples)
    */
   @IsString()
-  @IsNotEmpty()
-  splitId: string;
+  @IsOptional()
+  splitId?: string;
 
   /**
    * Workflow ID

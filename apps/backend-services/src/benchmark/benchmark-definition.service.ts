@@ -97,21 +97,23 @@ export class BenchmarkDefinitionService {
       );
     }
 
-    // Validate that the split exists and belongs to the dataset version
-    const split = await this.prisma.split.findUnique({
-      where: { id: dto.splitId },
-    });
+    // Validate that the split exists and belongs to the dataset version (when provided)
+    if (dto.splitId) {
+      const split = await this.prisma.split.findUnique({
+        where: { id: dto.splitId },
+      });
 
-    if (!split) {
-      throw new BadRequestException(
-        `Split with ID "${dto.splitId}" does not exist`,
-      );
-    }
+      if (!split) {
+        throw new BadRequestException(
+          `Split with ID "${dto.splitId}" does not exist`,
+        );
+      }
 
-    if (split.datasetVersionId !== dto.datasetVersionId) {
-      throw new BadRequestException(
-        `Split "${dto.splitId}" does not belong to dataset version "${dto.datasetVersionId}"`,
-      );
+      if (split.datasetVersionId !== dto.datasetVersionId) {
+        throw new BadRequestException(
+          `Split "${dto.splitId}" does not belong to dataset version "${dto.datasetVersionId}"`,
+        );
+      }
     }
 
     // Validate that the workflow exists
@@ -141,7 +143,7 @@ export class BenchmarkDefinitionService {
         projectId,
         name: dto.name,
         datasetVersionId: dto.datasetVersionId,
-        splitId: dto.splitId,
+        splitId: dto.splitId || null,
         workflowId: dto.workflowId,
         workflowConfigHash,
         evaluatorType: dto.evaluatorType,

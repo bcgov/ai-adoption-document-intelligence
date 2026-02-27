@@ -1,33 +1,104 @@
-# Benchmarking: Dataset Upload & Auto-Version Creation
+# Benchmarking: Dataset Version Lifecycle
 
 ## Overview
 
-When files are uploaded to a dataset, the system automatically persists them to the dataset's git repository and creates a new `DatasetVersion` record. This eliminates the need for a separate "Create Version" step after uploading files.
+Dataset versions follow an explicit create-then-upload lifecycle. Users first create an empty draft version, then upload files to it incrementally. Versions can be validated, published, archived, or deleted.
+
+## Constraints
+
+- **Unique Repository URL**: Each dataset must have a unique `repositoryUrl`. Attempting to create a second dataset with the same repository URL returns HTTP 409 Conflict with a message identifying the existing dataset. This is enforced at both the service level and the database level (unique constraint on the `datasets.repositoryUrl` column).
+- **Deletion Protection**: Versions referenced by benchmark definitions cannot be deleted. Delete the definitions first.
+- **File Uploads Only on Drafts**: Files can only be uploaded to or removed from versions in `draft` status.
+
+## Version States
+
+| Status | Description |
+|--------|-------------|
+| `draft` | Mutable. Files can be uploaded or removed. Can be validated, published, or deleted. |
+| `published` | Immutable. Can be used in benchmark definitions and runs. Can be archived. |
+| `archived` | Frozen. Retained for historical reference, but not shown by default. |
 
 ## Flow
 
-1. User selects files in the upload dialog on the Dataset Detail page
-2. Frontend sends `POST /api/benchmark/datasets/:id/upload` with `multipart/form-data`
-3. Backend determines if the dataset repository is local or remote:
-   - **Local repos** (paths like `/tmp/my-dataset` or `~/datasets/repo`): files are written directly into the repository directory
-   - **Remote repos** (HTTP/HTTPS/SSH URLs): the repository is cloned to a temp directory, files are written, committed, and pushed back to origin; temp directory is cleaned up
-4. Files are categorized as **inputs** or **ground truth** based on file type (JSON/CSV/XML → ground truth; everything else → input)
-5. A `dataset-manifest.json` is created/updated with sample groupings
-6. Changes are committed to git via `git add -A && git commit`
-7. A `DatasetVersion` record is created with:
-   - Auto-incremented label: `v1`, `v2`, `v3`, etc.
-   - Git revision (commit SHA) pointing to the uploaded files
-   - Status: `draft`
-   - Document count from the manifest
-8. Frontend receives the response including version info and auto-refreshes the versions table
+### 1. Create a Draft Version
 
-## API
+User clicks "New Version" on the Dataset Detail page. The frontend calls `POST /api/benchmark/datasets/:id/versions` to create an empty draft:
+- A `DatasetVersion` record is created with `gitRevision: null`, `documentCount: 0`, `status: draft`.
+- The version label is auto-generated (`v1`, `v2`, ...) unless the user provides one.
 
-### `POST /api/benchmark/datasets/:id/upload`
+### 2. Upload Files to the Draft
 
-**Request:** `multipart/form-data` with `files` field (max 50 files, 50MB each)
+The upload dialog opens automatically after version creation. User drags files and submits:
+- Frontend sends `POST /api/benchmark/datasets/:id/versions/:versionId/upload` with `multipart/form-data`.
+- Backend verifies the version is in `draft` status.
+- For **local repos**: files are written directly into the repository directory.
+- For **remote repos**: the repo is cloned to a temp directory, files are written, committed, and pushed.
+- If the version already has a `gitRevision` (i.e., previous uploads exist), the existing commit is checked out first and new files are appended.
+- Files are categorized as **inputs** or **ground truth** based on MIME type.
+- A `dataset-manifest.json` is created/updated with sample groupings.
+- The version record is updated with the new `gitRevision` (commit SHA) and `documentCount`.
 
-**Response:**
+### 3. Remove Files from a Draft
+
+User clicks "Delete" on a sample row in the sample preview. The frontend calls:
+- `DELETE /api/benchmark/datasets/:id/versions/:versionId/samples/:sampleId`
+- Backend removes the sample's files from the git repo, updates the manifest, commits, and updates the version record.
+- Split references to the removed sample are automatically cleaned up.
+
+### 4. Validate
+
+User selects "Validate" from the version actions dropdown:
+- Checks that the manifest is well-formed and all referenced files exist.
+- Returns a validation report with any warnings or errors.
+- Validation is informational and does not block publishing.
+
+### 5. Publish
+
+User selects "Publish" from the version actions dropdown:
+- Requires the version to have files uploaded (`gitRevision` must not be null).
+- Sets `status: published` and records `publishedAt` timestamp.
+- Published versions are immutable — no more file changes.
+
+### 6. Delete a Version
+
+User selects "Delete Version" from the version actions dropdown (draft versions only in the UI):
+- Backend checks for referencing `BenchmarkDefinition` records. If any exist, returns HTTP 409 Conflict listing the definition names.
+- Deletes associated splits, then the version record.
+
+## API Endpoints
+
+### `POST /api/benchmark/datasets/:id/versions`
+
+Creates an empty draft version.
+
+**Request body (optional):**
+```json
+{
+  "version": "v1",
+  "groundTruthSchema": { "type": "object" }
+}
+```
+
+**Response (201):**
+```json
+{
+  "id": "uuid",
+  "datasetId": "uuid",
+  "version": "v1",
+  "gitRevision": null,
+  "status": "draft",
+  "documentCount": 0,
+  "createdAt": "2025-01-01T00:00:00Z"
+}
+```
+
+### `POST /api/benchmark/datasets/:id/versions/:versionId/upload`
+
+Uploads files to a draft version.
+
+**Request:** `multipart/form-data` with `files` field (max 50 files, 100MB each)
+
+**Response (200):**
 ```json
 {
   "datasetId": "uuid",
@@ -51,6 +122,18 @@ When files are uploaded to a dataset, the system automatically persists them to 
 }
 ```
 
+### `DELETE /api/benchmark/datasets/:id/versions/:versionId`
+
+Deletes a version. Returns 204 No Content on success, 409 Conflict if referenced by definitions.
+
+### `DELETE /api/benchmark/datasets/:id/versions/:versionId/samples/:sampleId`
+
+Removes a sample from a draft version. Returns 204 No Content.
+
+## Splits are Optional for Benchmark Runs
+
+When creating a benchmark definition, a split is no longer required. If no split is selected, the benchmark run processes all samples in the dataset version. In the Temporal workflow, if `sampleIds` is provided (from a split), only those samples are processed; otherwise all samples in the manifest are used.
+
 ## File Categorization
 
 Files are categorized by MIME type:
@@ -68,10 +151,12 @@ Files are grouped into samples by extracting a sample ID from the filename. The 
 
 ## Key Files
 
-- Backend service: `apps/backend-services/src/benchmark/dataset.service.ts` (`uploadFiles`)
+- Backend service: `apps/backend-services/src/benchmark/dataset.service.ts` (`createVersion`, `uploadFilesToVersion`, `deleteSample`, `deleteVersion`)
 - Backend controller: `apps/backend-services/src/benchmark/dataset.controller.ts`
-- Response DTO: `apps/backend-services/src/benchmark/dto/upload-response.dto.ts`
+- Response DTOs: `apps/backend-services/src/benchmark/dto/`
 - DVC service: `apps/backend-services/src/benchmark/dvc.service.ts`
-- Frontend hook: `apps/frontend/src/features/benchmarking/hooks/useDatasetUpload.ts`
-- Unit tests: `apps/backend-services/src/benchmark/dataset.service.spec.ts`
+- Frontend page: `apps/frontend/src/features/benchmarking/pages/DatasetDetailPage.tsx`
+- Frontend hooks: `apps/frontend/src/features/benchmarking/hooks/useDatasetVersions.ts`, `useDatasetUpload.ts`
+- Unit tests: `apps/backend-services/src/benchmark/dataset.service.spec.ts`, `dataset.controller.spec.ts`
+- Temporal workflow: `apps/temporal/src/benchmark-workflow.ts`
 - E2E tests: `tests/e2e/benchmarking/dataset-upload-version.spec.ts`

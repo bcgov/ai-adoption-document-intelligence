@@ -36,6 +36,9 @@ jest.mock("@generated/client", () => {
         findFirst: jest.fn(),
         update: jest.fn(),
       },
+      benchmarkRun: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
     })),
   };
 });

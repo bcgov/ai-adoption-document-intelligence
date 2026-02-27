@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Group,
   Modal,
@@ -7,6 +8,7 @@ import {
   Textarea,
   TextInput,
 } from "@mantine/core";
+import { IconAlertCircle } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 
 interface CreateDatasetDialogProps {
@@ -19,6 +21,8 @@ interface CreateDatasetDialogProps {
     repositoryUrl: string;
   }) => void;
   isCreating: boolean;
+  createError: Error | null;
+  onResetError: () => void;
 }
 
 export function CreateDatasetDialog({
@@ -26,6 +30,8 @@ export function CreateDatasetDialog({
   onClose,
   onCreate,
   isCreating,
+  createError,
+  onResetError,
 }: CreateDatasetDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -46,12 +52,13 @@ export function CreateDatasetDialog({
     setMetadata({});
     setNameError("");
     setRepositoryUrlError("");
+    onResetError();
     onClose();
   };
 
-  // Close dialog when mutation completes successfully
+  // Close dialog when mutation completes successfully (no error)
   useEffect(() => {
-    if (wasCreating.current && !isCreating) {
+    if (wasCreating.current && !isCreating && !createError) {
       // Clear form state
       setName("");
       setDescription("");
@@ -61,11 +68,12 @@ export function CreateDatasetDialog({
       setMetadata({});
       setNameError("");
       setRepositoryUrlError("");
+      onResetError();
       // Close dialog
       onClose();
     }
     wasCreating.current = isCreating;
-  }, [isCreating, onClose]);
+  }, [isCreating, createError, onClose, onResetError]);
 
   const handleAddMetadata = () => {
     if (metadataKey.trim() && metadataValue.trim()) {
@@ -121,6 +129,18 @@ export function CreateDatasetDialog({
       data-testid="create-dataset-dialog"
     >
       <Stack gap="md">
+        {createError && (
+          <Alert
+            icon={<IconAlertCircle size={16} />}
+            title="Failed to create dataset"
+            color="red"
+            variant="light"
+            data-testid="create-dataset-error"
+          >
+            {createError.message}
+          </Alert>
+        )}
+
         <TextInput
           label="Dataset Name"
           placeholder="Enter dataset name"
@@ -154,6 +174,9 @@ export function CreateDatasetDialog({
             setRepositoryUrl(e.target.value);
             if (e.target.value.trim()) {
               setRepositoryUrlError("");
+            }
+            if (createError) {
+              onResetError();
             }
           }}
           error={repositoryUrlError}

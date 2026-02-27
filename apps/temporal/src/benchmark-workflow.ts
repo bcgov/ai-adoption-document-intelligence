@@ -166,10 +166,13 @@ export interface BenchmarkRunWorkflowInput {
   datasetVersionId: string;
 
   /** Git revision for dataset versioning */
-  gitRevision: string;
+  gitRevision: string | null;
 
   /** Split to run (e.g., 'test', 'validation') */
   splitId?: string;
+
+  /** Sample IDs from the DB split record (used for filtering) */
+  sampleIds?: string[];
 
   /** Workflow ID to execute per document */
   workflowId: string;
@@ -408,6 +411,7 @@ export async function benchmarkRunWorkflow(
     datasetVersionId,
     gitRevision,
     splitId,
+    sampleIds,
     workflowConfig,
     workflowConfigHash,
     evaluatorType,
@@ -462,12 +466,11 @@ export async function benchmarkRunWorkflow(
       datasetVersionId,
     });
 
-    // Determine which samples to process (based on split)
+    // Determine which samples to process (based on sampleIds from DB split)
     let samplesToProcess = manifest.samples;
-    if (splitId && manifest.splits && manifest.splits[splitId]) {
-      const splitSampleIds = manifest.splits[splitId];
+    if (sampleIds && sampleIds.length > 0) {
       samplesToProcess = manifest.samples.filter((s) =>
-        splitSampleIds?.includes(s.id),
+        sampleIds.includes(s.id),
       );
     }
 

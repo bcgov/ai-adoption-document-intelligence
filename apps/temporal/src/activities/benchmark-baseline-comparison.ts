@@ -95,7 +95,7 @@ export async function benchmarkCompareAgainstBaseline(
 
   const currentMetrics = run.metrics as Record<string, unknown>;
   const baselineMetrics = baseline.metrics as Record<string, unknown>;
-  const thresholds = (baseline.baselineThresholds as MetricThreshold[]) || [];
+  const thresholds = (baseline.baselineThresholds as unknown as MetricThreshold[]) || [];
 
   const metricComparisons: MetricComparison[] = [];
   const regressedMetrics: string[] = [];
@@ -158,7 +158,7 @@ export async function benchmarkCompareAgainstBaseline(
   await prisma.benchmarkRun.update({
     where: { id: runId },
     data: {
-      baselineComparison: comparison as Prisma.InputJsonValue,
+      baselineComparison: comparison as unknown as Prisma.InputJsonValue,
       tags: {
         ...(run.tags as Record<string, unknown>),
         ...(regressedMetrics.length > 0 ? { regression: 'true' } : {}),

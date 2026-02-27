@@ -149,6 +149,13 @@ export class BenchmarkRunService {
       );
     }
 
+    // Verify the dataset version has files uploaded (git revision)
+    if (!definition.datasetVersion.gitRevision) {
+      throw new BadRequestException(
+        `Cannot start a run: dataset version "${definition.datasetVersionId}" has no files uploaded`,
+      );
+    }
+
     // Get worker git SHA and image digest
     const workerGitSha = this.getWorkerGitSha();
     const workerImageDigest = this.getWorkerImageDigest();
@@ -211,7 +218,10 @@ export class BenchmarkRunService {
           projectId,
           datasetVersionId: definition.datasetVersionId,
           gitRevision: definition.datasetVersion.gitRevision,
-          splitId: definition.splitId,
+          splitId: definition.splitId ?? undefined,
+          sampleIds: definition.split
+            ? (definition.split.sampleIds as string[])
+            : undefined,
           workflowId: definition.workflowId,
           workflowConfig: definition.workflow.config as Record<string, unknown>,
           workflowConfigHash: definition.workflowConfigHash,

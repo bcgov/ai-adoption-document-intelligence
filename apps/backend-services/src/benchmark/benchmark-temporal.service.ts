@@ -79,8 +79,9 @@ export class BenchmarkTemporalService {
       definitionId: string;
       projectId: string;
       datasetVersionId: string;
-      gitRevision: string;
-      splitId: string;
+      gitRevision: string | null;
+      splitId?: string;
+      sampleIds?: string[];
       workflowId: string;
       workflowConfig: Record<string, unknown>;
       workflowConfigHash: string;
@@ -114,6 +115,7 @@ export class BenchmarkTemporalService {
               datasetVersionId: benchmarkDefinition.datasetVersionId,
               gitRevision: benchmarkDefinition.gitRevision,
               splitId: benchmarkDefinition.splitId,
+              sampleIds: benchmarkDefinition.sampleIds,
               workflowId: benchmarkDefinition.workflowId,
               workflowConfig: benchmarkDefinition.workflowConfig,
               workflowConfigHash: benchmarkDefinition.workflowConfigHash,

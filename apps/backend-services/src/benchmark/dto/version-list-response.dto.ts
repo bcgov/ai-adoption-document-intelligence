@@ -10,7 +10,7 @@ export class VersionListItemDto {
   version: string;
   status: string;
   documentCount: number;
-  gitRevision: string;
+  gitRevision: string | null;
   publishedAt: Date | null;
   createdAt: Date;
   splits?: SplitListItemDto[];

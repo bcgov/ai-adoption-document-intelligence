@@ -21,6 +21,15 @@ const EXPECTED_ACTIVITY_TYPES = [
   "document.splitAndClassify",
   "document.validateFields",
   "segment.combineResult",
+  "benchmark.evaluate",
+  "benchmark.aggregate",
+  "benchmark.logToMlflow",
+  "benchmark.cleanup",
+  "benchmark.updateRunStatus",
+  "benchmark.compareAgainstBaseline",
+  "benchmark.writePrediction",
+  "benchmark.materializeDataset",
+  "benchmark.loadDatasetManifest",
 ];
 
 describe("activity-registry", () => {
@@ -74,24 +83,7 @@ describe("activity-registry", () => {
   });
 
   describe("activity function references", () => {
-    const allActivities = [
-      "document.updateStatus",
-      "file.prepare",
-      "azureOcr.submit",
-      "azureOcr.poll",
-      "azureOcr.extract",
-      "ocr.cleanup",
-      "ocr.checkConfidence",
-      "ocr.storeResults",
-      "document.storeRejection",
-      "getWorkflowGraphConfig",
-      "ocr.enrich",
-      "document.split",
-      "document.classify",
-      "document.splitAndClassify",
-      "document.validateFields",
-      "segment.combineResult",
-    ];
+    const allActivities = EXPECTED_ACTIVITY_TYPES;
 
     it.each(allActivities)(
       "maps %s to a valid activity function",

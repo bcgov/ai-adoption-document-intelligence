@@ -20,7 +20,9 @@ import {
   IconCheck,
   IconDotsVertical,
   IconEye,
+  IconPlus,
   IconShieldCheck,
+  IconTrash,
   IconUpload,
 } from "@tabler/icons-react";
 import { useState } from "react";
@@ -43,11 +45,19 @@ export function DatasetDetailPage() {
   const {
     versions,
     isLoading: isLoadingVersions,
+    createVersion,
+    isCreatingVersion,
     publishVersion,
     archiveVersion,
+    deleteVersion,
+    isDeletingVersion,
+    deleteVersionError,
+    deleteSample,
+    isDeletingSample,
   } = useDatasetVersions(id || "");
 
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [uploadVersionId, setUploadVersionId] = useState<string | null>(null);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(
     null,
   );
@@ -68,6 +78,10 @@ export function DatasetDetailPage() {
     totalPages,
     isLoading: isLoadingSamples,
   } = useDatasetSamples(id || "", selectedVersionId || "", samplePage, 20);
+
+  const selectedVersion = selectedVersionId
+    ? versions.find((v) => v.id === selectedVersionId)
+    : null;
 
   const {
     mutate: validateDataset,
@@ -115,6 +129,29 @@ export function DatasetDetailPage() {
     archiveVersion(versionId);
   };
 
+  const handleDeleteVersion = (versionId: string) => {
+    deleteVersion(versionId);
+    if (selectedVersionId === versionId) {
+      setSelectedVersionId(null);
+      setActiveTab("versions");
+    }
+  };
+
+  const handleNewVersion = async () => {
+    const version = await createVersion();
+    setUploadVersionId(version.id);
+    setUploadDialogOpen(true);
+  };
+
+  const handleUploadToVersion = (versionId: string) => {
+    setUploadVersionId(versionId);
+    setUploadDialogOpen(true);
+  };
+
+  const handleDeleteSample = (versionId: string, sampleId: string) => {
+    deleteSample({ versionId, sampleId });
+  };
+
   const handleValidate = (versionId: string) => {
     setValidationDialogOpen(true);
     validateDataset({ versionId });
@@ -151,11 +188,12 @@ export function DatasetDetailPage() {
               {dataset.name}
             </Title>
             <Button
-              leftSection={<IconUpload size={16} />}
-              onClick={() => setUploadDialogOpen(true)}
-              data-testid="upload-files-btn"
+              leftSection={<IconPlus size={16} />}
+              onClick={handleNewVersion}
+              loading={isCreatingVersion}
+              data-testid="new-version-btn"
             >
-              Upload Files
+              New Version
             </Button>
           </Group>
           <Text c="dimmed" size="sm" data-testid="dataset-description">
@@ -205,7 +243,7 @@ export function DatasetDetailPage() {
                   <Stack align="center" gap="md">
                     <Text c="dimmed" data-testid="no-versions-message">No versions yet</Text>
                     <Text size="sm" c="dimmed">
-                      Upload files to create a new version
+                      Click &quot;New Version&quot; to create a draft and upload files
                     </Text>
                   </Stack>
                 </Center>
@@ -244,7 +282,7 @@ export function DatasetDetailPage() {
                         </Badge>
                       </Table.Td>
                       <Table.Td>{version.documentCount}</Table.Td>
-                      <Table.Td>{version.gitRevision.substring(0, 8)}</Table.Td>
+                      <Table.Td>{version.gitRevision ? version.gitRevision.substring(0, 8) : "-"}</Table.Td>
                       <Table.Td>
                         {version.publishedAt
                           ? new Date(version.publishedAt).toLocaleDateString()
@@ -271,6 +309,15 @@ export function DatasetDetailPage() {
                             >
                               View Samples
                             </Menu.Item>
+                            {version.status === "draft" && (
+                              <Menu.Item
+                                leftSection={<IconUpload size={16} />}
+                                onClick={() => handleUploadToVersion(version.id)}
+                                data-testid={`upload-files-menu-item-${version.id}`}
+                              >
+                                Upload Files
+                              </Menu.Item>
+                            )}
                             <Menu.Item
                               leftSection={<IconShieldCheck size={16} />}
                               onClick={() => handleValidate(version.id)}
@@ -295,6 +342,20 @@ export function DatasetDetailPage() {
                               >
                                 Archive
                               </Menu.Item>
+                            )}
+                            {version.status === "draft" && (
+                              <>
+                                <Menu.Divider />
+                                <Menu.Item
+                                  leftSection={<IconTrash size={16} />}
+                                  color="red"
+                                  onClick={() => handleDeleteVersion(version.id)}
+                                  loading={isDeletingVersion}
+                                  data-testid={`delete-version-menu-item-${version.id}`}
+                                >
+                                  Delete Version
+                                </Menu.Item>
+                              </>
                             )}
                           </Menu.Dropdown>
                         </Menu>
@@ -359,15 +420,35 @@ export function DatasetDetailPage() {
                               )}
                             </Table.Td>
                             <Table.Td>
-                              <Button
-                                size="xs"
-                                variant="subtle"
-                                leftSection={<IconEye size={14} />}
-                                onClick={() => handleViewGroundTruth(sample.id)}
-                                data-testid={`view-ground-truth-btn-${sample.id}`}
-                              >
-                                View
-                              </Button>
+                              <Group gap="xs">
+                                <Button
+                                  size="xs"
+                                  variant="subtle"
+                                  leftSection={<IconEye size={14} />}
+                                  onClick={() => handleViewGroundTruth(sample.id)}
+                                  data-testid={`view-ground-truth-btn-${sample.id}`}
+                                >
+                                  View
+                                </Button>
+                                {selectedVersion?.status === "draft" && (
+                                  <Button
+                                    size="xs"
+                                    variant="subtle"
+                                    color="red"
+                                    leftSection={<IconTrash size={14} />}
+                                    onClick={() =>
+                                      handleDeleteSample(
+                                        selectedVersionId!,
+                                        sample.id,
+                                      )
+                                    }
+                                    loading={isDeletingSample}
+                                    data-testid={`delete-sample-btn-${sample.id}`}
+                                  >
+                                    Delete
+                                  </Button>
+                                )}
+                              </Group>
                             </Table.Td>
                           </Table.Tr>
                         ))}
@@ -404,8 +485,12 @@ export function DatasetDetailPage() {
 
       <FileUploadDialog
         datasetId={id || ""}
+        versionId={uploadVersionId || ""}
         opened={uploadDialogOpen}
-        onClose={() => setUploadDialogOpen(false)}
+        onClose={() => {
+          setUploadDialogOpen(false);
+          setUploadVersionId(null);
+        }}
       />
 
       <GroundTruthViewer

@@ -24,7 +24,7 @@ interface CreateDefinitionDialogProps {
 export interface CreateDefinitionFormData {
   name: string;
   datasetVersionId: string;
-  splitId: string;
+  splitId?: string;
   workflowId: string;
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
@@ -99,12 +99,6 @@ export function CreateDefinitionDialog({
       hasError = true;
     }
 
-    // Validate split
-    if (!splitId) {
-      setSplitError("Split is required");
-      hasError = true;
-    }
-
     // Validate workflow
     if (!workflowId) {
       setWorkflowError("Workflow is required");
@@ -142,7 +136,7 @@ export function CreateDefinitionDialog({
     onCreate({
       name,
       datasetVersionId,
-      splitId,
+      ...(splitId ? { splitId } : {}),
       workflowId,
       evaluatorType,
       evaluatorConfig,
@@ -228,15 +222,15 @@ export function CreateDefinitionDialog({
 
         <Select
           label="Split"
-          placeholder="Select split"
+          placeholder="All samples (no split)"
           data={splitOptions}
-          value={splitId}
+          value={splitId || null}
           onChange={(value) => {
             setSplitId(value || "");
             setSplitError("");
           }}
-          disabled={!datasetVersionId || splits.length === 0}
-          required
+          disabled={!datasetVersionId}
+          clearable
           error={splitError}
           data-testid="split-select"
         />

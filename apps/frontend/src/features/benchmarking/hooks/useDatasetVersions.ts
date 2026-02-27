@@ -5,7 +5,7 @@ interface DatasetVersion {
   id: string;
   datasetId: string;
   version: string;
-  gitRevision: string;
+  gitRevision: string | null;
   manifestPath: string;
   documentCount: number;
   groundTruthSchema: Record<string, unknown> | null;
@@ -60,6 +60,24 @@ export const useDatasetVersions = (datasetId: string) => {
     enabled: !!datasetId,
   });
 
+  const createVersionMutation = useMutation({
+    mutationFn: async (data?: { version?: string; groundTruthSchema?: Record<string, unknown> }) => {
+      const response = await apiService.post<DatasetVersion>(
+        `/benchmark/datasets/${datasetId}/versions`,
+        data || {},
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-dataset-versions", datasetId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-dataset", datasetId],
+      });
+    },
+  });
+
   const publishVersionMutation = useMutation({
     mutationFn: async (versionId: string) => {
       const response = await apiService.patch<DatasetVersion>(
@@ -96,15 +114,64 @@ export const useDatasetVersions = (datasetId: string) => {
     },
   });
 
+  const deleteVersionMutation = useMutation({
+    mutationFn: async (versionId: string) => {
+      await apiService.delete(
+        `/benchmark/datasets/${datasetId}/versions/${versionId}`,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-dataset-versions", datasetId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-dataset", datasetId],
+      });
+    },
+  });
+
+  const deleteSampleMutation = useMutation({
+    mutationFn: async ({
+      versionId,
+      sampleId,
+    }: {
+      versionId: string;
+      sampleId: string;
+    }) => {
+      await apiService.delete(
+        `/benchmark/datasets/${datasetId}/versions/${versionId}/samples/${sampleId}`,
+      );
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [
+          "benchmark-dataset-samples",
+          datasetId,
+          variables.versionId,
+        ],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-dataset-versions", datasetId],
+      });
+    },
+  });
+
   return {
     versions: versionsQuery.data?.versions || [],
     total: versionsQuery.data?.total || 0,
     isLoading: versionsQuery.isLoading,
     error: versionsQuery.error,
+    createVersion: createVersionMutation.mutateAsync,
+    isCreatingVersion: createVersionMutation.isPending,
     publishVersion: publishVersionMutation.mutate,
     isPublishing: publishVersionMutation.isPending,
     archiveVersion: archiveVersionMutation.mutate,
     isArchiving: archiveVersionMutation.isPending,
+    deleteVersion: deleteVersionMutation.mutate,
+    isDeletingVersion: deleteVersionMutation.isPending,
+    deleteVersionError: deleteVersionMutation.error,
+    deleteSample: deleteSampleMutation.mutate,
+    isDeletingSample: deleteSampleMutation.isPending,
   };
 };
 

@@ -13,12 +13,14 @@ const mockDatasetService = {
   createDataset: jest.fn(),
   listDatasets: jest.fn(),
   getDatasetById: jest.fn(),
-  uploadFiles: jest.fn(),
+  uploadFilesToVersion: jest.fn(),
   createVersion: jest.fn(),
   publishVersion: jest.fn(),
   archiveVersion: jest.fn(),
   listVersions: jest.fn(),
   getVersionById: jest.fn(),
+  deleteVersion: jest.fn(),
+  deleteSample: jest.fn(),
 };
 
 describe("DatasetController", () => {
@@ -406,8 +408,15 @@ describe("DatasetController", () => {
     });
   });
 
-  describe("POST /api/benchmark/datasets/:id/upload", () => {
-    const mockFiles: any[] = [
+  describe("POST /api/benchmark/datasets/:id/versions/:versionId/upload", () => {
+    const mockFiles: Array<{
+      fieldname: string;
+      originalname: string;
+      encoding: string;
+      mimetype: string;
+      buffer: Buffer;
+      size: number;
+    }> = [
       {
         fieldname: "files",
         originalname: "test.jpg",
@@ -418,7 +427,13 @@ describe("DatasetController", () => {
       },
     ];
 
-    it("uploads files successfully", async () => {
+    const mockRequest = {
+      user: {
+        sub: "user-123",
+      },
+    } as any;
+
+    it("uploads files to a version successfully", async () => {
       const mockResponse = {
         datasetId: "dataset-123",
         uploadedFiles: [
@@ -433,30 +448,74 @@ describe("DatasetController", () => {
         totalFiles: 1,
       };
 
-      mockDatasetService.uploadFiles.mockResolvedValue(mockResponse);
+      mockDatasetService.uploadFilesToVersion.mockResolvedValue(mockResponse);
 
-      const result = await controller.uploadFiles("dataset-123", mockFiles);
-
-      expect(mockDatasetService.uploadFiles).toHaveBeenCalledWith(
+      const result = await controller.uploadFilesToVersion(
         "dataset-123",
+        "version-123",
         mockFiles,
+        mockRequest,
+      );
+
+      expect(mockDatasetService.uploadFilesToVersion).toHaveBeenCalledWith(
+        "dataset-123",
+        "version-123",
+        mockFiles,
+        "user-123",
       );
       expect(result).toEqual(mockResponse);
     });
 
     it("throws BadRequestException when no files provided", async () => {
-      await expect(controller.uploadFiles("dataset-123", [])).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(controller.uploadFiles("dataset-123", [])).rejects.toThrow(
-        "No files provided for upload",
-      );
+      await expect(
+        controller.uploadFilesToVersion("dataset-123", "version-123", [], mockRequest),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        controller.uploadFilesToVersion("dataset-123", "version-123", [], mockRequest),
+      ).rejects.toThrow("No files provided for upload");
     });
 
     it("throws BadRequestException when files is undefined", async () => {
       await expect(
-        controller.uploadFiles("dataset-123", undefined),
+        controller.uploadFilesToVersion("dataset-123", "version-123", undefined as any, mockRequest),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it("throws BadRequestException when user ID is missing", async () => {
+      const mockRequestNoUser = { user: undefined } as any;
+      await expect(
+        controller.uploadFilesToVersion("dataset-123", "version-123", mockFiles, mockRequestNoUser),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        controller.uploadFilesToVersion("dataset-123", "version-123", mockFiles, mockRequestNoUser),
+      ).rejects.toThrow("User ID not found in request");
+    });
+  });
+
+  describe("DELETE /api/benchmark/datasets/:id/versions/:versionId", () => {
+    it("deletes a version successfully", async () => {
+      mockDatasetService.deleteVersion.mockResolvedValue(undefined);
+
+      await controller.deleteVersion("dataset-123", "version-123");
+
+      expect(mockDatasetService.deleteVersion).toHaveBeenCalledWith(
+        "dataset-123",
+        "version-123",
+      );
+    });
+  });
+
+  describe("DELETE /api/benchmark/datasets/:id/versions/:versionId/samples/:sampleId", () => {
+    it("deletes a sample successfully", async () => {
+      mockDatasetService.deleteSample.mockResolvedValue(undefined);
+
+      await controller.deleteSample("dataset-123", "version-123", "sample-1");
+
+      expect(mockDatasetService.deleteSample).toHaveBeenCalledWith(
+        "dataset-123",
+        "version-123",
+        "sample-1",
+      );
     });
   });
 });

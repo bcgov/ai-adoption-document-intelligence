@@ -14,13 +14,19 @@ interface UploadResponse {
   version: {
     id: string;
     version: string;
-    gitRevision: string;
+    gitRevision: string | null;
     status: string;
     documentCount: number;
   };
 }
 
-export const useDatasetUpload = (datasetId: string) => {
+/**
+ * Hook for uploading files to a specific dataset version.
+ *
+ * @param datasetId - The dataset ID
+ * @param versionId - The version ID to upload files to
+ */
+export const useDatasetUpload = (datasetId: string, versionId: string) => {
   const queryClient = useQueryClient();
 
   const uploadMutation = useMutation({
@@ -31,7 +37,7 @@ export const useDatasetUpload = (datasetId: string) => {
       }
 
       const response = await apiService.post<UploadResponse>(
-        `/benchmark/datasets/${datasetId}/upload`,
+        `/benchmark/datasets/${datasetId}/versions/${versionId}/upload`,
         formData,
         {
           headers: {
@@ -47,6 +53,9 @@ export const useDatasetUpload = (datasetId: string) => {
       });
       queryClient.invalidateQueries({
         queryKey: ["benchmark-dataset", datasetId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-dataset-samples", datasetId, versionId],
       });
     },
   });

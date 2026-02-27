@@ -384,7 +384,7 @@ model Dataset {
   name            String
   description     String?
   metadata        Json              @default("{}")
-  repositoryUrl   String
+  repositoryUrl   String            @unique
   dvcRemote       String
   createdBy       String
   createdAt       DateTime          @default(now())
@@ -399,7 +399,7 @@ model DatasetVersion {
   datasetId           String
   dataset             Dataset                @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   version             String
-  gitRevision         String
+  gitRevision         String?
   manifestPath        String
   documentCount       Int
   groundTruthSchema   Json?
@@ -450,8 +450,8 @@ model BenchmarkDefinition {
   name                String
   datasetVersionId    String
   datasetVersion      DatasetVersion     @relation(fields: [datasetVersionId], references: [id])
-  splitId             String
-  split               Split              @relation(fields: [splitId], references: [id])
+  splitId             String?
+  split               Split?             @relation(fields: [splitId], references: [id])
   workflowId          String
   workflow            Workflow           @relation(fields: [workflowId], references: [id])
   workflowConfigHash  String

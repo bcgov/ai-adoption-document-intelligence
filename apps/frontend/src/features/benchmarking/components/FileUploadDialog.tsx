@@ -14,17 +14,19 @@ import { useDatasetUpload } from "../hooks/useDatasetUpload";
 
 interface FileUploadDialogProps {
   datasetId: string;
+  versionId: string;
   opened: boolean;
   onClose: () => void;
 }
 
 export function FileUploadDialog({
   datasetId,
+  versionId,
   opened,
   onClose,
 }: FileUploadDialogProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const { upload, isUploading, isSuccess, reset } = useDatasetUpload(datasetId);
+  const { upload, isUploading, isSuccess, reset } = useDatasetUpload(datasetId, versionId);
 
   const handleDrop = (files: File[]) => {
     setSelectedFiles((prev) => [...prev, ...files]);

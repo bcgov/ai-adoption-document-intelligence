@@ -78,6 +78,7 @@ describe("BenchmarkRunService", () => {
     datasetVersion: {
       id: "ds-version-1",
       version: "v1.0.0",
+      gitRevision: "abc123def",
       status: "published",
       dataset: {
         name: "Test Dataset",
@@ -87,6 +88,7 @@ describe("BenchmarkRunService", () => {
       id: "split-1",
       name: "test",
       type: "test",
+      sampleIds: ["sample-1", "sample-2"],
     },
     workflow: {
       id: "workflow-1",

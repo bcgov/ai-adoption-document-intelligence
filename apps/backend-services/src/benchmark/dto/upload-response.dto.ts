@@ -8,7 +8,7 @@ export class UploadedFileDto {
 export class UploadVersionDto {
   id: string;
   version: string;
-  gitRevision: string;
+  gitRevision: string | null;
   status: string;
   documentCount: number;
 }

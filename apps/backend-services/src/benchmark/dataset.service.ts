@@ -10,6 +10,7 @@
 import { AuditAction, Prisma, PrismaClient } from "@generated/client";
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -79,6 +80,16 @@ export class DatasetService {
     }
     if (!createDto.repositoryUrl) {
       throw new BadRequestException("Repository URL is required");
+    }
+
+    // Check for duplicate repository URL
+    const existingDataset = await this.prisma.dataset.findUnique({
+      where: { repositoryUrl: createDto.repositoryUrl },
+    });
+    if (existingDataset) {
+      throw new ConflictException(
+        `A dataset already exists with this repository URL: "${existingDataset.name}"`,
+      );
     }
 
     let workingDir: string;
@@ -308,18 +319,15 @@ export class DatasetService {
   }
 
   /**
-   * Create a new dataset version
-   * Runs DVC add, git commit, DVC push workflow
+   * Create a new empty draft dataset version.
+   * The version starts with no files or git revision.
+   * Files are added subsequently via uploadFilesToVersion().
    */
   async createVersion(
     datasetId: string,
     createDto: CreateVersionDto,
     userId: string,
   ): Promise<VersionResponseDto> {
-    this.logger.log(
-      `Creating version ${createDto.version} for dataset ${datasetId}`,
-    );
-
     // Verify dataset exists
     const dataset = await this.prisma.dataset.findUnique({
       where: { id: datasetId },
@@ -329,81 +337,39 @@ export class DatasetService {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    // Create temporary directory for dataset operations
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-version-"));
+    // Auto-generate version label if not provided
+    const existingVersionCount = await this.prisma.datasetVersion.count({
+      where: { datasetId },
+    });
+    const versionLabel =
+      createDto.version || `v${existingVersionCount + 1}`;
 
-    try {
-      // Clone the dataset repository
-      await this.dvcService.cloneRepository(dataset.repositoryUrl, tempDir);
+    this.logger.log(
+      `Creating version ${versionLabel} for dataset ${datasetId}`,
+    );
 
-      // Default manifest path if not provided
-      const manifestPath = createDto.manifestPath || "dataset-manifest.json";
+    // Default manifest path if not provided
+    const manifestPath = createDto.manifestPath || "dataset-manifest.json";
 
-      // Generate a simple manifest with document count
-      // In a real implementation, this would scan the repository for actual files
-      const manifestData = {
-        schemaVersion: "1.0",
-        samples: [],
-      };
-      const manifestFilePath = path.join(tempDir, manifestPath);
-      await fs.promises.writeFile(
-        manifestFilePath,
-        JSON.stringify(manifestData, null, 2),
-      );
+    // Create DatasetVersion record with no git revision
+    const version = await this.prisma.datasetVersion.create({
+      data: {
+        datasetId: datasetId,
+        version: versionLabel,
+        gitRevision: null,
+        manifestPath: manifestPath,
+        documentCount: 0,
+        groundTruthSchema: (createDto.groundTruthSchema ||
+          null) as Prisma.JsonValue,
+        status: "draft",
+      },
+    });
 
-      // Add manifest to DVC tracking (if needed, based on size/type)
-      // For small JSON files, we typically just commit to Git directly
-      // For actual data files, we would run: await this.dvcService.addFiles(tempDir, [manifestPath]);
+    this.logger.log(
+      `Version created successfully: ${version.id} (${versionLabel})`,
+    );
 
-      // Commit changes to Git
-      const commitMessage = `Add dataset version ${createDto.version}`;
-      const gitRevision = await this.dvcService.commitChanges(
-        tempDir,
-        commitMessage,
-      );
-
-      // Push DVC-tracked files to remote (if any were added)
-      // await this.dvcService.pushData(tempDir);
-
-      // Calculate document count from manifest
-      const documentCount = manifestData.samples.length;
-
-      // Create DatasetVersion record
-      const version = await this.prisma.datasetVersion.create({
-        data: {
-          datasetId: datasetId,
-          version: createDto.version,
-          gitRevision: gitRevision,
-          manifestPath: manifestPath,
-          documentCount: documentCount,
-          groundTruthSchema: (createDto.groundTruthSchema ||
-            null) as Prisma.JsonValue,
-          status: "draft",
-        },
-      });
-
-      this.logger.log(
-        `Version created successfully: ${version.id} with git revision ${gitRevision}`,
-      );
-
-      return this.mapToVersionResponseDto(version);
-    } catch (error) {
-      this.logger.error(
-        `Failed to create version for dataset ${datasetId}`,
-        error.stack,
-      );
-      throw error;
-    } finally {
-      // Clean up temporary directory
-      try {
-        await rm(tempDir, { recursive: true, force: true });
-      } catch (cleanupError) {
-        this.logger.warn(
-          `Failed to clean up temp directory: ${tempDir}`,
-          cleanupError,
-        );
-      }
-    }
+    return this.mapToVersionResponseDto(version);
   }
 
   /**
@@ -434,6 +400,13 @@ export class DatasetService {
     if (version.status === "published") {
       throw new BadRequestException(
         "Version is already published and cannot be published again",
+      );
+    }
+
+    // Require at least one uploaded file (git revision) before publishing
+    if (!version.gitRevision) {
+      throw new BadRequestException(
+        "Cannot publish a version with no files uploaded",
       );
     }
 
@@ -588,10 +561,12 @@ export class DatasetService {
   }
 
   /**
-   * Upload files to a dataset, commit them to the git repo, and auto-create a version.
+   * Upload files to an existing draft dataset version.
+   * Appends files to the version's manifest and commits to git.
    */
-  async uploadFiles(
+  async uploadFilesToVersion(
     datasetId: string,
+    versionId: string,
     files: Array<{
       fieldname: string;
       originalname: string;
@@ -602,7 +577,9 @@ export class DatasetService {
     }>,
     userId: string,
   ): Promise<UploadResponseDto> {
-    this.logger.log(`Uploading ${files.length} files to dataset ${datasetId}`);
+    this.logger.log(
+      `Uploading ${files.length} files to dataset ${datasetId}, version ${versionId}`,
+    );
 
     // Verify dataset exists
     const dataset = await this.prisma.dataset.findUnique({
@@ -611,6 +588,23 @@ export class DatasetService {
 
     if (!dataset) {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
+    }
+
+    // Verify version exists and is in draft status
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: { id: versionId, datasetId },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    if (version.status !== "draft") {
+      throw new BadRequestException(
+        "Cannot upload files to a non-draft version",
+      );
     }
 
     // Determine if repository is remote or local
@@ -626,16 +620,19 @@ export class DatasetService {
     let tempDir: string | null = null;
 
     if (isRemoteUrl) {
-      // Remote repos: clone to temp dir, will push back after commit
       tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-upload-"));
       await this.dvcService.cloneRepository(dataset.repositoryUrl, tempDir);
       workingDir = tempDir;
     } else {
-      // Local repos: work directly in the repo to avoid push-back issues
       workingDir = expandedUrl;
     }
 
     try {
+      // If version already has a git revision, check it out
+      if (version.gitRevision) {
+        await this.dvcService.checkout(workingDir, version.gitRevision);
+      }
+
       // Create inputs and ground-truth directories if they don't exist
       const inputsDir = path.join(workingDir, "inputs");
       const groundTruthDir = path.join(workingDir, "ground-truth");
@@ -726,11 +723,7 @@ export class DatasetService {
       );
 
       // Commit files to git
-      const existingVersionCount = await this.prisma.datasetVersion.count({
-        where: { datasetId },
-      });
-      const versionLabel = `v${existingVersionCount + 1}`;
-      const commitMessage = `Add dataset version ${versionLabel}`;
+      const commitMessage = `Upload files to version ${version.version}`;
       const gitRevision = await this.dvcService.commitChanges(
         workingDir,
         commitMessage,
@@ -741,21 +734,17 @@ export class DatasetService {
         await this.dvcService.pushToOrigin(workingDir);
       }
 
-      // Create DatasetVersion record
-      const version = await this.prisma.datasetVersion.create({
+      // Update the existing version record with new git revision and document count
+      const updatedVersion = await this.prisma.datasetVersion.update({
+        where: { id: versionId },
         data: {
-          datasetId: datasetId,
-          version: versionLabel,
           gitRevision: gitRevision,
-          manifestPath: "dataset-manifest.json",
           documentCount: manifest.samples.length,
-          groundTruthSchema: null as Prisma.JsonValue,
-          status: "draft",
         },
       });
 
       this.logger.log(
-        `Upload complete: ${uploadedFiles.length} files, version ${versionLabel} created (${version.id})`,
+        `Upload complete: ${uploadedFiles.length} files added to version ${version.version} (${versionId})`,
       );
 
       return {
@@ -764,21 +753,20 @@ export class DatasetService {
         manifestUpdated: true,
         totalFiles: uploadedFiles.length,
         version: {
-          id: version.id,
-          version: version.version,
-          gitRevision: version.gitRevision,
-          status: version.status,
-          documentCount: version.documentCount,
+          id: updatedVersion.id,
+          version: updatedVersion.version,
+          gitRevision: updatedVersion.gitRevision,
+          status: updatedVersion.status,
+          documentCount: updatedVersion.documentCount,
         },
       };
     } catch (error) {
       this.logger.error(
-        `Failed to upload files to dataset ${datasetId}`,
+        `Failed to upload files to dataset ${datasetId}, version ${versionId}`,
         error.stack,
       );
       throw error;
     } finally {
-      // Clean up temporary directory (only used for remote repos)
       if (tempDir) {
         try {
           await rm(tempDir, { recursive: true, force: true });
@@ -790,6 +778,251 @@ export class DatasetService {
         }
       }
     }
+  }
+
+  /**
+   * Delete a sample from a draft dataset version.
+   * Removes the sample from the manifest and deletes its files from the git repo.
+   */
+  async deleteSample(
+    datasetId: string,
+    versionId: string,
+    sampleId: string,
+  ): Promise<void> {
+    this.logger.log(
+      `Deleting sample ${sampleId} from dataset ${datasetId}, version ${versionId}`,
+    );
+
+    // Verify dataset exists
+    const dataset = await this.prisma.dataset.findUnique({
+      where: { id: datasetId },
+    });
+
+    if (!dataset) {
+      throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
+    }
+
+    // Verify version exists and is draft
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: { id: versionId, datasetId },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    if (version.status !== "draft") {
+      throw new BadRequestException(
+        "Cannot delete samples from a non-draft version",
+      );
+    }
+
+    if (!version.gitRevision) {
+      throw new BadRequestException(
+        "Cannot delete samples from a version with no files uploaded",
+      );
+    }
+
+    // Determine if repository is remote or local
+    const expandedUrl = dataset.repositoryUrl.startsWith("~")
+      ? dataset.repositoryUrl.replace(/^~/, os.homedir())
+      : dataset.repositoryUrl;
+    const isRemoteUrl =
+      expandedUrl.startsWith("http://") ||
+      expandedUrl.startsWith("https://") ||
+      expandedUrl.startsWith("git@");
+
+    let workingDir: string;
+    let tempDir: string | null = null;
+
+    if (isRemoteUrl) {
+      tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-delete-sample-"));
+      await this.dvcService.cloneRepository(dataset.repositoryUrl, tempDir);
+      workingDir = tempDir;
+    } else {
+      workingDir = expandedUrl;
+    }
+
+    try {
+      // Checkout the current version's git revision
+      await this.dvcService.checkout(workingDir, version.gitRevision);
+
+      // Load the manifest
+      const manifestFilePath = path.join(workingDir, version.manifestPath);
+      const manifestContent = await fs.promises.readFile(
+        manifestFilePath,
+        "utf-8",
+      );
+      const manifest = JSON.parse(manifestContent) as {
+        schemaVersion: string;
+        samples: Array<{
+          id: string;
+          inputs: Array<{ path: string; mimeType: string }>;
+          groundTruth: Array<{ path: string; format: string }>;
+          metadata?: Record<string, unknown>;
+        }>;
+      };
+
+      // Find the sample
+      const sampleIndex = manifest.samples.findIndex(
+        (s) => s.id === sampleId,
+      );
+
+      if (sampleIndex === -1) {
+        throw new NotFoundException(
+          `Sample with ID ${sampleId} not found in version ${versionId}`,
+        );
+      }
+
+      const sample = manifest.samples[sampleIndex];
+
+      // Delete the sample's files from disk
+      for (const input of sample.inputs) {
+        const filePath = path.join(workingDir, input.path);
+        try {
+          await fs.promises.unlink(filePath);
+        } catch {
+          this.logger.warn(`Could not delete file: ${input.path}`);
+        }
+      }
+      for (const gt of sample.groundTruth) {
+        const filePath = path.join(workingDir, gt.path);
+        try {
+          await fs.promises.unlink(filePath);
+        } catch {
+          this.logger.warn(`Could not delete file: ${gt.path}`);
+        }
+      }
+
+      // Remove sample from manifest
+      manifest.samples.splice(sampleIndex, 1);
+
+      // Write updated manifest
+      await fs.promises.writeFile(
+        manifestFilePath,
+        JSON.stringify(manifest, null, 2),
+      );
+
+      // Commit changes
+      const commitMessage = `Remove sample ${sampleId} from version ${version.version}`;
+      const gitRevision = await this.dvcService.commitChanges(
+        workingDir,
+        commitMessage,
+      );
+
+      // For remote repos, push the commit back to origin
+      if (isRemoteUrl) {
+        await this.dvcService.pushToOrigin(workingDir);
+      }
+
+      // Update version record
+      await this.prisma.datasetVersion.update({
+        where: { id: versionId },
+        data: {
+          gitRevision: gitRevision,
+          documentCount: manifest.samples.length,
+        },
+      });
+
+      // Remove the sample ID from any splits that reference it
+      const splits = await this.prisma.split.findMany({
+        where: { datasetVersionId: versionId },
+      });
+
+      for (const split of splits) {
+        const currentSampleIds = Array.isArray(split.sampleIds)
+          ? (split.sampleIds as string[])
+          : [];
+        if (currentSampleIds.includes(sampleId)) {
+          const updatedSampleIds = currentSampleIds.filter(
+            (id) => id !== sampleId,
+          );
+          await this.prisma.split.update({
+            where: { id: split.id },
+            data: { sampleIds: updatedSampleIds },
+          });
+        }
+      }
+
+      this.logger.log(
+        `Sample ${sampleId} deleted from version ${versionId}`,
+      );
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to delete sample ${sampleId} from version ${versionId}`,
+        error.stack,
+      );
+      throw error;
+    } finally {
+      if (tempDir) {
+        try {
+          await rm(tempDir, { recursive: true, force: true });
+        } catch (cleanupError) {
+          this.logger.warn(
+            `Failed to clean up temp directory: ${tempDir}`,
+            cleanupError,
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * Delete a dataset version.
+   * Blocked if any benchmark definitions reference this version.
+   */
+  async deleteVersion(
+    datasetId: string,
+    versionId: string,
+  ): Promise<void> {
+    this.logger.log(
+      `Deleting version ${versionId} for dataset ${datasetId}`,
+    );
+
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: { id: versionId, datasetId },
+      include: {
+        benchmarkDefinitions: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    // Block deletion if any benchmark definitions reference this version
+    if (version.benchmarkDefinitions.length > 0) {
+      const defNames = version.benchmarkDefinitions
+        .map((d) => d.name)
+        .join(", ");
+      throw new ConflictException(
+        `Cannot delete version "${version.version}" because it is referenced by ${version.benchmarkDefinitions.length} benchmark definition(s): ${defNames}. Delete those definitions first.`,
+      );
+    }
+
+    // Delete splits for the version first (cascade would handle this, but be explicit)
+    await this.prisma.split.deleteMany({
+      where: { datasetVersionId: versionId },
+    });
+
+    // Delete the version record
+    await this.prisma.datasetVersion.delete({
+      where: { id: versionId },
+    });
+
+    this.logger.log(`Version ${versionId} deleted successfully`);
   }
 
   /**
@@ -825,6 +1058,17 @@ export class DatasetService {
       throw new NotFoundException(
         `Version with ID ${versionId} not found for dataset ${datasetId}`,
       );
+    }
+
+    // If version has no git revision yet (no files uploaded), return empty
+    if (!version.gitRevision) {
+      return {
+        samples: [],
+        total: 0,
+        page: validPage,
+        limit: validLimit,
+        totalPages: 0,
+      };
     }
 
     // Create temporary directory for checking out the dataset
@@ -916,6 +1160,12 @@ export class DatasetService {
     if (!version) {
       throw new NotFoundException(
         `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    if (!version.gitRevision) {
+      throw new BadRequestException(
+        "Version has no files uploaded yet",
       );
     }
 
@@ -1236,7 +1486,7 @@ export class DatasetService {
       id: string;
       datasetId: string;
       version: string;
-      gitRevision: string;
+      gitRevision: string | null;
       manifestPath: string;
       documentCount: number;
       groundTruthSchema: unknown;
@@ -1301,6 +1551,12 @@ export class DatasetService {
     if (!version) {
       throw new NotFoundException(
         `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    if (!version.gitRevision) {
+      throw new BadRequestException(
+        "Cannot validate a version with no files uploaded",
       );
     }
 

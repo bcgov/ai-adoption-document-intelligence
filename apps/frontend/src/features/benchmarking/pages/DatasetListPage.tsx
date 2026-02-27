@@ -16,7 +16,7 @@ import { CreateDatasetDialog } from "../components/CreateDatasetDialog";
 import { useDatasets } from "../hooks/useDatasets";
 
 export function DatasetListPage() {
-  const { datasets, isLoading, error, createDataset, isCreating } = useDatasets();
+  const { datasets, isLoading, error, createDataset, isCreating, createError, resetCreateError } = useDatasets();
   const [createDialogOpened, setCreateDialogOpened] = useState(false);
   const navigate = useNavigate();
 
@@ -127,6 +127,8 @@ export function DatasetListPage() {
         onClose={() => setCreateDialogOpened(false)}
         onCreate={createDataset}
         isCreating={isCreating}
+        createError={createError}
+        onResetError={resetCreateError}
       />
     </Stack>
   );

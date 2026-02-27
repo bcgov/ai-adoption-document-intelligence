@@ -63,6 +63,9 @@ export const useDatasets = (page = 1, limit = 20) => {
         "/benchmark/datasets",
         data,
       );
+      if (!response.success) {
+        throw new Error(response.message || "Failed to create dataset");
+      }
       return response.data;
     },
     onSuccess: () => {
@@ -80,6 +83,8 @@ export const useDatasets = (page = 1, limit = 20) => {
     error: datasetsQuery.error,
     createDataset: createDatasetMutation.mutate,
     isCreating: createDatasetMutation.isPending,
+    createError: createDatasetMutation.error,
+    resetCreateError: createDatasetMutation.reset,
   };
 };
 

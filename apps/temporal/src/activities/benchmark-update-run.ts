@@ -89,7 +89,7 @@ async function computeBaselineComparison(
 
   // Extract baseline metrics
   const baselineMetrics = baselineRun.metrics as Record<string, unknown>;
-  const thresholds = (baselineRun.baselineThresholds as MetricThreshold[]) || [];
+  const thresholds = (baselineRun.baselineThresholds as unknown as MetricThreshold[]) || [];
 
   // Build a map of thresholds by metric name
   const thresholdMap = new Map<string, MetricThreshold>();
@@ -205,7 +205,7 @@ export async function benchmarkUpdateRunStatus(
     );
 
     if (baselineComparison) {
-      updateData.baselineComparison = baselineComparison as Prisma.InputJsonValue;
+      updateData.baselineComparison = baselineComparison as unknown as Prisma.InputJsonValue;
     }
   }
 

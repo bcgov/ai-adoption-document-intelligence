@@ -27,6 +27,7 @@ import { FilesInterceptor } from "@nestjs/platform-express";
 import {
   ApiBadRequestResponse,
   ApiBody,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -157,7 +158,7 @@ export class DatasetController {
     return this.datasetService.deleteDataset(id);
   }
 
-  @Post(":id/upload")
+  @Post(":id/versions/:versionId/upload")
   @HttpCode(HttpStatus.OK)
   @ApiKeyAuth()
   @KeycloakSSOAuth()
@@ -168,21 +169,23 @@ export class DatasetController {
       },
     }),
   )
-  @ApiOperation({ summary: "Upload files to a dataset" })
+  @ApiOperation({ summary: "Upload files to a specific dataset version" })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
   @ApiOkResponse({
     description:
-      "Files uploaded successfully. Returns list of uploaded files and manifest status.",
+      "Files uploaded successfully. Returns list of uploaded files and updated version info.",
     type: UploadResponseDto,
   })
   @ApiNotFoundResponse({
-    description: "Dataset not found",
+    description: "Dataset or version not found",
   })
   @ApiBadRequestResponse({
-    description: "Invalid file upload or dataset not found",
+    description: "Invalid file upload, version not in draft status, or no files provided",
   })
-  async uploadFiles(
+  async uploadFilesToVersion(
     @Param("id") id: string,
+    @Param("versionId") versionId: string,
     @UploadedFiles() files: Array<{
       fieldname: string;
       originalname: string;
@@ -204,8 +207,6 @@ export class DatasetController {
       throw new BadRequestException("No files provided for upload");
     }
 
-    // Check for file size limit violations (this is redundant with FilesInterceptor limits,
-    // but provides a more specific error message)
     const maxSize = 100 * 1024 * 1024; // 100MB
     for (const file of files) {
       if (file.size > maxSize) {
@@ -215,7 +216,7 @@ export class DatasetController {
       }
     }
 
-    return this.datasetService.uploadFiles(id, files, userId);
+    return this.datasetService.uploadFilesToVersion(id, versionId, files, userId);
   }
 
   @Post(":id/versions")
@@ -344,6 +345,63 @@ export class DatasetController {
     @Param("versionId") versionId: string,
   ): Promise<VersionResponseDto> {
     return this.datasetService.archiveVersion(id, versionId);
+  }
+
+  @Delete(":id/versions/:versionId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Delete a dataset version",
+    description:
+      "Deletes a dataset version and its splits. Blocked if any benchmark definitions reference this version.",
+  })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiOkResponse({
+    description: "Version deleted successfully",
+  })
+  @ApiNotFoundResponse({
+    description: "Version not found",
+  })
+  @ApiConflictResponse({
+    description:
+      "Version cannot be deleted because it is referenced by benchmark definitions",
+  })
+  async deleteVersion(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+  ): Promise<void> {
+    return this.datasetService.deleteVersion(id, versionId);
+  }
+
+  @Delete(":id/versions/:versionId/samples/:sampleId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Delete a sample from a draft dataset version",
+    description:
+      "Removes a sample from the manifest and deletes its files from the git repo. Only works on draft versions.",
+  })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiParam({ name: "sampleId", description: "Sample ID" })
+  @ApiOkResponse({
+    description: "Sample deleted successfully",
+  })
+  @ApiNotFoundResponse({
+    description: "Dataset version or sample not found",
+  })
+  @ApiBadRequestResponse({
+    description: "Version is not in draft status or has no files uploaded",
+  })
+  async deleteSample(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+    @Param("sampleId") sampleId: string,
+  ): Promise<void> {
+    return this.datasetService.deleteSample(id, versionId, sampleId);
   }
 
   @Get(":id/versions/:versionId/samples")
