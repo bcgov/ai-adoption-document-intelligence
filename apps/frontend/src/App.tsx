@@ -29,6 +29,7 @@ import { useAuth } from "./auth/AuthContext";
 import "./App.css";
 import { Login } from "./components";
 import { DocumentViewerModal } from "./components/document/DocumentViewerModal";
+import { GroupSelector } from "./components/group/GroupSelector";
 import { ProcessingQueue } from "./components/queue/ProcessingQueue";
 import { DocumentUploadPanel } from "./components/upload/DocumentUploadPanel";
 import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
@@ -167,6 +168,7 @@ function AppContent(): JSX.Element {
               </Badge>
             </Group>
             <Group>
+              <GroupSelector />
               <Stack gap={0}>
                 <Text size="sm" fw={600}>
                   {user?.profile?.name ?? "Authenticated user"}
