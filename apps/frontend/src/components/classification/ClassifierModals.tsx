@@ -3,7 +3,6 @@ import {
   FileInput,
   Group,
   Modal,
-  Select,
   Stack,
   Text,
   Textarea,
@@ -12,6 +11,7 @@ import {
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { useEffect } from "react";
+import { useGroup } from "@/auth/GroupContext";
 import { useClassifier } from "@/data/hooks/useClassifier";
 import { ClassifierSource } from "@/shared/types/classifier";
 
@@ -82,8 +82,15 @@ export const UploadClassifierFilesModal = ({
     },
     validate: {
       label: (value) => (value.trim() === "" ? "Label is required" : null),
-      files: (value) =>
-        !value || value.length === 0 ? "At least one file is required" : null,
+      files: (value) => {
+        if (!value || value.length === 0)
+          return "At least one file is required";
+        const invalid = Array.from(value).filter(
+          (f) => !f.type.startsWith("image/") && f.type !== "application/pdf",
+        );
+        if (invalid.length > 0) return "Only image files and PDFs are allowed";
+        return null;
+      },
     },
   });
 
@@ -117,6 +124,7 @@ export const UploadClassifierFilesModal = ({
           <FileInput
             label="Files"
             placeholder="Select files"
+            accept="image/*,application/pdf"
             multiple
             required
             onChange={(files) => {
@@ -159,30 +167,31 @@ interface CreateClassifierModalProps {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   afterSubmit?: () => void;
-  groupOptions: { id: string; name: string }[];
 }
 
 export const CreateClassifierModal = (props: CreateClassifierModalProps) => {
-  const { isOpen, setIsOpen, groupOptions } = props;
+  const { isOpen, setIsOpen } = props;
+  const { activeGroup } = useGroup();
   const form = useForm({
     initialValues: {
       name: "",
       description: "",
-      group: "",
     },
     validate: {
       name: (value) =>
         value.trim() === "" ? "Classifier name is required" : null,
-      group: (value) => (value === "" ? "Group is required" : null),
     },
   });
   const { createClassifier } = useClassifier();
 
   const onCreate = async (values: typeof form.values) => {
+    if (!activeGroup) {
+      throw new Error("No active group selected");
+    }
     await createClassifier.mutateAsync({
       name: values.name,
       description: values.description,
-      group_id: values.group,
+      group_id: activeGroup.id,
       source: ClassifierSource.AZURE,
     });
   };
@@ -215,16 +224,6 @@ export const CreateClassifierModal = (props: CreateClassifierModalProps) => {
         })}
       >
         <Stack gap="md">
-          <Select
-            label="Group"
-            placeholder="Select a group"
-            data={groupOptions.map((group) => ({
-              value: group.id,
-              label: group.name,
-            }))}
-            {...form.getInputProps("group")}
-            required
-          />
           <TextInput
             label="Classifier Name"
             placeholder="Enter classifier name"
