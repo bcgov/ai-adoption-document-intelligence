@@ -20,6 +20,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { useState } from "react";
+import { useGroup } from "../auth/GroupContext";
 import {
   GeneratedApiKey,
   useApiKey,
@@ -29,6 +30,7 @@ import {
 } from "../data/hooks/useApiKey";
 
 export function SettingsPage() {
+  const { activeGroup } = useGroup();
   const { data: apiKey, isLoading } = useApiKey();
   const generateMutation = useGenerateApiKey();
   const deleteMutation = useDeleteApiKey();
@@ -54,7 +56,7 @@ export function SettingsPage() {
 
   const handleRegenerateKey = async () => {
     try {
-      const result = await regenerateMutation.mutateAsync();
+      const result = await regenerateMutation.mutateAsync(apiKey!.id);
       setNewKey(result);
       setShowKeyModal(true);
     } catch (error) {
@@ -71,7 +73,7 @@ export function SettingsPage() {
 
   const handleDeleteKey = async () => {
     try {
-      await deleteMutation.mutateAsync();
+      await deleteMutation.mutateAsync(apiKey!.id);
       notifications.show({
         title: "Success",
         message: "API key deleted successfully",
@@ -102,6 +104,13 @@ export function SettingsPage() {
           <Title order={2}>Settings</Title>
           <Text c="dimmed" size="sm">
             Manage your API key for programmatic access
+            {activeGroup && (
+              <>
+                {" "}
+                — currently scoped to the group{" "}
+                <strong>{activeGroup.name}</strong>
+              </>
+            )}
           </Text>
         </Stack>
         <Badge variant="outline" size="lg">
@@ -118,7 +127,7 @@ export function SettingsPage() {
 
           <Text c="dimmed" size="sm">
             Use an API key to upload documents programmatically without browser
-            authentication. You can have one API key at a time.
+            authentication. Each group can have one API key at a time.
           </Text>
 
           {isLoading ? (
@@ -129,7 +138,7 @@ export function SettingsPage() {
                 <Group justify="space-between">
                   <Stack gap={4}>
                     <Text size="sm" fw={600}>
-                      Your API Key
+                      API Key for {activeGroup?.name}
                     </Text>
                     <Group gap="xs">
                       <Code>{apiKey.keyPrefix}...</Code>
@@ -177,6 +186,7 @@ export function SettingsPage() {
               leftSection={<IconKey size={16} />}
               onClick={handleGenerateKey}
               loading={generateMutation.isPending}
+              disabled={!activeGroup}
             >
               Generate API Key
             </Button>
@@ -210,7 +220,7 @@ export function SettingsPage() {
       <Modal
         opened={showKeyModal}
         onClose={closeKeyModal}
-        title="API Key Generated"
+        title={`API Key Generated for ${activeGroup?.name}`}
         size="lg"
       >
         <Stack gap="md">

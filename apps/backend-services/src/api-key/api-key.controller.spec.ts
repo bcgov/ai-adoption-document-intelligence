@@ -16,6 +16,7 @@ describe("ApiKeyController", () => {
     generateApiKey: jest.fn(),
     deleteApiKey: jest.fn(),
     regenerateApiKey: jest.fn(),
+    getApiKeyGroupId: jest.fn(),
   };
 
   const mockRequest = {
@@ -144,34 +145,42 @@ describe("ApiKeyController", () => {
 
     it("should not throw when user has no email for regenerate", async () => {
       mockApiKeyService.regenerateApiKey.mockResolvedValue({});
+      mockApiKeyService.getApiKeyGroupId.mockResolvedValue("group123");
       await expect(
         controller.regenerateApiKey(
           {
             user: { sub: "testuser" },
             resolvedIdentity: { userId: "testuser" },
           } as any,
-          { groupId: "group123" },
+          { id: "key123" },
         ),
       ).resolves.toBeDefined();
     });
   });
 
   describe("deleteApiKey", () => {
-    it("should delete group api key when user is a member", async () => {
+    it("should delete api key by id when user is a member", async () => {
       mockApiKeyService.deleteApiKey.mockResolvedValue(undefined);
+      mockApiKeyService.getApiKeyGroupId.mockResolvedValue("group123");
 
-      await controller.deleteApiKey(mockRequest as any, {
-        groupId: "group123",
-      });
+      await controller.deleteApiKey(mockRequest as any, "key123");
 
-      expect(apiKeyService.deleteApiKey).toHaveBeenCalledWith("group123");
+      expect(apiKeyService.deleteApiKey).toHaveBeenCalledWith("key123");
+    });
+
+    it("should throw BadRequestException when id is missing", async () => {
+      await expect(
+        controller.deleteApiKey(mockRequest as any, ""),
+      ).rejects.toThrow(BadRequestException);
+      expect(apiKeyService.deleteApiKey).not.toHaveBeenCalled();
     });
 
     it("should throw ForbiddenException when user is not a group member", async () => {
       databaseService.isUserInGroup.mockResolvedValue(false);
+      mockApiKeyService.getApiKeyGroupId.mockResolvedValue("group123");
 
       await expect(
-        controller.deleteApiKey(mockRequest as any, { groupId: "group123" }),
+        controller.deleteApiKey(mockRequest as any, "key123"),
       ).rejects.toThrow(ForbiddenException);
       expect(apiKeyService.deleteApiKey).not.toHaveBeenCalled();
     });
@@ -188,24 +197,26 @@ describe("ApiKeyController", () => {
         lastUsed: null,
       };
       mockApiKeyService.regenerateApiKey.mockResolvedValue(mockRegeneratedKey);
+      mockApiKeyService.getApiKeyGroupId.mockResolvedValue("group123");
 
       const result = await controller.regenerateApiKey(mockRequest as any, {
-        groupId: "group123",
+        id: "key123",
       });
 
       expect(result).toEqual({ apiKey: mockRegeneratedKey });
       expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith(
         "testuser",
-        "group123",
+        "key123",
       );
     });
 
     it("should throw ForbiddenException when user is not a group member", async () => {
       databaseService.isUserInGroup.mockResolvedValue(false);
+      mockApiKeyService.getApiKeyGroupId.mockResolvedValue("group123");
 
       await expect(
         controller.regenerateApiKey(mockRequest as any, {
-          groupId: "group123",
+          id: "key123",
         }),
       ).rejects.toThrow(ForbiddenException);
       expect(apiKeyService.regenerateApiKey).not.toHaveBeenCalled();
@@ -222,6 +233,7 @@ describe("ApiKeyController", () => {
         lastUsed: null,
       };
       mockApiKeyService.regenerateApiKey.mockResolvedValue(mockUpdatedKey);
+      mockApiKeyService.getApiKeyGroupId.mockResolvedValue("group123");
 
       const reqWithDifferentUser = {
         user: { sub: newUserId },
@@ -230,13 +242,13 @@ describe("ApiKeyController", () => {
 
       const result = await controller.regenerateApiKey(
         reqWithDifferentUser as any,
-        { groupId: "group123" },
+        { id: "key123" },
       );
 
       expect(result).toEqual({ apiKey: mockUpdatedKey });
       expect(apiKeyService.regenerateApiKey).toHaveBeenCalledWith(
         newUserId,
-        "group123",
+        "key123",
       );
     });
   });
