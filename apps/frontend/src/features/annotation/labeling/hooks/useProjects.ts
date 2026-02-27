@@ -77,6 +77,10 @@ interface CreateProjectDto {
   description?: string;
 }
 
+interface CreateProjectPayload extends CreateProjectDto {
+  group_id: string;
+}
+
 interface UpdateProjectDto {
   name?: string;
   description?: string;
@@ -100,9 +104,16 @@ export const useProjects = () => {
 
   const createProjectMutation = useMutation({
     mutationFn: async (data: CreateProjectDto) => {
+      if (!activeGroup) {
+        throw new Error("No active group selected");
+      }
+      const payload: CreateProjectPayload = {
+        ...data,
+        group_id: activeGroup.id,
+      };
       const response = await apiService.post<Project>(
         "/labeling/projects",
-        data,
+        payload,
       );
       return response.data;
     },
@@ -145,6 +156,7 @@ export const useProjects = () => {
     isLoading: projectsQuery.isLoading,
     error: projectsQuery.error,
     createProject: createProjectMutation.mutate,
+    createProjectAsync: createProjectMutation.mutateAsync,
     updateProject: updateProjectMutation.mutate,
     deleteProject: deleteProjectMutation.mutate,
     isCreating: createProjectMutation.isPending,

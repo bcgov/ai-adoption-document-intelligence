@@ -5,22 +5,22 @@
 **So that** new projects are correctly scoped to my current group without manual input.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: `group_id` is included in create-project request automatically
+- [x] **Scenario 1**: `group_id` is included in create-project request automatically
     - **Given** the user has an `activeGroup` set in `GroupContext`
     - **When** the `createProject` mutation is invoked
     - **Then** the hook reads `activeGroup.id` from `GroupContext` and injects it as `group_id` in the request body without the caller providing it
 
-- [ ] **Scenario 2**: Error is returned before API call when no active group
+- [x] **Scenario 2**: Error is returned before API call when no active group
     - **Given** the user's `activeGroup` is `null`
     - **When** the `createProject` mutation is triggered
     - **Then** the hook throws or returns an error without calling the API
 
-- [ ] **Scenario 3**: "New Project" button is disabled when no active group
+- [x] **Scenario 3**: "New Project" button is disabled when no active group
     - **Given** the user's `activeGroup` is `null`
     - **When** the Project List page is displayed
     - **Then** the "New Project" (and "Create Project" empty-state) button is disabled with a tooltip explaining that a group must be selected
 
-- [ ] **Scenario 4**: Callers do not pass `group_id`
+- [x] **Scenario 4**: Callers do not pass `group_id`
     - **Given** existing callers of `createProject` (e.g., `ProjectListPage`)
     - **When** the mutation is invoked
     - **Then** no `group_id` argument is expected or accepted from callers
