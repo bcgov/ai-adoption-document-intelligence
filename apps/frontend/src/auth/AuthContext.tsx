@@ -62,6 +62,7 @@ export interface AuthUser {
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
+  isSystemAdmin: boolean;
   user: AuthUser | null;
   login: () => void;
   logout: () => void;
@@ -250,6 +251,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = {
     isAuthenticated: !!user,
     isLoading,
+    isSystemAdmin: user?.roles?.includes("system-admin") ?? false,
     user,
     login,
     logout,
