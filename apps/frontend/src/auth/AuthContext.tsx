@@ -12,6 +12,14 @@ import { apiService } from "../data/services/api.service";
 import { API_BASE_URL } from "../shared/constants";
 
 /**
+ * Represents a group the user belongs to.
+ */
+export interface Group {
+  id: string;
+  name: string;
+}
+
+/**
  * Response shape from GET /api/auth/me.
  */
 interface MeResponse {
@@ -21,6 +29,7 @@ interface MeResponse {
   email?: string;
   roles: string[];
   expires_in: number;
+  groups: Group[];
 }
 
 /**
@@ -34,7 +43,7 @@ interface RefreshResponse {
  * Local representation of an authenticated user.
  * Profile data comes from the /me endpoint — the frontend never touches raw tokens.
  */
-interface AuthUser {
+export interface AuthUser {
   sub: string;
   expires_at: number;
   profile: {
@@ -44,6 +53,7 @@ interface AuthUser {
     [key: string]: unknown;
   };
   roles: string[];
+  groups: Group[];
 }
 
 /**
@@ -114,6 +124,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         email: me.email,
       },
       roles: me.roles,
+      groups: me.groups ?? [],
     };
   }, []);
 
