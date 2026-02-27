@@ -117,7 +117,7 @@ describe("LabelingController", () => {
         resolvedIdentity: { userId: "user-1" },
       } as Request;
       labelingService.getProjects.mockResolvedValue([mockProject as any]);
-      const result = await controller.getProjects(req);
+      const result = await controller.getProjects(req, undefined);
       expect(result).toEqual([mockProject]);
       expect(labelingService.getProjects).toHaveBeenCalledWith(["group-1"]);
     });
@@ -127,7 +127,7 @@ describe("LabelingController", () => {
         resolvedIdentity: { groupId: "group-1" },
       } as Request;
       labelingService.getProjects.mockResolvedValue([mockProject as any]);
-      const result = await controller.getProjects(req);
+      const result = await controller.getProjects(req, undefined);
       expect(result).toEqual([mockProject]);
       expect(labelingService.getProjects).toHaveBeenCalledWith(["group-1"]);
     });
@@ -137,9 +137,30 @@ describe("LabelingController", () => {
         resolvedIdentity: undefined,
       } as Request;
       labelingService.getProjects.mockResolvedValue([]);
-      const result = await controller.getProjects(req);
+      const result = await controller.getProjects(req, undefined);
       expect(result).toEqual([]);
       expect(labelingService.getProjects).toHaveBeenCalledWith([]);
+    });
+
+    it("returns only group projects when group_id is provided and user is a member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      labelingService.getProjects.mockResolvedValue([mockProject as any]);
+      const result = await controller.getProjects(req, "group-1");
+      expect(result).toEqual([mockProject]);
+      expect(labelingService.getProjects).toHaveBeenCalledWith(["group-1"]);
+    });
+
+    it("throws ForbiddenException when group_id is provided and user is not a member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(controller.getProjects(req, "group-1")).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(labelingService.getProjects).not.toHaveBeenCalled();
     });
   });
 

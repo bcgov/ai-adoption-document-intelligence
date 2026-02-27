@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
 
 interface FieldSchema {
@@ -82,14 +83,15 @@ interface UpdateProjectDto {
   status?: string;
 }
 
-export const useProjects = (userId?: string) => {
+export const useProjects = () => {
   const queryClient = useQueryClient();
+  const { activeGroup } = useGroup();
 
   const projectsQuery = useQuery({
-    queryKey: ["labeling-projects", userId],
+    queryKey: ["labeling-projects", activeGroup?.id],
     queryFn: async () => {
-      const endpoint = userId
-        ? `/labeling/projects?userId=${userId}`
+      const endpoint = activeGroup?.id
+        ? `/labeling/projects?group_id=${activeGroup.id}`
         : "/labeling/projects";
       const response = await apiService.get<Project[]>(endpoint);
       return response.data || [];
