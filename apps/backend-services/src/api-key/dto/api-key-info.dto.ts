@@ -10,6 +10,15 @@ export class GenerateApiKeyRequestDto {
   groupId: string;
 }
 
+export class ApiKeyByIdRequestDto {
+  @ApiProperty({
+    description: "The ID of the API key to operate on",
+  })
+  @IsString()
+  @IsNotEmpty()
+  id: string;
+}
+
 export class ApiKeyInfoDto {
   @ApiProperty()
   id: string;

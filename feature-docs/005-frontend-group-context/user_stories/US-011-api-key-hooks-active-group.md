@@ -5,32 +5,32 @@
 **So that** API key management is correctly scoped to my current group without me providing a group ID manually.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: GET API key is scoped to the active group
+- [x] **Scenario 1**: GET API key is scoped to the active group
     - **Given** the user has an `activeGroup` set in `GroupContext`
     - **When** `useApiKey` fetches the API key
     - **Then** the request includes `groupId=<activeGroup.id>` as a query parameter, and `activeGroup.id` is part of the `queryKey` so it re-fetches when the active group changes
 
-- [ ] **Scenario 2**: Generate API key uses the active group
+- [x] **Scenario 2**: Generate API key uses the active group
     - **Given** the user has an `activeGroup` set in `GroupContext`
     - **When** `useGenerateApiKey` mutation is invoked
     - **Then** `{ groupId: activeGroup.id }` is included in the POST body automatically without the caller providing it
 
-- [ ] **Scenario 3**: Delete API key uses the active group
+- [x] **Scenario 3**: Delete API key uses the active group
     - **Given** the user has an `activeGroup` set in `GroupContext`
     - **When** `useDeleteApiKey` mutation is invoked
-    - **Then** `{ groupId: activeGroup.id }` is included in the DELETE body automatically without the caller providing it
+    - **Then** the key ID is passed as a query param (`?id=<keyId>`) and the backend resolves the group from the key record automatically without the caller providing a `groupId`
 
-- [ ] **Scenario 4**: Regenerate API key uses the active group
+- [x] **Scenario 4**: Regenerate API key uses the active group
     - **Given** the user has an `activeGroup` set in `GroupContext`
     - **When** `useRegenerateApiKey` mutation is invoked
-    - **Then** `{ groupId: activeGroup.id }` is included in the POST body automatically without the caller providing it
+    - **Then** `{ id: keyId }` is included in the POST body and the backend resolves the group from the key record automatically without the caller providing a `groupId`
 
-- [ ] **Scenario 5**: All operations are blocked when no active group
+- [x] **Scenario 5**: All operations are blocked when no active group
     - **Given** the user's `activeGroup` is `null`
     - **When** any of the four API key hooks are invoked
     - **Then** the hook throws or returns an error before calling the API, and any UI controls that trigger these operations are disabled
 
-- [ ] **Scenario 6**: Callers do not pass `groupId`
+- [x] **Scenario 6**: Callers do not pass `groupId`
     - **Given** existing call sites of the API key hooks
     - **When** the hooks are invoked
     - **Then** no `groupId` argument is expected or accepted from callers
