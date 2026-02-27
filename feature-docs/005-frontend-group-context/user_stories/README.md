@@ -8,7 +8,7 @@ User stories for **Frontend Group Context & Active Group Selector**.
 
 | # | Story | Status |
 |---|-------|--------|
-| US-001 | [Extend `/me` Endpoint to Include Group Memberships](./US-001-extend-me-endpoint-with-groups.md) | - [ ] |
+| US-001 | [Extend `/me` Endpoint to Include Group Memberships](./US-001-extend-me-endpoint-with-groups.md) | - [x] |
 
 ---
 
