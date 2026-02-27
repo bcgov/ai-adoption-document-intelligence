@@ -5,27 +5,27 @@
 **So that** I can focus on workflows relevant to my current group context without noise from other groups.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Workflows are scoped to the active group
+- [x] **Scenario 1**: Workflows are scoped to the active group
     - **Given** the user has an `activeGroup` set in `GroupContext`
     - **When** `useWorkflows` fetches the workflow list
     - **Then** the request includes `groupId=<activeGroup.id>` as a query parameter and only workflows for that group are returned
 
-- [ ] **Scenario 2**: Workflow list refreshes when active group changes
+- [x] **Scenario 2**: Workflow list refreshes when active group changes
     - **Given** the user switches their active group via the header selector
     - **When** `GroupContext` updates `activeGroup`
     - **Then** `useWorkflows` re-fetches and displays only workflows for the new active group (i.e., `activeGroup.id` is part of the React Query `queryKey`)
 
-- [ ] **Scenario 3**: Backend accepts and validates optional `groupId` query param
+- [x] **Scenario 3**: Backend accepts and validates optional `groupId` query param
     - **Given** a request to `GET /api/workflows?groupId=<uuid>`
     - **When** the controller receives the request
     - **Then** it calls `identityCanAccessGroup` with the provided `groupId` before filtering; if the identity is not a member, a `403 Forbidden` is returned
 
-- [ ] **Scenario 4**: Backend behaviour is unchanged when `groupId` is omitted
+- [x] **Scenario 4**: Backend behaviour is unchanged when `groupId` is omitted
     - **Given** a request to `GET /api/workflows` with no `groupId` query param
     - **When** the controller receives the request
     - **Then** it falls back to returning all workflows across all groups the identity belongs to (existing behaviour)
 
-- [ ] **Scenario 5**: Empty list shown when active group has no workflows
+- [x] **Scenario 5**: Empty list shown when active group has no workflows
     - **Given** the active group has no workflows
     - **When** the Workflows page renders
     - **Then** the empty-state message is shown with no error

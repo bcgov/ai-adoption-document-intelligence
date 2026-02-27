@@ -30,10 +30,15 @@ interface WorkflowResponse {
 }
 
 export function useWorkflows() {
+  const { activeGroup } = useGroup();
+
   return useQuery({
-    queryKey: ["workflows"],
+    queryKey: ["workflows", activeGroup?.id],
     queryFn: async (): Promise<WorkflowInfo[]> => {
-      const response = await apiService.get<WorkflowsResponse>("/workflows");
+      const url = activeGroup?.id
+        ? `/workflows?groupId=${activeGroup.id}`
+        : "/workflows";
+      const response = await apiService.get<WorkflowsResponse>(url);
       if (!response.success) {
         throw new Error(response.message || "Failed to fetch workflows");
       }

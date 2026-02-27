@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GraphWorkflowConfig } from "../../types/workflow";
 import { apiService } from "../services/api.service";
-import { useCreateWorkflow } from "./useWorkflows";
+import { useCreateWorkflow, useWorkflows } from "./useWorkflows";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -18,6 +18,7 @@ vi.mock("../../auth/GroupContext", () => ({
 
 vi.mock("../services/api.service", () => ({
   apiService: {
+    get: vi.fn(),
     post: vi.fn(),
   },
 }));
@@ -77,6 +78,127 @@ function createWrapper() {
 
 // ---------------------------------------------------------------------------
 // Tests
+// ---------------------------------------------------------------------------
+
+describe("useWorkflows", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 1: Workflows scoped to active group
+  // -------------------------------------------------------------------------
+  describe("Scenario 1 – fetches with groupId when activeGroup is set", () => {
+    it("includes groupId query param in the API request", async () => {
+      mockUseGroup.mockReturnValue({ activeGroup });
+      vi.mocked(apiService.get).mockResolvedValue({
+        success: true,
+        data: { workflows: [workflowInfo] },
+        message: undefined,
+      });
+
+      const { result } = renderHook(() => useWorkflows(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(apiService.get).toHaveBeenCalledWith(
+        `/workflows?groupId=${activeGroup.id}`,
+      );
+      expect(result.current.data).toEqual([workflowInfo]);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 4: Fetches all groups when no activeGroup
+  // -------------------------------------------------------------------------
+  describe("Scenario 4 – fetches without groupId when activeGroup is null", () => {
+    it("omits groupId query param when activeGroup is null", async () => {
+      mockUseGroup.mockReturnValue({ activeGroup: null });
+      vi.mocked(apiService.get).mockResolvedValue({
+        success: true,
+        data: { workflows: [workflowInfo] },
+        message: undefined,
+      });
+
+      const { result } = renderHook(() => useWorkflows(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(apiService.get).toHaveBeenCalledWith("/workflows");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 2: activeGroup.id is part of the query key
+  // -------------------------------------------------------------------------
+  describe("Scenario 2 – activeGroup.id is part of the query key", () => {
+    it("includes activeGroup.id in the queryKey", async () => {
+      mockUseGroup.mockReturnValue({ activeGroup });
+      vi.mocked(apiService.get).mockResolvedValue({
+        success: true,
+        data: { workflows: [] },
+        message: undefined,
+      });
+
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+      const wrapper = ({ children }: { children: React.ReactNode }) =>
+        createElement(QueryClientProvider, { client: queryClient }, children);
+
+      renderHook(() => useWorkflows(), { wrapper });
+
+      await waitFor(() => {
+        const cache = queryClient.getQueryCache().findAll();
+        expect(
+          cache.some(
+            (q) =>
+              JSON.stringify(q.queryKey) ===
+              JSON.stringify(["workflows", activeGroup.id]),
+          ),
+        ).toBe(true);
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 5: Empty list shown when active group has no workflows
+  // -------------------------------------------------------------------------
+  describe("Scenario 5 – empty list when active group has no workflows", () => {
+    it("returns an empty array without error when API returns no workflows", async () => {
+      mockUseGroup.mockReturnValue({ activeGroup });
+      vi.mocked(apiService.get).mockResolvedValue({
+        success: true,
+        data: { workflows: [] },
+        message: undefined,
+      });
+
+      const { result } = renderHook(() => useWorkflows(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(result.current.data).toEqual([]);
+      expect(result.current.isError).toBe(false);
+    });
+  });
+});
+
 // ---------------------------------------------------------------------------
 
 describe("useCreateWorkflow", () => {
