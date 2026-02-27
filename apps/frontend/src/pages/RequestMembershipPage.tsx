@@ -72,7 +72,7 @@ export function RequestMembershipPage(): JSX.Element {
         </Button>
       </Box>
 
-      <Center mih="100vh" justify="center" pt="xl">
+      <Center mih="100vh" pt="xl">
         <Stack gap="lg" w="100%" maw={700} px="md">
           <Group gap="md">
             <IconUsers size={40} stroke={1.2} />
