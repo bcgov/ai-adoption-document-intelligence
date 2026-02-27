@@ -175,6 +175,35 @@ The `useWorkflows` hook fetches all workflows without a group filter. It must:
 - `createClassifier` mutation must read `activeGroup.id` from `GroupContext` and include it as `group_id` automatically — the caller does not provide it.
 - If `activeGroup` is `null`, the "Create new model" button must be disabled.
 
+#### Backend — `GET /api/azure/classifier` optional `group_id` filter
+Currently the endpoint returns all classifiers across all groups the user belongs to. To match the active-group UX pattern:
+- The `GET /api/azure/classifier` endpoint must accept an optional `group_id` query parameter.
+- When provided, the controller must verify the requesting identity is a member of that group (via `identityCanAccessGroup`) and pass only `[group_id]` to the database query.
+- When omitted, behaviour is unchanged (all groups the identity belongs to via `getUsersGroups`).
+
+#### `useClassifier` — `getClassifiers` active group filter
+The `getClassifiers` query in `useClassifier` fetches all classifiers without a group filter. It must:
+- Read `activeGroup` from `GroupContext`.
+- When `activeGroup` is set, pass `group_id=<activeGroup.id>` as a query param to `GET /api/azure/classifier`.
+- Include `activeGroup.id` in the `queryKey` so the list automatically refreshes when the active group changes.
+
+#### Backend — HITL list endpoints optional `group_id` filter
+The following HITL endpoints already correctly scope results to the user's group memberships via `getIdentityGroupIds`. They only need an optional `group_id` query parameter added to support the active-group UX narrowing:
+- `GET /api/hitl/queue`
+- `GET /api/hitl/queue/stats`
+- `GET /api/hitl/analytics`
+
+For each:
+- Accept an optional `group_id` query parameter.
+- When provided, the controller must verify the requesting identity is a member of that group (via `identityCanAccessGroup`) and pass only `[group_id]` to the underlying service.
+- When omitted, behaviour is unchanged (all groups the identity belongs to via `getIdentityGroupIds`).
+
+#### `useReviewQueue` — active group filter
+The `useReviewQueue` hook fetches the HITL queue and stats without a group filter. It must:
+- Read `activeGroup` from `GroupContext`.
+- When `activeGroup` is set, pass `group_id=<activeGroup.id>` as a query param to `GET /api/hitl/queue` and `GET /api/hitl/queue/stats`.
+- Include `activeGroup.id` in the `queryKey` for both `queueQuery` and `statsQuery` so they automatically refresh when the active group changes.
+
 #### Backend — `GET /api/labeling/projects` optional `group_id` filter
 Currently the endpoint returns all projects across all groups the user belongs to. To match the active-group UX pattern:
 - The `GET /api/labeling/projects` endpoint must accept an optional `group_id` query parameter.
@@ -214,8 +243,10 @@ Required changes:
 The following hooks operate on individual resources or endpoints where the resource's own stored `group_id` already provides scoping—no active-group parameter is needed:
 - `useWorkflow` (GET by id — scoped by the workflow's own `group_id`)
 - Document detail / delete / update (scoped by document's own `group_id`)
-- HITL and training hooks (group is derived from the resource's stored `group_id`)
-- `useClassifier` for read/update/delete operations (group is already carried in the classifier model's `group_id`)
+- HITL session hooks — `startSession`, `skipSession`, `getSession`, `getSessionCorrections`, and related mutators operate on individual review sessions which are already scoped by their document's `group_id`
+- Training hooks (group is derived from the resource's stored `group_id`)
+- `useClassifier` for individual read/update/delete operations (group is already carried in the classifier model's `group_id`)
+- `GET /api/hitl/analytics` frontend hook — no frontend hook exists yet; apply only the backend `group_id` query param change for now
 
 ### 6.4 Acceptance Criteria
 - `useDocuments` (GET list) passes `activeGroup.id` as `group_id` and refreshes when the active group changes.
@@ -223,9 +254,11 @@ The following hooks operate on individual resources or endpoints where the resou
 - `useWorkflows` (GET list) passes `activeGroup.id` as `groupId` and refreshes when the active group changes.
 - `useCreateWorkflow` automatically includes `activeGroup.id` as `groupId` without callers needing to pass it.
 - `createClassifier` mutation automatically includes `activeGroup.id` as `group_id`; the `CreateClassifierModal` no longer contains a group selector.
+- `getClassifiers` query (GET list) passes `activeGroup.id` as `group_id` and refreshes when the active group changes.
 - `useProjects` list query passes `activeGroup.id` as `group_id` and refreshes when the active group changes.
 - `createProjectMutation` automatically includes `activeGroup.id` as `group_id`; callers do not pass `group_id`.
 - All four `useApiKey` hooks automatically inject `activeGroup.id` as `groupId` without callers providing it; the GET query key includes `activeGroup.id`.
+- `useReviewQueue` queue and stats queries pass `activeGroup.id` as `group_id` and refresh when the active group changes.
 - When `activeGroup` is `null`, upload, workflow creation, classifier creation, project creation, and all API key operations are gracefully blocked (not silent failures).
 - No other hook interfaces change.
 
