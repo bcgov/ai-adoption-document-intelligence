@@ -36,3 +36,16 @@ User stories for **Frontend Group Context & Active Group Selector**.
 |---|-------|--------|
 | US-006 | [Inject Active Group into Document Upload Hook](./US-006-document-upload-active-group.md) | - [x] |
 | US-007 | [Inject Active Group into `useCreateWorkflow` Hook](./US-007-create-workflow-active-group.md) | - [x] |
+
+---
+
+## Phase 5 — Frontend & Backend: Remaining Group Context Gaps
+
+| # | Story | Status |
+|---|-------|--------|
+| US-008 | [Remove Hardcoded Group Selection from Classifier Page](./US-008-classifier-page-active-group.md) | - [ ] |
+| US-009 | [Filter Labeling Projects by Active Group](./US-009-labeling-projects-active-group-filter.md) | - [ ] |
+| US-010 | [Inject Active Group into Labeling Project Creation](./US-010-create-labeling-project-active-group.md) | - [ ] |
+| US-011 | [Inject Active Group into API Key Management Hooks](./US-011-api-key-hooks-active-group.md) | - [ ] |
+| US-012 | [Filter Documents List by Active Group](./US-012-documents-list-active-group-filter.md) | - [ ] |
+| US-013 | [Filter Workflows List by Active Group](./US-013-workflows-list-active-group-filter.md) | - [ ] |
