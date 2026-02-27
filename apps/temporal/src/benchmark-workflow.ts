@@ -109,6 +109,12 @@ type BenchmarkActivities = {
     completedAt?: Date;
   }) => Promise<void>;
 
+  'benchmark.writePrediction': (input: {
+    predictionData: Record<string, unknown>;
+    outputDir: string;
+    sampleId: string;
+  }) => Promise<{ predictionPath: string }>;
+
   'benchmark.compareAgainstBaseline': (params: {
     runId: string;
   }) => Promise<unknown>;
@@ -307,6 +313,57 @@ function flattenMetrics(overall: {
   }
 
   return flat;
+}
+
+/**
+ * Extract a flat prediction object from the graph workflow ctx.
+ *
+ * The graph workflow stores OCR results in ctx keys like `cleanedResult` or
+ * `ocrResult`. This helper converts those into a flat `{ fieldName: value }`
+ * object that the evaluator can compare against ground truth.
+ */
+function extractPredictionFromCtx(
+  ctx: Record<string, unknown>,
+): Record<string, unknown> {
+  // Prefer the cleaned result (post-normalization) over the raw OCR result
+  const ocrResult = (ctx.cleanedResult || ctx.ocrResult) as
+    | {
+        documents?: Array<{
+          fields?: Record<string, { content?: string }>;
+        }>;
+        keyValuePairs?: Array<{
+          key?: { content?: string };
+          value?: { content?: string };
+        }>;
+      }
+    | undefined;
+
+  if (!ocrResult) return {};
+
+  const fields: Record<string, unknown> = {};
+
+  // Custom model: extract from documents[0].fields
+  if (
+    ocrResult.documents &&
+    ocrResult.documents.length > 0 &&
+    ocrResult.documents[0].fields
+  ) {
+    for (const [key, value] of Object.entries(ocrResult.documents[0].fields)) {
+      fields[key] = value?.content ?? null;
+    }
+    return fields;
+  }
+
+  // Prebuilt model: extract from keyValuePairs
+  if (ocrResult.keyValuePairs && ocrResult.keyValuePairs.length > 0) {
+    for (const pair of ocrResult.keyValuePairs) {
+      const key = pair.key?.content || 'unknown';
+      fields[key] = pair.value?.content ?? null;
+    }
+    return fields;
+  }
+
+  return {};
 }
 
 // ---------------------------------------------------------------------------
@@ -526,10 +583,27 @@ export async function benchmarkRunWorkflow(
         // Only evaluate if execution succeeded
         if (executeOutput.success) {
           try {
+            // Extract prediction fields from the workflow ctx and write to disk
+            // so the evaluator can compare against ground truth files.
+            const predictionData = extractPredictionFromCtx(
+              executeOutput.workflowResult?.ctx ?? {},
+            );
+
+            const { predictionPath } =
+              await customActivities['benchmark.writePrediction']({
+                predictionData,
+                outputDir: joinPath(
+                  materializedPath!,
+                  '.benchmark-outputs',
+                  sample.id,
+                ),
+                sampleId: sample.id,
+              });
+
             const evaluationResult = await customActivities['benchmark.evaluate']({
               sampleId: sample.id,
               inputPaths,
-              predictionPaths: executeOutput.outputPaths,
+              predictionPaths: [predictionPath],
               groundTruthPaths,
               metadata: sample.metadata,
               evaluatorType,

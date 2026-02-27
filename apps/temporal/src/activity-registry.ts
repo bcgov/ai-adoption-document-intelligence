@@ -28,6 +28,7 @@ import {
   benchmarkCleanup,
   benchmarkUpdateRunStatus,
   benchmarkCompareAgainstBaseline,
+  benchmarkWritePrediction,
   materializeDataset,
   loadDatasetManifest,
 } from "./activities";
@@ -239,6 +240,14 @@ register({
   defaultTimeout: "1m",
   defaultRetry: { maximumAttempts: 3 },
   description: "Compare run metrics against baseline and detect regressions",
+});
+
+register({
+  activityType: "benchmark.writePrediction",
+  activityFn: benchmarkWritePrediction as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "1m",
+  defaultRetry: { maximumAttempts: 2 },
+  description: "Write workflow prediction data to a JSON file for evaluation",
 });
 
 register({

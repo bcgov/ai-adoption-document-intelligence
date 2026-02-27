@@ -1148,7 +1148,13 @@ export class DatasetService {
   }
 
   /**
-   * Group uploaded files by sample ID (derived from filename)
+   * Group uploaded files by sample ID (derived from filename).
+   *
+   * The sample ID is the filename without its extension and without common
+   * ground-truth suffixes (_gt, _ground_truth, _expected, _label).
+   * This lets input and ground-truth files share a sample ID:
+   *   "invoice-001.pdf"       → sample "invoice-001"
+   *   "invoice-001_gt.json"   → sample "invoice-001"
    */
   private groupFilesBySampleId(
     files: UploadedFileDto[],
@@ -1156,9 +1162,11 @@ export class DatasetService {
     const groups: Record<string, UploadedFileDto[]> = {};
 
     for (const file of files) {
-      // Extract sample ID from filename (e.g., "sample-001" from "sample-001.jpg" or "sample-001_gt.json")
-      const match = file.filename.match(/^([^._]+)/);
-      const sampleId = match ? match[1] : file.filename;
+      // Strip file extension, then strip ground-truth suffixes
+      const baseName = file.filename.replace(/\.[^.]+$/, "");
+      const sampleId =
+        baseName.replace(/(_gt|_ground[-_]?truth|_expected|_label)$/i, "") ||
+        baseName;
 
       if (!groups[sampleId]) {
         groups[sampleId] = [];
