@@ -10,6 +10,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
+import { notifications } from "@mantine/notifications";
 import { useEffect } from "react";
 import { useClassifier } from "@/data/hooks/useClassifier";
 import { ClassifierSource } from "@/shared/types/classifier";
@@ -195,14 +196,21 @@ export const CreateClassifierModal = (props: CreateClassifierModalProps) => {
       title="Create new classifier"
     >
       <form
-        onSubmit={form.onSubmit(() => {
+        onSubmit={form.onSubmit(async () => {
           try {
-            onCreate(form.values);
+            await onCreate(form.values);
             form.reset();
             setIsOpen(false);
             props.afterSubmit?.();
           } catch (error) {
-            console.error("Failed to create classifier", error);
+            notifications.show({
+              title: "Error",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to create classifier",
+              color: "red",
+            });
           }
         })}
       >
