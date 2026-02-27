@@ -5,22 +5,22 @@
 **So that** I do not need to manually select a group from a hardcoded dropdown that does not reflect my actual memberships.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Active group is injected into classifier creation automatically
+- [x] **Scenario 1**: Active group is injected into classifier creation automatically
     - **Given** the user has an `activeGroup` set in `GroupContext`
     - **When** the user submits the Create Classifier modal
     - **Then** the `createClassifier` mutation reads `activeGroup.id` from `GroupContext` and sends it as `group_id` in the request body, without the caller providing it
 
-- [ ] **Scenario 2**: "Create new model" button is disabled when no active group
+- [x] **Scenario 2**: "Create new model" button is disabled when no active group
     - **Given** the user's `activeGroup` is `null`
     - **When** the Classifier page is displayed
     - **Then** the "Create new model" button is disabled (greyed out) with a tooltip explaining that a group must be selected
 
-- [ ] **Scenario 3**: Group dropdown is removed from `CreateClassifierModal`
+- [x] **Scenario 3**: Group dropdown is removed from `CreateClassifierModal`
     - **Given** the `CreateClassifierModal` is open
     - **When** the user views the form
     - **Then** there is no Group selector dropdown — only Name and Description fields are present
 
-- [ ] **Scenario 4**: Classifier list display no longer relies on hardcoded group map
+- [x] **Scenario 4**: Classifier list display no longer relies on hardcoded group map
     - **Given** the Classifier page is displayed
     - **When** the list of classifiers is rendered
     - **Then** classifier labels do not reference hardcoded group names; the `groupOptions` and `groupMap` constants are removed from `ClassifierPage.tsx`

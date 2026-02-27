@@ -6,8 +6,10 @@ import {
   Stack,
   Text,
   Title,
+  Tooltip,
 } from "@mantine/core";
 import { useState } from "react";
+import { useGroup } from "@/auth/GroupContext";
 import ClassificationFiles from "@/components/classification/ClassificationFiles";
 import ClassifierAccess from "@/components/classification/ClassifierAccess";
 import ClassifierDetails from "@/components/classification/ClassifierDetails";
@@ -20,20 +22,7 @@ const ClassifierPage = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const { getClassifiers } = useClassifier();
-
-  // TODO: replace with real data from backend after group management is implemented
-  const groupOptions = [
-    { id: "00000000-0000-0000-0000-000000000000", name: "Group 1" },
-    { id: "00000000-0000-0000-0000-000000000001", name: "Group 2" },
-  ];
-
-  const groupMap = groupOptions.reduce(
-    (acc, group) => {
-      acc[group.id] = group.name;
-      return acc;
-    },
-    {} as Record<string, string>,
-  );
+  const { activeGroup } = useGroup();
 
   const ModelSelect = () => {
     return (
@@ -42,16 +31,23 @@ const ClassifierPage = () => {
           <Stack gap="md" mt="md">
             <Group justify="space-between">
               <Title order={3}>Select a model</Title>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => {
-                  // Open modal for classifier creation
-                  setIsCreateModalOpen(true);
-                }}
+              <Tooltip
+                label="A group must be selected to create a model"
+                disabled={!!activeGroup}
               >
-                Create new model
-              </Button>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    disabled={!activeGroup}
+                    onClick={() => {
+                      setIsCreateModalOpen(true);
+                    }}
+                  >
+                    Create new model
+                  </Button>
+                </span>
+              </Tooltip>
             </Group>
             <Select
               placeholder="Choose a model"
@@ -60,7 +56,7 @@ const ClassifierPage = () => {
                 .filter((model) => model && model.name && model.group_id)
                 .map((model) => ({
                   value: `${model.name}::${model.group_id}`,
-                  label: `${model.name} (${groupMap[model.group_id]})`,
+                  label: model.name,
                 }))}
               searchable
               clearable
@@ -120,7 +116,6 @@ const ClassifierPage = () => {
       <CreateClassifierModal
         isOpen={isCreateModalOpen}
         setIsOpen={setIsCreateModalOpen}
-        groupOptions={groupOptions}
         afterSubmit={async () => {
           await getClassifiers.refetch();
         }}

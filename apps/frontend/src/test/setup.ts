@@ -19,6 +19,31 @@ Object.defineProperty(window, "matchMedia", {
 });
 
 /**
+ * Mantine's FileInput and related tests use DataTransfer for building
+ * mock FileLists. jsdom does not implement DataTransfer, so we provide
+ * a minimal stub that supports the `items.add(file)` and `files` API.
+ */
+class MockDataTransfer {
+  private _files: File[] = [];
+
+  readonly items = {
+    add: (file: File) => {
+      this._files.push(file);
+    },
+  };
+
+  get files(): FileList {
+    const list = [...this._files] as unknown as FileList;
+    Object.defineProperty(list, "item", {
+      value: (i: number) => this._files[i] ?? null,
+    });
+    return list;
+  }
+}
+
+global.DataTransfer = MockDataTransfer as unknown as typeof DataTransfer;
+
+/**
  * Mantine's floating/popover components use ResizeObserver internally.
  * jsdom does not implement it, so we provide a no-op stub.
  */
