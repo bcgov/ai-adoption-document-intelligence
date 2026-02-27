@@ -47,7 +47,7 @@ User stories for **Frontend Group Context & Active Group Selector**.
 | US-009 | [Filter Labeling Projects by Active Group](./US-009-labeling-projects-active-group-filter.md) | - [x] |
 | US-010 | [Inject Active Group into Labeling Project Creation](./US-010-create-labeling-project-active-group.md) | - [x] |
 | US-011 | [Inject Active Group into API Key Management Hooks](./US-011-api-key-hooks-active-group.md) | - [x] |
-| US-012 | [Filter Documents List by Active Group](./US-012-documents-list-active-group-filter.md) | - [ ] |
+| US-012 | [Filter Documents List by Active Group](./US-012-documents-list-active-group-filter.md) | - [x] |
 | US-013 | [Filter Workflows List by Active Group](./US-013-workflows-list-active-group-filter.md) | - [ ] |
 | US-014 | [Filter Classifiers List by Active Group](./US-014-classifiers-list-active-group-filter.md) | - [ ] |
 | US-015 | [Filter HITL Queue by Active Group](./US-015-hitl-queue-active-group-filter.md) | - [ ] |
