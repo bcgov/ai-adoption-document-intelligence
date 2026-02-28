@@ -23,6 +23,7 @@ import {
 } from "@mantine/core";
 import {
   IconAlertCircle,
+  IconArrowLeft,
   IconCheck,
   IconChevronRight,
   IconFilter,
@@ -110,36 +111,46 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
         </Stack>
       </Card>
 
-      {groundTruth !== undefined && (
+      {(groundTruth !== undefined || prediction !== undefined) && (
         <Card withBorder>
           <Stack gap="xs">
             <Text fw={600} size="sm">
-              Ground Truth
+              Expected vs Actual
             </Text>
-            <JsonInput
-              value={(JSON.stringify(groundTruth, null, 2) || "{}") as string}
-              readOnly
-              autosize
-              minRows={3}
-              maxRows={15}
-            />
-          </Stack>
-        </Card>
-      )}
-
-      {prediction !== undefined && (
-        <Card withBorder>
-          <Stack gap="xs">
-            <Text fw={600} size="sm">
-              Prediction
-            </Text>
-            <JsonInput
-              value={(JSON.stringify(prediction, null, 2) || "{}") as string}
-              readOnly
-              autosize
-              minRows={3}
-              maxRows={15}
-            />
+            <Grid>
+              <Grid.Col span={6}>
+                <Text size="xs" fw={500} c="dimmed" mb={4}>
+                  Ground Truth (Expected)
+                </Text>
+                <JsonInput
+                  value={
+                    groundTruth !== undefined
+                      ? (JSON.stringify(groundTruth, null, 2) || "{}") as string
+                      : "N/A"
+                  }
+                  readOnly
+                  autosize
+                  minRows={3}
+                  maxRows={20}
+                />
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <Text size="xs" fw={500} c="dimmed" mb={4}>
+                  Prediction (Actual)
+                </Text>
+                <JsonInput
+                  value={
+                    prediction !== undefined
+                      ? (JSON.stringify(prediction, null, 2) || "{}") as string
+                      : "N/A"
+                  }
+                  readOnly
+                  autosize
+                  minRows={3}
+                  maxRows={20}
+                />
+              </Grid.Col>
+            </Grid>
           </Stack>
         </Card>
       )}
@@ -293,6 +304,7 @@ export default function ResultsDrillDownPage() {
         </div>
         <Button
           variant="subtle"
+          leftSection={<IconArrowLeft size={16} />}
           onClick={() =>
             navigate(
               `/benchmarking/projects/${projectId}/runs/${runId}`,

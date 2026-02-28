@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { apiService } from "@/data/services/api.service";
 
 interface RunSummary {
@@ -123,6 +124,31 @@ export const useRun = (projectId: string, runId: string, polling = false) => {
       return isTerminal ? false : 5000;
     },
   });
+
+  // When a run transitions to a terminal state, invalidate related queries
+  const previousStatusRef = useRef<string | undefined>(undefined);
+  const currentStatus = runQuery.data?.status;
+  useEffect(() => {
+    const prevStatus = previousStatusRef.current;
+    previousStatusRef.current = currentStatus;
+    if (!prevStatus || !currentStatus) return;
+    const wasRunning = prevStatus === "pending" || prevStatus === "running";
+    const isTerminal =
+      currentStatus === "completed" ||
+      currentStatus === "failed" ||
+      currentStatus === "cancelled";
+    if (wasRunning && isTerminal) {
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-drill-down", projectId, runId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-artifacts", projectId, runId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-runs", projectId],
+      });
+    }
+  }, [currentStatus, projectId, runId, queryClient]);
 
   const cancelRunMutation = useMutation({
     mutationFn: async () => {

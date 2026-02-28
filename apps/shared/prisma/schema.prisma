@@ -399,6 +399,7 @@ model DatasetVersion {
   datasetId           String
   dataset             Dataset                @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   version             String
+  name                String?
   gitRevision         String?
   manifestPath        String
   documentCount       Int

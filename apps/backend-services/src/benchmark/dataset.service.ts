@@ -356,6 +356,7 @@ export class DatasetService {
       data: {
         datasetId: datasetId,
         version: versionLabel,
+        name: createDto.name || null,
         gitRevision: null,
         manifestPath: manifestPath,
         documentCount: 0,
@@ -748,15 +749,30 @@ export class DatasetService {
 
         for (const file of sampleFiles) {
           if (file.path.startsWith("inputs/")) {
-            sample.inputs.push({
-              path: file.path,
-              mimeType: file.mimeType,
-            });
+            // Overwrite if a file with the same path already exists
+            const existingIdx = sample.inputs.findIndex(
+              (i) => i.path === file.path,
+            );
+            const entry = { path: file.path, mimeType: file.mimeType };
+            if (existingIdx >= 0) {
+              sample.inputs[existingIdx] = entry;
+            } else {
+              sample.inputs.push(entry);
+            }
           } else if (file.path.startsWith("ground-truth/")) {
-            sample.groundTruth.push({
+            // Overwrite if a file with the same path already exists
+            const existingIdx = sample.groundTruth.findIndex(
+              (g) => g.path === file.path,
+            );
+            const entry = {
               path: file.path,
               format: this.getGroundTruthFormat(file.filename),
-            });
+            };
+            if (existingIdx >= 0) {
+              sample.groundTruth[existingIdx] = entry;
+            } else {
+              sample.groundTruth.push(entry);
+            }
           }
         }
       }
@@ -1299,6 +1315,98 @@ export class DatasetService {
   }
 
   /**
+   * Download a raw file from a dataset version.
+   * Returns the file buffer, filename, and MIME type.
+   */
+  async getSampleFile(
+    datasetId: string,
+    versionId: string,
+    filePath: string,
+  ): Promise<{ buffer: Buffer; filename: string; mimeType: string }> {
+    this.logger.debug(
+      `Downloading file "${filePath}" from dataset ${datasetId}, version ${versionId}`,
+    );
+
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: { id: versionId, datasetId },
+      include: { dataset: true },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    if (!version.gitRevision) {
+      throw new BadRequestException("Version has no files uploaded yet");
+    }
+
+    // Validate the file path to prevent directory traversal
+    const normalizedPath = path.normalize(filePath);
+    if (
+      normalizedPath.startsWith("..") ||
+      path.isAbsolute(normalizedPath) ||
+      normalizedPath.includes("../")
+    ) {
+      throw new BadRequestException("Invalid file path");
+    }
+
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-dl-"));
+
+    try {
+      await this.dvcService.cloneRepository(
+        version.dataset.repositoryUrl,
+        tempDir,
+      );
+      await this.dvcService.checkout(tempDir, version.gitRevision);
+
+      const fullPath = path.join(tempDir, normalizedPath);
+      const buffer = await fs.promises.readFile(fullPath);
+      const filename = path.basename(normalizedPath);
+
+      // Determine MIME type from extension
+      const ext = path.extname(filename).toLowerCase();
+      const mimeTypes: Record<string, string> = {
+        ".pdf": "application/pdf",
+        ".json": "application/json",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".tiff": "image/tiff",
+        ".tif": "image/tiff",
+        ".csv": "text/csv",
+        ".xlsx":
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".txt": "text/plain",
+      };
+      const mimeType = mimeTypes[ext] || "application/octet-stream";
+
+      return { buffer, filename, mimeType };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      if (error.code === "ENOENT") {
+        throw new NotFoundException(`File not found: ${filePath}`);
+      }
+      throw error;
+    } finally {
+      try {
+        await rm(tempDir, { recursive: true, force: true });
+      } catch (cleanupError) {
+        this.logger.warn(
+          `Failed to clean up temp directory: ${tempDir}`,
+          cleanupError,
+        );
+      }
+    }
+  }
+
+  /**
    * Load and validate a manifest file
    */
   private async loadAndValidateManifest(manifestPath: string): Promise<{
@@ -1445,17 +1553,20 @@ export class DatasetService {
   /**
    * Group uploaded files by sample ID (derived from filename).
    *
-   * The sample ID is the filename without its extension and without common
-   * ground-truth suffixes (_gt, _ground_truth, _expected, _label).
-   * This lets input and ground-truth files share a sample ID:
-   *   "invoice-001.pdf"       → sample "invoice-001"
-   *   "invoice-001_gt.json"   → sample "invoice-001"
+   * The sample ID is the filename without its extension.
+   * Ground truth is matched by sharing the same base name:
+   *   "invoice-001.pdf"   → sample "invoice-001"
+   *   "invoice-001.json"  → sample "invoice-001"
    */
   /**
    * Group uploaded files by derived sample ID.
-   * When multiple files produce the same sample ID (e.g. duplicate filenames),
-   * numeric suffixes (_2, _3, ...) are appended to disambiguate, unless the files
-   * are naturally paired (input + ground-truth) for the same sample.
+   * Ground truth is matched by filename convention: a `.json` file with the
+   * same base name as the input document (e.g. `invoice-001.pdf` pairs with
+   * `invoice-001.json`).
+   *
+   * Duplicate filenames within a single upload session are rejected.
+   * Re-uploading a file that already exists in the version overwrites it.
+   *
    * @param files - Array of uploaded file DTOs
    * @param existingSampleIds - Set of sample IDs already in the manifest
    * @returns Record mapping sample IDs to their associated files
@@ -1465,51 +1576,37 @@ export class DatasetService {
     existingSampleIds: Set<string> = new Set(),
   ): Record<string, UploadedFileDto[]> {
     const groups: Record<string, UploadedFileDto[]> = {};
-    // Track how many times each raw sampleId has appeared to detect duplicates
-    const sampleIdCounts: Record<string, number> = {};
-    // Track which file paths have already been assigned to prevent double-counting
     const assignedPaths: Set<string> = new Set();
 
-    for (const file of files) {
-      // Strip file extension, then strip ground-truth suffixes
-      const baseName = file.filename.replace(/\.[^.]+$/, "");
-      let sampleId =
-        baseName.replace(/(_gt|_ground[-_]?truth|_expected|_label)$/i, "") ||
-        baseName;
+    // Track sample IDs per type (input vs ground-truth) to detect duplicates within the batch
+    const inputSampleIds: Set<string> = new Set();
+    const gtSampleIds: Set<string> = new Set();
 
-      // Check if this exact file path is already assigned (true duplicate)
+    for (const file of files) {
+      // Sample ID is the filename without its extension
+      const sampleId = file.filename.replace(/\.[^.]+$/, "");
+
       if (assignedPaths.has(file.path)) {
         continue;
       }
 
-      // If this sampleId already has files in this batch, check if this is
-      // a natural pair (e.g. input + ground-truth) or a genuine duplicate
-      if (groups[sampleId]) {
-        const existingPaths = groups[sampleId].map((f) => f.path);
-        const thisIsInput = file.path.startsWith("inputs/");
-        const thisIsGt = file.path.startsWith("ground-truth/");
-        const hasInput = existingPaths.some((p) => p.startsWith("inputs/"));
-        const hasGt = existingPaths.some((p) => p.startsWith("ground-truth/"));
+      const isInput = file.path.startsWith("inputs/");
+      const isGt = file.path.startsWith("ground-truth/");
 
-        // If this file type already exists in the group, it's a duplicate
-        const isDuplicate =
-          (thisIsInput && hasInput) || (thisIsGt && hasGt);
-
-        if (isDuplicate) {
-          // Allocate a new unique sampleId with numeric suffix
-          sampleIdCounts[sampleId] = (sampleIdCounts[sampleId] || 1) + 1;
-          let candidateId = `${sampleId}_${sampleIdCounts[sampleId]}`;
-          while (groups[candidateId] || existingSampleIds.has(candidateId)) {
-            sampleIdCounts[sampleId]++;
-            candidateId = `${sampleId}_${sampleIdCounts[sampleId]}`;
-          }
-          sampleId = candidateId;
-        }
-      } else if (existingSampleIds.has(sampleId)) {
-        // sampleId collision with existing manifest — check if we should merge
-        // For new uploads that collide with existing samples, just merge into existing
-        // (the caller handles merging by finding the sample in the manifest)
+      // Reject duplicate filenames within the same upload batch
+      if (isInput && inputSampleIds.has(sampleId)) {
+        throw new BadRequestException(
+          `Duplicate input filename detected in upload: "${file.filename}" (sample ID: "${sampleId}")`,
+        );
       }
+      if (isGt && gtSampleIds.has(sampleId)) {
+        throw new BadRequestException(
+          `Duplicate ground truth filename detected in upload: "${file.filename}" (sample ID: "${sampleId}")`,
+        );
+      }
+
+      if (isInput) inputSampleIds.add(sampleId);
+      if (isGt) gtSampleIds.add(sampleId);
 
       if (!groups[sampleId]) {
         groups[sampleId] = [];
@@ -1580,6 +1677,7 @@ export class DatasetService {
       id: string;
       datasetId: string;
       version: string;
+      name?: string | null;
       gitRevision: string | null;
       manifestPath: string;
       documentCount: number;
@@ -1599,6 +1697,7 @@ export class DatasetService {
       id: version.id,
       datasetId: version.datasetId,
       version: version.version,
+      name: version.name ?? null,
       gitRevision: version.gitRevision,
       manifestPath: version.manifestPath,
       documentCount: version.documentCount,

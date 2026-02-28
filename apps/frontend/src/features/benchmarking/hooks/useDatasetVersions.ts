@@ -5,6 +5,7 @@ interface DatasetVersion {
   id: string;
   datasetId: string;
   version: string;
+  name: string | null;
   gitRevision: string | null;
   manifestPath: string;
   documentCount: number;
@@ -61,7 +62,7 @@ export const useDatasetVersions = (datasetId: string) => {
   });
 
   const createVersionMutation = useMutation({
-    mutationFn: async (data?: { version?: string; groundTruthSchema?: Record<string, unknown> }) => {
+    mutationFn: async (data?: { version?: string; name?: string; groundTruthSchema?: Record<string, unknown> }) => {
       const response = await apiService.post<DatasetVersion>(
         `/benchmark/datasets/${datasetId}/versions`,
         data || {},

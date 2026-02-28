@@ -2,6 +2,7 @@ export class VersionResponseDto {
   id: string;
   datasetId: string;
   version: string;
+  name: string | null;
   gitRevision: string | null;
   manifestPath: string;
   documentCount: number;

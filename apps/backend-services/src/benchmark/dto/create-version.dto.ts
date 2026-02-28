@@ -9,6 +9,13 @@ export class CreateVersionDto {
   version?: string;
 
   /**
+   * Optional human-readable name for this version (e.g., "Q4 invoices").
+   */
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  /**
    * Optional JSON schema for ground truth validation.
    */
   @IsObject()

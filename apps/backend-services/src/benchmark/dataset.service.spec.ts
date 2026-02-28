@@ -703,7 +703,7 @@ describe("DatasetService", () => {
       },
       {
         fieldname: "files",
-        originalname: "sample-001_gt.json",
+        originalname: "sample-001.json",
         encoding: "7bit",
         mimetype: "application/json",
         buffer: Buffer.from('{"field": "value"}'),
@@ -758,7 +758,7 @@ describe("DatasetService", () => {
       expect(result.totalFiles).toBe(2);
       expect(result.uploadedFiles[0].path).toBe("inputs/sample-001.jpg");
       expect(result.uploadedFiles[1].path).toBe(
-        "ground-truth/sample-001_gt.json",
+        "ground-truth/sample-001.json",
       );
       // Verify version update (not creation)
       expect(mockDvcService.commitChanges).toHaveBeenCalled();

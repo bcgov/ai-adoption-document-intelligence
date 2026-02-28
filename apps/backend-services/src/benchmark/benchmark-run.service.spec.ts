@@ -11,6 +11,7 @@ import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
+import { DatasetService } from "./dataset.service";
 import { MLflowClientService } from "./mlflow-client.service";
 
 // Mock Prisma
@@ -42,12 +43,14 @@ jest.mock("@generated/client", () => {
 // Mock child_process
 jest.mock("child_process", () => ({
   execSync: jest.fn().mockReturnValue("abc123\n"),
+  exec: jest.fn(),
 }));
 
 describe("BenchmarkRunService", () => {
   let service: BenchmarkRunService;
   let mlflowClient: MLflowClientService;
   let benchmarkTemporal: BenchmarkTemporalService;
+  let datasetService: DatasetService;
   let prisma: PrismaClient;
 
   const mockProject = {
@@ -145,6 +148,23 @@ describe("BenchmarkRunService", () => {
             getWorkflowStatus: jest.fn(),
           },
         },
+        {
+          provide: DatasetService,
+          useValue: {
+            validateDatasetVersion: jest.fn().mockResolvedValue({
+              valid: true,
+              sampled: false,
+              totalSamples: 10,
+              issueCount: {
+                schemaViolations: 0,
+                missingGroundTruth: 0,
+                duplicates: 0,
+                corruption: 0,
+              },
+              issues: [],
+            }),
+          },
+        },
       ],
     }).compile();
 
@@ -153,6 +173,7 @@ describe("BenchmarkRunService", () => {
     benchmarkTemporal = module.get<BenchmarkTemporalService>(
       BenchmarkTemporalService,
     );
+    datasetService = module.get<DatasetService>(DatasetService);
 
     // Access the private prisma instance
     prisma = service["prisma"];
@@ -224,6 +245,41 @@ describe("BenchmarkRunService", () => {
       });
 
       expect(result.status).toBe("running");
+    });
+
+    it("should throw BadRequestException when dataset validation fails", async () => {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (datasetService.validateDatasetVersion as jest.Mock).mockResolvedValue({
+        valid: false,
+        sampled: false,
+        totalSamples: 5,
+        issueCount: {
+          schemaViolations: 0,
+          missingGroundTruth: 2,
+          duplicates: 0,
+          corruption: 0,
+        },
+        issues: [
+          {
+            category: "missing_ground_truth",
+            severity: "error",
+            sampleId: "sample-1",
+            message: "Missing ground truth for sample-1",
+          },
+          {
+            category: "missing_ground_truth",
+            severity: "error",
+            sampleId: "sample-2",
+            message: "Missing ground truth for sample-2",
+          },
+        ],
+      });
+
+      await expect(service.startRun("project-1", "def-1", {})).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it("should throw NotFoundException when definition does not exist", async () => {

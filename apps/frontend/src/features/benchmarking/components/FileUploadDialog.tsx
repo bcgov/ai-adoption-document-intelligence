@@ -150,23 +150,24 @@ export function FileUploadDialog({
                     <div>
                       <Text size="sm" fw={500} mb={4}>Pairing ground truth with inputs</Text>
                       <Text size="sm" c="dimmed">
-                        Ground truth files are paired with inputs by matching the <strong>sample ID</strong> —
-                        the filename without its extension, stripping any <Code>_gt</Code> suffix.
+                        Ground truth files are paired with inputs by matching the <strong>base filename</strong> —
+                        a <Code>.json</Code> file with the same name as the input document is treated as its ground truth.
                       </Text>
                       <List size="sm" mt={4}>
                         <List.Item>
-                          <Code>invoice-001.pdf</Code> → sample ID: <Code>invoice-001</Code>
+                          <Code>invoice-001.pdf</Code> + <Code>invoice-001.json</Code> → paired as one sample
                         </List.Item>
                         <List.Item>
-                          <Code>invoice-001_gt.json</Code> → sample ID: <Code>invoice-001</Code> (paired)
+                          <Code>receipt.png</Code> + <Code>receipt.json</Code> → paired as one sample
                         </List.Item>
                       </List>
                     </div>
                     <div>
                       <Text size="sm" fw={500} mb={4}>Example</Text>
                       <Text size="sm" c="dimmed">
-                        Uploading <Code>receipt.png</Code> and <Code>receipt_gt.json</Code> creates
+                        Uploading <Code>receipt.png</Code> and <Code>receipt.json</Code> creates
                         one sample with both an input document and ground truth.
+                        Duplicate filenames within a single upload are not allowed.
                       </Text>
                     </div>
                   </Stack>

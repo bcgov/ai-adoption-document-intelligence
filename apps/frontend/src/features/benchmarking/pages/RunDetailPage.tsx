@@ -18,6 +18,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertCircle,
+  IconArrowLeft,
   IconCheck,
   IconExternalLink,
   IconTrophy,
@@ -61,7 +62,7 @@ function formatDuration(
   if (!startedAt) return "-";
   const start = new Date(startedAt).getTime();
   const end = completedAt ? new Date(completedAt).getTime() : Date.now();
-  const durationMs = end - start;
+  const durationMs = Math.max(0, end - start);
   const seconds = Math.floor(durationMs / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
@@ -212,6 +213,14 @@ export function RunDetailPage() {
         <Group justify="space-between">
           <div>
             <Group gap="sm" align="center">
+              <Button
+                variant="subtle"
+                leftSection={<IconArrowLeft size={16} />}
+                onClick={() => navigate(`/benchmarking/projects/${projectId}`)}
+                data-testid="back-to-project-btn"
+              >
+                Back
+              </Button>
               <Title order={2} data-testid="run-definition-name">
                 {run.definitionName}
               </Title>

@@ -36,6 +36,7 @@ import {
   RunSummaryDto,
   SampleFailureDto,
 } from "./dto";
+import { DatasetService } from "./dataset.service";
 import { MLflowClientService } from "./mlflow-client.service";
 
 @Injectable()
@@ -47,6 +48,7 @@ export class BenchmarkRunService {
     private configService: ConfigService,
     private mlflowClient: MLflowClientService,
     private benchmarkTemporal: BenchmarkTemporalService,
+    private datasetService: DatasetService,
   ) {
     const dbOptions = getPrismaPgOptions(
       this.configService.get("DATABASE_URL"),
@@ -153,6 +155,27 @@ export class BenchmarkRunService {
     if (!definition.datasetVersion.gitRevision) {
       throw new BadRequestException(
         `Cannot start a run: dataset version "${definition.datasetVersionId}" has no files uploaded`,
+      );
+    }
+
+    // Validate the dataset version before starting the run
+    const validation = await this.datasetService.validateDatasetVersion(
+      definition.datasetVersion.datasetId,
+      definition.datasetVersionId,
+      {},
+    );
+
+    if (!validation.valid) {
+      const errorCount = validation.issueCount.schemaViolations +
+        validation.issueCount.missingGroundTruth +
+        validation.issueCount.corruption;
+      const errorIssues = validation.issues.filter(
+        (issue) => issue.severity === "error",
+      );
+      throw new BadRequestException(
+        `Cannot start a run: dataset validation failed with ${errorCount} error(s). ` +
+        `Issues: ${errorIssues.slice(0, 5).map((i) => i.message).join("; ")}` +
+        (errorIssues.length > 5 ? ` ... and ${errorIssues.length - 5} more` : ""),
       );
     }
 

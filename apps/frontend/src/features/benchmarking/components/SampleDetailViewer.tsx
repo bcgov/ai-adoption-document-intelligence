@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Badge,
   Code,
   Group,
@@ -9,8 +10,10 @@ import {
   Table,
   Text,
   Title,
+  Tooltip,
 } from "@mantine/core";
-import { IconFile, IconFileCheck } from "@tabler/icons-react";
+import { IconDownload, IconFile, IconFileCheck } from "@tabler/icons-react";
+import { apiService } from "@/data/services/api.service";
 
 interface SampleFile {
   path: string;
@@ -21,6 +24,10 @@ interface SampleFile {
 interface SampleDetailViewerProps {
   /** The sample ID being viewed */
   sampleId: string | null;
+  /** Dataset ID for file downloads */
+  datasetId: string;
+  /** Version ID for file downloads */
+  versionId: string;
   /** Input files for the sample */
   inputs: SampleFile[];
   /** Ground truth files for the sample */
@@ -40,6 +47,8 @@ interface SampleDetailViewerProps {
  */
 export function SampleDetailViewer({
   sampleId,
+  datasetId,
+  versionId,
   inputs,
   groundTruthFiles,
   groundTruthContent,
@@ -47,6 +56,21 @@ export function SampleDetailViewer({
   opened,
   onClose,
 }: SampleDetailViewerProps) {
+  const handleDownload = async (filePath: string) => {
+    const response = await apiService.get<Blob>(
+      `/benchmark/datasets/${datasetId}/versions/${versionId}/files/download?path=${encodeURIComponent(filePath)}`,
+      { responseType: "blob" },
+    );
+    const blob = response.data as unknown as Blob;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filePath.split("/").pop() || "download";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
   return (
     <Modal
       opened={opened}
@@ -74,6 +98,7 @@ export function SampleDetailViewer({
                 <Table.Tr>
                   <Table.Th>Path</Table.Th>
                   <Table.Th>MIME Type</Table.Th>
+                  <Table.Th w={50}>Download</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -88,6 +113,17 @@ export function SampleDetailViewer({
                       <Badge size="sm" variant="outline">
                         {file.mimeType || "unknown"}
                       </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Tooltip label="Download file">
+                        <ActionIcon
+                          variant="subtle"
+                          onClick={() => handleDownload(file.path)}
+                          data-testid={`download-input-btn-${idx}`}
+                        >
+                          <IconDownload size={16} />
+                        </ActionIcon>
+                      </Tooltip>
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -116,6 +152,7 @@ export function SampleDetailViewer({
                   <Table.Tr>
                     <Table.Th>Path</Table.Th>
                     <Table.Th>Format</Table.Th>
+                    <Table.Th w={50}>Download</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -130,6 +167,17 @@ export function SampleDetailViewer({
                         <Badge size="sm" variant="outline">
                           {file.format || "unknown"}
                         </Badge>
+                      </Table.Td>
+                      <Table.Td>
+                        <Tooltip label="Download file">
+                          <ActionIcon
+                            variant="subtle"
+                            onClick={() => handleDownload(file.path)}
+                            data-testid={`download-gt-btn-${idx}`}
+                          >
+                            <IconDownload size={16} />
+                          </ActionIcon>
+                        </Tooltip>
                       </Table.Td>
                     </Table.Tr>
                   ))}

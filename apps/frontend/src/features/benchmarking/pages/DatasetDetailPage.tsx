@@ -17,6 +17,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconArchive,
+  IconArrowLeft,
   IconCheck,
   IconDotsVertical,
   IconEye,
@@ -26,7 +27,7 @@ import {
   IconUpload,
 } from "@tabler/icons-react";
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { apiService } from "@/data/services/api.service";
 import { FileUploadDialog } from "../components/FileUploadDialog";
 import { SampleDetailViewer } from "../components/SampleDetailViewer";
@@ -41,6 +42,7 @@ import {
 
 export function DatasetDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { dataset, isLoading: isLoadingDataset } = useDataset(id || "");
   const {
     versions,
@@ -225,9 +227,19 @@ export function DatasetDetailPage() {
       <Stack gap="lg">
         <Stack gap={2}>
           <Group justify="space-between">
-            <Title order={2} data-testid="dataset-name-title">
-              {dataset.name}
-            </Title>
+            <Group gap="sm" align="center">
+              <Button
+                variant="subtle"
+                leftSection={<IconArrowLeft size={16} />}
+                onClick={() => navigate("/benchmarking/datasets")}
+                data-testid="back-to-datasets-btn"
+              >
+                Back
+              </Button>
+              <Title order={2} data-testid="dataset-name-title">
+                {dataset.name}
+              </Title>
+            </Group>
             <Button
               leftSection={<IconPlus size={16} />}
               onClick={handleNewVersion}
@@ -294,6 +306,7 @@ export function DatasetDetailPage() {
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Version</Table.Th>
+                    <Table.Th>Name</Table.Th>
                     <Table.Th>Status</Table.Th>
                     <Table.Th>Documents</Table.Th>
                     <Table.Th>Git Revision</Table.Th>
@@ -314,6 +327,11 @@ export function DatasetDetailPage() {
                       data-testid={`version-row-${version.id}`}
                     >
                       <Table.Td>{version.version}</Table.Td>
+                      <Table.Td>
+                        <Text size="sm" c={version.name ? undefined : "dimmed"}>
+                          {version.name || "-"}
+                        </Text>
+                      </Table.Td>
                       <Table.Td>
                         <Badge
                           color={getStatusBadgeColor(version.status)}
@@ -550,6 +568,8 @@ export function DatasetDetailPage() {
 
       <SampleDetailViewer
         sampleId={selectedSample?.id ?? null}
+        datasetId={id || ""}
+        versionId={selectedVersionId || ""}
         inputs={selectedSample?.inputs ?? []}
         groundTruthFiles={selectedSample?.groundTruth ?? []}
         groundTruthContent={selectedGroundTruth}

@@ -14,6 +14,7 @@ import {
 } from "@mantine/core";
 import {
   IconAlertTriangle,
+  IconArrowLeft,
   IconGitCompare,
   IconPlus,
   IconTrash,
@@ -213,9 +214,19 @@ export function ProjectDetailPage() {
   return (
     <Stack gap="lg">
       <Stack gap={2}>
-        <Title order={2} data-testid="project-name-title">
-          {project.name}
-        </Title>
+        <Group gap="sm" align="center">
+          <Button
+            variant="subtle"
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={() => navigate("/benchmarking/projects")}
+            data-testid="back-to-projects-btn"
+          >
+            Back
+          </Button>
+          <Title order={2} data-testid="project-name-title">
+            {project.name}
+          </Title>
+        </Group>
         {project.description && (
           <Text c="dimmed" size="sm" data-testid="project-description">
             {project.description}
@@ -283,7 +294,7 @@ export function ProjectDetailPage() {
                   >
                     <Table.Td>{def.name}</Table.Td>
                     <Table.Td>
-                      {def.datasetVersion.datasetName} v
+                      {def.datasetVersion.datasetName}{" "}
                       {def.datasetVersion.version}
                     </Table.Td>
                     <Table.Td>

@@ -66,8 +66,8 @@ const SDPR_MONTHLY_REPORT_FIELDS: SeedFieldDefinition[] = [
 
   { fieldKey: "checkbox_work_yes", fieldType: FieldType.selectionMark },
   { fieldKey: "checkbox_work_no", fieldType: FieldType.selectionMark },
-  { fieldKey: "checkbox_work_souse_yes", fieldType: FieldType.selectionMark },
-  { fieldKey: "checkbox_work_souse_no", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_work_spouse_yes", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_work_spouse_no", fieldType: FieldType.selectionMark },
 
   { fieldKey: "checkbox_moved_yes", fieldType: FieldType.selectionMark },
   { fieldKey: "checkbox_moved_no", fieldType: FieldType.selectionMark },

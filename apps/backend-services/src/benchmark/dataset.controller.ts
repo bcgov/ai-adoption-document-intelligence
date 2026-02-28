@@ -20,9 +20,11 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFiles,
   UseInterceptors,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import {
   ApiBadRequestResponse,
@@ -472,6 +474,37 @@ export class DatasetController {
     @Param("sampleId") sampleId: string,
   ): Promise<GroundTruthResponseDto> {
     return this.datasetService.getGroundTruth(id, versionId, sampleId);
+  }
+
+  @Get(":id/versions/:versionId/files/download")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Download a raw file from a dataset version",
+    description:
+      "Serves the original uploaded file (input document or ground truth) from the dataset repository",
+  })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiOkResponse({ description: "Returns the raw file" })
+  @ApiNotFoundResponse({ description: "File or version not found" })
+  async downloadFile(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+    @Query("path") filePath: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    if (!filePath) {
+      throw new BadRequestException("Query parameter 'path' is required");
+    }
+    const { buffer, filename, mimeType } =
+      await this.datasetService.getSampleFile(id, versionId, filePath);
+    res.set({
+      "Content-Type": mimeType,
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": buffer.length.toString(),
+    });
+    res.send(buffer);
   }
 
   @Post(":id/versions/:versionId/validate")

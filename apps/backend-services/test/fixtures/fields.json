@@ -73,11 +73,11 @@
       "fieldType": "selectionMark"
     },
     {
-      "fieldKey": "checkbox_work_souse_yes",
+      "fieldKey": "checkbox_work_spouse_yes",
       "fieldType": "selectionMark"
     },
     {
-      "fieldKey": "checkbox_work_souse_no",
+      "fieldKey": "checkbox_work_spouse_no",
       "fieldType": "selectionMark"
     },
     {

@@ -12,7 +12,7 @@
     "fileName": { "type": "string" },
     "fileType": { "type": "string" },
     "contentType": { "type": "string" },
-    "modelId": { "type": "string", "defaultValue": "prebuilt-layout" },
+    "modelId": { "type": "string", "defaultValue": "sdpr_synth_test" },
     "confidenceThreshold": { "type": "number", "defaultValue": 0.95, "description": "OCR confidence threshold for human review" },
     "preparedFileData": { "type": "object" },
     "apimRequestId": { "type": "string" },

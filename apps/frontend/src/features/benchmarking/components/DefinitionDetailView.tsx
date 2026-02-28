@@ -149,7 +149,7 @@ export function DefinitionDetailView({
               <Table.Tr>
                 <Table.Td fw={500}>Dataset Version</Table.Td>
                 <Table.Td>
-                  {definition.datasetVersion.datasetName} v
+                  {definition.datasetVersion.datasetName}{" "}
                   {definition.datasetVersion.version}
                 </Table.Td>
               </Table.Tr>
