@@ -90,9 +90,37 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     const config = input.evaluatorConfig as SchemaAwareConfig;
     const passThreshold = config.passThreshold ?? 0.9;
 
+    // Validate paths
+    const predictionPath = input.predictionPaths?.[0];
+    const groundTruthPath = input.groundTruthPaths?.[0];
+
+    if (!predictionPath) {
+      return {
+        sampleId: input.sampleId,
+        metrics: {},
+        diagnostics: {
+          error: "missing_prediction_path",
+          message: "No prediction file path provided",
+        },
+        pass: false,
+      };
+    }
+
+    if (!groundTruthPath) {
+      return {
+        sampleId: input.sampleId,
+        metrics: {},
+        diagnostics: {
+          error: "missing_ground_truth_path",
+          message: "No ground truth file path provided",
+        },
+        pass: false,
+      };
+    }
+
     // Load prediction and ground truth
-    const prediction = await this.loadJson(input.predictionPaths[0]);
-    const groundTruth = await this.loadJson(input.groundTruthPaths[0]);
+    const prediction = await this.loadJson(predictionPath);
+    const groundTruth = await this.loadJson(groundTruthPath);
 
     // Compare all fields
     const comparisonResults: FieldComparisonResult[] = [];

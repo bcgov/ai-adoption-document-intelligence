@@ -93,6 +93,31 @@ export async function benchmarkEvaluate(
   } = input;
 
   try {
+    // Validate that prediction and ground truth paths are provided
+    if (!predictionPaths || predictionPaths.length === 0) {
+      return {
+        sampleId,
+        metrics: {},
+        diagnostics: {
+          error: "no_prediction_paths",
+          message: "No prediction file paths provided for this sample",
+        },
+        pass: false,
+      };
+    }
+
+    if (!groundTruthPaths || groundTruthPaths.length === 0) {
+      return {
+        sampleId,
+        metrics: {},
+        diagnostics: {
+          error: "no_ground_truth_paths",
+          message: "No ground truth file paths provided for this sample",
+        },
+        pass: false,
+      };
+    }
+
     // Check if prediction files exist (workflow may have failed to produce output)
     const predictionFilesExist = await checkFilesExist(predictionPaths);
 

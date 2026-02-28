@@ -101,11 +101,14 @@ describe("benchmark-evaluate activities", () => {
     });
 
     it("should handle missing prediction files", async () => {
+      const groundTruthPath = path.join(tempDir, "gt-for-missing.json");
+      await fs.writeFile(groundTruthPath, JSON.stringify({ field: "value" }));
+
       const input: BenchmarkEvaluateInput = {
         sampleId: "sample-003",
         inputPaths: [],
         predictionPaths: [path.join(tempDir, "nonexistent.json")],
-        groundTruthPaths: [],
+        groundTruthPaths: [groundTruthPath],
         metadata: {},
         evaluatorType: "schema-aware",
         evaluatorConfig: {},
@@ -195,7 +198,7 @@ describe("benchmark-evaluate activities", () => {
 
       expect(result.sampleId).toBe("sample-006");
       expect(result.pass).toBe(false);
-      expect(result.diagnostics.error).toBe("no_prediction_output");
+      expect(result.diagnostics.error).toBe("no_prediction_paths");
     });
   });
 

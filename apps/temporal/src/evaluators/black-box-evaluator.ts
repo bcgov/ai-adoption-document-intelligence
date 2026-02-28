@@ -35,14 +35,42 @@ export class BlackBoxEvaluator implements BenchmarkEvaluator {
   public readonly type = "black-box";
 
   async evaluate(input: EvaluationInput): Promise<EvaluationResult> {
+    // Validate paths
+    const predictionPath = input.predictionPaths?.[0];
+    const groundTruthPath = input.groundTruthPaths?.[0];
+
+    if (!predictionPath) {
+      return {
+        sampleId: input.sampleId,
+        metrics: { exact_match: 0, field_overlap: 0 },
+        diagnostics: {
+          error: "missing_prediction_path",
+          message: "No prediction file path provided",
+        },
+        pass: false,
+      };
+    }
+
+    if (!groundTruthPath) {
+      return {
+        sampleId: input.sampleId,
+        metrics: { exact_match: 0, field_overlap: 0 },
+        diagnostics: {
+          error: "missing_ground_truth_path",
+          message: "No ground truth file path provided",
+        },
+        pass: false,
+      };
+    }
+
     try {
       // Load prediction and ground truth
       const predictionContent = await fs.readFile(
-        input.predictionPaths[0],
+        predictionPath,
         "utf-8",
       );
       const groundTruthContent = await fs.readFile(
-        input.groundTruthPaths[0],
+        groundTruthPath,
         "utf-8",
       );
 
