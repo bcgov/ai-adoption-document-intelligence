@@ -299,6 +299,19 @@ WHERE id = :id
 - `reviewStatus` (enum): `pending` | `reviewed` | `all`
 - `limit` (number): Pagination limit
 - `offset` (number): Pagination offset
+- `group_id` (UUID, optional): Scope results to a single group. When omitted, returns items across all groups the identity belongs to. When provided, `identityCanAccessGroup` is called and a `403` is returned if the identity is not a member.
+
+### Query Parameters for `/api/hitl/queue/stats`
+
+- `reviewStatus` (enum): `pending` | `reviewed` | `all`
+- `group_id` (UUID, optional): Scope stats to a single group. Same access check as `/queue`.
+
+### Query Parameters for `/api/hitl/analytics`
+
+- `startDate` (date, optional): Start of analytics period
+- `endDate` (date, optional): End of analytics period
+- `reviewerId` (string, optional): Filter by reviewer ID
+- `group_id` (UUID, optional): Scope analytics to a single group. Same access check as `/queue`.
 
 ## Frontend Architecture
 
@@ -322,9 +335,10 @@ WHERE id = :id
 
 **[useReviewQueue.ts](../apps/frontend/src/features/hitl/hooks/useReviewQueue.ts)**
 - Manages queue data fetching and filters
+- Consumes `GroupContext` via `useGroup()` — automatically scopes queue and stats requests to `activeGroup.id` when set
 - `startSessionAsync(documentId)`: Creates new session
 - Handles queue statistics
-- React Query integration for caching
+- React Query integration for caching; both `queueQuery` and `statsQuery` keys include `activeGroupId` so switching groups triggers automatic re-fetches
 
 **[useReviewSession.ts](../apps/frontend/src/features/hitl/hooks/useReviewSession.ts)**
 - Manages active session state

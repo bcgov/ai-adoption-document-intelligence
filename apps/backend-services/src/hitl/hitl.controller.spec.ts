@@ -94,6 +94,32 @@ describe("HitlController", () => {
       await controller.getQueue({} as any, req);
       expect(hitlService.getQueue).toHaveBeenCalledWith({}, ["group-1"]);
     });
+
+    it("scopes to a single group when group_id is provided and user is a member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      hitlService.getQueue.mockResolvedValue({
+        documents: [],
+        total: 0,
+      } as any);
+      await controller.getQueue({ group_id: "group-1" } as any, req);
+      expect(hitlService.getQueue).toHaveBeenCalledWith(
+        { group_id: "group-1" },
+        ["group-1"],
+      );
+    });
+
+    it("throws ForbiddenException when group_id is provided but user is not a member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.getQueue({ group_id: "group-2" } as any, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(hitlService.getQueue).not.toHaveBeenCalled();
+    });
   });
 
   describe("getQueueStats", () => {
@@ -113,6 +139,33 @@ describe("HitlController", () => {
       expect(hitlService.getQueueStats).toHaveBeenCalledWith(undefined, [
         "group-1",
       ]);
+    });
+
+    it("scopes stats to a single group when group_id is provided and user is a member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      hitlService.getQueueStats.mockResolvedValue({
+        totalDocuments: 0,
+        requiresReview: 0,
+        averageConfidence: 0,
+        reviewedToday: 0,
+      } as any);
+      await controller.getQueueStats(undefined, req, "group-1");
+      expect(hitlService.getQueueStats).toHaveBeenCalledWith(undefined, [
+        "group-1",
+      ]);
+    });
+
+    it("throws ForbiddenException when group_id is provided but user is not a member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.getQueueStats(undefined, req, "group-2"),
+      ).rejects.toThrow(ForbiddenException);
+      expect(hitlService.getQueueStats).not.toHaveBeenCalled();
     });
   });
 
@@ -135,6 +188,29 @@ describe("HitlController", () => {
       hitlService.getAnalytics.mockResolvedValue({} as any);
       await controller.getAnalytics({} as any, req);
       expect(hitlService.getAnalytics).toHaveBeenCalledWith({}, []);
+    });
+
+    it("scopes analytics to a single group when group_id is provided and user is a member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      hitlService.getAnalytics.mockResolvedValue({ totalDocuments: 0 } as any);
+      await controller.getAnalytics({ group_id: "group-1" } as any, req);
+      expect(hitlService.getAnalytics).toHaveBeenCalledWith(
+        { group_id: "group-1" },
+        ["group-1"],
+      );
+    });
+
+    it("throws ForbiddenException when group_id is provided but user is not a member", async () => {
+      const req = {
+        resolvedIdentity: { userId: "user-1" },
+      } as Request;
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        controller.getAnalytics({ group_id: "group-2" } as any, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(hitlService.getAnalytics).not.toHaveBeenCalled();
     });
   });
 

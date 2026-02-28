@@ -61,10 +61,20 @@ export class HitlController {
     type: QueueResponseDto,
   })
   async getQueue(@Query() filters: QueueFilterDto, @Req() req: Request) {
-    const groupIds = await getIdentityGroupIds(
-      req.resolvedIdentity,
-      this.databaseService,
-    );
+    let groupIds: string[];
+    if (filters.group_id) {
+      await identityCanAccessGroup(
+        req.resolvedIdentity,
+        filters.group_id,
+        this.databaseService,
+      );
+      groupIds = [filters.group_id];
+    } else {
+      groupIds = await getIdentityGroupIds(
+        req.resolvedIdentity,
+        this.databaseService,
+      );
+    }
     return this.hitlService.getQueue(filters, groupIds);
   }
 
@@ -79,6 +89,12 @@ export class HitlController {
     enumName: "ReviewStatusFilter",
     description: "Filter by review status",
   })
+  @ApiQuery({
+    name: "group_id",
+    required: false,
+    type: String,
+    description: "Scope stats to a specific group ID",
+  })
   @ApiOkResponse({
     description:
       "Queue statistics including total counts and average confidence",
@@ -87,11 +103,22 @@ export class HitlController {
   async getQueueStats(
     @Query("reviewStatus") reviewStatus?: ReviewStatusFilter,
     @Req() req?: Request,
+    @Query("group_id") group_id?: string,
   ) {
-    const groupIds = await getIdentityGroupIds(
-      req?.resolvedIdentity,
-      this.databaseService,
-    );
+    let groupIds: string[];
+    if (group_id) {
+      await identityCanAccessGroup(
+        req?.resolvedIdentity,
+        group_id,
+        this.databaseService,
+      );
+      groupIds = [group_id];
+    } else {
+      groupIds = await getIdentityGroupIds(
+        req?.resolvedIdentity,
+        this.databaseService,
+      );
+    }
     return this.hitlService.getQueueStats(reviewStatus, groupIds);
   }
 
@@ -285,10 +312,20 @@ export class HitlController {
     @Query() filters: AnalyticsFilterDto,
     @Req() req: Request,
   ) {
-    const groupIds = await getIdentityGroupIds(
-      req.resolvedIdentity,
-      this.databaseService,
-    );
+    let groupIds: string[];
+    if (filters.group_id) {
+      await identityCanAccessGroup(
+        req.resolvedIdentity,
+        filters.group_id,
+        this.databaseService,
+      );
+      groupIds = [filters.group_id];
+    } else {
+      groupIds = await getIdentityGroupIds(
+        req.resolvedIdentity,
+        this.databaseService,
+      );
+    }
     return this.hitlService.getAnalytics(filters, groupIds);
   }
 }

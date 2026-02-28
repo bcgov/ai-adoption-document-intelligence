@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
 
 interface OcrField {
@@ -41,13 +42,16 @@ interface QueueFilters {
   limit?: number;
   offset?: number;
   reviewStatus?: "pending" | "reviewed" | "all";
+  group_id?: string;
 }
 
 export const useReviewQueue = (filters?: QueueFilters) => {
   const queryClient = useQueryClient();
+  const { activeGroup } = useGroup();
+  const activeGroupId = activeGroup?.id;
 
   const queueQuery = useQuery({
-    queryKey: ["hitl-queue", filters],
+    queryKey: ["hitl-queue", filters, activeGroupId],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filters?.status) params.append("status", filters.status);
@@ -58,6 +62,7 @@ export const useReviewQueue = (filters?: QueueFilters) => {
       if (filters?.offset) params.append("offset", filters.offset.toString());
       if (filters?.reviewStatus)
         params.append("reviewStatus", filters.reviewStatus);
+      if (activeGroupId) params.append("group_id", activeGroupId);
 
       const endpoint = `/hitl/queue${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await apiService.get<QueueResponse>(endpoint);
@@ -66,11 +71,12 @@ export const useReviewQueue = (filters?: QueueFilters) => {
   });
 
   const statsQuery = useQuery({
-    queryKey: ["hitl-queue-stats", filters?.reviewStatus],
+    queryKey: ["hitl-queue-stats", filters?.reviewStatus, activeGroupId],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filters?.reviewStatus)
         params.append("reviewStatus", filters.reviewStatus);
+      if (activeGroupId) params.append("group_id", activeGroupId);
 
       const endpoint = `/hitl/queue/stats${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await apiService.get<{

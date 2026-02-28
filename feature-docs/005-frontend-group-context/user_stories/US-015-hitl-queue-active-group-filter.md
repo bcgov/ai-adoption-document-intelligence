@@ -8,47 +8,47 @@
 `GET /api/hitl/queue`, `GET /api/hitl/queue/stats`, and `GET /api/hitl/analytics` already correctly scope results to all groups the user belongs to via `getIdentityGroupIds`. The all-groups base behaviour does **not** need to change. The only addition needed is an optional `group_id` query parameter on each endpoint so the frontend can narrow results to the single active group.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: HITL queue is scoped to the active group
+- [x] **Scenario 1**: HITL queue is scoped to the active group
     - **Given** the user has an `activeGroup` set in `GroupContext`
     - **When** `useReviewQueue` fetches the queue
     - **Then** the request includes `group_id=<activeGroup.id>` as a query parameter and only queue items for that group are returned
 
-- [ ] **Scenario 2**: HITL queue stats are scoped to the active group
+- [x] **Scenario 2**: HITL queue stats are scoped to the active group
     - **Given** the user has an `activeGroup` set in `GroupContext`
     - **When** `useReviewQueue` fetches queue stats
     - **Then** the request includes `group_id=<activeGroup.id>` as a query parameter and stats reflect only that group's documents
 
-- [ ] **Scenario 3**: Queue and stats refresh when active group changes
+- [x] **Scenario 3**: Queue and stats refresh when active group changes
     - **Given** the user switches their active group via the header selector
     - **When** `GroupContext` updates `activeGroup`
     - **Then** both `queueQuery` and `statsQuery` re-fetch and display data for the new active group (i.e., `activeGroup.id` is part of each React Query `queryKey`)
 
-- [ ] **Scenario 4**: Backend accepts and validates optional `group_id` on `GET /api/hitl/queue`
+- [x] **Scenario 4**: Backend accepts and validates optional `group_id` on `GET /api/hitl/queue`
     - **Given** a request to `GET /api/hitl/queue?group_id=<uuid>`
     - **When** the controller receives the request
     - **Then** it calls `identityCanAccessGroup` with the provided `group_id` before filtering; if the identity is not a member, a `403 Forbidden` is returned
 
-- [ ] **Scenario 5**: Backend behaviour is unchanged on `GET /api/hitl/queue` when `group_id` is omitted
+- [x] **Scenario 5**: Backend behaviour is unchanged on `GET /api/hitl/queue` when `group_id` is omitted
     - **Given** a request to `GET /api/hitl/queue` with no `group_id` query param
     - **When** the controller receives the request
     - **Then** it returns all queue items across all groups the identity belongs to (existing correct behaviour)
 
-- [ ] **Scenario 6**: Backend accepts and validates optional `group_id` on `GET /api/hitl/queue/stats`
+- [x] **Scenario 6**: Backend accepts and validates optional `group_id` on `GET /api/hitl/queue/stats`
     - **Given** a request to `GET /api/hitl/queue/stats?group_id=<uuid>`
     - **When** the controller receives the request
     - **Then** it calls `identityCanAccessGroup` with the provided `group_id` before filtering; if the identity is not a member, a `403 Forbidden` is returned
 
-- [ ] **Scenario 7**: Backend behaviour is unchanged on `GET /api/hitl/queue/stats` when `group_id` is omitted
+- [x] **Scenario 7**: Backend behaviour is unchanged on `GET /api/hitl/queue/stats` when `group_id` is omitted
     - **Given** a request to `GET /api/hitl/queue/stats` with no `group_id` query param
     - **When** the controller receives the request
     - **Then** it returns stats across all groups the identity belongs to (existing correct behaviour)
 
-- [ ] **Scenario 8**: Backend accepts and validates optional `group_id` on `GET /api/hitl/analytics`
+- [x] **Scenario 8**: Backend accepts and validates optional `group_id` on `GET /api/hitl/analytics`
     - **Given** a request to `GET /api/hitl/analytics?group_id=<uuid>`
     - **When** the controller receives the request
     - **Then** it calls `identityCanAccessGroup` with the provided `group_id` before filtering; if the identity is not a member, a `403 Forbidden` is returned
 
-- [ ] **Scenario 9**: Empty queue shown when active group has no items requiring review
+- [x] **Scenario 9**: Empty queue shown when active group has no items requiring review
     - **Given** the active group has no documents pending review
     - **When** the HITL queue page renders
     - **Then** the empty-state message is shown with no error
