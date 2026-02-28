@@ -187,6 +187,9 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
       metrics,
       diagnostics,
       pass: metrics.f1 >= passThreshold,
+      groundTruth,
+      prediction,
+      evaluationDetails: comparisonResults,
     };
   }
 

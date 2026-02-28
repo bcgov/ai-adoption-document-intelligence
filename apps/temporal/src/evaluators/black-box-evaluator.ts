@@ -155,6 +155,8 @@ export class BlackBoxEvaluator implements BenchmarkEvaluator {
       },
       artifacts,
       pass: exactMatch,
+      groundTruth,
+      prediction,
     };
   }
 
@@ -181,6 +183,8 @@ export class BlackBoxEvaluator implements BenchmarkEvaluator {
         lengthDifference: prediction.length - groundTruth.length,
       },
       pass: exactMatch,
+      groundTruth,
+      prediction,
     };
   }
 

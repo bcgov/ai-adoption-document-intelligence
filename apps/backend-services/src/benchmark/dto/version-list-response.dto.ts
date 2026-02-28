@@ -8,6 +8,7 @@ export class SplitListItemDto {
 export class VersionListItemDto {
   id: string;
   version: string;
+  name: string | null;
   status: string;
   documentCount: number;
   gitRevision: string | null;

@@ -111,12 +111,16 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
         </Stack>
       </Card>
 
-      {(groundTruth !== undefined || prediction !== undefined) && (
-        <Card withBorder>
-          <Stack gap="xs">
-            <Text fw={600} size="sm">
-              Expected vs Actual
+      <Card withBorder>
+        <Stack gap="xs">
+          <Text fw={600} size="sm">
+            Expected vs Actual
+          </Text>
+          {groundTruth === undefined && prediction === undefined ? (
+            <Text size="sm" c="dimmed">
+              Expected and actual data is not available for this sample. This data will be available for runs started after this update.
             </Text>
+          ) : (
             <Grid>
               <Grid.Col span={6}>
                 <Text size="xs" fw={500} c="dimmed" mb={4}>
@@ -151,9 +155,9 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
                 />
               </Grid.Col>
             </Grid>
-          </Stack>
-        </Card>
-      )}
+          )}
+        </Stack>
+      </Card>
 
       {evaluationDetails !== undefined && (
         <Card withBorder>

@@ -94,6 +94,21 @@ export interface EvaluationResult {
    * Pass/fail based on evaluator thresholds
    */
   pass: boolean;
+
+  /**
+   * Ground truth data used for comparison (if available)
+   */
+  groundTruth?: unknown;
+
+  /**
+   * Prediction/output data produced by the workflow (if available)
+   */
+  prediction?: unknown;
+
+  /**
+   * Evaluation details (e.g., field-by-field comparison)
+   */
+  evaluationDetails?: unknown;
 }
 
 /**

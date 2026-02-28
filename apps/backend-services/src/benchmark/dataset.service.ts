@@ -510,6 +510,7 @@ export class DatasetService {
     const versionList: VersionListItemDto[] = versions.map((v) => ({
       id: v.id,
       version: v.version,
+      name: v.name ?? null,
       status: v.status,
       documentCount: v.documentCount,
       gitRevision: v.gitRevision,

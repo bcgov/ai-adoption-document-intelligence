@@ -12,6 +12,7 @@ import {
   Table,
   Tabs,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
@@ -87,6 +88,8 @@ export function DatasetDetailPage() {
     id: string;
     label: string;
   } | null>(null);
+  const [newVersionDialogOpen, setNewVersionDialogOpen] = useState(false);
+  const [newVersionName, setNewVersionName] = useState("");
 
   const {
     samples,
@@ -165,8 +168,16 @@ export function DatasetDetailPage() {
     setVersionToDelete(null);
   };
 
-  const handleNewVersion = async () => {
-    const version = await createVersion();
+  const handleNewVersion = () => {
+    setNewVersionName("");
+    setNewVersionDialogOpen(true);
+  };
+
+  const handleNewVersionConfirm = async () => {
+    const version = await createVersion(
+      newVersionName.trim() ? { name: newVersionName.trim() } : undefined,
+    );
+    setNewVersionDialogOpen(false);
     setUploadVersionId(version.id);
     setUploadVersionLabel(version.version);
     setUploadDialogOpen(true);
@@ -624,6 +635,41 @@ export function DatasetDetailPage() {
         ) : (
           <Text c="dimmed">No validation results available</Text>
         )}
+      </Modal>
+
+      <Modal
+        opened={newVersionDialogOpen}
+        onClose={() => setNewVersionDialogOpen(false)}
+        title="New Version"
+        centered
+        data-testid="new-version-dialog"
+      >
+        <Stack gap="md">
+          <TextInput
+            label="Version name"
+            description="Optional name to identify this version (e.g., 'Q4 invoices')"
+            placeholder="e.g., Q4 invoices"
+            value={newVersionName}
+            onChange={(e) => setNewVersionName(e.currentTarget.value)}
+            data-testid="new-version-name-input"
+          />
+          <Group justify="flex-end" gap="xs">
+            <Button
+              variant="subtle"
+              onClick={() => setNewVersionDialogOpen(false)}
+              data-testid="new-version-cancel-btn"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleNewVersionConfirm}
+              loading={isCreatingVersion}
+              data-testid="new-version-confirm-btn"
+            >
+              Create
+            </Button>
+          </Group>
+        </Stack>
       </Modal>
     </>
   );

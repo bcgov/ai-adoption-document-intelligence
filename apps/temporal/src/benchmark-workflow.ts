@@ -714,6 +714,9 @@ export async function benchmarkRunWorkflow(
         diagnostics: er.diagnostics,
         pass: er.pass,
         artifacts: er.artifacts,
+        groundTruth: er.groundTruth,
+        prediction: er.prediction,
+        evaluationDetails: er.evaluationDetails,
       })),
     };
 
