@@ -25,6 +25,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   CreateDefinitionDialog,
   type CreateDefinitionFormData,
+  type DefinitionFormInitialValues,
 } from "../components/CreateDefinitionDialog";
 import { DefinitionDetailView } from "../components/DefinitionDetailView";
 import { useDefinition, useDefinitions } from "../hooks/useDefinitions";
@@ -104,12 +105,15 @@ export function ProjectDetailPage() {
     label: string;
   } | null>(null);
 
-  const { definition, isLoading: isLoadingDefinition } = useDefinition(
+  const { definition, isLoading: isLoadingDefinition, updateDefinition, isUpdating } = useDefinition(
     projectId,
     selectedDefinitionId || "",
   );
+  const [editDialogOpened, setEditDialogOpened] = useState(false);
+  const [editInitialValues, setEditInitialValues] = useState<DefinitionFormInitialValues | undefined>(undefined);
 
   const previousIsCreatingRef = useRef(isCreating);
+  const previousIsUpdatingRef = useRef(isUpdating);
 
   useEffect(() => {
     if (previousIsCreatingRef.current && !isCreating) {
@@ -118,8 +122,36 @@ export function ProjectDetailPage() {
     previousIsCreatingRef.current = isCreating;
   }, [isCreating]);
 
+  useEffect(() => {
+    if (previousIsUpdatingRef.current && !isUpdating) {
+      setEditDialogOpened(false);
+      setEditInitialValues(undefined);
+    }
+    previousIsUpdatingRef.current = isUpdating;
+  }, [isUpdating]);
+
   const handleCreateDefinition = (data: CreateDefinitionFormData) => {
     createDefinition(data);
+  };
+
+  const handleEditDefinition = () => {
+    if (!definition || definition.immutable) return;
+    setEditInitialValues({
+      name: definition.name,
+      datasetVersionId: definition.datasetVersion.id,
+      splitId: definition.split?.id,
+      workflowId: definition.workflow.id,
+      evaluatorType: definition.evaluatorType,
+      evaluatorConfig: definition.evaluatorConfig,
+      runtimeSettings: definition.runtimeSettings,
+      artifactPolicy: definition.artifactPolicy,
+    });
+    setDetailDialogOpened(false);
+    setEditDialogOpened(true);
+  };
+
+  const handleUpdateDefinition = (data: CreateDefinitionFormData) => {
+    updateDefinition(data);
   };
 
   const handleViewDetails = (definitionId: string) => {
@@ -531,6 +563,18 @@ export function ProjectDetailPage() {
         isCreating={isCreating}
       />
 
+      <CreateDefinitionDialog
+        opened={editDialogOpened}
+        onClose={() => {
+          setEditDialogOpened(false);
+          setEditInitialValues(undefined);
+        }}
+        onCreate={handleUpdateDefinition}
+        isCreating={isUpdating}
+        mode="edit"
+        initialValues={editInitialValues}
+      />
+
       <Modal
         opened={detailDialogOpened}
         onClose={handleCloseDetail}
@@ -542,7 +586,7 @@ export function ProjectDetailPage() {
             <Loader />
           </Center>
         ) : definition ? (
-          <DefinitionDetailView definition={definition} />
+          <DefinitionDetailView definition={definition} onEdit={handleEditDefinition} />
         ) : (
           <Text c="dimmed">Definition not found</Text>
         )}

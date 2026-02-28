@@ -25,7 +25,7 @@ jest.mock("@/utils/database-url", () => ({
   getPrismaPgOptions: jest.fn().mockReturnValue({}),
 }));
 
-import { NotFoundException } from "@nestjs/common";
+import { ConflictException, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { BenchmarkProjectService } from "./benchmark-project.service";
@@ -175,6 +175,27 @@ describe("BenchmarkProjectService", () => {
       );
 
       // Ensure no project was created in Postgres
+      expect(mockPrismaClient.benchmarkProject.create).not.toHaveBeenCalled();
+    });
+
+    it("throws ConflictException when MLflow experiment name already exists", async () => {
+      const createDto: CreateProjectDto = {
+        name: "Duplicate Project",
+        createdBy: "user@example.com",
+      };
+
+      const mlflowError = new Error(
+        'Failed to create MLflow experiment "Duplicate Project": RESOURCE_ALREADY_EXISTS',
+      );
+      mockMlflowClient.createExperiment.mockRejectedValue(mlflowError);
+
+      await expect(service.createProject(createDto)).rejects.toThrow(
+        ConflictException,
+      );
+      await expect(service.createProject(createDto)).rejects.toThrow(
+        'A project with the name "Duplicate Project" already exists in MLflow',
+      );
+
       expect(mockPrismaClient.benchmarkProject.create).not.toHaveBeenCalled();
     });
 

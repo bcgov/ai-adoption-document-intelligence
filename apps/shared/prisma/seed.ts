@@ -5,7 +5,6 @@ import {
   FieldType,
   PrismaClient,
   ProjectStatus,
-  DatasetVersionStatus,
   SplitType,
   BenchmarkRunStatus,
   AuditAction,
@@ -692,8 +691,6 @@ async function seedBenchmarkingData() {
       groundTruthSchema: {
         fields: ["invoice_number", "total_amount", "date", "vendor"],
       },
-      status: DatasetVersionStatus.published,
-      publishedAt: new Date("2026-01-15"),
       createdAt: new Date("2026-01-10T00:00:00Z"),
     },
     create: {
@@ -706,8 +703,6 @@ async function seedBenchmarkingData() {
       groundTruthSchema: {
         fields: ["invoice_number", "total_amount", "date", "vendor"],
       },
-      status: DatasetVersionStatus.published,
-      publishedAt: new Date("2026-01-15"),
       createdAt: new Date("2026-01-10T00:00:00Z"),
     },
   });
@@ -732,8 +727,6 @@ async function seedBenchmarkingData() {
           line_items: { type: "array" },
         },
       },
-      status: DatasetVersionStatus.draft,
-      publishedAt: null,
       createdAt: new Date("2026-02-01T00:00:00Z"),
     },
     create: {
@@ -754,8 +747,6 @@ async function seedBenchmarkingData() {
           line_items: { type: "array" },
         },
       },
-      status: DatasetVersionStatus.draft,
-      publishedAt: null,
       createdAt: new Date("2026-02-01T00:00:00Z"),
     },
   });
@@ -771,8 +762,6 @@ async function seedBenchmarkingData() {
       groundTruthSchema: {
         fields: ["invoice_number", "total_amount", "date"],
       },
-      status: DatasetVersionStatus.archived,
-      publishedAt: new Date("2025-12-01"),
       createdAt: new Date("2026-01-01T00:00:00Z"),
     },
     create: {
@@ -785,8 +774,6 @@ async function seedBenchmarkingData() {
       groundTruthSchema: {
         fields: ["invoice_number", "total_amount", "date"],
       },
-      status: DatasetVersionStatus.archived,
-      publishedAt: new Date("2025-12-01"),
       createdAt: new Date("2026-01-01T00:00:00Z"),
     },
   });

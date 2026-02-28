@@ -16,9 +16,9 @@ one at a time, implementing fixes and marking items complete.
 2. **Find the next unchecked item.** Scan for the first `[ ]` item in the file.
    If all items are checked, inform the user that the checklist is complete.
 
-3. **Present the item.** Show the user which item you're about to work on
-   (number and title). Ask if they want to proceed with this item, skip it,
-   or work on a different one.
+3. **Start working immediately.** Show the user which item you're working on
+   (number and title), then begin implementing right away without asking for
+   confirmation.
 
 4. **Implement the fix.** Follow the item's Problem/Expected/Key file guidance:
    - Read the relevant files mentioned in the item.
@@ -33,8 +33,8 @@ one at a time, implementing fixes and marking items complete.
    - Update the checklist file, changing `[ ]` to `[x]` for the completed item.
    - Summarize what was done.
 
-6. **Continue or stop.** Ask the user if they want to continue to the next item
-   or stop here.
+6. **Continue.** Immediately proceed to the next unchecked item. Keep going
+   until all items are complete or the user interrupts.
 
 ## Rules
 

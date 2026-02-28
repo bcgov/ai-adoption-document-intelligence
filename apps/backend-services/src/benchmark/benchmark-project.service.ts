@@ -9,7 +9,7 @@
  */
 
 import { PrismaClient } from "@generated/client";
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getPrismaPgOptions } from "@/utils/database-url";
@@ -57,7 +57,11 @@ export class BenchmarkProjectService {
         `Failed to create MLflow experiment for project: ${dto.name}`,
         error.stack,
       );
-      // Re-throw as a service unavailable error
+      if (error.message?.includes("RESOURCE_ALREADY_EXISTS") || error.message?.includes("already exists")) {
+        throw new ConflictException(
+          `A project with the name "${dto.name}" already exists in MLflow. Please choose a different name.`,
+        );
+      }
       throw new Error(`Failed to create MLflow experiment: ${error.message}`);
     }
 

@@ -57,11 +57,9 @@ export function SampleDetailViewer({
   onClose,
 }: SampleDetailViewerProps) {
   const handleDownload = async (filePath: string) => {
-    const response = await apiService.get<Blob>(
+    const blob = await apiService.getBlob(
       `/benchmark/datasets/${datasetId}/versions/${versionId}/files/download?path=${encodeURIComponent(filePath)}`,
-      { responseType: "blob" },
     );
-    const blob = response.data as unknown as Blob;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

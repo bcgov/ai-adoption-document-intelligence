@@ -310,6 +310,19 @@ export function RunDetailPage() {
                 View Regression Report
               </Button>
             )}
+            {run.status === "completed" && (
+              <Button
+                variant="light"
+                onClick={() =>
+                  navigate(
+                    `/benchmarking/projects/${projectId}/runs/${runId}/drill-down`,
+                  )
+                }
+                data-testid="view-all-samples-btn"
+              >
+                View All Samples
+              </Button>
+            )}
           </Group>
         </Group>
       </Stack>
@@ -717,23 +730,9 @@ export function RunDetailPage() {
       {run.status === "completed" && drillDown && (
         <Card>
           <Stack gap="md">
-            <Group justify="space-between">
-              <Title order={3} data-testid="drill-down-heading">
-                Drill-Down Summary
-              </Title>
-              <Button
-                variant="light"
-                size="sm"
-                onClick={() =>
-                  navigate(
-                    `/benchmarking/projects/${projectId}/runs/${runId}/drill-down`,
-                  )
-                }
-                data-testid="view-all-samples-btn"
-              >
-                View All Samples
-              </Button>
-            </Group>
+            <Title order={3} data-testid="drill-down-heading">
+              Drill-Down Summary
+            </Title>
 
             {drillDown.worstSamples.length > 0 && (
               <Stack gap="xs">

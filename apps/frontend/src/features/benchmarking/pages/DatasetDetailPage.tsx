@@ -17,9 +17,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
-  IconArchive,
   IconArrowLeft,
-  IconCheck,
   IconDotsVertical,
   IconEye,
   IconPlus,
@@ -50,8 +48,6 @@ export function DatasetDetailPage() {
     isLoading: isLoadingVersions,
     createVersion,
     isCreatingVersion,
-    publishVersion,
-    archiveVersion,
     deleteVersion,
     isDeletingVersion,
     deleteVersionError,
@@ -125,27 +121,6 @@ export function DatasetDetailPage() {
       </Center>
     );
   }
-
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case "draft":
-        return "yellow";
-      case "published":
-        return "green";
-      case "archived":
-        return "gray";
-      default:
-        return "blue";
-    }
-  };
-
-  const handlePublish = (versionId: string) => {
-    publishVersion(versionId);
-  };
-
-  const handleArchive = (versionId: string) => {
-    archiveVersion(versionId);
-  };
 
   const handleDeleteVersionClick = (versionId: string, versionLabel: string) => {
     setVersionToDelete({ id: versionId, label: versionLabel });
@@ -307,7 +282,7 @@ export function DatasetDetailPage() {
                   <Stack align="center" gap="md">
                     <Text c="dimmed" data-testid="no-versions-message">No versions yet</Text>
                     <Text size="sm" c="dimmed">
-                      Click &quot;New Version&quot; to create a draft and upload files
+                      Click &quot;New Version&quot; to create a version and upload files
                     </Text>
                   </Stack>
                 </Center>
@@ -318,10 +293,8 @@ export function DatasetDetailPage() {
                   <Table.Tr>
                     <Table.Th>Version</Table.Th>
                     <Table.Th>Name</Table.Th>
-                    <Table.Th>Status</Table.Th>
                     <Table.Th>Documents</Table.Th>
                     <Table.Th>Git Revision</Table.Th>
-                    <Table.Th>Published</Table.Th>
                     <Table.Th>Created</Table.Th>
                     <Table.Th>Actions</Table.Th>
                   </Table.Tr>
@@ -343,21 +316,8 @@ export function DatasetDetailPage() {
                           {version.name || "-"}
                         </Text>
                       </Table.Td>
-                      <Table.Td>
-                        <Badge
-                          color={getStatusBadgeColor(version.status)}
-                          data-testid={`version-status-badge-${version.id}`}
-                        >
-                          {version.status}
-                        </Badge>
-                      </Table.Td>
                       <Table.Td>{version.documentCount}</Table.Td>
                       <Table.Td>{version.gitRevision ? version.gitRevision.substring(0, 8) : "-"}</Table.Td>
-                      <Table.Td>
-                        {version.publishedAt
-                          ? new Date(version.publishedAt).toLocaleDateString()
-                          : "-"}
-                      </Table.Td>
                       <Table.Td>
                         {new Date(version.createdAt).toLocaleDateString()}
                       </Table.Td>
@@ -379,15 +339,13 @@ export function DatasetDetailPage() {
                             >
                               View Samples
                             </Menu.Item>
-                            {version.status === "draft" && (
-                              <Menu.Item
-                                leftSection={<IconUpload size={16} />}
-                                onClick={() => handleUploadToVersion(version.id)}
-                                data-testid={`upload-files-menu-item-${version.id}`}
-                              >
-                                Upload Files
-                              </Menu.Item>
-                            )}
+                            <Menu.Item
+                              leftSection={<IconUpload size={16} />}
+                              onClick={() => handleUploadToVersion(version.id)}
+                              data-testid={`upload-files-menu-item-${version.id}`}
+                            >
+                              Upload Files
+                            </Menu.Item>
                             <Menu.Item
                               leftSection={<IconShieldCheck size={16} />}
                               onClick={() => handleValidate(version.id)}
@@ -395,38 +353,16 @@ export function DatasetDetailPage() {
                             >
                               Validate
                             </Menu.Item>
-                            {version.status === "draft" && (
-                              <Menu.Item
-                                leftSection={<IconCheck size={16} />}
-                                onClick={() => handlePublish(version.id)}
-                                data-testid={`publish-menu-item-${version.id}`}
-                              >
-                                Publish
-                              </Menu.Item>
-                            )}
-                            {version.status === "published" && (
-                              <Menu.Item
-                                leftSection={<IconArchive size={16} />}
-                                onClick={() => handleArchive(version.id)}
-                                data-testid={`archive-menu-item-${version.id}`}
-                              >
-                                Archive
-                              </Menu.Item>
-                            )}
-                            {version.status === "draft" && (
-                              <>
-                                <Menu.Divider />
-                                <Menu.Item
-                                  leftSection={<IconTrash size={16} />}
-                                  color="red"
-                                  onClick={() => handleDeleteVersionClick(version.id, version.version)}
-                                  loading={isDeletingVersion}
-                                  data-testid={`delete-version-menu-item-${version.id}`}
-                                >
-                                  Delete Version
-                                </Menu.Item>
-                              </>
-                            )}
+                            <Menu.Divider />
+                            <Menu.Item
+                              leftSection={<IconTrash size={16} />}
+                              color="red"
+                              onClick={() => handleDeleteVersionClick(version.id, version.version)}
+                              loading={isDeletingVersion}
+                              data-testid={`delete-version-menu-item-${version.id}`}
+                            >
+                              Delete Version
+                            </Menu.Item>
                           </Menu.Dropdown>
                         </Menu>
                       </Table.Td>
@@ -440,18 +376,16 @@ export function DatasetDetailPage() {
           {selectedVersionId && (
             <Tabs.Panel value={selectedVersionId} pt="md">
               <Stack gap="md">
-                {selectedVersion?.status === "draft" && (
-                  <Group justify="flex-end">
-                    <Button
-                      leftSection={<IconUpload size={16} />}
-                      variant="light"
-                      onClick={() => handleUploadToVersion(selectedVersionId)}
-                      data-testid="sample-preview-upload-btn"
-                    >
-                      Upload Files
-                    </Button>
-                  </Group>
-                )}
+                <Group justify="flex-end">
+                  <Button
+                    leftSection={<IconUpload size={16} />}
+                    variant="light"
+                    onClick={() => handleUploadToVersion(selectedVersionId)}
+                    data-testid="sample-preview-upload-btn"
+                  >
+                    Upload Files
+                  </Button>
+                </Group>
                 {isLoadingSamples ? (
                   <Center h={200}>
                     <Loader />
@@ -512,24 +446,22 @@ export function DatasetDetailPage() {
                                 >
                                   View
                                 </Button>
-                                {selectedVersion?.status === "draft" && (
-                                  <Button
-                                    size="xs"
-                                    variant="subtle"
-                                    color="red"
-                                    leftSection={<IconTrash size={14} />}
-                                    onClick={() =>
-                                      handleDeleteSample(
-                                        selectedVersionId!,
-                                        sample.id,
-                                      )
-                                    }
-                                    loading={isDeletingSample && deletingSampleId === sample.id}
-                                    data-testid={`delete-sample-btn-${sample.id}`}
-                                  >
-                                    Delete
-                                  </Button>
-                                )}
+                                <Button
+                                  size="xs"
+                                  variant="subtle"
+                                  color="red"
+                                  leftSection={<IconTrash size={14} />}
+                                  onClick={() =>
+                                    handleDeleteSample(
+                                      selectedVersionId!,
+                                      sample.id,
+                                    )
+                                  }
+                                  loading={isDeletingSample && deletingSampleId === sample.id}
+                                  data-testid={`delete-sample-btn-${sample.id}`}
+                                >
+                                  Delete
+                                </Button>
                               </Group>
                             </Table.Td>
                           </Table.Tr>

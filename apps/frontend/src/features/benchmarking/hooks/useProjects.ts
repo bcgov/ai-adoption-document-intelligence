@@ -69,6 +69,9 @@ export const useProjects = () => {
         "/benchmark/projects",
         data,
       );
+      if (!response.success) {
+        throw new Error(response.message || "Failed to create project");
+      }
       return response.data;
     },
     onSuccess: () => {
@@ -82,6 +85,8 @@ export const useProjects = () => {
     error: projectsQuery.error,
     createProject: createProjectMutation.mutate,
     isCreating: createProjectMutation.isPending,
+    createError: createProjectMutation.error,
+    resetCreateError: createProjectMutation.reset,
   };
 };
 

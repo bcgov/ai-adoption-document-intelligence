@@ -12,7 +12,6 @@ export class DatasetResponseDto {
   recentVersions?: Array<{
     id: string;
     version: string;
-    status: string;
     documentCount: number;
     createdAt: Date;
   }>;

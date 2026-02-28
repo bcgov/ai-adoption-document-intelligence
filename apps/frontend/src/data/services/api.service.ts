@@ -169,6 +169,15 @@ class ApiService {
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     return this.request<T>("DELETE", endpoint);
   }
+
+  async getBlob(endpoint: string): Promise<Blob> {
+    const response = await this.axiosInstance({
+      method: "GET",
+      url: endpoint,
+      responseType: "blob",
+    });
+    return response.data as Blob;
+  }
 }
 
 export const apiService = new ApiService();

@@ -404,8 +404,6 @@ model DatasetVersion {
   manifestPath        String
   documentCount       Int
   groundTruthSchema   Json?
-  status              DatasetVersionStatus   @default(draft)
-  publishedAt         DateTime?
   createdAt           DateTime               @default(now())
   splits              Split[]
   benchmarkDefinitions BenchmarkDefinition[]
@@ -537,11 +535,6 @@ model BenchmarkAuditLog {
 
 // ========== BENCHMARKING ENUMS ==========
 
-enum DatasetVersionStatus {
-  draft
-  published
-  archived
-}
 
 enum SplitType {
   train

@@ -89,12 +89,24 @@ export class MLflowClientService {
       );
       return response.data.experiment_id;
     } catch (error) {
+      // Extract MLflow error details from the axios response body
+      // MLflow returns: { error_code: "RESOURCE_ALREADY_EXISTS", message: "..." }
+      const mlflowErrorCode = error.response?.data?.error_code;
+      const mlflowMessage = error.response?.data?.message;
+
       this.logger.error(
-        `Failed to create MLflow experiment: ${name}`,
+        `Failed to create MLflow experiment: ${name} (error_code: ${mlflowErrorCode})`,
         error.stack,
       );
+
+      if (mlflowErrorCode === "RESOURCE_ALREADY_EXISTS" || mlflowMessage?.includes("already exists")) {
+        throw new Error(
+          `RESOURCE_ALREADY_EXISTS: Experiment name "${name}" already exists in MLflow`,
+        );
+      }
+
       throw new Error(
-        `Failed to create MLflow experiment "${name}": ${error.message}`,
+        `Failed to create MLflow experiment "${name}": ${mlflowMessage || error.message}`,
       );
     }
   }

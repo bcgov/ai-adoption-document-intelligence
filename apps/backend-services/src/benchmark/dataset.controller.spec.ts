@@ -15,8 +15,6 @@ const mockDatasetService = {
   getDatasetById: jest.fn(),
   uploadFilesToVersion: jest.fn(),
   createVersion: jest.fn(),
-  publishVersion: jest.fn(),
-  archiveVersion: jest.fn(),
   listVersions: jest.fn(),
   getVersionById: jest.fn(),
   deleteVersion: jest.fn(),
@@ -174,7 +172,6 @@ describe("DatasetController", () => {
           {
             id: "v1",
             version: "1.0.0",
-            status: "published",
             documentCount: 100,
             createdAt: new Date(),
           },
@@ -222,12 +219,11 @@ describe("DatasetController", () => {
         id: "version-123",
         datasetId: "dataset-123",
         version: "1.0.0",
+        name: null,
         gitRevision: "abc123",
         manifestPath: "manifest.json",
         documentCount: 0,
         groundTruthSchema: { type: "object" },
-        status: "draft",
-        publishedAt: null,
         createdAt: new Date(),
       };
 
@@ -265,10 +261,8 @@ describe("DatasetController", () => {
           {
             id: "v1",
             version: "1.0.0",
-            status: "published",
             documentCount: 100,
             gitRevision: "abc123",
-            publishedAt: new Date(),
             createdAt: new Date(),
           },
         ],
@@ -291,12 +285,11 @@ describe("DatasetController", () => {
         id: "version-123",
         datasetId: "dataset-123",
         version: "1.0.0",
+        name: null,
         gitRevision: "abc123",
         manifestPath: "manifest.json",
         documentCount: 100,
         groundTruthSchema: { type: "object" },
-        status: "published",
-        publishedAt: new Date(),
         createdAt: new Date(),
         splits: [],
       };
@@ -323,88 +316,6 @@ describe("DatasetController", () => {
       await expect(
         controller.getVersionById("dataset-123", "nonexistent"),
       ).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  describe("PATCH /api/benchmark/datasets/:id/versions/:versionId/publish", () => {
-    const mockRequest = {
-      user: {
-        sub: "user-123",
-      },
-    } as any;
-
-    it("publishes a version successfully", async () => {
-      const mockResponse: VersionResponseDto = {
-        id: "version-123",
-        datasetId: "dataset-123",
-        version: "1.0.0",
-        gitRevision: "abc123",
-        manifestPath: "manifest.json",
-        documentCount: 100,
-        groundTruthSchema: null,
-        status: "published",
-        publishedAt: new Date(),
-        createdAt: new Date(),
-      };
-
-      mockDatasetService.publishVersion.mockResolvedValue(mockResponse);
-
-      const result = await controller.publishVersion(
-        "dataset-123",
-        "version-123",
-        mockRequest,
-      );
-
-      expect(mockDatasetService.publishVersion).toHaveBeenCalledWith(
-        "dataset-123",
-        "version-123",
-        "user-123",
-      );
-      expect(result).toEqual(mockResponse);
-    });
-
-    it("throws BadRequestException when user ID is missing", async () => {
-      const mockRequestNoUser = {
-        user: undefined,
-      } as any;
-
-      await expect(
-        controller.publishVersion(
-          "dataset-123",
-          "version-123",
-          mockRequestNoUser,
-        ),
-      ).rejects.toThrow(BadRequestException);
-    });
-  });
-
-  describe("PATCH /api/benchmark/datasets/:id/versions/:versionId/archive", () => {
-    it("archives a version successfully", async () => {
-      const mockResponse: VersionResponseDto = {
-        id: "version-123",
-        datasetId: "dataset-123",
-        version: "1.0.0",
-        gitRevision: "abc123",
-        manifestPath: "manifest.json",
-        documentCount: 100,
-        groundTruthSchema: null,
-        status: "archived",
-        publishedAt: null,
-        createdAt: new Date(),
-      };
-
-      mockDatasetService.archiveVersion.mockResolvedValue(mockResponse);
-
-      const result = await controller.archiveVersion(
-        "dataset-123",
-        "version-123",
-      );
-
-      expect(mockDatasetService.archiveVersion).toHaveBeenCalledWith(
-        "dataset-123",
-        "version-123",
-      );
-      expect(result).toEqual(mockResponse);
     });
   });
 

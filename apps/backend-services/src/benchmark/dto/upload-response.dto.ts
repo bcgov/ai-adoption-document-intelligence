@@ -9,7 +9,6 @@ export class UploadVersionDto {
   id: string;
   version: string;
   gitRevision: string | null;
-  status: string;
   documentCount: number;
 }
 

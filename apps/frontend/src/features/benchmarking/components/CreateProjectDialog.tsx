@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Group,
   Modal,
@@ -6,6 +7,7 @@ import {
   Textarea,
   TextInput,
 } from "@mantine/core";
+import { IconAlertCircle } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 
 interface CreateProjectDialogProps {
@@ -13,6 +15,8 @@ interface CreateProjectDialogProps {
   onClose: () => void;
   onCreate: (data: { name: string; description?: string }) => void;
   isCreating: boolean;
+  createError: Error | null;
+  onResetError: () => void;
 }
 
 export function CreateProjectDialog({
@@ -20,6 +24,8 @@ export function CreateProjectDialog({
   onClose,
   onCreate,
   isCreating,
+  createError,
+  onResetError,
 }: CreateProjectDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -30,19 +36,21 @@ export function CreateProjectDialog({
     setName("");
     setDescription("");
     setNameError("");
+    onResetError();
     onClose();
   };
 
-  // Close dialog when mutation completes successfully
+  // Close dialog when mutation completes successfully (no error)
   useEffect(() => {
-    if (wasCreating.current && !isCreating) {
+    if (wasCreating.current && !isCreating && !createError) {
       setName("");
       setDescription("");
       setNameError("");
+      onResetError();
       onClose();
     }
     wasCreating.current = isCreating;
-  }, [isCreating, onClose]);
+  }, [isCreating, createError, onClose, onResetError]);
 
   const handleSubmit = () => {
     if (!name.trim()) {
@@ -67,6 +75,18 @@ export function CreateProjectDialog({
       data-testid="create-project-dialog"
     >
       <Stack gap="md">
+        {createError && (
+          <Alert
+            icon={<IconAlertCircle size={16} />}
+            title="Failed to create project"
+            color="red"
+            variant="light"
+            data-testid="create-project-error"
+          >
+            {createError.message}
+          </Alert>
+        )}
+
         <TextInput
           label="Project Name"
           placeholder="Enter project name"
@@ -75,6 +95,9 @@ export function CreateProjectDialog({
             setName(e.target.value);
             if (e.target.value.trim()) {
               setNameError("");
+            }
+            if (createError) {
+              onResetError();
             }
           }}
           error={nameError}

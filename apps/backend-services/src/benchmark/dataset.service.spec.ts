@@ -158,9 +158,8 @@ describe("DatasetService", () => {
         createDto.repositoryUrl,
         "/tmp/dataset-init-test123",
       );
-      expect(mockDvcService.initRepository).toHaveBeenCalledWith(
-        "/tmp/dataset-init-test123",
-      );
+      // initRepository is NOT called for cloned repos (DVC already configured)
+      expect(mockDvcService.initRepository).not.toHaveBeenCalled();
       expect(mockPrismaClient.dataset.create).toHaveBeenCalledWith({
         data: {
           name: createDto.name,
@@ -232,15 +231,14 @@ describe("DatasetService", () => {
       expect(mockDvcService.initRepository).not.toHaveBeenCalled();
     });
 
-    it("cleans up temp directory even when DVC initialization fails", async () => {
+    it("cleans up temp directory even when clone fails", async () => {
       mockPrismaClient.dataset.findUnique.mockResolvedValue(null);
-      mockDvcService.cloneRepository.mockResolvedValue(undefined);
-      mockDvcService.initRepository.mockRejectedValue(
-        new Error("DVC init failed"),
+      mockDvcService.cloneRepository.mockRejectedValue(
+        new Error("Clone failed"),
       );
 
       await expect(service.createDataset(createDto, userId)).rejects.toThrow(
-        "DVC init failed",
+        "Clone failed",
       );
 
       expect(mockRm).toHaveBeenCalledWith(
@@ -344,14 +342,14 @@ describe("DatasetService", () => {
           {
             id: "v1",
             version: "1.0.0",
-            status: "published",
+    
             documentCount: 100,
             createdAt: new Date(),
           },
           {
             id: "v2",
             version: "1.1.0",
-            status: "draft",
+    
             documentCount: 120,
             createdAt: new Date(),
           },
@@ -369,7 +367,6 @@ describe("DatasetService", () => {
             select: {
               id: true,
               version: true,
-              status: true,
               documentCount: true,
               createdAt: true,
             },
@@ -421,8 +418,8 @@ describe("DatasetService", () => {
         manifestPath: "manifest.json",
         documentCount: 0,
         groundTruthSchema: { type: "object" },
-        status: "draft",
-        publishedAt: null,
+
+
         createdAt: new Date(),
       };
 
@@ -444,12 +441,11 @@ describe("DatasetService", () => {
           datasetId: "dataset-123",
           version: "1.0.0",
           gitRevision: null,
-          status: "draft",
+  
           documentCount: 0,
         }),
       });
       expect(result.id).toBe(mockVersion.id);
-      expect(result.status).toBe("draft");
       expect(result.gitRevision).toBeNull();
     });
 
@@ -462,110 +458,6 @@ describe("DatasetService", () => {
     });
   });
 
-  describe("publishVersion", () => {
-    const userId = "user-123";
-
-    it("publishes a draft version successfully", async () => {
-      const mockVersion = {
-        id: "version-123",
-        datasetId: "dataset-123",
-        version: "1.0.0",
-        status: "draft",
-        gitRevision: "abc123",
-      };
-
-      const mockPublishedVersion = {
-        ...mockVersion,
-        status: "published",
-        publishedAt: new Date(),
-      };
-
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
-      mockPrismaClient.datasetVersion.update.mockResolvedValue(
-        mockPublishedVersion,
-      );
-      mockPrismaClient.benchmarkAuditLog.create.mockResolvedValue({});
-
-      const result = await service.publishVersion(
-        "dataset-123",
-        "version-123",
-        userId,
-      );
-
-      expect(mockPrismaClient.datasetVersion.update).toHaveBeenCalledWith({
-        where: { id: "version-123" },
-        data: {
-          status: "published",
-          publishedAt: expect.any(Date),
-        },
-      });
-      expect(mockPrismaClient.benchmarkAuditLog.create).toHaveBeenCalled();
-      expect(result.status).toBe("published");
-    });
-
-    it("throws BadRequestException when version is already published", async () => {
-      const mockVersion = {
-        id: "version-123",
-        status: "published",
-      };
-
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
-
-      await expect(
-        service.publishVersion("dataset-123", "version-123", userId),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.publishVersion("dataset-123", "version-123", userId),
-      ).rejects.toThrow("already published");
-    });
-
-    it("throws NotFoundException when version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
-
-      await expect(
-        service.publishVersion("dataset-123", "nonexistent", userId),
-      ).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  describe("archiveVersion", () => {
-    it("archives a version successfully", async () => {
-      const mockVersion = {
-        id: "version-123",
-        datasetId: "dataset-123",
-        status: "published",
-      };
-
-      const mockArchivedVersion = {
-        ...mockVersion,
-        status: "archived",
-      };
-
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
-      mockPrismaClient.datasetVersion.update.mockResolvedValue(
-        mockArchivedVersion,
-      );
-
-      const result = await service.archiveVersion("dataset-123", "version-123");
-
-      expect(mockPrismaClient.datasetVersion.update).toHaveBeenCalledWith({
-        where: { id: "version-123" },
-        data: {
-          status: "archived",
-        },
-      });
-      expect(result.status).toBe("archived");
-    });
-
-    it("throws NotFoundException when version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
-
-      await expect(
-        service.archiveVersion("dataset-123", "nonexistent"),
-      ).rejects.toThrow(NotFoundException);
-    });
-  });
-
   describe("listVersions", () => {
     it("returns list of versions for a dataset", async () => {
       const mockDataset = { id: "dataset-123" };
@@ -573,20 +465,20 @@ describe("DatasetService", () => {
         {
           id: "v1",
           version: "1.0.0",
-          status: "published",
+  
           documentCount: 100,
           gitRevision: "abc123",
-          publishedAt: new Date(),
+  
           createdAt: new Date(),
           splits: [],
         },
         {
           id: "v2",
           version: "1.1.0",
-          status: "draft",
+  
           documentCount: 120,
           gitRevision: "def456",
-          publishedAt: null,
+  
           createdAt: new Date(),
           splits: [],
         },
@@ -634,8 +526,8 @@ describe("DatasetService", () => {
         manifestPath: "manifest.json",
         documentCount: 100,
         groundTruthSchema: { type: "object" },
-        status: "published",
-        publishedAt: new Date(),
+
+
         createdAt: new Date(),
         splits: [
           {
@@ -716,7 +608,6 @@ describe("DatasetService", () => {
       datasetId: "dataset-123",
       version: "v1",
       gitRevision: null as string | null,
-      status: "draft",
       documentCount: 0,
     };
 
@@ -897,22 +788,6 @@ describe("DatasetService", () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it("throws BadRequestException when version is not draft", async () => {
-      const mockDataset = {
-        id: "dataset-123",
-        repositoryUrl: "/tmp/local-repo",
-      };
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
-        ...mockVersionRecord,
-        status: "published",
-      });
-
-      await expect(
-        service.uploadFilesToVersion("dataset-123", "version-abc", mockFiles, "user-123"),
-      ).rejects.toThrow(BadRequestException);
-    });
-
     it("categorizes input and ground truth files correctly", async () => {
       const mixedFiles: Array<{
         fieldname: string;
@@ -1044,8 +919,6 @@ describe("DatasetService", () => {
       manifestPath: "dataset-manifest.json",
       documentCount: 100,
       groundTruthSchema: null,
-      status: "published",
-      publishedAt: new Date(),
       createdAt: new Date(),
       dataset: {
         id: datasetId,
@@ -1701,7 +1574,6 @@ describe("DatasetService", () => {
       manifestPath: "dataset-manifest.json",
       documentCount: 3,
       groundTruthSchema: null,
-      status: "draft",
       dataset: mockDataset,
     };
 
@@ -2042,8 +1914,6 @@ describe("DatasetService", () => {
       manifestPath: "dataset-manifest.json",
       documentCount: 100,
       groundTruthSchema: null,
-      status: "draft",
-      publishedAt: null,
       createdAt: new Date("2026-01-01"),
       dataset: {
         id: datasetId,
@@ -2313,7 +2183,7 @@ describe("DatasetService", () => {
         id: "version-123",
         datasetId: "dataset-123",
         version: "v1",
-        status: "draft",
+
         benchmarkDefinitions: [],
       });
       mockPrismaClient.split.deleteMany.mockResolvedValue({ count: 0 });
@@ -2342,7 +2212,7 @@ describe("DatasetService", () => {
         id: "version-123",
         datasetId: "dataset-123",
         version: "v1",
-        status: "draft",
+
         benchmarkDefinitions: [
           { id: "def-1", name: "My Benchmark" },
         ],

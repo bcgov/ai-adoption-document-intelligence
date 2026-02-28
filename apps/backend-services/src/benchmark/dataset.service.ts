@@ -136,8 +136,11 @@ export class DatasetService {
         }
       }
 
-      // Initialize DVC with MinIO remote
-      await this.dvcService.initRepository(workingDir);
+      // Initialize DVC with MinIO remote (only for new repositories;
+      // cloned repos already have DVC configured)
+      if (isNewRepository) {
+        await this.dvcService.initRepository(workingDir);
+      }
 
       // Create dataset record in database
       const dataset = await this.prisma.dataset.create({
@@ -169,11 +172,24 @@ export class DatasetService {
 
       return this.mapToResponseDto(dataset);
     } catch (error) {
+      // Re-throw NestJS HttpExceptions as-is (e.g., ConflictException)
+      if (error instanceof ConflictException || error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+      // Handle Prisma unique constraint violation (race condition fallback)
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new ConflictException(
+          `A dataset already exists with this repository URL`,
+        );
+      }
       this.logger.error(
         `Failed to create dataset: ${createDto.name}`,
         error.stack,
       );
-      throw error;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new BadRequestException(
+        `Failed to create dataset: ${errorMessage}`,
+      );
     } finally {
       // Clean up temporary directory (only if we used one)
       if (needsCleanup && workingDir) {
@@ -244,7 +260,6 @@ export class DatasetService {
           select: {
             id: true,
             version: true,
-            status: true,
             documentCount: true,
             createdAt: true,
           },
@@ -362,7 +377,6 @@ export class DatasetService {
         documentCount: 0,
         groundTruthSchema: (createDto.groundTruthSchema ||
           null) as Prisma.JsonValue,
-        status: "draft",
       },
     });
 
@@ -371,109 +385,6 @@ export class DatasetService {
     );
 
     return this.mapToVersionResponseDto(version);
-  }
-
-  /**
-   * Publish a dataset version
-   */
-  async publishVersion(
-    datasetId: string,
-    versionId: string,
-    userId: string,
-  ): Promise<VersionResponseDto> {
-    this.logger.log(`Publishing version ${versionId} for dataset ${datasetId}`);
-
-    // Get the version
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
-
-    if (!version) {
-      throw new NotFoundException(
-        `Version with ID ${versionId} not found for dataset ${datasetId}`,
-      );
-    }
-
-    // Check if already published
-    if (version.status === "published") {
-      throw new BadRequestException(
-        "Version is already published and cannot be published again",
-      );
-    }
-
-    // Require at least one uploaded file (git revision) before publishing
-    if (!version.gitRevision) {
-      throw new BadRequestException(
-        "Cannot publish a version with no files uploaded",
-      );
-    }
-
-    // Update version status to published
-    const updatedVersion = await this.prisma.datasetVersion.update({
-      where: { id: versionId },
-      data: {
-        status: "published",
-        publishedAt: new Date(),
-      },
-    });
-
-    // Create audit log entry
-    await this.prisma.benchmarkAuditLog.create({
-      data: {
-        userId: userId,
-        action: AuditAction.version_published,
-        entityType: "DatasetVersion",
-        entityId: updatedVersion.id,
-        metadata: {
-          datasetId: datasetId,
-          version: updatedVersion.version,
-          gitRevision: updatedVersion.gitRevision,
-        },
-      },
-    });
-
-    this.logger.log(`Version published successfully: ${versionId}`);
-
-    return this.mapToVersionResponseDto(updatedVersion);
-  }
-
-  /**
-   * Archive a dataset version
-   */
-  async archiveVersion(
-    datasetId: string,
-    versionId: string,
-  ): Promise<VersionResponseDto> {
-    this.logger.log(`Archiving version ${versionId} for dataset ${datasetId}`);
-
-    // Get the version
-    const version = await this.prisma.datasetVersion.findFirst({
-      where: {
-        id: versionId,
-        datasetId: datasetId,
-      },
-    });
-
-    if (!version) {
-      throw new NotFoundException(
-        `Version with ID ${versionId} not found for dataset ${datasetId}`,
-      );
-    }
-
-    // Update version status to archived
-    const updatedVersion = await this.prisma.datasetVersion.update({
-      where: { id: versionId },
-      data: {
-        status: "archived",
-      },
-    });
-
-    this.logger.log(`Version archived successfully: ${versionId}`);
-
-    return this.mapToVersionResponseDto(updatedVersion);
   }
 
   /**
@@ -511,10 +422,8 @@ export class DatasetService {
       id: v.id,
       version: v.version,
       name: v.name ?? null,
-      status: v.status,
       documentCount: v.documentCount,
       gitRevision: v.gitRevision,
-      publishedAt: v.publishedAt,
       createdAt: v.createdAt,
       splits: v.splits.map((s) => ({
         id: s.id,
@@ -592,7 +501,7 @@ export class DatasetService {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    // Verify version exists and is in draft status
+    // Verify version exists
     const version = await this.prisma.datasetVersion.findFirst({
       where: { id: versionId, datasetId },
     });
@@ -600,12 +509,6 @@ export class DatasetService {
     if (!version) {
       throw new NotFoundException(
         `Version with ID ${versionId} not found for dataset ${datasetId}`,
-      );
-    }
-
-    if (version.status !== "draft") {
-      throw new BadRequestException(
-        "Cannot upload files to a non-draft version",
       );
     }
 
@@ -818,7 +721,6 @@ export class DatasetService {
           id: updatedVersion.id,
           version: updatedVersion.version,
           gitRevision: updatedVersion.gitRevision,
-          status: updatedVersion.status,
           documentCount: updatedVersion.documentCount,
         },
       };
@@ -872,12 +774,6 @@ export class DatasetService {
     if (!version) {
       throw new NotFoundException(
         `Version with ID ${versionId} not found for dataset ${datasetId}`,
-      );
-    }
-
-    if (version.status !== "draft") {
-      throw new BadRequestException(
-        "Cannot delete samples from a non-draft version",
       );
     }
 
@@ -1650,7 +1546,6 @@ export class DatasetService {
     recentVersions?: Array<{
       id: string;
       version: string;
-      status: string;
       documentCount: number;
       createdAt: Date;
     }>,
@@ -1683,8 +1578,6 @@ export class DatasetService {
       manifestPath: string;
       documentCount: number;
       groundTruthSchema: unknown;
-      status: string;
-      publishedAt: Date | null;
       createdAt: Date;
     },
     splits?: Array<{
@@ -1706,8 +1599,6 @@ export class DatasetService {
         string,
         unknown
       > | null,
-      status: version.status,
-      publishedAt: version.publishedAt,
       createdAt: version.createdAt,
       splits: splits?.map((s) => ({
         id: s.id,

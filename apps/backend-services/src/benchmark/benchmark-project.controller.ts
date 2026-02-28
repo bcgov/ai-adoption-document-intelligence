@@ -10,8 +10,10 @@
 import {
   Body,
   Controller,
+  ConflictException,
   Get,
   HttpCode,
+  HttpException,
   HttpStatus,
   Logger,
   Param,
@@ -52,6 +54,10 @@ export class BenchmarkProjectController {
     try {
       return await this.benchmarkProjectService.createProject(createProjectDto);
     } catch (error) {
+      // Let NestJS HttpExceptions (ConflictException, etc.) pass through as-is
+      if (error instanceof HttpException) {
+        throw error;
+      }
       if (error.message?.includes("Failed to create MLflow experiment")) {
         throw new ServiceUnavailableException(
           "MLflow service is unavailable. Please try again later.",

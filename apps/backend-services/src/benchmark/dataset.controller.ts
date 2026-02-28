@@ -183,7 +183,7 @@ export class DatasetController {
     description: "Dataset or version not found",
   })
   @ApiBadRequestResponse({
-    description: "Invalid file upload, version not in draft status, or no files provided",
+    description: "Invalid file upload or no files provided",
   })
   async uploadFilesToVersion(
     @Param("id") id: string,
@@ -296,59 +296,6 @@ export class DatasetController {
     return this.datasetService.getVersionById(id, versionId);
   }
 
-  @Patch(":id/versions/:versionId/publish")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Publish a dataset version" })
-  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
-  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
-  @ApiOkResponse({
-    description:
-      "Version published successfully. Status transitions to published and publishedAt is set.",
-    type: VersionResponseDto,
-  })
-  @ApiNotFoundResponse({
-    description: "Version not found",
-  })
-  @ApiBadRequestResponse({
-    description: "Version is already published",
-  })
-  async publishVersion(
-    @Param("id") id: string,
-    @Param("versionId") versionId: string,
-    @Req() req: Request,
-  ): Promise<VersionResponseDto> {
-    const user = req.user;
-    const userId = user?.sub as string;
-
-    if (!userId) {
-      throw new BadRequestException("User ID not found in request");
-    }
-
-    return this.datasetService.publishVersion(id, versionId, userId);
-  }
-
-  @Patch(":id/versions/:versionId/archive")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Archive a dataset version" })
-  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
-  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
-  @ApiOkResponse({
-    description:
-      "Version archived successfully. Status transitions to archived.",
-    type: VersionResponseDto,
-  })
-  @ApiNotFoundResponse({
-    description: "Version not found",
-  })
-  async archiveVersion(
-    @Param("id") id: string,
-    @Param("versionId") versionId: string,
-  ): Promise<VersionResponseDto> {
-    return this.datasetService.archiveVersion(id, versionId);
-  }
-
   @Delete(":id/versions/:versionId")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiKeyAuth()
@@ -396,7 +343,7 @@ export class DatasetController {
     description: "Dataset version or sample not found",
   })
   @ApiBadRequestResponse({
-    description: "Version is not in draft status or has no files uploaded",
+    description: "Version has no files uploaded",
   })
   async deleteSample(
     @Param("id") id: string,

@@ -9,10 +9,8 @@ export class VersionListItemDto {
   id: string;
   version: string;
   name: string | null;
-  status: string;
   documentCount: number;
   gitRevision: string | null;
-  publishedAt: Date | null;
   createdAt: Date;
   splits?: SplitListItemDto[];
 }

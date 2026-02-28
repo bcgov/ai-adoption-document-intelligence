@@ -69,12 +69,11 @@ describe("BenchmarkDefinitionService", () => {
     id: "ds-version-1",
     datasetId: "ds-1",
     version: "v1.0.0",
+    name: null,
     gitRevision: "abc123",
     manifestPath: "/path/to/manifest.json",
     documentCount: 100,
     groundTruthSchema: null,
-    status: "published" as never,
-    publishedAt: new Date(),
     createdAt: new Date(),
     dataset: {
       name: "Test Dataset",

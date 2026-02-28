@@ -10,8 +10,6 @@ interface DatasetVersion {
   manifestPath: string;
   documentCount: number;
   groundTruthSchema: Record<string, unknown> | null;
-  status: string;
-  publishedAt: string | null;
   createdAt: string;
   splits?: Array<{
     id: string;
@@ -79,42 +77,6 @@ export const useDatasetVersions = (datasetId: string) => {
     },
   });
 
-  const publishVersionMutation = useMutation({
-    mutationFn: async (versionId: string) => {
-      const response = await apiService.patch<DatasetVersion>(
-        `/benchmark/datasets/${datasetId}/versions/${versionId}/publish`,
-        {},
-      );
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["benchmark-dataset-versions", datasetId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["benchmark-dataset-version"],
-      });
-    },
-  });
-
-  const archiveVersionMutation = useMutation({
-    mutationFn: async (versionId: string) => {
-      const response = await apiService.patch<DatasetVersion>(
-        `/benchmark/datasets/${datasetId}/versions/${versionId}/archive`,
-        {},
-      );
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["benchmark-dataset-versions", datasetId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["benchmark-dataset-version"],
-      });
-    },
-  });
-
   const deleteVersionMutation = useMutation({
     mutationFn: async (versionId: string) => {
       await apiService.delete(
@@ -164,10 +126,6 @@ export const useDatasetVersions = (datasetId: string) => {
     error: versionsQuery.error,
     createVersion: createVersionMutation.mutateAsync,
     isCreatingVersion: createVersionMutation.isPending,
-    publishVersion: publishVersionMutation.mutate,
-    isPublishing: publishVersionMutation.isPending,
-    archiveVersion: archiveVersionMutation.mutate,
-    isArchiving: archiveVersionMutation.isPending,
     deleteVersion: deleteVersionMutation.mutate,
     isDeletingVersion: deleteVersionMutation.isPending,
     deleteVersionError: deleteVersionMutation.error,
@@ -254,6 +212,7 @@ export const useAllDatasetVersions = () => {
     versions: versionsQuery.data || [],
     isLoading: versionsQuery.isLoading,
     error: versionsQuery.error,
+    refetch: versionsQuery.refetch,
   };
 };
 

@@ -13,15 +13,28 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAllDatasetVersions } from "../hooks/useDatasetVersions";
 import { useWorkflows } from "../hooks/useWorkflows";
+
+export interface DefinitionFormInitialValues {
+  name: string;
+  datasetVersionId: string;
+  splitId?: string;
+  workflowId: string;
+  evaluatorType: string;
+  evaluatorConfig: Record<string, unknown>;
+  runtimeSettings: Record<string, unknown>;
+  artifactPolicy: Record<string, unknown>;
+}
 
 interface CreateDefinitionDialogProps {
   opened: boolean;
   onClose: () => void;
   onCreate: (data: CreateDefinitionFormData) => void;
   isCreating: boolean;
+  mode?: "create" | "edit";
+  initialValues?: DefinitionFormInitialValues;
 }
 
 export interface CreateDefinitionFormData {
@@ -46,6 +59,8 @@ export function CreateDefinitionDialog({
   onClose,
   onCreate,
   isCreating,
+  mode = "create",
+  initialValues,
 }: CreateDefinitionDialogProps) {
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState("");
@@ -63,9 +78,52 @@ export function CreateDefinitionDialog({
   const [useProductionQueue, setUseProductionQueue] = useState(false);
   const [artifactPolicyMode, setArtifactPolicyMode] = useState("failures_only");
   const [sampleRate, setSampleRate] = useState(0.1);
+  const [initialized, setInitialized] = useState(false);
 
-  const { versions, isLoading: isLoadingVersions } = useAllDatasetVersions();
+  const { versions, isLoading: isLoadingVersions, refetch: refetchVersions } = useAllDatasetVersions();
   const { workflows, isLoading: isLoadingWorkflows } = useWorkflows();
+
+  useEffect(() => {
+    if (opened) {
+      refetchVersions();
+    }
+    if (!opened) {
+      setInitialized(false);
+    }
+  }, [opened, refetchVersions]);
+
+  useEffect(() => {
+    if (opened && mode === "edit" && initialValues && !initialized && versions.length > 0) {
+      setName(initialValues.name);
+      setDatasetVersionId(initialValues.datasetVersionId);
+      setSplitId(initialValues.splitId || "");
+      setWorkflowId(initialValues.workflowId);
+      setEvaluatorType(initialValues.evaluatorType);
+      const configStr = Object.keys(initialValues.evaluatorConfig).length > 0
+        ? JSON.stringify(initialValues.evaluatorConfig, null, 2)
+        : "";
+      setEvaluatorConfigJson(configStr);
+
+      const rt = initialValues.runtimeSettings;
+      setMaxParallelDocuments(typeof rt.maxParallelDocuments === "number" ? rt.maxParallelDocuments : 10);
+      setPerDocumentTimeout(typeof rt.perDocumentTimeout === "number" ? rt.perDocumentTimeout : 300000);
+      setUseProductionQueue(rt.useProductionQueue === true);
+
+      const ap = initialValues.artifactPolicy;
+      const apMode = typeof ap.mode === "string" ? ap.mode : "failures_only";
+      setArtifactPolicyMode(apMode);
+      if (apMode === "sampled" && typeof ap.sampleRate === "number") {
+        setSampleRate(ap.sampleRate);
+      }
+
+      const version = versions.find((v) => v.id === initialValues.datasetVersionId);
+      if (version?.splits) {
+        setSplits(version.splits);
+      }
+
+      setInitialized(true);
+    }
+  }, [opened, mode, initialValues, initialized, versions]);
 
   const [splits, setSplits] = useState<Split[]>([]);
 
@@ -166,6 +224,7 @@ export function CreateDefinitionDialog({
     setArtifactPolicyMode("failures_only");
     setSampleRate(0.1);
     setSplits([]);
+    setInitialized(false);
     onClose();
   };
 
@@ -175,7 +234,7 @@ export function CreateDefinitionDialog({
       const groupName = "datasetName" in v ? String(v.datasetName) : "Other";
       const item = {
         value: v.id,
-        label: `${v.version} (${v.documentCount} documents)${v.status === "draft" ? " [DRAFT]" : ""}`,
+        label: `${v.version} (${v.documentCount} documents)`,
       };
       if (!groups.has(groupName)) {
         groups.set(groupName, []);
@@ -205,7 +264,7 @@ export function CreateDefinitionDialog({
     <Modal
       opened={opened}
       onClose={handleClose}
-      title="Create Benchmark Definition"
+      title={mode === "edit" ? "Edit Benchmark Definition" : "Create Benchmark Definition"}
       size="lg"
     >
       <Stack gap="md">
@@ -406,7 +465,7 @@ export function CreateDefinitionDialog({
             Cancel
           </Button>
           <Button onClick={handleSubmit} loading={isCreating} data-testid="submit-definition-btn">
-            Create
+            {mode === "edit" ? "Save Changes" : "Create"}
           </Button>
         </Group>
       </Stack>

@@ -10,7 +10,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { IconPlayerPlay, IconHistory } from "@tabler/icons-react";
+import { IconEdit, IconPlayerPlay, IconHistory } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import { useStartRun } from "../hooks/useRuns";
 import { useBaselineHistory } from "../hooks/useDefinitions";
@@ -82,10 +82,12 @@ interface DefinitionDetails {
 
 interface DefinitionDetailViewProps {
   definition: DefinitionDetails;
+  onEdit?: () => void;
 }
 
 export function DefinitionDetailView({
   definition,
+  onEdit,
 }: DefinitionDetailViewProps) {
   const navigate = useNavigate();
   const { startRun, isStarting } = useStartRun(
@@ -125,6 +127,16 @@ export function DefinitionDetailView({
               {definition.name}
             </Title>
             <Group gap="xs">
+              {!definition.immutable && onEdit && (
+                <Button
+                  variant="light"
+                  leftSection={<IconEdit size={16} />}
+                  onClick={onEdit}
+                  data-testid="edit-definition-btn"
+                >
+                  Edit
+                </Button>
+              )}
               <Button
                 leftSection={<IconPlayerPlay size={16} />}
                 onClick={handleStartRun}

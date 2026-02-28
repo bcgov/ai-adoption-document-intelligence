@@ -300,24 +300,26 @@ export default function ResultsDrillDownPage() {
   return (
     <Stack gap="md">
       <Group justify="space-between">
-        <div>
-          <Title order={2}>Sample Results: {run.definitionName}</Title>
-          <Text size="sm" c="dimmed">
-            {project?.name || projectId} • Run ID: {runId}
-          </Text>
-        </div>
-        <Button
-          variant="subtle"
-          leftSection={<IconArrowLeft size={16} />}
-          onClick={() =>
-            navigate(
-              `/benchmarking/projects/${projectId}/runs/${runId}`,
-            )
-          }
-          data-testid="back-to-run-details-btn"
-        >
-          Back to Run Details
-        </Button>
+        <Group gap="md">
+          <Button
+            variant="subtle"
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={() =>
+              navigate(
+                `/benchmarking/projects/${projectId}/runs/${runId}`,
+              )
+            }
+            data-testid="back-to-run-details-btn"
+          >
+            Back to Run Details
+          </Button>
+          <div>
+            <Title order={2}>Sample Results: {run.definitionName}</Title>
+            <Text size="sm" c="dimmed">
+              {project?.name || projectId} • Run ID: {runId}
+            </Text>
+          </div>
+        </Group>
       </Group>
 
       {/* Filter Panel */}

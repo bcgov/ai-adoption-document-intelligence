@@ -7,6 +7,7 @@
 
 import {
   BadRequestException,
+  ConflictException,
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
@@ -77,6 +78,23 @@ describe("BenchmarkProjectController", () => {
 
       expect(service.createProject).toHaveBeenCalledWith(createDto);
       expect(result).toEqual(expectedResponse);
+    });
+
+    it("returns 409 when project name already exists in MLflow", async () => {
+      const createDto: CreateProjectDto = {
+        name: "Existing Project",
+        createdBy: "user@example.com",
+      };
+
+      mockBenchmarkProjectService.createProject.mockRejectedValue(
+        new ConflictException(
+          'A project with the name "Existing Project" already exists in MLflow. Please choose a different name.',
+        ),
+      );
+
+      await expect(controller.createProject(createDto)).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     // Scenario 6: MLflow experiment creation failure is handled

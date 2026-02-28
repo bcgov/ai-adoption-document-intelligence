@@ -70,6 +70,24 @@ describe("MLflowClientService", () => {
         'Failed to create MLflow experiment "My Experiment"',
       );
     });
+
+    it("throws RESOURCE_ALREADY_EXISTS error when experiment name is taken", async () => {
+      const axiosError = {
+        response: {
+          data: {
+            error_code: "RESOURCE_ALREADY_EXISTS",
+            message: "Experiment(name=My Experiment) already exists.",
+          },
+          status: 409,
+        },
+        message: "Request failed with status code 409",
+      };
+      mockHttpPost.mockReturnValue(throwError(() => axiosError));
+
+      await expect(service.createExperiment("My Experiment")).rejects.toThrow(
+        "RESOURCE_ALREADY_EXISTS",
+      );
+    });
   });
 
   // -----------------------------------------------------------------------

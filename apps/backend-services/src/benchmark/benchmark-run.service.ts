@@ -183,17 +183,7 @@ export class BenchmarkRunService {
     const workerGitSha = this.getWorkerGitSha();
     const workerImageDigest = this.getWorkerImageDigest();
 
-    // Check if dataset version is draft and prepare tags
-    const isDraftDataset = definition.datasetVersion.status === "draft";
-    if (isDraftDataset) {
-      this.logger.warn(
-        `Dataset version ${definition.datasetVersionId} has status 'draft'. Run will be tagged with 'draft_dataset'.`,
-      );
-    }
-    const runTags = {
-      ...(dto.tags || {}),
-      ...(isDraftDataset ? { draft_dataset: "true" } : {}),
-    };
+    const runTags = dto.tags || {};
 
     // Create MLflow run
     const mlflowRunId = await this.mlflowClient.createRun(
