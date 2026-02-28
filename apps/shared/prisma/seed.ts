@@ -147,7 +147,6 @@ const SDPR_MONTHLY_REPORT_FIELDS: SeedFieldDefinition[] = [
   { fieldKey: "spouse_child_tax_benefits", fieldType: FieldType.number },
   { fieldKey: "spouse_income_tax_refund", fieldType: FieldType.number },
   { fieldKey: "spouse_other_income_money_received", fieldType: FieldType.number },
-  { fieldKey: "spouse_income_of_dependent_children", fieldType: FieldType.number },
 ];
 
 // ========== BENCHMARKING SEED DATA ==========

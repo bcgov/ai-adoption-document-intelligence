@@ -297,10 +297,6 @@
     {
       "fieldKey": "spouse_other_income_money_received",
       "fieldType": "number"
-    },
-    {
-      "fieldKey": "spouse_income_of_dependent_children",
-      "fieldType": "number"
     }
   ]
 }
