@@ -31,3 +31,6 @@ jobs:
       - name: Run Linter
         working-directory: apps/frontend
         run: npm run lint
+      - name: Run Unit Tests
+        working-directory: apps/frontend
+        run: npm run test
