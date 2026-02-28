@@ -24,6 +24,7 @@ describe("BenchmarkProjectController", () => {
     createProject: jest.fn(),
     listProjects: jest.fn(),
     getProjectById: jest.fn(),
+    deleteProject: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -221,6 +222,40 @@ describe("BenchmarkProjectController", () => {
 
       await expect(controller.getProjectById(projectId)).rejects.toThrow(
         NotFoundException,
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Scenario 5: Delete a benchmark project
+  // -----------------------------------------------------------------------
+  describe("DELETE /api/benchmark/projects/:id", () => {
+    it("deletes a project successfully", async () => {
+      const projectId = "project-123";
+      mockBenchmarkProjectService.deleteProject.mockResolvedValue(undefined);
+
+      await controller.deleteProject(projectId);
+
+      expect(service.deleteProject).toHaveBeenCalledWith(projectId);
+    });
+
+    it("returns 404 when project not found", async () => {
+      mockBenchmarkProjectService.deleteProject.mockRejectedValue(
+        new NotFoundException("Project not found"),
+      );
+
+      await expect(controller.deleteProject("non-existent")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("returns 409 when project has active runs", async () => {
+      mockBenchmarkProjectService.deleteProject.mockRejectedValue(
+        new ConflictException("Cannot delete project: it has active runs"),
+      );
+
+      await expect(controller.deleteProject("project-123")).rejects.toThrow(
+        ConflictException,
       );
     });
   });

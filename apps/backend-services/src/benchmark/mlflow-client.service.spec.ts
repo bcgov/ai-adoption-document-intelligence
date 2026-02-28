@@ -91,6 +91,30 @@ describe("MLflowClientService", () => {
   });
 
   // -----------------------------------------------------------------------
+  // Scenario 1b: Delete MLflow experiment
+  // -----------------------------------------------------------------------
+  describe("deleteExperiment", () => {
+    it("deletes an experiment by ID", async () => {
+      mockHttpPost.mockReturnValue(of(createMockResponse({})));
+
+      await service.deleteExperiment("exp-123");
+
+      expect(mockHttpPost).toHaveBeenCalledWith(
+        "http://localhost:5000/api/2.0/mlflow/experiments/delete",
+        { experiment_id: "exp-123" },
+      );
+    });
+
+    it("throws error when deletion fails", async () => {
+      mockHttpPost.mockReturnValue(throwError(() => new Error("API error")));
+
+      await expect(service.deleteExperiment("exp-123")).rejects.toThrow(
+        'Failed to delete MLflow experiment "exp-123"',
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // Scenario 2: Create MLflow run
   // -----------------------------------------------------------------------
   describe("createRun", () => {

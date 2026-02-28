@@ -112,6 +112,30 @@ export class MLflowClientService {
   }
 
   /**
+   * Delete an MLflow experiment.
+   */
+  async deleteExperiment(experimentId: string): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.httpService.post(
+          `${this.trackingUri}/api/2.0/mlflow/experiments/delete`,
+          { experiment_id: experimentId },
+        ),
+      );
+
+      this.logger.log(`Deleted MLflow experiment: ${experimentId}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to delete MLflow experiment: ${experimentId}`,
+        error.stack,
+      );
+      throw new Error(
+        `Failed to delete MLflow experiment "${experimentId}": ${error.message}`,
+      );
+    }
+  }
+
+  /**
    * Create an MLflow run within an experiment.
    */
   async createRun(experimentId: string, runName?: string): Promise<string> {

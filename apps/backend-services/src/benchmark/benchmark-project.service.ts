@@ -205,6 +205,55 @@ export class BenchmarkProjectService {
   }
 
   /**
+   * Delete a benchmark project.
+   *
+   * Checks for active/running benchmark runs before allowing deletion.
+   * Deletes the corresponding MLflow experiment and cascade-deletes
+   * all definitions and runs in Postgres.
+   */
+  async deleteProject(id: string): Promise<void> {
+    const project = await this.prisma.benchmarkProject.findUnique({
+      where: { id },
+      include: {
+        benchmarkRuns: {
+          where: {
+            status: { in: ["pending", "running"] },
+          },
+          select: { id: true, status: true },
+        },
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException(
+        `Benchmark project with ID "${id}" not found`,
+      );
+    }
+
+    if (project.benchmarkRuns.length > 0) {
+      throw new ConflictException(
+        `Cannot delete project "${project.name}": it has ${project.benchmarkRuns.length} active run(s). Cancel them first.`,
+      );
+    }
+
+    // Delete MLflow experiment (best-effort; don't block DB deletion)
+    try {
+      await this.mlflowClient.deleteExperiment(project.mlflowExperimentId);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to delete MLflow experiment ${project.mlflowExperimentId} for project ${id}: ${error.message}`,
+      );
+    }
+
+    // Cascade-delete project (definitions + runs are cascade-deleted by Prisma)
+    await this.prisma.benchmarkProject.delete({
+      where: { id },
+    });
+
+    this.logger.log(`Deleted benchmark project: ${id} (${project.name})`);
+  }
+
+  /**
    * Map Prisma result to ProjectDetailsDto
    */
   private mapToProjectDetails(project: {

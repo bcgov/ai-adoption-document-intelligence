@@ -1,7 +1,7 @@
 const mockExec = jest.fn();
 
 jest.mock("child_process", () => ({
-  exec: (...args: unknown[]) => mockExec(...args),
+  exec: (...args) => mockExec(...args),
 }));
 
 jest.mock("util", () => ({
@@ -14,12 +14,13 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { DvcService } from "./dvc.service";
 
 const mockConfigService = {
-  get: jest.fn((key: string, defaultValue?: string) => {
+  get: jest.fn((key, defaultValue) => {
     if (key === "MINIO_ENDPOINT") return "http://localhost:9000";
     if (key === "MINIO_ACCESS_KEY") return "testkey";
     if (key === "MINIO_SECRET_KEY") return "testsecret";
     if (key === "DATASET_GIT_USERNAME") return "testuser";
     if (key === "DATASET_GIT_PASSWORD") return "testpass";
+    if (key === "DVC_BINARY_PATH") return "dvc";
     return defaultValue;
   }),
 };
@@ -425,6 +426,40 @@ describe("DvcService", () => {
 
       await expect(service.getCurrentRevision("/tmp/repo")).rejects.toThrow(
         "Failed to get current revision",
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Custom DVC binary path
+  // -----------------------------------------------------------------------
+  describe("custom DVC binary path", () => {
+    it("uses custom DVC binary path from config", async () => {
+      const customConfigService = {
+        get: jest.fn((key, defaultValue) => {
+          if (key === "MINIO_ENDPOINT") return "http://localhost:9000";
+          if (key === "MINIO_ACCESS_KEY") return "testkey";
+          if (key === "MINIO_SECRET_KEY") return "testsecret";
+          if (key === "DVC_BINARY_PATH") return "/home/user/.pyenv/versions/3.11.14/bin/dvc";
+          return defaultValue;
+        }),
+      };
+
+      const module = await Test.createTestingModule({
+        providers: [
+          DvcService,
+          { provide: ConfigService, useValue: customConfigService },
+        ],
+      }).compile();
+
+      const customService = module.get(DvcService);
+      mockSuccessfulExec();
+
+      await customService.pushData("/tmp/repo");
+
+      expect(mockExec).toHaveBeenCalledWith(
+        "/home/user/.pyenv/versions/3.11.14/bin/dvc push",
+        expect.objectContaining({ cwd: "/tmp/repo" }),
       );
     });
   });

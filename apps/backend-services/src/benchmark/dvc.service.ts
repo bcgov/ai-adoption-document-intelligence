@@ -24,6 +24,7 @@ export class DvcService {
   private readonly minioSecretKey: string;
   private readonly gitUsername?: string;
   private readonly gitPassword?: string;
+  private readonly dvcBinary: string;
 
   constructor(private configService: ConfigService) {
     this.minioEndpoint = this.configService.get<string>(
@@ -40,8 +41,12 @@ export class DvcService {
     );
     this.gitUsername = this.configService.get<string>("DATASET_GIT_USERNAME");
     this.gitPassword = this.configService.get<string>("DATASET_GIT_PASSWORD");
+    this.dvcBinary = this.configService.get<string>(
+      "DVC_BINARY_PATH",
+      "dvc",
+    );
 
-    this.logger.log("DVC service initialized");
+    this.logger.log(`DVC service initialized (dvc binary: ${this.dvcBinary})`);
   }
 
   /**
@@ -149,7 +154,7 @@ export class DvcService {
   async initRepository(repoPath: string): Promise<void> {
     try {
       // Initialize DVC
-      await execAsync("dvc init", { cwd: repoPath });
+      await execAsync(`${this.dvcBinary} init`, { cwd: repoPath });
       this.logger.debug(`DVC initialized in ${repoPath}`);
 
       // Configure DVC remote to use MinIO
@@ -189,25 +194,25 @@ export class DvcService {
   ): Promise<void> {
     try {
       // Add remote
-      await execAsync(`dvc remote add -d ${remoteName} ${bucketUrl}`, {
+      await execAsync(`${this.dvcBinary} remote add -d ${remoteName} ${bucketUrl}`, {
         cwd: repoPath,
       });
 
       // Configure S3 endpoint for MinIO
       await execAsync(
-        `dvc remote modify ${remoteName} endpointurl ${this.minioEndpoint}`,
+        `${this.dvcBinary} remote modify ${remoteName} endpointurl ${this.minioEndpoint}`,
         { cwd: repoPath },
       );
 
       // Set access key
       await execAsync(
-        `dvc remote modify ${remoteName} access_key_id ${this.minioAccessKey}`,
+        `${this.dvcBinary} remote modify ${remoteName} access_key_id ${this.minioAccessKey}`,
         { cwd: repoPath },
       );
 
       // Set secret key
       await execAsync(
-        `dvc remote modify ${remoteName} secret_access_key ${this.minioSecretKey}`,
+        `${this.dvcBinary} remote modify ${remoteName} secret_access_key ${this.minioSecretKey}`,
         { cwd: repoPath },
       );
 
@@ -215,7 +220,7 @@ export class DvcService {
     } catch (error) {
       // If remote already exists, modify it instead
       if (error.message?.includes("already exists")) {
-        await execAsync(`dvc remote modify ${remoteName} url ${bucketUrl}`, {
+        await execAsync(`${this.dvcBinary} remote modify ${remoteName} url ${bucketUrl}`, {
           cwd: repoPath,
         });
         this.logger.debug(`Updated existing DVC remote ${remoteName}`);
@@ -236,7 +241,7 @@ export class DvcService {
   async addFiles(repoPath: string, filePaths: string[]): Promise<void> {
     try {
       for (const filePath of filePaths) {
-        await execAsync(`dvc add "${filePath}"`, { cwd: repoPath });
+        await execAsync(`${this.dvcBinary} add "${filePath}"`, { cwd: repoPath });
         this.logger.debug(`Added ${filePath} to DVC tracking`);
       }
 
@@ -300,7 +305,7 @@ export class DvcService {
    */
   async pushData(repoPath: string): Promise<void> {
     try {
-      const { stdout, stderr } = await execAsync("dvc push", { cwd: repoPath });
+      const { stdout, stderr } = await execAsync(`${this.dvcBinary} push`, { cwd: repoPath });
 
       if (stderr) {
         this.logger.warn(`DVC push stderr: ${stderr}`);
@@ -344,7 +349,7 @@ export class DvcService {
       await this.checkout(repoPath, gitRevision);
 
       // Pull DVC data for this revision
-      const { stdout, stderr } = await execAsync("dvc pull", { cwd: repoPath });
+      const { stdout, stderr } = await execAsync(`${this.dvcBinary} pull`, { cwd: repoPath });
 
       if (stderr && !stderr.includes("files downloaded")) {
         this.logger.warn(`DVC pull stderr: ${stderr}`);

@@ -1,4 +1,5 @@
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -29,7 +30,7 @@ import {
 } from "../components/CreateDefinitionDialog";
 import { DefinitionDetailView } from "../components/DefinitionDetailView";
 import { useDefinition, useDefinitions } from "../hooks/useDefinitions";
-import { useProject } from "../hooks/useProjects";
+import { useProject, useProjects } from "../hooks/useProjects";
 import { useRuns } from "../hooks/useRuns";
 
 function getStatusColor(status: string): string {
@@ -104,6 +105,8 @@ export function ProjectDetailPage() {
     id: string;
     label: string;
   } | null>(null);
+  const [deleteProjectDialogOpen, setDeleteProjectDialogOpen] = useState(false);
+  const { deleteProject, isDeletingProject, deleteError: deleteProjectError } = useProjects();
 
   const { definition, isLoading: isLoadingDefinition, updateDefinition, isUpdating } = useDefinition(
     projectId,
@@ -246,18 +249,29 @@ export function ProjectDetailPage() {
   return (
     <Stack gap="lg">
       <Stack gap={2}>
-        <Group gap="sm" align="center">
+        <Group justify="space-between" align="center">
+          <Group gap="sm" align="center">
+            <Button
+              variant="subtle"
+              leftSection={<IconArrowLeft size={16} />}
+              onClick={() => navigate("/benchmarking/projects")}
+              data-testid="back-to-projects-btn"
+            >
+              Back
+            </Button>
+            <Title order={2} data-testid="project-name-title">
+              {project.name}
+            </Title>
+          </Group>
           <Button
-            variant="subtle"
-            leftSection={<IconArrowLeft size={16} />}
-            onClick={() => navigate("/benchmarking/projects")}
-            data-testid="back-to-projects-btn"
+            variant="light"
+            color="red"
+            leftSection={<IconTrash size={16} />}
+            onClick={() => setDeleteProjectDialogOpen(true)}
+            data-testid="delete-project-btn"
           >
-            Back
+            Delete Project
           </Button>
-          <Title order={2} data-testid="project-name-title">
-            {project.name}
-          </Title>
         </Group>
         {project.description && (
           <Text c="dimmed" size="sm" data-testid="project-description">
@@ -641,6 +655,46 @@ export function ProjectDetailPage() {
               onClick={handleDeleteRunConfirm}
               loading={isDeletingRun}
               data-testid="delete-run-confirm-btn"
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={deleteProjectDialogOpen}
+        onClose={() => setDeleteProjectDialogOpen(false)}
+        title="Delete Benchmark Project"
+        centered
+        data-testid="delete-project-confirm-dialog"
+      >
+        <Stack gap="md">
+          {deleteProjectError && (
+            <Alert color="red" title="Failed to delete project">
+              {deleteProjectError.message}
+            </Alert>
+          )}
+          <Text>
+            Are you sure you want to delete project &quot;{project.name}&quot;? All
+            definitions, runs, and the associated MLflow experiment will be permanently deleted.
+            This action cannot be undone.
+          </Text>
+          <Group justify="flex-end" gap="xs">
+            <Button variant="subtle" onClick={() => setDeleteProjectDialogOpen(false)} data-testid="delete-project-cancel-btn">
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              onClick={() => {
+                deleteProject(projectId, {
+                  onSuccess: () => {
+                    navigate("/benchmarking/projects");
+                  },
+                });
+              }}
+              loading={isDeletingProject}
+              data-testid="delete-project-confirm-btn"
             >
               Delete
             </Button>

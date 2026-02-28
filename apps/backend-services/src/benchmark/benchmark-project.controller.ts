@@ -11,6 +11,7 @@ import {
   Body,
   Controller,
   ConflictException,
+  Delete,
   Get,
   HttpCode,
   HttpException,
@@ -91,5 +92,19 @@ export class BenchmarkProjectController {
   async getProjectById(@Param("id") id: string): Promise<ProjectDetailsDto> {
     this.logger.log(`GET /api/benchmark/projects/${id}`);
     return this.benchmarkProjectService.getProjectById(id);
+  }
+
+  /**
+   * Delete a benchmark project
+   *
+   * DELETE /api/benchmark/projects/:id
+   */
+  @Delete(":id")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  async deleteProject(@Param("id") id: string): Promise<void> {
+    this.logger.log(`DELETE /api/benchmark/projects/${id}`);
+    return this.benchmarkProjectService.deleteProject(id);
   }
 }

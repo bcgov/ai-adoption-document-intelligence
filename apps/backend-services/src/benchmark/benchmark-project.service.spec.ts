@@ -10,6 +10,7 @@ const mockPrismaClient = {
     create: jest.fn(),
     findMany: jest.fn(),
     findUnique: jest.fn(),
+    delete: jest.fn(),
   },
 };
 
@@ -38,6 +39,7 @@ describe("BenchmarkProjectService", () => {
 
   const mockMlflowClient = {
     createExperiment: jest.fn(),
+    deleteExperiment: jest.fn(),
   };
 
   const mockConfigService = {
@@ -392,6 +394,71 @@ describe("BenchmarkProjectService", () => {
       await expect(service.getProjectById(projectId)).rejects.toThrow(
         `Benchmark project with ID "${projectId}" not found`,
       );
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Scenario 5: Delete a benchmark project
+  // -----------------------------------------------------------------------
+  describe("deleteProject", () => {
+    it("deletes a project with no active runs", async () => {
+      const projectId = "project-123";
+      mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue({
+        id: projectId,
+        name: "Test Project",
+        mlflowExperimentId: "exp-123",
+        benchmarkRuns: [],
+      });
+      mockMlflowClient.deleteExperiment.mockResolvedValue(undefined);
+      mockPrismaClient.benchmarkProject.delete.mockResolvedValue(undefined);
+
+      await service.deleteProject(projectId);
+
+      expect(mockMlflowClient.deleteExperiment).toHaveBeenCalledWith("exp-123");
+      expect(mockPrismaClient.benchmarkProject.delete).toHaveBeenCalledWith({
+        where: { id: projectId },
+      });
+    });
+
+    it("throws NotFoundException when project does not exist", async () => {
+      mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue(null);
+
+      await expect(service.deleteProject("non-existent")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("throws ConflictException when project has active runs", async () => {
+      mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue({
+        id: "project-123",
+        name: "Test Project",
+        mlflowExperimentId: "exp-123",
+        benchmarkRuns: [{ id: "run-1", status: "running" }],
+      });
+
+      await expect(service.deleteProject("project-123")).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("still deletes from database when MLflow deletion fails", async () => {
+      const projectId = "project-123";
+      mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue({
+        id: projectId,
+        name: "Test Project",
+        mlflowExperimentId: "exp-123",
+        benchmarkRuns: [],
+      });
+      mockMlflowClient.deleteExperiment.mockRejectedValue(
+        new Error("MLflow unavailable"),
+      );
+      mockPrismaClient.benchmarkProject.delete.mockResolvedValue(undefined);
+
+      await service.deleteProject(projectId);
+
+      expect(mockPrismaClient.benchmarkProject.delete).toHaveBeenCalledWith({
+        where: { id: projectId },
+      });
     });
   });
 });

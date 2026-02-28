@@ -232,9 +232,10 @@ export function CreateDefinitionDialog({
     const groups = new Map<string, { value: string; label: string }[]>();
     for (const v of versions) {
       const groupName = "datasetName" in v ? String(v.datasetName) : "Other";
+      const nameLabel = v.name ? `${v.version} — ${v.name}` : v.version;
       const item = {
         value: v.id,
-        label: `${v.version} (${v.documentCount} documents)`,
+        label: `${nameLabel} (${v.documentCount} documents)`,
       };
       if (!groups.has(groupName)) {
         groups.set(groupName, []);

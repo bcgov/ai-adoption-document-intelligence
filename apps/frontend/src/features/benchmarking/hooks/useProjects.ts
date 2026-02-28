@@ -79,6 +79,15 @@ export const useProjects = () => {
     },
   });
 
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      await apiService.delete(`/benchmark/projects/${projectId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["benchmark-projects"] });
+    },
+  });
+
   return {
     projects: projectsQuery.data || [],
     isLoading: projectsQuery.isLoading,
@@ -87,6 +96,9 @@ export const useProjects = () => {
     isCreating: createProjectMutation.isPending,
     createError: createProjectMutation.error,
     resetCreateError: createProjectMutation.reset,
+    deleteProject: deleteProjectMutation.mutate,
+    isDeletingProject: deleteProjectMutation.isPending,
+    deleteError: deleteProjectMutation.error,
   };
 };
 

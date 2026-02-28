@@ -7,6 +7,9 @@ import { getPrismaClient } from './database-client';
 
 const execAsync = promisify(exec);
 
+/** DVC binary path — configurable via DVC_BINARY_PATH env var (e.g. full pyenv path) */
+const dvcBinary = process.env.DVC_BINARY_PATH || 'dvc';
+
 /**
  * Resolve tilde (~) in a path to the user's home directory.
  * Shell does not expand ~ inside double quotes, so we handle it in code.
@@ -240,31 +243,31 @@ export async function materializeDataset(
         // Check if remote already exists in the repo
         let remoteExists = false;
         try {
-          const { stdout: remoteListOutput } = await execAsync(`dvc remote list`, { cwd: materializedPath });
+          const { stdout: remoteListOutput } = await execAsync(`${dvcBinary} remote list`, { cwd: materializedPath });
           remoteExists = remoteListOutput.trim().length > 0;
         } catch {
           remoteExists = false;
         }
 
         if (!remoteExists) {
-          await execAsync(`dvc remote add -d ${remoteName} s3://datasets`, {
+          await execAsync(`${dvcBinary} remote add -d ${remoteName} s3://datasets`, {
             cwd: materializedPath
           });
         }
 
         // Configure remote settings
         await execAsync(
-          `dvc remote modify ${remoteName} endpointurl ${minioEndpoint}`,
+          `${dvcBinary} remote modify ${remoteName} endpointurl ${minioEndpoint}`,
           { cwd: materializedPath }
         );
 
         await execAsync(
-          `dvc remote modify ${remoteName} access_key_id ${minioAccessKey}`,
+          `${dvcBinary} remote modify ${remoteName} access_key_id ${minioAccessKey}`,
           { cwd: materializedPath }
         );
 
         await execAsync(
-          `dvc remote modify ${remoteName} secret_access_key ${minioSecretKey}`,
+          `${dvcBinary} remote modify ${remoteName} secret_access_key ${minioSecretKey}`,
           { cwd: materializedPath }
         );
 
@@ -292,7 +295,7 @@ export async function materializeDataset(
       }));
 
       try {
-        const { stderr: pullStderr } = await execAsync('dvc pull', {
+        const { stderr: pullStderr } = await execAsync(`${dvcBinary} pull`, {
           cwd: materializedPath
         });
 
