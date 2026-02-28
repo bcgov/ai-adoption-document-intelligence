@@ -325,6 +325,40 @@ function flattenMetrics(overall: {
 }
 
 /**
+ * Extract the display value from an Azure Document Intelligence field object.
+ *
+ * Azure DI returns typed values (valueNumber, valueDate, etc.) alongside the
+ * raw `content` string.  This mirrors the logic used by the production UI
+ * (DocumentViewer.getFieldDisplayValue) so benchmark predictions match what
+ * users see in the Processing Queue.
+ */
+function extractFieldValue(field: Record<string, unknown>): unknown {
+  if (field.valueSelectionMark !== undefined) {
+    return field.valueSelectionMark === 'selected' ? 'selected' : 'unselected';
+  }
+  if (field.valueNumber !== undefined) {
+    return field.valueNumber;
+  }
+  if (field.valueInteger !== undefined) {
+    return field.valueInteger;
+  }
+  if (field.valueCurrency !== undefined) {
+    const currency = field.valueCurrency as Record<string, unknown>;
+    return currency.amount ?? field.content ?? null;
+  }
+  if (field.valueDate !== undefined) {
+    return field.valueDate;
+  }
+  if (field.valueTime !== undefined) {
+    return field.valueTime;
+  }
+  if (field.valueString !== undefined) {
+    return field.valueString;
+  }
+  return field.content ?? null;
+}
+
+/**
  * Extract a flat prediction object from the graph workflow ctx.
  *
  * The graph workflow stores OCR results in ctx keys like `cleanedResult` or
@@ -338,7 +372,7 @@ function extractPredictionFromCtx(
   const ocrResult = (ctx.cleanedResult || ctx.ocrResult) as
     | {
         documents?: Array<{
-          fields?: Record<string, { content?: string }>;
+          fields?: Record<string, Record<string, unknown>>;
         }>;
         keyValuePairs?: Array<{
           key?: { content?: string };
@@ -351,14 +385,18 @@ function extractPredictionFromCtx(
 
   const fields: Record<string, unknown> = {};
 
-  // Custom model: extract from documents[0].fields
+  // Custom model: extract typed values from documents[0].fields
   if (
     ocrResult.documents &&
     ocrResult.documents.length > 0 &&
     ocrResult.documents[0].fields
   ) {
     for (const [key, value] of Object.entries(ocrResult.documents[0].fields)) {
-      fields[key] = value?.content ?? null;
+      if (value && typeof value === 'object') {
+        fields[key] = extractFieldValue(value);
+      } else {
+        fields[key] = value ?? null;
+      }
     }
     return fields;
   }
