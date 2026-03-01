@@ -72,11 +72,11 @@ export class DatasetController {
   @ApiBody({
     type: CreateDatasetDto,
     description:
-      "Dataset creation request with name, description, metadata, and repositoryUrl",
+      "Dataset creation request with name, description, and metadata",
   })
   @ApiCreatedResponse({
     description:
-      "Dataset created successfully with DVC initialization. Returns the created dataset with its ID.",
+      "Dataset created successfully. Returns the created dataset with its ID.",
     type: DatasetResponseDto,
   })
   @ApiBadRequestResponse({
@@ -134,7 +134,7 @@ export class DatasetController {
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiOkResponse({
     description:
-      "Returns full dataset details including repositoryUrl, dvcRemote, metadata, version count, and list of recent versions",
+      "Returns full dataset details including storagePath, metadata, version count, and list of recent versions",
     type: DatasetResponseDto,
   })
   @ApiNotFoundResponse({
@@ -234,7 +234,7 @@ export class DatasetController {
   })
   @ApiCreatedResponse({
     description:
-      "Version created successfully with DVC workflow (add, commit, push). Returns the created version with git revision.",
+      "Version created successfully. Returns the created version with storage prefix.",
     type: VersionResponseDto,
   })
   @ApiNotFoundResponse({
@@ -265,7 +265,7 @@ export class DatasetController {
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiOkResponse({
     description:
-      "Returns list of versions with version label, status, documentCount, gitRevision, publishedAt, and createdAt",
+      "Returns list of versions with version label, status, documentCount, storagePrefix, publishedAt, and createdAt",
     type: VersionListResponseDto,
   })
   @ApiNotFoundResponse({
@@ -331,7 +331,7 @@ export class DatasetController {
   @ApiOperation({
     summary: "Delete a sample from a draft dataset version",
     description:
-      "Removes a sample from the manifest and deletes its files from the git repo. Only works on draft versions.",
+      "Removes a sample from the manifest and deletes its files from object storage. Only works on draft versions.",
   })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
@@ -400,7 +400,7 @@ export class DatasetController {
   @ApiOperation({
     summary: "Get ground truth JSON content for a sample",
     description:
-      "Fetches and returns the ground truth JSON content for a specific sample from the dataset repository",
+      "Fetches and returns the ground truth JSON content for a specific sample from object storage",
   })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
@@ -429,7 +429,7 @@ export class DatasetController {
   @ApiOperation({
     summary: "Download a raw file from a dataset version",
     description:
-      "Serves the original uploaded file (input document or ground truth) from the dataset repository",
+      "Serves the original uploaded file (input document or ground truth) from object storage",
   })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiParam({ name: "versionId", description: "Version ID (UUID)" })

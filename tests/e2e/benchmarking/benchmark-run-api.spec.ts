@@ -6,14 +6,13 @@ import { test, expect } from '@playwright/test';
  * Tests the benchmark run lifecycle via the backend API:
  * 1. Verify existing seed runs can be fetched
  * 2. Start a benchmark run
- * 3. Verify the run is created with proper fields (mlflowRunId, temporalWorkflowId)
+ * 3. Verify the run is created with proper fields (temporalWorkflowId)
  * 4. Poll for completion
  *
  * Prerequisites:
  * - Backend running at BACKEND_URL (default: http://localhost:3002)
  * - Temporal running at localhost:7233
  * - Temporal worker running on 'benchmark-processing' task queue
- * - MLflow running at localhost:5000
  * - Database seeded (handled by global-setup.ts)
  */
 test.describe('Benchmark Run API E2E', () => {
@@ -47,16 +46,14 @@ test.describe('Benchmark Run API E2E', () => {
 
     expect(run.id).toBe(SEED_RUN_ID_COMPLETED);
     expect(run.status).toBe('completed');
-    expect(run.mlflowRunId).toBeTruthy();
     expect(run.temporalWorkflowId).toBeTruthy();
     expect(run.metrics).toBeTruthy();
     expect(run.isBaseline).toBe(true);
     expect(run.workerGitSha).toBeTruthy();
   });
 
-  test('should start a benchmark run with mlflowRunId and temporalWorkflowId populated', async ({ request }) => {
+  test('should start a benchmark run with temporalWorkflowId populated', async ({ request }) => {
     // This is the key test that validates the fixes:
-    // - mlflowRunId was undefined in the workflow input (now fixed)
     // - temporalWorkflowId must be set after workflow starts
     const startResponse = await request.post(
       `${BACKEND_URL}/api/benchmark/projects/${SEED_PROJECT_ID}/definitions/${SEED_DEFINITION_ID}/runs`,
@@ -81,11 +78,6 @@ test.describe('Benchmark Run API E2E', () => {
     expect(run.projectId).toBe(SEED_PROJECT_ID);
     expect(run.status).toMatch(/pending|running/);
 
-    // Critical: mlflowRunId must be populated (this was the bug - it was undefined)
-    expect(run.mlflowRunId).toBeTruthy();
-    expect(typeof run.mlflowRunId).toBe('string');
-    expect(run.mlflowRunId.length).toBeGreaterThan(0);
-
     // Critical: temporalWorkflowId must be populated
     expect(run.temporalWorkflowId).toBeTruthy();
     expect(run.temporalWorkflowId).toContain('benchmark-run-');
@@ -96,7 +88,7 @@ test.describe('Benchmark Run API E2E', () => {
 
   test('should start a run and poll until terminal state', async ({ request }) => {
     // This test waits for the workflow to reach a terminal state.
-    // It requires Temporal worker and MLflow to be running.
+    // It requires Temporal worker to be running.
     test.setTimeout(180_000); // 3 minutes max
 
     // Start a benchmark run
@@ -115,8 +107,6 @@ test.describe('Benchmark Run API E2E', () => {
     const runId = startedRun.id;
 
     expect(runId).toBeTruthy();
-    expect(startedRun.mlflowRunId).toBeTruthy();
-
     // Poll for completion
     let finalStatus = startedRun.status;
     const maxPolls = 60;

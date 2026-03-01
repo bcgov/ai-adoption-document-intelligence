@@ -17,7 +17,7 @@ const mockConfigService = {
     if (key === "MINIO_ENDPOINT") return "http://localhost:9000";
     if (key === "MINIO_ACCESS_KEY") return "testkey";
     if (key === "MINIO_SECRET_KEY") return "testsecret";
-    if (key === "MINIO_BUCKET") return "test-bucket";
+    if (key === "MINIO_DOCUMENT_BUCKET") return "test-bucket";
     return defaultValue;
   }),
 };
@@ -215,8 +215,8 @@ describe("MinioBlobStorageService", () => {
         "minioadmin",
       );
       expect(mockConfigService.get).toHaveBeenCalledWith(
-        "MINIO_BUCKET",
-        "benchmark-datasets",
+        "MINIO_DOCUMENT_BUCKET",
+        "document-blobs",
       );
     });
   });

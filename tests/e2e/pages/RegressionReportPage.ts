@@ -24,7 +24,6 @@ export class RegressionReportPage {
 
   // Run information
   readonly runInfoTable: Locator;
-  readonly mlflowLink: Locator;
 
   // Metric analysis
   readonly metricComparisonTable: Locator;
@@ -58,7 +57,6 @@ export class RegressionReportPage {
 
     // Run information
     this.runInfoTable = page.locator('[data-testid="run-info-table"]');
-    this.mlflowLink = page.locator('[data-testid="mlflow-link"]');
 
     // Metric analysis
     this.metricComparisonTable = page.locator('[data-testid="metric-comparison-table"]');

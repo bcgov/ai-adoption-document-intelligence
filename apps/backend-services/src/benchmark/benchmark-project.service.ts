@@ -2,7 +2,6 @@
  * Benchmark Project Service
  *
  * Manages benchmark projects - logical groups of benchmark experiments.
- * Each project is mapped to an MLflow experiment for tracking.
  *
  * See feature-docs/003-benchmarking-system/user-stories/US-010-benchmark-project-service-controller.md
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 2.4, 6.2, 11.2
@@ -20,7 +19,6 @@ import {
   ProjectSummaryDto,
   RecentRunSummary,
 } from "./dto";
-import { MLflowClientService } from "./mlflow-client.service";
 
 @Injectable()
 export class BenchmarkProjectService {
@@ -29,7 +27,6 @@ export class BenchmarkProjectService {
 
   constructor(
     private configService: ConfigService,
-    private readonly mlflowClient: MLflowClientService,
   ) {
     const dbOptions = getPrismaPgOptions(
       this.configService.get("DATABASE_URL"),
@@ -41,37 +38,15 @@ export class BenchmarkProjectService {
 
   /**
    * Create a benchmark project
-   *
-   * Creates a project record in Postgres and a corresponding MLflow experiment.
-   * If MLflow experiment creation fails, the transaction is rolled back.
    */
   async createProject(dto: CreateProjectDto): Promise<ProjectDetailsDto> {
     this.logger.log(`Creating benchmark project: ${dto.name}`);
 
-    // Create MLflow experiment first
-    let mlflowExperimentId: string;
-    try {
-      mlflowExperimentId = await this.mlflowClient.createExperiment(dto.name);
-    } catch (error) {
-      this.logger.error(
-        `Failed to create MLflow experiment for project: ${dto.name}`,
-        error.stack,
-      );
-      if (error.message?.includes("RESOURCE_ALREADY_EXISTS") || error.message?.includes("already exists")) {
-        throw new ConflictException(
-          `A project with the name "${dto.name}" already exists in MLflow. Please choose a different name.`,
-        );
-      }
-      throw new Error(`Failed to create MLflow experiment: ${error.message}`);
-    }
-
-    // Create project in Postgres
     try {
       const project = await this.prisma.benchmarkProject.create({
         data: {
           name: dto.name,
           description: dto.description || null,
-          mlflowExperimentId,
           createdBy: dto.createdBy,
         },
         include: {
@@ -89,7 +64,6 @@ export class BenchmarkProjectService {
             select: {
               id: true,
               status: true,
-              mlflowRunId: true,
               temporalWorkflowId: true,
               startedAt: true,
               completedAt: true,
@@ -107,17 +81,19 @@ export class BenchmarkProjectService {
         },
       });
 
-      this.logger.log(
-        `Created benchmark project: ${project.id} (MLflow experiment: ${mlflowExperimentId})`,
-      );
+      this.logger.log(`Created benchmark project: ${project.id}`);
 
       return this.mapToProjectDetails(project);
     } catch (error) {
+      if (error?.code === "P2002") {
+        throw new ConflictException(
+          `A project with the name "${dto.name}" already exists. Please choose a different name.`,
+        );
+      }
       this.logger.error(
         `Failed to create project in database: ${dto.name}`,
         error.stack,
       );
-      // TODO: Consider cleaning up orphaned MLflow experiment
       throw error;
     }
   }
@@ -144,7 +120,6 @@ export class BenchmarkProjectService {
       id: project.id,
       name: project.name,
       description: project.description,
-      mlflowExperimentId: project.mlflowExperimentId,
       createdBy: project.createdBy,
       definitionCount: project._count.benchmarkDefinitions,
       runCount: project._count.benchmarkRuns,
@@ -177,7 +152,6 @@ export class BenchmarkProjectService {
           select: {
             id: true,
             status: true,
-            mlflowRunId: true,
             temporalWorkflowId: true,
             startedAt: true,
             completedAt: true,
@@ -208,8 +182,7 @@ export class BenchmarkProjectService {
    * Delete a benchmark project.
    *
    * Checks for active/running benchmark runs before allowing deletion.
-   * Deletes the corresponding MLflow experiment and cascade-deletes
-   * all definitions and runs in Postgres.
+   * Cascade-deletes all definitions and runs in Postgres.
    */
   async deleteProject(id: string): Promise<void> {
     const project = await this.prisma.benchmarkProject.findUnique({
@@ -236,15 +209,6 @@ export class BenchmarkProjectService {
       );
     }
 
-    // Delete MLflow experiment (best-effort; don't block DB deletion)
-    try {
-      await this.mlflowClient.deleteExperiment(project.mlflowExperimentId);
-    } catch (error) {
-      this.logger.warn(
-        `Failed to delete MLflow experiment ${project.mlflowExperimentId} for project ${id}: ${error.message}`,
-      );
-    }
-
     // Cascade-delete project (definitions + runs are cascade-deleted by Prisma)
     await this.prisma.benchmarkProject.delete({
       where: { id },
@@ -260,7 +224,6 @@ export class BenchmarkProjectService {
     id: string;
     name: string;
     description: string | null;
-    mlflowExperimentId: string;
     createdBy: string;
     createdAt: Date;
     updatedAt: Date;
@@ -275,7 +238,6 @@ export class BenchmarkProjectService {
     benchmarkRuns: Array<{
       id: string;
       status: string;
-      mlflowRunId: string | null;
       temporalWorkflowId: string | null;
       startedAt: Date | null;
       completedAt: Date | null;
@@ -299,7 +261,6 @@ export class BenchmarkProjectService {
       id: run.id,
       definitionName: run.definition.name,
       status: run.status,
-      mlflowRunId: run.mlflowRunId,
       temporalWorkflowId: run.temporalWorkflowId,
       startedAt: run.startedAt,
       completedAt: run.completedAt,
@@ -309,7 +270,6 @@ export class BenchmarkProjectService {
       id: project.id,
       name: project.name,
       description: project.description,
-      mlflowExperimentId: project.mlflowExperimentId,
       createdBy: project.createdBy,
       definitions,
       recentRuns,

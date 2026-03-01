@@ -10,7 +10,7 @@ import {
   AuditAction,
 } from "../../backend-services/src/generated/client";
 import { getPrismaPgOptions } from "../../backend-services/src/utils/database-url";
-import { execSync } from "node:child_process";
+
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -178,29 +178,14 @@ const SEED_ARTIFACT_ID_UNSUPPORTED = "seed-artifact-unsupported-001";
  * Create a test dataset repository with manifest and sample data
  * @returns The actual git commit hash of the created manifest
  */
-async function createTestDatasetRepo(
-  repoPath: string,
+function createTestDatasetFiles(
+  basePath: string,
   manifestPath: string,
   sampleCount: number,
-): Promise<string> {
+): void {
   // Create directory if it doesn't exist
-  if (!fs.existsSync(repoPath)) {
-    fs.mkdirSync(repoPath, { recursive: true });
-  }
-
-  // Initialize Git repository
-  try {
-    execSync("git init", { cwd: repoPath, stdio: "ignore" });
-    execSync('git config user.email "seed@test.com"', {
-      cwd: repoPath,
-      stdio: "ignore",
-    });
-    execSync('git config user.name "Seed Script"', {
-      cwd: repoPath,
-      stdio: "ignore",
-    });
-  } catch (error) {
-    // Repo might already exist, continue
+  if (!fs.existsSync(basePath)) {
+    fs.mkdirSync(basePath, { recursive: true });
   }
 
   // Create manifest with samples
@@ -230,7 +215,7 @@ async function createTestDatasetRepo(
   };
 
   // Write manifest file
-  const manifestFullPath = path.join(repoPath, manifestPath);
+  const manifestFullPath = path.join(basePath, manifestPath);
   const manifestDir = path.dirname(manifestFullPath);
   if (!fs.existsSync(manifestDir)) {
     fs.mkdirSync(manifestDir, { recursive: true });
@@ -238,7 +223,7 @@ async function createTestDatasetRepo(
   fs.writeFileSync(manifestFullPath, JSON.stringify(manifest, null, 2));
 
   // Create actual ground truth JSON files
-  const groundTruthDir = path.join(repoPath, "ground-truth");
+  const groundTruthDir = path.join(basePath, "ground-truth");
   if (!fs.existsSync(groundTruthDir)) {
     fs.mkdirSync(groundTruthDir, { recursive: true });
   }
@@ -259,28 +244,6 @@ async function createTestDatasetRepo(
     );
     fs.writeFileSync(groundTruthPath, JSON.stringify(groundTruthData, null, 2));
   }
-
-  // Commit manifest and ground truth files
-  try {
-    execSync(`git add "${manifestPath}" ground-truth/`, {
-      cwd: repoPath,
-      stdio: "ignore",
-    });
-    execSync(`git commit -m "Add manifest with ${sampleCount} samples"`, {
-      cwd: repoPath,
-      stdio: "ignore",
-    });
-  } catch (error) {
-    // Commit might already exist, continue
-  }
-
-  // Get the current commit hash
-  const commitHash = execSync("git rev-parse HEAD", {
-    cwd: repoPath,
-    encoding: "utf-8",
-  }).trim();
-
-  return commitHash;
 }
 
 /**
@@ -293,10 +256,10 @@ async function createTestDatasetRepo(
  *
  * @returns The git commit hash with validation error test data
  */
-async function createValidationErrorTestData(
+function createValidationErrorTestData(
   repoPath: string,
   manifestPath: string,
-): Promise<string> {
+): void {
   const groundTruthDir = path.join(repoPath, "ground-truth");
 
   // Create manifest with samples that have validation issues
@@ -524,27 +487,6 @@ async function createValidationErrorTestData(
     JSON.stringify(validGroundTruth, null, 2)
   );
 
-  // Commit the validation error test data
-  try {
-    execSync(`git add "${manifestPath}" ground-truth/`, {
-      cwd: repoPath,
-      stdio: "ignore",
-    });
-    execSync('git commit -m "Add validation error test data"', {
-      cwd: repoPath,
-      stdio: "ignore",
-    });
-  } catch (error) {
-    // Commit might fail if no changes, continue
-  }
-
-  // Get the current commit hash
-  const commitHash = execSync("git rev-parse HEAD", {
-    cwd: repoPath,
-    encoding: "utf-8",
-  }).trim();
-
-  return commitHash;
 }
 
 async function seedBenchmarkingData() {
@@ -602,16 +544,16 @@ async function seedBenchmarkingData() {
     },
   });
 
-  // Create test dataset repositories with sample data
+  // Create test dataset files with sample data
   // This enables e2e tests that require actual samples
-  const invoiceRepoCommitHash = await createTestDatasetRepo(
+  createTestDatasetFiles(
     "/tmp/datasets/invoices",
     "data/invoices/manifest.json",
     25, // Create 25 samples to test pagination (>20)
   );
 
   // Create validation error test data for draft version
-  const validationErrorCommitHash = await createValidationErrorTestData(
+  createValidationErrorTestData(
     "/tmp/datasets/invoices",
     "data/invoices/manifest.json",
   );
@@ -623,8 +565,7 @@ async function seedBenchmarkingData() {
       name: "Invoice Test Dataset",
       description: "Sample invoice dataset for benchmarking OCR accuracy",
       metadata: { documentType: "invoice", language: "en" },
-      repositoryUrl: "file:///tmp/datasets/invoices",
-      dvcRemote: "local",
+      storagePath: "datasets/invoice-test-dataset",
       createdBy: "test-user",
     },
     create: {
@@ -632,8 +573,7 @@ async function seedBenchmarkingData() {
       name: "Invoice Test Dataset",
       description: "Sample invoice dataset for benchmarking OCR accuracy",
       metadata: { documentType: "invoice", language: "en" },
-      repositoryUrl: "file:///tmp/datasets/invoices",
-      dvcRemote: "local",
+      storagePath: "datasets/invoice-test-dataset",
       createdBy: "test-user",
     },
   });
@@ -644,8 +584,7 @@ async function seedBenchmarkingData() {
       name: "Receipt Test Dataset",
       description: "Sample receipt dataset for testing point-of-sale OCR",
       metadata: { documentType: "receipt", language: "en" },
-      repositoryUrl: "~/datasets/receipts",
-      dvcRemote: "local",
+      storagePath: "datasets/receipt-test-dataset",
       createdBy: "seed-user",
     },
     create: {
@@ -653,8 +592,7 @@ async function seedBenchmarkingData() {
       name: "Receipt Test Dataset",
       description: "Sample receipt dataset for testing point-of-sale OCR",
       metadata: { documentType: "receipt", language: "en" },
-      repositoryUrl: "~/datasets/receipts",
-      dvcRemote: "local",
+      storagePath: "datasets/receipt-test-dataset",
       createdBy: "seed-user",
     },
   });
@@ -665,8 +603,7 @@ async function seedBenchmarkingData() {
       name: "Government Forms Dataset",
       description: "Dataset for evaluating structured form extraction",
       metadata: { documentType: "government-form", language: "en" },
-      repositoryUrl: "https://github.com/example/gov-forms-dataset.git",
-      dvcRemote: "origin",
+      storagePath: "datasets/government-forms-dataset",
       createdBy: "seed-user",
     },
     create: {
@@ -674,8 +611,7 @@ async function seedBenchmarkingData() {
       name: "Government Forms Dataset",
       description: "Dataset for evaluating structured form extraction",
       metadata: { documentType: "government-form", language: "en" },
-      repositoryUrl: "https://github.com/example/gov-forms-dataset.git",
-      dvcRemote: "origin",
+      storagePath: "datasets/government-forms-dataset",
       createdBy: "seed-user",
     },
   });
@@ -685,7 +621,7 @@ async function seedBenchmarkingData() {
     where: { id: SEED_DATASET_VERSION_ID },
     update: {
       version: "v1.0",
-      gitRevision: invoiceRepoCommitHash,
+      storagePrefix: "datasets/invoice-test-dataset/v1",
       manifestPath: "data/invoices/manifest.json",
       documentCount: 25, // Matches the actual sample count created
       groundTruthSchema: {
@@ -697,7 +633,7 @@ async function seedBenchmarkingData() {
       id: SEED_DATASET_VERSION_ID,
       datasetId: dataset.id,
       version: "v1.0",
-      gitRevision: invoiceRepoCommitHash,
+      storagePrefix: "datasets/invoice-test-dataset/v1",
       manifestPath: "data/invoices/manifest.json",
       documentCount: 25, // Matches the actual sample count created
       groundTruthSchema: {
@@ -713,7 +649,7 @@ async function seedBenchmarkingData() {
     where: { id: SEED_DATASET_VERSION_ID_DRAFT },
     update: {
       version: "v2.0-draft",
-      gitRevision: validationErrorCommitHash,
+      storagePrefix: "datasets/invoice-test-dataset/v2-draft",
       manifestPath: "data/invoices/manifest.json",
       documentCount: 7, // 7 samples with various validation issues
       groundTruthSchema: {
@@ -733,7 +669,7 @@ async function seedBenchmarkingData() {
       id: SEED_DATASET_VERSION_ID_DRAFT,
       datasetId: dataset.id,
       version: "v2.0-draft",
-      gitRevision: validationErrorCommitHash,
+      storagePrefix: "datasets/invoice-test-dataset/v2-draft",
       manifestPath: "data/invoices/manifest.json",
       documentCount: 7, // 7 samples with various validation issues
       groundTruthSchema: {
@@ -756,7 +692,7 @@ async function seedBenchmarkingData() {
     where: { id: SEED_DATASET_VERSION_ID_ARCHIVED },
     update: {
       version: "v0.9",
-      gitRevision: invoiceRepoCommitHash,
+      storagePrefix: "datasets/invoice-test-dataset/v1",
       manifestPath: "data/invoices/manifest.json",
       documentCount: 25,
       groundTruthSchema: {
@@ -768,7 +704,7 @@ async function seedBenchmarkingData() {
       id: SEED_DATASET_VERSION_ID_ARCHIVED,
       datasetId: dataset.id,
       version: "v0.9",
-      gitRevision: invoiceRepoCommitHash,
+      storagePrefix: "datasets/invoice-test-dataset/v1",
       manifestPath: "data/invoices/manifest.json",
       documentCount: 25,
       groundTruthSchema: {
@@ -866,14 +802,14 @@ async function seedBenchmarkingData() {
     update: {
       name: "Invoice Extraction Benchmark",
       description: "Benchmarking OCR accuracy on invoice documents",
-      mlflowExperimentId: "1",
+
       createdBy: "test-user",
     },
     create: {
       id: SEED_PROJECT_ID,
       name: "Invoice Extraction Benchmark",
       description: "Benchmarking OCR accuracy on invoice documents",
-      mlflowExperimentId: "1",
+
       createdBy: "test-user",
     },
   });
@@ -891,10 +827,6 @@ async function seedBenchmarkingData() {
       runtimeSettings: {
         timeout: 300,
         retries: 3,
-      },
-      artifactPolicy: {
-        saveOutputs: true,
-        saveIntermediateResults: false,
       },
       immutable: false,
       revision: 1,
@@ -915,10 +847,6 @@ async function seedBenchmarkingData() {
       runtimeSettings: {
         timeout: 300,
         retries: 3,
-      },
-      artifactPolicy: {
-        saveOutputs: true,
-        saveIntermediateResults: false,
       },
       immutable: false,
       revision: 1,
@@ -970,7 +898,7 @@ async function seedBenchmarkingData() {
     where: { id: SEED_RUN_ID_COMPLETED },
     update: {
       status: BenchmarkRunStatus.completed,
-      mlflowRunId: "mlflow-run-001",
+
       temporalWorkflowId: "temporal-wf-001",
       workerGitSha: "git-sha-001",
       startedAt: new Date("2026-02-10T10:00:00Z"),
@@ -1013,7 +941,7 @@ async function seedBenchmarkingData() {
       definitionId: definition.id,
       projectId: project.id,
       status: BenchmarkRunStatus.completed,
-      mlflowRunId: "mlflow-run-001",
+
       temporalWorkflowId: "temporal-wf-001",
       workerGitSha: "git-sha-001",
       startedAt: new Date("2026-02-10T10:00:00Z"),
@@ -1058,7 +986,7 @@ async function seedBenchmarkingData() {
     where: { id: SEED_RUN_ID_RUNNING },
     update: {
       status: BenchmarkRunStatus.running,
-      mlflowRunId: "mlflow-run-002",
+
       temporalWorkflowId: "temporal-wf-002",
       workerGitSha: "git-sha-002",
       startedAt: new Date("2026-02-15T09:00:00Z"),
@@ -1077,7 +1005,7 @@ async function seedBenchmarkingData() {
       definitionId: definition.id,
       projectId: project.id,
       status: BenchmarkRunStatus.running,
-      mlflowRunId: "mlflow-run-002",
+
       temporalWorkflowId: "temporal-wf-002",
       workerGitSha: "git-sha-002",
       startedAt: new Date("2026-02-15T09:00:00Z"),
@@ -1098,7 +1026,7 @@ async function seedBenchmarkingData() {
     where: { id: SEED_RUN_ID_FAILED },
     update: {
       status: BenchmarkRunStatus.failed,
-      mlflowRunId: "mlflow-run-003",
+
       temporalWorkflowId: "temporal-wf-003",
       workerGitSha: "git-sha-003",
       startedAt: new Date("2026-02-12T14:00:00Z"),
@@ -1119,7 +1047,7 @@ async function seedBenchmarkingData() {
       definitionId: definition.id,
       projectId: project.id,
       status: BenchmarkRunStatus.failed,
-      mlflowRunId: "mlflow-run-003",
+
       temporalWorkflowId: "temporal-wf-003",
       workerGitSha: "git-sha-003",
       startedAt: new Date("2026-02-12T14:00:00Z"),
@@ -1142,7 +1070,7 @@ async function seedBenchmarkingData() {
     where: { id: SEED_RUN_ID_PASSING },
     update: {
       status: BenchmarkRunStatus.completed,
-      mlflowRunId: "mlflow-run-004",
+
       temporalWorkflowId: "temporal-wf-004",
       workerGitSha: "git-sha-004",
       startedAt: new Date("2026-02-14T10:00:00Z"),
@@ -1201,7 +1129,7 @@ async function seedBenchmarkingData() {
       definitionId: definition.id,
       projectId: project.id,
       status: BenchmarkRunStatus.completed,
-      mlflowRunId: "mlflow-run-004",
+
       temporalWorkflowId: "temporal-wf-004",
       workerGitSha: "git-sha-004",
       startedAt: new Date("2026-02-14T10:00:00Z"),
@@ -1262,7 +1190,7 @@ async function seedBenchmarkingData() {
     where: { id: SEED_RUN_ID_REGRESSED },
     update: {
       status: BenchmarkRunStatus.completed,
-      mlflowRunId: "mlflow-run-005",
+
       temporalWorkflowId: "temporal-wf-005",
       workerGitSha: "git-sha-005",
       startedAt: new Date("2026-02-15T11:00:00Z"),
@@ -1321,7 +1249,7 @@ async function seedBenchmarkingData() {
       definitionId: definition.id,
       projectId: project.id,
       status: BenchmarkRunStatus.completed,
-      mlflowRunId: "mlflow-run-005",
+
       temporalWorkflowId: "temporal-wf-005",
       workerGitSha: "git-sha-005",
       startedAt: new Date("2026-02-15T11:00:00Z"),
@@ -1377,10 +1305,34 @@ async function seedBenchmarkingData() {
     },
   });
 
-  // Create test artifacts for the completed run (for artifact viewer testing)
-  await seedBenchmarkArtifacts(project.id, SEED_RUN_ID_COMPLETED, false);
-  // Also create artifacts for the passing run (which has baseline comparison and won't crash the UI)
-  await seedBenchmarkArtifacts(project.id, SEED_RUN_ID_PASSING, true);
+  // === AUDIT LOGS ===
+  console.log("  📋 Creating audit logs...");
+
+  const twoDaysAgo = new Date();
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+  await prisma.benchmarkAuditLog.create({
+    data: {
+      id: "audit-baseline-001",
+      timestamp: twoDaysAgo,
+      userId: "test-user",
+      action: AuditAction.baseline_promoted,
+      entityType: "BenchmarkRun",
+      entityId: SEED_RUN_ID_COMPLETED,
+      metadata: {
+        definitionId: SEED_DEFINITION_ID,
+        projectId: SEED_PROJECT_ID,
+        previousBaselineId: null,
+        thresholds: [
+          { metricName: "field_accuracy", type: "relative", value: 0.95 },
+          { metricName: "character_accuracy", type: "relative", value: 0.95 },
+          { metricName: "word_accuracy", type: "relative", value: 0.95 },
+        ],
+      },
+    },
+  });
+
+  console.log("    ✓ Created baseline promotion audit log");
 
   console.log("✅ Benchmarking seed data created successfully");
   console.log(`  - Dataset: ${dataset.name} (3 versions: v0.9 archived, v1.0 published, v2.0 draft)`);
@@ -1389,200 +1341,6 @@ async function seedBenchmarkingData() {
   console.log(`  - Project: ${project.name}`);
   console.log(`  - Definition: ${definition.name}`);
   console.log(`  - Runs: 5 (3 completed [1 baseline, 1 passing, 1 regressed], 1 running, 1 failed)`);
-  console.log(`  - Artifacts: 4 test artifacts created for artifact viewer testing`);
-}
-
-/**
- * Seed benchmark artifacts for testing the artifact viewer
- * Creates JSON, image, text, and unsupported file type artifacts
- * @param projectId - The project ID
- * @param runId - The run ID to create artifacts for
- * @param createAuditLog - Whether to create audit log (only create once)
- */
-async function seedBenchmarkArtifacts(projectId: string, runId: string = SEED_RUN_ID_COMPLETED, createAuditLog: boolean = true) {
-  console.log("  📦 Creating test artifacts...");
-
-  // Sample JSON artifact content (evaluation report)
-  const jsonContent = JSON.stringify({
-    evaluationId: "eval-001",
-    runId,
-    metrics: {
-      field_accuracy: 0.95,
-      character_accuracy: 0.98,
-      word_accuracy: 0.96,
-    },
-    perFieldResults: [
-      {
-        fieldName: "invoice_number",
-        accuracy: 0.92,
-        errorCount: 4,
-      },
-      {
-        fieldName: "total_amount",
-        accuracy: 0.97,
-        errorCount: 2,
-      },
-    ],
-    timestamp: "2026-02-10T10:45:00Z",
-  }, null, 2);
-
-  // Sample text artifact content (error log)
-  const textContent = `[2026-02-10 10:30:15] INFO: Starting evaluation for run ${runId}
-[2026-02-10 10:30:16] INFO: Loading dataset version ${SEED_DATASET_VERSION_ID}
-[2026-02-10 10:30:17] INFO: Processing sample-001
-[2026-02-10 10:30:18] INFO: Processing sample-002
-[2026-02-10 10:30:19] WARN: Low confidence score for field 'invoice_number' in sample-003
-[2026-02-10 10:30:20] INFO: Processing sample-004
-[2026-02-10 10:30:21] ERROR: Field extraction failed for 'vendor_name' in sample-005
-[2026-02-10 10:30:22] INFO: Processing complete. Total samples: 50
-[2026-02-10 10:30:23] INFO: Aggregated metrics calculated
-[2026-02-10 10:45:00] INFO: Evaluation completed successfully`;
-
-  // Sample image artifact (1x1 red pixel PNG as base64)
-  // This is a minimal valid PNG file
-  const pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
-  const imageBuffer = Buffer.from(pngBase64, "base64");
-
-  // Sample unsupported file (binary data)
-  const unsupportedContent = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-
-  // Create artifacts in database
-  // Note: In production, these would be uploaded to MinIO via the backend service
-  // For seed purposes, we create database records only
-  // E2E tests should mock MinIO responses or run with MinIO available
-
-  // Generate unique IDs based on runId to allow multiple runs to have artifacts
-  const artifactIdJson = `${runId}-artifact-json`;
-  const artifactIdImage = `${runId}-artifact-image`;
-  const artifactIdText = `${runId}-artifact-text`;
-  const artifactIdUnsupported = `${runId}-artifact-unsupported`;
-
-  await prisma.benchmarkArtifact.upsert({
-    where: { id: artifactIdJson },
-    update: {
-      runId,
-      type: "evaluation_report",
-      path: `${runId}/evaluation_report/eval-report-1707563100000.json`,
-      sampleId: null,
-      nodeId: null,
-      sizeBytes: BigInt(jsonContent.length),
-      mimeType: "application/json",
-    },
-    create: {
-      id: artifactIdJson,
-      runId,
-      type: "evaluation_report",
-      path: `${runId}/evaluation_report/eval-report-1707563100000.json`,
-      sampleId: null,
-      nodeId: null,
-      sizeBytes: BigInt(jsonContent.length),
-      mimeType: "application/json",
-    },
-  });
-
-  await prisma.benchmarkArtifact.upsert({
-    where: { id: artifactIdImage },
-    update: {
-      runId,
-      type: "per_doc_output",
-      path: `${runId}/per_doc_output/sample-001-output-1707563100001.png`,
-      sampleId: "sample-001",
-      nodeId: "ocr-node",
-      sizeBytes: BigInt(imageBuffer.length),
-      mimeType: "image/png",
-    },
-    create: {
-      id: artifactIdImage,
-      runId,
-      type: "per_doc_output",
-      path: `${runId}/per_doc_output/sample-001-output-1707563100001.png`,
-      sampleId: "sample-001",
-      nodeId: "ocr-node",
-      sizeBytes: BigInt(imageBuffer.length),
-      mimeType: "image/png",
-    },
-  });
-
-  await prisma.benchmarkArtifact.upsert({
-    where: { id: artifactIdText },
-    update: {
-      runId,
-      type: "error_log",
-      path: `${runId}/error_log/run-log-1707563100002.log`,
-      sampleId: null,
-      nodeId: null,
-      sizeBytes: BigInt(textContent.length),
-      mimeType: "text/plain",
-    },
-    create: {
-      id: artifactIdText,
-      runId,
-      type: "error_log",
-      path: `${runId}/error_log/run-log-1707563100002.log`,
-      sampleId: null,
-      nodeId: null,
-      sizeBytes: BigInt(textContent.length),
-      mimeType: "text/plain",
-    },
-  });
-
-  await prisma.benchmarkArtifact.upsert({
-    where: { id: artifactIdUnsupported },
-    update: {
-      runId,
-      type: "intermediate_node_output",
-      path: `${runId}/intermediate_node_output/model-weights-1707563100003.bin`,
-      sampleId: null,
-      nodeId: null,
-      sizeBytes: BigInt(unsupportedContent.length),
-      mimeType: "application/octet-stream",
-    },
-    create: {
-      id: artifactIdUnsupported,
-      runId,
-      type: "intermediate_node_output",
-      path: `${runId}/intermediate_node_output/model-weights-1707563100003.bin`,
-      sampleId: null,
-      nodeId: null,
-      sizeBytes: BigInt(unsupportedContent.length),
-      mimeType: "application/octet-stream",
-    },
-  });
-
-  console.log("    ✓ Created 4 test artifacts (JSON, image, text, unsupported)");
-
-  // === AUDIT LOGS ===
-  // Only create audit logs once (for the first run to avoid duplicate key errors)
-  if (createAuditLog) {
-    console.log("  📋 Creating audit logs...");
-
-    // Create baseline promotion history - simulate that the baseline was promoted 2 days ago
-    const twoDaysAgo = new Date();
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-
-    await prisma.benchmarkAuditLog.create({
-      data: {
-        id: "audit-baseline-001",
-        timestamp: twoDaysAgo,
-        userId: "test-user",
-        action: AuditAction.baseline_promoted,
-        entityType: "BenchmarkRun",
-        entityId: SEED_RUN_ID_COMPLETED,
-        metadata: {
-          definitionId: SEED_DEFINITION_ID,
-          projectId: SEED_PROJECT_ID,
-          previousBaselineId: null,
-          thresholds: [
-            { metricName: "field_accuracy", type: "relative", value: 0.95 },
-            { metricName: "character_accuracy", type: "relative", value: 0.95 },
-            { metricName: "word_accuracy", type: "relative", value: 0.95 },
-          ],
-        },
-      },
-    });
-
-    console.log("    ✓ Created baseline promotion audit log");
-  }
 }
 
 async function seedLabelingData() {

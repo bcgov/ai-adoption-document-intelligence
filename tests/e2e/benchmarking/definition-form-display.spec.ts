@@ -58,9 +58,6 @@ test.describe('Definition Form - Display and Fields', () => {
     await expect(formDialog.perDocTimeoutInput).toBeVisible();
     await expect(formDialog.productionQueueNo).toBeVisible();
     await expect(formDialog.productionQueueYes).toBeVisible();
-    await expect(formDialog.artifactPolicyFull).toBeVisible();
-    await expect(formDialog.artifactPolicyFailures).toBeVisible();
-    await expect(formDialog.artifactPolicySampled).toBeVisible();
     await expect(formDialog.cancelBtn).toBeVisible();
     await expect(formDialog.createBtn).toBeVisible();
   });
@@ -192,26 +189,4 @@ test.describe('Definition Form - Display and Fields', () => {
     expect(parseInt(timeoutValue)).toBeGreaterThan(0);
   });
 
-  // REQ US-029 Scenario 8: Artifact Policy Selection
-  test('should display artifact policy radio buttons with default selection', async ({ page }) => {
-    // Given: User is filling out the definition form
-    await projectPage.goto(SEED_PROJECT_ID);
-    await projectPage.clickCreateDefinition();
-    await formDialog.waitForDialogToOpen();
-
-    // When: Artifact policy section is rendered
-    // Then: Radio buttons for full, failures_only, sampled are visible
-    await expect(formDialog.artifactPolicyFull).toBeVisible();
-    await expect(formDialog.artifactPolicyFailures).toBeVisible();
-    await expect(formDialog.artifactPolicySampled).toBeVisible();
-
-    // One option should be selected by default (failures_only based on exploration)
-    const isFailuresChecked = await formDialog.artifactPolicyFailures.isChecked();
-    expect(isFailuresChecked).toBeTruthy();
-
-    // Should be able to change selection
-    await formDialog.artifactPolicyFull.click();
-    const isFullChecked = await formDialog.artifactPolicyFull.isChecked();
-    expect(isFullChecked).toBeTruthy();
-  });
 });

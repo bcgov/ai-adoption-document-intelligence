@@ -350,23 +350,6 @@ test.describe('US-030: Run Management', () => {
     });
   });
 
-  test.describe('Additional: MLflow Integration', () => {
-    test('should display MLflow run link for completed run', async ({ page }) => {
-      // REQ-US030: MLflow integration
-      // Given: Completed run has MLflow run ID
-      await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_COMPLETED);
-
-      // Then: MLflow link is visible in run info
-      const mlflowLink = runDetailPage.getMlflowLink();
-      await expect(mlflowLink).toBeVisible();
-
-      // And: Link contains MLflow run ID
-      const href = await mlflowLink.getAttribute('href');
-      expect(href).toContain('mlflow');
-      expect(href).toContain('mlflow-run-001'); // Seed data MLflow run ID
-    });
-  });
-
   test.describe('Additional: Run Information Display', () => {
     test('should display all run information fields', async ({ page }) => {
       // REQ-US030: Run information display
@@ -383,7 +366,6 @@ test.describe('US-030: Run Management', () => {
       expect(tableText).toContain('Started At');
       expect(tableText).toContain('Completed At');
       expect(tableText).toContain('Duration');
-      expect(tableText).toContain('MLflow Run');
       expect(tableText).toContain('Temporal Workflow');
       expect(tableText).toContain('Worker Git SHA');
       expect(tableText).toContain('Is Baseline');

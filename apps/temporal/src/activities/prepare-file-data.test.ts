@@ -1,22 +1,38 @@
 import { prepareFileData } from './prepare-file-data';
 import type { PrepareFileDataInput } from './prepare-file-data';
-import * as fs from 'fs/promises';
 
-jest.mock('fs/promises', () => ({
-  readFile: jest.fn(),
+// Mock the blob storage client for non-absolute blob keys
+const mockRead = jest.fn();
+jest.mock('../blob-storage/blob-storage-client', () => ({
+  getBlobStorageClient: () => ({
+    read: mockRead,
+  }),
 }));
 
-const readFileMock = fs.readFile as jest.Mock;
+// Mock fs for absolute-path reads (benchmark materialized files)
+jest.mock('fs', () => {
+  const actual = jest.requireActual('fs');
+  return {
+    ...actual,
+    promises: {
+      ...actual.promises,
+      readFile: jest.fn(),
+    },
+  };
+});
+
+import * as fs from 'fs';
+const readFileMock = fs.promises.readFile as jest.Mock;
 
 describe('prepareFileData activity', () => {
   beforeEach(() => {
+    mockRead.mockReset();
     readFileMock.mockReset();
-    process.env.LOCAL_BLOB_STORAGE_PATH = '/tmp/blobs';
   });
 
   it('prepares PDF file data with defaults', async () => {
     const pdfBuffer = Buffer.from('%PDF-1.4\ntest content');
-    readFileMock.mockResolvedValue(pdfBuffer);
+    mockRead.mockResolvedValue(pdfBuffer);
 
     const input: PrepareFileDataInput = {
       documentId: 'doc-1',
@@ -30,11 +46,12 @@ describe('prepareFileData activity', () => {
     expect(result.preparedData.contentType).toBe('application/pdf');
     expect(result.preparedData.blobKey).toBe('documents/doc-1/test.pdf');
     expect(result.preparedData.modelId).toBe('prebuilt-layout');
+    expect(mockRead).toHaveBeenCalledWith('documents/doc-1/test.pdf');
   });
 
   it('prepares image file data', async () => {
     const imageBuffer = Buffer.from('fake image data');
-    readFileMock.mockResolvedValue(imageBuffer);
+    mockRead.mockResolvedValue(imageBuffer);
 
     const input: PrepareFileDataInput = {
       documentId: 'doc-2',
@@ -54,7 +71,7 @@ describe('prepareFileData activity', () => {
 
   it('accepts custom modelId', async () => {
     const pdfBuffer = Buffer.from('%PDF-1.4\ntest content');
-    readFileMock.mockResolvedValue(pdfBuffer);
+    mockRead.mockResolvedValue(pdfBuffer);
 
     const input: PrepareFileDataInput = {
       documentId: 'doc-3',
@@ -69,7 +86,7 @@ describe('prepareFileData activity', () => {
 
   it('detects file type from filename extension', async () => {
     const imageBuffer = Buffer.from('fake jpeg data');
-    readFileMock.mockResolvedValue(imageBuffer);
+    mockRead.mockResolvedValue(imageBuffer);
 
     const input: PrepareFileDataInput = {
       documentId: 'doc-4',
@@ -93,8 +110,8 @@ describe('prepareFileData activity', () => {
     );
   });
 
-  it('throws error for file not found', async () => {
-    readFileMock.mockRejectedValue(new Error('ENOENT: no such file'));
+  it('throws error for blob not found', async () => {
+    mockRead.mockRejectedValue(new Error('NoSuchKey'));
 
     const input: PrepareFileDataInput = {
       documentId: 'doc-6',
@@ -106,21 +123,41 @@ describe('prepareFileData activity', () => {
     );
   });
 
-  it('throws error for invalid blob key with path traversal', async () => {
+  it('reads from local filesystem when blobKey is an absolute path', async () => {
+    const pdfBuffer = Buffer.from('%PDF-1.4\nbenchmark file');
+    readFileMock.mockResolvedValue(pdfBuffer);
+
     const input: PrepareFileDataInput = {
-      documentId: 'doc-7',
-      blobKey: '../../../etc/passwd',
+      documentId: 'benchmark-sample-1',
+      blobKey: '/tmp/benchmark-cache/dataset-123/inputs/invoice.pdf',
+    };
+
+    const result = await prepareFileData(input);
+
+    expect(readFileMock).toHaveBeenCalledWith('/tmp/benchmark-cache/dataset-123/inputs/invoice.pdf');
+    expect(mockRead).not.toHaveBeenCalled();
+    expect(result.preparedData.fileName).toBe('invoice.pdf');
+    expect(result.preparedData.fileType).toBe('pdf');
+    expect(result.preparedData.blobKey).toBe('/tmp/benchmark-cache/dataset-123/inputs/invoice.pdf');
+  });
+
+  it('throws error when local file not found', async () => {
+    readFileMock.mockRejectedValue(new Error('ENOENT: no such file'));
+
+    const input: PrepareFileDataInput = {
+      documentId: 'benchmark-sample-2',
+      blobKey: '/tmp/benchmark-cache/dataset-123/inputs/missing.pdf',
     };
 
     await expect(prepareFileData(input)).rejects.toThrow(
-      'Invalid blob key: "../../../etc/passwd"',
+      'File not found on disk: "/tmp/benchmark-cache/dataset-123/inputs/missing.pdf"',
     );
   });
 
   it('warns for invalid PDF signature', async () => {
     const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
     const invalidPdfBuffer = Buffer.from('not a pdf file content');
-    readFileMock.mockResolvedValue(invalidPdfBuffer);
+    mockRead.mockResolvedValue(invalidPdfBuffer);
 
     const input: PrepareFileDataInput = {
       documentId: 'doc-8',

@@ -381,11 +381,10 @@ enum DocumentStatus {
 
 model Dataset {
   id              String            @id @default(uuid())
-  name            String
+  name            String            @unique
   description     String?
   metadata        Json              @default("{}")
-  repositoryUrl   String            @unique
-  dvcRemote       String
+  storagePath     String            @default("")
   createdBy       String
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
@@ -400,7 +399,7 @@ model DatasetVersion {
   dataset             Dataset                @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   version             String
   name                String?
-  gitRevision         String?
+  storagePrefix       String?
   manifestPath        String
   documentCount       Int
   groundTruthSchema   Json?
@@ -430,9 +429,8 @@ model Split {
 
 model BenchmarkProject {
   id                   String                 @id @default(uuid())
-  name                 String
+  name                 String                 @unique
   description          String?
-  mlflowExperimentId   String
   createdBy            String
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
@@ -457,7 +455,6 @@ model BenchmarkDefinition {
   evaluatorType       String
   evaluatorConfig     Json
   runtimeSettings     Json
-  artifactPolicy      Json
   immutable           Boolean            @default(false)
   revision            Int                @default(1)
   scheduleEnabled     Boolean            @default(false)
@@ -481,7 +478,6 @@ model BenchmarkRun {
   projectId            String
   project              BenchmarkProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   status               BenchmarkRunStatus    @default(pending)
-  mlflowRunId          String
   temporalWorkflowId   String
   workerImageDigest    String?
   workerGitSha         String
@@ -495,27 +491,10 @@ model BenchmarkRun {
   baselineThresholds   Json?
   baselineComparison   Json?
   createdAt            DateTime              @default(now())
-  artifacts            BenchmarkArtifact[]
 
   @@index([definitionId])
   @@index([projectId])
   @@map("benchmark_runs")
-}
-
-model BenchmarkArtifact {
-  id          String                  @id @default(uuid())
-  runId       String
-  run         BenchmarkRun            @relation(fields: [runId], references: [id], onDelete: Cascade)
-  type        BenchmarkArtifactType
-  path        String
-  sampleId    String?
-  nodeId      String?
-  sizeBytes   BigInt
-  mimeType    String
-  createdAt   DateTime                @default(now())
-
-  @@index([runId])
-  @@map("benchmark_artifacts")
 }
 
 model BenchmarkAuditLog {
@@ -551,19 +530,10 @@ enum BenchmarkRunStatus {
   cancelled
 }
 
-enum BenchmarkArtifactType {
-  per_doc_output
-  intermediate_node_output
-  diff_report
-  evaluation_report
-  error_log
-}
-
 enum AuditAction {
   dataset_created
   version_published
   run_started
   run_completed
   baseline_promoted
-  artifact_deleted
 }

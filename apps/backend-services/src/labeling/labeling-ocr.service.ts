@@ -1,10 +1,13 @@
 import { DocumentStatus, Prisma } from "@generated/client";
 import { HttpService } from "@nestjs/axios";
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { lastValueFrom } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "../blob-storage/blob-storage.interface";
 import { DatabaseService } from "../database/database.service";
 import type { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
@@ -21,7 +24,8 @@ export class LabelingOcrService {
     private readonly db: DatabaseService,
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
-    private readonly blobStorage: LocalBlobStorageService,
+    @Inject(BLOB_STORAGE)
+    private readonly blobStorage: BlobStorageInterface,
   ) {
     this.azureEndpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",

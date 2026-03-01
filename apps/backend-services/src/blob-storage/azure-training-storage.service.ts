@@ -1,3 +1,14 @@
+/**
+ * Azure Training Storage Service
+ *
+ * Provides Azure Blob Storage operations specifically for Azure Document Intelligence
+ * model training. This service always uses Azure Blob Storage regardless of the
+ * primary blob storage provider (MinIO or Azure), because Azure DI requires
+ * files to be in Azure Blob Storage with SAS URLs for training.
+ *
+ * Consolidated from the former BlobService and BlobStorageService.
+ */
+
 import {
   BlobServiceClient,
   ContainerClient,
@@ -9,12 +20,14 @@ import {
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
+/** Result of a single file upload. */
 export interface UploadFileResult {
   fileName: string;
   url: string;
   size: number;
 }
 
+/** Result of a bulk upload operation. */
 export interface UploadResult {
   containerName: string;
   totalFiles: number;
@@ -24,6 +37,7 @@ export interface UploadResult {
   failedFiles: { fileName: string; error: string }[];
 }
 
+/** Metadata for a blob in a container. */
 export interface BlobInfo {
   name: string;
   size: number;
@@ -31,9 +45,14 @@ export interface BlobInfo {
   contentType?: string;
 }
 
+/**
+ * NestJS injection token for the Azure training storage service.
+ */
+export const AZURE_TRAINING_STORAGE = Symbol("AZURE_TRAINING_STORAGE");
+
 @Injectable()
-export class BlobService {
-  private readonly logger = new Logger(BlobService.name);
+export class AzureTrainingStorageService {
+  private readonly logger = new Logger(AzureTrainingStorageService.name);
   private blobServiceClient: BlobServiceClient;
   private accountName: string;
   private accountKey: string;
@@ -53,18 +72,21 @@ export class BlobService {
 
     if (!connectionString) {
       this.logger.warn(
-        "AZURE_STORAGE_CONNECTION_STRING not configured. Blob storage features will not work.",
+        "AZURE_STORAGE_CONNECTION_STRING not configured. Azure training storage features will not work.",
       );
       return;
     }
 
     this.blobServiceClient =
       BlobServiceClient.fromConnectionString(connectionString);
-    this.logger.log("Blob Storage client initialized");
+    this.logger.log("Azure Training Storage client initialized");
   }
 
   /**
-   * Ensure a container exists, creating it if necessary
+   * Ensure a container exists, creating it if necessary.
+   * Handles the race condition where a container is being deleted.
+   * @param containerName - Name of the container to create or verify
+   * @returns true if a new container was created, false if it already existed
    */
   async ensureContainerExists(containerName: string): Promise<boolean> {
     const containerClient =
@@ -72,20 +94,24 @@ export class BlobService {
 
     for (let attempt = 1; attempt <= this.deleteRetryAttempts; attempt += 1) {
       try {
-        // Try to create directly; this is the reliable signal for reuse.
         await containerClient.create();
         this.logger.log(`Created container: ${containerName}`);
         return true;
-      } catch (error) {
-        const message = error.message || "";
-        const statusCode = error.statusCode || error.status;
+      } catch (error: unknown) {
+        const err = error as Error & {
+          statusCode?: number;
+          status?: number;
+          code?: string;
+        };
+        const message = err.message || "";
+        const statusCode = err.statusCode || err.status;
         const isAlreadyExists =
           statusCode === 409 &&
-          (error.code === "ContainerAlreadyExists" ||
+          (err.code === "ContainerAlreadyExists" ||
             message.includes("ContainerAlreadyExists"));
         const isBeingDeleted =
           statusCode === 409 &&
-          (error.code === "ContainerBeingDeleted" ||
+          (err.code === "ContainerBeingDeleted" ||
             message.includes("being deleted"));
 
         if (isAlreadyExists) {
@@ -103,7 +129,7 @@ export class BlobService {
 
         this.logger.error(
           `Failed to ensure container exists: ${containerName}`,
-          error.stack,
+          err.stack,
         );
         throw error;
       }
@@ -115,7 +141,11 @@ export class BlobService {
   }
 
   /**
-   * Upload a single file to blob storage
+   * Upload a single file to blob storage.
+   * @param containerName - Target container
+   * @param blobName - Name/path of the blob within the container
+   * @param content - File content as Buffer or string
+   * @returns The URL of the uploaded blob
    */
   async uploadFile(
     containerName: string,
@@ -134,20 +164,24 @@ export class BlobService {
 
       this.logger.debug(`Uploaded blob: ${blobName} to ${containerName}`);
       return blockBlobClient.url;
-    } catch (error) {
-      this.logger.error(`Failed to upload blob: ${blobName}`, error.stack);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Failed to upload blob: ${blobName}`, err.stack);
       throw error;
     }
   }
 
   /**
-   * Upload multiple files to blob storage
+   * Upload multiple files to blob storage.
+   * Ensures the container exists before uploading.
+   * @param containerName - Target container
+   * @param files - Array of files with name and content
+   * @returns Summary of upload results including successes and failures
    */
   async uploadFiles(
     containerName: string,
     files: { name: string; content: Buffer | string }[],
   ): Promise<UploadResult> {
-    // Ensure container exists
     await this.ensureContainerExists(containerName);
 
     const uploadedFiles: UploadFileResult[] = [];
@@ -170,10 +204,11 @@ export class BlobService {
           url,
           size: buffer.length,
         });
-      } catch (error) {
+      } catch (error: unknown) {
+        const err = error as Error;
         failedFiles.push({
           fileName: file.name,
-          error: error.message,
+          error: err.message,
         });
       }
     }
@@ -189,9 +224,16 @@ export class BlobService {
   }
 
   /**
-   * Generate a SAS URL for a container with read and list permissions
+   * Generate a SAS URL for a container with read and list permissions.
+   * Required for Azure Document Intelligence training API.
+   * @param containerName - Container to generate SAS for
+   * @param expiryDays - Number of days until the SAS expires (default: 7)
+   * @returns SAS URL for the container
    */
-  async generateSasUrl(containerName: string, expiryDays = 7): Promise<string> {
+  async generateSasUrl(
+    containerName: string,
+    expiryDays = 7,
+  ): Promise<string> {
     try {
       if (!this.accountName || !this.accountKey) {
         throw new Error("Azure Storage account credentials not configured");
@@ -230,17 +272,57 @@ export class BlobService {
       );
 
       return sasUrl;
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = error as Error;
       this.logger.error(
         `Failed to generate SAS URL for container: ${containerName}`,
-        error.stack,
+        err.stack,
       );
       throw error;
     }
   }
 
   /**
+   * Generate a SAS URL for a specific blob with read permissions.
+   * @param containerName - Container holding the blob
+   * @param blobName - Name/path of the blob
+   * @param expiresInMinutes - Validity duration in minutes (default: 60)
+   * @returns SAS URL for the specific blob
+   */
+  getBlobSasUrl(
+    containerName: string,
+    blobName: string,
+    expiresInMinutes = 60,
+  ): string {
+    if (!this.accountName || !this.accountKey) {
+      throw new Error("Storage account name/key not configured.");
+    }
+    const sharedKeyCredential = new StorageSharedKeyCredential(
+      this.accountName,
+      this.accountKey,
+    );
+    const containerClient =
+      this.blobServiceClient.getContainerClient(containerName);
+    const blobClient = containerClient.getBlobClient(blobName);
+    const expires = new Date(Date.now() + expiresInMinutes * 60 * 1000);
+
+    const sas = generateBlobSASQueryParameters(
+      {
+        containerName,
+        blobName,
+        permissions: ContainerSASPermissions.parse("r"),
+        expiresOn: expires,
+        protocol: SASProtocol.Https,
+      },
+      sharedKeyCredential,
+    ).toString();
+    return `${blobClient.url}?${sas}`;
+  }
+
+  /**
    * Validate a container SAS URL by attempting to list blobs.
+   * @param sasUrl - The SAS URL to validate
+   * @returns Validation result with canList flag and optional blob info
    */
   async validateContainerSasUrl(sasUrl: string): Promise<{
     canList: boolean;
@@ -265,26 +347,31 @@ export class BlobService {
         blobCount: count,
         sampleBlobs,
       };
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = error as Error;
       return {
         canList: false,
-        error: error.message,
+        error: err.message,
       };
     }
   }
 
   /**
-   * List all blobs in a container
+   * List all blobs in a container, optionally filtered by prefix.
+   * @param containerName - Container to list
+   * @param prefix - Optional prefix filter
+   * @returns Array of blob metadata
    */
-  async listBlobs(containerName: string, prefix?: string): Promise<BlobInfo[]> {
+  async listBlobs(
+    containerName: string,
+    prefix?: string,
+  ): Promise<BlobInfo[]> {
     try {
       const containerClient =
         this.blobServiceClient.getContainerClient(containerName);
       const blobs: BlobInfo[] = [];
 
-      for await (const blob of containerClient.listBlobsFlat({
-        prefix,
-      })) {
+      for await (const blob of containerClient.listBlobsFlat({ prefix })) {
         blobs.push({
           name: blob.name,
           size: blob.properties.contentLength || 0,
@@ -297,17 +384,19 @@ export class BlobService {
         `Listed ${blobs.length} blobs in container ${containerName}`,
       );
       return blobs;
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = error as Error;
       this.logger.error(
         `Failed to list blobs in container: ${containerName}`,
-        error.stack,
+        err.stack,
       );
       throw error;
     }
   }
 
   /**
-   * Delete a container and all its contents
+   * Delete a container and all its contents.
+   * @param containerName - Container to delete
    */
   async deleteContainer(containerName: string): Promise<void> {
     try {
@@ -315,17 +404,20 @@ export class BlobService {
         this.blobServiceClient.getContainerClient(containerName);
       await containerClient.delete();
       this.logger.log(`Deleted container: ${containerName}`);
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = error as Error;
       this.logger.error(
         `Failed to delete container: ${containerName}`,
-        error.stack,
+        err.stack,
       );
       throw error;
     }
   }
 
   /**
-   * Delete a container if it exists (ignore not found).
+   * Delete a container if it exists. No error if the container does not exist.
+   * @param containerName - Container to delete
+   * @returns true if the container was deleted, false if it didn't exist
    */
   async deleteContainerIfExists(containerName: string): Promise<boolean> {
     try {
@@ -339,10 +431,11 @@ export class BlobService {
         return false;
       }
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = error as Error;
       this.logger.error(
         `Failed to delete container: ${containerName}`,
-        error.stack,
+        err.stack,
       );
       throw error;
     }
@@ -350,6 +443,8 @@ export class BlobService {
 
   /**
    * Delete all blobs in a container without removing the container itself.
+   * @param containerName - Container to clear
+   * @returns Number of blobs deleted
    */
   async clearContainerContents(containerName: string): Promise<number> {
     try {
@@ -367,19 +462,20 @@ export class BlobService {
         `Cleared ${deleted} blob(s) from container: ${containerName}`,
       );
       return deleted;
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = error as Error;
       this.logger.error(
         `Failed to clear container contents: ${containerName}`,
-        error.stack,
+        err.stack,
       );
       throw error;
     }
   }
 
   /**
-   * Delete all blobs with a specific prefix in a container
-   * @param prefix The prefix of the blobs to delete
-   * @param containerName The name of the container
+   * Delete all blobs with a specific prefix in a container.
+   * @param prefix - The prefix of the blobs to delete
+   * @param containerName - The container name
    */
   async deleteFilesWithPrefix(
     prefix: string,
@@ -397,52 +493,16 @@ export class BlobService {
     );
   }
 
-  private async delay(ms: number): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
   /**
-   * Get container client for advanced operations
+   * Get a container client for advanced operations.
+   * @param containerName - Container name
+   * @returns Azure SDK ContainerClient instance
    */
   getContainerClient(containerName: string): ContainerClient {
     return this.blobServiceClient.getContainerClient(containerName);
   }
 
-  /**
-   * Generate a SAS URL for a specific blob
-   * @param containerName The name of the container
-   * @param blobName The path/name of the blob
-   * @param expiresInMinutes How long the SAS should be valid (default: 60)
-   */
-  getBlobSasUrl(
-    containerName: string,
-    blobName: string,
-    expiresInMinutes = 60,
-  ): string {
-    if (!this.accountName || !this.accountKey) {
-      throw new Error("Storage account name/key not configured.");
-    }
-    const sharedKeyCredential = new StorageSharedKeyCredential(
-      this.accountName,
-      this.accountKey,
-    );
-    const containerClient =
-      this.blobServiceClient.getContainerClient(containerName);
-    const blobClient = containerClient.getBlobClient(blobName);
-    const now = new Date();
-    const expires = new Date(now.getTime() + expiresInMinutes * 60 * 1000);
-    // Note: Do not use the now time as the start time of this SAS url.
-    // It somehow gets called before the start time somehow.
-    const sas = generateBlobSASQueryParameters(
-      {
-        containerName,
-        blobName,
-        permissions: ContainerSASPermissions.parse("r"),
-        expiresOn: expires,
-        protocol: SASProtocol.Https,
-      },
-      sharedKeyCredential,
-    ).toString();
-    return `${blobClient.url}?${sas}`;
+  private async delay(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

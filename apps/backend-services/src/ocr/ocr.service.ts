@@ -1,12 +1,16 @@
 import { DocumentStatus } from "@generated/client";
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { LocalBlobStorageService } from "@/blob-storage/local-blob-storage.service";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "@/blob-storage/blob-storage.interface";
 import { DatabaseService } from "@/database/database.service";
 import {
   AnalysisResponse,
@@ -30,7 +34,8 @@ export class OcrService {
     _configService: ConfigService,
     private databaseService: DatabaseService,
     private temporalClientService: TemporalClientService,
-    private blobStorage: LocalBlobStorageService,
+    @Inject(BLOB_STORAGE)
+    private blobStorage: BlobStorageInterface,
   ) {}
 
   /**

@@ -6,8 +6,7 @@ interface Dataset {
   name: string;
   description: string | null;
   metadata: Record<string, unknown>;
-  repositoryUrl: string;
-  dvcRemote: string;
+  storagePath: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -33,7 +32,6 @@ interface CreateDatasetDto {
   name: string;
   description?: string;
   metadata?: Record<string, unknown>;
-  repositoryUrl: string;
 }
 
 export const useDatasets = (page = 1, limit = 20) => {

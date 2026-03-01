@@ -49,7 +49,7 @@ test.describe.serial('Dataset Version & Sample Preview UI', () => {
     await expect(page.getByRole('columnheader', { name: /version/i })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: /status/i })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: /documents/i })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: /git revision/i })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: /storage prefix/i })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: /published/i })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: /created/i })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: /actions/i })).toBeVisible();
@@ -291,20 +291,18 @@ test.describe.serial('Dataset Version & Sample Preview UI', () => {
     // May show loading or error if endpoint not implemented
   });
 
-  // Scenario 12: Git Revision Truncation
-  test('should truncate git revision to 8 characters', async ({ page }) => {
-    // Given: Version has a full Git SHA (40 characters)
+  // Scenario 12: Storage Prefix Display
+  test('should display storage prefix in version list', async ({ page }) => {
+    // Given: Version has a storage prefix
     await datasetPage.goto(SEED_DATASET_ID);
 
     // When: Version list is rendered
-    // Then: Git revision is truncated to first 8 characters
-
-    // Seed data has revision "abc123def456" (12 chars) should show as "abc123de" (8 chars)
+    // Then: Storage prefix column is shown
     const versionRow = page.locator(`[data-testid="version-row-${SEED_VERSION_PUBLISHED}"]`);
-    const gitRevisionCell = versionRow.locator('td').nth(3); // Git Revision column
-    const revisionText = await gitRevisionCell.textContent();
+    const storagePrefixCell = versionRow.locator('td').nth(3); // Storage Prefix column
+    const prefixText = await storagePrefixCell.textContent();
 
-    expect(revisionText?.trim().length).toBeLessThanOrEqual(8);
+    expect(prefixText?.trim().length).toBeGreaterThan(0);
   });
 
   // Scenario 14: Upload File Type Validation

@@ -12,7 +12,7 @@ The backend services provide a modular, scalable API for:
 - Azure Document Intelligence custom model training
 - Human-in-the-loop (HITL) review queue and correction tracking
 - Multi-mode authentication (Keycloak SSO + API keys)
-- Blob storage abstraction (local filesystem and Azure Blob Storage)
+- Blob storage abstraction (MinIO/S3 or Azure Blob Storage, switchable via environment variable)
 
 ## Architecture
 
@@ -20,7 +20,7 @@ The backend services provide a modular, scalable API for:
 - **Database**: PostgreSQL with Prisma ORM
 - **Workflow Engine**: Temporal.io for durable, distributed workflows
 - **OCR**: Azure Document Intelligence (formerly Form Recognizer)
-- **Storage**: Pluggable blob storage (local filesystem or Azure Blob Storage)
+- **Storage**: Pluggable blob storage (MinIO/S3 or Azure Blob Storage, selected via `BLOB_STORAGE_PROVIDER` env var)
 - **Authentication**: Keycloak OIDC/SSO + API Key authentication
 - **API Documentation**: Swagger/OpenAPI at `/api`
 
@@ -169,10 +169,12 @@ The backend services provide a modular, scalable API for:
 
 #### `blob-storage/` - Storage Abstraction
 - Pluggable storage interface (`BlobStorageInterface`)
-- Local filesystem implementation (`LocalBlobStorageService`)
-- Azure Blob Storage implementation (`BlobStorageService`)
-- Operations: write, read, exists, delete
-- SAS URL generation for Azure
+- MinIO/S3 implementation (`MinioBlobStorageService`)
+- Azure Blob Storage implementation (`AzureBlobStorageService`)
+- Azure training storage — always Azure, for DI model training (`AzureTrainingStorageService`)
+- Dynamic module with runtime provider selection via `BLOB_STORAGE_PROVIDER`
+- Operations: write, read, exists, delete, list, deleteByPrefix
+- See [docs-md/BLOB_STORAGE.md](../../docs-md/BLOB_STORAGE.md) for full architecture docs
 
 #### `database/` - Database Service
 - Prisma client wrapper
@@ -217,15 +219,21 @@ AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<your-resource>.cognitiveservices.a
 AZURE_DOCUMENT_INTELLIGENCE_API_KEY=<your-api-key>
 AZURE_DOC_INTELLIGENCE_MODELS=prebuilt-layout,prebuilt-document,prebuilt-invoice
 
-# Azure Blob Storage (Optional - for production storage)
+# Azure Blob Storage (for primary storage when BLOB_STORAGE_PROVIDER=azure, and always for training)
 AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=...
 AZURE_STORAGE_ACCOUNT_NAME=<your-account-name>
 AZURE_STORAGE_ACCOUNT_KEY=<your-account-key>
 AZURE_STORAGE_CONTAINER=documents
 AZURE_STORAGE_TRAINING_CONTAINER=training-data
 
-# Local Blob Storage (Development fallback)
-LOCAL_BLOB_STORAGE_PATH=./data/blobs
+# Blob Storage Provider Selection (minio or azure, default: minio)
+BLOB_STORAGE_PROVIDER=minio
+
+# MinIO Configuration (when BLOB_STORAGE_PROVIDER=minio)
+MINIO_ENDPOINT=http://localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_DOCUMENT_BUCKET=document-blobs
 
 # Temporal Workflow Engine
 TEMPORAL_ADDRESS=localhost:7233
@@ -417,8 +425,11 @@ apps/backend-services/
 │   │   └── guards/           # JWT guard
 │   │
 │   ├── blob-storage/         # Storage abstraction
-│   │   ├── blob-storage.service.ts        # Azure Blob implementation
-│   │   └── local-blob-storage.service.ts  # Local filesystem
+│   │   ├── blob-storage.interface.ts      # Interface & injection token
+│   │   ├── blob-storage.module.ts         # Dynamic provider module
+│   │   ├── minio-blob-storage.service.ts  # MinIO/S3 implementation
+│   │   ├── azure-blob-storage.service.ts  # Azure Blob implementation
+│   │   └── azure-training-storage.service.ts # Azure training (always Azure)
 │   │
 │   ├── database/             # Prisma database module
 │   │   └── database.service.ts

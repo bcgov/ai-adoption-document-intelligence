@@ -28,7 +28,6 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArtifactViewer } from "../components/ArtifactViewer";
 import { BaselineThresholdDialog } from "../components/BaselineThresholdDialog";
-import { useProject } from "../hooks/useProjects";
 import { useDefinition } from "../hooks/useDefinitions";
 import {
   useArtifacts,
@@ -104,7 +103,6 @@ export function RunDetailPage() {
     true, // Enable polling
   );
 
-  const { project } = useProject(projectId);
   const { definition } = useDefinition(projectId, run?.definitionId || "");
   const { drillDown } = useDrillDown(projectId, runId || "");
   const { artifacts, total: totalArtifacts } = useArtifacts(
@@ -187,9 +185,6 @@ export function RunDetailPage() {
   const canRerun = run.status === "completed" || run.status === "failed";
   const canEditThresholds = run.isBaseline && run.baselineThresholds && run.baselineThresholds.length > 0;
   const temporalUrl = `http://localhost:8088/namespaces/default/workflows/${run.temporalWorkflowId}`;
-  const mlflowUrl = project?.mlflowExperimentId
-    ? `http://localhost:5000/#/experiments/${project.mlflowExperimentId}/runs/${run.mlflowRunId}`
-    : null;
 
   // All possible artifact types (from schema) - should always be available in filter dropdown
   const allArtifactTypes = [
@@ -436,26 +431,6 @@ export function RunDetailPage() {
                 <Table.Td fw={500}>Duration</Table.Td>
                 <Table.Td>
                   {formatDuration(run.startedAt, run.completedAt)}
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>MLflow Run</Table.Td>
-                <Table.Td>
-                  {mlflowUrl ? (
-                    <Anchor
-                      href={mlflowUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {run.mlflowRunId}{" "}
-                      <IconExternalLink
-                        size={14}
-                        style={{ verticalAlign: "middle" }}
-                      />
-                    </Anchor>
-                  ) : (
-                    <Code>{run.mlflowRunId}</Code>
-                  )}
                 </Table.Td>
               </Table.Tr>
               <Table.Tr>
@@ -828,8 +803,6 @@ export function RunDetailPage() {
       <ArtifactViewer
         artifact={selectedArtifact}
         projectId={projectId}
-        mlflowExperimentId={project?.mlflowExperimentId}
-        mlflowRunId={run?.mlflowRunId}
         onClose={() => setSelectedArtifact(null)}
       />
 

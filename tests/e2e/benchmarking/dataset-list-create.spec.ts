@@ -78,7 +78,7 @@ test.describe('Dataset List & Create UI', () => {
     await expect(datasetsPage.dialogTitle).toBeVisible();
     await expect(datasetsPage.datasetNameInput).toBeVisible();
     await expect(datasetsPage.datasetDescriptionInput).toBeVisible();
-    await expect(datasetsPage.datasetRepositoryUrlInput).toBeVisible();
+    await expect(datasetsPage.datasetStoragePathInput).toBeVisible();
     await expect(datasetsPage.metadataSection).toBeVisible();
 
     // And: Submit and Cancel buttons are present
@@ -99,13 +99,13 @@ test.describe('Dataset List & Create UI', () => {
 
     const uniqueName = `Test Dataset ${Date.now()}`;
     const description = 'Test description for E2E testing';
-    const repositoryUrl = '~/test-datasets/e2e-test';
+    const storagePath = '~/test-datasets/e2e-test';
 
-    // When: User fills in name, description, repositoryUrl and submits
+    // When: User fills in name, description, storagePath and submits
     await datasetsPage.createDataset({
       name: uniqueName,
       description,
-      repositoryUrl,
+      storagePath,
     });
 
     // Then: Dialog closes
@@ -135,7 +135,7 @@ test.describe('Dataset List & Create UI', () => {
     await datasetsPage.fillDatasetForm({
       name: uniqueName,
       description: 'Dataset with metadata',
-      repositoryUrl: '~/test-datasets/metadata-test',
+      storagePath: '~/test-datasets/metadata-test',
       metadata: {
         domain: 'invoices',
         language: 'en',
@@ -166,7 +166,7 @@ test.describe('Dataset List & Create UI', () => {
     await datasetsPage.openCreateDialog();
 
     // When: User leaves name field empty and clicks submit
-    await datasetsPage.datasetRepositoryUrlInput.fill('~/test-datasets/no-name');
+    await datasetsPage.datasetStoragePathInput.fill('~/test-datasets/no-name');
     await datasetsPage.submitCreateForm();
 
     // Then: Error message appears on the name field
@@ -185,12 +185,12 @@ test.describe('Dataset List & Create UI', () => {
     await datasetsPage.goto();
     await datasetsPage.openCreateDialog();
 
-    // When: User fills in name but leaves repositoryUrl empty and submits
+    // When: User fills in name but leaves storagePath empty and submits
     await datasetsPage.datasetNameInput.fill('Test Dataset');
     await datasetsPage.submitCreateForm();
 
-    // Then: Error message appears for repository URL field
-    await expect(datasetsPage.repositoryUrlErrorMessage).toBeVisible();
+    // Then: Error message appears for storage path field
+    await expect(datasetsPage.storagePathErrorMessage).toBeVisible();
 
     // And: Dialog remains open (form does not submit)
     await expect(datasetsPage.dialogTitle).toBeVisible();
@@ -276,11 +276,11 @@ test.describe('Dataset List & Create UI', () => {
 
     const uniqueName = `Tilde Path Dataset ${Date.now()}`;
 
-    // When: User enters repositoryUrl as ~/Github/datasets-repo and submits
+    // When: User enters storagePath as ~/Github/datasets-repo and submits
     await datasetsPage.createDataset({
       name: uniqueName,
       description: 'Dataset with tilde path',
-      repositoryUrl: '~/Github/datasets-repo',
+      storagePath: '~/Github/datasets-repo',
     });
 
     // Then: Dataset is created successfully
@@ -298,11 +298,11 @@ test.describe('Dataset List & Create UI', () => {
 
     const uniqueName = `File URL Dataset ${Date.now()}`;
 
-    // When: User enters repositoryUrl as file://~/Github/datasets-repo and submits
+    // When: User enters storagePath as file://~/Github/datasets-repo and submits
     await datasetsPage.createDataset({
       name: uniqueName,
       description: 'Dataset with file:// URL',
-      repositoryUrl: 'file://~/Github/datasets-repo',
+      storagePath: 'file://~/Github/datasets-repo',
     });
 
     // Then: Dataset is created successfully
@@ -320,11 +320,11 @@ test.describe('Dataset List & Create UI', () => {
 
     const uniqueName = `Remote Dataset ${Date.now()}`;
 
-    // When: User enters repositoryUrl as file:// URL and submits
+    // When: User enters storagePath as file:// URL and submits
     await datasetsPage.createDataset({
       name: uniqueName,
       description: 'Dataset with remote repository',
-      repositoryUrl: 'file://~/test-datasets/remote-test',
+      storagePath: 'file://~/test-datasets/remote-test',
     });
 
     // Then: Dataset is created successfully
@@ -342,7 +342,7 @@ test.describe('Dataset List & Create UI', () => {
     await datasetsPage.openCreateDialog();
 
     await datasetsPage.datasetNameInput.fill('Metadata Test');
-    await datasetsPage.datasetRepositoryUrlInput.fill('~/test');
+    await datasetsPage.datasetStoragePathInput.fill('~/test');
 
     // When: User adds metadata and then removes it
     await datasetsPage.addMetadata('test-key', 'test-value');
@@ -468,7 +468,7 @@ test.describe('Dataset List - Empty State', () => {
     await datasetsPage.fillDatasetForm({
       name: 'First Dataset',
       description: 'Created from empty state',
-      repositoryUrl: '~/first-dataset',
+      storagePath: '~/first-dataset',
     });
     await datasetsPage.submitCreateForm();
 

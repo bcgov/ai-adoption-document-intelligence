@@ -7,7 +7,7 @@ import { ArtifactViewerDrawer } from '../pages/ArtifactViewerDrawer';
  * E2E Tests for US-039: In-App Artifact Viewer
  *
  * Tests cover viewing different artifact types (JSON, image, text, unsupported),
- * downloading artifacts, and opening artifacts in MLflow.
+ * downloading artifacts.
  *
  * NOTE: These tests focus on currently implemented features only.
  * Unimplemented features (PDF viewer, diff viewer, zoom/pan, etc.) are not tested.
@@ -376,28 +376,6 @@ test.describe('Artifact Viewer - Actions', () => {
     // ]);
   });
 
-  test('Scenario 8: MLflow Deep-Link Button', async ({ page }) => {
-    // REQ-039-S6: Deep-links to MLflow artifacts
-
-    // Given: Artifact viewer is open for a run with MLflow data
-    const jsonRow = page.locator('[data-testid^="artifact-row-"]').first();
-    await jsonRow.click();
-    await artifactViewer.waitForDrawerToOpen();
-
-    // Then: MLflow button is visible (run has mlflowExperimentId and mlflowRunId)
-    await expect(artifactViewer.openMlflowButton).toBeVisible();
-    await expect(artifactViewer.openMlflowButton).toContainText('Open in MLflow');
-
-    // Then: Button has correct link attributes
-    await expect(artifactViewer.openMlflowButton).toHaveAttribute('target', '_blank');
-    await expect(artifactViewer.openMlflowButton).toHaveAttribute('rel', 'noopener noreferrer');
-
-    // Then: Link contains MLflow URL format
-    const href = await artifactViewer.openMlflowButton.getAttribute('href');
-    expect(href).toContain('experiments');
-    expect(href).toContain('runs');
-    expect(href).toContain('artifacts');
-  });
 });
 
 test.describe('Artifact Viewer - Error Handling', () => {

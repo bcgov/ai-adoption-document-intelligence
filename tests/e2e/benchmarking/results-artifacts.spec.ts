@@ -64,7 +64,7 @@ test.describe('US-031 - Results Summary: Artifacts', () => {
   });
 
   test('Scenario 5: artifacts should have action buttons', async ({ page }) => {
-    // REQ US-031: Action buttons: View, Download, Open in MLflow
+    // REQ US-031: Action buttons: View, Download
     // TODO: No artifacts in seed data
 
     // Given: Run with artifacts

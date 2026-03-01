@@ -187,23 +187,6 @@ test.describe('Regression Report - Display', () => {
     await expect(regressionPage.runInfoTable).toContainText('seed-run-completed-001');
   });
 
-  // REQ US-037 Scenario 3: MLflow Link in Run Info
-  test('should display MLflow link when available', async () => {
-    // Given: Run has MLflow experiment data
-    await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
-
-    // When: Run information is displayed
-    await expect(regressionPage.runInfoTable).toBeVisible();
-
-    // Then: MLflow link is shown (if MLflow is configured)
-    // Note: Link visibility depends on MLflow configuration
-    const mlflowLinkCount = await regressionPage.mlflowLink.count();
-    if (mlflowLinkCount > 0) {
-      await expect(regressionPage.mlflowLink).toBeVisible();
-      await expect(regressionPage.mlflowLink).toHaveAttribute('href', /mlflow/);
-    }
-  });
-
   // REQ US-037 Scenario 1: Navigation Back to Run
   test('should provide navigation back to run detail', async () => {
     // Given: User is viewing regression report

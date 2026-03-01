@@ -1,7 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { DatabaseService } from "../database/database.service";
 import { AzureService } from "./azure.service";
-import { BlobService } from "./blob.service";
+import { AzureTrainingStorageService } from "../blob-storage/azure-training-storage.service";
 import { ClassifierService } from "./classifier.service";
 import { ClassifierPollerService } from "./classifier-poller.service";
 import { ClassifierStatus } from "./dto/classifier-constants.dto";
@@ -39,7 +39,7 @@ describe("ClassifierPollerService", () => {
         ClassifierPollerService,
         { provide: DatabaseService, useValue: mockDatabaseService },
         { provide: AzureService, useValue: mockAzureService },
-        { provide: BlobService, useValue: mockBlobService },
+        { provide: AzureTrainingStorageService, useValue: mockBlobService },
         { provide: ClassifierService, useValue: mockClassifierService },
       ],
     }).compile();

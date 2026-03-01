@@ -56,10 +56,6 @@ RUN mkdir -p /.npm && \
 RUN npm install --omit=dev && \
     npm cache clean --force
 
-# Install git and DVC for dataset version control
-RUN apk add --no-cache git python3 py3-pip && \
-    pip3 install --no-cache-dir dvc[s3]
-
 # Copy Prisma schema and migrations from builder stage (needed for migrations)
 COPY --from=builder /app/shared/prisma ./shared/prisma
 

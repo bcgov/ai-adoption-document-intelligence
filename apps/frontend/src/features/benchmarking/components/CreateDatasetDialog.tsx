@@ -18,7 +18,6 @@ interface CreateDatasetDialogProps {
     name: string;
     description?: string;
     metadata?: Record<string, unknown>;
-    repositoryUrl: string;
   }) => void;
   isCreating: boolean;
   createError: Error | null;
@@ -35,23 +34,19 @@ export function CreateDatasetDialog({
 }: CreateDatasetDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [repositoryUrl, setRepositoryUrl] = useState("");
   const [metadataKey, setMetadataKey] = useState("");
   const [metadataValue, setMetadataValue] = useState("");
   const [metadata, setMetadata] = useState<Record<string, string>>({});
   const [nameError, setNameError] = useState("");
-  const [repositoryUrlError, setRepositoryUrlError] = useState("");
   const wasCreating = useRef(false);
 
   const handleClose = () => {
     setName("");
     setDescription("");
-    setRepositoryUrl("");
     setMetadataKey("");
     setMetadataValue("");
     setMetadata({});
     setNameError("");
-    setRepositoryUrlError("");
     onResetError();
     onClose();
   };
@@ -62,12 +57,10 @@ export function CreateDatasetDialog({
       // Clear form state
       setName("");
       setDescription("");
-      setRepositoryUrl("");
       setMetadataKey("");
       setMetadataValue("");
       setMetadata({});
       setNameError("");
-      setRepositoryUrlError("");
       onResetError();
       // Close dialog
       onClose();
@@ -99,13 +92,6 @@ export function CreateDatasetDialog({
       setNameError("");
     }
 
-    if (!repositoryUrl.trim()) {
-      setRepositoryUrlError("Repository URL is required");
-      hasError = true;
-    } else {
-      setRepositoryUrlError("");
-    }
-
     if (hasError) {
       return;
     }
@@ -114,7 +100,6 @@ export function CreateDatasetDialog({
       name: name.trim(),
       description: description.trim() || undefined,
       metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
-      repositoryUrl: repositoryUrl.trim(),
     });
 
     // Don't close immediately - let the useEffect handle closing after mutation succeeds
@@ -164,24 +149,6 @@ export function CreateDatasetDialog({
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
           data-testid="dataset-description-input"
-        />
-
-        <TextInput
-          label="Repository URL"
-          placeholder="Enter DVC repository URL"
-          value={repositoryUrl}
-          onChange={(e) => {
-            setRepositoryUrl(e.target.value);
-            if (e.target.value.trim()) {
-              setRepositoryUrlError("");
-            }
-            if (createError) {
-              onResetError();
-            }
-          }}
-          error={repositoryUrlError}
-          required
-          data-testid="dataset-repository-url-input"
         />
 
         <Stack gap="xs" data-testid="dataset-metadata-section">

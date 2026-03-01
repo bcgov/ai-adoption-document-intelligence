@@ -31,16 +31,9 @@ import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { CreateProjectDto } from "./dto";
-import { MLflowClientService } from "./mlflow-client.service";
 
 describe("BenchmarkProjectService", () => {
   let service: BenchmarkProjectService;
-  let mlflowClient: MLflowClientService;
-
-  const mockMlflowClient = {
-    createExperiment: jest.fn(),
-    deleteExperiment: jest.fn(),
-  };
 
   const mockConfigService = {
     get: jest.fn((key: string, defaultValue?: string) => {
@@ -57,15 +50,10 @@ describe("BenchmarkProjectService", () => {
           provide: ConfigService,
           useValue: mockConfigService,
         },
-        {
-          provide: MLflowClientService,
-          useValue: mockMlflowClient,
-        },
       ],
     }).compile();
 
     service = module.get<BenchmarkProjectService>(BenchmarkProjectService);
-    mlflowClient = module.get<MLflowClientService>(MLflowClientService);
   });
 
   afterEach(() => {
@@ -76,19 +64,17 @@ describe("BenchmarkProjectService", () => {
   // Scenario 1: Create a benchmark project
   // -----------------------------------------------------------------------
   describe("createProject", () => {
-    it("creates a project and MLflow experiment successfully", async () => {
+    it("creates a project successfully", async () => {
       const createDto: CreateProjectDto = {
         name: "Test Project",
         description: "Test description",
         createdBy: "user@example.com",
       };
 
-      const mockMlflowExperimentId = "mlflow-exp-123";
       const mockProject = {
         id: "project-123",
         name: createDto.name,
         description: createDto.description,
-        mlflowExperimentId: mockMlflowExperimentId,
         createdBy: createDto.createdBy,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -96,21 +82,14 @@ describe("BenchmarkProjectService", () => {
         benchmarkRuns: [],
       };
 
-      mockMlflowClient.createExperiment.mockResolvedValue(
-        mockMlflowExperimentId,
-      );
       mockPrismaClient.benchmarkProject.create.mockResolvedValue(mockProject);
 
       const result = await service.createProject(createDto);
 
-      expect(mockMlflowClient.createExperiment).toHaveBeenCalledWith(
-        createDto.name,
-      );
       expect(mockPrismaClient.benchmarkProject.create).toHaveBeenCalledWith({
         data: {
           name: createDto.name,
           description: createDto.description,
-          mlflowExperimentId: mockMlflowExperimentId,
           createdBy: createDto.createdBy,
         },
         include: expect.any(Object),
@@ -118,7 +97,6 @@ describe("BenchmarkProjectService", () => {
 
       expect(result.id).toBe(mockProject.id);
       expect(result.name).toBe(mockProject.name);
-      expect(result.mlflowExperimentId).toBe(mockMlflowExperimentId);
       expect(result.definitions).toEqual([]);
       expect(result.recentRuns).toEqual([]);
     });
@@ -129,12 +107,10 @@ describe("BenchmarkProjectService", () => {
         createdBy: "user@example.com",
       };
 
-      const mockMlflowExperimentId = "mlflow-exp-123";
       const mockProject = {
         id: "project-123",
         name: createDto.name,
         description: null,
-        mlflowExperimentId: mockMlflowExperimentId,
         createdBy: createDto.createdBy,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -142,9 +118,6 @@ describe("BenchmarkProjectService", () => {
         benchmarkRuns: [],
       };
 
-      mockMlflowClient.createExperiment.mockResolvedValue(
-        mockMlflowExperimentId,
-      );
       mockPrismaClient.benchmarkProject.create.mockResolvedValue(mockProject);
 
       const result = await service.createProject(createDto);
@@ -153,7 +126,6 @@ describe("BenchmarkProjectService", () => {
         data: {
           name: createDto.name,
           description: null,
-          mlflowExperimentId: mockMlflowExperimentId,
           createdBy: createDto.createdBy,
         },
         include: expect.any(Object),
@@ -162,55 +134,26 @@ describe("BenchmarkProjectService", () => {
       expect(result.description).toBeNull();
     });
 
-    // Scenario 6: MLflow experiment creation failure is handled
-    it("throws error when MLflow experiment creation fails", async () => {
-      const createDto: CreateProjectDto = {
-        name: "Test Project",
-        createdBy: "user@example.com",
-      };
-
-      const mlflowError = new Error("MLflow server unreachable");
-      mockMlflowClient.createExperiment.mockRejectedValue(mlflowError);
-
-      await expect(service.createProject(createDto)).rejects.toThrow(
-        "Failed to create MLflow experiment",
-      );
-
-      // Ensure no project was created in Postgres
-      expect(mockPrismaClient.benchmarkProject.create).not.toHaveBeenCalled();
-    });
-
-    it("throws ConflictException when MLflow experiment name already exists", async () => {
+    it("throws ConflictException when project name already exists", async () => {
       const createDto: CreateProjectDto = {
         name: "Duplicate Project",
         createdBy: "user@example.com",
       };
 
-      const mlflowError = new Error(
-        'Failed to create MLflow experiment "Duplicate Project": RESOURCE_ALREADY_EXISTS',
-      );
-      mockMlflowClient.createExperiment.mockRejectedValue(mlflowError);
+      const prismaError = new Error("Unique constraint failed") as Error & { code: string };
+      prismaError.code = "P2002";
+      mockPrismaClient.benchmarkProject.create.mockRejectedValue(prismaError);
 
       await expect(service.createProject(createDto)).rejects.toThrow(
         ConflictException,
       );
-      await expect(service.createProject(createDto)).rejects.toThrow(
-        'A project with the name "Duplicate Project" already exists in MLflow',
-      );
-
-      expect(mockPrismaClient.benchmarkProject.create).not.toHaveBeenCalled();
     });
 
-    it("handles database error after MLflow creation", async () => {
+    it("handles database error", async () => {
       const createDto: CreateProjectDto = {
         name: "Test Project",
         createdBy: "user@example.com",
       };
-
-      const mockMlflowExperimentId = "mlflow-exp-123";
-      mockMlflowClient.createExperiment.mockResolvedValue(
-        mockMlflowExperimentId,
-      );
 
       const dbError = new Error("Database connection failed");
       mockPrismaClient.benchmarkProject.create.mockRejectedValue(dbError);
@@ -218,8 +161,6 @@ describe("BenchmarkProjectService", () => {
       await expect(service.createProject(createDto)).rejects.toThrow(
         "Database connection failed",
       );
-
-      expect(mockMlflowClient.createExperiment).toHaveBeenCalled();
     });
   });
 
@@ -233,7 +174,6 @@ describe("BenchmarkProjectService", () => {
           id: "project-1",
           name: "Project 1",
           description: "Description 1",
-          mlflowExperimentId: "exp-1",
           createdBy: "user1@example.com",
           createdAt: new Date("2024-01-01"),
           updatedAt: new Date("2024-01-02"),
@@ -246,7 +186,6 @@ describe("BenchmarkProjectService", () => {
           id: "project-2",
           name: "Project 2",
           description: null,
-          mlflowExperimentId: "exp-2",
           createdBy: "user2@example.com",
           createdAt: new Date("2024-01-03"),
           updatedAt: new Date("2024-01-04"),
@@ -307,7 +246,6 @@ describe("BenchmarkProjectService", () => {
         id: projectId,
         name: "Test Project",
         description: "Test description",
-        mlflowExperimentId: "exp-123",
         createdBy: "user@example.com",
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-02"),
@@ -333,7 +271,6 @@ describe("BenchmarkProjectService", () => {
           {
             id: "run-1",
             status: "COMPLETED",
-            mlflowRunId: "mlflow-run-1",
             temporalWorkflowId: "temporal-wf-1",
             startedAt: new Date("2024-01-01T10:00:00Z"),
             completedAt: new Date("2024-01-01T10:30:00Z"),
@@ -344,7 +281,6 @@ describe("BenchmarkProjectService", () => {
           {
             id: "run-2",
             status: "RUNNING",
-            mlflowRunId: "mlflow-run-2",
             temporalWorkflowId: "temporal-wf-2",
             startedAt: new Date("2024-01-02T11:00:00Z"),
             completedAt: null,
@@ -406,15 +342,12 @@ describe("BenchmarkProjectService", () => {
       mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue({
         id: projectId,
         name: "Test Project",
-        mlflowExperimentId: "exp-123",
         benchmarkRuns: [],
       });
-      mockMlflowClient.deleteExperiment.mockResolvedValue(undefined);
       mockPrismaClient.benchmarkProject.delete.mockResolvedValue(undefined);
 
       await service.deleteProject(projectId);
 
-      expect(mockMlflowClient.deleteExperiment).toHaveBeenCalledWith("exp-123");
       expect(mockPrismaClient.benchmarkProject.delete).toHaveBeenCalledWith({
         where: { id: projectId },
       });
@@ -432,33 +365,12 @@ describe("BenchmarkProjectService", () => {
       mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue({
         id: "project-123",
         name: "Test Project",
-        mlflowExperimentId: "exp-123",
         benchmarkRuns: [{ id: "run-1", status: "running" }],
       });
 
       await expect(service.deleteProject("project-123")).rejects.toThrow(
         ConflictException,
       );
-    });
-
-    it("still deletes from database when MLflow deletion fails", async () => {
-      const projectId = "project-123";
-      mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue({
-        id: projectId,
-        name: "Test Project",
-        mlflowExperimentId: "exp-123",
-        benchmarkRuns: [],
-      });
-      mockMlflowClient.deleteExperiment.mockRejectedValue(
-        new Error("MLflow unavailable"),
-      );
-      mockPrismaClient.benchmarkProject.delete.mockResolvedValue(undefined);
-
-      await service.deleteProject(projectId);
-
-      expect(mockPrismaClient.benchmarkProject.delete).toHaveBeenCalledWith({
-        where: { id: projectId },
-      });
     });
   });
 });

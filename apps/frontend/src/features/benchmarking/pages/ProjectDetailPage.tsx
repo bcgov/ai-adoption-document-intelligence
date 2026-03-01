@@ -147,7 +147,6 @@ export function ProjectDetailPage() {
       evaluatorType: definition.evaluatorType,
       evaluatorConfig: definition.evaluatorConfig,
       runtimeSettings: definition.runtimeSettings,
-      artifactPolicy: definition.artifactPolicy,
     });
     setDetailDialogOpened(false);
     setEditDialogOpened(true);
@@ -278,9 +277,6 @@ export function ProjectDetailPage() {
             {project.description}
           </Text>
         )}
-        <Text c="dimmed" size="xs" data-testid="mlflow-experiment-id">
-          MLflow Experiment: {project.mlflowExperimentId}
-        </Text>
       </Stack>
 
       <Card>
@@ -677,7 +673,7 @@ export function ProjectDetailPage() {
           )}
           <Text>
             Are you sure you want to delete project &quot;{project.name}&quot;? All
-            definitions, runs, and the associated MLflow experiment will be permanently deleted.
+            definitions and runs will be permanently deleted.
             This action cannot be undone.
           </Text>
           <Group justify="flex-end" gap="xs">

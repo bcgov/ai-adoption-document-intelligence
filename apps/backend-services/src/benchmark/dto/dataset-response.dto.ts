@@ -3,8 +3,7 @@ export class DatasetResponseDto {
   name: string;
   description: string | null;
   metadata: Record<string, unknown>;
-  repositoryUrl: string;
-  dvcRemote: string;
+  storagePath: string;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;

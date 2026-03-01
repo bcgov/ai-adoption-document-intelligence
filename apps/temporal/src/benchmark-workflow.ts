@@ -6,9 +6,8 @@
  * 2. Fan out per document execution
  * 3. Evaluate each sample
  * 4. Aggregate metrics
- * 5. Log to MLflow
- * 6. Update BenchmarkRun status
- * 7. Cleanup temporary files
+ * 5. Update BenchmarkRun status
+ * 6. Cleanup temporary files
  *
  * See feature-docs/003-benchmarking-system/user-stories/US-022-benchmark-run-workflow.md
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 4.2, 4.4
@@ -92,15 +91,6 @@ type BenchmarkActivities = {
     };
   }>;
 
-  'benchmark.logToMlflow': (input: {
-    mlflowRunId: string;
-    params: Record<string, string>;
-    metrics: Record<string, number>;
-    tags: Record<string, string>;
-    artifactPaths?: string[];
-    status: 'FINISHED' | 'FAILED';
-  }) => Promise<void>;
-
   'benchmark.cleanup': (input: {
     materializedDatasetPaths?: string[];
     temporaryOutputPaths?: string[];
@@ -162,17 +152,8 @@ export interface BenchmarkRunWorkflowInput {
   /** Benchmark run ID */
   runId: string;
 
-  /** Benchmark definition ID */
-  definitionId: string;
-
-  /** Benchmark project ID */
-  projectId: string;
-
   /** Dataset version ID to materialize */
   datasetVersionId: string;
-
-  /** Git revision for dataset versioning */
-  gitRevision: string | null;
 
   /** Split to run (e.g., 'test', 'validation') */
   splitId?: string;
@@ -195,18 +176,6 @@ export interface BenchmarkRunWorkflowInput {
   /** Evaluator configuration */
   evaluatorConfig: Record<string, unknown>;
 
-  /** Hash of evaluator config */
-  evaluatorConfigHash: string;
-
-  /** MLflow run ID for logging */
-  mlflowRunId: string;
-
-  /** Worker image digest */
-  workerImageDigest?: string;
-
-  /** Worker git SHA */
-  workerGitSha: string;
-
   /** Runtime settings */
   runtimeSettings: {
     maxParallelDocuments?: number;
@@ -221,16 +190,13 @@ export interface BenchmarkRunWorkflowInput {
       maximumAttempts?: number;
     };
   };
-
-  /** Artifact policy ('full', 'failures_only', 'sampled') */
-  artifactPolicy: string;
 }
 
 export interface BenchmarkRunWorkflowResult {
   /** Final status */
   status: 'completed' | 'failed' | 'cancelled';
 
-  /** Flat metrics for MLflow (metric_name.mean, metric_name.median, etc.) */
+  /** Flat metrics (metric_name.mean, metric_name.median, etc.) */
   metrics: Record<string, number>;
 
   /** Full aggregation result for storage */
@@ -259,7 +225,6 @@ export interface BenchmarkRunProgress {
     | 'executing'
     | 'evaluating'
     | 'aggregating'
-    | 'logging'
     | 'cleanup'
     | 'completed';
 
@@ -292,7 +257,7 @@ function joinPath(...segments: string[]): string {
 }
 
 /**
- * Flatten AggregatedMetrics into a flat Record<string, number> for MLflow.
+ * Flatten AggregatedMetrics into a flat Record<string, number>.
  * Produces keys like: pass_rate, total_samples, metric_name.mean, metric_name.median, etc.
  */
 function flattenMetrics(overall: {
@@ -421,7 +386,7 @@ function extractPredictionFromCtx(
  * Benchmark Run Workflow
  *
  * Orchestrates dataset materialization, per-document execution,
- * evaluation, aggregation, MLflow logging, and cleanup.
+ * evaluation, aggregation, and cleanup.
  */
 export async function benchmarkRunWorkflow(
   input: BenchmarkRunWorkflowInput,
@@ -450,22 +415,14 @@ export async function benchmarkRunWorkflow(
 
   const {
     runId,
-    definitionId,
-    projectId,
     datasetVersionId,
-    gitRevision,
     splitId,
     sampleIds,
     workflowConfig,
     workflowConfigHash,
     evaluatorType,
     evaluatorConfig,
-    evaluatorConfigHash,
-    mlflowRunId,
-    workerImageDigest,
-    workerGitSha,
     runtimeSettings,
-    artifactPolicy,
   } = input;
 
   // Create activity proxy with configurable timeouts and retries (US-023 Scenario 4 & 5)
@@ -759,61 +716,7 @@ export async function benchmarkRunWorkflow(
     };
 
     // ---------------------------------------------------------------------------
-    // Phase 5: Log to MLflow
-    // ---------------------------------------------------------------------------
-    currentPhase = 'logging';
-
-    // Build params (Section 6.3 required params)
-    const params: Record<string, string> = {
-      dataset_version_id: datasetVersionId,
-      dataset_git_revision: gitRevision,
-      workflow_config_hash: workflowConfigHash,
-      evaluator_type: evaluatorType,
-      evaluator_config_hash: evaluatorConfigHash,
-    };
-
-    // Build tags (Section 6.3 required tags)
-    const tags: Record<string, string> = {
-      worker_git_sha: workerGitSha,
-      benchmark_run_id: runId,
-      benchmark_definition_id: definitionId,
-      benchmark_project_id: projectId,
-    };
-
-    if (workerImageDigest) {
-      tags.worker_image_digest = workerImageDigest;
-    }
-
-    // Collect artifacts based on policy
-    const artifactPaths: string[] = [];
-    if (artifactPolicy === 'full') {
-      // Upload all outputs
-      artifactPaths.push(...outputPaths);
-    } else if (artifactPolicy === 'failures_only') {
-      // Upload only failed sample outputs
-      const failedSampleIds = evaluationResults
-        .filter((r) => !r.pass)
-        .map((r) => r.sampleId);
-      const failedOutputs = executionOutputs.filter((o) =>
-        failedSampleIds.includes(o.sampleId),
-      );
-      for (const output of failedOutputs) {
-        artifactPaths.push(...output.outputPaths);
-      }
-    }
-    // For 'sampled', we could implement sampling logic here
-
-    await customActivities['benchmark.logToMlflow']({
-      mlflowRunId,
-      params,
-      metrics: flatMetrics,
-      tags,
-      artifactPaths,
-      status: 'FINISHED',
-    });
-
-    // ---------------------------------------------------------------------------
-    // Phase 6: Update BenchmarkRun Status
+    // Phase 5: Update BenchmarkRun Status
     // ---------------------------------------------------------------------------
     await customActivities['benchmark.updateRunStatus']({
       runId,
@@ -823,7 +726,7 @@ export async function benchmarkRunWorkflow(
     });
 
     // ---------------------------------------------------------------------------
-    // Phase 6a: Compare Against Baseline
+    // Phase 5a: Compare Against Baseline
     // ---------------------------------------------------------------------------
     try {
       await customActivities['benchmark.compareAgainstBaseline']({
@@ -843,7 +746,7 @@ export async function benchmarkRunWorkflow(
     }
 
     // ---------------------------------------------------------------------------
-    // Phase 7: Cleanup
+    // Phase 6: Cleanup
     // ---------------------------------------------------------------------------
     currentPhase = 'cleanup';
 
@@ -906,39 +809,6 @@ export async function benchmarkRunWorkflow(
         temporaryOutputPaths: outputPaths,
         preserveCachedDatasets: true,
       });
-    }
-
-    // Log failure to MLflow
-    try {
-      const params: Record<string, string> = {
-        dataset_version_id: datasetVersionId,
-        dataset_git_revision: gitRevision,
-        workflow_config_hash: workflowConfigHash,
-        evaluator_type: evaluatorType,
-        evaluator_config_hash: evaluatorConfigHash,
-      };
-
-      const tags: Record<string, string> = {
-        worker_git_sha: workerGitSha,
-        benchmark_run_id: runId,
-        benchmark_definition_id: definitionId,
-        benchmark_project_id: projectId,
-      };
-
-      if (workerImageDigest) {
-        tags.worker_image_digest = workerImageDigest;
-      }
-
-      await customActivities['benchmark.logToMlflow']({
-        mlflowRunId,
-        params,
-        metrics: flatMetrics,
-        tags,
-        status: 'FAILED',
-      });
-    } catch (mlflowError) {
-      // Log MLflow error but don't fail the workflow further
-      console.error('Failed to log failure to MLflow:', mlflowError);
     }
 
     // Update run status

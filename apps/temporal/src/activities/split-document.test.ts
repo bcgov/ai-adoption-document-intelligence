@@ -12,6 +12,17 @@ jest.mock('fs/promises', () => ({
   mkdir: jest.fn(),
   mkdtemp: jest.fn(),
   rm: jest.fn(),
+  writeFile: jest.fn().mockResolvedValue(undefined),
+  readFile: jest.fn().mockResolvedValue(Buffer.from('')),
+}));
+
+const mockBlobRead = jest.fn();
+const mockBlobWrite = jest.fn();
+jest.mock('../blob-storage/blob-storage-client', () => ({
+  getBlobStorageClient: () => ({
+    read: mockBlobRead,
+    write: mockBlobWrite,
+  }),
 }));
 
 const execFileMock = execFile as unknown as jest.Mock;
@@ -27,7 +38,10 @@ describe('splitDocument activity', () => {
     mkdirMock.mockReset();
     mkdtempMock.mockReset();
     rmMock.mockReset();
-    process.env.LOCAL_BLOB_STORAGE_PATH = '/tmp/blobs';
+    mockBlobRead.mockReset();
+    mockBlobWrite.mockReset();
+    mockBlobRead.mockResolvedValue(Buffer.from('%PDF-1.4 test content'));
+    mockBlobWrite.mockResolvedValue(undefined);
     accessMock.mockResolvedValue(undefined);
     mkdtempMock.mockResolvedValue('/tmp/split-document-test');
     rmMock.mockResolvedValue(undefined);

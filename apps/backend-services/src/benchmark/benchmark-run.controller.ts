@@ -7,31 +7,24 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 11.2
  */
 
-import { BenchmarkArtifactType } from "@generated/client";
 import {
   Body,
   Controller,
   Delete,
   Get,
-  Header,
   HttpCode,
   HttpStatus,
   Logger,
   Param,
   Post,
   Query,
-  Res,
-  StreamableFile,
 } from "@nestjs/common";
-import { Response } from "express";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
-import { BenchmarkArtifactService } from "./benchmark-artifact.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import {
-  ArtifactListResponseDto,
   CreateRunDto,
   DrillDownResponseDto,
   PerSampleResultsResponseDto,
@@ -47,7 +40,6 @@ export class BenchmarkRunController {
 
   constructor(
     private readonly benchmarkRunService: BenchmarkRunService,
-    private readonly benchmarkArtifactService: BenchmarkArtifactService,
   ) {}
 
   /**
@@ -184,68 +176,6 @@ export class BenchmarkRunController {
       page,
       limit,
     );
-  }
-
-  /**
-   * List artifacts for a benchmark run with optional type filter
-   *
-   * GET /api/benchmark/projects/:projectId/runs/:runId/artifacts
-   * Query params: type (optional) - filter by BenchmarkArtifactType
-   */
-  @Get("runs/:runId/artifacts")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
-  async listArtifacts(
-    @Param("projectId") projectId: string,
-    @Param("runId") runId: string,
-    @Query("type") type?: BenchmarkArtifactType,
-  ): Promise<ArtifactListResponseDto> {
-    this.logger.log(
-      `GET /api/benchmark/projects/${projectId}/runs/${runId}/artifacts${type ? `?type=${type}` : ""}`,
-    );
-    return this.benchmarkArtifactService.listArtifacts(projectId, runId, type);
-  }
-
-  /**
-   * Get artifact content for viewing/downloading
-   *
-   * GET /api/benchmark/projects/:projectId/runs/:runId/artifacts/:artifactId/content
-   */
-  @Get("runs/:runId/artifacts/:artifactId/content")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
-  async getArtifactContent(
-    @Param("projectId") projectId: string,
-    @Param("runId") runId: string,
-    @Param("artifactId") artifactId: string,
-    @Res() res: Response,
-  ): Promise<void> {
-    this.logger.log(
-      `GET /api/benchmark/projects/${projectId}/runs/${runId}/artifacts/${artifactId}/content`,
-    );
-
-    const content = await this.benchmarkArtifactService.getArtifactContent(
-      projectId,
-      runId,
-      artifactId,
-    );
-
-    // Get artifact metadata to set proper content type
-    const artifacts = await this.benchmarkArtifactService.listArtifacts(
-      projectId,
-      runId,
-    );
-    const artifact = artifacts.artifacts.find((a) => a.id === artifactId);
-
-    if (artifact) {
-      res.setHeader("Content-Type", artifact.mimeType);
-      res.setHeader(
-        "Content-Disposition",
-        `inline; filename="${artifact.path.split("/").pop()}"`,
-      );
-    }
-
-    res.send(content);
   }
 
   /**

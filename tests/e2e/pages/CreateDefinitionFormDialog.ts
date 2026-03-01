@@ -27,11 +27,6 @@ export class CreateDefinitionFormDialog {
   readonly productionQueueNo: Locator;
   readonly productionQueueYes: Locator;
 
-  // Artifact policy
-  readonly artifactPolicyFull: Locator;
-  readonly artifactPolicyFailures: Locator;
-  readonly artifactPolicySampled: Locator;
-
   // Action buttons
   readonly cancelBtn: Locator;
   readonly createBtn: Locator;
@@ -62,11 +57,6 @@ export class CreateDefinitionFormDialog {
     this.perDocTimeoutInput = page.locator('[data-testid="per-document-timeout-input"]');
     this.productionQueueNo = page.locator('[data-testid="production-queue-no"]');
     this.productionQueueYes = page.locator('[data-testid="production-queue-yes"]');
-
-    // Artifact policy
-    this.artifactPolicyFull = page.locator('[data-testid="artifact-policy-full"]');
-    this.artifactPolicyFailures = page.locator('[data-testid="artifact-policy-failures"]');
-    this.artifactPolicySampled = page.locator('[data-testid="artifact-policy-sampled"]');
 
     // Action buttons
     this.cancelBtn = page.locator('[data-testid="cancel-definition-btn"]');
@@ -126,20 +116,6 @@ export class CreateDefinitionFormDialog {
     }
   }
 
-  async selectArtifactPolicy(policy: 'full' | 'failures' | 'sampled') {
-    switch (policy) {
-      case 'full':
-        await this.artifactPolicyFull.click();
-        break;
-      case 'failures':
-        await this.artifactPolicyFailures.click();
-        break;
-      case 'sampled':
-        await this.artifactPolicySampled.click();
-        break;
-    }
-  }
-
   async clickCreate() {
     await this.createBtn.click();
   }
@@ -178,7 +154,6 @@ export class CreateDefinitionFormDialog {
     maxParallelDocs?: string;
     perDocTimeout?: string;
     useProductionQueue?: boolean;
-    artifactPolicy?: 'full' | 'failures' | 'sampled';
   }) {
     await this.fillName(params.name);
     await this.selectDatasetVersion(params.datasetVersion);
@@ -207,10 +182,6 @@ export class CreateDefinitionFormDialog {
 
     if (params.useProductionQueue !== undefined) {
       await this.selectProductionQueue(params.useProductionQueue);
-    }
-
-    if (params.artifactPolicy) {
-      await this.selectArtifactPolicy(params.artifactPolicy);
     }
 
     await this.clickCreate();

@@ -1,18 +1,20 @@
 import { submitToAzureOCR } from './submit-to-azure-ocr';
 import type { PreparedFileData } from '../types';
 import DocumentIntelligence, { isUnexpected } from '@azure-rest/ai-document-intelligence';
-import * as fs from 'fs/promises';
 
 jest.mock('@azure-rest/ai-document-intelligence', () => ({
   __esModule: true,
   default: jest.fn(),
   isUnexpected: jest.fn(),
 }));
-jest.mock('fs/promises', () => ({
-  readFile: jest.fn(),
+
+const mockBlobRead = jest.fn();
+jest.mock('../blob-storage/blob-storage-client', () => ({
+  getBlobStorageClient: () => ({
+    read: mockBlobRead,
+  }),
 }));
 
-const readFileMock = fs.readFile as jest.Mock;
 const documentIntelligenceMock = DocumentIntelligence as jest.MockedFunction<typeof DocumentIntelligence>;
 const isUnexpectedMock = isUnexpected as jest.MockedFunction<typeof isUnexpected>;
 
@@ -34,9 +36,8 @@ describe('submitToAzureOCR activity', () => {
       ...originalEnv,
       AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: 'https://test.cognitiveservices.azure.com',
       AZURE_DOCUMENT_INTELLIGENCE_API_KEY: 'test-api-key',
-      LOCAL_BLOB_STORAGE_PATH: '/tmp/blobs',
     };
-    readFileMock.mockResolvedValue(Buffer.from('test file content'));
+    mockBlobRead.mockResolvedValue(Buffer.from('test file content'));
     isUnexpectedMock.mockReturnValue(false);
     mockPost.mockReset();
     mockPath.mockClear();

@@ -6,10 +6,8 @@
  */
 
 import {
-  BadRequestException,
   ConflictException,
   NotFoundException,
-  ServiceUnavailableException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { BenchmarkProjectController } from "./benchmark-project.controller";
@@ -63,7 +61,6 @@ describe("BenchmarkProjectController", () => {
         id: "project-123",
         name: createDto.name,
         description: createDto.description,
-        mlflowExperimentId: "exp-123",
         createdBy: createDto.createdBy,
         definitions: [],
         recentRuns: [],
@@ -81,7 +78,7 @@ describe("BenchmarkProjectController", () => {
       expect(result).toEqual(expectedResponse);
     });
 
-    it("returns 409 when project name already exists in MLflow", async () => {
+    it("returns 409 when project name already exists", async () => {
       const createDto: CreateProjectDto = {
         name: "Existing Project",
         createdBy: "user@example.com",
@@ -89,28 +86,12 @@ describe("BenchmarkProjectController", () => {
 
       mockBenchmarkProjectService.createProject.mockRejectedValue(
         new ConflictException(
-          'A project with the name "Existing Project" already exists in MLflow. Please choose a different name.',
+          'A project with the name "Existing Project" already exists. Please choose a different name.',
         ),
       );
 
       await expect(controller.createProject(createDto)).rejects.toThrow(
         ConflictException,
-      );
-    });
-
-    // Scenario 6: MLflow experiment creation failure is handled
-    it("returns 503 when MLflow service is unavailable", async () => {
-      const createDto: CreateProjectDto = {
-        name: "Test Project",
-        createdBy: "user@example.com",
-      };
-
-      mockBenchmarkProjectService.createProject.mockRejectedValue(
-        new Error("Failed to create MLflow experiment: Connection refused"),
-      );
-
-      await expect(controller.createProject(createDto)).rejects.toThrow(
-        ServiceUnavailableException,
       );
     });
   });
@@ -125,7 +106,6 @@ describe("BenchmarkProjectController", () => {
           id: "project-1",
           name: "Project 1",
           description: "Description 1",
-          mlflowExperimentId: "exp-1",
           createdBy: "user1@example.com",
           definitionCount: 3,
           runCount: 10,
@@ -136,7 +116,6 @@ describe("BenchmarkProjectController", () => {
           id: "project-2",
           name: "Project 2",
           description: null,
-          mlflowExperimentId: "exp-2",
           createdBy: "user2@example.com",
           definitionCount: 1,
           runCount: 5,
@@ -173,7 +152,6 @@ describe("BenchmarkProjectController", () => {
         id: projectId,
         name: "Test Project",
         description: "Test description",
-        mlflowExperimentId: "exp-123",
         createdBy: "user@example.com",
         definitions: [
           {
@@ -190,7 +168,6 @@ describe("BenchmarkProjectController", () => {
             id: "run-1",
             definitionName: "Definition 1",
             status: "COMPLETED",
-            mlflowRunId: "mlflow-run-1",
             temporalWorkflowId: "temporal-wf-1",
             startedAt: new Date(),
             completedAt: new Date(),

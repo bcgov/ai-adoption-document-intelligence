@@ -19,7 +19,6 @@ import {
   Logger,
   Param,
   Post,
-  ServiceUnavailableException,
 } from "@nestjs/common";
 import {
   ApiKeyAuth,
@@ -58,11 +57,6 @@ export class BenchmarkProjectController {
       // Let NestJS HttpExceptions (ConflictException, etc.) pass through as-is
       if (error instanceof HttpException) {
         throw error;
-      }
-      if (error.message?.includes("Failed to create MLflow experiment")) {
-        throw new ServiceUnavailableException(
-          "MLflow service is unavailable. Please try again later.",
-        );
       }
       throw error;
     }

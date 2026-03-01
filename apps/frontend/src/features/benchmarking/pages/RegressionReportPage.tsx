@@ -21,14 +21,12 @@ import {
   IconAlertCircle,
   IconCheck,
   IconDownload,
-  IconExternalLink,
   IconPlus,
   IconShare,
   IconX,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useProject } from "../hooks/useProjects";
 import { useRun, useHistoricalRuns } from "../hooks/useRuns";
 import { TrendChart } from "../components/TrendChart";
 
@@ -63,7 +61,6 @@ export function RegressionReportPage() {
   const navigate = useNavigate();
 
   const { run, isLoading } = useRun(projectId, runId || "", false);
-  const { project } = useProject(projectId);
   const {
     historicalRuns,
     isLoading: isLoadingHistorical,
@@ -289,10 +286,6 @@ export function RegressionReportPage() {
     );
   }
 
-  const mlflowUrl = project?.mlflowExperimentId
-    ? `http://localhost:5000/#/experiments/${project.mlflowExperimentId}/runs/${run.mlflowRunId}`
-    : null;
-
   // Filter metric comparisons based on showRegressionsOnly toggle
   const filteredComparisons = showRegressionsOnly
     ? run.baselineComparison.metricComparisons.filter((c) => !c.passed)
@@ -444,25 +437,6 @@ export function RegressionReportPage() {
                     : "-"}
                 </Table.Td>
               </Table.Tr>
-              {mlflowUrl && (
-                <Table.Tr>
-                  <Table.Td fw={500}>MLflow Run</Table.Td>
-                  <Table.Td>
-                    <Button
-                      data-testid="mlflow-link"
-                      component="a"
-                      href={mlflowUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      variant="subtle"
-                      size="xs"
-                      rightSection={<IconExternalLink size={14} />}
-                    >
-                      View in MLflow
-                    </Button>
-                  </Table.Td>
-                </Table.Tr>
-              )}
             </Table.Tbody>
           </Table>
         </Stack>

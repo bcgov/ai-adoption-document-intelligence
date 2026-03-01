@@ -158,27 +158,6 @@ export class AuditLogService {
   }
 
   /**
-   * Log an artifact deletion event
-   */
-  async logArtifactDeleted(
-    userId: string,
-    runId: string,
-    artifactCount: number,
-    metadata?: Record<string, unknown>,
-  ): Promise<BenchmarkAuditLog> {
-    return this.logAuditEvent({
-      userId,
-      action: AuditAction.artifact_deleted,
-      entityType: "BenchmarkRun",
-      entityId: runId,
-      metadata: {
-        artifactCount,
-        ...metadata,
-      },
-    });
-  }
-
-  /**
    * Generic method to log any audit event
    */
   async logAuditEvent(params: LogAuditEventParams): Promise<BenchmarkAuditLog> {

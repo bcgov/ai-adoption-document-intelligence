@@ -25,7 +25,6 @@ export interface DefinitionFormInitialValues {
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
-  artifactPolicy: Record<string, unknown>;
 }
 
 interface CreateDefinitionDialogProps {
@@ -45,7 +44,6 @@ export interface CreateDefinitionFormData {
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
-  artifactPolicy: Record<string, unknown>;
 }
 
 interface Split {
@@ -76,8 +74,6 @@ export function CreateDefinitionDialog({
   const [maxParallelDocuments, setMaxParallelDocuments] = useState(10);
   const [perDocumentTimeout, setPerDocumentTimeout] = useState(300000);
   const [useProductionQueue, setUseProductionQueue] = useState(false);
-  const [artifactPolicyMode, setArtifactPolicyMode] = useState("failures_only");
-  const [sampleRate, setSampleRate] = useState(0.1);
   const [initialized, setInitialized] = useState(false);
 
   const { versions, isLoading: isLoadingVersions, refetch: refetchVersions } = useAllDatasetVersions();
@@ -108,13 +104,6 @@ export function CreateDefinitionDialog({
       setMaxParallelDocuments(typeof rt.maxParallelDocuments === "number" ? rt.maxParallelDocuments : 10);
       setPerDocumentTimeout(typeof rt.perDocumentTimeout === "number" ? rt.perDocumentTimeout : 300000);
       setUseProductionQueue(rt.useProductionQueue === true);
-
-      const ap = initialValues.artifactPolicy;
-      const apMode = typeof ap.mode === "string" ? ap.mode : "failures_only";
-      setArtifactPolicyMode(apMode);
-      if (apMode === "sampled" && typeof ap.sampleRate === "number") {
-        setSampleRate(ap.sampleRate);
-      }
 
       const version = versions.find((v) => v.id === initialValues.datasetVersionId);
       if (version?.splits) {
@@ -187,13 +176,6 @@ export function CreateDefinitionDialog({
       useProductionQueue,
     };
 
-    const artifactPolicy: Record<string, unknown> = {
-      mode: artifactPolicyMode,
-    };
-    if (artifactPolicyMode === "sampled") {
-      artifactPolicy.sampleRate = sampleRate;
-    }
-
     onCreate({
       name,
       datasetVersionId,
@@ -202,7 +184,6 @@ export function CreateDefinitionDialog({
       evaluatorType,
       evaluatorConfig,
       runtimeSettings,
-      artifactPolicy,
     });
   };
 
@@ -221,8 +202,6 @@ export function CreateDefinitionDialog({
     setMaxParallelDocuments(10);
     setPerDocumentTimeout(300000);
     setUseProductionQueue(false);
-    setArtifactPolicyMode("failures_only");
-    setSampleRate(0.1);
     setSplits([]);
     setInitialized(false);
     onClose();
@@ -423,43 +402,6 @@ export function CreateDefinitionDialog({
             <Radio value="true" label="Yes (Production Queue)" data-testid="production-queue-yes" />
           </Group>
         </Radio.Group>
-
-        <Radio.Group
-          label={
-            <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
-              <Text size="sm" fw={500}>Artifact Policy</Text>
-              <Tooltip
-                label="Controls which run outputs are stored. 'Full' saves all outputs, 'Failures Only' saves outputs only for failing samples, 'Sampled' saves a random subset."
-                multiline
-                w={300}
-              >
-                <IconInfoCircle size={14} style={{ opacity: 0.6, cursor: "help" }} />
-              </Tooltip>
-            </Group>
-          }
-          value={artifactPolicyMode}
-          onChange={setArtifactPolicyMode}
-          data-testid="artifact-policy-radio"
-        >
-          <Stack mt="xs" gap="xs">
-            <Radio value="full" label="Full (all outputs)" data-testid="artifact-policy-full" />
-            <Radio value="failures_only" label="Failures Only" data-testid="artifact-policy-failures" />
-            <Radio value="sampled" label="Sampled" data-testid="artifact-policy-sampled" />
-          </Stack>
-        </Radio.Group>
-
-        {artifactPolicyMode === "sampled" && (
-          <NumberInput
-            label="Sample Rate"
-            value={sampleRate}
-            onChange={(value) =>
-              setSampleRate(typeof value === "number" ? value : 0.1)
-            }
-            min={0}
-            max={1}
-            step={0.1}
-          />
-        )}
 
         <Group justify="flex-end">
           <Button variant="default" onClick={handleClose} data-testid="cancel-definition-btn">

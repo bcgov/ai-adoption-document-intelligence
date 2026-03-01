@@ -86,7 +86,6 @@ test.describe('Definition List and Detail Views', () => {
     // Verify configuration sections
     await expect(detailDialog.evaluatorConfigHeading).toBeVisible();
     await expect(detailDialog.runtimeSettingsHeading).toBeVisible();
-    await expect(detailDialog.artifactPolicyHeading).toBeVisible();
 
     // Verify run history section
     await expect(detailDialog.runHistoryHeading).toBeVisible();
@@ -205,26 +204,13 @@ test.describe('Definition Detail - Configuration Display', () => {
     expect(settingsText).toContain('timeout');
   });
 
-  test('should display artifact policy as formatted JSON', async ({ page }) => {
-    // Given: Definition detail is open
-    // When: Viewing artifact policy section
-    await expect(detailDialog.artifactPolicyHeading).toBeVisible();
-
-    // Then: Policy is displayed as formatted JSON
-    const policyText = await detailDialog.artifactPolicyJson.textContent();
-    expect(policyText).toBeTruthy();
-
-    // Should contain policy from seed data
-    expect(policyText).toMatch(/save|artifact/i);
-  });
-
   test('should display run history with status badges', async ({ page }) => {
     // Given: Definition detail is open with runs
     // When: Viewing run history section
     await expect(detailDialog.runHistoryHeading).toBeVisible();
     await expect(detailDialog.runHistoryTable).toBeVisible();
 
-    // Then: Runs are listed with MLflow Run ID, Status, Started, Completed
+    // Then: Runs are listed with Status, Started, Completed
     // Check for status badges (from seed data: completed, running, failed)
     const runHistoryText = await detailDialog.runHistoryTable.textContent();
 

@@ -10,7 +10,7 @@ export class VersionListItemDto {
   version: string;
   name: string | null;
   documentCount: number;
-  gitRevision: string | null;
+  storagePrefix: string | null;
   createdAt: Date;
   splits?: SplitListItemDto[];
 }

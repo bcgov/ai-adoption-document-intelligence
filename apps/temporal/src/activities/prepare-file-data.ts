@@ -1,7 +1,7 @@
-import * as fs from 'fs/promises';
+import * as fs from 'fs';
 import * as path from 'path';
 import type { PreparedFileData } from '../types';
-import { resolveBlobKeyToPath } from '../blob-storage/blob-path-resolver';
+import { getBlobStorageClient } from '../blob-storage/blob-storage-client';
 
 export interface PrepareFileDataInput {
   documentId: string;
@@ -13,9 +13,19 @@ export interface PrepareFileDataInput {
 }
 
 async function readBlobData(blobKey: string): Promise<Buffer> {
-  const filePath = resolveBlobKeyToPath(blobKey);
+  // If blobKey is an absolute path on disk (e.g. materialized by benchmark),
+  // read directly from the filesystem instead of object storage.
+  if (path.isAbsolute(blobKey)) {
+    try {
+      return await fs.promises.readFile(blobKey);
+    } catch (error) {
+      throw new Error(`File not found on disk: "${blobKey}"`);
+    }
+  }
+
+  const client = getBlobStorageClient();
   try {
-    return await fs.readFile(filePath);
+    return await client.read(blobKey);
   } catch (error) {
     throw new Error(`Blob not found: "${blobKey}"`);
   }

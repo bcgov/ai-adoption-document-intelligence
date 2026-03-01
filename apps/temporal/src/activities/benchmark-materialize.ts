@@ -1,25 +1,7 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import * as fs from 'fs/promises';
-import * as os from 'os';
 import * as path from 'path';
 import { getPrismaClient } from './database-client';
-
-const execAsync = promisify(exec);
-
-/** DVC binary path — configurable via DVC_BINARY_PATH env var (e.g. full pyenv path) */
-const dvcBinary = process.env.DVC_BINARY_PATH || 'dvc';
-
-/**
- * Resolve tilde (~) in a path to the user's home directory.
- * Shell does not expand ~ inside double quotes, so we handle it in code.
- */
-function resolveTilde(filePath: string): string {
-  if (filePath.startsWith('~/') || filePath === '~') {
-    return path.join(os.homedir(), filePath.slice(1));
-  }
-  return filePath;
-}
+import { getBlobStorageClient } from '../blob-storage/blob-storage-client';
 
 interface MaterializeDatasetParams {
   datasetVersionId: string;
@@ -32,8 +14,7 @@ interface MaterializeDatasetResult {
 /**
  * Activity: Materialize a pinned dataset version on the worker
  *
- * Clones the dataset Git repository, checks out the specific gitRevision,
- * configures DVC remote to MinIO, and runs `dvc pull` to fetch data files.
+ * Downloads dataset files from object storage to a local cache directory.
  * Caches materialized datasets to avoid redundant operations.
  *
  * See feature-docs/003-benchmarking-system/user-stories/US-018-dataset-materialization-activity.md
@@ -65,13 +46,16 @@ export async function materializeDataset(
       throw new Error(`Dataset version not found: ${datasetVersionId}`);
     }
 
-    const { dataset, gitRevision } = datasetVersion;
-    const { id: datasetId, repositoryUrl: rawRepositoryUrl } = dataset;
-    const repositoryUrl = resolveTilde(rawRepositoryUrl);
+    const { dataset, storagePrefix } = datasetVersion;
+    const { id: datasetId } = dataset;
+
+    if (!storagePrefix) {
+      throw new Error(`Dataset version ${datasetVersionId} has no storage prefix (no files uploaded)`);
+    }
 
     // Determine cache directory
     const cacheBaseDir = process.env.BENCHMARK_CACHE_DIR || '/tmp/benchmark-cache';
-    const cacheKey = `${datasetId}-${gitRevision}`;
+    const cacheKey = `${datasetId}-${datasetVersionId}`;
     const materializedPath = path.join(cacheBaseDir, cacheKey);
 
     console.log(JSON.stringify({
@@ -82,41 +66,23 @@ export async function materializeDataset(
       timestamp: new Date().toISOString()
     }));
 
-    // Check if dataset is already cached
+    // Check if dataset is already cached by looking for the manifest
+    const manifestLocalPath = path.join(materializedPath, 'dataset-manifest.json');
     try {
-      await fs.access(materializedPath);
+      await fs.access(manifestLocalPath);
 
-      // Verify that the cached directory has the correct git revision
-      const { stdout: cachedRevision } = await execAsync('git rev-parse HEAD', {
-        cwd: materializedPath
-      });
+      console.log(JSON.stringify({
+        activity: activityName,
+        event: 'cache_hit',
+        cacheKey,
+        materializedPath,
+        durationMs: Date.now() - startTime,
+        timestamp: new Date().toISOString()
+      }));
 
-      if (cachedRevision.trim() === gitRevision) {
-        console.log(JSON.stringify({
-          activity: activityName,
-          event: 'cache_hit',
-          cacheKey,
-          materializedPath,
-          durationMs: Date.now() - startTime,
-          timestamp: new Date().toISOString()
-        }));
-
-        return { materializedPath };
-      } else {
-        // Cache exists but revision mismatch - clean up old cache
-        console.log(JSON.stringify({
-          activity: activityName,
-          event: 'cache_invalidation',
-          cacheKey,
-          expectedRevision: gitRevision,
-          foundRevision: cachedRevision.trim(),
-          timestamp: new Date().toISOString()
-        }));
-
-        await fs.rm(materializedPath, { recursive: true, force: true });
-      }
-    } catch (error) {
-      // Cache doesn't exist or is inaccessible - proceed with materialization
+      return { materializedPath };
+    } catch {
+      // Cache doesn't exist - proceed with materialization
       console.log(JSON.stringify({
         activity: activityName,
         event: 'cache_miss',
@@ -127,52 +93,57 @@ export async function materializeDataset(
 
     // Ensure cache base directory exists
     await fs.mkdir(cacheBaseDir, { recursive: true });
+    await fs.mkdir(materializedPath, { recursive: true });
 
-    // Clone repository
+    // Download all files from object storage
+    const blobStorage = getBlobStorageClient();
+
     console.log(JSON.stringify({
       activity: activityName,
-      event: 'git_clone_start',
-      repositoryUrl,
-      targetPath: materializedPath,
+      event: 'download_start',
+      storagePrefix,
       timestamp: new Date().toISOString()
     }));
 
     try {
-      // Get Git credentials from environment if available
-      const gitUsername = process.env.DATASET_GIT_USERNAME;
-      const gitPassword = process.env.DATASET_GIT_PASSWORD;
+      const keys = await blobStorage.list(storagePrefix);
 
-      let cloneUrl = repositoryUrl;
-      if (gitUsername && gitPassword && repositoryUrl.startsWith('http')) {
-        const url = new URL(repositoryUrl);
-        url.username = gitUsername;
-        url.password = gitPassword;
-        cloneUrl = url.toString();
-      }
+      console.log(JSON.stringify({
+        activity: activityName,
+        event: 'files_listed',
+        fileCount: keys.length,
+        timestamp: new Date().toISOString()
+      }));
 
-      const { stderr: cloneStderr } = await execAsync(
-        `git clone "${cloneUrl}" "${materializedPath}"`
-      );
+      // Download each file to the local cache directory
+      for (const key of keys) {
+        // Compute relative path by removing the storage prefix
+        const relativePath = key.startsWith(storagePrefix + '/')
+          ? key.slice(storagePrefix.length + 1)
+          : key.slice(storagePrefix.length);
 
-      if (cloneStderr && !cloneStderr.includes('Cloning into')) {
-        console.log(JSON.stringify({
-          activity: activityName,
-          event: 'git_clone_warning',
-          stderr: cloneStderr,
-          timestamp: new Date().toISOString()
-        }));
+        if (!relativePath) continue;
+
+        const localPath = path.join(materializedPath, relativePath);
+        const localDir = path.dirname(localPath);
+
+        await fs.mkdir(localDir, { recursive: true });
+
+        const data = await blobStorage.read(key);
+        await fs.writeFile(localPath, data);
       }
 
       console.log(JSON.stringify({
         activity: activityName,
-        event: 'git_clone_complete',
+        event: 'download_complete',
+        fileCount: keys.length,
         timestamp: new Date().toISOString()
       }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(JSON.stringify({
         activity: activityName,
-        event: 'git_clone_failed',
+        event: 'download_failed',
         error: errorMessage,
         timestamp: new Date().toISOString()
       }));
@@ -180,160 +151,7 @@ export async function materializeDataset(
       // Clean up on failure
       await fs.rm(materializedPath, { recursive: true, force: true }).catch(() => {});
 
-      throw new Error(`Git clone failed: ${errorMessage}`);
-    }
-
-    // Checkout specific revision
-    console.log(JSON.stringify({
-      activity: activityName,
-      event: 'git_checkout_start',
-      gitRevision,
-      timestamp: new Date().toISOString()
-    }));
-
-    try {
-      await execAsync(`git checkout ${gitRevision}`, { cwd: materializedPath });
-
-      console.log(JSON.stringify({
-        activity: activityName,
-        event: 'git_checkout_complete',
-        gitRevision,
-        timestamp: new Date().toISOString()
-      }));
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(JSON.stringify({
-        activity: activityName,
-        event: 'git_checkout_failed',
-        gitRevision,
-        error: errorMessage,
-        timestamp: new Date().toISOString()
-      }));
-
-      // Clean up on failure
-      await fs.rm(materializedPath, { recursive: true, force: true }).catch(() => {});
-
-      throw new Error(`Git checkout failed: ${errorMessage}`);
-    }
-
-    // Check if repo uses DVC before attempting DVC operations
-    let hasDvc = false;
-    try {
-      await fs.access(path.join(materializedPath, '.dvc'));
-      hasDvc = true;
-    } catch {
-      // .dvc directory does not exist - repo does not use DVC
-    }
-
-    if (hasDvc) {
-      // Configure DVC remote for MinIO
-      console.log(JSON.stringify({
-        activity: activityName,
-        event: 'dvc_configure_start',
-        timestamp: new Date().toISOString()
-      }));
-
-      try {
-        const minioEndpoint = process.env.MINIO_ENDPOINT || 'http://localhost:9000';
-        const minioAccessKey = process.env.MINIO_ACCESS_KEY || 'minioadmin';
-        const minioSecretKey = process.env.MINIO_SECRET_KEY || 'minioadmin';
-        const remoteName = 'minio';
-
-        // Configure DVC remote to use MinIO
-        // Check if remote already exists in the repo
-        let remoteExists = false;
-        try {
-          const { stdout: remoteListOutput } = await execAsync(`${dvcBinary} remote list`, { cwd: materializedPath });
-          remoteExists = remoteListOutput.trim().length > 0;
-        } catch {
-          remoteExists = false;
-        }
-
-        if (!remoteExists) {
-          await execAsync(`${dvcBinary} remote add -d ${remoteName} s3://datasets`, {
-            cwd: materializedPath
-          });
-        }
-
-        // Configure remote settings
-        await execAsync(
-          `${dvcBinary} remote modify ${remoteName} endpointurl ${minioEndpoint}`,
-          { cwd: materializedPath }
-        );
-
-        await execAsync(
-          `${dvcBinary} remote modify ${remoteName} access_key_id ${minioAccessKey}`,
-          { cwd: materializedPath }
-        );
-
-        await execAsync(
-          `${dvcBinary} remote modify ${remoteName} secret_access_key ${minioSecretKey}`,
-          { cwd: materializedPath }
-        );
-
-        console.log(JSON.stringify({
-          activity: activityName,
-          event: 'dvc_configure_complete',
-          timestamp: new Date().toISOString()
-        }));
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.warn(JSON.stringify({
-          activity: activityName,
-          event: 'dvc_configure_warning',
-          error: errorMessage,
-          timestamp: new Date().toISOString()
-        }));
-        // Continue even if DVC configure fails - the repo might already have correct settings
-      }
-
-      // Pull DVC data from MinIO
-      console.log(JSON.stringify({
-        activity: activityName,
-        event: 'dvc_pull_start',
-        timestamp: new Date().toISOString()
-      }));
-
-      try {
-        const { stderr: pullStderr } = await execAsync(`${dvcBinary} pull`, {
-          cwd: materializedPath
-        });
-
-        if (pullStderr && !pullStderr.includes('files downloaded')) {
-          console.log(JSON.stringify({
-            activity: activityName,
-            event: 'dvc_pull_warning',
-            stderr: pullStderr,
-            timestamp: new Date().toISOString()
-          }));
-        }
-
-        console.log(JSON.stringify({
-          activity: activityName,
-          event: 'dvc_pull_complete',
-          timestamp: new Date().toISOString()
-        }));
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.error(JSON.stringify({
-          activity: activityName,
-          event: 'dvc_pull_failed',
-          error: errorMessage,
-          timestamp: new Date().toISOString()
-        }));
-
-        // Clean up on failure
-        await fs.rm(materializedPath, { recursive: true, force: true }).catch(() => {});
-
-        throw new Error(`DVC pull failed: ${errorMessage}`);
-      }
-    } else {
-      console.log(JSON.stringify({
-        activity: activityName,
-        event: 'dvc_skipped',
-        reason: 'No .dvc directory found - repo does not use DVC',
-        timestamp: new Date().toISOString()
-      }));
+      throw new Error(`Dataset download from object storage failed: ${errorMessage}`);
     }
 
     const durationMs = Date.now() - startTime;

@@ -25,11 +25,6 @@ export class ProjectSummaryDto {
   description: string | null;
 
   /**
-   * MLflow experiment ID
-   */
-  mlflowExperimentId: string;
-
-  /**
    * User who created the project
    */
   createdBy: string;
@@ -73,11 +68,6 @@ export class RecentRunSummary {
    * Run status
    */
   status: string;
-
-  /**
-   * MLflow run ID
-   */
-  mlflowRunId: string | null;
 
   /**
    * Temporal workflow ID
@@ -148,11 +138,6 @@ export class ProjectDetailsDto {
    * Project description
    */
   description: string | null;
-
-  /**
-   * MLflow experiment ID
-   */
-  mlflowExperimentId: string;
 
   /**
    * User who created the project

@@ -22,7 +22,6 @@ interface SplitInfo {
 interface RunHistorySummary {
   id: string;
   status: string;
-  mlflowRunId: string;
   startedAt: string | null;
   completedAt: string | null;
 }
@@ -36,7 +35,6 @@ interface MetricThreshold {
 interface BaselineRunSummary {
   id: string;
   status: string;
-  mlflowRunId: string;
   metrics: Record<string, number>;
   baselineThresholds: MetricThreshold[];
   completedAt: string | null;
@@ -65,7 +63,6 @@ interface DefinitionDetails {
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
-  artifactPolicy: Record<string, unknown>;
   immutable: boolean;
   revision: number;
   runHistory: RunHistorySummary[];
@@ -85,7 +82,6 @@ interface CreateDefinitionDto {
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
-  artifactPolicy: Record<string, unknown>;
 }
 
 interface UpdateDefinitionDto {
@@ -96,7 +92,6 @@ interface UpdateDefinitionDto {
   evaluatorType?: string;
   evaluatorConfig?: Record<string, unknown>;
   runtimeSettings?: Record<string, unknown>;
-  artifactPolicy?: Record<string, unknown>;
 }
 
 export const useDefinitions = (projectId: string) => {

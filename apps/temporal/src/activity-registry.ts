@@ -24,7 +24,6 @@ import {
   enrichResults,
   benchmarkEvaluate,
   benchmarkAggregate,
-  benchmarkLogToMlflow,
   benchmarkCleanup,
   benchmarkUpdateRunStatus,
   benchmarkCompareAgainstBaseline,
@@ -211,14 +210,6 @@ register({
 });
 
 register({
-  activityType: "benchmark.logToMlflow",
-  activityFn: benchmarkLogToMlflow as (...args: unknown[]) => Promise<unknown>,
-  defaultTimeout: "10m",
-  defaultRetry: { maximumAttempts: 3 },
-  description: "Log metrics and artifacts to MLflow",
-});
-
-register({
   activityType: "benchmark.cleanup",
   activityFn: benchmarkCleanup as (...args: unknown[]) => Promise<unknown>,
   defaultTimeout: "5m",
@@ -255,7 +246,7 @@ register({
   activityFn: materializeDataset as (...args: unknown[]) => Promise<unknown>,
   defaultTimeout: "30m",
   defaultRetry: { maximumAttempts: 2 },
-  description: "Materialize dataset version from DVC",
+  description: "Materialize dataset version from object storage",
 });
 
 register({

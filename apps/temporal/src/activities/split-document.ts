@@ -3,7 +3,7 @@ import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { resolveBlobKeyToPath } from '../blob-storage/blob-path-resolver';
+import { getBlobStorageClient } from '../blob-storage/blob-storage-client';
 
 const execFileAsync = promisify(execFile);
 
@@ -29,47 +29,57 @@ export interface SplitDocumentOutput {
 export async function splitDocument(
   input: SplitDocumentInput,
 ): Promise<SplitDocumentOutput> {
-  const sourcePath = resolveBlobKeyToPath(input.blobKey);
-  await assertFileExists(sourcePath, input.blobKey);
+  const blobStorage = getBlobStorageClient();
 
-  const totalPages = await getTotalPages(sourcePath);
-  const ranges = await buildRanges(input, sourcePath, totalPages);
+  // Download source blob to a temp file (qpdf needs a local path)
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'split-src-'),
+  );
+  const sourcePath = path.join(tempDir, path.basename(input.blobKey));
 
-  const documentId = input.documentId ?? extractDocumentId(input.blobKey);
-  if (!documentId) {
-    throw new Error(
-      `documentId is required to build segment keys (blobKey=${input.blobKey})`,
-    );
-  }
-
-  const segments: DocumentSegment[] = [];
-  for (let i = 0; i < ranges.length; i += 1) {
-    const range = ranges[i];
-    const segmentIndex = i + 1;
-    const segmentKey = `documents/${documentId}/segments/segment-${padIndex(
-      segmentIndex,
-    )}-pages-${range.start}-${range.end}.pdf`;
-    const outputPath = resolveBlobKeyToPath(segmentKey);
-    await fs.mkdir(path.dirname(outputPath), { recursive: true });
-
-    await extractRange(sourcePath, outputPath, range.start, range.end);
-
-    segments.push({
-      segmentIndex,
-      pageRange: { start: range.start, end: range.end },
-      blobKey: segmentKey,
-      pageCount: range.end - range.start + 1,
-    });
-  }
-
-  return { segments };
-}
-
-async function assertFileExists(filePath: string, blobKey: string) {
   try {
-    await fs.access(filePath);
-  } catch {
-    throw new Error(`Blob not found: "${blobKey}"`);
+    const sourceData = await blobStorage.read(input.blobKey);
+    await fs.writeFile(sourcePath, sourceData);
+
+    const totalPages = await getTotalPages(sourcePath);
+    const ranges = await buildRanges(input, sourcePath, totalPages);
+
+    const documentId = input.documentId ?? extractDocumentId(input.blobKey);
+    if (!documentId) {
+      throw new Error(
+        `documentId is required to build segment keys (blobKey=${input.blobKey})`,
+      );
+    }
+
+    const segments: DocumentSegment[] = [];
+    for (let i = 0; i < ranges.length; i += 1) {
+      const range = ranges[i];
+      const segmentIndex = i + 1;
+      const segmentKey = `documents/${documentId}/segments/segment-${padIndex(
+        segmentIndex,
+      )}-pages-${range.start}-${range.end}.pdf`;
+
+      // Write split segment to temp file, then upload to blob storage
+      const segmentPath = path.join(
+        tempDir,
+        `segment-${padIndex(segmentIndex)}.pdf`,
+      );
+      await extractRange(sourcePath, segmentPath, range.start, range.end);
+
+      const segmentData = await fs.readFile(segmentPath);
+      await blobStorage.write(segmentKey, segmentData);
+
+      segments.push({
+        segmentIndex,
+        pageRange: { start: range.start, end: range.end },
+        blobKey: segmentKey,
+        pageCount: range.end - range.start + 1,
+      });
+    }
+
+    return { segments };
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true });
   }
 }
 

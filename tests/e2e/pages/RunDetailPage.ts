@@ -139,13 +139,6 @@ export class RunDetailPage {
   }
 
   /**
-   * Get the MLflow Run link
-   */
-  getMlflowLink(): Locator {
-    return this.runInfoTable.locator('a[href*="mlflow"]');
-  }
-
-  /**
    * Get the Temporal Workflow link
    */
   getTemporalLink(): Locator {

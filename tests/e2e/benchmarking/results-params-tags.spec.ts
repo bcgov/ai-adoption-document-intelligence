@@ -32,7 +32,7 @@ test.describe('US-031 - Results Summary: Parameters & Tags', () => {
   test('Scenario 2: should display run parameters section', async ({ page }) => {
     // REQ US-031: Parameters section shows key-value pairs
 
-    // Given: Completed benchmark run with parameters logged to MLflow
+    // Given: Completed benchmark run with parameters
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_PASSING);
 
     // Then: Parameters section is clearly labeled and visible
@@ -77,7 +77,7 @@ test.describe('US-031 - Results Summary: Parameters & Tags', () => {
   test('Scenario 3: should display run tags section', async ({ page }) => {
     // REQ US-031: Tags section is clearly labeled
 
-    // Given: Completed benchmark run with tags logged to MLflow
+    // Given: Completed benchmark run with tags
     await runDetailPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_PASSING);
 
     // Then: Tags section is visible and labeled

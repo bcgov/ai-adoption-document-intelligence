@@ -32,11 +32,6 @@ export class RunSummaryDto {
   status: string;
 
   /**
-   * MLflow run ID
-   */
-  mlflowRunId: string;
-
-  /**
    * Start timestamp
    */
   startedAt: Date | null;
@@ -105,11 +100,6 @@ export class RunDetailsDto {
    * Run status (pending, running, completed, failed, cancelled)
    */
   status: string;
-
-  /**
-   * MLflow run ID
-   */
-  mlflowRunId: string;
 
   /**
    * Temporal workflow ID

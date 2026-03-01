@@ -229,37 +229,6 @@ describe("AuditLogService", () => {
     });
   });
 
-  describe("logArtifactDeleted", () => {
-    it("should log artifact deletion event with artifact count in metadata", async () => {
-      const mockLog = {
-        id: "log-6",
-        timestamp: new Date(),
-        userId: "user-1",
-        action: AuditAction.artifact_deleted,
-        entityType: "BenchmarkRun",
-        entityId: "run-1",
-        metadata: { artifactCount: 5 },
-      };
-
-      mockPrismaClient.benchmarkAuditLog.create.mockResolvedValue(mockLog);
-
-      const result = await service.logArtifactDeleted("user-1", "run-1", 5);
-
-      expect(result).toEqual(mockLog);
-      expect(mockPrismaClient.benchmarkAuditLog.create).toHaveBeenCalledWith({
-        data: {
-          userId: "user-1",
-          action: AuditAction.artifact_deleted,
-          entityType: "BenchmarkRun",
-          entityId: "run-1",
-          metadata: {
-            artifactCount: 5,
-          },
-        },
-      });
-    });
-  });
-
   describe("queryAuditLogs", () => {
     it("should query audit logs by entity type", async () => {
       const mockLogs = [

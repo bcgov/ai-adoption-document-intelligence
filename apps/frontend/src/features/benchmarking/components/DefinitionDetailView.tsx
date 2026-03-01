@@ -37,7 +37,6 @@ interface SplitInfo {
 interface RunHistorySummary {
   id: string;
   status: string;
-  mlflowRunId: string;
   startedAt: string | null;
   completedAt: string | null;
 }
@@ -51,7 +50,6 @@ interface MetricThreshold {
 interface BaselineRunSummary {
   id: string;
   status: string;
-  mlflowRunId: string;
   metrics: Record<string, number>;
   baselineThresholds: MetricThreshold[];
   completedAt: string | null;
@@ -68,7 +66,6 @@ interface DefinitionDetails {
   evaluatorType: string;
   evaluatorConfig: Record<string, unknown>;
   runtimeSettings: Record<string, unknown>;
-  artifactPolicy: Record<string, unknown>;
   immutable: boolean;
   revision: number;
   scheduleEnabled: boolean;
@@ -398,17 +395,6 @@ export function DefinitionDetailView({
 
       <Card>
         <Stack gap="md">
-          <Title order={4} data-testid="artifact-policy-heading">
-            Artifact Policy
-          </Title>
-          <Code block data-testid="artifact-policy-json">
-            {JSON.stringify(definition.artifactPolicy, null, 2)}
-          </Code>
-        </Stack>
-      </Card>
-
-      <Card>
-        <Stack gap="md">
           <Title order={4} data-testid="schedule-config-heading">
             Schedule Configuration
           </Title>
@@ -430,7 +416,7 @@ export function DefinitionDetailView({
             <Table striped highlightOnHover data-testid="run-history-table">
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>MLflow Run ID</Table.Th>
+                  <Table.Th>Run ID</Table.Th>
                   <Table.Th>Status</Table.Th>
                   <Table.Th>Started</Table.Th>
                   <Table.Th>Completed</Table.Th>
@@ -440,7 +426,7 @@ export function DefinitionDetailView({
                 {definition.runHistory.map((run) => (
                   <Table.Tr key={run.id} data-testid={`run-history-row-${run.id}`}>
                     <Table.Td>
-                      <Code>{run.mlflowRunId.substring(0, 8)}</Code>
+                      <Code>{run.id.substring(0, 8)}</Code>
                     </Table.Td>
                     <Table.Td>
                       <Badge

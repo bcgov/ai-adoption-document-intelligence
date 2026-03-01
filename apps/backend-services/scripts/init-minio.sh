@@ -10,8 +10,7 @@ done
 echo "MinIO is ready. Creating buckets..."
 
 # Create buckets if they don't exist
-mc mb --ignore-existing local/datasets
-mc mb --ignore-existing local/mlflow-artifacts
+mc mb --ignore-existing local/document-blobs
 mc mb --ignore-existing local/benchmark-outputs
 
 echo "Buckets created successfully:"

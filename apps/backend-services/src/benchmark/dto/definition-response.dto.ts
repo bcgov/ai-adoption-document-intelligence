@@ -80,11 +80,6 @@ export class RunHistorySummary {
   status: string;
 
   /**
-   * MLflow run ID
-   */
-  mlflowRunId: string;
-
-  /**
    * Start timestamp
    */
   startedAt: Date | null;
@@ -111,11 +106,6 @@ export class BaselineRunSummary {
    * Run status
    */
   status: string;
-
-  /**
-   * MLflow run ID
-   */
-  mlflowRunId: string;
 
   /**
    * Aggregated metrics from the baseline run
@@ -236,11 +226,6 @@ export class DefinitionDetailsDto {
    * Runtime settings
    */
   runtimeSettings: Record<string, unknown>;
-
-  /**
-   * Artifact policy
-   */
-  artifactPolicy: Record<string, unknown>;
 
   /**
    * Whether the definition is immutable (has runs)

@@ -54,10 +54,4 @@ export class CreateDefinitionDto {
    */
   @IsObject()
   runtimeSettings: Record<string, unknown>;
-
-  /**
-   * Artifact policy (JSON object)
-   */
-  @IsObject()
-  artifactPolicy: Record<string, unknown>;
 }

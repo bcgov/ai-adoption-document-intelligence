@@ -149,7 +149,6 @@ export class BenchmarkDefinitionService {
         evaluatorType: dto.evaluatorType,
         evaluatorConfig: dto.evaluatorConfig as never,
         runtimeSettings: dto.runtimeSettings as never,
-        artifactPolicy: dto.artifactPolicy as never,
         immutable: false,
         revision: 1,
       },
@@ -169,7 +168,7 @@ export class BenchmarkDefinitionService {
           select: {
             id: true,
             status: true,
-            mlflowRunId: true,
+
             startedAt: true,
             completedAt: true,
           },
@@ -252,7 +251,7 @@ export class BenchmarkDefinitionService {
           select: {
             id: true,
             status: true,
-            mlflowRunId: true,
+
             startedAt: true,
             completedAt: true,
           },
@@ -278,7 +277,6 @@ export class BenchmarkDefinitionService {
       select: {
         id: true,
         status: true,
-        mlflowRunId: true,
         metrics: true,
         baselineThresholds: true,
         completedAt: true,
@@ -417,8 +415,6 @@ export class BenchmarkDefinitionService {
             existing.evaluatorConfig) as never,
           runtimeSettings: (dto.runtimeSettings ??
             existing.runtimeSettings) as never,
-          artifactPolicy: (dto.artifactPolicy ??
-            existing.artifactPolicy) as never,
           immutable: false,
           revision: existing.revision + 1,
         },
@@ -438,7 +434,7 @@ export class BenchmarkDefinitionService {
             select: {
               id: true,
               status: true,
-              mlflowRunId: true,
+  
               startedAt: true,
               completedAt: true,
             },
@@ -470,8 +466,6 @@ export class BenchmarkDefinitionService {
         updateData.evaluatorConfig = dto.evaluatorConfig as never;
       if (dto.runtimeSettings)
         updateData.runtimeSettings = dto.runtimeSettings as never;
-      if (dto.artifactPolicy)
-        updateData.artifactPolicy = dto.artifactPolicy as never;
 
       const updated = await this.prisma.benchmarkDefinition.update({
         where: { id: definitionId },
@@ -492,7 +486,7 @@ export class BenchmarkDefinitionService {
             select: {
               id: true,
               status: true,
-              mlflowRunId: true,
+  
               startedAt: true,
               completedAt: true,
             },
@@ -621,7 +615,6 @@ export class BenchmarkDefinitionService {
       evaluatorType: string;
       evaluatorConfig: unknown;
       runtimeSettings: unknown;
-      artifactPolicy: unknown;
       immutable: boolean;
       revision: number;
       scheduleEnabled: boolean;
@@ -649,7 +642,6 @@ export class BenchmarkDefinitionService {
       benchmarkRuns: Array<{
         id: string;
         status: string;
-        mlflowRunId: string;
         startedAt: Date | null;
         completedAt: Date | null;
       }>;
@@ -657,7 +649,6 @@ export class BenchmarkDefinitionService {
     baselineRun?: {
       id: string;
       status: string;
-      mlflowRunId: string;
       metrics: unknown;
       baselineThresholds: unknown;
       completedAt: Date | null;
@@ -687,7 +678,6 @@ export class BenchmarkDefinitionService {
       (run) => ({
         id: run.id,
         status: run.status,
-        mlflowRunId: run.mlflowRunId,
         startedAt: run.startedAt,
         completedAt: run.completedAt,
       }),
@@ -706,7 +696,6 @@ export class BenchmarkDefinitionService {
       baselineRunSummary = {
         id: baselineRun.id,
         status: baselineRun.status,
-        mlflowRunId: baselineRun.mlflowRunId,
         metrics,
         baselineThresholds: thresholds,
         completedAt: baselineRun.completedAt,
@@ -724,7 +713,6 @@ export class BenchmarkDefinitionService {
       evaluatorType: definition.evaluatorType,
       evaluatorConfig: definition.evaluatorConfig as Record<string, unknown>,
       runtimeSettings: definition.runtimeSettings as Record<string, unknown>,
-      artifactPolicy: definition.artifactPolicy as Record<string, unknown>,
       immutable: definition.immutable,
       revision: definition.revision,
       scheduleEnabled: definition.scheduleEnabled,
@@ -819,7 +807,6 @@ export class BenchmarkDefinitionService {
             string,
             unknown
           >,
-          artifactPolicy: definition.artifactPolicy as Record<string, unknown>,
         },
       );
     }

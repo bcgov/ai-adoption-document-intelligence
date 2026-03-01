@@ -23,7 +23,6 @@ export class ArtifactViewerDrawer {
 
   // Action buttons
   readonly downloadButton: Locator;
-  readonly openMlflowButton: Locator;
 
   // Content viewers
   readonly contentCard: Locator;
@@ -54,7 +53,6 @@ export class ArtifactViewerDrawer {
 
     // Action buttons
     this.downloadButton = page.getByTestId('download-artifact-btn');
-    this.openMlflowButton = page.getByTestId('open-mlflow-btn');
 
     // Content viewers
     this.contentCard = page.getByTestId('artifact-content-card');
@@ -103,13 +101,6 @@ export class ArtifactViewerDrawer {
    */
   async download() {
     await this.downloadButton.click();
-  }
-
-  /**
-   * Open the artifact in MLflow (in a new tab)
-   */
-  async openInMlflow() {
-    await this.openMlflowButton.click();
   }
 
   /**

@@ -6,7 +6,7 @@ interface DatasetVersion {
   datasetId: string;
   version: string;
   name: string | null;
-  gitRevision: string | null;
+  storagePrefix: string | null;
   manifestPath: string;
   documentCount: number;
   groundTruthSchema: Record<string, unknown> | null;

@@ -14,7 +14,7 @@ interface UploadResponse {
   version: {
     id: string;
     version: string;
-    gitRevision: string | null;
+    storagePrefix: string | null;
     status: string;
     documentCount: number;
   };
@@ -45,6 +45,11 @@ export const useDatasetUpload = (datasetId: string, versionId: string) => {
           },
         },
       );
+
+      if (!response.success) {
+        throw new Error(response.message || "Upload failed");
+      }
+
       return response.data;
     },
     onSuccess: () => {

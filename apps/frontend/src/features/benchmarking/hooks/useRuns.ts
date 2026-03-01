@@ -7,7 +7,6 @@ interface RunSummary {
   definitionId: string;
   definitionName: string;
   status: string;
-  mlflowRunId: string;
   startedAt: string | null;
   completedAt: string | null;
   durationMs: number | null;
@@ -47,7 +46,6 @@ interface RunDetails {
   definitionName: string;
   projectId: string;
   status: string;
-  mlflowRunId: string;
   temporalWorkflowId: string;
   workerImageDigest: string | null;
   workerGitSha: string;

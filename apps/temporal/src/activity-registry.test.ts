@@ -23,7 +23,6 @@ const EXPECTED_ACTIVITY_TYPES = [
   "segment.combineResult",
   "benchmark.evaluate",
   "benchmark.aggregate",
-  "benchmark.logToMlflow",
   "benchmark.cleanup",
   "benchmark.updateRunStatus",
   "benchmark.compareAgainstBaseline",

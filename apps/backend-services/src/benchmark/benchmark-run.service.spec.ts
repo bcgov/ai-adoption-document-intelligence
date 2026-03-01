@@ -12,7 +12,6 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetService } from "./dataset.service";
-import { MLflowClientService } from "./mlflow-client.service";
 
 // Mock Prisma
 jest.mock("@generated/client", () => {
@@ -48,7 +47,6 @@ jest.mock("child_process", () => ({
 
 describe("BenchmarkRunService", () => {
   let service: BenchmarkRunService;
-  let mlflowClient: MLflowClientService;
   let benchmarkTemporal: BenchmarkTemporalService;
   let datasetService: DatasetService;
   let prisma: PrismaClient;
@@ -56,7 +54,6 @@ describe("BenchmarkRunService", () => {
   const mockProject = {
     id: "project-1",
     name: "Test Project",
-    mlflowExperimentId: "exp-1",
     createdBy: "user-1",
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -73,7 +70,6 @@ describe("BenchmarkRunService", () => {
     evaluatorType: "schema-aware",
     evaluatorConfig: { threshold: 0.9 },
     runtimeSettings: { timeout: 3600 },
-    artifactPolicy: { storage: "all" },
     immutable: false,
     revision: 1,
     createdAt: new Date(),
@@ -82,7 +78,7 @@ describe("BenchmarkRunService", () => {
     datasetVersion: {
       id: "ds-version-1",
       version: "v1.0.0",
-      gitRevision: "abc123def",
+      storagePrefix: "datasets/ds-1/ds-version-1/",
       dataset: {
         name: "Test Dataset",
       },
@@ -106,7 +102,6 @@ describe("BenchmarkRunService", () => {
     definitionId: "def-1",
     projectId: "project-1",
     status: "pending",
-    mlflowRunId: "mlflow-run-1",
     temporalWorkflowId: "benchmark-run-run-1",
     workerImageDigest: null,
     workerGitSha: "abc123",
@@ -131,12 +126,6 @@ describe("BenchmarkRunService", () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn().mockReturnValue("postgresql://test"),
-          },
-        },
-        {
-          provide: MLflowClientService,
-          useValue: {
-            createRun: jest.fn(),
           },
         },
         {
@@ -168,7 +157,6 @@ describe("BenchmarkRunService", () => {
     }).compile();
 
     service = module.get<BenchmarkRunService>(BenchmarkRunService);
-    mlflowClient = module.get<MLflowClientService>(MLflowClientService);
     benchmarkTemporal = module.get<BenchmarkTemporalService>(
       BenchmarkTemporalService,
     );
@@ -195,7 +183,6 @@ describe("BenchmarkRunService", () => {
       (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
         mockDefinition,
       );
-      (mlflowClient.createRun as jest.Mock).mockResolvedValue("mlflow-run-1");
       (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
         ...mockRun,
         id: "run-1",
@@ -222,17 +209,10 @@ describe("BenchmarkRunService", () => {
 
       const result = await service.startRun("project-1", "def-1", createDto);
 
-      // Verify MLflow run was created
-      expect(mlflowClient.createRun).toHaveBeenCalledWith(
-        "exp-1",
-        expect.stringContaining("Test Definition"),
-      );
-
       // Verify Temporal workflow was started
       expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
         expect.stringMatching(/^run-/),
         expect.objectContaining({
-          definitionId: "def-1",
           evaluatorType: "schema-aware",
         }),
       );
@@ -295,7 +275,6 @@ describe("BenchmarkRunService", () => {
       (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
         mockDefinition,
       );
-      (mlflowClient.createRun as jest.Mock).mockResolvedValue("mlflow-run-1");
       (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue(mockRun);
       (
         benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
@@ -328,7 +307,6 @@ describe("BenchmarkRunService", () => {
         (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
           mockDefinition,
         );
-        (mlflowClient.createRun as jest.Mock).mockResolvedValue("mlflow-run-1");
         (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
           ...mockRun,
           workerImageDigest: "sha256:abc123def456",
@@ -382,7 +360,6 @@ describe("BenchmarkRunService", () => {
         (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
           mockDefinition,
         );
-        (mlflowClient.createRun as jest.Mock).mockResolvedValue("mlflow-run-1");
         (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue(mockRun);
         (
           benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock

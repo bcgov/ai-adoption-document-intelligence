@@ -79,7 +79,6 @@ export class BenchmarkTemporalService {
       definitionId: string;
       projectId: string;
       datasetVersionId: string;
-      gitRevision: string | null;
       splitId?: string;
       sampleIds?: string[];
       workflowId: string;
@@ -89,8 +88,6 @@ export class BenchmarkTemporalService {
       evaluatorConfig: Record<string, unknown>;
       evaluatorConfigHash: string;
       runtimeSettings: Record<string, unknown>;
-      artifactPolicy: Record<string, unknown>;
-      mlflowRunId: string;
       workerGitSha: string;
       workerImageDigest?: string;
     },
@@ -113,7 +110,6 @@ export class BenchmarkTemporalService {
               definitionId: benchmarkDefinition.definitionId,
               projectId: benchmarkDefinition.projectId,
               datasetVersionId: benchmarkDefinition.datasetVersionId,
-              gitRevision: benchmarkDefinition.gitRevision,
               splitId: benchmarkDefinition.splitId,
               sampleIds: benchmarkDefinition.sampleIds,
               workflowId: benchmarkDefinition.workflowId,
@@ -123,8 +119,6 @@ export class BenchmarkTemporalService {
               evaluatorConfig: benchmarkDefinition.evaluatorConfig,
               evaluatorConfigHash: benchmarkDefinition.evaluatorConfigHash,
               runtimeSettings: benchmarkDefinition.runtimeSettings,
-              artifactPolicy: benchmarkDefinition.artifactPolicy,
-              mlflowRunId: benchmarkDefinition.mlflowRunId,
               workerGitSha: benchmarkDefinition.workerGitSha,
               workerImageDigest: benchmarkDefinition.workerImageDigest,
             },
@@ -234,7 +228,6 @@ export class BenchmarkTemporalService {
       evaluatorType: string;
       evaluatorConfig: Record<string, unknown>;
       runtimeSettings: Record<string, unknown>;
-      artifactPolicy: Record<string, unknown>;
     },
   ): Promise<string> {
     await this.ensureClient();
@@ -269,7 +262,6 @@ export class BenchmarkTemporalService {
               evaluatorType: benchmarkDefinition.evaluatorType,
               evaluatorConfig: benchmarkDefinition.evaluatorConfig,
               runtimeSettings: benchmarkDefinition.runtimeSettings,
-              artifactPolicy: benchmarkDefinition.artifactPolicy,
             },
           ],
           taskQueue: this.taskQueue,

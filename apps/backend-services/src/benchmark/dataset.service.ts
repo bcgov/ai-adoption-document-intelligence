@@ -2,15 +2,16 @@
  * Dataset Service
  *
  * Provides CRUD operations for Dataset entities.
- * Manages dataset creation with DVC initialization and audit logging.
+ * Manages dataset creation with object storage and audit logging.
  *
  * See feature-docs/003-benchmarking-system/user-stories/US-006-dataset-service-controller.md
  */
 
-import { AuditAction, Prisma, PrismaClient } from "@generated/client";
+import { AuditAction, Prisma, PrismaClient, SplitType } from "@generated/client";
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -19,11 +20,12 @@ import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import Ajv from "ajv";
 import * as crypto from "crypto";
-import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
-import { promisify } from "util";
 import { getPrismaPgOptions } from "@/utils/database-url";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "@/blob-storage/blob-storage.interface";
 import {
   CreateDatasetDto,
   CreateVersionDto,
@@ -41,12 +43,6 @@ import {
   VersionListResponseDto,
   VersionResponseDto,
 } from "./dto";
-import { DvcService } from "./dvc.service";
-
-const mkdtemp = promisify(fs.mkdtemp);
-const rm = promisify(fs.rm);
-const access = promisify(fs.access);
-const mkdir = promisify(fs.mkdir);
 
 @Injectable()
 export class DatasetService {
@@ -55,7 +51,7 @@ export class DatasetService {
 
   constructor(
     private configService: ConfigService,
-    private dvcService: DvcService,
+    @Inject(BLOB_STORAGE) private blobStorage: BlobStorageInterface,
   ) {
     const dbOptions = getPrismaPgOptions(
       this.configService.get("DATABASE_URL"),
@@ -66,7 +62,7 @@ export class DatasetService {
   }
 
   /**
-   * Create a new dataset with DVC initialization
+   * Create a new dataset
    */
   async createDataset(
     createDto: CreateDatasetDto,
@@ -74,84 +70,27 @@ export class DatasetService {
   ): Promise<DatasetResponseDto> {
     this.logger.log(`Creating dataset: ${createDto.name} for user ${userId}`);
 
-    // Validate required fields
     if (!createDto.name) {
       throw new BadRequestException("Dataset name is required");
     }
-    if (!createDto.repositoryUrl) {
-      throw new BadRequestException("Repository URL is required");
-    }
-
-    // Check for duplicate repository URL
-    const existingDataset = await this.prisma.dataset.findUnique({
-      where: { repositoryUrl: createDto.repositoryUrl },
-    });
-    if (existingDataset) {
-      throw new ConflictException(
-        `A dataset already exists with this repository URL: "${existingDataset.name}"`,
-      );
-    }
-
-    let workingDir: string;
-    let isNewRepository = false;
-    let needsCleanup = false;
-
-    // Expand tilde in repository URL if present
-    const expandedUrl = createDto.repositoryUrl.startsWith('~')
-      ? createDto.repositoryUrl.replace(/^~/, os.homedir())
-      : createDto.repositoryUrl;
 
     try {
-      // Determine if this is a remote URL or local path
-      const isRemoteUrl =
-        expandedUrl.startsWith('http://') ||
-        expandedUrl.startsWith('https://') ||
-        expandedUrl.startsWith('git@');
-
-      if (isRemoteUrl) {
-        // For remote URLs, clone to temp directory
-        workingDir = await mkdtemp(path.join(os.tmpdir(), "dataset-init-"));
-        needsCleanup = true;
-        await this.dvcService.cloneRepository(createDto.repositoryUrl, workingDir);
-        this.logger.log(`Cloned existing repository: ${createDto.repositoryUrl}`);
-      } else {
-        // For local paths, check if repository exists
-        try {
-          // Try to access the directory
-          await access(expandedUrl);
-          // Directory exists, clone to temp directory
-          workingDir = await mkdtemp(path.join(os.tmpdir(), "dataset-init-"));
-          needsCleanup = true;
-          await this.dvcService.cloneRepository(createDto.repositoryUrl, workingDir);
-          this.logger.log(`Cloned existing repository: ${createDto.repositoryUrl}`);
-        } catch {
-          // Directory doesn't exist, create new repository at the target location
-          this.logger.log(
-            `Creating new repository at ${expandedUrl}`
-          );
-          await mkdir(expandedUrl, { recursive: true });
-          workingDir = expandedUrl;
-          isNewRepository = true;
-          await this.dvcService.createNewRepository(workingDir);
-        }
-      }
-
-      // Initialize DVC with MinIO remote (only for new repositories;
-      // cloned repos already have DVC configured)
-      if (isNewRepository) {
-        await this.dvcService.initRepository(workingDir);
-      }
-
       // Create dataset record in database
       const dataset = await this.prisma.dataset.create({
         data: {
           name: createDto.name,
           description: createDto.description || null,
           metadata: (createDto.metadata || {}) as Prisma.JsonValue,
-          repositoryUrl: createDto.repositoryUrl,
-          dvcRemote: "minio", // Default remote name
+          storagePath: "", // Will be set after we have the ID
           createdBy: userId,
         },
+      });
+
+      // Set storage path based on dataset ID
+      const storagePath = `datasets/${dataset.id}`;
+      await this.prisma.dataset.update({
+        where: { id: dataset.id },
+        data: { storagePath },
       });
 
       // Create audit log entry
@@ -163,23 +102,21 @@ export class DatasetService {
           entityId: dataset.id,
           metadata: {
             name: dataset.name,
-            repositoryUrl: dataset.repositoryUrl,
+            storagePath,
           },
         },
       });
 
       this.logger.log(`Dataset created successfully: ${dataset.id}`);
 
-      return this.mapToResponseDto(dataset);
+      return this.mapToResponseDto({ ...dataset, storagePath });
     } catch (error) {
-      // Re-throw NestJS HttpExceptions as-is (e.g., ConflictException)
       if (error instanceof ConflictException || error instanceof BadRequestException || error instanceof NotFoundException) {
         throw error;
       }
-      // Handle Prisma unique constraint violation (race condition fallback)
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         throw new ConflictException(
-          `A dataset already exists with this repository URL`,
+          `A dataset with the name "${createDto.name}" already exists. Please choose a different name.`,
         );
       }
       this.logger.error(
@@ -190,18 +127,6 @@ export class DatasetService {
       throw new BadRequestException(
         `Failed to create dataset: ${errorMessage}`,
       );
-    } finally {
-      // Clean up temporary directory (only if we used one)
-      if (needsCleanup && workingDir) {
-        try {
-          await rm(workingDir, { recursive: true, force: true });
-        } catch (cleanupError) {
-          this.logger.warn(
-            `Failed to clean up temp directory: ${workingDir}`,
-            cleanupError,
-          );
-        }
-      }
     }
   }
 
@@ -214,15 +139,12 @@ export class DatasetService {
   ): Promise<PaginatedDatasetResponseDto> {
     this.logger.debug(`Listing datasets - page: ${page}, limit: ${limit}`);
 
-    // Validate pagination parameters
     const validPage = Math.max(1, page);
-    const validLimit = Math.min(100, Math.max(1, limit)); // Cap at 100
+    const validLimit = Math.min(100, Math.max(1, limit));
     const skip = (validPage - 1) * validLimit;
 
-    // Get total count
     const total = await this.prisma.dataset.count();
 
-    // Get paginated datasets with version counts
     const datasets = await this.prisma.dataset.findMany({
       skip,
       take: validLimit,
@@ -264,7 +186,7 @@ export class DatasetService {
             createdAt: true,
           },
           orderBy: { createdAt: "desc" },
-          take: 5, // Show 5 most recent versions
+          take: 5,
         },
       },
     });
@@ -303,47 +225,50 @@ export class DatasetService {
     }
 
     // Manually cascade delete to handle foreign key constraints
-    // 1. Delete benchmark runs associated with definitions
     for (const version of dataset.versions) {
       for (const definition of version.benchmarkDefinitions) {
         await this.prisma.benchmarkRun.deleteMany({
           where: { definitionId: definition.id },
         });
       }
-      // 2. Delete benchmark definitions
       await this.prisma.benchmarkDefinition.deleteMany({
         where: { datasetVersionId: version.id },
       });
-      // 3. Delete splits
       await this.prisma.split.deleteMany({
         where: { datasetVersionId: version.id },
       });
     }
 
-    // 4. Delete versions
     await this.prisma.datasetVersion.deleteMany({
       where: { datasetId: id },
     });
 
-    // 5. Finally delete the dataset
     await this.prisma.dataset.delete({
       where: { id },
     });
+
+    // Delete all files from object storage
+    if (dataset.storagePath) {
+      try {
+        await this.blobStorage.deleteByPrefix(dataset.storagePath);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to delete storage files for dataset ${id}: ${error}`,
+        );
+      }
+    }
 
     this.logger.log(`Dataset deleted successfully: ${id}`);
   }
 
   /**
    * Create a new empty draft dataset version.
-   * The version starts with no files or git revision.
-   * Files are added subsequently via uploadFilesToVersion().
    */
   async createVersion(
     datasetId: string,
     createDto: CreateVersionDto,
     userId: string,
   ): Promise<VersionResponseDto> {
-    // Verify dataset exists
     const dataset = await this.prisma.dataset.findUnique({
       where: { id: datasetId },
     });
@@ -352,7 +277,6 @@ export class DatasetService {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    // Auto-generate version label if not provided
     const existingVersionCount = await this.prisma.datasetVersion.count({
       where: { datasetId },
     });
@@ -363,16 +287,14 @@ export class DatasetService {
       `Creating version ${versionLabel} for dataset ${datasetId}`,
     );
 
-    // Default manifest path if not provided
     const manifestPath = createDto.manifestPath || "dataset-manifest.json";
 
-    // Create DatasetVersion record with no git revision
     const version = await this.prisma.datasetVersion.create({
       data: {
         datasetId: datasetId,
         version: versionLabel,
         name: createDto.name || null,
-        gitRevision: null,
+        storagePrefix: null,
         manifestPath: manifestPath,
         documentCount: 0,
         groundTruthSchema: (createDto.groundTruthSchema ||
@@ -393,7 +315,6 @@ export class DatasetService {
   async listVersions(datasetId: string): Promise<VersionListResponseDto> {
     this.logger.debug(`Listing versions for dataset ${datasetId}`);
 
-    // Verify dataset exists
     const dataset = await this.prisma.dataset.findUnique({
       where: { id: datasetId },
     });
@@ -402,7 +323,6 @@ export class DatasetService {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    // Get all versions for this dataset, including splits
     const versions = await this.prisma.datasetVersion.findMany({
       where: { datasetId: datasetId },
       include: {
@@ -423,7 +343,7 @@ export class DatasetService {
       version: v.version,
       name: v.name ?? null,
       documentCount: v.documentCount,
-      gitRevision: v.gitRevision,
+      storagePrefix: v.storagePrefix,
       createdAt: v.createdAt,
       splits: v.splits.map((s) => ({
         id: s.id,
@@ -473,7 +393,7 @@ export class DatasetService {
 
   /**
    * Upload files to an existing draft dataset version.
-   * Appends files to the version's manifest and commits to git.
+   * Uploads files to object storage and updates the manifest.
    */
   async uploadFilesToVersion(
     datasetId: string,
@@ -492,7 +412,6 @@ export class DatasetService {
       `Uploading ${files.length} files to dataset ${datasetId}, version ${versionId}`,
     );
 
-    // Verify dataset exists
     const dataset = await this.prisma.dataset.findUnique({
       where: { id: datasetId },
     });
@@ -501,7 +420,6 @@ export class DatasetService {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    // Verify version exists
     const version = await this.prisma.datasetVersion.findFirst({
       where: { id: versionId, datasetId },
     });
@@ -512,60 +430,9 @@ export class DatasetService {
       );
     }
 
-    // Determine if repository is remote or local
-    const expandedUrl = dataset.repositoryUrl.startsWith("~")
-      ? dataset.repositoryUrl.replace(/^~/, os.homedir())
-      : dataset.repositoryUrl;
-    const isRemoteUrl =
-      expandedUrl.startsWith("http://") ||
-      expandedUrl.startsWith("https://") ||
-      expandedUrl.startsWith("git@");
-
-    let workingDir: string;
-    let tempDir: string | null = null;
-
-    if (isRemoteUrl) {
-      tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-upload-"));
-      await this.dvcService.cloneRepository(dataset.repositoryUrl, tempDir);
-      workingDir = tempDir;
-    } else {
-      workingDir = expandedUrl;
-    }
+    const storagePrefix = `datasets/${datasetId}/${versionId}`;
 
     try {
-      // If version already has a git revision, check it out (incremental upload)
-      if (version.gitRevision) {
-        await this.dvcService.checkout(workingDir, version.gitRevision);
-      } else {
-        // First upload to a new version — clean the working directory so it
-        // does not inherit stale files from previously deleted versions whose
-        // commits are still on the main branch.
-        const inputsDirClean = path.join(workingDir, "inputs");
-        const groundTruthDirClean = path.join(workingDir, "ground-truth");
-        const manifestFileClean = path.join(workingDir, "dataset-manifest.json");
-
-        for (const target of [inputsDirClean, groundTruthDirClean]) {
-          try {
-            await rm(target, { recursive: true, force: true });
-            this.logger.debug(`Cleaned directory for new version: ${target}`);
-          } catch {
-            // Directory may not exist yet — that's fine
-          }
-        }
-        try {
-          await fs.promises.unlink(manifestFileClean);
-          this.logger.debug("Cleaned manifest for new version");
-        } catch {
-          // Manifest may not exist yet — that's fine
-        }
-      }
-
-      // Create inputs and ground-truth directories if they don't exist
-      const inputsDir = path.join(workingDir, "inputs");
-      const groundTruthDir = path.join(workingDir, "ground-truth");
-      await fs.promises.mkdir(inputsDir, { recursive: true });
-      await fs.promises.mkdir(groundTruthDir, { recursive: true });
-
       const uploadedFiles: UploadedFileDto[] = [];
 
       // Track filenames per directory to detect and deduplicate collisions
@@ -577,7 +444,6 @@ export class DatasetService {
       // Process each file
       for (const file of files) {
         const isGroundTruth = this.isGroundTruthFile(file);
-        const targetDir = isGroundTruth ? groundTruthDir : inputsDir;
         const dirKey = isGroundTruth ? "ground-truth" : "inputs";
 
         // Deduplicate filename if it already exists in this directory
@@ -597,9 +463,10 @@ export class DatasetService {
         usedFilenames[dirKey].add(finalFilename);
 
         const relativePath = `${dirKey}/${finalFilename}`;
-        const targetPath = path.join(targetDir, finalFilename);
+        const blobKey = `${storagePrefix}/${relativePath}`;
 
-        await fs.promises.writeFile(targetPath, file.buffer);
+        // Upload to object storage
+        await this.blobStorage.write(blobKey, file.buffer);
 
         uploadedFiles.push({
           filename: finalFilename,
@@ -608,11 +475,11 @@ export class DatasetService {
           mimeType: file.mimetype,
         });
 
-        this.logger.debug(`File written: ${relativePath}`);
+        this.logger.debug(`File uploaded: ${blobKey}`);
       }
 
       // Load or create manifest
-      const manifestFilePath = path.join(workingDir, "dataset-manifest.json");
+      const manifestKey = `${storagePrefix}/dataset-manifest.json`;
       let manifest: {
         schemaVersion: string;
         samples: Array<{
@@ -624,11 +491,8 @@ export class DatasetService {
       };
 
       try {
-        const manifestContent = await fs.promises.readFile(
-          manifestFilePath,
-          "utf-8",
-        );
-        manifest = JSON.parse(manifestContent);
+        const manifestBuffer = await this.blobStorage.read(manifestKey);
+        manifest = JSON.parse(manifestBuffer.toString("utf-8"));
       } catch {
         manifest = {
           schemaVersion: "1.0",
@@ -653,7 +517,6 @@ export class DatasetService {
 
         for (const file of sampleFiles) {
           if (file.path.startsWith("inputs/")) {
-            // Overwrite if a file with the same path already exists
             const existingIdx = sample.inputs.findIndex(
               (i) => i.path === file.path,
             );
@@ -664,7 +527,6 @@ export class DatasetService {
               sample.inputs.push(entry);
             }
           } else if (file.path.startsWith("ground-truth/")) {
-            // Overwrite if a file with the same path already exists
             const existingIdx = sample.groundTruth.findIndex(
               (g) => g.path === file.path,
             );
@@ -681,29 +543,17 @@ export class DatasetService {
         }
       }
 
-      // Write updated manifest
-      await fs.promises.writeFile(
-        manifestFilePath,
-        JSON.stringify(manifest, null, 2),
+      // Write updated manifest to object storage
+      await this.blobStorage.write(
+        manifestKey,
+        Buffer.from(JSON.stringify(manifest, null, 2)),
       );
 
-      // Commit files to git
-      const commitMessage = `Upload files to version ${version.version}`;
-      const gitRevision = await this.dvcService.commitChanges(
-        workingDir,
-        commitMessage,
-      );
-
-      // For remote repos, push the commit back to origin
-      if (isRemoteUrl) {
-        await this.dvcService.pushToOrigin(workingDir);
-      }
-
-      // Update the existing version record with new git revision and document count
+      // Update version record
       const updatedVersion = await this.prisma.datasetVersion.update({
         where: { id: versionId },
         data: {
-          gitRevision: gitRevision,
+          storagePrefix: storagePrefix,
           documentCount: manifest.samples.length,
         },
       });
@@ -720,33 +570,36 @@ export class DatasetService {
         version: {
           id: updatedVersion.id,
           version: updatedVersion.version,
-          gitRevision: updatedVersion.gitRevision,
+          storagePrefix: updatedVersion.storagePrefix,
           documentCount: updatedVersion.documentCount,
         },
       };
     } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
       this.logger.error(
         `Failed to upload files to dataset ${datasetId}, version ${versionId}`,
-        error.stack,
+        err.stack,
       );
-      throw error;
-    } finally {
-      if (tempDir) {
-        try {
-          await rm(tempDir, { recursive: true, force: true });
-        } catch (cleanupError) {
-          this.logger.warn(
-            `Failed to clean up temp directory: ${tempDir}`,
-            cleanupError,
-          );
-        }
+
+      if (err.message.includes("NoSuchBucket") || err.message.includes("bucket does not exist")) {
+        throw new BadRequestException(
+          "Object storage bucket is not configured. Please ensure MinIO is initialized with the required buckets.",
+        );
       }
+
+      if (err.message.includes("Failed to write blob")) {
+        throw new BadRequestException(
+          `File upload failed: ${err.message}`,
+        );
+      }
+
+      throw error;
     }
   }
 
   /**
    * Delete a sample from a draft dataset version.
-   * Removes the sample from the manifest and deletes its files from the git repo.
+   * Removes the sample from the manifest and deletes its files from object storage.
    */
   async deleteSample(
     datasetId: string,
@@ -757,7 +610,6 @@ export class DatasetService {
       `Deleting sample ${sampleId} from dataset ${datasetId}, version ${versionId}`,
     );
 
-    // Verify dataset exists
     const dataset = await this.prisma.dataset.findUnique({
       where: { id: datasetId },
     });
@@ -766,7 +618,6 @@ export class DatasetService {
       throw new NotFoundException(`Dataset with ID ${datasetId} not found`);
     }
 
-    // Verify version exists and is draft
     const version = await this.prisma.datasetVersion.findFirst({
       where: { id: versionId, datasetId },
     });
@@ -777,43 +628,17 @@ export class DatasetService {
       );
     }
 
-    if (!version.gitRevision) {
+    if (!version.storagePrefix) {
       throw new BadRequestException(
         "Cannot delete samples from a version with no files uploaded",
       );
     }
 
-    // Determine if repository is remote or local
-    const expandedUrl = dataset.repositoryUrl.startsWith("~")
-      ? dataset.repositoryUrl.replace(/^~/, os.homedir())
-      : dataset.repositoryUrl;
-    const isRemoteUrl =
-      expandedUrl.startsWith("http://") ||
-      expandedUrl.startsWith("https://") ||
-      expandedUrl.startsWith("git@");
-
-    let workingDir: string;
-    let tempDir: string | null = null;
-
-    if (isRemoteUrl) {
-      tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-delete-sample-"));
-      await this.dvcService.cloneRepository(dataset.repositoryUrl, tempDir);
-      workingDir = tempDir;
-    } else {
-      workingDir = expandedUrl;
-    }
-
     try {
-      // Checkout the current version's git revision
-      await this.dvcService.checkout(workingDir, version.gitRevision);
-
-      // Load the manifest
-      const manifestFilePath = path.join(workingDir, version.manifestPath);
-      const manifestContent = await fs.promises.readFile(
-        manifestFilePath,
-        "utf-8",
-      );
-      const manifest = JSON.parse(manifestContent) as {
+      // Load the manifest from object storage
+      const manifestKey = `${version.storagePrefix}/dataset-manifest.json`;
+      const manifestBuffer = await this.blobStorage.read(manifestKey);
+      const manifest = JSON.parse(manifestBuffer.toString("utf-8")) as {
         schemaVersion: string;
         samples: Array<{
           id: string;
@@ -836,19 +661,19 @@ export class DatasetService {
 
       const sample = manifest.samples[sampleIndex];
 
-      // Delete the sample's files from disk
+      // Delete the sample's files from object storage
       for (const input of sample.inputs) {
-        const filePath = path.join(workingDir, input.path);
+        const blobKey = `${version.storagePrefix}/${input.path}`;
         try {
-          await fs.promises.unlink(filePath);
+          await this.blobStorage.delete(blobKey);
         } catch {
           this.logger.warn(`Could not delete file: ${input.path}`);
         }
       }
       for (const gt of sample.groundTruth) {
-        const filePath = path.join(workingDir, gt.path);
+        const blobKey = `${version.storagePrefix}/${gt.path}`;
         try {
-          await fs.promises.unlink(filePath);
+          await this.blobStorage.delete(blobKey);
         } catch {
           this.logger.warn(`Could not delete file: ${gt.path}`);
         }
@@ -858,28 +683,15 @@ export class DatasetService {
       manifest.samples.splice(sampleIndex, 1);
 
       // Write updated manifest
-      await fs.promises.writeFile(
-        manifestFilePath,
-        JSON.stringify(manifest, null, 2),
+      await this.blobStorage.write(
+        manifestKey,
+        Buffer.from(JSON.stringify(manifest, null, 2)),
       );
-
-      // Commit changes
-      const commitMessage = `Remove sample ${sampleId} from version ${version.version}`;
-      const gitRevision = await this.dvcService.commitChanges(
-        workingDir,
-        commitMessage,
-      );
-
-      // For remote repos, push the commit back to origin
-      if (isRemoteUrl) {
-        await this.dvcService.pushToOrigin(workingDir);
-      }
 
       // Update version record
       await this.prisma.datasetVersion.update({
         where: { id: versionId },
         data: {
-          gitRevision: gitRevision,
           documentCount: manifest.samples.length,
         },
       });
@@ -919,17 +731,6 @@ export class DatasetService {
         error.stack,
       );
       throw error;
-    } finally {
-      if (tempDir) {
-        try {
-          await rm(tempDir, { recursive: true, force: true });
-        } catch (cleanupError) {
-          this.logger.warn(
-            `Failed to clean up temp directory: ${tempDir}`,
-            cleanupError,
-          );
-        }
-      }
     }
   }
 
@@ -960,7 +761,6 @@ export class DatasetService {
       );
     }
 
-    // Block deletion if any benchmark definitions reference this version
     if (version.benchmarkDefinitions.length > 0) {
       const defNames = version.benchmarkDefinitions
         .map((d) => d.name)
@@ -970,7 +770,7 @@ export class DatasetService {
       );
     }
 
-    // Delete splits for the version first (cascade would handle this, but be explicit)
+    // Delete splits for the version first
     await this.prisma.split.deleteMany({
       where: { datasetVersionId: versionId },
     });
@@ -979,6 +779,17 @@ export class DatasetService {
     await this.prisma.datasetVersion.delete({
       where: { id: versionId },
     });
+
+    // Delete files from object storage
+    if (version.storagePrefix) {
+      try {
+        await this.blobStorage.deleteByPrefix(version.storagePrefix);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to delete storage files for version ${versionId}: ${error}`,
+        );
+      }
+    }
 
     this.logger.log(`Version ${versionId} deleted successfully`);
   }
@@ -996,19 +807,14 @@ export class DatasetService {
       `Listing samples for dataset ${datasetId}, version ${versionId} - page: ${page}, limit: ${limit}`,
     );
 
-    // Validate pagination parameters
     const validPage = Math.max(1, page);
-    const validLimit = Math.min(100, Math.max(1, limit)); // Cap at 100
+    const validLimit = Math.min(100, Math.max(1, limit));
     const skip = (validPage - 1) * validLimit;
 
-    // Get the version
     const version = await this.prisma.datasetVersion.findFirst({
       where: {
         id: versionId,
         datasetId: datasetId,
-      },
-      include: {
-        dataset: true,
       },
     });
 
@@ -1018,8 +824,8 @@ export class DatasetService {
       );
     }
 
-    // If version has no git revision yet (no files uploaded), return empty
-    if (!version.gitRevision) {
+    // If version has no storage prefix yet (no files uploaded), return empty
+    if (!version.storagePrefix) {
       return {
         samples: [],
         total: 0,
@@ -1029,30 +835,14 @@ export class DatasetService {
       };
     }
 
-    // Create temporary directory for checking out the dataset
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-samples-"));
-
     try {
-      // Clone the dataset repository
-      await this.dvcService.cloneRepository(
-        version.dataset.repositoryUrl,
-        tempDir,
-      );
+      // Load manifest from object storage
+      const manifestKey = `${version.storagePrefix}/dataset-manifest.json`;
+      const manifest = await this.loadAndValidateManifestFromStorage(manifestKey);
 
-      // Checkout the specific git revision
-      await this.dvcService.checkout(tempDir, version.gitRevision);
-
-      // Load and validate the manifest
-      const manifestPath = path.join(tempDir, version.manifestPath);
-      const manifest = await this.loadAndValidateManifest(manifestPath);
-
-      // Get total count
       const total = manifest.samples.length;
-
-      // Paginate samples
       const paginatedSamples = manifest.samples.slice(skip, skip + validLimit);
 
-      // Map to DTOs
       const samples: ManifestSampleDto[] = paginatedSamples.map((sample) => ({
         id: sample.id,
         inputs: sample.inputs,
@@ -1079,16 +869,6 @@ export class DatasetService {
         error.stack,
       );
       throw error;
-    } finally {
-      // Clean up temporary directory
-      try {
-        await rm(tempDir, { recursive: true, force: true });
-      } catch (cleanupError) {
-        this.logger.warn(
-          `Failed to clean up temp directory: ${tempDir}`,
-          cleanupError,
-        );
-      }
     }
   }
 
@@ -1104,14 +884,10 @@ export class DatasetService {
       `Getting ground truth for dataset ${datasetId}, version ${versionId}, sample ${sampleId}`,
     );
 
-    // Get the version
     const version = await this.prisma.datasetVersion.findFirst({
       where: {
         id: versionId,
         datasetId: datasetId,
-      },
-      include: {
-        dataset: true,
       },
     });
 
@@ -1121,30 +897,17 @@ export class DatasetService {
       );
     }
 
-    if (!version.gitRevision) {
+    if (!version.storagePrefix) {
       throw new BadRequestException(
         "Version has no files uploaded yet",
       );
     }
 
-    // Create temporary directory for checking out the dataset
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-gt-"));
-
     try {
-      // Clone the dataset repository
-      await this.dvcService.cloneRepository(
-        version.dataset.repositoryUrl,
-        tempDir,
-      );
+      // Load manifest from object storage
+      const manifestKey = `${version.storagePrefix}/dataset-manifest.json`;
+      const manifest = await this.loadAndValidateManifestFromStorage(manifestKey);
 
-      // Checkout the specific git revision
-      await this.dvcService.checkout(tempDir, version.gitRevision);
-
-      // Load and validate the manifest
-      const manifestPath = path.join(tempDir, version.manifestPath);
-      const manifest = await this.loadAndValidateManifest(manifestPath);
-
-      // Find the sample
       const sample = manifest.samples.find((s) => s.id === sampleId);
       if (!sample) {
         throw new NotFoundException(
@@ -1152,7 +915,6 @@ export class DatasetService {
         );
       }
 
-      // Get the first ground truth file (most common case)
       if (!sample.groundTruth || sample.groundTruth.length === 0) {
         throw new NotFoundException(
           `Sample ${sampleId} has no ground truth files`,
@@ -1160,23 +922,19 @@ export class DatasetService {
       }
 
       const groundTruthFile = sample.groundTruth[0];
-      const groundTruthPath = path.join(tempDir, groundTruthFile.path);
+      const blobKey = `${version.storagePrefix}/${groundTruthFile.path}`;
 
-      // Read and parse the ground truth file
       let content: Record<string, unknown>;
       try {
-        const fileContent = await fs.promises.readFile(
-          groundTruthPath,
-          "utf-8",
-        );
-        content = JSON.parse(fileContent);
+        const buffer = await this.blobStorage.read(blobKey);
+        content = JSON.parse(buffer.toString("utf-8"));
       } catch (error) {
         this.logger.error(
           `Failed to read or parse ground truth file at ${groundTruthFile.path}`,
           error.stack,
         );
         throw new BadRequestException(
-          `Failed to read or parse ground truth file: ${error.message}`,
+          `Failed to read or parse ground truth file: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
 
@@ -1198,16 +956,6 @@ export class DatasetService {
         error.stack,
       );
       throw error;
-    } finally {
-      // Clean up temporary directory
-      try {
-        await rm(tempDir, { recursive: true, force: true });
-      } catch (cleanupError) {
-        this.logger.warn(
-          `Failed to clean up temp directory: ${tempDir}`,
-          cleanupError,
-        );
-      }
     }
   }
 
@@ -1226,7 +974,6 @@ export class DatasetService {
 
     const version = await this.prisma.datasetVersion.findFirst({
       where: { id: versionId, datasetId },
-      include: { dataset: true },
     });
 
     if (!version) {
@@ -1235,7 +982,7 @@ export class DatasetService {
       );
     }
 
-    if (!version.gitRevision) {
+    if (!version.storagePrefix) {
       throw new BadRequestException("Version has no files uploaded yet");
     }
 
@@ -1249,17 +996,15 @@ export class DatasetService {
       throw new BadRequestException("Invalid file path");
     }
 
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "dataset-dl-"));
+    const blobKey = `${version.storagePrefix}/${normalizedPath}`;
 
     try {
-      await this.dvcService.cloneRepository(
-        version.dataset.repositoryUrl,
-        tempDir,
-      );
-      await this.dvcService.checkout(tempDir, version.gitRevision);
+      const exists = await this.blobStorage.exists(blobKey);
+      if (!exists) {
+        throw new NotFoundException(`File not found: ${filePath}`);
+      }
 
-      const fullPath = path.join(tempDir, normalizedPath);
-      const buffer = await fs.promises.readFile(fullPath);
+      const buffer = await this.blobStorage.read(blobKey);
       const filename = path.basename(normalizedPath);
 
       // Determine MIME type from extension
@@ -1287,26 +1032,14 @@ export class DatasetService {
       ) {
         throw error;
       }
-      if (error.code === "ENOENT") {
-        throw new NotFoundException(`File not found: ${filePath}`);
-      }
       throw error;
-    } finally {
-      try {
-        await rm(tempDir, { recursive: true, force: true });
-      } catch (cleanupError) {
-        this.logger.warn(
-          `Failed to clean up temp directory: ${tempDir}`,
-          cleanupError,
-        );
-      }
     }
   }
 
   /**
-   * Load and validate a manifest file
+   * Load and validate a manifest file from object storage
    */
-  private async loadAndValidateManifest(manifestPath: string): Promise<{
+  private async loadAndValidateManifestFromStorage(manifestKey: string): Promise<{
     schemaVersion: string;
     samples: Array<{
       id: string;
@@ -1316,11 +1049,14 @@ export class DatasetService {
     }>;
   }> {
     try {
-      // Read manifest file
-      const manifestContent = await fs.promises.readFile(manifestPath, "utf-8");
-      const manifest = JSON.parse(manifestContent);
+      const exists = await this.blobStorage.exists(manifestKey);
+      if (!exists) {
+        throw new NotFoundException("Manifest file not found in storage");
+      }
 
-      // Validate manifest schema
+      const manifestBuffer = await this.blobStorage.read(manifestKey);
+      const manifest = JSON.parse(manifestBuffer.toString("utf-8"));
+
       if (
         !manifest.schemaVersion ||
         typeof manifest.schemaVersion !== "string"
@@ -1336,7 +1072,6 @@ export class DatasetService {
         );
       }
 
-      // Validate each sample
       for (let i = 0; i < manifest.samples.length; i++) {
         const sample = manifest.samples[i];
 
@@ -1352,7 +1087,6 @@ export class DatasetService {
           );
         }
 
-        // Validate input files
         for (let j = 0; j < sample.inputs.length; j++) {
           const input = sample.inputs[j];
           if (!input.path || typeof input.path !== "string") {
@@ -1373,7 +1107,6 @@ export class DatasetService {
           );
         }
 
-        // Validate ground truth files
         for (let j = 0; j < sample.groundTruth.length; j++) {
           const gt = sample.groundTruth[j];
           if (!gt.path || typeof gt.path !== "string") {
@@ -1388,7 +1121,6 @@ export class DatasetService {
           }
         }
 
-        // Validate metadata (optional, but must be an object if present)
         if (
           sample.metadata !== undefined &&
           typeof sample.metadata !== "object"
@@ -1401,11 +1133,8 @@ export class DatasetService {
 
       return manifest;
     } catch (error) {
-      if (error instanceof BadRequestException) {
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
         throw error;
-      }
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        throw new NotFoundException("Manifest file not found in repository");
       }
       if (error instanceof SyntaxError) {
         throw new BadRequestException(
@@ -1452,21 +1181,8 @@ export class DatasetService {
    *
    * The sample ID is the filename without its extension.
    * Ground truth is matched by sharing the same base name:
-   *   "invoice-001.pdf"   → sample "invoice-001"
-   *   "invoice-001.json"  → sample "invoice-001"
-   */
-  /**
-   * Group uploaded files by derived sample ID.
-   * Ground truth is matched by filename convention: a `.json` file with the
-   * same base name as the input document (e.g. `invoice-001.pdf` pairs with
-   * `invoice-001.json`).
-   *
-   * Duplicate filenames within a single upload session are rejected.
-   * Re-uploading a file that already exists in the version overwrites it.
-   *
-   * @param files - Array of uploaded file DTOs
-   * @param existingSampleIds - Set of sample IDs already in the manifest
-   * @returns Record mapping sample IDs to their associated files
+   *   "invoice-001.pdf"   -> sample "invoice-001"
+   *   "invoice-001.json"  -> sample "invoice-001"
    */
   private groupFilesBySampleId(
     files: UploadedFileDto[],
@@ -1475,12 +1191,10 @@ export class DatasetService {
     const groups: Record<string, UploadedFileDto[]> = {};
     const assignedPaths: Set<string> = new Set();
 
-    // Track sample IDs per type (input vs ground-truth) to detect duplicates within the batch
     const inputSampleIds: Set<string> = new Set();
     const gtSampleIds: Set<string> = new Set();
 
     for (const file of files) {
-      // Sample ID is the filename without its extension
       const sampleId = file.filename.replace(/\.[^.]+$/, "");
 
       if (assignedPaths.has(file.path)) {
@@ -1490,7 +1204,6 @@ export class DatasetService {
       const isInput = file.path.startsWith("inputs/");
       const isGt = file.path.startsWith("ground-truth/");
 
-      // Reject duplicate filenames within the same upload batch
       if (isInput && inputSampleIds.has(sampleId)) {
         throw new BadRequestException(
           `Duplicate input filename detected in upload: "${file.filename}" (sample ID: "${sampleId}")`,
@@ -1536,8 +1249,7 @@ export class DatasetService {
       name: string;
       description: string | null;
       metadata: unknown;
-      repositoryUrl: string;
-      dvcRemote: string;
+      storagePath: string;
       createdBy: string;
       createdAt: Date;
       updatedAt: Date;
@@ -1555,8 +1267,7 @@ export class DatasetService {
       name: dataset.name,
       description: dataset.description,
       metadata: dataset.metadata as Record<string, unknown>,
-      repositoryUrl: dataset.repositoryUrl,
-      dvcRemote: dataset.dvcRemote,
+      storagePath: dataset.storagePath,
       createdBy: dataset.createdBy,
       createdAt: dataset.createdAt,
       updatedAt: dataset.updatedAt,
@@ -1574,7 +1285,7 @@ export class DatasetService {
       datasetId: string;
       version: string;
       name?: string | null;
-      gitRevision: string | null;
+      storagePrefix: string | null;
       manifestPath: string;
       documentCount: number;
       groundTruthSchema: unknown;
@@ -1592,7 +1303,7 @@ export class DatasetService {
       datasetId: version.datasetId,
       version: version.version,
       name: version.name ?? null,
-      gitRevision: version.gitRevision,
+      storagePrefix: version.storagePrefix,
       manifestPath: version.manifestPath,
       documentCount: version.documentCount,
       groundTruthSchema: version.groundTruthSchema as Record<
@@ -1622,14 +1333,10 @@ export class DatasetService {
       `Validating dataset ${datasetId}, version ${versionId} with sampleSize: ${requestDto.sampleSize || "all"}`,
     );
 
-    // Get the version
     const version = await this.prisma.datasetVersion.findFirst({
       where: {
         id: versionId,
         datasetId: datasetId,
-      },
-      include: {
-        dataset: true,
       },
     });
 
@@ -1639,32 +1346,16 @@ export class DatasetService {
       );
     }
 
-    if (!version.gitRevision) {
+    if (!version.storagePrefix) {
       throw new BadRequestException(
         "Cannot validate a version with no files uploaded",
       );
     }
 
-    // Create temporary directory for checking out the dataset
-    const tempDir = await mkdtemp(
-      path.join(os.tmpdir(), "dataset-validation-"),
-    );
-
     try {
-      // Clone the dataset repository
-      await this.dvcService.cloneRepository(
-        version.dataset.repositoryUrl,
-        tempDir,
-      );
+      const manifestKey = `${version.storagePrefix}/dataset-manifest.json`;
+      const manifest = await this.loadAndValidateManifestFromStorage(manifestKey);
 
-      // Checkout the specific git revision
-      await this.dvcService.checkout(tempDir, version.gitRevision);
-
-      // Load and validate the manifest
-      const manifestPath = path.join(tempDir, version.manifestPath);
-      const manifest = await this.loadAndValidateManifest(manifestPath);
-
-      // Determine samples to validate (all or random sample)
       const allSamples = manifest.samples;
       const totalSamples = allSamples.length;
       const sampled =
@@ -1673,10 +1364,8 @@ export class DatasetService {
         ? this.randomSample(allSamples, requestDto.sampleSize!)
         : allSamples;
 
-      // Initialize validation issues array
       const issues: ValidationIssue[] = [];
 
-      // Initialize AJV for schema validation
       const ajv = new Ajv({ allErrors: true });
       let schemaValidator: ReturnType<typeof ajv.compile> | null = null;
 
@@ -1687,17 +1376,14 @@ export class DatasetService {
           );
         } catch (error) {
           this.logger.warn(
-            `Invalid ground truth schema for version ${versionId}: ${error.message}`,
+            `Invalid ground truth schema for version ${versionId}: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
       }
 
-      // Track content hashes for duplicate detection
       const contentHashes = new Map<string, string[]>();
 
-      // Validate each sample
       for (const sample of samplesToValidate) {
-        // Check for missing ground truth
         if (!sample.groundTruth || sample.groundTruth.length === 0) {
           issues.push({
             category: "missing_ground_truth",
@@ -1708,14 +1394,11 @@ export class DatasetService {
           continue;
         }
 
-        // Validate each ground truth file
         for (const gt of sample.groundTruth) {
-          const gtFilePath = path.join(tempDir, gt.path);
+          const blobKey = `${version.storagePrefix}/${gt.path}`;
 
-          // Check file existence and readability (corruption check)
-          try {
-            await fs.promises.access(gtFilePath, fs.constants.R_OK);
-          } catch (error) {
+          const fileExists = await this.blobStorage.exists(blobKey);
+          if (!fileExists) {
             issues.push({
               category: "corruption",
               severity: "error",
@@ -1726,10 +1409,10 @@ export class DatasetService {
             continue;
           }
 
-          // Read file content
           let fileContent: string;
           try {
-            fileContent = await fs.promises.readFile(gtFilePath, "utf-8");
+            const buffer = await this.blobStorage.read(blobKey);
+            fileContent = buffer.toString("utf-8");
           } catch (error) {
             issues.push({
               category: "corruption",
@@ -1741,7 +1424,6 @@ export class DatasetService {
             continue;
           }
 
-          // Calculate content hash for duplicate detection
           const contentHash = crypto
             .createHash("sha256")
             .update(fileContent)
@@ -1753,52 +1435,47 @@ export class DatasetService {
             contentHashes.set(contentHash, [sample.id]);
           }
 
-          // Validate JSON format for JSON files
           if (gt.format === "json") {
             try {
               const jsonData = JSON.parse(fileContent);
 
-              // Validate against schema if available
               if (schemaValidator) {
                 const valid = schemaValidator(jsonData);
                 if (!valid && schemaValidator.errors) {
-                  for (const error of schemaValidator.errors) {
+                  for (const schemaError of schemaValidator.errors) {
                     issues.push({
                       category: "schema_violation",
                       severity: "error",
                       sampleId: sample.id,
                       filePath: gt.path,
-                      message: `Schema validation error: ${error.instancePath} ${error.message}`,
+                      message: `Schema validation error: ${schemaError.instancePath} ${schemaError.message}`,
                       details: {
-                        keyword: error.keyword,
-                        dataPath: error.instancePath,
-                        schemaPath: error.schemaPath,
-                        params: error.params,
+                        keyword: schemaError.keyword,
+                        dataPath: schemaError.instancePath,
+                        schemaPath: schemaError.schemaPath,
+                        params: schemaError.params,
                       },
                     });
                   }
                 }
               }
-            } catch (error) {
+            } catch (parseError) {
               issues.push({
                 category: "corruption",
                 severity: "error",
                 sampleId: sample.id,
                 filePath: gt.path,
-                message: `Invalid JSON format: ${error.message}`,
+                message: `Invalid JSON format: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
               });
             }
           }
         }
 
-        // Validate input files for corruption
         for (const input of sample.inputs) {
-          const inputFilePath = path.join(tempDir, input.path);
+          const blobKey = `${version.storagePrefix}/${input.path}`;
 
-          // Check file existence and readability
-          try {
-            await fs.promises.access(inputFilePath, fs.constants.R_OK);
-          } catch (error) {
+          const fileExists = await this.blobStorage.exists(blobKey);
+          if (!fileExists) {
             issues.push({
               category: "corruption",
               severity: "error",
@@ -1809,10 +1486,9 @@ export class DatasetService {
             continue;
           }
 
-          // Validate image file headers for image files
           if (input.mimeType.startsWith("image/")) {
             try {
-              const buffer = await fs.promises.readFile(inputFilePath);
+              const buffer = await this.blobStorage.read(blobKey);
               const isValidImage = this.validateImageHeader(
                 buffer,
                 input.mimeType,
@@ -1840,12 +1516,11 @@ export class DatasetService {
         }
       }
 
-      // Report duplicates
       for (const [hash, sampleIds] of contentHashes.entries()) {
         if (sampleIds.length > 1) {
           issues.push({
             category: "duplicate",
-            severity: "warning", // Duplicates are warnings, not blocking errors
+            severity: "warning",
             sampleId: sampleIds[0],
             message: `Duplicate ground truth content found in ${sampleIds.length} samples`,
             details: {
@@ -1856,7 +1531,6 @@ export class DatasetService {
         }
       }
 
-      // Calculate issue counts by category
       const issueCount = {
         schemaViolations: issues.filter(
           (i) => i.category === "schema_violation",
@@ -1868,7 +1542,6 @@ export class DatasetService {
         corruption: issues.filter((i) => i.category === "corruption").length,
       };
 
-      // Determine overall validity (valid if no errors)
       const errorCount = issues.filter((i) => i.severity === "error").length;
       const valid = errorCount === 0;
 
@@ -1892,16 +1565,6 @@ export class DatasetService {
         error.stack,
       );
       throw error;
-    } finally {
-      // Clean up temporary directory
-      try {
-        await rm(tempDir, { recursive: true, force: true });
-      } catch (cleanupError) {
-        this.logger.warn(
-          `Failed to clean up temp directory: ${tempDir}`,
-          cleanupError,
-        );
-      }
     }
   }
 
@@ -1921,7 +1584,6 @@ export class DatasetService {
       return false;
     }
 
-    // Check magic bytes for common image formats
     switch (mimeType) {
       case "image/jpeg":
       case "image/jpg":
@@ -1965,14 +1627,12 @@ export class DatasetService {
         );
 
       default:
-        // Unknown format - assume valid
         return true;
     }
   }
 
   /**
    * Create a new split for a dataset version
-   * See US-033: Split Management UI
    */
   async createSplit(
     datasetId: string,
@@ -1997,7 +1657,6 @@ export class DatasetService {
       `Creating split '${createDto.name}' for version ${versionId}`,
     );
 
-    // Verify version exists and belongs to dataset
     const version = await this.prisma.datasetVersion.findFirst({
       where: {
         id: versionId,
@@ -2011,7 +1670,6 @@ export class DatasetService {
       );
     }
 
-    // Check for duplicate split name within this version
     const existingSplit = await this.prisma.split.findFirst({
       where: {
         datasetVersionId: versionId,
@@ -2025,12 +1683,11 @@ export class DatasetService {
       );
     }
 
-    // Create the split
     const split = await this.prisma.split.create({
       data: {
         datasetVersionId: versionId,
         name: createDto.name,
-        type: createDto.type as any, // Type is validated by Prisma enum
+        type: createDto.type as SplitType,
         sampleIds: createDto.sampleIds as Prisma.JsonValue,
         stratificationRules: createDto.stratificationRules
           ? (createDto.stratificationRules as Prisma.JsonValue)
@@ -2071,7 +1728,6 @@ export class DatasetService {
       createdAt: Date;
     }>
   > {
-    // Verify version exists
     const version = await this.prisma.datasetVersion.findFirst({
       where: {
         id: versionId,
@@ -2128,7 +1784,6 @@ export class DatasetService {
     stratificationRules?: Record<string, unknown>;
     createdAt: Date;
   }> {
-    // Verify version exists
     const version = await this.prisma.datasetVersion.findFirst({
       where: {
         id: versionId,
@@ -2174,7 +1829,6 @@ export class DatasetService {
 
   /**
    * Update a split's sample IDs
-   * Throws BadRequestException if split is frozen
    */
   async updateSplit(
     datasetId: string,
@@ -2190,7 +1844,6 @@ export class DatasetService {
     frozen: boolean;
     createdAt: Date;
   }> {
-    // Verify version exists
     const version = await this.prisma.datasetVersion.findFirst({
       where: {
         id: versionId,
@@ -2204,7 +1857,6 @@ export class DatasetService {
       );
     }
 
-    // Get the split
     const split = await this.prisma.split.findFirst({
       where: {
         id: splitId,
@@ -2218,14 +1870,12 @@ export class DatasetService {
       );
     }
 
-    // Check if frozen
     if (split.frozen) {
       throw new BadRequestException(
         "Cannot update a frozen split. Frozen splits are immutable.",
       );
     }
 
-    // Update the split
     const updated = await this.prisma.split.update({
       where: { id: splitId },
       data: {
@@ -2258,7 +1908,6 @@ export class DatasetService {
     type: string;
     frozen: boolean;
   }> {
-    // Verify version exists
     const version = await this.prisma.datasetVersion.findFirst({
       where: {
         id: versionId,
@@ -2272,7 +1921,6 @@ export class DatasetService {
       );
     }
 
-    // Get the split
     const split = await this.prisma.split.findFirst({
       where: {
         id: splitId,
@@ -2286,7 +1934,6 @@ export class DatasetService {
       );
     }
 
-    // Freeze the split
     const frozen = await this.prisma.split.update({
       where: { id: splitId },
       data: { frozen: true },

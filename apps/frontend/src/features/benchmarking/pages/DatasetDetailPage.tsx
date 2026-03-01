@@ -294,7 +294,7 @@ export function DatasetDetailPage() {
                     <Table.Th>Version</Table.Th>
                     <Table.Th>Name</Table.Th>
                     <Table.Th>Documents</Table.Th>
-                    <Table.Th>Git Revision</Table.Th>
+                    <Table.Th>Storage Prefix</Table.Th>
                     <Table.Th>Created</Table.Th>
                     <Table.Th>Actions</Table.Th>
                   </Table.Tr>
@@ -317,7 +317,7 @@ export function DatasetDetailPage() {
                         </Text>
                       </Table.Td>
                       <Table.Td>{version.documentCount}</Table.Td>
-                      <Table.Td>{version.gitRevision ? version.gitRevision.substring(0, 8) : "-"}</Table.Td>
+                      <Table.Td>{version.storagePrefix ? version.storagePrefix.substring(0, 8) : "-"}</Table.Td>
                       <Table.Td>
                         {new Date(version.createdAt).toLocaleDateString()}
                       </Table.Td>

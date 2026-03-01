@@ -2,7 +2,7 @@
  * Benchmark Run Service
  *
  * Manages benchmark run lifecycle: creation, execution, cancellation, and results retrieval.
- * Orchestrates interactions between Prisma, MLflow, and Temporal.
+ * Orchestrates interactions between Prisma and Temporal.
  *
  * See feature-docs/003-benchmarking-system/user-stories/US-012-benchmark-run-service-controller.md
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 2.6, 4.2, 4.5, 11.2
@@ -37,7 +37,6 @@ import {
   SampleFailureDto,
 } from "./dto";
 import { DatasetService } from "./dataset.service";
-import { MLflowClientService } from "./mlflow-client.service";
 
 @Injectable()
 export class BenchmarkRunService {
@@ -46,7 +45,6 @@ export class BenchmarkRunService {
 
   constructor(
     private configService: ConfigService,
-    private mlflowClient: MLflowClientService,
     private benchmarkTemporal: BenchmarkTemporalService,
     private datasetService: DatasetService,
   ) {
@@ -116,7 +114,7 @@ export class BenchmarkRunService {
    * Start a benchmark run
    *
    * Creates a BenchmarkRun record, starts the Temporal workflow,
-   * creates an MLflow run, and marks the definition as immutable.
+   * and marks the definition as immutable.
    */
   async startRun(
     projectId: string,
@@ -151,8 +149,8 @@ export class BenchmarkRunService {
       );
     }
 
-    // Verify the dataset version has files uploaded (git revision)
-    if (!definition.datasetVersion.gitRevision) {
+    // Verify the dataset version has files uploaded (storage prefix)
+    if (!definition.datasetVersion.storagePrefix) {
       throw new BadRequestException(
         `Cannot start a run: dataset version "${definition.datasetVersionId}" has no files uploaded`,
       );
@@ -185,19 +183,12 @@ export class BenchmarkRunService {
 
     const runTags = dto.tags || {};
 
-    // Create MLflow run
-    const mlflowRunId = await this.mlflowClient.createRun(
-      definition.project.mlflowExperimentId,
-      `${definition.name}-${new Date().toISOString()}`,
-    );
-
     // Create BenchmarkRun record with status 'pending'
     const run = await this.prisma.benchmarkRun.create({
       data: {
         definitionId,
         projectId,
         status: "pending",
-        mlflowRunId,
         temporalWorkflowId: "", // Will be updated after starting workflow
         workerGitSha,
         workerImageDigest,
@@ -214,9 +205,7 @@ export class BenchmarkRunService {
       },
     });
 
-    this.logger.log(
-      `Created benchmark run record: ${run.id} with MLflow run ${mlflowRunId}`,
-    );
+    this.logger.log(`Created benchmark run record: ${run.id}`);
 
     // Start Temporal workflow
     let temporalWorkflowId: string;
@@ -230,7 +219,6 @@ export class BenchmarkRunService {
           definitionId: definition.id,
           projectId,
           datasetVersionId: definition.datasetVersionId,
-          gitRevision: definition.datasetVersion.gitRevision,
           splitId: definition.splitId ?? undefined,
           sampleIds: definition.split
             ? (definition.split.sampleIds as string[])
@@ -248,8 +236,6 @@ export class BenchmarkRunService {
             ...(definition.runtimeSettings as Record<string, unknown>),
             ...(dto.runtimeSettingsOverride || {}),
           } as Record<string, unknown>,
-          artifactPolicy: definition.artifactPolicy as Record<string, unknown>,
-          mlflowRunId,
           workerGitSha,
           workerImageDigest: workerImageDigest ?? undefined,
         });
@@ -291,7 +277,6 @@ export class BenchmarkRunService {
     // Create audit log
     await this.createAuditLog(run.id, "run_started", {
       definitionId,
-      mlflowRunId,
       temporalWorkflowId,
     });
 
@@ -428,7 +413,6 @@ export class BenchmarkRunService {
       definitionName: run.definition.name,
       projectId: run.projectId,
       status: run.status,
-      mlflowRunId: run.mlflowRunId,
       temporalWorkflowId: run.temporalWorkflowId,
       workerImageDigest: run.workerImageDigest,
       workerGitSha: run.workerGitSha,
@@ -498,7 +482,6 @@ export class BenchmarkRunService {
         definitionId: run.definitionId,
         definitionName: run.definition.name,
         status: run.status,
-        mlflowRunId: run.mlflowRunId,
         startedAt: run.startedAt,
         completedAt: run.completedAt,
         durationMs,

@@ -77,7 +77,7 @@ test.describe('Dataset Upload & Version Creation', () => {
       data: {
         name: `Upload Test Dataset ${Date.now()}`,
         description: 'E2E test for file upload and version creation',
-        repositoryUrl: uniquePath,
+        storagePath: uniquePath,
       },
     });
 

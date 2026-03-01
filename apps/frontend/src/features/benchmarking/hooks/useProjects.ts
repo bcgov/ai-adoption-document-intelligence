@@ -5,7 +5,6 @@ interface ProjectSummary {
   id: string;
   name: string;
   description: string | null;
-  mlflowExperimentId: string;
   createdBy: string;
   definitionCount: number;
   runCount: number;
@@ -26,7 +25,6 @@ interface RecentRunSummary {
   id: string;
   definitionName: string;
   status: string;
-  mlflowRunId: string | null;
   temporalWorkflowId: string | null;
   startedAt: string | null;
   completedAt: string | null;
@@ -36,7 +34,6 @@ interface ProjectDetails {
   id: string;
   name: string;
   description: string | null;
-  mlflowExperimentId: string;
   createdBy: string;
   definitions: DefinitionSummary[];
   recentRuns: RecentRunSummary[];

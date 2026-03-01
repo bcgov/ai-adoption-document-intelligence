@@ -1,7 +1,6 @@
 import {
   ActionIcon,
   Alert,
-  Anchor,
   Box,
   Button,
   Card,
@@ -20,7 +19,6 @@ import {
 import {
   IconAlertCircle,
   IconDownload,
-  IconExternalLink,
   IconX,
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
@@ -39,16 +37,12 @@ interface ArtifactViewerProps {
     createdAt: string;
   } | null;
   projectId: string;
-  mlflowExperimentId?: string;
-  mlflowRunId?: string;
   onClose: () => void;
 }
 
 export function ArtifactViewer({
   artifact,
   projectId,
-  mlflowExperimentId,
-  mlflowRunId,
   onClose,
 }: ArtifactViewerProps) {
   const [content, setContent] = useState<string | null>(null);
@@ -203,19 +197,10 @@ export function ArtifactViewer({
     }
   };
 
-  const getMlflowArtifactUrl = () => {
-    if (!mlflowExperimentId || !mlflowRunId || !artifact) return null;
-
-    // MLflow artifact deep-link format
-    const mlflowUrl = import.meta.env.VITE_MLFLOW_URL || "http://localhost:5000";
-    return `${mlflowUrl}/#/experiments/${mlflowExperimentId}/runs/${mlflowRunId}/artifacts/${artifact.path}`;
-  };
-
   if (!artifact) {
     return null;
   }
 
-  const mlflowUrl = getMlflowArtifactUrl();
   const isImage = artifact.mimeType.toLowerCase().startsWith("image/");
   const isJson =
     artifact.mimeType.toLowerCase().includes("json") ||
@@ -292,19 +277,6 @@ export function ArtifactViewer({
           >
             Download
           </Button>
-          {mlflowUrl && (
-            <Button
-              leftSection={<IconExternalLink size={16} />}
-              variant="light"
-              component="a"
-              href={mlflowUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="open-mlflow-btn"
-            >
-              Open in MLflow
-            </Button>
-          )}
         </Group>
 
         {/* Content Viewer */}
@@ -366,8 +338,8 @@ export function ArtifactViewer({
               icon={<IconAlertCircle />}
               data-testid="artifact-pdf-alert"
             >
-              PDF viewing is not yet implemented. Please download the file or
-              open it in MLflow.
+              PDF viewing is not yet implemented. Please download the file to
+              view it.
             </Alert>
           ) : (
             <Alert
@@ -377,7 +349,7 @@ export function ArtifactViewer({
               data-testid="artifact-unsupported-alert"
             >
               This artifact type cannot be previewed in the browser. Please
-              download the file or open it in MLflow.
+              download the file to view it.
             </Alert>
           )}
         </Card>

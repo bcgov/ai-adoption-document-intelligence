@@ -32,7 +32,7 @@ export class DatasetsListPage {
   // Dialog form fields
   readonly datasetNameInput: Locator;
   readonly datasetDescriptionInput: Locator;
-  readonly datasetRepositoryUrlInput: Locator;
+  readonly datasetStoragePathInput: Locator;
 
   // Metadata section
   readonly metadataSection: Locator;
@@ -46,7 +46,7 @@ export class DatasetsListPage {
 
   // Error messages
   readonly nameErrorMessage: Locator;
-  readonly repositoryUrlErrorMessage: Locator;
+  readonly storagePathErrorMessage: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -77,7 +77,7 @@ export class DatasetsListPage {
     // Dialog form fields
     this.datasetNameInput = page.locator('[data-testid="dataset-name-input"]');
     this.datasetDescriptionInput = page.locator('[data-testid="dataset-description-input"]');
-    this.datasetRepositoryUrlInput = page.locator('[data-testid="dataset-repository-url-input"]');
+    this.datasetStoragePathInput = page.locator('[data-testid="dataset-storage-path-input"]');
 
     // Metadata section
     this.metadataSection = page.locator('[data-testid="dataset-metadata-section"]');
@@ -91,7 +91,7 @@ export class DatasetsListPage {
 
     // Error messages
     this.nameErrorMessage = page.getByText('Dataset name is required');
-    this.repositoryUrlErrorMessage = page.getByText('Repository URL is required');
+    this.storagePathErrorMessage = page.getByText('Storage path is required');
   }
 
   /**
@@ -154,7 +154,7 @@ export class DatasetsListPage {
   async fillDatasetForm(data: {
     name: string;
     description?: string;
-    repositoryUrl: string;
+    storagePath: string;
     metadata?: Record<string, string>;
   }) {
     await this.datasetNameInput.fill(data.name);
@@ -163,7 +163,7 @@ export class DatasetsListPage {
       await this.datasetDescriptionInput.fill(data.description);
     }
 
-    await this.datasetRepositoryUrlInput.fill(data.repositoryUrl);
+    await this.datasetStoragePathInput.fill(data.storagePath);
 
     if (data.metadata) {
       for (const [key, value] of Object.entries(data.metadata)) {
@@ -224,7 +224,7 @@ export class DatasetsListPage {
   async createDataset(data: {
     name: string;
     description?: string;
-    repositoryUrl: string;
+    storagePath: string;
     metadata?: Record<string, string>;
   }) {
     await this.openCreateDialog();

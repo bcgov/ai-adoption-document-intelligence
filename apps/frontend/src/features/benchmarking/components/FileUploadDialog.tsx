@@ -37,7 +37,7 @@ export function FileUploadDialog({
   onClose,
 }: FileUploadDialogProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const { upload, isUploading, isSuccess, reset } = useDatasetUpload(datasetId, versionId);
+  const { upload, isUploading, isSuccess, error, reset } = useDatasetUpload(datasetId, versionId);
 
   const handleDrop = (files: File[]) => {
     setSelectedFiles((prev) => [...prev, ...files]);
@@ -207,6 +207,12 @@ export function FileUploadDialog({
         {isSuccess && (
           <Text c="green" size="sm" data-testid="upload-success-message">
             Files uploaded successfully!
+          </Text>
+        )}
+
+        {error && (
+          <Text c="red" size="sm" data-testid="upload-error-message">
+            Upload failed: {error instanceof Error ? error.message : "An unexpected error occurred"}
           </Text>
         )}
 

@@ -24,9 +24,12 @@ describe("AzureController", () => {
       requestClassificationFromFile: jest.fn(),
     };
     storageService = {
-      getStoragePath: jest.fn().mockImplementation(() => "/path"),
-      saveFilesBulk: jest.fn(),
-      deleteFolderRecursive: jest.fn().mockImplementation(() => undefined),
+      write: jest.fn().mockResolvedValue(undefined),
+      read: jest.fn().mockResolvedValue(Buffer.from("test")),
+      exists: jest.fn().mockResolvedValue(true),
+      delete: jest.fn().mockResolvedValue(undefined),
+      list: jest.fn().mockResolvedValue([]),
+      deleteByPrefix: jest.fn().mockResolvedValue(undefined),
     };
     databaseService = {
       isUserInGroup: jest.fn(),
@@ -129,8 +132,6 @@ describe("AzureController", () => {
     it("should upload files if user in group and classifier exists", async () => {
       databaseService.isUserInGroup.mockResolvedValue(true);
       databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
-      storageService.getStoragePath.mockReturnValue("/path");
-      storageService.saveFilesBulk.mockResolvedValue(["file1"]);
       const req = { user: { sub: "user1" } };
       const files = [mockFile];
       const body = { name: "c1", label: "l1", group_id: "g1" };
@@ -142,8 +143,12 @@ describe("AzureController", () => {
       expect(result).toEqual({
         message: "Received files and data.",
         fileCount: 1,
-        results: ["file1"],
+        results: ["classifier/g1/c1/l1/f1"],
       });
+      expect(storageService.write).toHaveBeenCalledWith(
+        "classifier/g1/c1/l1/f1",
+        expect.any(Buffer),
+      );
     });
     it("should throw ForbiddenException if user not in group", async () => {
       databaseService.isUserInGroup.mockResolvedValue(false);
@@ -179,6 +184,9 @@ describe("AzureController", () => {
       await expect(
         controller.deleteClassifierDocuments(req, body),
       ).resolves.toBeUndefined();
+      expect(storageService.deleteByPrefix).toHaveBeenCalledWith(
+        "classifier/g1/c1/",
+      );
     });
     it("should throw ForbiddenException if user not in group", async () => {
       databaseService.isUserInGroup.mockResolvedValue(false);
@@ -464,13 +472,10 @@ describe("AzureController", () => {
     });
   });
   describe("deleteClassifierDocuments error handling", () => {
-    it("should throw InternalServerErrorException if deleteFolderRecursive throws", async () => {
+    it("should throw InternalServerErrorException if deleteByPrefix throws", async () => {
       databaseService.isUserInGroup.mockResolvedValue(true);
       databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
-      storageService.getStoragePath.mockReturnValue("/path/to/folder");
-      storageService.deleteFolderRecursive.mockImplementation(() => {
-        throw new Error("fail");
-      });
+      storageService.deleteByPrefix.mockRejectedValue(new Error("fail"));
       const req = { user: { sub: "user1" } };
       const query = { name: "c1", group_id: "g1", folder: "f1" };
       await expect(
@@ -482,20 +487,13 @@ describe("AzureController", () => {
     it("should delete a specific folder if folder param is provided", async () => {
       databaseService.isUserInGroup.mockResolvedValue(true);
       databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
-      storageService.getStoragePath.mockReturnValue("/path/to/folder");
-      storageService.deleteFolderRecursive.mockResolvedValue(undefined);
       const req = { user: { sub: "user1" } };
       const query = { name: "c1", group_id: "g1", folder: "f1" };
       await expect(
         controller.deleteClassifierDocuments(req, query),
       ).resolves.toBeUndefined();
-      expect(storageService.getStoragePath).toHaveBeenCalledWith(
-        "g1",
-        expect.anything(),
-        "c1/f1",
-      );
-      expect(storageService.deleteFolderRecursive).toHaveBeenCalledWith(
-        "/path/to/folder",
+      expect(storageService.deleteByPrefix).toHaveBeenCalledWith(
+        "classifier/g1/c1/f1/",
       );
     });
   });
@@ -503,15 +501,14 @@ describe("AzureController", () => {
     it("should return documents if user in group and classifier exists", async () => {
       databaseService.isUserInGroup.mockResolvedValue(true);
       databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
-      storageService.getStoragePath.mockReturnValue("/path");
-      storageService.listBlobsInFolder = jest
-        .fn()
-        .mockResolvedValue(["doc1", "doc2"]);
+      storageService.list.mockResolvedValue(["doc1", "doc2"]);
       const req = { user: { sub: "user1" } };
       const query = { name: "c1", group_id: "g1" };
       const result = await controller.getClassifierDocuments(req, query);
       expect(result).toEqual(["doc1", "doc2"]);
-      expect(storageService.listBlobsInFolder).toHaveBeenCalledWith("/path");
+      expect(storageService.list).toHaveBeenCalledWith(
+        "classifier/g1/c1/",
+      );
     });
     it("should throw ForbiddenException if user not in group", async () => {
       databaseService.isUserInGroup.mockResolvedValue(false);

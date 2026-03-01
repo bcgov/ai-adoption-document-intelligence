@@ -30,9 +30,6 @@ export class DefinitionDetailDialog {
   readonly evaluatorConfigJson: Locator;
   readonly runtimeSettingsHeading: Locator;
   readonly runtimeSettingsJson: Locator;
-  readonly artifactPolicyHeading: Locator;
-  readonly artifactPolicyJson: Locator;
-
   // Schedule section
   readonly scheduleHeading: Locator;
   readonly scheduleToggle: Locator;
@@ -41,7 +38,6 @@ export class DefinitionDetailDialog {
   // Run history
   readonly runHistoryHeading: Locator;
   readonly runHistoryTable: Locator;
-  readonly mlflowRunIds: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -71,9 +67,6 @@ export class DefinitionDetailDialog {
     this.evaluatorConfigJson = page.locator('pre').first();
     this.runtimeSettingsHeading = page.getByRole('heading', { level: 4, name: 'Runtime Settings' });
     this.runtimeSettingsJson = page.locator('pre').nth(1);
-    this.artifactPolicyHeading = page.getByRole('heading', { level: 4, name: 'Artifact Policy' });
-    this.artifactPolicyJson = page.locator('pre').nth(2);
-
     // Schedule section
     this.scheduleHeading = page.getByRole('heading', { level: 4, name: 'Schedule Configuration' });
     this.scheduleToggle = page.locator('input[type="checkbox"]').first();
@@ -82,7 +75,6 @@ export class DefinitionDetailDialog {
     // Run history
     this.runHistoryHeading = page.getByRole('heading', { level: 4, name: 'Run History' });
     this.runHistoryTable = page.locator('table').nth(1);
-    this.mlflowRunIds = page.locator('code');
   }
 
   async waitForDialogToOpen() {

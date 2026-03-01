@@ -56,11 +56,4 @@ export class UpdateDefinitionDto {
   @IsObject()
   @IsOptional()
   runtimeSettings?: Record<string, unknown>;
-
-  /**
-   * Artifact policy (JSON object)
-   */
-  @IsObject()
-  @IsOptional()
-  artifactPolicy?: Record<string, unknown>;
 }

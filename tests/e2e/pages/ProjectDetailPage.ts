@@ -10,8 +10,6 @@ export class ProjectDetailPage {
   // Header elements
   readonly projectNameTitle: Locator;
   readonly projectDescription: Locator;
-  readonly mlflowExperimentId: Locator;
-
   // Definitions section
   readonly definitionsHeading: Locator;
   readonly createDefinitionBtn: Locator;
@@ -35,8 +33,6 @@ export class ProjectDetailPage {
     // Header
     this.projectNameTitle = page.locator('[data-testid="project-name-title"]');
     this.projectDescription = page.locator('[data-testid="project-description"]');
-    this.mlflowExperimentId = page.locator('[data-testid="mlflow-experiment-id"]');
-
     // Definitions section
     this.definitionsHeading = page.locator('[data-testid="definitions-heading"]');
     this.createDefinitionBtn = page.locator('[data-testid="create-definition-btn"]');
