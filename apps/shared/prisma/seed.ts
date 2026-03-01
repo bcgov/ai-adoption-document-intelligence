@@ -914,12 +914,6 @@ async function seedBenchmarkingData() {
           { fieldName: "vendor_name", errorCount: 8, errorRate: 0.16 },
           { fieldName: "invoice_date", errorCount: 2, errorRate: 0.04 },
         ],
-        errorClusters: {
-          "low_confidence": 12,
-          "missing_field": 8,
-          "format_mismatch": 5,
-          "ocr_error": 7,
-        },
       },
       params: {
         model: "prebuilt-layout",
@@ -957,12 +951,6 @@ async function seedBenchmarkingData() {
           { fieldName: "vendor_name", errorCount: 8, errorRate: 0.16 },
           { fieldName: "invoice_date", errorCount: 2, errorRate: 0.04 },
         ],
-        errorClusters: {
-          "low_confidence": 12,
-          "missing_field": 8,
-          "format_mismatch": 5,
-          "ocr_error": 7,
-        },
       },
       params: {
         model: "prebuilt-layout",

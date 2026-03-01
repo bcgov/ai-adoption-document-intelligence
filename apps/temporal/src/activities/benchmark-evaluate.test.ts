@@ -319,7 +319,7 @@ describe("benchmark-evaluate activities", () => {
         "sample-001",
       );
       expect(result.failureAnalysis!.worstSamples[0].metricValue).toBe(0.3);
-      expect(result.failureAnalysis!.errorClusters).toBeDefined();
+      expect(result.failureAnalysis!.worstSamples).toBeDefined();
     });
 
     it("should handle empty results", async () => {

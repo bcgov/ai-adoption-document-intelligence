@@ -579,10 +579,6 @@ describe("BenchmarkRunService", () => {
               perFieldErrors: [
                 { field: "total", totalOccurrences: 20, matchCount: 15, missingCount: 3, mismatchCount: 2, errorRate: 0.25 },
               ],
-              errorClusters: [
-                { errorType: "ocr_error", count: 10, sampleIds: ["s1"] },
-                { errorType: "parsing_error", count: 3, sampleIds: ["s2"] },
-              ],
             },
           },
         },
@@ -600,7 +596,6 @@ describe("BenchmarkRunService", () => {
       expect(result.fieldErrorBreakdown).toHaveLength(1);
       expect(result.fieldErrorBreakdown![0].fieldName).toBe("total");
       expect(result.fieldErrorBreakdown![0].errorRate).toBe(0.25);
-      expect(result.errorClusters).toEqual({ ocr_error: 10, parsing_error: 3 });
       // aggregatedMetrics should only contain flat numeric values
       expect(result.aggregatedMetrics).toEqual({ total_samples: 2, pass_rate: 0.5 });
     });

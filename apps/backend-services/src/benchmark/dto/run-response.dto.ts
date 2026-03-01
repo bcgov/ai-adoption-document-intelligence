@@ -235,9 +235,4 @@ export class DrillDownResponseDto {
    * Per-field error breakdown (if schema-aware evaluator)
    */
   fieldErrorBreakdown: FieldErrorBreakdownDto[] | null;
-
-  /**
-   * Error clustering tags
-   */
-  errorClusters: Record<string, number>;
 }

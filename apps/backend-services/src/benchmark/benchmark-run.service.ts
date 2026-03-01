@@ -550,11 +550,6 @@ export class BenchmarkRunService {
         mismatchCount: number;
         errorRate: number;
       }>;
-      errorClusters?: Array<{
-        errorType: string;
-        count: number;
-        sampleIds: string[];
-      }>;
     };
 
     // Build worst-performing samples from failure analysis or from per-sample results
@@ -601,14 +596,6 @@ export class BenchmarkRunService {
           }))
         : null;
 
-    // Extract error clusters from failure analysis
-    const errorClusters: Record<string, number> = {};
-    if (storedFailureAnalysis.errorClusters) {
-      for (const cluster of storedFailureAnalysis.errorClusters) {
-        errorClusters[cluster.errorType] = cluster.count;
-      }
-    }
-
     // Build aggregated metrics (only the flat numeric values)
     const aggregatedMetrics: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(metrics)) {
@@ -622,7 +609,6 @@ export class BenchmarkRunService {
       aggregatedMetrics,
       worstSamples,
       fieldErrorBreakdown,
-      errorClusters,
     };
   }
 

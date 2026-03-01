@@ -1,4 +1,5 @@
 import {
+  Accordion,
   Alert,
   Anchor,
   Badge,
@@ -6,8 +7,10 @@ import {
   Card,
   Center,
   Code,
+  Drawer,
   Group,
   Loader,
+  ScrollArea,
   Select,
   Stack,
   Table,
@@ -20,6 +23,7 @@ import {
   IconAlertCircle,
   IconArrowLeft,
   IconCheck,
+  IconChevronRight,
   IconExternalLink,
   IconTrophy,
   IconX,
@@ -32,6 +36,7 @@ import { useDefinition } from "../hooks/useDefinitions";
 import {
   useArtifacts,
   useDrillDown,
+  usePerSampleResults,
   usePromoteBaseline,
   useRun,
   useStartRun,
@@ -75,6 +80,135 @@ function formatDuration(
   return `${seconds}s`;
 }
 
+interface FieldComparisonResult {
+  field: string;
+  matched: boolean;
+  predicted?: unknown;
+  expected?: unknown;
+  similarity?: number;
+}
+
+interface SampleResult {
+  sampleId: string;
+  metadata: Record<string, unknown>;
+  metrics: Record<string, number>;
+  pass: boolean;
+  diagnostics?: Record<string, unknown>;
+  groundTruth?: unknown;
+  prediction?: unknown;
+  evaluationDetails?: unknown;
+}
+
+function FieldErrorDetails({
+  fieldName,
+  samples,
+}: {
+  fieldName: string;
+  samples: SampleResult[];
+}) {
+  // Find samples where this field has errors in evaluationDetails
+  const affectedSamples: Array<{
+    sampleId: string;
+    expected: unknown;
+    predicted: unknown;
+    similarity?: number;
+    errorType: string;
+  }> = [];
+
+  for (const sample of samples) {
+    const details = sample.evaluationDetails;
+    if (!Array.isArray(details)) continue;
+
+    const fieldResult = (details as FieldComparisonResult[]).find(
+      (d) => d.field === fieldName && !d.matched,
+    );
+    if (fieldResult) {
+      // Determine error type
+      let errorType = "mismatch";
+      if (fieldResult.expected !== undefined && fieldResult.predicted === undefined) {
+        errorType = "missing";
+      } else if (fieldResult.expected === undefined && fieldResult.predicted !== undefined) {
+        errorType = "extra";
+      }
+
+      affectedSamples.push({
+        sampleId: sample.sampleId,
+        expected: fieldResult.expected,
+        predicted: fieldResult.predicted,
+        similarity: fieldResult.similarity,
+        errorType,
+      });
+    }
+  }
+
+  if (affectedSamples.length === 0) {
+    return (
+      <Text c="dimmed" size="sm">
+        No error details available for this field.
+      </Text>
+    );
+  }
+
+  return (
+    <>
+      <Text size="sm" c="dimmed">
+        {affectedSamples.length} sample{affectedSamples.length !== 1 ? "s" : ""} with errors on this field
+      </Text>
+      <Table striped highlightOnHover data-testid="field-error-detail-table">
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Sample ID</Table.Th>
+            <Table.Th>Type</Table.Th>
+            <Table.Th>Expected</Table.Th>
+            <Table.Th>Predicted</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {affectedSamples.map((s) => (
+            <Table.Tr key={s.sampleId}>
+              <Table.Td>
+                <Code>{s.sampleId}</Code>
+              </Table.Td>
+              <Table.Td>
+                <Badge
+                  size="sm"
+                  color={
+                    s.errorType === "missing"
+                      ? "orange"
+                      : s.errorType === "extra"
+                        ? "blue"
+                        : "red"
+                  }
+                >
+                  {s.errorType}
+                </Badge>
+              </Table.Td>
+              <Table.Td>
+                <Code>
+                  {s.expected !== undefined
+                    ? typeof s.expected === "string"
+                      ? s.expected
+                      : JSON.stringify(s.expected)
+                    : "-"}
+                </Code>
+              </Table.Td>
+              <Table.Td>
+                <Code>
+                  {s.predicted !== undefined
+                    ? typeof s.predicted === "string"
+                      ? s.predicted
+                      : JSON.stringify(s.predicted)
+                    : "-"}
+                </Code>
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </>
+  );
+}
+
 export function RunDetailPage() {
   const { id, runId } = useParams<{ id: string; runId: string }>();
   const projectId = id || "";
@@ -95,6 +229,7 @@ export function RunDetailPage() {
   } | null>(null);
   const [thresholdDialogOpened, setThresholdDialogOpened] = useState(false);
   const [isEditingThresholds, setIsEditingThresholds] = useState(false);
+  const [drawerField, setDrawerField] = useState<string | null>(null);
 
   // Enable polling for non-terminal states
   const { run, isLoading, cancelRun, isCancelling } = useRun(
@@ -109,6 +244,15 @@ export function RunDetailPage() {
     projectId,
     runId || "",
     artifactTypeFilter || undefined,
+  );
+
+  // Fetch all per-sample results when field drawer is open
+  const { results: allSampleResults } = usePerSampleResults(
+    drawerField !== null ? projectId : "",
+    drawerField !== null ? (runId || "") : "",
+    {},
+    1,
+    10000,
   );
 
   const { startRun, isStarting } = useStartRun(
@@ -561,35 +705,39 @@ export function RunDetailPage() {
       )}
 
       {run.status === "completed" && run.metrics && (
-        <Card>
-          <Stack gap="md">
-            <Title order={3} data-testid="aggregated-metrics-heading">
-              Aggregated Metrics
-            </Title>
-            <Table striped highlightOnHover data-testid="aggregated-metrics-table">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Metric Name</Table.Th>
-                  <Table.Th>Value</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {Object.entries(run.metrics).map(([key, value]) => (
-                  <Table.Tr key={key}>
-                    <Table.Td>{key}</Table.Td>
-                    <Table.Td>
-                      <Code>
-                        {typeof value === "number"
-                          ? value.toFixed(4)
-                          : JSON.stringify(value)}
-                      </Code>
-                    </Table.Td>
+        <Accordion variant="contained" data-testid="aggregated-metrics-accordion">
+          <Accordion.Item value="metrics">
+            <Accordion.Control>
+              <Title order={3} data-testid="aggregated-metrics-heading">
+                Aggregated Metrics
+              </Title>
+            </Accordion.Control>
+            <Accordion.Panel>
+              <Table striped highlightOnHover data-testid="aggregated-metrics-table">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Metric Name</Table.Th>
+                    <Table.Th>Value</Table.Th>
                   </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Stack>
-        </Card>
+                </Table.Thead>
+                <Table.Tbody>
+                  {Object.entries(run.metrics).map(([key, value]) => (
+                    <Table.Tr key={key}>
+                      <Table.Td>{key}</Table.Td>
+                      <Table.Td>
+                        <Code>
+                          {typeof value === "number"
+                            ? value.toFixed(4)
+                            : JSON.stringify(value)}
+                        </Code>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
       )}
 
       {run.status === "completed" && (run.params || run.tags) && (
@@ -709,44 +857,6 @@ export function RunDetailPage() {
               Drill-Down Summary
             </Title>
 
-            {drillDown.worstSamples.length > 0 && (
-              <Stack gap="xs">
-                <Text fw={500}>
-                  Top {drillDown.worstSamples.length} Worst-Performing Samples
-                </Text>
-                <Table striped highlightOnHover data-testid="worst-samples-table">
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Sample ID</Table.Th>
-                      <Table.Th>Metric</Table.Th>
-                      <Table.Th>Value</Table.Th>
-                      <Table.Th>Metadata</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {drillDown.worstSamples.map((sample) => (
-                      <Table.Tr key={sample.sampleId}>
-                        <Table.Td>
-                          <Code>{sample.sampleId}</Code>
-                        </Table.Td>
-                        <Table.Td>{sample.metricName}</Table.Td>
-                        <Table.Td>
-                          <Code>{sample.metricValue.toFixed(4)}</Code>
-                        </Table.Td>
-                        <Table.Td>
-                          {sample.metadata ? (
-                            <Code>{JSON.stringify(sample.metadata)}</Code>
-                          ) : (
-                            "-"
-                          )}
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </Stack>
-            )}
-
             {drillDown.fieldErrorBreakdown &&
               drillDown.fieldErrorBreakdown.length > 0 && (
                 <Stack gap="xs">
@@ -757,17 +867,26 @@ export function RunDetailPage() {
                         <Table.Th>Field Name</Table.Th>
                         <Table.Th>Error Count</Table.Th>
                         <Table.Th>Error Rate</Table.Th>
+                        <Table.Th />
                       </Table.Tr>
                     </Table.Thead>
                     <Table.Tbody>
                       {drillDown.fieldErrorBreakdown.map((field) => (
-                        <Table.Tr key={field.fieldName}>
+                        <Table.Tr
+                          key={field.fieldName}
+                          style={{ cursor: "pointer" }}
+                          onClick={() => setDrawerField(field.fieldName)}
+                          data-testid={`field-error-row-${field.fieldName}`}
+                        >
                           <Table.Td>
                             <Code>{field.fieldName}</Code>
                           </Table.Td>
                           <Table.Td>{field.errorCount}</Table.Td>
                           <Table.Td>
                             <Code>{(field.errorRate * 100).toFixed(2)}%</Code>
+                          </Table.Td>
+                          <Table.Td>
+                            <IconChevronRight size={16} color="gray" />
                           </Table.Td>
                         </Table.Tr>
                       ))}
@@ -776,25 +895,6 @@ export function RunDetailPage() {
                 </Stack>
               )}
 
-            {Object.keys(drillDown.errorClusters).length > 0 && (
-              <Stack gap="xs">
-                <Text fw={500}>Error Cluster Tags</Text>
-                <Table striped data-testid="error-clusters-table">
-                  <Table.Tbody>
-                    {Object.entries(drillDown.errorClusters).map(
-                      ([tag, count]) => (
-                        <Table.Tr key={tag}>
-                          <Table.Td fw={500}>{tag}</Table.Td>
-                          <Table.Td>
-                            <Badge>{count}</Badge>
-                          </Table.Td>
-                        </Table.Tr>
-                      ),
-                    )}
-                  </Table.Tbody>
-                </Table>
-              </Stack>
-            )}
           </Stack>
         </Card>
       )}
@@ -829,6 +929,32 @@ export function RunDetailPage() {
           isEditing={isEditingThresholds}
         />
       )}
+
+      {/* Field Error Detail Drawer */}
+      <Drawer
+        opened={drawerField !== null}
+        onClose={() => setDrawerField(null)}
+        position="right"
+        size="xl"
+        title={
+          <Text fw={600}>
+            Field Errors: <Code>{drawerField}</Code>
+          </Text>
+        }
+        data-testid="field-error-drawer"
+      >
+        {drawerField && (
+          <ScrollArea h="calc(100vh - 80px)">
+            <Stack gap="md">
+              <FieldErrorDetails
+                fieldName={drawerField}
+                samples={allSampleResults}
+              />
+            </Stack>
+          </ScrollArea>
+        )}
+      </Drawer>
+
     </Stack>
   );
 }

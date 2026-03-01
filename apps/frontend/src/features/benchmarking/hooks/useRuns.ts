@@ -244,7 +244,6 @@ interface DrillDownData {
   aggregatedMetrics: Record<string, unknown>;
   worstSamples: SampleFailure[];
   fieldErrorBreakdown: FieldErrorBreakdown[] | null;
-  errorClusters: Record<string, number>;
 }
 
 export const useDrillDown = (projectId: string, runId: string) => {

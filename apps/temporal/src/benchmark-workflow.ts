@@ -87,7 +87,6 @@ type BenchmarkActivities = {
       failingSamples: number;
       passRate: number;
       worstSamples: Array<{ sampleId: string; metric: string; value: number }>;
-      errorClusters: Array<{ pattern: string; count: number; sampleIds: string[] }>;
     };
   }>;
 

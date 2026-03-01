@@ -12,7 +12,6 @@ import {
   computeSlicedMetrics,
   findWorstSamples,
   computePerFieldErrors,
-  computeErrorClusters,
   performFailureAnalysis,
 } from "./benchmark-aggregation";
 import { EvaluationResult } from "./benchmark-types";
@@ -368,160 +367,7 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
   });
 
   // -----------------------------------------------------------------------
-  // Scenario 4: Error clustering tags
-  // -----------------------------------------------------------------------
-  describe("computeErrorClusters", () => {
-    it("groups failures by error type with counts", () => {
-      const results: EvaluationResult[] = [
-        {
-          sampleId: "sample-001",
-          metrics: { f1: 0.5 },
-          diagnostics: {
-            missingFields: ["field1"],
-            extraFields: [],
-            mismatchedFields: [],
-          },
-          pass: false,
-        },
-        {
-          sampleId: "sample-002",
-          metrics: { f1: 0.6 },
-          diagnostics: {
-            missingFields: ["field2"],
-            extraFields: [],
-            mismatchedFields: [],
-          },
-          pass: false,
-        },
-        {
-          sampleId: "sample-003",
-          metrics: { f1: 0.4 },
-          diagnostics: {
-            missingFields: [],
-            extraFields: ["field3"],
-            mismatchedFields: [],
-          },
-          pass: false,
-        },
-        {
-          sampleId: "sample-004",
-          metrics: { f1: 0.3 },
-          diagnostics: {
-            missingFields: [],
-            extraFields: [],
-            mismatchedFields: [{ field: "field4" }],
-          },
-          pass: false,
-        },
-        {
-          sampleId: "sample-005",
-          metrics: { f1: 0.95 },
-          diagnostics: {},
-          pass: true,
-        },
-      ];
-
-      const clusters = computeErrorClusters(results);
-
-      // Should have 3 error types
-      const missingFieldCluster = clusters.find(
-        (c) => c.errorType === "missing_field",
-      );
-      expect(missingFieldCluster).toBeDefined();
-      expect(missingFieldCluster!.count).toBe(2);
-      expect(missingFieldCluster!.sampleIds).toContain("sample-001");
-      expect(missingFieldCluster!.sampleIds).toContain("sample-002");
-
-      const extraFieldCluster = clusters.find(
-        (c) => c.errorType === "extra_field",
-      );
-      expect(extraFieldCluster).toBeDefined();
-      expect(extraFieldCluster!.count).toBe(1);
-
-      const mismatchCluster = clusters.find(
-        (c) => c.errorType === "value_mismatch",
-      );
-      expect(mismatchCluster).toBeDefined();
-      expect(mismatchCluster!.count).toBe(1);
-    });
-
-    it("detects error types from black-box evaluator diagnostics", () => {
-      const results: EvaluationResult[] = [
-        {
-          sampleId: "sample-001",
-          metrics: { exact_match: 0 },
-          diagnostics: {
-            diff: [
-              { path: "field1", type: "added", actual: "value1" },
-              { path: "field2", type: "deleted", expected: "value2" },
-              {
-                path: "field3",
-                type: "changed",
-                expected: "old",
-                actual: "new",
-              },
-            ],
-          },
-          pass: false,
-        },
-      ];
-
-      const clusters = computeErrorClusters(results);
-
-      // Should detect all three error types
-      expect(clusters.some((c) => c.errorType === "extra_field")).toBe(true);
-      expect(clusters.some((c) => c.errorType === "missing_field")).toBe(true);
-      expect(clusters.some((c) => c.errorType === "value_mismatch")).toBe(true);
-    });
-
-    it("sorts clusters by count descending", () => {
-      const results: EvaluationResult[] = [
-        {
-          sampleId: "sample-001",
-          metrics: { f1: 0.5 },
-          diagnostics: { missingFields: ["f1"] },
-          pass: false,
-        },
-        {
-          sampleId: "sample-002",
-          metrics: { f1: 0.5 },
-          diagnostics: { missingFields: ["f2"] },
-          pass: false,
-        },
-        {
-          sampleId: "sample-003",
-          metrics: { f1: 0.5 },
-          diagnostics: { extraFields: ["f3"] },
-          pass: false,
-        },
-      ];
-
-      const clusters = computeErrorClusters(results);
-
-      // missing_field should come first (count=2)
-      expect(clusters[0].errorType).toBe("missing_field");
-      expect(clusters[0].count).toBe(2);
-    });
-
-    it("includes unknown_failure for unclassified errors", () => {
-      const results: EvaluationResult[] = [
-        {
-          sampleId: "sample-001",
-          metrics: { f1: 0.5 },
-          diagnostics: {},
-          pass: false,
-        },
-      ];
-
-      const clusters = computeErrorClusters(results);
-
-      expect(clusters).toHaveLength(1);
-      expect(clusters[0].errorType).toBe("unknown_failure");
-    });
-  });
-
-  // -----------------------------------------------------------------------
-  // Scenario 5: Aggregated metrics stored in BenchmarkRun
+  // Scenario 4: Aggregated metrics stored in BenchmarkRun
   // -----------------------------------------------------------------------
   describe("aggregateResults", () => {
     it("returns overall aggregated metrics", () => {
@@ -793,16 +639,6 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
       // Per-field errors
       expect(analysis.perFieldErrors).toBeDefined();
       expect(analysis.perFieldErrors!.length).toBeGreaterThan(0);
-
-      // Error clusters
-      expect(analysis.errorClusters).toBeDefined();
-      expect(analysis.errorClusters.length).toBeGreaterThan(0);
-      expect(
-        analysis.errorClusters.some((c) => c.errorType === "missing_field"),
-      ).toBe(true);
-      expect(
-        analysis.errorClusters.some((c) => c.errorType === "value_mismatch"),
-      ).toBe(true);
     });
 
     it("uses default options when not specified", () => {
@@ -818,7 +654,6 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
       const analysis = performFailureAnalysis(results, {});
 
       expect(analysis.worstSamples).toBeDefined();
-      expect(analysis.errorClusters).toBeDefined();
     });
   });
 });

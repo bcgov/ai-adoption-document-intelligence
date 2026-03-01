@@ -161,26 +161,6 @@ export interface FieldErrorStats {
 }
 
 /**
- * Error cluster (grouped by error type)
- */
-export interface ErrorCluster {
-  /**
-   * Error type/pattern
-   */
-  errorType: string;
-
-  /**
-   * Number of occurrences
-   */
-  count: number;
-
-  /**
-   * Sample IDs with this error type
-   */
-  sampleIds: string[];
-}
-
-/**
  * Failure analysis results
  */
 export interface FailureAnalysis {
@@ -193,11 +173,6 @@ export interface FailureAnalysis {
    * Per-field error breakdown (for schema-aware evaluator)
    */
   perFieldErrors?: FieldErrorStats[];
-
-  /**
-   * Error clusters (grouped by error type/pattern)
-   */
-  errorClusters: ErrorCluster[];
 }
 
 /**
@@ -479,13 +454,9 @@ export function performFailureAnalysis(
   // Compute per-field error breakdown (for schema-aware evaluator)
   const perFieldErrors = computePerFieldErrors(results);
 
-  // Compute error clusters
-  const errorClusters = computeErrorClusters(results);
-
   return {
     worstSamples,
     perFieldErrors: perFieldErrors.length > 0 ? perFieldErrors : undefined,
-    errorClusters,
   };
 }
 
@@ -596,121 +567,3 @@ export function computePerFieldErrors(
   return fieldErrors;
 }
 
-/**
- * Compute error clusters (group failures by error type/pattern)
- */
-export function computeErrorClusters(
-  results: EvaluationResult[],
-): ErrorCluster[] {
-  const clusters = new Map<string, Set<string>>();
-
-  for (const result of results) {
-    if (result.pass) {
-      continue; // Skip passing samples
-    }
-
-    const diagnostics = result.diagnostics;
-
-    // Detect error types based on diagnostics structure
-    const errorTypes = detectErrorTypes(diagnostics);
-
-    for (const errorType of errorTypes) {
-      if (!clusters.has(errorType)) {
-        clusters.set(errorType, new Set());
-      }
-      clusters.get(errorType)!.add(result.sampleId);
-    }
-  }
-
-  // Convert to array
-  const errorClusters: ErrorCluster[] = [];
-  for (const [errorType, sampleIds] of clusters) {
-    errorClusters.push({
-      errorType,
-      count: sampleIds.size,
-      sampleIds: Array.from(sampleIds),
-    });
-  }
-
-  // Sort by count (descending)
-  errorClusters.sort((a, b) => b.count - a.count);
-
-  return errorClusters;
-}
-
-/**
- * Detect error types from diagnostics
- */
-function detectErrorTypes(diagnostics: Record<string, unknown>): string[] {
-  const errorTypes: string[] = [];
-
-  // Schema-aware evaluator error types
-  if (diagnostics.missingFields && Array.isArray(diagnostics.missingFields)) {
-    const missingFields = diagnostics.missingFields as string[];
-    if (missingFields.length > 0) {
-      errorTypes.push("missing_field");
-    }
-  }
-
-  if (diagnostics.extraFields && Array.isArray(diagnostics.extraFields)) {
-    const extraFields = diagnostics.extraFields as string[];
-    if (extraFields.length > 0) {
-      errorTypes.push("extra_field");
-    }
-  }
-
-  if (
-    diagnostics.mismatchedFields &&
-    Array.isArray(diagnostics.mismatchedFields)
-  ) {
-    const mismatchedFields = diagnostics.mismatchedFields as Array<unknown>;
-    if (mismatchedFields.length > 0) {
-      errorTypes.push("value_mismatch");
-    }
-  }
-
-  // Black-box evaluator error types
-  if (diagnostics.diff && Array.isArray(diagnostics.diff)) {
-    const diff = diagnostics.diff as Array<{ type: string }>;
-    for (const entry of diff) {
-      if (entry.type === "changed") {
-        errorTypes.push("value_mismatch");
-      } else if (entry.type === "added") {
-        errorTypes.push("extra_field");
-      } else if (entry.type === "deleted") {
-        errorTypes.push("missing_field");
-      }
-    }
-  }
-
-  // Type mismatch
-  if (diagnostics.comparisonResults) {
-    const comparisonResults = diagnostics.comparisonResults as Array<{
-      predicted?: unknown;
-      expected?: unknown;
-    }>;
-    for (const result of comparisonResults) {
-      if (
-        result.predicted !== undefined &&
-        result.expected !== undefined &&
-        typeof result.predicted !== typeof result.expected
-      ) {
-        errorTypes.push("type_mismatch");
-        break;
-      }
-    }
-  }
-
-  // Generic error
-  if (diagnostics.error) {
-    errorTypes.push("evaluation_error");
-  }
-
-  // If no specific error type detected, use generic failure
-  if (errorTypes.length === 0) {
-    errorTypes.push("unknown_failure");
-  }
-
-  // Deduplicate
-  return Array.from(new Set(errorTypes));
-}
