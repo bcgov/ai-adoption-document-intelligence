@@ -1,4 +1,6 @@
 export * from "./audit-log-response.dto";
+export * from "./create-dataset-from-hitl.dto";
+export * from "./eligible-documents.dto";
 export * from "./create-dataset.dto";
 export * from "./create-definition.dto";
 export * from "./create-project.dto";

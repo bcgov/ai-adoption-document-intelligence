@@ -20,6 +20,7 @@ import {
   IconArrowLeft,
   IconDotsVertical,
   IconEye,
+  IconFileCheck,
   IconLock,
   IconPlus,
   IconShieldCheck,
@@ -29,6 +30,7 @@ import {
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiService } from "@/data/services/api.service";
+import { CreateDatasetFromHitlDialog } from "../components/CreateDatasetFromHitlDialog";
 import { FileUploadDialog } from "../components/FileUploadDialog";
 import { SampleDetailViewer } from "../components/SampleDetailViewer";
 import { SplitManagement } from "../components/SplitManagement";
@@ -89,6 +91,7 @@ export function DatasetDetailPage() {
   } | null>(null);
   const [newVersionDialogOpen, setNewVersionDialogOpen] = useState(false);
   const [newVersionName, setNewVersionName] = useState("");
+  const [hitlVersionDialogOpen, setHitlVersionDialogOpen] = useState(false);
 
   const {
     samples,
@@ -229,14 +232,24 @@ export function DatasetDetailPage() {
                 {dataset.name}
               </Title>
             </Group>
-            <Button
-              leftSection={<IconPlus size={16} />}
-              onClick={handleNewVersion}
-              loading={isCreatingVersion}
-              data-testid="new-version-btn"
-            >
-              New Version
-            </Button>
+            <Group gap="sm">
+              <Button
+                variant="light"
+                leftSection={<IconFileCheck size={16} />}
+                onClick={() => setHitlVersionDialogOpen(true)}
+                data-testid="add-version-from-hitl-btn"
+              >
+                From Verified Documents
+              </Button>
+              <Button
+                leftSection={<IconPlus size={16} />}
+                onClick={handleNewVersion}
+                loading={isCreatingVersion}
+                data-testid="new-version-btn"
+              >
+                New Version
+              </Button>
+            </Group>
           </Group>
           <Text c="dimmed" size="sm" data-testid="dataset-description">
             {dataset.description || "No description"}
@@ -636,6 +649,14 @@ export function DatasetDetailPage() {
           </Group>
         </Stack>
       </Modal>
+
+      {id && (
+        <CreateDatasetFromHitlDialog
+          opened={hitlVersionDialogOpen}
+          onClose={() => setHitlVersionDialogOpen(false)}
+          existingDatasetId={id}
+        />
+      )}
     </>
   );
 }

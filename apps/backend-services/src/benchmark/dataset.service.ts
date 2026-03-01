@@ -1159,6 +1159,34 @@ export class DatasetService {
   }
 
   /**
+   * Update a version's storagePrefix and documentCount after HITL import.
+   * Used by HitlDatasetService to finalize the version after packaging files.
+   */
+  async updateVersionAfterHitlImport(
+    datasetId: string,
+    versionId: string,
+    storagePrefix: string,
+    documentCount: number,
+  ): Promise<VersionResponseDto> {
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: { id: versionId, datasetId },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    const updated = await this.prisma.datasetVersion.update({
+      where: { id: versionId },
+      data: { storagePrefix, documentCount },
+    });
+
+    return this.mapToVersionResponseDto(updated);
+  }
+
+  /**
    * Determine if a file is a ground truth file based on mimetype
    */
   private isGroundTruthFile(file: {

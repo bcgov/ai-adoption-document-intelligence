@@ -1,6 +1,7 @@
 import { Module, OnModuleInit } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
+import { DatabaseModule } from "@/database/database.module";
 import { AuditLogService } from "./audit-log.service";
 import { BenchmarkDefinitionController } from "./benchmark-definition.controller";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
@@ -15,17 +16,21 @@ import { EvaluatorRegistryService } from "./evaluator-registry.service";
 import { FieldAccuracyEvaluator } from "./evaluators/field-accuracy.evaluator";
 import { SchemaAwareEvaluator } from "./evaluators/schema-aware.evaluator";
 import { BlackBoxEvaluator } from "./evaluators/black-box.evaluator";
+import { HitlDatasetController } from "./hitl-dataset.controller";
+import { HitlDatasetService } from "./hitl-dataset.service";
 
 @Module({
-  imports: [ConfigModule, BlobStorageModule],
+  imports: [ConfigModule, BlobStorageModule, DatabaseModule],
   controllers: [
     DatasetController,
+    HitlDatasetController,
     BenchmarkProjectController,
     BenchmarkDefinitionController,
     BenchmarkRunController,
   ],
   providers: [
     DatasetService,
+    HitlDatasetService,
     BenchmarkProjectService,
     BenchmarkDefinitionService,
     BenchmarkRunService,
@@ -38,6 +43,7 @@ import { BlackBoxEvaluator } from "./evaluators/black-box.evaluator";
   ],
   exports: [
     DatasetService,
+    HitlDatasetService,
     BenchmarkProjectService,
     BenchmarkDefinitionService,
     BenchmarkRunService,
