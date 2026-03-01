@@ -88,7 +88,7 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
   async evaluate(input: EvaluationInput): Promise<EvaluationResult> {
     // Parse configuration
     const config = input.evaluatorConfig as SchemaAwareConfig;
-    const passThreshold = config.passThreshold ?? 0.9;
+    const passThreshold = config.passThreshold ?? 1.0;
 
     // Validate paths
     const predictionPath = input.predictionPaths?.[0];

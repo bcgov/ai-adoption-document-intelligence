@@ -127,12 +127,12 @@
     {
       "fieldKey": "date",
       "fieldType": "date",
-      "fieldFormat": "dmy"
+      "fieldFormat": "ymd"
     },
     {
       "fieldKey": "spouse_date",
       "fieldType": "date",
-      "fieldFormat": "dmy"
+      "fieldFormat": "ymd"
     },
     {
       "fieldKey": "name",

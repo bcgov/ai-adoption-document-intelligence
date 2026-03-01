@@ -1002,7 +1002,7 @@ describe("SuggestionService", () => {
           project_id: "p1",
           field_key: "date",
           field_type: FieldType.date,
-          field_format: "dmy",
+          field_format: "ymd",
           display_order: 0,
         },
         {
@@ -1010,7 +1010,7 @@ describe("SuggestionService", () => {
           project_id: "p1",
           field_key: "spouse_date",
           field_type: FieldType.date,
-          field_format: "dmy",
+          field_format: "ymd",
           display_order: 1,
         },
       ],

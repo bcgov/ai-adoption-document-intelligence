@@ -883,7 +883,7 @@ describe("LabelingService", () => {
             id: "field-2",
             field_key: "invoice_date",
             field_type: PrismaFieldType.date,
-            field_format: "dmy",
+            field_format: "ymd",
             display_order: 1,
             project_id: "project-1",
           },
@@ -911,7 +911,7 @@ describe("LabelingService", () => {
       expect((result as any).fieldsJson.fields[1]).toEqual({
         fieldKey: "invoice_date",
         fieldType: "date",
-        fieldFormat: "dmy",
+        fieldFormat: "ymd",
       });
     });
 
