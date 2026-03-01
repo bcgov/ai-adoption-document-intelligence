@@ -403,6 +403,7 @@ model DatasetVersion {
   manifestPath        String
   documentCount       Int
   groundTruthSchema   Json?
+  frozen              Boolean                @default(false)
   createdAt           DateTime               @default(now())
   splits              Split[]
   benchmarkDefinitions BenchmarkDefinition[]

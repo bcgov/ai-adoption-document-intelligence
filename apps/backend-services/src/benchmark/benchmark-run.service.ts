@@ -268,11 +268,24 @@ export class BenchmarkRunService {
       );
     }
 
-    // Mark definition as immutable
+    // Mark definition as immutable and freeze the dataset version
     await this.prisma.benchmarkDefinition.update({
       where: { id: definitionId },
       data: { immutable: true },
     });
+
+    await this.prisma.datasetVersion.update({
+      where: { id: definition.datasetVersionId },
+      data: { frozen: true },
+    });
+
+    // Freeze the referenced split if one is set
+    if (definition.splitId) {
+      await this.prisma.split.update({
+        where: { id: definition.splitId },
+        data: { frozen: true },
+      });
+    }
 
     // Create audit log
     await this.createAuditLog(run.id, "run_started", {

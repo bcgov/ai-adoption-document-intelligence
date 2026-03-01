@@ -32,6 +32,12 @@ jest.mock("@generated/client", () => {
         findMany: jest.fn(),
         delete: jest.fn(),
       },
+      datasetVersion: {
+        update: jest.fn(),
+      },
+      split: {
+        update: jest.fn(),
+      },
       benchmarkAuditLog: {
         create: jest.fn(),
       },
@@ -223,7 +229,65 @@ describe("BenchmarkRunService", () => {
         data: { immutable: true },
       });
 
+      // Verify dataset version was frozen
+      expect(prisma.datasetVersion.update).toHaveBeenCalledWith({
+        where: { id: "ds-version-1" },
+        data: { frozen: true },
+      });
+
+      // Verify split was frozen
+      expect(prisma.split.update).toHaveBeenCalledWith({
+        where: { id: "split-1" },
+        data: { frozen: true },
+      });
+
       expect(result.status).toBe("running");
+    });
+
+    it("should freeze dataset version but not split when definition has no split", async () => {
+      const definitionNoSplit = {
+        ...mockDefinition,
+        splitId: null,
+        split: null,
+      };
+
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        definitionNoSplit,
+      );
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        id: "run-1",
+        temporalWorkflowId: "",
+      });
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+        startedAt: new Date(),
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        definitionNoSplit,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+        startedAt: new Date(),
+      });
+
+      await service.startRun("project-1", "def-1", {});
+
+      // Verify dataset version was frozen
+      expect(prisma.datasetVersion.update).toHaveBeenCalledWith({
+        where: { id: "ds-version-1" },
+        data: { frozen: true },
+      });
+
+      // Verify split was NOT frozen (no split on definition)
+      expect(prisma.split.update).not.toHaveBeenCalled();
     });
 
     it("should throw BadRequestException when dataset validation fails", async () => {

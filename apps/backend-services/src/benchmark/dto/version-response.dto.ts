@@ -7,6 +7,7 @@ export class VersionResponseDto {
   manifestPath: string;
   documentCount: number;
   groundTruthSchema: Record<string, unknown> | null;
+  frozen: boolean;
   createdAt: Date;
   splits?: Array<{
     id: string;

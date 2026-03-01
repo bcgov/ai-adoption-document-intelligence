@@ -10,6 +10,7 @@ interface DatasetVersion {
   manifestPath: string;
   documentCount: number;
   groundTruthSchema: Record<string, unknown> | null;
+  frozen: boolean;
   createdAt: string;
   splits?: Array<{
     id: string;
@@ -93,6 +94,21 @@ export const useDatasetVersions = (datasetId: string) => {
     },
   });
 
+  const freezeVersionMutation = useMutation({
+    mutationFn: async (versionId: string) => {
+      const response = await apiService.post<{ id: string; frozen: boolean }>(
+        `/benchmark/datasets/${datasetId}/versions/${versionId}/freeze`,
+        {},
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-dataset-versions", datasetId],
+      });
+    },
+  });
+
   const deleteSampleMutation = useMutation({
     mutationFn: async ({
       versionId,
@@ -129,6 +145,8 @@ export const useDatasetVersions = (datasetId: string) => {
     deleteVersion: deleteVersionMutation.mutate,
     isDeletingVersion: deleteVersionMutation.isPending,
     deleteVersionError: deleteVersionMutation.error,
+    freezeVersion: freezeVersionMutation.mutateAsync,
+    isFreezingVersion: freezeVersionMutation.isPending,
     deleteSample: deleteSampleMutation.mutate,
     isDeletingSample: deleteSampleMutation.isPending,
     deletingSampleId: deleteSampleMutation.isPending

@@ -322,6 +322,7 @@ describe("DatasetService", () => {
           name: null,
           documentCount: 10,
           storagePrefix: "datasets/dataset-1/v1/",
+          frozen: false,
           createdAt: new Date(),
           splits: [],
         },
@@ -356,6 +357,7 @@ describe("DatasetService", () => {
         manifestPath: "dataset-manifest.json",
         documentCount: 10,
         groundTruthSchema: null,
+        frozen: false,
         createdAt: new Date(),
         splits: [],
       });
@@ -466,6 +468,18 @@ describe("DatasetService", () => {
         service.uploadFilesToVersion("dataset-1", "nonexistent", mockFiles, "user-1"),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it("throws BadRequestException when version is frozen", async () => {
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        ...mockVersion,
+        frozen: true,
+      });
+
+      await expect(
+        service.uploadFilesToVersion("dataset-1", "version-1", mockFiles, "user-1"),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -528,6 +542,23 @@ describe("DatasetService", () => {
       );
     });
 
+    it("throws BadRequestException when version is frozen", async () => {
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "version-1",
+        datasetId: "dataset-1",
+        version: "1.0.0",
+        storagePrefix: "datasets/dataset-1/version-1",
+        manifestPath: "dataset-manifest.json",
+        documentCount: 2,
+        frozen: true,
+      });
+
+      await expect(
+        service.deleteSample("dataset-1", "version-1", "sample-1"),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it("throws NotFoundException when sample not found in manifest", async () => {
       mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
       mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
@@ -555,6 +586,44 @@ describe("DatasetService", () => {
 
       await expect(
         service.deleteSample("dataset-1", "version-1", "nonexistent"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Freeze Version
+  // -----------------------------------------------------------------------
+  describe("freezeVersion", () => {
+    it("freezes a dataset version", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "version-1",
+        datasetId: "dataset-1",
+        version: "1.0.0",
+        name: null,
+        frozen: false,
+      });
+      mockPrismaClient.datasetVersion.update.mockResolvedValue({
+        id: "version-1",
+        datasetId: "dataset-1",
+        version: "1.0.0",
+        name: null,
+        frozen: true,
+      });
+
+      const result = await service.freezeVersion("dataset-1", "version-1");
+
+      expect(result.frozen).toBe(true);
+      expect(prisma.datasetVersion.update).toHaveBeenCalledWith({
+        where: { id: "version-1" },
+        data: { frozen: true },
+      });
+    });
+
+    it("throws NotFoundException when version does not exist", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.freezeVersion("dataset-1", "nonexistent"),
       ).rejects.toThrow(NotFoundException);
     });
   });

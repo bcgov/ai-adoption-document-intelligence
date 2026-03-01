@@ -602,6 +602,29 @@ export class DatasetController {
     return this.datasetService.updateSplit(id, versionId, splitId, updateDto);
   }
 
+  @Post(":id/versions/:versionId/freeze")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Freeze a dataset version",
+    description:
+      "Freezes a dataset version, preventing file uploads and sample deletions. Automatically applied when a benchmark run starts.",
+  })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiOkResponse({
+    description: "Version frozen successfully",
+  })
+  @ApiNotFoundResponse({
+    description: "Version not found",
+  })
+  async freezeVersion(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+  ): Promise<{ id: string; datasetId: string; version: string; name: string | null; frozen: boolean }> {
+    return this.datasetService.freezeVersion(id, versionId);
+  }
+
   @Post(":id/versions/:versionId/splits/:splitId/freeze")
   @ApiKeyAuth()
   @KeycloakSSOAuth()

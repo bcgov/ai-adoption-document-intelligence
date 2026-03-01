@@ -20,6 +20,7 @@ import {
   IconArrowLeft,
   IconDotsVertical,
   IconEye,
+  IconLock,
   IconPlus,
   IconShieldCheck,
   IconTrash,
@@ -51,6 +52,8 @@ export function DatasetDetailPage() {
     deleteVersion,
     isDeletingVersion,
     deleteVersionError,
+    freezeVersion,
+    isFreezingVersion,
     deleteSample,
     isDeletingSample,
     deletingSampleId,
@@ -293,6 +296,7 @@ export function DatasetDetailPage() {
                   <Table.Tr>
                     <Table.Th>Version</Table.Th>
                     <Table.Th>Name</Table.Th>
+                    <Table.Th>Status</Table.Th>
                     <Table.Th>Documents</Table.Th>
                     <Table.Th>Storage Prefix</Table.Th>
                     <Table.Th>Created</Table.Th>
@@ -315,6 +319,15 @@ export function DatasetDetailPage() {
                         <Text size="sm" c={version.name ? undefined : "dimmed"}>
                           {version.name || "-"}
                         </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Badge
+                          color={version.frozen ? "gray" : "green"}
+                          variant="light"
+                          leftSection={version.frozen ? <IconLock size={12} /> : undefined}
+                        >
+                          {version.frozen ? "Frozen" : "Editable"}
+                        </Badge>
                       </Table.Td>
                       <Table.Td>{version.documentCount}</Table.Td>
                       <Table.Td>{version.storagePrefix ? version.storagePrefix.substring(0, 8) : "-"}</Table.Td>
@@ -342,6 +355,7 @@ export function DatasetDetailPage() {
                             <Menu.Item
                               leftSection={<IconUpload size={16} />}
                               onClick={() => handleUploadToVersion(version.id)}
+                              disabled={version.frozen}
                               data-testid={`upload-files-menu-item-${version.id}`}
                             >
                               Upload Files
@@ -353,12 +367,22 @@ export function DatasetDetailPage() {
                             >
                               Validate
                             </Menu.Item>
+                            {!version.frozen && (
+                              <Menu.Item
+                                leftSection={<IconLock size={16} />}
+                                onClick={() => freezeVersion(version.id)}
+                                disabled={isFreezingVersion}
+                                data-testid={`freeze-version-menu-item-${version.id}`}
+                              >
+                                Freeze Version
+                              </Menu.Item>
+                            )}
                             <Menu.Divider />
                             <Menu.Item
                               leftSection={<IconTrash size={16} />}
                               color="red"
                               onClick={() => handleDeleteVersionClick(version.id, version.version)}
-                              loading={isDeletingVersion}
+                              disabled={version.frozen || isDeletingVersion}
                               data-testid={`delete-version-menu-item-${version.id}`}
                             >
                               Delete Version
@@ -377,14 +401,21 @@ export function DatasetDetailPage() {
             <Tabs.Panel value={selectedVersionId} pt="md">
               <Stack gap="md">
                 <Group justify="flex-end">
-                  <Button
-                    leftSection={<IconUpload size={16} />}
-                    variant="light"
-                    onClick={() => handleUploadToVersion(selectedVersionId)}
-                    data-testid="sample-preview-upload-btn"
-                  >
-                    Upload Files
-                  </Button>
+                  {!selectedVersion?.frozen && (
+                    <Button
+                      leftSection={<IconUpload size={16} />}
+                      variant="light"
+                      onClick={() => handleUploadToVersion(selectedVersionId)}
+                      data-testid="sample-preview-upload-btn"
+                    >
+                      Upload Files
+                    </Button>
+                  )}
+                  {selectedVersion?.frozen && (
+                    <Badge color="gray" variant="light" leftSection={<IconLock size={12} />}>
+                      Frozen
+                    </Badge>
+                  )}
                 </Group>
                 {isLoadingSamples ? (
                   <Center h={200}>
@@ -446,22 +477,24 @@ export function DatasetDetailPage() {
                                 >
                                   View
                                 </Button>
-                                <Button
-                                  size="xs"
-                                  variant="subtle"
-                                  color="red"
-                                  leftSection={<IconTrash size={14} />}
-                                  onClick={() =>
-                                    handleDeleteSample(
-                                      selectedVersionId!,
-                                      sample.id,
-                                    )
-                                  }
-                                  loading={isDeletingSample && deletingSampleId === sample.id}
-                                  data-testid={`delete-sample-btn-${sample.id}`}
-                                >
-                                  Delete
-                                </Button>
+                                {!selectedVersion?.frozen && (
+                                  <Button
+                                    size="xs"
+                                    variant="subtle"
+                                    color="red"
+                                    leftSection={<IconTrash size={14} />}
+                                    onClick={() =>
+                                      handleDeleteSample(
+                                        selectedVersionId!,
+                                        sample.id,
+                                      )
+                                    }
+                                    loading={isDeletingSample && deletingSampleId === sample.id}
+                                    data-testid={`delete-sample-btn-${sample.id}`}
+                                  >
+                                    Delete
+                                  </Button>
+                                )}
                               </Group>
                             </Table.Td>
                           </Table.Tr>

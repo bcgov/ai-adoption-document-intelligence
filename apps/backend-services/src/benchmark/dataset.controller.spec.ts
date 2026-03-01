@@ -220,6 +220,7 @@ describe("DatasetController", () => {
         manifestPath: "manifest.json",
         documentCount: 0,
         groundTruthSchema: { type: "object" },
+        frozen: false,
         createdAt: new Date(),
       };
 
@@ -286,6 +287,7 @@ describe("DatasetController", () => {
         manifestPath: "manifest.json",
         documentCount: 100,
         groundTruthSchema: { type: "object" },
+        frozen: false,
         createdAt: new Date(),
         splits: [],
       };

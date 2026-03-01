@@ -58,7 +58,7 @@
 <div class="grid grid-3">
     <div class="card" style="border-left-color: #2E8540;">
         <h3 style="margin-top:0;">Datasets</h3>
-        <p>Upload documents with ground truth, organise them into immutable versioned snapshots, and optionally split them into train/test/golden subsets.</p>
+        <p>Upload documents with ground truth, organise them into versioned snapshots that are automatically frozen when benchmarked, and optionally split them into train/test/golden subsets.</p>
     </div>
     <div class="card" style="border-left-color: #003366;">
         <h3 style="margin-top:0;">Evaluation</h3>
@@ -95,7 +95,7 @@
 
 <h3 id="datasets-and-versions">Datasets and Versions</h3>
 
-<p>A <strong>Dataset</strong> is a named collection of documents. Each dataset has one or more <strong>Dataset Versions</strong>. A version is an immutable snapshot consisting of:</p>
+<p>A <strong>Dataset</strong> is a named collection of documents. Each dataset has one or more <strong>Dataset Versions</strong>. A version starts as mutable — you can upload files and delete samples freely. When a benchmark run is started against a version, it is automatically <strong>frozen</strong>, preventing any further modifications. This ensures that benchmark results are reproducible. A version consists of:</p>
 
 <ul>
     <li>A <strong>dataset manifest</strong> (<code>dataset-manifest.json</code>) listing every sample, its input files, ground truth files, and metadata.</li>
@@ -150,6 +150,16 @@
 </table>
 
 <p>When a benchmark definition references a split, only the samples in that split are processed during a run. If no split is specified, all samples in the dataset version are used.</p>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+        <strong>Automatic Freezing</strong><br>
+        When a benchmark run starts, the referenced dataset version and split (if any) are automatically <strong>frozen</strong>. Frozen versions cannot have files uploaded or samples deleted, and frozen splits cannot have their sample list modified. This ensures benchmark results remain reproducible. To iterate on your data, create a new dataset version. You can also manually freeze a version or split before running benchmarks via the freeze endpoints.
+    </div>
+</div>
 
 <h3 id="evaluators">Evaluators</h3>
 
@@ -460,7 +470,7 @@
     <li>Create a dataset via <code>POST /api/benchmark/datasets</code> with a name and description.</li>
     <li>Upload input documents and ground truth files via <code>POST /api/benchmark/datasets/:id/upload</code>.</li>
     <li>Optionally validate the dataset via <code>POST /api/benchmark/datasets/:id/validate</code>.</li>
-    <li>Create a dataset version via <code>POST /api/benchmark/datasets/:id/versions</code> to create an immutable snapshot.</li>
+    <li>Create a dataset version via <code>POST /api/benchmark/datasets/:id/versions</code>. The version is mutable until a benchmark run is started against it, at which point it is automatically frozen.</li>
 </ol>
 
 <h3>Step 2: Create a Project and Definition</h3>

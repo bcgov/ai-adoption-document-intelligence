@@ -344,6 +344,7 @@ export class DatasetService {
       name: v.name ?? null,
       documentCount: v.documentCount,
       storagePrefix: v.storagePrefix,
+      frozen: v.frozen,
       createdAt: v.createdAt,
       splits: v.splits.map((s) => ({
         id: s.id,
@@ -427,6 +428,12 @@ export class DatasetService {
     if (!version) {
       throw new NotFoundException(
         `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    if (version.frozen) {
+      throw new BadRequestException(
+        "Cannot upload files to a frozen dataset version. Create a new version instead.",
       );
     }
 
@@ -625,6 +632,12 @@ export class DatasetService {
     if (!version) {
       throw new NotFoundException(
         `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    if (version.frozen) {
+      throw new BadRequestException(
+        "Cannot delete samples from a frozen dataset version.",
       );
     }
 
@@ -1289,6 +1302,7 @@ export class DatasetService {
       manifestPath: string;
       documentCount: number;
       groundTruthSchema: unknown;
+      frozen: boolean;
       createdAt: Date;
     },
     splits?: Array<{
@@ -1310,6 +1324,7 @@ export class DatasetService {
         string,
         unknown
       > | null,
+      frozen: version.frozen,
       createdAt: version.createdAt,
       splits: splits?.map((s) => ({
         id: s.id,
@@ -1891,6 +1906,46 @@ export class DatasetService {
       sampleIds: updated.sampleIds as string[],
       frozen: updated.frozen,
       createdAt: updated.createdAt,
+    };
+  }
+
+  /**
+   * Freeze a dataset version to make it immutable
+   */
+  async freezeVersion(
+    datasetId: string,
+    versionId: string,
+  ): Promise<{
+    id: string;
+    datasetId: string;
+    version: string;
+    name: string | null;
+    frozen: boolean;
+  }> {
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: {
+        id: versionId,
+        datasetId: datasetId,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    const frozen = await this.prisma.datasetVersion.update({
+      where: { id: versionId },
+      data: { frozen: true },
+    });
+
+    return {
+      id: frozen.id,
+      datasetId: frozen.datasetId,
+      version: frozen.version,
+      name: frozen.name,
+      frozen: frozen.frozen,
     };
   }
 

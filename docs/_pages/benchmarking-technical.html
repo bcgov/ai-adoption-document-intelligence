@@ -118,6 +118,7 @@
     <tr><td><code>manifestPath</code></td><td>String</td><td>Relative path to <code>dataset-manifest.json</code> within the storage prefix.</td></tr>
     <tr><td><code>documentCount</code></td><td>Int</td><td>Number of samples in this version.</td></tr>
     <tr><td><code>groundTruthSchema</code></td><td>JSON?</td><td>Optional JSON schema for ground truth validation.</td></tr>
+    <tr><td><code>frozen</code></td><td>Boolean</td><td>Whether the version is locked from modification (default: false). Automatically set to <code>true</code> when a benchmark run starts.</td></tr>
 </table>
 
 <h3 id="dm-split">Split</h3>
@@ -244,10 +245,11 @@
     <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets</code></td><td>List datasets (paginated).</td></tr>
     <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id</code></td><td>Get dataset details.</td></tr>
     <tr><td><code>DELETE</code></td><td><code>/api/benchmark/datasets/:id</code></td><td>Delete a dataset.</td></tr>
-    <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/versions</code></td><td>Create a dataset version (immutable snapshot).</td></tr>
-    <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/upload</code></td><td>Upload dataset files (inputs + ground truth).</td></tr>
-    <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/validate</code></td><td>Validate dataset files and ground truth.</td></tr>
-    <tr><td><code>GET</code></td><td><code>/api/benchmark/datasets/:id/ground-truth</code></td><td>Get ground truth schema.</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/versions</code></td><td>Create a dataset version.</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/versions/:versionId/upload</code></td><td>Upload dataset files (inputs + ground truth). Blocked if version is frozen.</td></tr>
+    <tr><td><code>DELETE</code></td><td><code>/api/benchmark/datasets/:id/versions/:versionId/samples/:sampleId</code></td><td>Delete a sample from a version. Blocked if version is frozen.</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/versions/:versionId/freeze</code></td><td>Freeze a dataset version (prevents uploads and sample deletions).</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/benchmark/datasets/:id/versions/:versionId/validate</code></td><td>Validate dataset files and ground truth.</td></tr>
 </table>
 
 <h3 id="api-projects">Projects</h3>

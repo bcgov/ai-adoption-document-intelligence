@@ -11,6 +11,7 @@ export class VersionListItemDto {
   name: string | null;
   documentCount: number;
   storagePrefix: string | null;
+  frozen: boolean;
   createdAt: Date;
   splits?: SplitListItemDto[];
 }

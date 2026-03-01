@@ -8,7 +8,8 @@ Dataset versions follow an explicit create-then-upload lifecycle. Users first cr
 
 - **Unique Storage Path**: Each dataset has an auto-generated `storagePath`. This is enforced at both the service level and the database level.
 - **Deletion Protection**: Versions referenced by benchmark definitions cannot be deleted. Delete the definitions first.
-- **File Uploads Only on Drafts**: Files can only be uploaded to or removed from versions in `draft` status.
+- **Frozen Versions**: When a benchmark run starts, the referenced dataset version is automatically frozen (`frozen: true`). Frozen versions cannot have files uploaded or samples deleted. Users can also manually freeze a version via `POST /api/benchmark/datasets/:id/versions/:versionId/freeze`.
+- **Frozen Splits**: When a benchmark run starts with a split, that split is also automatically frozen. Splits can also be manually frozen via the existing freeze endpoint.
 
 ## Version States
 
@@ -121,13 +122,28 @@ Uploads files to a draft version.
 }
 ```
 
+### `POST /api/benchmark/datasets/:id/versions/:versionId/freeze`
+
+Freezes a dataset version, preventing file uploads and sample deletions. This is automatically applied when a benchmark run starts, but can also be called manually.
+
+**Response (200):**
+```json
+{
+  "id": "uuid",
+  "datasetId": "uuid",
+  "version": "v1",
+  "name": null,
+  "frozen": true
+}
+```
+
 ### `DELETE /api/benchmark/datasets/:id/versions/:versionId`
 
 Deletes a version. Returns 204 No Content on success, 409 Conflict if referenced by definitions.
 
 ### `DELETE /api/benchmark/datasets/:id/versions/:versionId/samples/:sampleId`
 
-Removes a sample from a draft version. Returns 204 No Content.
+Removes a sample from an unfrozen version. Returns 204 No Content. Returns 400 if the version is frozen.
 
 ## Splits are Optional for Benchmark Runs
 
