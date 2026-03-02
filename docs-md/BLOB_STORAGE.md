@@ -87,7 +87,7 @@ A single bucket (MinIO) or container (Azure) named `document-blobs` is used for 
 | `AZURE_STORAGE_CONNECTION_STRING`   | Yes      | Azure Storage account connection string               | —                |
 | `AZURE_STORAGE_CONTAINER_NAME`      | No       | Container name for document storage                   | `document-blobs` |
 
-### Azure Training Storage (always required for DI model training)
+### Azure Storage (always required for DI model training)
 
 | Variable                            | Required | Description                                           |
 |-------------------------------------|----------|-------------------------------------------------------|
@@ -123,7 +123,7 @@ export class MyService {
 }
 ```
 
-### Azure Training Storage
+### Azure Storage
 
 For operations that must always use Azure (DI model training), inject `AzureStorageService` directly:
 
@@ -132,13 +132,13 @@ import { AzureStorageService } from '../blob-storage/azure-storage.service';
 
 export class MyTrainingService {
   constructor(
-    private readonly azureTrainingStorage: AzureStorageService,
+    private readonly azureStorage: AzureStorageService,
   ) {}
 
   async example() {
-    await this.azureTrainingStorage.ensureContainerExists('my-container');
-    await this.azureTrainingStorage.uploadFile('my-container', 'blob-name', buffer);
-    const sasUrl = await this.azureTrainingStorage.generateSasUrl('my-container');
+    await this.azureStorage.ensureContainerExists('my-container');
+    await this.azureStorage.uploadFile('my-container', 'blob-name', buffer);
+    const sasUrl = await this.azureStorage.generateSasUrl('my-container');
   }
 }
 ```

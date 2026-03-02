@@ -14,7 +14,7 @@ export class ClassifierPollerService {
     private readonly db: DatabaseService,
     private readonly azureService: AzureService,
     private readonly databaseService: DatabaseService,
-    private readonly azureTrainingStorage: AzureStorageService,
+    private readonly azureStorage: AzureStorageService,
     private readonly classifierService: ClassifierService,
   ) {}
 
@@ -62,7 +62,7 @@ export class ClassifierPollerService {
           `Classifier ${classifierName} (group ${groupId}) training succeeded.`,
         );
         // Need to remove the files from blob storage to avoid costs
-        await this.azureTrainingStorage.deleteFilesWithPrefix(
+        await this.azureStorage.deleteFilesWithPrefix(
           `${groupId}/${classifierName}`,
           this.classifierService.classifierContainer,
         );

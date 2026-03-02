@@ -57,7 +57,7 @@ export class TrainingService {
 
   constructor(
     private readonly db: DatabaseService,
-    private readonly azureTrainingStorage: AzureStorageService,
+    private readonly azureStorage: AzureStorageService,
     private readonly labelingService: LabelingService,
     private readonly configService: ConfigService,
     @Inject(BLOB_STORAGE)
@@ -303,12 +303,12 @@ export class TrainingService {
       });
 
       // Clear container contents so each training run starts clean
-      await this.azureTrainingStorage.clearContainerContents(
+      await this.azureStorage.clearContainerContents(
         job.container_name,
       );
 
       // Upload to blob storage
-      const uploadResult = await this.azureTrainingStorage.uploadFiles(
+      const uploadResult = await this.azureStorage.uploadFiles(
         job.container_name,
         files,
       );
@@ -320,7 +320,7 @@ export class TrainingService {
       }
 
       // Generate SAS URL
-      const sasUrl = await this.azureTrainingStorage.generateSasUrl(
+      const sasUrl = await this.azureStorage.generateSasUrl(
         job.container_name,
         this.sasExpiryDays,
       );

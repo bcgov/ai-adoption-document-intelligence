@@ -27,7 +27,7 @@ export class ClassifierService {
   constructor(
     private databaseService: DatabaseService,
     private azureService: AzureService,
-    private azureTrainingStorage: AzureStorageService,
+    private azureStorage: AzureStorageService,
     @Inject(BLOB_STORAGE)
     private blobStorage: BlobStorageInterface,
   ) {
@@ -43,7 +43,7 @@ export class ClassifierService {
     // Each file in a training folder needs accompanying layout json.
     // The file must be named just like its corresponding image + .ocr.json
     // e.g. If image is file.jpg, layout json must be file.jpg.ocr.json.
-    const containerClient = this.azureTrainingStorage.getContainerClient(
+    const containerClient = this.azureStorage.getContainerClient(
       this.classifierContainer,
     );
 
@@ -52,7 +52,7 @@ export class ClassifierService {
       filePaths.map(async (filePath) => {
         // Analyze each file
         if (!filePath.match(/\.(jpg|jpeg|png|bmp|tif|tiff)$/i)) return; // Only process images
-        const url = this.azureTrainingStorage.getBlobSasUrl(
+        const url = this.azureStorage.getBlobSasUrl(
           this.classifierContainer,
           filePath,
         );
@@ -163,7 +163,7 @@ export class ClassifierService {
    * @returns A list of objects specifying the original path and new blob path.
    */
   async uploadDocumentsForTraining(groupId: string, classifierName: string) {
-    await this.azureTrainingStorage.ensureContainerExists(
+    await this.azureStorage.ensureContainerExists(
       this.classifierContainer,
     );
 
@@ -180,7 +180,7 @@ export class ClassifierService {
         // e.g. "classifier/gid/name/label/file.jpg" -> "gid/name/label/file.jpg"
         const blobName = key.replace(/^classifier\//, "");
 
-        await this.azureTrainingStorage.uploadFile(
+        await this.azureStorage.uploadFile(
           this.classifierContainer,
           blobName,
           fileBuffer,
@@ -211,7 +211,7 @@ export class ClassifierService {
   ) {
     // Get a list of folder paths in the groupId/classifierName folder in blob storage
     const prefix = path.posix.join(groupId, classifierName) + "/";
-    const containerClient = this.azureTrainingStorage.getContainerClient(
+    const containerClient = this.azureStorage.getContainerClient(
       this.classifierContainer,
     );
     const folderPaths: string[] = [];
@@ -269,7 +269,7 @@ export class ClassifierService {
         "Classifier entry not found. Cannot proceed with training.",
       );
     }
-    const containerUrl = await this.azureTrainingStorage.generateSasUrl(
+    const containerUrl = await this.azureStorage.generateSasUrl(
       this.classifierContainer,
     );
 
