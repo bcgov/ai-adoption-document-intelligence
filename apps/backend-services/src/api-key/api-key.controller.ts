@@ -23,9 +23,9 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import {
+  ApiKeyByIdRequestDto,
   ApiKeyInfoDto,
   ApiKeyInfoWrapperDto,
-  ApiKeyByIdRequestDto,
   GenerateApiKeyRequestDto,
   GeneratedApiKeyDto,
   GeneratedApiKeyWrapperDto,
@@ -160,10 +160,7 @@ export class ApiKeyController {
       groupId,
       this.databaseService,
     );
-    const apiKey = await this.apiKeyService.regenerateApiKey(
-      userId,
-      body.id,
-    );
+    const apiKey = await this.apiKeyService.regenerateApiKey(userId, body.id);
     return { apiKey };
   }
 }

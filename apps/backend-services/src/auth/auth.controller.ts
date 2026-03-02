@@ -22,6 +22,8 @@ import {
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
+import { DatabaseService } from "../database/database.service";
+import { GroupService } from "../group/group.service";
 import {
   THROTTLE_AUTH_LIMIT,
   THROTTLE_AUTH_REFRESH_LIMIT,
@@ -37,8 +39,6 @@ import {
   PkceCookieData,
   setAuthCookies,
 } from "./cookie-auth.utils";
-import { DatabaseService } from "../database/database.service";
-import { GroupService } from "../group/group.service";
 import { MeResponseDto, OAuthCallbackQueryDto, RefreshReturnDto } from "./dto";
 import { Public } from "./public.decorator";
 import { User } from "./types";

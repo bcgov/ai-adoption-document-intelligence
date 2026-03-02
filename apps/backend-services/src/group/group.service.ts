@@ -78,7 +78,9 @@ export class GroupService {
         },
       });
     if (existingRequest) {
-      throw new BadRequestException("A pending membership request already exists for this group");
+      throw new BadRequestException(
+        "A pending membership request already exists for this group",
+      );
     }
 
     await this.databaseService.prisma.groupMembershipRequest.create({
