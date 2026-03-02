@@ -28,7 +28,10 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "@/auth/identity.helpers";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
 import { ClassificationResultDto } from "@/azure/dto/classification-result.dto";
@@ -81,11 +84,12 @@ export class AzureController {
     type: [ClassifierModelResponseDto],
   })
   async getClassifiers(@Request() req) {
-    const userId = req.user.sub;
-    const groups = await this.databaseService.getUsersGroups(userId);
-    const classifiers = await this.databaseService.getClassifierModelsForGroups(
-      groups.map((g) => g.group_id),
+    const groupIds = await getIdentityGroupIds(
+      req.resolvedIdentity,
+      this.databaseService,
     );
+    const classifiers =
+      await this.databaseService.getClassifierModelsForGroups(groupIds);
     return classifiers;
   }
 
@@ -105,7 +109,6 @@ export class AzureController {
   })
   async createClassifier(@Request() req, @Body() body: ClassifierCreationDto) {
     const { name, description, source, group_id } = body;
-    const userId = req.user.sub;
     await identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
@@ -129,7 +132,7 @@ export class AzureController {
         config: { labels: [] },
         group_id: group_id,
       },
-      userId,
+      req.resolvedIdentity.userId,
     );
     return creationResult;
   }
@@ -150,7 +153,6 @@ export class AzureController {
   })
   async updateClassifier(@Request() req, @Body() body: UpdateClassifierDto) {
     const { name, group_id, description, source } = body;
-    const userId = req.user.sub;
 
     await identityCanAccessGroup(
       req.resolvedIdentity,
@@ -180,7 +182,7 @@ export class AzureController {
       name,
       group_id,
       updateData,
-      userId,
+      req.resolvedIdentity.userId,
     );
 
     return updateResult;

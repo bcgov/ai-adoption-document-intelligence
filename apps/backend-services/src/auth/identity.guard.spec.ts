@@ -1,8 +1,10 @@
 import { ExecutionContext } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
 import { IdentityGuard } from "./identity.guard";
 
 describe("IdentityGuard", () => {
   let guard: IdentityGuard;
+  let reflector: Reflector;
 
   /**
    * Builds a minimal mock ExecutionContext backed by the given request object.
@@ -12,10 +14,15 @@ describe("IdentityGuard", () => {
       switchToHttp: () => ({
         getRequest: () => request,
       }),
+      getHandler: () => ({}),
+      getClass: () => ({}),
     }) as unknown as ExecutionContext;
 
   beforeEach(() => {
-    guard = new IdentityGuard();
+    reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(true),
+    } as unknown as Reflector;
+    guard = new IdentityGuard(reflector);
   });
 
   // ---------------------------------------------------------------------------

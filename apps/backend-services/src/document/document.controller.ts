@@ -293,6 +293,7 @@ export class DocumentController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get OCR result for a document by ID" })
+  @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
     description: "Returns OCR result and document info",
     type: OcrResultResponseDto,
@@ -379,6 +380,7 @@ export class DocumentController {
   @HttpCode(HttpStatus.OK)
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Download a document file by ID" })
+  @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
     description: "Returns the document file buffer as a download",
   })

@@ -23,7 +23,7 @@ export class ApiKeyInfoDto {
   @ApiProperty()
   createdAt: Date;
 
-  @ApiProperty({ type: Date })
+  @ApiProperty({ type: Date, nullable: true })
   lastUsed: Date | null;
 }
 
@@ -33,11 +33,11 @@ export class GeneratedApiKeyDto extends ApiKeyInfoDto {
 }
 
 export class ApiKeyInfoWrapperDto {
-  @ApiProperty({ type: ApiKeyInfoDto })
+  @ApiProperty({ type: ApiKeyInfoDto, nullable: true })
   apiKey: ApiKeyInfoDto | null;
 }
 
 export class GeneratedApiKeyWrapperDto {
-  @ApiProperty({ type: GeneratedApiKeyDto })
+  @ApiProperty({ type: GeneratedApiKeyDto, nullable: true })
   apiKey: GeneratedApiKeyDto | null;
 }

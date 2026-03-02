@@ -1,4 +1,10 @@
-import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
 import { Request } from "express";
 
 /**
@@ -20,6 +26,7 @@ import { Request } from "express";
  */
 @Injectable()
 export class IdentityGuard implements CanActivate {
+  constructor(private reflector: Reflector) {}
   /**
    * Resolves and attaches the requestor's identity to the request context.
    *
@@ -38,7 +45,18 @@ export class IdentityGuard implements CanActivate {
       // user object. Group membership is determined by the service layer.
       request.resolvedIdentity = { userId: request.user.sub };
     }
-    // else: public route or unauthenticated request — skip identity resolution.
+    // else: public route or unauthenticated request
+    // Must explicitly be marked as public though, otherwise throw an auth error
+    const isPublic = this.reflector.getAllAndOverride<boolean>("isPublic", [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (!isPublic && !request.resolvedIdentity) {
+      throw new UnauthorizedException(
+        "Unauthenticated request to non-public endpoint",
+      );
+    }
 
     return true;
   }
