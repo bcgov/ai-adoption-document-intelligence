@@ -8,6 +8,7 @@ import {
   ProjectListPage as BenchmarkProjectListPage,
   DatasetDetailPage,
   DatasetListPage,
+  DatasetReviewQueuePage,
   RegressionReportPage,
   ResultsDrillDownPage,
   RunComparisonPage,
@@ -60,6 +61,14 @@ const router = createBrowserRouter([
       // Benchmarking routes
       { path: "benchmarking/datasets", element: <DatasetListPage /> },
       { path: "benchmarking/datasets/:id", element: <DatasetDetailPage /> },
+      {
+        path: "benchmarking/datasets/:id/versions/:versionId/review",
+        element: <DatasetReviewQueuePage />,
+      },
+      {
+        path: "benchmarking/datasets/:id/versions/:versionId/review/:sessionId",
+        element: <ReviewWorkspacePage />,
+      },
       {
         path: "benchmarking/projects",
         element: <BenchmarkProjectListPage />,

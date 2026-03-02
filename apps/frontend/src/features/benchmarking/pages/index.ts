@@ -1,5 +1,6 @@
 export { DatasetDetailPage } from "./DatasetDetailPage";
 export { DatasetListPage } from "./DatasetListPage";
+export { DatasetReviewQueuePage } from "./DatasetReviewQueuePage";
 export { ProjectDetailPage } from "./ProjectDetailPage";
 export { ProjectListPage } from "./ProjectListPage";
 export { RegressionReportPage } from "./RegressionReportPage";

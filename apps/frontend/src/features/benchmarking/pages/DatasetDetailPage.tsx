@@ -32,6 +32,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { apiService } from "@/data/services/api.service";
 import { CreateDatasetFromHitlDialog } from "../components/CreateDatasetFromHitlDialog";
 import { FileUploadDialog } from "../components/FileUploadDialog";
+import { GroundTruthGenerationPanel } from "../components/GroundTruthGenerationPanel";
 import { SampleDetailViewer } from "../components/SampleDetailViewer";
 import { SplitManagement } from "../components/SplitManagement";
 import { ValidationReport } from "../components/ValidationReport";
@@ -261,10 +262,12 @@ export function DatasetDetailPage() {
           onChange={(value) => {
             setActiveTab(value || "versions");
             if (value !== "versions") {
-              // Extract versionId from tab value (handle "splits-" prefix)
+              // Extract versionId from tab value (handle "splits-" or "gt-" prefix)
               const versionId = value?.startsWith("splits-")
                 ? value.substring(7)
-                : value;
+                : value?.startsWith("gt-")
+                  ? value.substring(3)
+                  : value;
               if (versionId && versionId !== selectedVersionId) {
                 setSelectedVersionId(versionId);
                 setSamplePage(1);
@@ -287,6 +290,11 @@ export function DatasetDetailPage() {
             {selectedVersionId && (
               <Tabs.Tab value={`splits-${selectedVersionId}`} data-testid="splits-tab">
                 Splits
+              </Tabs.Tab>
+            )}
+            {selectedVersionId && (
+              <Tabs.Tab value={`gt-${selectedVersionId}`} data-testid="ground-truth-tab">
+                Ground Truth
               </Tabs.Tab>
             )}
           </Tabs.List>
@@ -537,6 +545,15 @@ export function DatasetDetailPage() {
                 datasetId={id || ""}
                 versionId={selectedVersionId}
                 samples={samples}
+              />
+            </Tabs.Panel>
+          )}
+
+          {selectedVersionId && (
+            <Tabs.Panel value={`gt-${selectedVersionId}`} pt="md">
+              <GroundTruthGenerationPanel
+                datasetId={id || ""}
+                versionId={selectedVersionId}
               />
             </Tabs.Panel>
           )}

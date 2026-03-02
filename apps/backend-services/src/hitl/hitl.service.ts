@@ -7,6 +7,7 @@ import {
   ReviewStatus,
 } from "@generated/client";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { ModuleRef } from "@nestjs/core";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { DatabaseService } from "../database/database.service";
 import { AnalyticsService } from "./analytics.service";
@@ -40,6 +41,7 @@ export class HitlService {
   constructor(
     private readonly db: DatabaseService,
     private readonly analyticsService: AnalyticsService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   async getQueue(filters: QueueFilterDto) {
@@ -261,10 +263,35 @@ export class HitlService {
       completed_at: new Date(),
     });
 
+    // Post-approval hook: complete ground truth job if this document is part of GT generation.
+    // Uses ModuleRef to lazily resolve GroundTruthGenerationService and avoid circular dependency.
+    try {
+      const { GroundTruthGenerationService } = await import(
+        "../benchmark/ground-truth-generation.service"
+      );
+      const gtService = this.moduleRef.get(GroundTruthGenerationService, {
+        strict: false,
+      });
+      if (gtService) {
+        const job = await gtService.getJobByDocumentId(session.document_id);
+        if (job) {
+          await gtService.completeJob(job.id, sessionId);
+          this.logger.log(
+            `Ground truth generated for job ${job.id} via session ${sessionId}`,
+          );
+        }
+      }
+    } catch (error) {
+      // Non-critical: log but don't fail the approval
+      this.logger.warn(
+        `Ground truth post-approval hook error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
     return {
-      id: updated.id,
-      status: updated.status,
-      completedAt: updated.completed_at,
+      id: updated!.id,
+      status: updated!.status,
+      completedAt: updated!.completed_at,
       message: "Review session approved",
     };
   }

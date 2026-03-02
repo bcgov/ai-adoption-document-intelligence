@@ -44,7 +44,10 @@ export class OcrService {
    * @param steps Optional workflow steps configuration
    * @returns New status of document and workflow ID.
    */
-  async requestOcr(documentId: string): Promise<OcrRequestResponse> {
+  async requestOcr(
+    documentId: string,
+    ctxOverrides?: Record<string, unknown>,
+  ): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
     // Find filepath of document
     const document = await this.databaseService.findDocument(documentId);
@@ -98,6 +101,7 @@ export class OcrService {
         fileType,
         contentType,
         modelId,
+        ...ctxOverrides,
       };
 
       // Start Temporal graph workflow

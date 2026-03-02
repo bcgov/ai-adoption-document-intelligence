@@ -26,3 +26,4 @@ export * from "./validate-dataset-request.dto";
 export * from "./validation-response.dto";
 export * from "./version-list-response.dto";
 export * from "./version-response.dto";
+export * from "./ground-truth-generation.dto";

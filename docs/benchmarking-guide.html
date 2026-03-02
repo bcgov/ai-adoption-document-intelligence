@@ -774,7 +774,12 @@
             <li><a href="#reading-aggregate-metrics">Reading Aggregate Metrics</a></li>
         </ul>
     </li>
-    <li><a href="#workflow-setup">Setting Up a Benchmark</a></li>
+    <li><a href="#workflow-setup">Setting Up a Benchmark</a>
+        <ul>
+            <li><a href="#hitl-datasets">Creating Datasets from Verified Documents</a></li>
+            <li><a href="#gt-generation">Generating Ground Truth via HITL Review</a></li>
+        </ul>
+    </li>
     <li><a href="#running-benchmarks">Running Benchmarks</a></li>
     <li><a href="#baseline-management">Baseline Management &amp; Regression Detection</a></li>
     <li><a href="#drill-down">Drill-Down &amp; Failure Analysis</a></li>
@@ -1199,6 +1204,108 @@
     <li>Optionally validate the dataset via <code>POST /api/benchmark/datasets/:id/validate</code>.</li>
     <li>Create a dataset version via <code>POST /api/benchmark/datasets/:id/versions</code>. The version is mutable until a benchmark run is started against it, at which point it is automatically frozen.</li>
 </ol>
+
+<h3 id="hitl-datasets">Alternative: Create a Dataset from Verified Documents</h3>
+
+<p>If your documents have already been processed through the OCR pipeline and verified via the Human-In-The-Loop (HITL) review interface, you can create a benchmark dataset directly from them — no separate ground truth files required. The corrected OCR data from approved review sessions becomes the ground truth.</p>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Eligibility</strong><br>
+        A document is eligible when it has completed OCR processing and has at least one approved HITL review session. If a document has multiple approved sessions, the most recent one is used.
+    </div>
+</div>
+
+<ol>
+    <li>Click <strong>"From Verified Documents"</strong> on the Dataset List page (to create a new dataset) or on a Dataset Detail page (to add a version to an existing dataset).</li>
+    <li>Enter a dataset name and description (when creating a new dataset).</li>
+    <li>Select eligible documents from the table. You can search by filename and paginate through the list. The table shows each document's filename, file type, approval date, reviewer, field count, and correction count.</li>
+    <li>Confirm and submit. The system will:
+        <ul>
+            <li>Copy the original document files into the dataset's <code>inputs/</code> directory.</li>
+            <li>Build ground truth by applying the reviewer's corrections to the OCR results, producing flat key-value JSON files in the <code>ground-truth/</code> directory.</li>
+            <li>Generate a <code>dataset-manifest.json</code> with provenance metadata (source document ID, review session, reviewer) for each sample.</li>
+        </ul>
+    </li>
+</ol>
+
+<p>The resulting dataset is identical in format to one created via file upload and can be used with any evaluator.</p>
+
+<details>
+    <summary style="cursor: pointer; color: var(--bc-blue-light); font-weight: 600;">
+        How ground truth is constructed from HITL corrections
+    </summary>
+    <div style="margin-top: 1rem;">
+        <table>
+            <tr><th>Reviewer Action</th><th>Effect on Ground Truth</th></tr>
+            <tr><td><strong>Confirmed</strong></td><td>Original OCR value is kept as-is (verified correct).</td></tr>
+            <tr><td><strong>Corrected</strong></td><td>Field value is replaced with the reviewer's corrected value.</td></tr>
+            <tr><td><strong>Deleted</strong></td><td>Field is removed from the ground truth.</td></tr>
+            <tr><td><strong>Flagged</strong></td><td>Field is kept as-is (flagged but still included).</td></tr>
+        </table>
+        <p style="margin-top: 0.5rem;">The output uses the same flat key-value format as uploaded ground truth — for example, <code>{"vendor_name": "Acme Corp", "total_amount": 1250.75, "invoice_date": "2026-01-15"}</code>. Field values are resolved using the same extraction logic as the benchmark workflow (selection marks, numbers, dates, strings).</p>
+    </div>
+</details>
+
+<h3 id="gt-generation">Alternative: Generate Ground Truth via HITL Review</h3>
+
+<p>If you have documents but <strong>no ground truth</strong>, you can generate it by running the documents through an OCR workflow and reviewing the results in a dedicated, dataset-scoped HITL queue. This is the third pathway for creating dataset ground truth.</p>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>When to use this</strong><br>
+        Use this pathway when you have raw documents (PDFs, images) but no pre-existing ground truth. The system runs OCR, then lets a reviewer correct the results — the corrected output becomes ground truth. This is useful for bootstrapping a benchmark dataset from scratch.
+    </div>
+</div>
+
+<ol>
+    <li>Upload documents <strong>without ground truth files</strong> to a dataset version (input files only).</li>
+    <li>Navigate to the dataset detail page and select the version. Click the <strong>"Ground Truth"</strong> tab.</li>
+    <li>Select a <strong>workflow template</strong> from the dropdown (e.g., your standard OCR workflow) and click <strong>"Start Generation"</strong>.</li>
+    <li>The system creates a ground truth generation job for each sample that lacks ground truth. Each job:
+        <ul>
+            <li>Creates a Document record and copies the input file to document storage.</li>
+            <li>Starts the selected OCR workflow with the model ID from the workflow configuration.</li>
+            <li>The workflow runs to completion (the confidence gate is bypassed so the workflow does not pause for human review during processing).</li>
+        </ul>
+    </li>
+    <li>Monitor progress on the <strong>Ground Truth</strong> tab — a progress bar and job table show the status of each sample (Pending &rarr; Processing &rarr; Awaiting Review).</li>
+    <li>Once jobs reach <strong>"Awaiting Review"</strong>, click <strong>"Open Review Queue"</strong> to open the dataset-scoped HITL review queue.</li>
+    <li>Review each document using the same HITL review interface used in production — view OCR results, make corrections, and approve.</li>
+    <li>On approval, the system automatically extracts ground truth from the OCR results plus your corrections and writes it to the dataset storage. The dataset manifest is updated with the new ground truth entry.</li>
+</ol>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+        <strong>Separate Queue</strong><br>
+        Documents in the ground truth generation queue are <strong>completely isolated</strong> from the production HITL queue. They will never appear in the production review queue, and production documents will never appear in the dataset review queue.
+    </div>
+</div>
+
+<details>
+    <summary style="cursor: pointer; color: var(--bc-blue-light); font-weight: 600;">
+        How ground truth generation works under the hood
+    </summary>
+    <div style="margin-top: 1rem;">
+        <p>The ground truth generation process creates a <code>DatasetGroundTruthJob</code> record per sample, tracking its lifecycle: <code>pending</code> &rarr; <code>processing</code> &rarr; <code>awaiting_review</code> &rarr; <code>completed</code> (or <code>failed</code>).</p>
+        <p>For each job, a real <code>Document</code> record is created in the database — this allows the existing OCR workflow and HITL review system to process it like any other document. The key difference is:</p>
+        <ul>
+            <li>The workflow runs with <code>confidenceThreshold: 0</code>, so it always skips the human review gate and runs straight through to storing OCR results.</li>
+            <li>The <code>model_id</code> is read from the workflow configuration's <code>ctx.modelId.defaultValue</code>, so it uses whatever model the workflow is configured for.</li>
+            <li>The document is linked to the <code>DatasetGroundTruthJob</code> via a unique foreign key, which causes the production HITL queue to exclude it.</li>
+        </ul>
+        <p>After HITL approval, the same <code>buildGroundTruth()</code> logic used by the "From Verified Documents" pathway is invoked to construct flat key-value ground truth JSON from the OCR fields and reviewer corrections.</p>
+    </div>
+</details>
 
 <h3>Step 2: Create a Project and Definition</h3>
 

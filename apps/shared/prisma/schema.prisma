@@ -32,6 +32,7 @@ model Document {
   model_id              String          @default("prebuilt-layout")
   ocr_result            OcrResult?
   review_sessions       ReviewSession[]
+  groundTruthJob        DatasetGroundTruthJob?
 
   @@map("documents")
 }
@@ -407,6 +408,7 @@ model DatasetVersion {
   createdAt           DateTime               @default(now())
   splits              Split[]
   benchmarkDefinitions BenchmarkDefinition[]
+  groundTruthJobs     DatasetGroundTruthJob[]
 
   @@index([datasetId])
   @@map("dataset_versions")
@@ -537,4 +539,35 @@ enum AuditAction {
   run_started
   run_completed
   baseline_promoted
+}
+
+// ========== GROUND TRUTH GENERATION ==========
+
+enum GroundTruthJobStatus {
+  pending
+  processing
+  awaiting_review
+  completed
+  failed
+}
+
+model DatasetGroundTruthJob {
+  id                 String                @id @default(uuid())
+  datasetVersionId   String
+  datasetVersion     DatasetVersion        @relation(fields: [datasetVersionId], references: [id], onDelete: Cascade)
+  sampleId           String
+  documentId         String?               @unique
+  document           Document?             @relation(fields: [documentId], references: [id])
+  workflowConfigId   String
+  temporalWorkflowId String?
+  status             GroundTruthJobStatus  @default(pending)
+  groundTruthPath    String?
+  error              String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([datasetVersionId])
+  @@index([documentId])
+  @@index([status])
+  @@map("dataset_ground_truth_jobs")
 }
