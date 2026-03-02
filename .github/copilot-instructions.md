@@ -17,3 +17,7 @@
 - If you need to run `npx prisma generate`, run `npm run db:generate` from `apps/backend-services` - it's a special script that writes models into apps/temporal/src and apps/backend-services/src. Don't forget to run migrations as normal if necessary.
 - Tables should be designed with a `created_at` timestamp (default to now) and an `updated_at` timestamp (auto-updated on change) for auditing purposes.
 - Table names should be singular (e.g., `User`, not `Users`) to align with Prisma conventions.
+
+## Requirements and User Stories
+- When finished implementing a user story, check it off in the related user stories file in `feature-docs/002-group-management/user_stories/README.md` and update the acceptance checklist.
+- If you find any gaps in the requirements or user stories, document them in the summary notes after implementation and ask for clarification before proceeding with any assumptions.
