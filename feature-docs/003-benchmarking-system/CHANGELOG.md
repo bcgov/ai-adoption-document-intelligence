@@ -53,7 +53,7 @@ Added tilde expansion support and test utilities to make dataset repository conf
 #### Modified Files
 - `apps/backend-services/src/benchmark/dvc.service.ts` - Added tilde expansion
 - `apps/backend-services/src/benchmark/dvc.service.spec.ts` - Added tilde expansion tests
-- `apps/backend-services/.env.example` - Added `DEFAULT_DATASET_REPOSITORY_PATH`
+- `apps/backend-services/.env.sample` - Added `DEFAULT_DATASET_REPOSITORY_PATH`
 - `apps/backend-services/Dockerfile` - Added Git and DVC installation
 - `.vscode/tasks.json` - Added MinIO and MLflow health checks
 
@@ -64,7 +64,7 @@ Added tilde expansion support and test utilities to make dataset repository conf
 
 ### Environment Variables
 
-New environment variables added to `.env.example`:
+New environment variables added to `.env.sample`:
 ```bash
 # MinIO Configuration for Application
 MINIO_ENDPOINT=http://localhost:19000

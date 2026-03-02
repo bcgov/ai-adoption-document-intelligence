@@ -11,6 +11,7 @@ import { ModuleRef } from "@nestjs/core";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { DatabaseService } from "../database/database.service";
 import { AnalyticsService } from "./analytics.service";
+import { GroundTruthGenerationService } from "../benchmark/ground-truth-generation.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
@@ -263,12 +264,15 @@ export class HitlService {
       completed_at: new Date(),
     });
 
+    if (!updated) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
     // Post-approval hook: complete ground truth job if this document is part of GT generation.
-    // Uses ModuleRef to lazily resolve GroundTruthGenerationService and avoid circular dependency.
+    // ModuleRef.get() lazily resolves GroundTruthGenerationService at runtime to avoid a circular
+    // module dependency between HitlModule and BenchmarkModule. The call is one-directional
+    // (HITL notifies Benchmark) and non-critical (approval succeeds even if the service is unavailable).
     try {
-      const { GroundTruthGenerationService } = await import(
-        "../benchmark/ground-truth-generation.service"
-      );
       const gtService = this.moduleRef.get(GroundTruthGenerationService, {
         strict: false,
       });
@@ -289,9 +293,9 @@ export class HitlService {
     }
 
     return {
-      id: updated!.id,
-      status: updated!.status,
-      completedAt: updated!.completed_at,
+      id: updated.id,
+      status: updated.status,
+      completedAt: updated.completed_at,
       message: "Review session approved",
     };
   }

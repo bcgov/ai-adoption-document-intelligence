@@ -101,7 +101,7 @@ export class OcrService {
         fileType,
         contentType,
         modelId,
-        ...ctxOverrides,
+        ...ctxOverrides, // Allows callers to inject or override workflow context values (e.g., confidenceThreshold: 0 to skip human review)
       };
 
       // Start Temporal graph workflow
