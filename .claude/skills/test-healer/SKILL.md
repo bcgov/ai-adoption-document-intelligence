@@ -1,8 +1,7 @@
-***
+---
 name: test-healer
 description: Runs Playwright tests and automatically fixes failures in both tests AND implementation code iteratively
-allowed-tools: [Bash, Read, Glob, Grep, Edit, Write, mcp__playwright__*]
-***
+---
 
 # Test Healer - Self-Healing Test Runner
 

@@ -1,11 +1,6 @@
 ---
 name: docs-site
-description: >
-  Edit, create, and manage pages on the project's documentation site (docs/).
-  Trigger phrases: "edit docs site", "update docs page", "add docs page",
-  "add diagram", "update documentation site", "docs site".
-  Do NOT invoke for: editing files in /docs-md/ (those are developer markdown
-  reference docs, not the HTML site), general code changes, or README edits.
+description: Edit, create, and manage pages on the project's documentation site (docs/). Trigger phrases: "edit docs site", "update docs page", "add docs page","add diagram", "update documentation site", "docs site". Do NOT invoke for: editing files in /docs-md/ (those are developer markdown reference docs, not the HTML site), general code changes, or README edits.
 ---
 
 # Documentation Site Skill

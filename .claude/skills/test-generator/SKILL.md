@@ -1,8 +1,7 @@
-***
+---
 name: test-generator
 description: Generates Playwright test code from test plans and exploration data
-allowed-tools: [Read, Glob, Grep, Edit, Write, Bash]
-***
+---
 
 # Playwright Test Generator
 

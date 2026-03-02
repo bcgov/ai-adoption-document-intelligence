@@ -1,8 +1,7 @@
-***
+---
 name: test-fixer
 description: Runs Playwright tests one at a time from a folder, tracks progress, and fixes failures in both tests AND implementation code iteratively
-allowed-tools: [Bash, Read, Glob, Grep, Edit, Write, mcp__playwright__*]
-***
+---
 
 # Test Fixer - Progressive Test Runner & Fixer
 

@@ -1,8 +1,7 @@
-***
+---
 name: playwright-explorer
 description: Explores web application using Playwright MCP and documents pages for testing. Also adds/updates data-testid selectors in code.
-allowed-tools: [mcp__playwright__*, Read, Glob, Grep, Edit, Write]
-***
+---
 
 # Playwright Explorer
 

@@ -1,8 +1,7 @@
-***
+---
 name: test-planner
 description: Converts requirements and user stories into structured test plans for UI testing
-allowed-tools: [Read, Glob, Grep, Edit, Write]
-***
+---
 
 # Test Plan Generator
 
