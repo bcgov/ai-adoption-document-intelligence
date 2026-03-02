@@ -170,8 +170,8 @@ The backend services provide a modular, scalable API for:
 #### `blob-storage/` - Storage Abstraction
 - Pluggable storage interface (`BlobStorageInterface`)
 - MinIO/S3 implementation (`MinioBlobStorageService`)
-- Azure Blob Storage implementation (`AzureBlobStorageService`)
-- Azure training storage — always Azure, for DI model training (`AzureTrainingStorageService`)
+- Azure Blob Storage implementation (`AzureBlobProviderService`)
+- Azure storage — always Azure, for DI model training (`AzureStorageService`)
 - Dynamic module with runtime provider selection via `BLOB_STORAGE_PROVIDER`
 - Operations: write, read, exists, delete, list, deleteByPrefix
 - See [docs-md/BLOB_STORAGE.md](../../docs-md/BLOB_STORAGE.md) for full architecture docs
@@ -428,8 +428,8 @@ apps/backend-services/
 │   │   ├── blob-storage.interface.ts      # Interface & injection token
 │   │   ├── blob-storage.module.ts         # Dynamic provider module
 │   │   ├── minio-blob-storage.service.ts  # MinIO/S3 implementation
-│   │   ├── azure-blob-storage.service.ts  # Azure Blob implementation
-│   │   └── azure-training-storage.service.ts # Azure training (always Azure)
+│   │   ├── azure-blob-provider.service.ts # Azure Blob provider (BlobStorageInterface)
+│   │   └── azure-storage.service.ts       # Azure storage (containers, SAS)
 │   │
 │   ├── database/             # Prisma database module
 │   │   └── database.service.ts

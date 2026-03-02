@@ -5,7 +5,7 @@
  * The concrete implementation (MinIO or Azure) is selected at runtime based on the
  * BLOB_STORAGE_PROVIDER environment variable.
  *
- * Also provides the AzureTrainingStorageService (always Azure) for Azure DI model training.
+ * Also provides the AzureStorageService (always Azure) for Azure DI model training.
  *
  * Usage:
  *   constructor(@Inject(BLOB_STORAGE) private blobStorage: BlobStorageInterface) {}
@@ -13,22 +13,22 @@
 
 import { Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { AzureBlobStorageService } from "./azure-blob-storage.service";
-import { AzureTrainingStorageService } from "./azure-training-storage.service";
+import { AzureBlobProviderService } from "./azure-blob-provider.service";
+import { AzureStorageService } from "./azure-storage.service";
 import { BLOB_STORAGE } from "./blob-storage.interface";
 import { MinioBlobStorageService } from "./minio-blob-storage.service";
 
 @Module({
   providers: [
     MinioBlobStorageService,
-    AzureBlobStorageService,
-    AzureTrainingStorageService,
+    AzureBlobProviderService,
+    AzureStorageService,
     {
       provide: BLOB_STORAGE,
       useFactory: (
         configService: ConfigService,
         minioService: MinioBlobStorageService,
-        azureService: AzureBlobStorageService,
+        azureService: AzureBlobProviderService,
       ) => {
         const provider = configService.get<string>(
           "BLOB_STORAGE_PROVIDER",
@@ -41,9 +41,9 @@ import { MinioBlobStorageService } from "./minio-blob-storage.service";
 
         return minioService;
       },
-      inject: [ConfigService, MinioBlobStorageService, AzureBlobStorageService],
+      inject: [ConfigService, MinioBlobStorageService, AzureBlobProviderService],
     },
   ],
-  exports: [BLOB_STORAGE, AzureTrainingStorageService],
+  exports: [BLOB_STORAGE, AzureStorageService],
 })
 export class BlobStorageModule {}

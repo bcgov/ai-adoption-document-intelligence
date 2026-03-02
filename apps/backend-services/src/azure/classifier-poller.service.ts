@@ -3,7 +3,7 @@ import { Cron, CronExpression } from "@nestjs/schedule";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { DatabaseService } from "@/database/database.service";
-import { AzureTrainingStorageService } from "@/blob-storage/azure-training-storage.service";
+import { AzureStorageService } from "@/blob-storage/azure-storage.service";
 import { ClassifierService } from "./classifier.service";
 
 @Injectable()
@@ -14,7 +14,7 @@ export class ClassifierPollerService {
     private readonly db: DatabaseService,
     private readonly azureService: AzureService,
     private readonly databaseService: DatabaseService,
-    private readonly azureTrainingStorage: AzureTrainingStorageService,
+    private readonly azureTrainingStorage: AzureStorageService,
     private readonly classifierService: ClassifierService,
   ) {}
 

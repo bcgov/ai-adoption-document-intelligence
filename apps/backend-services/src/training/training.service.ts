@@ -21,7 +21,7 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { AzureTrainingStorageService } from "../blob-storage/azure-training-storage.service";
+import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import { DatabaseService } from "../database/database.service";
 import { ExportFormat } from "../labeling/dto/export.dto";
 import { LabelingService } from "../labeling/labeling.service";
@@ -57,7 +57,7 @@ export class TrainingService {
 
   constructor(
     private readonly db: DatabaseService,
-    private readonly azureTrainingStorage: AzureTrainingStorageService,
+    private readonly azureTrainingStorage: AzureStorageService,
     private readonly labelingService: LabelingService,
     private readonly configService: ConfigService,
     @Inject(BLOB_STORAGE)

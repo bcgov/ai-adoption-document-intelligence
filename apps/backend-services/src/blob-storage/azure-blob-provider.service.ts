@@ -1,5 +1,5 @@
 /**
- * Azure Blob Storage Service
+ * Azure Blob Provider Service
  *
  * Implements blob storage using Azure Blob Storage as the primary storage provider.
  * Provides read/write/exists/delete/list/deleteByPrefix operations with key-based access.
@@ -33,8 +33,8 @@ export function createAzureContainerClient(
 }
 
 @Injectable()
-export class AzureBlobStorageService implements BlobStorageInterface {
-  private readonly logger = new Logger(AzureBlobStorageService.name);
+export class AzureBlobProviderService implements BlobStorageInterface {
+  private readonly logger = new Logger(AzureBlobProviderService.name);
   private readonly containerClient: ContainerClient;
   private readonly containerName: string;
 

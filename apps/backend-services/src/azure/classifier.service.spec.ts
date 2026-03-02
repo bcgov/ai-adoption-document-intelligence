@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { AzureService } from "../azure/azure.service";
-import { AzureTrainingStorageService } from "../blob-storage/azure-training-storage.service";
+import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -45,7 +45,7 @@ describe("ClassifierService", () => {
   let blobStorage: BlobStorageInterface;
   let databaseService: DatabaseService;
   let azureService: AzureService;
-  let azureTrainingStorage: AzureTrainingStorageService;
+  let azureTrainingStorage: AzureStorageService;
 
   beforeEach(async () => {
     blobStorage = mockBlobStorage as any;
@@ -57,7 +57,7 @@ describe("ClassifierService", () => {
         ClassifierService,
         { provide: DatabaseService, useValue: databaseService },
         { provide: AzureService, useValue: azureService },
-        { provide: AzureTrainingStorageService, useValue: azureTrainingStorage },
+        { provide: AzureStorageService, useValue: azureTrainingStorage },
         { provide: BLOB_STORAGE, useValue: blobStorage },
       ],
     }).compile();

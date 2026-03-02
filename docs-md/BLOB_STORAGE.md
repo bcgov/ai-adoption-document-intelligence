@@ -19,13 +19,13 @@ Azure Document Intelligence model training always uses Azure Blob Storage regard
 │  └───────┬──────────────────────────┬───────────────┘   │
 │          │                          │                    │
 │  ┌───────▼──────────┐   ┌──────────▼─────────────┐     │
-│  │ MinioBlobStorage  │   │ AzureBlobStorage        │     │
+│  │ MinioBlobStorage  │   │ AzureBlobProvider       │     │
 │  │ (@aws-sdk/s3)     │   │ (@azure/storage-blob)   │     │
 │  └───────────────────┘   └────────────────────────┘     │
 │                                                          │
 │  ┌──────────────────────────────────────────────────┐   │
-│  │       AzureTrainingStorageService                 │   │
-│  │   Always Azure — for DI model training            │   │
+│  │       AzureStorageService                        │   │
+│  │   Always Azure — containers & SAS tokens         │   │
 │  └──────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
 
@@ -125,14 +125,14 @@ export class MyService {
 
 ### Azure Training Storage
 
-For operations that must always use Azure (DI model training), inject `AzureTrainingStorageService` directly:
+For operations that must always use Azure (DI model training), inject `AzureStorageService` directly:
 
 ```typescript
-import { AzureTrainingStorageService } from '../blob-storage/azure-training-storage.service';
+import { AzureStorageService } from '../blob-storage/azure-storage.service';
 
 export class MyTrainingService {
   constructor(
-    private readonly azureTrainingStorage: AzureTrainingStorageService,
+    private readonly azureTrainingStorage: AzureStorageService,
   ) {}
 
   async example() {
@@ -180,8 +180,8 @@ The client reads the same `BLOB_STORAGE_PROVIDER` environment variable and suppo
 |------------------------------------|-------------------------------------------------|
 | `blob-storage.interface.ts`       | Interface definition and injection token         |
 | `minio-blob-storage.service.ts`   | MinIO/S3 implementation                          |
-| `azure-blob-storage.service.ts`   | Azure Blob Storage implementation                |
-| `azure-training-storage.service.ts`| Azure training storage (always Azure)           |
+| `azure-blob-provider.service.ts`  | Azure blob provider (`BlobStorageInterface`)                |
+| `azure-storage.service.ts`| Azure training storage (always Azure)           |
 | `blob-storage.module.ts`          | Dynamic NestJS module with provider factory      |
 
 ### Temporal Workers (`apps/temporal/src/blob-storage/`)

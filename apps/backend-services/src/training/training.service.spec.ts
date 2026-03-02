@@ -7,7 +7,7 @@ import {
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { AzureTrainingStorageService } from "../blob-storage/azure-training-storage.service";
+import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -33,7 +33,7 @@ import DocumentIntelligence, {
 describe("TrainingService", () => {
   let service: TrainingService;
   let mockDbService: jest.Mocked<DatabaseService>;
-  let mockBlobStorage: jest.Mocked<AzureTrainingStorageService>;
+  let mockBlobStorage: jest.Mocked<AzureStorageService>;
   let mockPrimaryBlobStorage: jest.Mocked<BlobStorageInterface>;
   let mockLabelingService: jest.Mocked<LabelingService>;
   let _mockConfigService: jest.Mocked<ConfigService>;
@@ -203,7 +203,7 @@ describe("TrainingService", () => {
           useValue: mockDb,
         },
         {
-          provide: AzureTrainingStorageService,
+          provide: AzureStorageService,
           useValue: mockBlob,
         },
         {
@@ -223,7 +223,7 @@ describe("TrainingService", () => {
 
     service = module.get<TrainingService>(TrainingService);
     mockDbService = module.get(DatabaseService);
-    mockBlobStorage = module.get(AzureTrainingStorageService);
+    mockBlobStorage = module.get(AzureStorageService);
     mockPrimaryBlobStorage = module.get(BLOB_STORAGE);
     mockLabelingService = module.get(LabelingService);
     _mockConfigService = module.get(ConfigService);
@@ -250,7 +250,7 @@ describe("TrainingService", () => {
         providers: [
           TrainingService,
           { provide: DatabaseService, useValue: { prisma: mockPrisma } },
-          { provide: AzureTrainingStorageService, useValue: mockBlobStorage },
+          { provide: AzureStorageService, useValue: mockBlobStorage },
           { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
           { provide: LabelingService, useValue: mockLabelingService },
           { provide: ConfigService, useValue: mockConfigNoCredentials },
@@ -626,7 +626,7 @@ describe("TrainingService", () => {
         providers: [
           TrainingService,
           { provide: DatabaseService, useValue: { prisma: mockPrisma } },
-          { provide: AzureTrainingStorageService, useValue: mockBlobStorage },
+          { provide: AzureStorageService, useValue: mockBlobStorage },
           { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
           { provide: LabelingService, useValue: mockLabelingService },
           { provide: ConfigService, useValue: mockConfigNoCredentials },

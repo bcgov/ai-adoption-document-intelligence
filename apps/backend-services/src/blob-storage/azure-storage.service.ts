@@ -1,5 +1,5 @@
 /**
- * Azure Training Storage Service
+ * Azure Storage Service
  *
  * Provides Azure Blob Storage operations specifically for Azure Document Intelligence
  * model training. This service always uses Azure Blob Storage regardless of the
@@ -46,13 +46,13 @@ export interface BlobInfo {
 }
 
 /**
- * NestJS injection token for the Azure training storage service.
+ * NestJS injection token for the Azure storage service.
  */
-export const AZURE_TRAINING_STORAGE = Symbol("AZURE_TRAINING_STORAGE");
+export const AZURE_STORAGE = Symbol("AZURE_STORAGE");
 
 @Injectable()
-export class AzureTrainingStorageService {
-  private readonly logger = new Logger(AzureTrainingStorageService.name);
+export class AzureStorageService {
+  private readonly logger = new Logger(AzureStorageService.name);
   private blobServiceClient: BlobServiceClient;
   private accountName: string;
   private accountKey: string;
@@ -72,14 +72,14 @@ export class AzureTrainingStorageService {
 
     if (!connectionString) {
       this.logger.warn(
-        "AZURE_STORAGE_CONNECTION_STRING not configured. Azure training storage features will not work.",
+        "AZURE_STORAGE_CONNECTION_STRING not configured. Azure storage features will not work.",
       );
       return;
     }
 
     this.blobServiceClient =
       BlobServiceClient.fromConnectionString(connectionString);
-    this.logger.log("Azure Training Storage client initialized");
+    this.logger.log("Azure Storage client initialized");
   }
 
   /**

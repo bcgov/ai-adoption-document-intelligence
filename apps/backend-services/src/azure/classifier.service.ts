@@ -7,7 +7,7 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { AzureTrainingStorageService } from "@/blob-storage/azure-training-storage.service";
+import { AzureStorageService } from "@/blob-storage/azure-storage.service";
 import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { DatabaseService } from "@/database/database.service";
 
@@ -27,7 +27,7 @@ export class ClassifierService {
   constructor(
     private databaseService: DatabaseService,
     private azureService: AzureService,
-    private azureTrainingStorage: AzureTrainingStorageService,
+    private azureTrainingStorage: AzureStorageService,
     @Inject(BLOB_STORAGE)
     private blobStorage: BlobStorageInterface,
   ) {
