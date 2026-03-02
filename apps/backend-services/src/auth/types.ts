@@ -12,18 +12,28 @@ export interface User {
 }
 
 /**
- * TypeScript "declaration merge" — extends Express's built-in Request type
- * to include a `user` property. Without this, `req.user` would be a type
- * error because Express doesn't define it.
+ * Resolved requestor identity attached to the request by the IdentityGuard.
  *
- * At runtime, Passport attaches the user object after authentication
- * (see KeycloakJwtStrategy.validate() and ApiKeyAuthGuard), but TypeScript
- * has no way to know that unless we tell it here. This lets guards,
- * controllers, and middleware access `req.user` with full type safety
- * instead of casting through `any`.
+ * Exactly one of `userId` or `groupId` is set per authenticated request:
+ * - `userId`: JWT-authenticated. The service layer must look up group
+ *   membership in the database.
+ * - `groupId`: API-key-authenticated. The key is group-scoped; no user lookup
+ *   is needed.
  */
+export interface ResolvedIdentity {
+  userId?: string;
+  groupId?: string;
+}
+
 declare module "express" {
   interface Request {
     user?: User;
+    /** Set by ApiKeyAuthGuard when a valid API key is used. */
+    apiKeyGroupId?: string;
+    /**
+     * Set by IdentityGuard after authentication succeeds.
+     * Contains the normalised requestor identity for downstream authorization.
+     */
+    resolvedIdentity?: ResolvedIdentity;
   }
 }

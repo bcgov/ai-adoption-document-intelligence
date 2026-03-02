@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsObject, IsOptional, IsString } from "class-validator";
+import { IsNotEmpty, IsObject, IsOptional, IsString } from "class-validator";
 import { GraphWorkflowConfig } from "../graph-workflow-types";
 
 export class CreateWorkflowDto {
@@ -24,4 +24,9 @@ export class CreateWorkflowDto {
   })
   @IsObject()
   config: GraphWorkflowConfig;
+
+  @ApiProperty({ description: "Group ID" })
+  @IsString()
+  @IsNotEmpty()
+  groupId: string;
 }

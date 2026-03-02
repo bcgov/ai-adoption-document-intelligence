@@ -30,6 +30,7 @@ const mockWorkflowRecord = {
   version: 1,
   created_at: new Date(),
   updated_at: new Date(),
+  group_id: "group-1",
 };
 
 const mockWorkflow = {
@@ -88,16 +89,17 @@ describe("WorkflowService", () => {
 
   describe("getWorkflow", () => {
     it("returns workflow when found", async () => {
-      mockWorkflow.findFirst.mockResolvedValue(mockWorkflowRecord);
+      mockWorkflow.findUnique.mockResolvedValue(mockWorkflowRecord);
       const result = await service.getWorkflow("wf-1", "user-1");
       expect(result.id).toBe("wf-1");
-      expect(mockWorkflow.findFirst).toHaveBeenCalledWith({
-        where: { id: "wf-1", user_id: "user-1" },
+      expect(result.groupId).toBe("group-1");
+      expect(mockWorkflow.findUnique).toHaveBeenCalledWith({
+        where: { id: "wf-1" },
       });
     });
 
     it("throws NotFoundException when not found", async () => {
-      mockWorkflow.findFirst.mockResolvedValue(null);
+      mockWorkflow.findUnique.mockResolvedValue(null);
       await expect(service.getWorkflow("wf-1", "user-1")).rejects.toThrow(
         NotFoundException,
       );
@@ -126,6 +128,7 @@ describe("WorkflowService", () => {
     it("creates workflow with valid config", async () => {
       const result = await service.createWorkflow("user-1", {
         name: "New",
+        groupId: "group-1",
         config: makeGraphConfig(),
       });
       expect(result.id).toBe("wf-1");
@@ -136,6 +139,7 @@ describe("WorkflowService", () => {
       await expect(
         service.createWorkflow("user-1", {
           name: "New",
+          groupId: "group-1",
           config: { schemaVersion: "2.0" } as any,
         }),
       ).rejects.toThrow(BadRequestException);
@@ -145,14 +149,14 @@ describe("WorkflowService", () => {
 
   describe("updateWorkflow", () => {
     it("throws NotFoundException when workflow not found", async () => {
-      mockWorkflow.findFirst.mockResolvedValue(null);
+      mockWorkflow.findUnique.mockResolvedValue(null);
       await expect(
         service.updateWorkflow("wf-1", "user-1", { name: "Updated" }),
       ).rejects.toThrow(NotFoundException);
     });
 
     it("updates name only without incrementing version", async () => {
-      mockWorkflow.findFirst.mockResolvedValue(mockWorkflowRecord);
+      mockWorkflow.findUnique.mockResolvedValue(mockWorkflowRecord);
       mockWorkflow.update.mockResolvedValue({
         ...mockWorkflowRecord,
         name: "Updated",
@@ -169,7 +173,7 @@ describe("WorkflowService", () => {
     });
 
     it("increments version when config changes", async () => {
-      mockWorkflow.findFirst.mockResolvedValue(mockWorkflowRecord);
+      mockWorkflow.findUnique.mockResolvedValue(mockWorkflowRecord);
       mockWorkflow.update.mockResolvedValue({
         ...mockWorkflowRecord,
         version: 2,
@@ -192,7 +196,7 @@ describe("WorkflowService", () => {
 
     it("does not increment version when config is semantically same but key order differs", async () => {
       const storedConfig = makeGraphConfig();
-      mockWorkflow.findFirst.mockResolvedValue({
+      mockWorkflow.findUnique.mockResolvedValue({
         ...mockWorkflowRecord,
         config: storedConfig,
       });
@@ -215,7 +219,7 @@ describe("WorkflowService", () => {
     });
 
     it("throws BadRequestException for invalid config on update", async () => {
-      mockWorkflow.findFirst.mockResolvedValue(mockWorkflowRecord);
+      mockWorkflow.findUnique.mockResolvedValue(mockWorkflowRecord);
       await expect(
         service.updateWorkflow("wf-1", "user-1", {
           config: { schemaVersion: "2.0" } as any,
@@ -226,14 +230,14 @@ describe("WorkflowService", () => {
 
   describe("deleteWorkflow", () => {
     it("throws NotFoundException when workflow not found", async () => {
-      mockWorkflow.findFirst.mockResolvedValue(null);
+      mockWorkflow.findUnique.mockResolvedValue(null);
       await expect(service.deleteWorkflow("wf-1", "user-1")).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it("deletes workflow when found", async () => {
-      mockWorkflow.findFirst.mockResolvedValue(mockWorkflowRecord);
+      mockWorkflow.findUnique.mockResolvedValue(mockWorkflowRecord);
       await service.deleteWorkflow("wf-1", "user-1");
       expect(mockWorkflow.delete).toHaveBeenCalledWith({
         where: { id: "wf-1" },

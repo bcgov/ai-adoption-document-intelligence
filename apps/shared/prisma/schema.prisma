@@ -32,7 +32,10 @@ model Document {
   model_id              String          @default("prebuilt-layout")
   ocr_result            OcrResult?
   review_sessions       ReviewSession[]
+  group_id              String
+  group                 Group           @relation(fields: [group_id], references: [id])
 
+  @@index([group_id])
   @@map("documents")
 }
 
@@ -52,7 +55,10 @@ model LabelingDocument {
   model_id          String            @default("prebuilt-layout")
   ocr_result        Json?
   labeled_documents LabeledDocument[]
+  group_id          String
+  group             Group             @relation(fields: [group_id], references: [id])
 
+  @@index([group_id])
   @@map("labeling_documents")
 }
 
@@ -68,14 +74,19 @@ model OcrResult {
 }
 
 model ApiKey {
-  id         String    @id @default(cuid())
-  key_hash   String    @unique
-  key_prefix String
-  user_id    String?
-  user       User?     @relation(fields: [user_id], references: [id])
-  created_at DateTime  @default(now())
-  last_used  DateTime?
+  id                   String    @id @default(cuid())
+  key_hash             String    @unique
+  key_prefix           String
+  /// The user who most recently generated or regenerated this key. Recorded for
+  /// audit purposes only; not used for authentication identity resolution.
+  generating_user_id   String?
+  generating_user      User?     @relation(fields: [generating_user_id], references: [id])
+  group_id             String
+  group                Group     @relation(fields: [group_id], references: [id])
+  created_at           DateTime  @default(now())
+  last_used            DateTime?
 
+  @@index([group_id])
   @@map("api_keys")
 }
 
@@ -137,7 +148,10 @@ model Workflow {
   version     Int      @default(1)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
+  group_id    String
+  group       Group    @relation(fields: [group_id], references: [id])
 
+  @@index([group_id])
   @@map("workflows")
 }
 
@@ -156,7 +170,10 @@ model LabelingProject {
   documents      LabeledDocument[]
   training_jobs  TrainingJob[]
   trained_models TrainedModel[]
+  group_id       String
+  group          Group             @relation(fields: [group_id], references: [id])
 
+  @@index([group_id])
   @@map("labeling_projects")
 }
 
@@ -276,6 +293,11 @@ model Group {
   classifier_models   ClassifierModel[]
   user_groups         UserGroup[]
   membership_requests GroupMembershipRequest[]
+  documents           Document[]
+  workflows           Workflow[]
+  labeling_projects   LabelingProject[]
+  labeling_documents  LabelingDocument[]
+  api_keys            ApiKey[]
 
   @@map("group")
 }
@@ -308,6 +330,7 @@ model GroupMembershipRequest {
   updated_by  String
   updator     User                         @relation(name: "MembershipRequestUpdatedBy", fields: [updated_by], references: [id])
 
+  @@unique([group_id, user_id, status])
   @@map("group_membership_request")
 }
 

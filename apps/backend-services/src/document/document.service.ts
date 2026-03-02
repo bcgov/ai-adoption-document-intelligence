@@ -17,6 +17,7 @@ export interface UploadedDocument {
   created_at: Date;
   updated_at: Date;
   model_id: string;
+  group_id: string;
 }
 
 @Injectable()
@@ -43,6 +44,7 @@ export class DocumentService {
     fileType: string,
     originalFilename: string,
     modelId: string,
+    groupId: string,
     metadata?: Record<string, unknown>,
     workflowId?: string,
   ): Promise<UploadedDocument> {
@@ -91,6 +93,7 @@ export class DocumentService {
         workflow_config_id: workflowId || null, // New field for workflow configuration ID
         workflow_execution_id: null, // Will be set when workflow starts
         model_id: modelId,
+        group_id: groupId,
       };
 
       const savedDocument =
@@ -110,6 +113,7 @@ export class DocumentService {
         created_at: savedDocument.created_at || new Date(),
         updated_at: savedDocument.updated_at || new Date(),
         model_id: savedDocument.model_id,
+        group_id: savedDocument.group_id,
       };
 
       this.logger.debug("=== DocumentService.uploadDocument completed ===");
@@ -141,6 +145,68 @@ export class DocumentService {
       created_at: document.created_at || new Date(),
       updated_at: document.updated_at || new Date(),
       model_id: document.model_id,
+      group_id: document.group_id,
     };
+  }
+
+  /**
+   * Updates editable fields of a document.
+   *
+   * @param id - The document ID.
+   * @param data - Fields to update (title and/or metadata).
+   * @returns The updated document, or `null` if not found.
+   */
+  async updateDocument(
+    id: string,
+    data: { title?: string; metadata?: Record<string, unknown> },
+  ): Promise<UploadedDocument | null> {
+    this.logger.debug(`DocumentService.updateDocument: ${id}`);
+    const updated = await this.databaseService.updateDocument(id, {
+      ...(data.title !== undefined ? { title: data.title } : {}),
+      ...(data.metadata !== undefined
+        ? { metadata: data.metadata as Prisma.JsonValue }
+        : {}),
+    });
+    if (!updated) {
+      return null;
+    }
+    return {
+      id: updated.id!,
+      title: updated.title,
+      original_filename: updated.original_filename,
+      file_path: updated.file_path,
+      file_type: updated.file_type,
+      file_size: updated.file_size,
+      metadata: updated.metadata as Record<string, unknown>,
+      source: updated.source,
+      status: updated.status,
+      created_at: updated.created_at || new Date(),
+      updated_at: updated.updated_at || new Date(),
+      model_id: updated.model_id,
+      group_id: updated.group_id,
+    };
+  }
+
+  /**
+   * Deletes a document and its associated blob storage file.
+   *
+   * @param id - The document ID.
+   * @returns `true` if deleted, `false` if not found.
+   */
+  async deleteDocument(id: string): Promise<boolean> {
+    this.logger.debug(`DocumentService.deleteDocument: ${id}`);
+    const document = await this.databaseService.findDocument(id);
+    if (!document) {
+      return false;
+    }
+    await this.databaseService.deleteDocument(id);
+    try {
+      await this.blobStorage.delete(document.file_path);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to delete blob for document ${id}: ${(error as Error).message}`,
+      );
+    }
+    return true;
   }
 }

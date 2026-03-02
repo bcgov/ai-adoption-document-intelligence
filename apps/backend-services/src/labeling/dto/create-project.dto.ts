@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsEnum, IsOptional, IsString } from "class-validator";
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from "class-validator";
 
 export enum ProjectStatus {
   ACTIVE = "active",
@@ -16,6 +16,11 @@ export class CreateProjectDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiProperty({ description: "Group ID" })
+  @IsString()
+  @IsNotEmpty()
+  group_id: string;
 }
 
 export class UpdateProjectDto {

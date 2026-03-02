@@ -1,4 +1,14 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { IsNotEmpty, IsString } from "class-validator";
+
+export class GenerateApiKeyRequestDto {
+  @ApiProperty({
+    description: "The ID of the group this API key should be scoped to",
+  })
+  @IsString()
+  @IsNotEmpty()
+  groupId: string;
+}
 
 export class ApiKeyInfoDto {
   @ApiProperty()
@@ -7,20 +17,13 @@ export class ApiKeyInfoDto {
   @ApiProperty()
   keyPrefix: string;
 
-  @ApiProperty({ required: false })
-  userEmail?: string;
-
-  @ApiProperty({
-    description: "Roles inherited from the user table",
-    type: [String],
-    required: false,
-  })
-  roles?: string[];
+  @ApiProperty()
+  groupId: string;
 
   @ApiProperty()
   createdAt: Date;
 
-  @ApiProperty({ type: Date })
+  @ApiProperty({ type: Date, nullable: true })
   lastUsed: Date | null;
 }
 
@@ -30,11 +33,11 @@ export class GeneratedApiKeyDto extends ApiKeyInfoDto {
 }
 
 export class ApiKeyInfoWrapperDto {
-  @ApiProperty({ type: ApiKeyInfoDto })
+  @ApiProperty({ type: ApiKeyInfoDto, nullable: true })
   apiKey: ApiKeyInfoDto | null;
 }
 
 export class GeneratedApiKeyWrapperDto {
-  @ApiProperty({ type: GeneratedApiKeyDto })
+  @ApiProperty({ type: GeneratedApiKeyDto, nullable: true })
   apiKey: GeneratedApiKeyDto | null;
 }

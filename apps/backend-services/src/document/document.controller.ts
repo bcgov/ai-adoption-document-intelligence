@@ -1,27 +1,37 @@
-import { DocumentStatus } from "@generated/client";
+import { DocumentStatus, Prisma } from "@generated/client";
 import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
   Logger,
   NotFoundException,
   Param,
+  Patch,
   Post,
+  Req,
   Res,
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
   ApiBody,
+  ApiForbiddenResponse,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
 } from "@nestjs/swagger";
-import { Response } from "express";
+import { Request, Response } from "express";
+import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "@/auth/identity.helpers";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
@@ -32,6 +42,7 @@ import { DatabaseService, DocumentData } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
+import { UpdateDocumentDto } from "./dto/update-document.dto";
 
 @ApiTags("Documents")
 @Controller("api/documents")
@@ -44,24 +55,149 @@ export class DocumentController {
     private readonly blobStorage: LocalBlobStorageService,
   ) {}
 
+  @Get("/:documentId")
+  @HttpCode(HttpStatus.OK)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Get a document by ID" })
+  @ApiParam({ name: "documentId", description: "Document ID" })
+  @ApiOkResponse({
+    description: "Returns the document",
+    type: DocumentDataDto,
+  })
+  @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getDocument(
+    @Param("documentId") documentId: string,
+    @Req() req: Request,
+  ): Promise<DocumentData> {
+    this.logger.debug(`=== DocumentController.getDocument ===`);
+    this.logger.debug(`Document ID: ${documentId}`);
+
+    const document = await this.databaseService.findDocument(documentId);
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId}`);
+    }
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      document.group_id,
+      this.databaseService,
+    );
+
+    this.logger.debug("=== DocumentController.getDocument completed ===");
+    return document;
+  }
+
+  @Patch("/:documentId")
+  @HttpCode(HttpStatus.OK)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Update a document" })
+  @ApiParam({ name: "documentId", description: "Document ID" })
+  @ApiBody({ type: UpdateDocumentDto })
+  @ApiOkResponse({
+    description: "Returns the updated document",
+    type: DocumentDataDto,
+  })
+  @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiBadRequestResponse({ description: "Invalid input" })
+  async updateDocument(
+    @Param("documentId") documentId: string,
+    @Body() body: UpdateDocumentDto,
+    @Req() req: Request,
+  ): Promise<DocumentData> {
+    this.logger.debug(`=== DocumentController.updateDocument ===`);
+    this.logger.debug(`Document ID: ${documentId}`);
+
+    const document = await this.databaseService.findDocument(documentId);
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId}`);
+    }
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      document.group_id,
+      this.databaseService,
+    );
+
+    const updated = await this.databaseService.updateDocument(documentId, {
+      ...(body.title !== undefined ? { title: body.title } : {}),
+      ...(body.metadata !== undefined
+        ? { metadata: body.metadata as Prisma.JsonValue }
+        : {}),
+    });
+    if (!updated) {
+      throw new NotFoundException(`Document not found: ${documentId}`);
+    }
+
+    this.logger.debug("=== DocumentController.updateDocument completed ===");
+    return updated;
+  }
+
+  @Delete("/:documentId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Delete a document" })
+  @ApiParam({ name: "documentId", description: "Document ID" })
+  @ApiNoContentResponse({ description: "Document deleted successfully" })
+  @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async deleteDocument(
+    @Param("documentId") documentId: string,
+    @Req() req: Request,
+  ): Promise<void> {
+    this.logger.debug(`=== DocumentController.deleteDocument ===`);
+    this.logger.debug(`Document ID: ${documentId}`);
+
+    const document = await this.databaseService.findDocument(documentId);
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId}`);
+    }
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      document.group_id,
+      this.databaseService,
+    );
+
+    await this.databaseService.deleteDocument(documentId);
+    try {
+      await this.blobStorage.delete(document.file_path);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to delete blob for document ${documentId}: ${(error as Error).message}`,
+      );
+    }
+
+    this.logger.debug("=== DocumentController.deleteDocument completed ===");
+  }
+
   // TODO: Refactor list endpoint to avoid per-request Temporal fan-out and full-table reads.
   // Add pagination, make DB the source of truth for status/review state, move reconciliation off read path,
   // and align workflow query status contract. See: ./get-all-documents-fixes.md
   @Get()
   @HttpCode(HttpStatus.OK)
+  @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get all documents" })
   @ApiOkResponse({
     description: "Returns a list of all documents",
     type: [DocumentDataDto],
   })
-  async getAllDocuments(): Promise<
-    (DocumentData & { needsReview?: boolean })[]
-  > {
+  async getAllDocuments(
+    @Req() req: Request,
+  ): Promise<(DocumentData & { needsReview?: boolean })[]> {
     this.logger.debug("=== DocumentController.getAllDocuments ===");
 
     try {
-      const documents = await this.databaseService.findAllDocuments();
+      const groupIds = await getIdentityGroupIds(
+        req.resolvedIdentity,
+        this.databaseService,
+      );
+      const documents = await this.databaseService.findAllDocuments(groupIds);
 
       // Check workflow status for documents that have workflow_execution_id
       const documentsWithWorkflowStatus = await Promise.all(
@@ -157,13 +293,16 @@ export class DocumentController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get OCR result for a document by ID" })
+  @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
     description: "Returns OCR result and document info",
     type: OcrResultResponseDto,
   })
   @ApiNotFoundResponse({ description: "Document or OCR result not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getOcrResult(
     @Param("documentId") documentId: string,
+    @Req() req: Request,
   ): Promise<OcrResultResponseDto> {
     this.logger.debug(`=== DocumentController.getOcrResult ===`);
     this.logger.debug(`Document ID: ${documentId}`);
@@ -175,6 +314,12 @@ export class DocumentController {
         this.logger.warn(`Document not found: ${documentId}`);
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
+
+      await identityCanAccessGroup(
+        req.resolvedIdentity,
+        document.group_id,
+        this.databaseService,
+      );
 
       this.logger.debug(`Document status: ${document.status}`);
       this.logger.debug(`Document created: ${document.created_at}`);
@@ -217,7 +362,10 @@ export class DocumentController {
       this.logger.error(`Error retrieving OCR result: ${error.message}`);
       this.logger.error(`Stack: ${error.stack}`);
 
-      if (error instanceof NotFoundException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
         throw error;
       }
 
@@ -232,13 +380,16 @@ export class DocumentController {
   @HttpCode(HttpStatus.OK)
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Download a document file by ID" })
+  @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
     description: "Returns the document file buffer as a download",
   })
   @ApiNotFoundResponse({ description: "Document not found or file missing" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async downloadDocument(
     @Param("documentId") documentId: string,
     @Res() res: Response,
+    @Req() req: Request,
   ): Promise<void> {
     this.logger.debug(`=== DocumentController.downloadDocument ===`);
     this.logger.debug(`Document ID: ${documentId}`);
@@ -249,6 +400,12 @@ export class DocumentController {
       if (!document) {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
+
+      await identityCanAccessGroup(
+        req.resolvedIdentity,
+        document.group_id,
+        this.databaseService,
+      );
 
       // Read file from blob storage using the blob key
       const fileBuffer = await this.blobStorage.read(document.file_path);
@@ -278,7 +435,10 @@ export class DocumentController {
       this.logger.error(`Error downloading document: ${error.message}`);
       this.logger.error(`Stack: ${error.stack}`);
 
-      if (error instanceof NotFoundException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
         throw error;
       }
 
@@ -317,9 +477,11 @@ export class DocumentController {
       "Invalid request (e.g. rejection without rejectionReason, or document has no workflow execution)",
   })
   @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async approveDocument(
     @Param("documentId") documentId: string,
     @Body() body: ApproveDocumentDto,
+    @Req() req: Request,
   ): Promise<{ success: boolean; message: string }> {
     this.logger.debug(`=== DocumentController.approveDocument ===`);
     this.logger.debug(`Document ID: ${documentId}`);
@@ -338,6 +500,12 @@ export class DocumentController {
       if (!document) {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
+
+      await identityCanAccessGroup(
+        req.resolvedIdentity,
+        document.group_id,
+        this.databaseService,
+      );
 
       // Get workflow execution ID from document
       // Use workflow_execution_id (new field) or fallback to workflow_id (legacy)
@@ -373,7 +541,11 @@ export class DocumentController {
       this.logger.error(`Error approving document: ${error.message}`);
       this.logger.error(`Stack: ${error.stack}`);
 
-      if (error instanceof NotFoundException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
 
