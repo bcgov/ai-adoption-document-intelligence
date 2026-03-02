@@ -658,4 +658,75 @@ describe("DatasetService", () => {
       ).rejects.toThrow(NotFoundException);
     });
   });
+
+  // -----------------------------------------------------------------------
+  // Update Version Name
+  // -----------------------------------------------------------------------
+  describe("updateVersionName", () => {
+    it("updates version name successfully", async () => {
+      const mockVersion = {
+        id: "version-1",
+        datasetId: "dataset-1",
+        version: "v1",
+        name: null,
+        frozen: false,
+        storagePrefix: "datasets/dataset-1/version-1",
+        manifestPath: "dataset-manifest.json",
+        documentCount: 5,
+        groundTruthSchema: null,
+        createdAt: new Date(),
+      };
+
+      const updatedVersion = {
+        ...mockVersion,
+        name: "Q4 invoices",
+        splits: [],
+      };
+
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockPrismaClient.datasetVersion.update.mockResolvedValue(updatedVersion);
+
+      const result = await service.updateVersionName(
+        "dataset-1",
+        "version-1",
+        "Q4 invoices",
+      );
+
+      expect(mockPrismaClient.datasetVersion.update).toHaveBeenCalledWith({
+        where: { id: "version-1" },
+        data: { name: "Q4 invoices" },
+        include: {
+          splits: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              sampleIds: true,
+            },
+          },
+        },
+      });
+      expect(result.name).toBe("Q4 invoices");
+    });
+
+    it("throws NotFoundException when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateVersionName("dataset-1", "nonexistent", "test"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws BadRequestException when version is frozen", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "version-1",
+        datasetId: "dataset-1",
+        frozen: true,
+      });
+
+      await expect(
+        service.updateVersionName("dataset-1", "version-1", "test"),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
 });

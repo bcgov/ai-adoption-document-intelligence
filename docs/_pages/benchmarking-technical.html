@@ -69,9 +69,12 @@
 
 <div class="grid grid-3">
     <div class="card" style="border-left-color: #2E8540;">
-        <h3 style="margin-top:0;">MinIO (Object Storage)</h3>
-        <p>S3-compatible object storage for dataset files (inputs, ground truth, manifests) and benchmark run outputs. Consumed by the <code>BlobStorageClient</code> in Temporal activities.</p>
-        <p><strong>Ports:</strong> 19000 (API), 19001 (Console)</p>
+        <h3 style="margin-top:0;">Object Storage (MinIO / Azure Blob)</h3>
+        <p>Pluggable object storage for dataset files (inputs, ground truth, manifests) and benchmark run outputs. The system uses a <code>BlobStorageInterface</code> abstraction with two implementations, switchable via the <code>BLOB_STORAGE_PROVIDER</code> environment variable:</p>
+        <ul>
+            <li><strong>MinIO</strong> (default) — S3-compatible, used for local development. Ports: 19000 (API), 19001 (Console).</li>
+            <li><strong>Azure Blob Storage</strong> — for cloud deployments using Azure infrastructure.</li>
+        </ul>
     </div>
     <div class="card" style="border-left-color: #8b5cf6;">
         <h3 style="margin-top:0;">PostgreSQL (Metadata Store)</h3>
@@ -117,7 +120,7 @@
     <tr><td><code>datasetId</code></td><td>UUID (FK)</td><td>References parent dataset.</td></tr>
     <tr><td><code>version</code></td><td>String</td><td>Version identifier (e.g. "1.0", "2.0").</td></tr>
     <tr><td><code>name</code></td><td>String?</td><td>Optional version label.</td></tr>
-    <tr><td><code>storagePrefix</code></td><td>String?</td><td>MinIO prefix for all files in this version.</td></tr>
+    <tr><td><code>storagePrefix</code></td><td>String?</td><td>Object storage prefix for all files in this version.</td></tr>
     <tr><td><code>manifestPath</code></td><td>String</td><td>Relative path to <code>dataset-manifest.json</code> within the storage prefix.</td></tr>
     <tr><td><code>documentCount</code></td><td>Int</td><td>Number of samples in this version.</td></tr>
     <tr><td><code>groundTruthSchema</code></td><td>JSON?</td><td>Optional JSON schema for ground truth validation.</td></tr>
@@ -415,7 +418,7 @@
 <p>The <code>benchmarkRunWorkflow</code> function in <code>apps/temporal/src/benchmark-workflow.ts</code> orchestrates the full run lifecycle:</p>
 
 <ol>
-    <li><strong>Materialize dataset</strong> — downloads files from MinIO to local cache.</li>
+    <li><strong>Materialize dataset</strong> — downloads files from object storage to local cache.</li>
     <li><strong>Load manifest</strong> — parses <code>dataset-manifest.json</code> and filters by split.</li>
     <li><strong>Execute &amp; evaluate (fan-out)</strong> — processes samples in batches:
         <ul>
@@ -436,6 +439,17 @@
     <li><strong>Cancellation</strong> via the <code>cancel</code> signal — gracefully stops processing and marks the run as cancelled.</li>
 </ul>
 
+<h4>Progress Query Response</h4>
+
+<table>
+    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>phase</code></td><td>string</td><td>Current phase: <code>materializing</code>, <code>executing</code>, <code>evaluating</code>, <code>aggregating</code>, <code>cleanup</code>, or <code>completed</code>.</td></tr>
+    <tr><td><code>totalSamples</code></td><td>number</td><td>Total samples to process.</td></tr>
+    <tr><td><code>completedSamples</code></td><td>number</td><td>Samples finished so far.</td></tr>
+    <tr><td><code>failedSamples</code></td><td>number</td><td>Samples that failed execution or evaluation.</td></tr>
+    <tr><td><code>percentComplete</code></td><td>number</td><td>Integer 0–100.</td></tr>
+</table>
+
 <h3 id="workflow-activities">Activities</h3>
 
 <table>
@@ -443,7 +457,7 @@
     <tr>
         <td><code>benchmark.materializeDataset</code></td>
         <td><code>activities/benchmark-materialize.ts</code></td>
-        <td>Downloads dataset version from MinIO to a local cache directory. Uses cache key <code>{datasetId}-{datasetVersionId}</code>.</td>
+        <td>Downloads dataset version from object storage to a local cache directory. Uses cache key <code>{datasetId}-{datasetVersionId}</code>.</td>
     </tr>
     <tr>
         <td><code>benchmark.loadDatasetManifest</code></td>
@@ -695,12 +709,36 @@ interface MetricComparison {
   deltaPercent: number;
   passed: boolean;
   threshold?: MetricThreshold;
+}
+
+interface MetricThreshold {
+  metricName: string;
+  type: "absolute" | "relative";
+  value: number;
 }</pre>
+
+<h3 id="threshold-types">Threshold Types</h3>
+
+<table>
+    <tr><th>Type</th><th>Rule</th><th>Example</th></tr>
+    <tr>
+        <td><code>absolute</code></td>
+        <td>Current value must be &ge; threshold value.</td>
+        <td><code>f1.mean &ge; 0.90</code> — F1 must be at least 0.90 regardless of baseline.</td>
+    </tr>
+    <tr>
+        <td><code>relative</code></td>
+        <td>Current value must be &ge; baseline value &times; threshold value.</td>
+        <td><code>pass_rate &ge; baseline &times; 0.95</code> — pass rate can drop by at most 5% from the baseline.</td>
+    </tr>
+</table>
 
 <!-- ====================================================================== -->
 <h2 id="storage">Object Storage</h2>
 
-<p>Datasets are stored in MinIO with the following structure:</p>
+<p>The benchmarking system accesses object storage through a <code>BlobStorageInterface</code> abstraction, supporting both <strong>MinIO</strong> (S3-compatible, default for local development) and <strong>Azure Blob Storage</strong> (for cloud deployments). The active provider is selected via the <code>BLOB_STORAGE_PROVIDER</code> environment variable (<code>"minio"</code> or <code>"azure"</code>).</p>
+
+<p>Datasets are stored with the following structure:</p>
 
 <pre>datasets/{datasetId}/{version}/
   ├── dataset-manifest.json
@@ -733,6 +771,14 @@ interface MetricComparison {
     <tr><td><code>BENCHMARK_CACHE_DIR</code></td><td><code>/tmp/benchmark-cache</code></td><td>Local directory for materialized dataset cache.</td></tr>
     <tr><td><code>WORKER_IMAGE_DIGEST</code></td><td>(none)</td><td>Docker image digest of the benchmark worker (optional, for reproducibility tracking).</td></tr>
     <tr><td><code>DATABASE_URL</code></td><td>(required)</td><td>PostgreSQL connection string.</td></tr>
+    <tr><td colspan="3" style="background: var(--bc-blue); color: white; font-weight: 600;">Object Storage</td></tr>
+    <tr><td><code>BLOB_STORAGE_PROVIDER</code></td><td><code>minio</code></td><td>Storage backend: <code>"minio"</code> or <code>"azure"</code>.</td></tr>
+    <tr><td><code>MINIO_ENDPOINT</code></td><td>(required for MinIO)</td><td>MinIO server endpoint.</td></tr>
+    <tr><td><code>MINIO_ACCESS_KEY</code></td><td>(required for MinIO)</td><td>MinIO access key.</td></tr>
+    <tr><td><code>MINIO_SECRET_KEY</code></td><td>(required for MinIO)</td><td>MinIO secret key.</td></tr>
+    <tr><td><code>MINIO_DOCUMENT_BUCKET</code></td><td>(required for MinIO)</td><td>MinIO bucket name for document storage.</td></tr>
+    <tr><td><code>AZURE_STORAGE_CONNECTION_STRING</code></td><td>(required for Azure)</td><td>Azure Blob Storage connection string.</td></tr>
+    <tr><td><code>AZURE_STORAGE_CONTAINER_NAME</code></td><td>(required for Azure)</td><td>Azure Blob Storage container name.</td></tr>
 </table>
 
 <!-- ====================================================================== -->

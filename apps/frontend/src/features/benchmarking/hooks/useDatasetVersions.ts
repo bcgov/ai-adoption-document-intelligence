@@ -109,6 +109,27 @@ export const useDatasetVersions = (datasetId: string) => {
     },
   });
 
+  const updateVersionNameMutation = useMutation({
+    mutationFn: async ({
+      versionId,
+      name,
+    }: {
+      versionId: string;
+      name: string;
+    }) => {
+      const response = await apiService.patch<DatasetVersion>(
+        `/benchmark/datasets/${datasetId}/versions/${versionId}`,
+        { name },
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-dataset-versions", datasetId],
+      });
+    },
+  });
+
   const deleteSampleMutation = useMutation({
     mutationFn: async ({
       versionId,
@@ -147,6 +168,8 @@ export const useDatasetVersions = (datasetId: string) => {
     deleteVersionError: deleteVersionMutation.error,
     freezeVersion: freezeVersionMutation.mutateAsync,
     isFreezingVersion: freezeVersionMutation.isPending,
+    updateVersionName: updateVersionNameMutation.mutateAsync,
+    isUpdatingVersionName: updateVersionNameMutation.isPending,
     deleteSample: deleteSampleMutation.mutate,
     isDeletingSample: deleteSampleMutation.isPending,
     deletingSampleId: deleteSampleMutation.isPending

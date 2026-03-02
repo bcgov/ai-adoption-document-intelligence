@@ -18,7 +18,9 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconArrowLeft,
+  IconCheck,
   IconDotsVertical,
+  IconEdit,
   IconEye,
   IconFileCheck,
   IconLock,
@@ -26,6 +28,7 @@ import {
   IconShieldCheck,
   IconTrash,
   IconUpload,
+  IconX,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -60,6 +63,7 @@ export function DatasetDetailPage() {
     deleteSample,
     isDeletingSample,
     deletingSampleId,
+    updateVersionName,
   } = useDatasetVersions(id || "");
 
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -93,6 +97,8 @@ export function DatasetDetailPage() {
   const [newVersionDialogOpen, setNewVersionDialogOpen] = useState(false);
   const [newVersionName, setNewVersionName] = useState("");
   const [hitlVersionDialogOpen, setHitlVersionDialogOpen] = useState(false);
+  const [editingVersionNameId, setEditingVersionNameId] = useState<string | null>(null);
+  const [editingVersionNameValue, setEditingVersionNameValue] = useState("");
 
   const {
     samples,
@@ -179,6 +185,26 @@ export function DatasetDetailPage() {
   const handleValidate = (versionId: string) => {
     setValidationDialogOpen(true);
     validateDataset({ versionId });
+  };
+
+  const handleStartEditVersionName = (versionId: string, currentName: string | null) => {
+    setEditingVersionNameId(versionId);
+    setEditingVersionNameValue(currentName || "");
+  };
+
+  const handleSaveVersionName = async () => {
+    if (!editingVersionNameId) return;
+    await updateVersionName({
+      versionId: editingVersionNameId,
+      name: editingVersionNameValue.trim(),
+    });
+    setEditingVersionNameId(null);
+    setEditingVersionNameValue("");
+  };
+
+  const handleCancelEditVersionName = () => {
+    setEditingVersionNameId(null);
+    setEditingVersionNameValue("");
   };
 
   const handleViewGroundTruth = async (sampleId: string) => {
@@ -336,10 +362,57 @@ export function DatasetDetailPage() {
                       data-testid={`version-row-${version.id}`}
                     >
                       <Table.Td>{version.version}</Table.Td>
-                      <Table.Td>
-                        <Text size="sm" c={version.name ? undefined : "dimmed"}>
-                          {version.name || "-"}
-                        </Text>
+                      <Table.Td onClick={(e) => e.stopPropagation()}>
+                        {editingVersionNameId === version.id ? (
+                          <Group gap="xs" wrap="nowrap">
+                            <TextInput
+                              size="xs"
+                              value={editingVersionNameValue}
+                              onChange={(e) => setEditingVersionNameValue(e.currentTarget.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSaveVersionName();
+                                if (e.key === "Escape") handleCancelEditVersionName();
+                              }}
+                              autoFocus
+                              data-testid="edit-version-name-input"
+                            />
+                            <Button
+                              size="compact-xs"
+                              variant="subtle"
+                              color="green"
+                              onClick={handleSaveVersionName}
+                              data-testid="save-version-name-btn"
+                            >
+                              <IconCheck size={14} />
+                            </Button>
+                            <Button
+                              size="compact-xs"
+                              variant="subtle"
+                              color="gray"
+                              onClick={handleCancelEditVersionName}
+                              data-testid="cancel-version-name-btn"
+                            >
+                              <IconX size={14} />
+                            </Button>
+                          </Group>
+                        ) : (
+                          <Group gap="xs" wrap="nowrap">
+                            <Text size="sm" c={version.name ? undefined : "dimmed"}>
+                              {version.name || "-"}
+                            </Text>
+                            {!version.frozen && (
+                              <Button
+                                size="compact-xs"
+                                variant="subtle"
+                                color="gray"
+                                onClick={() => handleStartEditVersionName(version.id, version.name)}
+                                data-testid={`edit-version-name-btn-${version.id}`}
+                              >
+                                <IconEdit size={14} />
+                              </Button>
+                            )}
+                          </Group>
+                        )}
                       </Table.Td>
                       <Table.Td>
                         <Badge

@@ -50,43 +50,8 @@ describe('Benchmark Run Workflow', () => {
       expect(input.runtimeSettings?.activityRetry?.maximumAttempts).toBe(5);
     });
 
-    it('should default to benchmark-processing queue when useProductionQueue is not set', () => {
-      // US-023 Scenario 7: Default routing uses benchmark queue
-      const input: Partial<BenchmarkRunWorkflowInput> = {
-        runtimeSettings: {},
-      };
-
-      const useProductionQueue = input.runtimeSettings?.useProductionQueue === true;
-      const childTaskQueue = useProductionQueue ? 'ocr-processing' : 'benchmark-processing';
-
-      expect(childTaskQueue).toBe('benchmark-processing');
-    });
-
-    it('should route to production queue when useProductionQueue is explicitly true', () => {
-      // US-023 Scenario 6: Optional routing to production queue
-      const input: Partial<BenchmarkRunWorkflowInput> = {
-        runtimeSettings: {
-          useProductionQueue: true,
-        },
-      };
-
-      const useProductionQueue = input.runtimeSettings?.useProductionQueue === true;
-      const childTaskQueue = useProductionQueue ? 'ocr-processing' : 'benchmark-processing';
-
-      expect(childTaskQueue).toBe('ocr-processing');
-    });
-
-    it('should use benchmark queue when useProductionQueue is false', () => {
-      // US-023 Scenario 7: Explicit false should use benchmark queue
-      const input: Partial<BenchmarkRunWorkflowInput> = {
-        runtimeSettings: {
-          useProductionQueue: false,
-        },
-      };
-
-      const useProductionQueue = input.runtimeSettings?.useProductionQueue === true;
-      const childTaskQueue = useProductionQueue ? 'ocr-processing' : 'benchmark-processing';
-
+    it('should always use benchmark-processing queue', () => {
+      const childTaskQueue = 'benchmark-processing';
       expect(childTaskQueue).toBe('benchmark-processing');
     });
 
@@ -108,7 +73,6 @@ describe('Benchmark Run Workflow', () => {
         runtimeSettings: {
           maxParallelDocuments: 20,
           timeoutPerDocumentMs: 300000,
-          useProductionQueue: false,
           activityTimeout: {
             startToCloseTimeout: '45 minutes',
           },
@@ -122,7 +86,6 @@ describe('Benchmark Run Workflow', () => {
 
       expect(input.runtimeSettings?.maxParallelDocuments).toBe(20);
       expect(input.runtimeSettings?.timeoutPerDocumentMs).toBe(300000);
-      expect(input.runtimeSettings?.useProductionQueue).toBe(false);
       expect(input.runtimeSettings?.activityTimeout?.startToCloseTimeout).toBe('45 minutes');
       expect(input.runtimeSettings?.activityRetry?.maximumAttempts).toBe(3);
     });

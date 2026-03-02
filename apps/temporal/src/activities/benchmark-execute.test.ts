@@ -466,30 +466,6 @@ describe('benchmarkExecuteWorkflow', () => {
       );
     });
 
-    it('routes to production queue when explicitly configured', async () => {
-      // US-023 Scenario 6: Optional routing to production queue
-      const childResult: GraphWorkflowResult = {
-        ctx: {},
-        completedNodes: [],
-        status: 'completed',
-      };
-      mockExecuteChild.mockResolvedValue(childResult);
-
-      const inputWithProductionQueue = {
-        ...baseInput,
-        taskQueue: 'ocr-processing',
-      };
-
-      await benchmarkExecuteWorkflow(inputWithProductionQueue);
-
-      expect(mockExecuteChild).toHaveBeenCalledWith(
-        'graphWorkflow',
-        expect.objectContaining({
-          taskQueue: 'ocr-processing',
-        })
-      );
-    });
-
     it('supports custom task queue names', async () => {
       const childResult: GraphWorkflowResult = {
         ctx: {},

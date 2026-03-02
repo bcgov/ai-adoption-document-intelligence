@@ -21,6 +21,7 @@ export * from "./schedule-info.dto";
 export * from "./split-response.dto";
 export * from "./update-definition.dto";
 export * from "./update-split.dto";
+export * from "./update-version.dto";
 export * from "./upload-response.dto";
 export * from "./validate-dataset-request.dto";
 export * from "./validation-response.dto";

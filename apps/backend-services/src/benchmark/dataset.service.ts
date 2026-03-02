@@ -393,6 +393,51 @@ export class DatasetService {
   }
 
   /**
+   * Update the name of a dataset version (only allowed on unfrozen versions)
+   */
+  async updateVersionName(
+    datasetId: string,
+    versionId: string,
+    name: string,
+  ): Promise<VersionResponseDto> {
+    const version = await this.prisma.datasetVersion.findFirst({
+      where: {
+        id: versionId,
+        datasetId: datasetId,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException(
+        `Version with ID ${versionId} not found for dataset ${datasetId}`,
+      );
+    }
+
+    if (version.frozen) {
+      throw new BadRequestException(
+        "Cannot update a frozen dataset version",
+      );
+    }
+
+    const updated = await this.prisma.datasetVersion.update({
+      where: { id: versionId },
+      data: { name: name || null },
+      include: {
+        splits: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            sampleIds: true,
+          },
+        },
+      },
+    });
+
+    return this.mapToVersionResponseDto(updated, updated.splits);
+  }
+
+  /**
    * Upload files to an existing draft dataset version.
    * Uploads files to object storage and updates the manifest.
    */

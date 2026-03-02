@@ -52,6 +52,7 @@ import {
   PaginatedDatasetResponseDto,
   SampleListResponseDto,
   CreateSplitDto,
+  UpdateVersionDto,
   UploadResponseDto,
   ValidateDatasetRequestDto,
   ValidationResponseDto,
@@ -294,6 +295,42 @@ export class DatasetController {
     @Param("versionId") versionId: string,
   ): Promise<VersionResponseDto> {
     return this.datasetService.getVersionById(id, versionId);
+  }
+
+  @Patch(":id/versions/:versionId")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Update a dataset version",
+    description:
+      "Updates metadata for an unfrozen dataset version. Currently supports updating the name.",
+  })
+  @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
+  @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
+  @ApiBody({
+    type: UpdateVersionDto,
+    description: "Version update request",
+  })
+  @ApiOkResponse({
+    description: "Version updated successfully",
+    type: VersionResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: "Version not found",
+  })
+  @ApiBadRequestResponse({
+    description: "Version is frozen and cannot be modified",
+  })
+  async updateVersion(
+    @Param("id") id: string,
+    @Param("versionId") versionId: string,
+    @Body() updateDto: UpdateVersionDto,
+  ): Promise<VersionResponseDto> {
+    return this.datasetService.updateVersionName(
+      id,
+      versionId,
+      updateDto.name ?? "",
+    );
   }
 
   @Delete(":id/versions/:versionId")

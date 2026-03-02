@@ -4,7 +4,6 @@ import {
   Group,
   Modal,
   NumberInput,
-  Radio,
   Select,
   Stack,
   Text,
@@ -73,7 +72,6 @@ export function CreateDefinitionDialog({
   const [evaluatorConfigError, setEvaluatorConfigError] = useState("");
   const [maxParallelDocuments, setMaxParallelDocuments] = useState(10);
   const [perDocumentTimeout, setPerDocumentTimeout] = useState(300000);
-  const [useProductionQueue, setUseProductionQueue] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
   const { versions, isLoading: isLoadingVersions, refetch: refetchVersions } = useAllDatasetVersions();
@@ -103,7 +101,6 @@ export function CreateDefinitionDialog({
       const rt = initialValues.runtimeSettings;
       setMaxParallelDocuments(typeof rt.maxParallelDocuments === "number" ? rt.maxParallelDocuments : 10);
       setPerDocumentTimeout(typeof rt.perDocumentTimeout === "number" ? rt.perDocumentTimeout : 300000);
-      setUseProductionQueue(rt.useProductionQueue === true);
 
       const version = versions.find((v) => v.id === initialValues.datasetVersionId);
       if (version?.splits) {
@@ -173,7 +170,6 @@ export function CreateDefinitionDialog({
     const runtimeSettings: Record<string, unknown> = {
       maxParallelDocuments,
       perDocumentTimeout,
-      useProductionQueue,
     };
 
     onCreate({
@@ -201,7 +197,6 @@ export function CreateDefinitionDialog({
     setEvaluatorConfigError("");
     setMaxParallelDocuments(10);
     setPerDocumentTimeout(300000);
-    setUseProductionQueue(false);
     setSplits([]);
     setInitialized(false);
     onClose();
@@ -379,29 +374,6 @@ export function CreateDefinitionDialog({
           step={1000}
           data-testid="per-document-timeout-input"
         />
-
-        <Radio.Group
-          label={
-            <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
-              <Text size="sm" fw={500}>Use Production Queue</Text>
-              <Tooltip
-                label="When enabled, benchmark documents are processed on the production task queue instead of a dedicated benchmark queue. Useful for measuring real-world throughput, but may affect production traffic."
-                multiline
-                w={300}
-              >
-                <IconInfoCircle size={14} style={{ opacity: 0.6, cursor: "help" }} />
-              </Tooltip>
-            </Group>
-          }
-          value={useProductionQueue ? "true" : "false"}
-          onChange={(value) => setUseProductionQueue(value === "true")}
-          data-testid="production-queue-radio"
-        >
-          <Group mt="xs">
-            <Radio value="false" label="No (Benchmark Queue)" data-testid="production-queue-no" />
-            <Radio value="true" label="Yes (Production Queue)" data-testid="production-queue-yes" />
-          </Group>
-        </Radio.Group>
 
         <Group justify="flex-end">
           <Button variant="default" onClick={handleClose} data-testid="cancel-definition-btn">

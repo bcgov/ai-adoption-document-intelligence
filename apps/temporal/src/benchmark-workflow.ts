@@ -179,7 +179,6 @@ export interface BenchmarkRunWorkflowInput {
   runtimeSettings: {
     maxParallelDocuments?: number;
     timeoutPerDocumentMs?: number;
-    useProductionQueue?: boolean;
     activityTimeout?: {
       startToCloseTimeout?: string;
     };
@@ -491,9 +490,7 @@ export async function benchmarkRunWorkflow(
     const maxParallel = runtimeSettings.maxParallelDocuments || 10;
     const timeoutMs = runtimeSettings.timeoutPerDocumentMs || 300000; // 5 min default
 
-    // Determine task queue routing (US-023 Scenario 6 & 7)
-    const useProductionQueue = runtimeSettings.useProductionQueue === true;
-    const childTaskQueue = useProductionQueue ? 'ocr-processing' : 'benchmark-processing';
+    const childTaskQueue = 'benchmark-processing';
 
     const evaluationResults: EvaluationResult[] = [];
     const executionOutputs: BenchmarkExecuteOutput[] = [];

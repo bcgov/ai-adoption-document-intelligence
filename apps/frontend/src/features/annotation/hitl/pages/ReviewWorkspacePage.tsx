@@ -14,7 +14,7 @@ import {
 import { useElementSize } from "@mantine/hooks";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { FC, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
@@ -119,7 +119,19 @@ const EnrichmentSummaryPanel: FC<{
 export const ReviewWorkspacePage: FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const readOnly = false;
+
+  const navigateToQueue = () => {
+    const benchmarkMatch = location.pathname.match(
+      /^\/benchmarking\/datasets\/([^/]+)\/versions\/([^/]+)\/review/,
+    );
+    if (benchmarkMatch) {
+      navigate(`/benchmarking/datasets/${benchmarkMatch[1]}/versions/${benchmarkMatch[2]}/review`);
+    } else {
+      navigate("/review");
+    }
+  };
   const {
     session,
     corrections,
@@ -277,7 +289,7 @@ export const ReviewWorkspacePage: FC = () => {
       await submitCorrectionsAsync(payload);
     }
     await approveSessionAsync();
-    navigate("/review");
+    navigateToQueue();
   };
 
   const handleEscalate = async () => {
@@ -315,7 +327,7 @@ export const ReviewWorkspacePage: FC = () => {
           <Button
             variant="subtle"
             leftSection={<IconArrowLeft size={16} />}
-            onClick={() => navigate("/review")}
+            onClick={navigateToQueue}
           >
             Back
           </Button>

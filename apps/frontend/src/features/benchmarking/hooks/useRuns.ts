@@ -77,6 +77,17 @@ export const useRuns = (projectId: string) => {
       return response.data || [];
     },
     enabled: !!projectId,
+    refetchInterval: (query) => {
+      const runs = query.state.data;
+      if (!runs) return false;
+      const hasNonTerminal = runs.some(
+        (run) =>
+          run.status !== "completed" &&
+          run.status !== "failed" &&
+          run.status !== "cancelled",
+      );
+      return hasNonTerminal ? 5000 : false;
+    },
   });
 
   const deleteRunMutation = useMutation({
@@ -215,6 +226,16 @@ export const useStartRun = (projectId: string, definitionId: string) => {
       });
       queryClient.invalidateQueries({
         queryKey: ["benchmark-definition", projectId, definitionId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-definitions", projectId],
+      });
+      // Starting a run freezes the dataset version — invalidate all dataset version queries
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-dataset-versions"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-all-dataset-versions"],
       });
     },
   });

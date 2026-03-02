@@ -19,6 +19,7 @@ const mockDatasetService = {
   getVersionById: jest.fn(),
   deleteVersion: jest.fn(),
   deleteSample: jest.fn(),
+  updateVersionName: jest.fn(),
 };
 
 describe("DatasetController", () => {
@@ -398,6 +399,88 @@ describe("DatasetController", () => {
       await expect(
         controller.uploadFilesToVersion("dataset-123", "version-123", mockFiles, mockRequestNoUser),
       ).rejects.toThrow("User ID not found in request");
+    });
+  });
+
+  describe("PATCH /api/benchmark/datasets/:id/versions/:versionId", () => {
+    it("updates version name successfully", async () => {
+      const mockResponse: VersionResponseDto = {
+        id: "version-123",
+        datasetId: "dataset-123",
+        version: "1.0.0",
+        name: "Updated Name",
+        storagePrefix: "datasets/dataset-123/version-123/",
+        manifestPath: "manifest.json",
+        documentCount: 100,
+        groundTruthSchema: null,
+        frozen: false,
+        createdAt: new Date(),
+      };
+
+      mockDatasetService.updateVersionName.mockResolvedValue(mockResponse);
+
+      const result = await controller.updateVersion(
+        "dataset-123",
+        "version-123",
+        { name: "Updated Name" },
+      );
+
+      expect(mockDatasetService.updateVersionName).toHaveBeenCalledWith(
+        "dataset-123",
+        "version-123",
+        "Updated Name",
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it("clears version name when empty string provided", async () => {
+      const mockResponse: VersionResponseDto = {
+        id: "version-123",
+        datasetId: "dataset-123",
+        version: "1.0.0",
+        name: null,
+        storagePrefix: "datasets/dataset-123/version-123/",
+        manifestPath: "manifest.json",
+        documentCount: 100,
+        groundTruthSchema: null,
+        frozen: false,
+        createdAt: new Date(),
+      };
+
+      mockDatasetService.updateVersionName.mockResolvedValue(mockResponse);
+
+      const result = await controller.updateVersion(
+        "dataset-123",
+        "version-123",
+        { name: "" },
+      );
+
+      expect(mockDatasetService.updateVersionName).toHaveBeenCalledWith(
+        "dataset-123",
+        "version-123",
+        "",
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it("propagates NotFoundException from service", async () => {
+      mockDatasetService.updateVersionName.mockRejectedValue(
+        new NotFoundException("Version not found"),
+      );
+
+      await expect(
+        controller.updateVersion("dataset-123", "nonexistent", { name: "test" }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("propagates BadRequestException for frozen versions", async () => {
+      mockDatasetService.updateVersionName.mockRejectedValue(
+        new BadRequestException("Cannot update a frozen dataset version"),
+      );
+
+      await expect(
+        controller.updateVersion("dataset-123", "version-123", { name: "test" }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
