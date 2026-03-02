@@ -23,6 +23,7 @@ import { RootLayout } from "./layouts/RootLayout";
 import { QueuePage } from "./pages/QueuePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UploadPage } from "./pages/UploadPage";
+import ClassifierPage from "./pages/ClassifierPage";
 import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
 
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <UploadPage /> },
       { path: "queue", element: <QueuePage /> },
+      { path: "classify", element: <ClassifierPage /> },
       { path: "settings", element: <SettingsPage /> },
 
       // Workflows with nested routes

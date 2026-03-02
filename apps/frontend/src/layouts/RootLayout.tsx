@@ -18,6 +18,7 @@ import {
   IconChevronRight,
   IconClipboardCheck,
   IconDatabase,
+  IconFlagQuestion,
   IconFlask,
   IconFolderOpen,
   IconList,
@@ -72,6 +73,12 @@ export function RootLayout() {
         label: "Workflows",
         description: "Manage workflows",
         icon: IconFlask,
+      },
+      {
+        path: "/classify",
+        label: "Classify",
+        description: "Build & use classifiers",
+        icon: IconFlagQuestion,
       },
       {
         path: "/settings",
