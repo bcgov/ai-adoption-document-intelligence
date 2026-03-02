@@ -10,8 +10,18 @@ import { tap, catchError } from 'rxjs/operators';
 import { Request, Response } from 'express';
 
 /**
- * Intercepts all HTTP requests and logs request/response details.
- * Critical for debugging Playwright test failures.
+ * HTTP request/response logger registered as a global interceptor in main.ts.
+ *
+ * NestJS does not log HTTP traffic by default — this interceptor fills that
+ * gap by recording the method, URL, status code, duration, and (at debug
+ * level) query params, request body, and response body for every request.
+ *
+ * Uses NestJS's Logger class internally, so all output is routed through
+ * whatever logger is configured for the application. When FileLogger is
+ * active, these entries appear in both the terminal and `backend.log`.
+ *
+ * See also: FileLogger — the application-wide logger that handles console
+ * formatting and file persistence.
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {

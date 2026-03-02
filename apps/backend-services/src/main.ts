@@ -10,7 +10,7 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { FileLogger } from "./logger/file-logger.service";
-import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
+import { LoggingInterceptor } from "./logger/logging.interceptor";
 
 const fileLogger = new FileLogger();
 const logger = new Logger("Bootstrap");
