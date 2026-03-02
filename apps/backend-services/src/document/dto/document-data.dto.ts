@@ -42,6 +42,6 @@ export class DocumentDataDto {
   @ApiProperty()
   model_id: string;
 
-  @ApiProperty({ required: false, nullable: true, type: "string" })
-  group_id: string | null;
+  @ApiProperty({ type: "string" })
+  group_id: string;
 }
