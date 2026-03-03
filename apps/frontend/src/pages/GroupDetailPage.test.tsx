@@ -1,9 +1,23 @@
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GroupMember, UserGroup } from "../data/hooks/useGroups";
 import { GroupDetailPage } from "./GroupDetailPage";
+
+const { mockNotificationsShow } = vi.hoisted(() => ({
+  mockNotificationsShow: vi.fn(),
+}));
+vi.mock("@mantine/notifications", () => ({
+  notifications: { show: mockNotificationsShow },
+}));
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -47,7 +61,11 @@ const myGroupsAdmin: UserGroup[] = [
 ];
 
 const members: GroupMember[] = [
-  { userId: "u-1", email: "alice@example.com", joinedAt: "2026-01-10T00:00:00Z" },
+  {
+    userId: "u-1",
+    email: "alice@example.com",
+    joinedAt: "2026-01-10T00:00:00Z",
+  },
   { userId: "u-2", email: "bob@example.com", joinedAt: "2026-02-01T00:00:00Z" },
 ];
 
@@ -105,7 +123,9 @@ describe("GroupDetailPage", () => {
 
       renderPage();
 
-      expect(screen.queryByRole("tab", { name: "Members" })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("tab", { name: "Members" }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -175,8 +195,12 @@ describe("GroupDetailPage", () => {
       renderPage();
 
       const table = screen.getByTestId("members-table");
-      expect(within(table).getByRole("columnheader", { name: "Email" })).toBeInTheDocument();
-      expect(within(table).getByRole("columnheader", { name: "Joined" })).toBeInTheDocument();
+      expect(
+        within(table).getByRole("columnheader", { name: "Email" }),
+      ).toBeInTheDocument();
+      expect(
+        within(table).getByRole("columnheader", { name: "Joined" }),
+      ).toBeInTheDocument();
       expect(within(table).getByText("alice@example.com")).toBeInTheDocument();
       expect(within(table).getByText("bob@example.com")).toBeInTheDocument();
     });
@@ -199,8 +223,12 @@ describe("GroupDetailPage", () => {
 
       renderPage();
 
-      expect(screen.queryByRole("columnheader", { name: "Actions" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("columnheader", { name: "Actions" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /remove/i }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -242,7 +270,7 @@ describe("GroupDetailPage", () => {
       expect(removeButtons).toHaveLength(members.length);
     });
 
-    it("calls the remove mutation with the correct userId when Remove is clicked", () => {
+    it("opens confirmation dialog when Remove is clicked (does not immediately mutate)", async () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "u-1", groups: [{ id: GROUP_ID, name: "Alpha Team" }] },
         isSystemAdmin: false,
@@ -255,10 +283,114 @@ describe("GroupDetailPage", () => {
 
       renderPage();
 
-      const [firstRemove] = screen.getAllByRole("button", { name: /remove/i });
+      const [firstRemove] = screen.getAllByTestId(/^remove-btn-/);
       fireEvent.click(firstRemove);
 
-      expect(mockRemoveMutate).toHaveBeenCalledWith("u-1");
+      await waitFor(() => {
+        expect(screen.getByTestId("remove-confirm-btn")).toBeInTheDocument();
+      });
+
+      expect(mockRemoveMutate).not.toHaveBeenCalled();
+    });
+
+    it("calls the remove mutation with the correct userId after confirming the dialog", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "u-1", groups: [{ id: GROUP_ID, name: "Alpha Team" }] },
+        isSystemAdmin: false,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: myGroupsAdmin,
+        isLoading: false,
+        isError: false,
+      });
+
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("remove-btn-u-1"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("remove-confirm-btn")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("remove-confirm-btn"));
+
+      expect(mockRemoveMutate).toHaveBeenCalledWith("u-1", expect.any(Object));
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 6 – Confirmation dialog behaviour (US-017)
+  // -------------------------------------------------------------------------
+  describe("Scenario 6 – Remove confirmation dialog", () => {
+    const adminSetup = () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "u-1", groups: [{ id: GROUP_ID, name: "Alpha Team" }] },
+        isSystemAdmin: false,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: myGroupsAdmin,
+        isLoading: false,
+        isError: false,
+      });
+    };
+
+    it("displays the member email in the confirmation dialog", async () => {
+      adminSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("remove-btn-u-1"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("remove-confirm-btn")).toBeInTheDocument();
+        expect(screen.getByTestId("remove-cancel-btn")).toBeInTheDocument();
+        const dialog = screen.getByRole("dialog");
+        expect(
+          within(dialog).getByText("alice@example.com"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("does not call mutation when Cancel is clicked", async () => {
+      adminSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("remove-btn-u-1"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("remove-cancel-btn")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("remove-cancel-btn"));
+
+      expect(mockRemoveMutate).not.toHaveBeenCalled();
+    });
+
+    it("shows an error notification when the API call fails", async () => {
+      adminSetup();
+
+      let capturedOnError: ((error: Error) => void) | undefined;
+      mockRemoveMutate.mockImplementation(
+        (_userId: string, callbacks: { onError?: (error: Error) => void }) => {
+          capturedOnError = callbacks?.onError;
+        },
+      );
+
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("remove-btn-u-1"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("remove-confirm-btn")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("remove-confirm-btn"));
+      act(() => {
+        capturedOnError?.(new Error("API error"));
+      });
+
+      expect(mockNotificationsShow).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "red" }),
+      );
     });
   });
 

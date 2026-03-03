@@ -5,22 +5,22 @@
 **So that** I can manage group membership with a clear confirmation step.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Clicking Remove opens a confirmation dialog
+- [x] **Scenario 1**: Clicking Remove opens a confirmation dialog
     - **Given** a group admin or system admin on the Members tab
     - **When** the Remove button for a member row is clicked
     - **Then** a confirmation dialog is displayed asking to confirm the removal
 
-- [ ] **Scenario 2**: Confirming the dialog removes the member
+- [x] **Scenario 2**: Confirming the dialog removes the member
     - **Given** the confirmation dialog is open
     - **When** the user confirms
     - **Then** `DELETE /api/groups/:groupId/members/:userId` is called, the dialog closes, and the members list refreshes
 
-- [ ] **Scenario 3**: Cancelling the dialog does nothing
+- [x] **Scenario 3**: Cancelling the dialog does nothing
     - **Given** the confirmation dialog is open
     - **When** the user cancels
     - **Then** no API call is made and the member remains in the list
 
-- [ ] **Scenario 4**: Error state is shown on API failure
+- [x] **Scenario 4**: Error state is shown on API failure
     - **Given** the API returns an error
     - **When** the removal is attempted
     - **Then** an error notification or message is displayed
