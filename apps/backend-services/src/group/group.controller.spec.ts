@@ -16,7 +16,7 @@ describe("GroupController", () => {
         {
           provide: GroupService,
           useValue: {
-            assignUserToGroups: jest.fn(),
+            assignUserToGroup: jest.fn(),
             requestMembership: jest.fn(),
             cancelMembershipRequest: jest.fn(),
             approveMembershipRequest: jest.fn(),
@@ -34,17 +34,39 @@ describe("GroupController", () => {
     service = module.get<GroupService>(GroupService);
   });
 
-  it("should assign user to groups", async () => {
-    const userId = "user1";
-    const groupIds = ["group1", "group2"];
-    jest.spyOn(service, "assignUserToGroups").mockResolvedValueOnce();
-    const result = await controller.assignUserToGroups(userId, groupIds);
-    expect(service.assignUserToGroups).toHaveBeenCalledWith(userId, groupIds);
-    expect(result).toEqual({ success: true });
-  });
+  describe("addGroupMember", () => {
+    it("should call service with callerId, userId, and groupId", async () => {
+      const callerId = "caller-id";
+      const groupId = "group1";
+      const userId = "user1";
+      jest.spyOn(service, "assignUserToGroup").mockResolvedValueOnce();
+      const req = { resolvedIdentity: { userId: callerId } } as any;
+      const result = await controller.addGroupMember(req, groupId, userId);
+      expect(service.assignUserToGroup).toHaveBeenCalledWith(
+        callerId,
+        userId,
+        groupId,
+      );
+      expect(result).toEqual({ success: true });
+    });
 
-  it("should throw if groupIds is empty", async () => {
-    await expect(controller.assignUserToGroups("user1", [])).rejects.toThrow();
+    it("should throw 401 if resolvedIdentity is undefined", async () => {
+      const req = { resolvedIdentity: undefined } as any;
+      await expect(
+        controller.addGroupMember(req, "group1", "user1"),
+      ).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should throw 401 if resolvedIdentity has no userId", async () => {
+      const req = { resolvedIdentity: {} } as any;
+      await expect(
+        controller.addGroupMember(req, "group1", "user1"),
+      ).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
   });
 
   describe("requestMembership", () => {

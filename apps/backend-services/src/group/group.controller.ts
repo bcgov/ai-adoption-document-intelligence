@@ -249,13 +249,13 @@ export class GroupController {
   }
 
   /**
-   * Assign a user to multiple groups
-   * POST /api/groups/user/:userId
+   * Assign a user to a group
+   * POST /api/groups/:groupId/members/:userId
    */
-  @ApiOperation({ summary: "Assign a user to multiple groups" })
+  @ApiOperation({ summary: "Assign a user to a group" })
   @ApiResponse({
     status: 200,
-    description: "User assigned to groups successfully.",
+    description: "User assigned to group successfully.",
   })
   @ApiResponse({ status: 400, description: "Invalid input." })
   @ApiParam({ name: "userId", description: "User ID", type: String })
@@ -271,19 +271,25 @@ export class GroupController {
     },
   })
   @KeycloakSSOAuth()
-  @Post("user/:userId")
-  async assignUserToGroups(
+  @Post(":groupId/members/:userId")
+  async addGroupMember(
+    @Req() req: Request,
+    @Param("groupId") groupId: string,
     @Param("userId") userId: string,
-    @Body("groupIds") groupIds: string[],
   ) {
-    if (!Array.isArray(groupIds) || groupIds.length === 0) {
-      throw new HttpException(
-        "groupIds must be a non-empty array",
-        HttpStatus.BAD_REQUEST,
-      );
+    if (!groupId || typeof groupId !== "string") {
+      throw new HttpException("Group ID is required", HttpStatus.BAD_REQUEST);
     }
+    if (!userId || typeof userId !== "string") {
+      throw new HttpException("User ID is required", HttpStatus.BAD_REQUEST);
+    }
+
     try {
-      await this.groupService.assignUserToGroups(userId, groupIds);
+      const callerId = req.resolvedIdentity?.userId;
+      if (!callerId) {
+        throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+      }
+      await this.groupService.assignUserToGroup(callerId, userId, groupId);
       return { success: true };
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);

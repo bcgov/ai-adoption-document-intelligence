@@ -32,12 +32,6 @@ describe("GroupService", () => {
   it("should be defined", () => {
     expect(service).toBeDefined();
   });
-
-  it("assignUserToGroups should resolve", async () => {
-    await expect(
-      service.assignUserToGroups("user1", ["group1", "group2"]),
-    ).resolves.toBeUndefined();
-  });
 });
 
 describe("deleteGroup", () => {
@@ -276,6 +270,68 @@ describe("createGroup", () => {
     const service = new GroupService({ prisma: mockPrisma } as any);
     await expect(service.createGroup("Test Group")).rejects.toThrow(
       "Group with this name already exists",
+    );
+  });
+});
+
+describe("assignUserToGroup", () => {
+  const callerId = "caller-1";
+  const userId = "user-1";
+  const groupId = "group-1";
+  const mockGroup = { id: groupId };
+
+  const buildDb = ({
+    group = mockGroup,
+    isSystemAdmin = true,
+    isUserInGroup = true,
+    upsertFn = jest.fn().mockResolvedValue({}),
+  }: {
+    group?: unknown;
+    isSystemAdmin?: boolean;
+    isUserInGroup?: boolean;
+    upsertFn?: jest.Mock;
+  }) => ({
+    prisma: {
+      group: { findUnique: jest.fn().mockResolvedValue(group) },
+      userGroup: { upsert: upsertFn },
+    },
+    isUserSystemAdmin: jest.fn().mockResolvedValue(isSystemAdmin),
+    isUserInGroup: jest.fn().mockResolvedValue(isUserInGroup),
+  });
+
+  it("should upsert the user-group mapping when caller is a system admin", async () => {
+    const upsertFn = jest.fn().mockResolvedValue({});
+    const db = buildDb({ upsertFn });
+    const svc = new GroupService(db as any);
+    await svc.assignUserToGroup(callerId, userId, groupId);
+    expect(upsertFn).toHaveBeenCalledWith({
+      where: { user_id_group_id: { user_id: userId, group_id: groupId } },
+      update: {},
+      create: { user_id: userId, group_id: groupId },
+    });
+  });
+
+  it("should upsert the user-group mapping when caller is a group member", async () => {
+    const upsertFn = jest.fn().mockResolvedValue({});
+    const db = buildDb({ isSystemAdmin: false, isUserInGroup: true, upsertFn });
+    const svc = new GroupService(db as any);
+    await svc.assignUserToGroup(callerId, userId, groupId);
+    expect(upsertFn).toHaveBeenCalled();
+  });
+
+  it("should throw NotFoundException when group does not exist", async () => {
+    const db = buildDb({ group: null });
+    const svc = new GroupService(db as any);
+    await expect(svc.assignUserToGroup(callerId, userId, groupId)).rejects.toThrow(
+      "Group not found",
+    );
+  });
+
+  it("should throw ForbiddenException when caller is not a member and not a system admin", async () => {
+    const db = buildDb({ isSystemAdmin: false, isUserInGroup: false });
+    const svc = new GroupService(db as any);
+    await expect(svc.assignUserToGroup(callerId, userId, groupId)).rejects.toThrow(
+      "You do not have permission to view members of this group",
     );
   });
 });

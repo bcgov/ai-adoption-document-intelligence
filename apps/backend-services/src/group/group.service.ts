@@ -253,34 +253,45 @@ export class GroupService {
     return group;
   }
 
-  async assignUserToGroups(userId: string, groupIds: string[]): Promise<void> {
-    // Validate all groups exist
-    const groups = await this.databaseService.prisma.group.findMany({
-      where: { id: { in: groupIds } },
+  async assignUserToGroup(callerId: string, userId: string, groupId: string): Promise<void> {
+    // Validate the group exists
+    const group = await this.databaseService.prisma.group.findUnique({
+      where: { id: groupId },
     });
-    if (groups.length !== groupIds.length) {
-      throw new NotFoundException("One or more groups not found");
+    if (!group) {
+      throw new NotFoundException("Group not found");
     }
 
-    // Upsert user-group mappings
-    await Promise.all(
-      groupIds.map(async (groupId) => {
-        await this.databaseService.prisma.userGroup.upsert({
-          where: {
-            user_id_group_id: {
-              user_id: userId,
-              group_id: groupId,
-            },
-          },
-          update: {},
-          create: {
-            user_id: userId,
-            group_id: groupId,
-          },
-        });
-      }),
-    );
+    const isSystemAdmin =
+      await this.databaseService.isUserSystemAdmin(callerId);
+    if (!isSystemAdmin) {
+      const isMember = await this.databaseService.isUserInGroup(
+        callerId,
+        groupId,
+      );
+      if (!isMember) {
+        throw new ForbiddenException(
+          "You do not have permission to view members of this group",
+        );
+      }
+    }
+
+    // Upsert user-group mapping
+    await this.databaseService.prisma.userGroup.upsert({
+      where: {
+        user_id_group_id: {
+          user_id: userId,
+          group_id: groupId,
+        },
+      },
+      update: {},
+      create: {
+        user_id: userId,
+        group_id: groupId,
+      },
+    });
   }
+
   /**
    * Returns the list of members for a given group.
    * Authorization: the caller must be a member of the group or a system admin.
