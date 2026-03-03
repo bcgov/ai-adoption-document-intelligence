@@ -80,10 +80,7 @@ export class LabelingController {
       "Filter projects by group ID. When provided, only projects for that group are returned and group membership is verified.",
   })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
-  async getProjects(
-    @Req() req: Request,
-    @Query("group_id") groupId?: string,
-  ) {
+  async getProjects(@Req() req: Request, @Query("group_id") groupId?: string) {
     if (groupId) {
       await identityCanAccessGroup(
         req.resolvedIdentity,

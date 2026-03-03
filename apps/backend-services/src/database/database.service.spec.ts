@@ -1335,9 +1335,7 @@ describe("DatabaseService", () => {
   describe("isUserSystemAdmin", () => {
     it("should return true when the user has the system-admin role", async () => {
       mockPrisma.user = {
-        findUnique: jest
-          .fn()
-          .mockResolvedValueOnce({ is_system_admin: true }),
+        findUnique: jest.fn().mockResolvedValueOnce({ is_system_admin: true }),
       };
       const result = await service.isUserSystemAdmin("user-1");
       expect(result).toBe(true);

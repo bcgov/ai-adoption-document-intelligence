@@ -161,7 +161,10 @@ describe("removeUserFromGroup", () => {
       };
       const service = new GroupService({ prisma: mockPrisma } as any);
       const result = await service.getAllGroups();
-      expect(result).toEqual(mockGroups);
+      expect(result).toEqual([
+        { id: "g1", name: "Group 1" },
+        { id: "g2", name: "Group 2" },
+      ]);
       expect(mockPrisma.group.findMany).toHaveBeenCalledWith({
         select: { id: true, name: true },
       });
@@ -169,10 +172,10 @@ describe("removeUserFromGroup", () => {
   });
 
   describe("getUserGroups", () => {
-    it("should return user group memberships", async () => {
+    it("should return user group memberships with role", async () => {
       const mockUserGroups = [
-        { group: { id: "g1", name: "Group 1" } },
-        { group: { id: "g2", name: "Group 2" } },
+        { group: { id: "g1", name: "Group 1" }, role: "ADMIN" },
+        { group: { id: "g2", name: "Group 2" }, role: "MEMBER" },
       ];
       const mockPrisma = {
         userGroup: {
@@ -182,8 +185,8 @@ describe("removeUserFromGroup", () => {
       const service = new GroupService({ prisma: mockPrisma } as any);
       const result = await service.getUserGroups("user1");
       expect(result).toEqual([
-        { id: "g1", name: "Group 1" },
-        { id: "g2", name: "Group 2" },
+        { id: "g1", name: "Group 1", role: "ADMIN" },
+        { id: "g2", name: "Group 2", role: "MEMBER" },
       ]);
       expect(mockPrisma.userGroup.findMany).toHaveBeenCalledWith({
         where: { user_id: "user1" },

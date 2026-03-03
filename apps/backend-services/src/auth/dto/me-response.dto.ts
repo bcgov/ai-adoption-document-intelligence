@@ -1,3 +1,4 @@
+import { GroupRole } from "@generated/client";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 /**
@@ -10,6 +11,12 @@ export class GroupSummaryDto {
 
   @ApiProperty({ description: "Group display name" })
   name: string;
+
+  @ApiProperty({
+    description: "The authenticated user's role in this group",
+    enum: GroupRole,
+  })
+  role: GroupRole;
 }
 
 /**
@@ -32,10 +39,9 @@ export class MeResponseDto {
   email?: string;
 
   @ApiProperty({
-    description: "Normalized roles from Keycloak JWT",
-    type: [String],
+    description: "Whether the user has system-admin status in the database",
   })
-  roles: string[];
+  isAdmin: boolean;
 
   @ApiProperty({
     description: "Seconds until the current access token expires",

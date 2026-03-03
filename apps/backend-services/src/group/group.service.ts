@@ -1,4 +1,4 @@
-import { $Enums } from "@generated/client";
+import { $Enums, GroupRole } from "@generated/client";
 import {
   BadRequestException,
   ForbiddenException,
@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
+import { UserGroupDto } from "./dto/user-group.dto";
 
 @Injectable()
 export class GroupService {
@@ -33,16 +34,18 @@ export class GroupService {
   }
 
   /**
-   * Returns all groups a user is a member of.
+   * Returns all groups a user is a member of, including their role in each group.
    */
-  async getUserGroups(
-    userId: string,
-  ): Promise<Array<{ id: string; name: string }>> {
+  async getUserGroups(userId: string): Promise<UserGroupDto[]> {
     const userGroups = await this.databaseService.prisma.userGroup.findMany({
       where: { user_id: userId },
       include: { group: true },
     });
-    return userGroups.map((ug) => ({ id: ug.group.id, name: ug.group.name }));
+    return userGroups.map((ug) => ({
+      id: ug.group.id,
+      name: ug.group.name,
+      role: ug.role,
+    }));
   }
 
   /**
@@ -78,7 +81,9 @@ export class GroupService {
         },
       });
     if (existingRequest) {
-      throw new BadRequestException("A pending membership request already exists for this group");
+      throw new BadRequestException(
+        "A pending membership request already exists for this group",
+      );
     }
 
     await this.databaseService.prisma.groupMembershipRequest.create({

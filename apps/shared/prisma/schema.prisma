@@ -301,7 +301,7 @@ model UserGroup {
   user     User?      @relation(fields: [user_id], references: [id])
   group_id String
   group    Group?     @relation(fields: [group_id], references: [id])
-  role     GroupRole?
+  role     GroupRole  @default(MEMBER)
 
   @@id([user_id, group_id])
   @@index([group_id])

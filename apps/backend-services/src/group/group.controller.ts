@@ -24,6 +24,7 @@ import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { User } from "../auth/types";
 import { MembershipRequestActionDto } from "./dto/membership-request-action.dto";
 import { RequestMembershipDto } from "./dto/request-membership.dto";
+import { UserGroupDto } from "./dto/user-group.dto";
 import { GroupService } from "./group.service";
 
 /**
@@ -71,13 +72,14 @@ export class GroupController {
   @ApiResponse({
     status: 200,
     description: "List of groups the user is a member of.",
+    type: [UserGroupDto],
   })
   @ApiParam({ name: "userId", description: "User ID", type: String })
   @KeycloakSSOAuth()
   @Get("/user/:userId")
   async getUserGroups(
     @Param("userId") userId: string,
-  ): Promise<Array<{ id: string; name: string }>> {
+  ): Promise<UserGroupDto[]> {
     return await this.groupService.getUserGroups(userId);
   }
 

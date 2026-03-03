@@ -1,3 +1,4 @@
+import { GroupRole } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request, Response } from "express";
 import { DatabaseService } from "../database/database.service";
@@ -328,17 +329,19 @@ describe("AuthController", () => {
   });
 
   describe("getMe", () => {
-    it("should return user profile with groups from JWT payload", async () => {
+    it("should return user profile with isAdmin false and groups including role", async () => {
       const user: User = {
         sub: "user-123",
         name: "Test User",
         preferred_username: "testuser",
         email: "test@example.com",
-        roles: ["admin"],
         exp: Math.floor(Date.now() / 1000) + 3600,
       };
       req.user = user;
-      const userGroups = [{ id: "group-1", name: "Group One" }];
+      req.resolvedIdentity = { userId: user.sub };
+      const userGroups = [
+        { id: "group-1", name: "Group One", role: GroupRole.MEMBER },
+      ];
       groupService.getUserGroups.mockResolvedValue(userGroups);
 
       const result = await controller.getMe(req as Request);
@@ -352,7 +355,7 @@ describe("AuthController", () => {
         name: "Test User",
         preferred_username: "testuser",
         email: "test@example.com",
-        roles: ["admin"],
+        isAdmin: false,
         expires_in: expect.any(Number),
         groups: userGroups,
       });
@@ -363,10 +366,10 @@ describe("AuthController", () => {
     it("should return empty groups array for user with no memberships", async () => {
       const user: User = {
         sub: "user-456",
-        roles: [],
         exp: Math.floor(Date.now() / 1000) + 100,
       };
       req.user = user;
+      req.resolvedIdentity = { userId: user.sub };
       groupService.getUserGroups.mockResolvedValue([]);
 
       const result = await controller.getMe(req as Request);
@@ -375,42 +378,42 @@ describe("AuthController", () => {
       expect(result.name).toBeUndefined();
       expect(result.preferred_username).toBeUndefined();
       expect(result.email).toBeUndefined();
-      expect(result.roles).toEqual([]);
+      expect(result.isAdmin).toBe(false);
       expect(result.groups).toEqual([]);
     });
 
-    it("should return all groups for a system-admin user", async () => {
+    it("should return user groups with isAdmin true for a system-admin user", async () => {
       const user: User = {
         sub: "admin-user",
         name: "Admin User",
-        roles: ["system-admin"],
         exp: Math.floor(Date.now() / 1000) + 3600,
       };
       req.user = user;
-      const allGroups = [
-        { id: "group-1", name: "Group One" },
-        { id: "group-2", name: "Group Two" },
+      req.resolvedIdentity = { userId: user.sub };
+      const adminGroups = [
+        { id: "group-1", name: "Group One", role: GroupRole.ADMIN },
       ];
       (databaseService.isUserSystemAdmin as jest.Mock).mockResolvedValue(true);
-      groupService.getAllGroups.mockResolvedValue(allGroups);
+      groupService.getUserGroups.mockResolvedValue(adminGroups);
 
       const result = await controller.getMe(req as Request);
 
       expect(databaseService.isUserSystemAdmin).toHaveBeenCalledWith(
         "admin-user",
       );
-      expect(groupService.getAllGroups).toHaveBeenCalled();
-      expect(groupService.getUserGroups).not.toHaveBeenCalled();
-      expect(result.groups).toEqual(allGroups);
+      expect(groupService.getUserGroups).toHaveBeenCalledWith("admin-user");
+      expect(groupService.getAllGroups).not.toHaveBeenCalled();
+      expect(result.isAdmin).toBe(true);
+      expect(result.groups).toEqual(adminGroups);
     });
 
     it("should return 0 expires_in if token is expired", async () => {
       const user: User = {
         sub: "user-789",
-        roles: [],
         exp: Math.floor(Date.now() / 1000) - 100, // expired
       };
       req.user = user;
+      req.resolvedIdentity = { userId: user.sub };
 
       const result = await controller.getMe(req as Request);
 
