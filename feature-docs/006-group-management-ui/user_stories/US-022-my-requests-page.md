@@ -5,27 +5,27 @@
 **So that** I can track the history and outcome of my group join requests without navigating to a separate page.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: My Requests tab displays all of the user's requests in a table
+- [x] **Scenario 1**: My Requests tab displays all of the user's requests in a table
     - **Given** an authenticated user is on `/groups` and activates the `My Requests` tab
     - **When** the tab renders
     - **Then** a table is shown with columns: Group, Submitted (date), Status, Reason, and Actions
 
-- [ ] **Scenario 2**: Status filter defaults to PENDING
+- [x] **Scenario 2**: Status filter defaults to PENDING
     - **Given** the page first loads
     - **When** the table renders
     - **Then** the status filter is set to `PENDING` and only pending requests are shown
 
-- [ ] **Scenario 3**: All statuses are available as filter options
+- [x] **Scenario 3**: All statuses are available as filter options
     - **Given** the status filter control
     - **When** the user interacts with it
     - **Then** `PENDING`, `APPROVED`, `DENIED`, and `CANCELLED` are all available options
 
-- [ ] **Scenario 4**: Empty state is shown when no requests match the filter
+- [x] **Scenario 4**: Empty state is shown when no requests match the filter
     - **Given** the authenticated user has no requests matching the active filter
     - **When** the table renders
     - **Then** a friendly empty-state message is shown instead of an empty table
 
-- [ ] **Scenario 5**: Loading and error states are handled
+- [x] **Scenario 5**: Loading and error states are handled
     - **Given** the page is fetching requests
     - **When** data is loading or an error occurs
     - **Then** appropriate loading/error UI is shown

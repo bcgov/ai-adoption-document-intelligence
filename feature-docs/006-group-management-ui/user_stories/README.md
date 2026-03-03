@@ -64,7 +64,7 @@ User stories for **Group Management UI**.
 
 | # | Story | Status |
 |---|-------|--------|
-| US-015 | [Groups Page (`/groups`) with My Groups and My Requests Tabs](./US-015-groups-listing-page.md) | - [ ] |
+| US-015 | [Groups Page (`/groups`) with My Groups and My Requests Tabs](./US-015-groups-listing-page.md) | - [x] |
 
 ---
 
@@ -92,7 +92,7 @@ User stories for **Group Management UI**.
 
 | # | Story | Status |
 |---|-------|--------|
-| US-022 | [My Requests Tab on the Groups Page](./US-022-my-requests-page.md) | - [ ] |
+| US-022 | [My Requests Tab on the Groups Page](./US-022-my-requests-page.md) | - [x] |
 | US-023 | [Cancel Membership Request Action on My Requests Tab](./US-023-cancel-request-action.md) | - [ ] |
 
 ---
