@@ -22,6 +22,7 @@ import {
 import { Request } from "express";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { User } from "../auth/types";
+import { GroupMemberDto } from "./dto/group-member.dto";
 import { MembershipRequestActionDto } from "./dto/membership-request-action.dto";
 import { RequestMembershipDto } from "./dto/request-membership.dto";
 import { UserGroupDto } from "./dto/user-group.dto";
@@ -286,6 +287,35 @@ export class GroupController {
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  /**
+   * Get all members of a group
+   * GET /api/groups/:groupId/members
+   */
+  @ApiOperation({ summary: "Get all members of a group" })
+  @ApiResponse({
+    status: 200,
+    description: "List of group members.",
+    type: [GroupMemberDto],
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Caller is not a member of the group or a system admin.",
+  })
+  @ApiResponse({ status: 404, description: "Group not found." })
+  @ApiParam({ name: "groupId", description: "Group ID", type: String })
+  @KeycloakSSOAuth()
+  @Get(":groupId/members")
+  async getGroupMembers(
+    @Req() req: Request,
+    @Param("groupId") groupId: string,
+  ): Promise<GroupMemberDto[]> {
+    const userId = req.resolvedIdentity?.userId;
+    if (!userId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+    return await this.groupService.getGroupMembers(userId, groupId);
   }
 
   /**

@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
+import { GroupMemberDto } from "./dto/group-member.dto";
 import { UserGroupDto } from "./dto/user-group.dto";
 
 @Injectable()
@@ -279,6 +280,55 @@ export class GroupService {
       }),
     );
   }
+  /**
+   * Returns the list of members for a given group.
+   * Authorization: the caller must be a member of the group or a system admin.
+   * - System admins always have access.
+   * - Regular members and group admins (users with any role in UserGroup) have read access.
+   * - Non-members receive a 403 Forbidden.
+   * @param callerId - The user ID of the caller (from resolvedIdentity.userId).
+   * @param groupId - The ID of the group whose members are being retrieved.
+   * @returns An array of GroupMemberDto objects representing the group's members.
+   * @throws NotFoundException when the group does not exist.
+   * @throws ForbiddenException when the caller is not a member or system admin.
+   */
+  async getGroupMembers(
+    callerId: string,
+    groupId: string,
+  ): Promise<GroupMemberDto[]> {
+    const group = await this.databaseService.prisma.group.findUnique({
+      where: { id: groupId, deleted_at: null },
+    });
+    if (!group) {
+      throw new NotFoundException("Group not found");
+    }
+
+    const isSystemAdmin =
+      await this.databaseService.isUserSystemAdmin(callerId);
+    if (!isSystemAdmin) {
+      const isMember = await this.databaseService.isUserInGroup(
+        callerId,
+        groupId,
+      );
+      if (!isMember) {
+        throw new ForbiddenException(
+          "You do not have permission to view members of this group",
+        );
+      }
+    }
+
+    const members = await this.databaseService.prisma.userGroup.findMany({
+      where: { group_id: groupId },
+      include: { user: true },
+    });
+
+    return members.map((m) => ({
+      userId: m.user_id,
+      email: m.user?.email ?? "",
+      joinedAt: m.created_at,
+    }));
+  }
+
   /**
    * Removes a user from a group by userId and groupId.
    * Throws an error if the group or user does not exist, or if the user is not a member.

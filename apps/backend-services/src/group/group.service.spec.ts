@@ -645,4 +645,88 @@ describe("removeUserFromGroup", () => {
       }
     });
   });
+
+  describe("getGroupMembers", () => {
+    const callerId = "caller-1";
+    const groupId = "group-1";
+    const joinedAt = new Date("2026-01-01T00:00:00.000Z");
+    const mockGroup = { id: groupId, name: "Test Group", deleted_at: null };
+    const mockMembers = [
+      {
+        user_id: "user-1",
+        group_id: groupId,
+        created_at: joinedAt,
+        user: { id: "user-1", email: "user1@example.com" },
+      },
+      {
+        user_id: "user-2",
+        group_id: groupId,
+        created_at: joinedAt,
+        user: { id: "user-2", email: "user2@example.com" },
+      },
+    ];
+
+    it("should return members when caller is a regular group member", async () => {
+      const databaseService = {
+        prisma: {
+          group: { findUnique: jest.fn().mockResolvedValue(mockGroup) },
+          userGroup: { findMany: jest.fn().mockResolvedValue(mockMembers) },
+        },
+        isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+        isUserInGroup: jest.fn().mockResolvedValue(true),
+      };
+      const svc = new GroupService(databaseService as any);
+      const result = await svc.getGroupMembers(callerId, groupId);
+      expect(result).toEqual([
+        { userId: "user-1", email: "user1@example.com", joinedAt },
+        { userId: "user-2", email: "user2@example.com", joinedAt },
+      ]);
+    });
+
+    it("should return members when caller is a system admin", async () => {
+      const databaseService = {
+        prisma: {
+          group: { findUnique: jest.fn().mockResolvedValue(mockGroup) },
+          userGroup: { findMany: jest.fn().mockResolvedValue(mockMembers) },
+        },
+        isUserSystemAdmin: jest.fn().mockResolvedValue(true),
+        isUserInGroup: jest.fn(),
+      };
+      const svc = new GroupService(databaseService as any);
+      const result = await svc.getGroupMembers(callerId, groupId);
+      expect(databaseService.isUserInGroup).not.toHaveBeenCalled();
+      expect(result).toHaveLength(2);
+    });
+
+    it("should throw ForbiddenException when caller is not a member and not a system admin", async () => {
+      const databaseService = {
+        prisma: {
+          group: { findUnique: jest.fn().mockResolvedValue(mockGroup) },
+          userGroup: { findMany: jest.fn() },
+        },
+        isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+        isUserInGroup: jest.fn().mockResolvedValue(false),
+      };
+      const svc = new GroupService(databaseService as any);
+      await expect(svc.getGroupMembers(callerId, groupId)).rejects.toThrow(
+        "You do not have permission to view members of this group",
+      );
+      expect(databaseService.prisma.userGroup.findMany).not.toHaveBeenCalled();
+    });
+
+    it("should throw NotFoundException when group does not exist", async () => {
+      const databaseService = {
+        prisma: {
+          group: { findUnique: jest.fn().mockResolvedValue(null) },
+          userGroup: { findMany: jest.fn() },
+        },
+        isUserSystemAdmin: jest.fn(),
+        isUserInGroup: jest.fn(),
+      };
+      const svc = new GroupService(databaseService as any);
+      await expect(svc.getGroupMembers(callerId, groupId)).rejects.toThrow(
+        "Group not found",
+      );
+    });
+  });
 });

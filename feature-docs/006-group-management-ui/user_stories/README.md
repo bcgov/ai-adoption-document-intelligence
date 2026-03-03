@@ -26,7 +26,7 @@ User stories for **Group Management UI**.
 
 | # | Story | Status |
 |---|-------|--------|
-| US-005 | [`GET /api/groups/:groupId/members` Endpoint](./US-005-get-group-members-endpoint.md) | - [ ] |
+| US-005 | [`GET /api/groups/:groupId/members` Endpoint](./US-005-get-group-members-endpoint.md) | - [x] |
 | US-006 | [`DELETE /api/groups/:groupId/members/:userId` Endpoint](./US-006-remove-group-member-endpoint.md) | - [ ] |
 | US-007 | [`DELETE /api/groups/:groupId/leave` Endpoint](./US-007-leave-group-endpoint.md) | - [ ] |
 
