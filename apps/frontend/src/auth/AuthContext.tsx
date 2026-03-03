@@ -27,7 +27,7 @@ interface MeResponse {
   name?: string;
   preferred_username?: string;
   email?: string;
-  roles: string[];
+  isAdmin: boolean;
   expires_in: number;
   groups: Group[];
 }
@@ -52,7 +52,7 @@ export interface AuthUser {
     email?: string;
     [key: string]: unknown;
   };
-  roles: string[];
+  isSystemAdmin: boolean;
   groups: Group[];
 }
 
@@ -124,7 +124,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         preferred_username: me.preferred_username,
         email: me.email,
       },
-      roles: me.roles,
+      isSystemAdmin: me.isAdmin,
       groups: me.groups ?? [],
     };
   }, []);
@@ -251,7 +251,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = {
     isAuthenticated: !!user,
     isLoading,
-    isSystemAdmin: user?.roles?.includes("system-admin") ?? false,
+    isSystemAdmin: user?.isSystemAdmin ?? false,
     user,
     login,
     logout,
