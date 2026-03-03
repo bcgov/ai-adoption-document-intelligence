@@ -1,3 +1,5 @@
+import { Context } from '@temporalio/activity';
+import { createActivityLogger } from '../logger';
 import { getPrismaClient } from './database-client';
 
 /**
@@ -8,19 +10,21 @@ export async function updateDocumentStatus(params: {
   documentId: string;
   status: string;
   apimRequestId?: string;
+  requestId?: string;
 }): Promise<void> {
   const activityName = 'updateDocumentStatus';
   const startTime = Date.now();
-  const { documentId, status, apimRequestId } = params;
-
-  console.log(JSON.stringify({
-    activity: activityName,
-    event: 'start',
+  const { documentId, status, apimRequestId, requestId } = params;
+  const workflowExecutionId = Context.current().info.workflowExecution?.workflowId;
+  const log = createActivityLogger(activityName, {
+    workflowExecutionId,
+    requestId,
     documentId,
     status,
     apimRequestId,
-    timestamp: new Date().toISOString()
-  }));
+  });
+
+  log.info('Update document status start', { event: 'start' });
 
   try {
     const prisma = getPrismaClient();
@@ -38,26 +42,15 @@ export async function updateDocumentStatus(params: {
       data: updateData,
     });
 
-    console.log(JSON.stringify({
-      activity: activityName,
-      event: 'complete',
-      documentId,
-      status,
-      timestamp: new Date().toISOString()
-    }));
+    log.info('Update document status complete', { event: 'complete' });
   } catch (error) {
     const duration = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(JSON.stringify({
-      activity: activityName,
+    log.error('Update document status failed', {
       event: 'error',
-      documentId,
-      status,
-      error: errorMessage,
+      error: error instanceof Error ? error.message : 'Unknown error',
       durationMs: duration,
       stack: error instanceof Error ? error.stack : undefined,
-      timestamp: new Date().toISOString()
-    }));
+    });
     throw error;
   }
 }

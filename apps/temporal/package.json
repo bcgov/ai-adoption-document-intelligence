@@ -23,6 +23,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@ai-di/shared-logging": "file:../../packages/logging",
     "@azure-rest/ai-document-intelligence": "^1.0.0",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "7.0.1",

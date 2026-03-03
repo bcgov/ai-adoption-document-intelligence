@@ -3,10 +3,11 @@ import DocumentIntelligence, {
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
 import { Prisma, TrainingStatus } from "@generated/client";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { DatabaseService } from "../database/database.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 
 interface AzureErrorResponse {
   error?: {
@@ -36,7 +37,6 @@ interface AzureModelResponse {
 
 @Injectable()
 export class TrainingPollerService {
-  private readonly logger = new Logger(TrainingPollerService.name);
   private adminClient: DocumentIntelligenceClient;
   private readonly pollInterval: number;
   private readonly maxAttempts: number;
@@ -44,6 +44,7 @@ export class TrainingPollerService {
   constructor(
     private readonly db: DatabaseService,
     private readonly configService: ConfigService,
+    private readonly logger: AppLoggerService,
   ) {
     const endpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_TRAIN_ENDPOINT",
@@ -114,7 +115,9 @@ export class TrainingPollerService {
         await this.pollTrainingStatus(job.id, job.model_id, job.operation_id);
       }
     } catch (error) {
-      this.logger.error("Error polling active jobs", error.stack);
+      this.logger.error("Error polling active jobs", {
+        stack: error instanceof Error ? error.stack : String(error),
+      });
     }
   }
 

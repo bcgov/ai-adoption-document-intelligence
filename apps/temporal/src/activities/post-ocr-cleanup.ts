@@ -1,3 +1,5 @@
+import { Context } from '@temporalio/activity';
+import { createActivityLogger } from '../logger';
 import type { OCRResult } from '../types';
 
 /**
@@ -6,17 +8,18 @@ import type { OCRResult } from '../types';
  */
 export async function postOcrCleanup(params: {
   ocrResult: OCRResult;
+  requestId?: string;
 }): Promise<{ cleanedResult: OCRResult }> {
   const activityName = 'postOcrCleanup';
-  const { ocrResult } = params;
+  const { ocrResult, requestId } = params;
+  const workflowExecutionId = Context.current().info.workflowExecution?.workflowId;
+  const log = createActivityLogger(activityName, { workflowExecutionId, requestId });
 
-  console.log(JSON.stringify({
-    activity: activityName,
+  log.info('Post-OCR cleanup start', {
     event: 'start',
     fileName: ocrResult.fileName,
     extractedTextLength: ocrResult.extractedText.length,
-    timestamp: new Date().toISOString()
-  }));
+  });
 
   try {
     // Create a deep copy of the OCR result to avoid mutating the original
@@ -191,27 +194,24 @@ export async function postOcrCleanup(params: {
       content: cleanText(figure.content)
     }));
 
-    console.log(JSON.stringify({
-      activity: activityName,
+    log.info('Post-OCR cleanup complete', {
       event: 'complete',
       fileName: cleanedResult.fileName,
       originalTextLength: ocrResult.extractedText.length,
       cleanedTextLength: cleanedResult.extractedText.length,
-      timestamp: new Date().toISOString()
-    }));
+    });
 
     // Return with port name as key for output binding
     return { cleanedResult };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(JSON.stringify({
-      activity: activityName,
+    const stack = error instanceof Error ? error.stack : undefined;
+    log.error('Post-OCR cleanup error', {
       event: 'error',
       fileName: ocrResult.fileName,
       error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-      timestamp: new Date().toISOString()
-    }));
+      stack,
+    });
     // Return original result if cleanup fails
     return { cleanedResult: ocrResult };
   }

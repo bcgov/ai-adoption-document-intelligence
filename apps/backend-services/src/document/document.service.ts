@@ -1,8 +1,9 @@
 import { DocumentStatus, Prisma } from "@generated/client";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
 import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService, DocumentData } from "../database/database.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 
 export interface UploadedDocument {
   id: string;
@@ -22,11 +23,10 @@ export interface UploadedDocument {
 
 @Injectable()
 export class DocumentService {
-  private readonly logger = new Logger(DocumentService.name);
-
   constructor(
     private databaseService: DatabaseService,
     private readonly blobStorage: LocalBlobStorageService,
+    private readonly logger: AppLoggerService,
   ) {}
 
   private getFileExtension(fileType: string): string {

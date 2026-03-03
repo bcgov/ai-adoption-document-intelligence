@@ -1,5 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { existsSync, promises as fs } from "fs";
 import { mkdir, readdir } from "fs/promises";
 import "multer";
@@ -12,11 +13,12 @@ export enum Operation {
 // TODO: Replace this with some non-local storage.
 @Injectable()
 export class StorageService {
-  private readonly logger = new Logger(StorageService.name);
-
   private storagePath: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly logger: AppLoggerService,
+  ) {
     this.storagePath =
       this.configService.get<string>("STORAGE_PATH") ||
       path.join(process.cwd(), "storage", "documents");

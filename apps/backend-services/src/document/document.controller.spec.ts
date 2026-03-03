@@ -1,4 +1,5 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
@@ -40,6 +41,7 @@ describe("DocumentController", () => {
       databaseService,
       temporalClientService,
       blobStorage,
+      mockAppLogger,
     );
   });
 

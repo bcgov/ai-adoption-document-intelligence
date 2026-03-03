@@ -3,6 +3,8 @@ import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService, DocumentData } from "../database/database.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { OcrService } from "./ocr.service";
 
@@ -33,6 +35,7 @@ describe("OcrService", () => {
     moduleRef = await Test.createTestingModule({
       providers: [
         OcrService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: ConfigService,
           useValue: {
@@ -108,6 +111,7 @@ describe("OcrService", () => {
             {} as DatabaseService,
             {} as TemporalClientService,
             mockBlobStorage as any,
+            mockAppLogger,
           ),
       ).not.toThrow();
     });

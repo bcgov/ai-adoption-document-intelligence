@@ -1,5 +1,7 @@
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureService } from "./azure.service";
 
 describe("AzureService", () => {
@@ -19,6 +21,7 @@ describe("AzureService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: ConfigService, useValue: configService },
+        { provide: AppLoggerService, useValue: mockAppLogger },
         AzureService,
       ],
     }).compile();

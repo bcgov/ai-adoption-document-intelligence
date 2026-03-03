@@ -2,15 +2,16 @@
 // when decorators (e.g. @Throttle) are evaluated at import time.
 import "dotenv/config";
 
-import { Logger, ValidationPipe } from "@nestjs/common";
+import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { json, urlencoded } from "body-parser";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
+import { createLogger } from "@ai-di/shared-logging";
 import { AppModule } from "./app.module";
 
-const logger = new Logger("Bootstrap");
+const logger = createLogger("backend-services");
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
@@ -106,8 +107,8 @@ async function bootstrap(): Promise<void> {
 
   const port = process.env.PORT || 3002;
   await app.listen(port, "0.0.0.0");
-  logger.log(`Backend services is running on: http://localhost:${port}`);
-  logger.log(`Upload endpoint: http://localhost:${port}/api/upload`);
+  logger.info(`Backend services is running on: http://localhost:${port}`);
+  logger.info(`Upload endpoint: http://localhost:${port}/api/upload`);
 }
 
 bootstrap();

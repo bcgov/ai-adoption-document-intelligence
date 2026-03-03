@@ -1,5 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { DatabaseService } from "../database/database.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { AzureService } from "./azure.service";
 import { BlobService } from "./blob.service";
 import { ClassifierService } from "./classifier.service";
@@ -37,6 +38,7 @@ describe("ClassifierPollerService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ClassifierPollerService,
+        { provide: AppLoggerService, useValue: mockLogger },
         { provide: DatabaseService, useValue: mockDatabaseService },
         { provide: AzureService, useValue: mockAzureService },
         { provide: BlobService, useValue: mockBlobService },

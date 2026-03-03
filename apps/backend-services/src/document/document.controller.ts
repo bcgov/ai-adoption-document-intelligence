@@ -8,7 +8,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Logger,
   NotFoundException,
   Param,
   Patch,
@@ -39,6 +38,7 @@ import {
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService, DocumentData } from "../database/database.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
@@ -47,12 +47,11 @@ import { UpdateDocumentDto } from "./dto/update-document.dto";
 @ApiTags("Documents")
 @Controller("api/documents")
 export class DocumentController {
-  private readonly logger = new Logger(DocumentController.name);
-
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly temporalClientService: TemporalClientService,
     private readonly blobStorage: LocalBlobStorageService,
+    private readonly logger: AppLoggerService,
   ) {}
 
   @Get("/:documentId")

@@ -2,12 +2,12 @@ import { DocumentStatus } from "@generated/client";
 import {
   BadRequestException,
   Injectable,
-  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { LocalBlobStorageService } from "@/blob-storage/local-blob-storage.service";
 import { DatabaseService } from "@/database/database.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   AnalysisResponse,
   AnalysisResult,
@@ -24,13 +24,12 @@ export interface OcrRequestResponse {
 
 @Injectable()
 export class OcrService {
-  private readonly logger = new Logger(OcrService.name);
-
   constructor(
     _configService: ConfigService,
     private databaseService: DatabaseService,
     private temporalClientService: TemporalClientService,
     private blobStorage: LocalBlobStorageService,
+    private readonly logger: AppLoggerService,
   ) {}
 
   /**

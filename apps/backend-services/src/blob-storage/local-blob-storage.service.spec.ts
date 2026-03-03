@@ -3,6 +3,8 @@ jest.mock("fs/promises");
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as fs from "fs/promises";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { LocalBlobStorageService } from "./local-blob-storage.service";
 
 const mockFs = fs as jest.Mocked<typeof fs>;
@@ -24,6 +26,7 @@ describe("LocalBlobStorageService", () => {
       providers: [
         LocalBlobStorageService,
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: AppLoggerService, useValue: mockAppLogger },
       ],
     }).compile();
 

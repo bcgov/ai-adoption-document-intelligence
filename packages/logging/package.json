@@ -1,0 +1,17 @@
+{
+  "name": "@ai-di/shared-logging",
+  "version": "1.0.0",
+  "description": "Shared structured NDJSON logging for backend-services and temporal-worker",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

@@ -5,6 +5,7 @@
 
 import { NativeConnection, Worker } from '@temporalio/worker';
 import { getActivityRegistry } from './activity-registry';
+import { workerLogger } from './logger';
 // Workflows are automatically discovered via workflowsPath in Worker.create()
 
 async function run() {
@@ -15,14 +16,12 @@ async function run() {
   const namespace = process.env.TEMPORAL_NAMESPACE || 'default';
   const taskQueue = process.env.TEMPORAL_TASK_QUEUE || 'ocr-processing';
 
-  console.log(JSON.stringify({
-    component: 'worker',
+  workerLogger.info('Worker initializing', {
     event: 'initializing',
     address,
     namespace,
     taskQueue,
-    timestamp: new Date().toISOString()
-  }));
+  });
 
   // Create connection to Temporal server
   const connection = await NativeConnection.connect({
@@ -46,31 +45,20 @@ async function run() {
     taskQueue,
   });
 
-  console.log(JSON.stringify({
-    component: 'worker',
-    event: 'ready',
-    taskQueue,
-    timestamp: new Date().toISOString()
-  }));
+  workerLogger.info('Worker ready', { event: 'ready', taskQueue });
 
   // Run worker (this will block until worker is shut down)
   await worker.run();
 
-  console.log(JSON.stringify({
-    component: 'worker',
-    event: 'stopped',
-    timestamp: new Date().toISOString()
-  }));
+  workerLogger.info('Worker stopped', { event: 'stopped' });
 }
 
 run().catch((err) => {
-  console.error(JSON.stringify({
-    component: 'worker',
+  workerLogger.error('Worker fatal error', {
     event: 'fatal_error',
     error: err instanceof Error ? err.message : 'Unknown error',
     stack: err instanceof Error ? err.stack : undefined,
-    timestamp: new Date().toISOString()
-  }));
+  });
   process.exit(1);
 });
 

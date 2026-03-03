@@ -1,5 +1,7 @@
-import { getPrismaClient } from './database-client';
+import { Context } from '@temporalio/activity';
 import { Prisma } from '@generated/client';
+import { createActivityLogger } from '../logger';
+import { getPrismaClient } from './database-client';
 import type { OCRResult, EnrichmentSummary } from '../types';
 
 /**
@@ -12,23 +14,23 @@ export async function upsertOcrResult(params: {
   documentId: string;
   ocrResult: OCRResult;
   enrichmentSummary?: EnrichmentSummary | null;
+  requestId?: string;
 }): Promise<void> {
   const activityName = 'upsertOcrResult';
-  const { documentId, ocrResult, enrichmentSummary } = params;
+  const { documentId, ocrResult, enrichmentSummary, requestId } = params;
+  const workflowExecutionId = Context.current().info.workflowExecution?.workflowId;
+  const log = createActivityLogger(activityName, { workflowExecutionId, requestId, documentId });
   const startTime = Date.now();
 
-  console.log(JSON.stringify({
-    activity: activityName,
+  log.info('Upsert OCR result start', {
     event: 'start',
-    documentId,
     fileName: ocrResult.fileName,
     modelId: ocrResult.modelId,
     status: ocrResult.status,
     keyValuePairsCount: ocrResult.keyValuePairs?.length || 0,
     documentsCount: ocrResult.documents?.length || 0,
     hasEnrichmentSummary: !!enrichmentSummary,
-    timestamp: new Date().toISOString()
-  }));
+  });
 
   try {
     const prisma = getPrismaClient();
@@ -59,13 +61,11 @@ export async function upsertOcrResult(params: {
       // Custom model: use fields directly from documents[0].fields, ensure valueString set
       const raw = ocrResult.documents[0].fields as Record<string, unknown>;
       extractedFields = withValueString(raw);
-      console.log(JSON.stringify({
-        activity: activityName,
+      log.info('Upsert OCR result fields extracted', {
         event: 'fields_extracted',
         source: 'custom_model_documents',
         fieldCount: Object.keys(extractedFields).length,
-        timestamp: new Date().toISOString()
-      }));
+      });
     } else if (ocrResult.keyValuePairs && ocrResult.keyValuePairs.length > 0) {
       // Prebuilt model: convert keyValuePairs to fields format with valueString for UI
       const fields: Record<string, unknown> = {};
@@ -94,14 +94,12 @@ export async function upsertOcrResult(params: {
       }
 
       extractedFields = fields;
-      console.log(JSON.stringify({
-        activity: activityName,
+      log.info('Upsert OCR result fields extracted', {
         event: 'fields_extracted',
         source: 'prebuilt_model_keyValuePairs',
         keyValuePairsCount: ocrResult.keyValuePairs.length,
         fieldCount: Object.keys(extractedFields).length,
-        timestamp: new Date().toISOString()
-      }));
+      });
     }
 
     // Ensure processedAt is a valid date, fallback to current time if invalid
@@ -136,28 +134,23 @@ export async function upsertOcrResult(params: {
       data: { status: 'completed_ocr' as 'completed_ocr' },
     });
 
-    console.log(JSON.stringify({
-      activity: activityName,
+    log.info('Upsert OCR result complete', {
       event: 'complete',
-      documentId,
       fileName: ocrResult.fileName,
       modelId: ocrResult.modelId,
       fieldCount: extractedFields ? Object.keys(extractedFields).length : 0,
       dataSize: extractedFields ? JSON.stringify(extractedFields).length : 0,
-      timestamp: new Date().toISOString()
-    }));
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(JSON.stringify({
-      activity: activityName,
+    const stack = error instanceof Error ? error.stack : undefined;
+    log.error('Upsert OCR result error', {
       event: 'error',
-      documentId,
       error: errorMessage,
       durationMs: duration,
-      stack: error instanceof Error ? error.stack : undefined,
-      timestamp: new Date().toISOString()
-    }));
+      stack,
+    });
     throw error;
   }
 }

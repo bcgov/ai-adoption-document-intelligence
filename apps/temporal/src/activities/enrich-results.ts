@@ -3,6 +3,8 @@
  * Fetches LabelingProject field_schema, applies generic rules, optionally calls Azure OpenAI for low-confidence fields.
  */
 
+import { Context } from '@temporalio/activity';
+import { createActivityLogger } from '../logger';
 import { getPrismaClient } from './database-client';
 import type {
   OCRResult,
@@ -24,26 +26,26 @@ export interface EnrichResultsParams {
   documentType: string;
   confidenceThreshold?: number;
   enableLlmEnrichment?: boolean;
+  requestId?: string;
 }
 
 export async function enrichResults(
   params: EnrichResultsParams,
 ): Promise<EnrichmentResult> {
-  const { documentId, ocrResult, documentType } = params;
+  const { documentId, ocrResult, documentType, requestId } = params;
   const activityName = 'enrichResults';
+  const workflowExecutionId = Context.current().info.workflowExecution?.workflowId;
+  const log = createActivityLogger(activityName, { workflowExecutionId, requestId, documentId });
   const confidenceThreshold = params.confidenceThreshold ?? 0.85;
   const enableLlm = params.enableLlmEnrichment === true;
 
-  console.log(JSON.stringify({
-    activity: activityName,
+  log.info('Enrich results start', {
     event: 'start',
-    documentId,
     fileName: ocrResult.fileName,
     documentType,
     enableLlmEnrichment: enableLlm,
     confidenceThreshold,
-    timestamp: new Date().toISOString(),
-  }));
+  });
 
   try {
     const prisma = getPrismaClient();
@@ -53,13 +55,11 @@ export async function enrichResults(
     });
 
     if (!project || !project.field_schema || project.field_schema.length === 0) {
-      console.log(JSON.stringify({
-        activity: activityName,
+      log.info('Enrich results skip', {
         event: 'skip',
         reason: 'project_not_found_or_empty_schema',
         documentType,
-        timestamp: new Date().toISOString(),
-      }));
+      });
       return { ocrResult, summary: null };
     }
 
@@ -144,15 +144,10 @@ export async function enrichResults(
           } catch (llmError) {
             const msg =
               llmError instanceof Error ? llmError.message : 'Unknown error';
-            console.error(
-              JSON.stringify({
-                activity: activityName,
-                event: 'llm_error',
-                documentId,
-                error: msg,
-                timestamp: new Date().toISOString(),
-              }),
-            );
+            log.error('Enrich results LLM error', {
+              event: 'llm_error',
+              error: msg,
+            });
           }
         }
       }
@@ -174,31 +169,24 @@ export async function enrichResults(
           }
         : null;
 
-    console.log(JSON.stringify({
-      activity: activityName,
+    log.info('Enrich results complete', {
       event: 'complete',
-      documentId,
       rulesApplied,
       ruleChangeCount: ruleChanges.length,
       llmChangeCount: llmChanges.length,
       hasSummary: !!summary,
-      timestamp: new Date().toISOString(),
-    }));
+    });
 
     return { ocrResult: finalResult, summary };
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
-    console.error(
-      JSON.stringify({
-        activity: activityName,
-        event: 'error',
-        documentId,
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    const stack = error instanceof Error ? error.stack : undefined;
+    log.error('Enrich results error', {
+      event: 'error',
+      error: errorMessage,
+      stack,
+    });
     return { ocrResult, summary: null };
   }
 }

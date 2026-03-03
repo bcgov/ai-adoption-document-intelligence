@@ -119,6 +119,8 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { JsonValue } from "@prisma/client/runtime/client";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
 import { DatabaseService } from "./database.service";
 import { DocumentDbService } from "./document-db.service";
@@ -283,6 +285,7 @@ describe("DatabaseService", () => {
         LabelingProjectDbService,
         ReviewDbService,
         DatabaseService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: ConfigService,
           useValue: {

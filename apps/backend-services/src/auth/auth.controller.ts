@@ -2,7 +2,6 @@ import {
   Controller,
   Get,
   HttpStatus,
-  Logger,
   Post,
   Query,
   Req,
@@ -38,6 +37,7 @@ import {
   setAuthCookies,
 } from "./cookie-auth.utils";
 import { MeResponseDto, OAuthCallbackQueryDto, RefreshReturnDto } from "./dto";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { Public } from "./public.decorator";
 import { User } from "./types";
 
@@ -49,8 +49,10 @@ import { User } from "./types";
 @ApiTags("Authorization")
 @Controller("api/auth")
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
   /**
    * Refreshes provider tokens using the refresh_token HttpOnly cookie.

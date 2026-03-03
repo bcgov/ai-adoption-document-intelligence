@@ -7,7 +7,6 @@ import {
   Get,
   HttpCode,
   InternalServerErrorException,
-  Logger,
   NotFoundException,
   Patch,
   Post,
@@ -58,18 +57,18 @@ import {
 } from "@/azure/dto/classifier-responses.dto";
 import { DatabaseService } from "@/database/database.service";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { Operation, StorageService } from "@/storage/storage.service";
 
 @ApiTags("Azure")
 @Controller("api/azure")
 export class AzureController {
-  private readonly logger = new Logger(AzureController.name);
-
   constructor(
     private readonly classifierService: ClassifierService,
     private readonly storageService: StorageService,
     private readonly databaseService: DatabaseService,
     private readonly azureService: AzureService,
+    private readonly logger: AppLoggerService,
   ) {}
 
   @Get("classifier")
@@ -340,7 +339,7 @@ export class AzureController {
       }
       // No return value: 204 No Content
     } catch {
-      this.logger.error("Failed to delete folder: ", folder);
+      this.logger.error("Failed to delete folder", { folder });
       throw new InternalServerErrorException(
         "Failed to delete requested folder.",
       );

@@ -1,6 +1,7 @@
 import { ConfigService } from "@nestjs/config";
 import * as fs from "fs";
 import * as path from "path";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { Operation, StorageService } from "./storage.service";
 
 describe("StorageService", () => {
@@ -11,7 +12,7 @@ describe("StorageService", () => {
     configService = { get: jest.fn() } as any;
     jest.spyOn(fs, "existsSync").mockReturnValue(false);
     jest.spyOn(fs.promises, "mkdir").mockResolvedValue(undefined as any);
-    service = new StorageService(configService);
+    service = new StorageService(configService, mockAppLogger);
   });
 
   afterEach(() => {

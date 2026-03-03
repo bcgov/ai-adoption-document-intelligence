@@ -12,6 +12,8 @@ import { BlobStorageService } from "../blob-storage/blob-storage.service";
 import { DatabaseService } from "../database/database.service";
 import { ExportFormat } from "../labeling/dto/export.dto";
 import { LabelingService } from "../labeling/labeling.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { TrainingService } from "./training.service";
 
 // Mock fs module
@@ -189,6 +191,7 @@ describe("TrainingService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TrainingService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: DatabaseService,
           useValue: mockDb,
@@ -239,6 +242,7 @@ describe("TrainingService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
           { provide: DatabaseService, useValue: { prisma: mockPrisma } },
           { provide: BlobStorageService, useValue: mockBlobStorage },
           { provide: LabelingService, useValue: mockLabelingService },
@@ -614,6 +618,7 @@ describe("TrainingService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
           { provide: DatabaseService, useValue: { prisma: mockPrisma } },
           { provide: BlobStorageService, useValue: mockBlobStorage },
           { provide: LabelingService, useValue: mockLabelingService },

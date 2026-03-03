@@ -5,8 +5,9 @@ import {
   SASProtocol,
   StorageSharedKeyCredential,
 } from "@azure/storage-blob";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AppLoggerService } from "@/logging/app-logger.service";
 
 export interface UploadFileResult {
   fileName: string;
@@ -32,14 +33,16 @@ export interface BlobInfo {
 
 @Injectable()
 export class BlobStorageService {
-  private readonly logger = new Logger(BlobStorageService.name);
   private blobServiceClient: BlobServiceClient;
   private accountName: string;
   private accountKey: string;
   private readonly deleteRetryDelayMs = 5000;
   private readonly deleteRetryAttempts = 24;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly logger: AppLoggerService,
+  ) {
     const connectionString = this.configService.get<string>(
       "AZURE_STORAGE_CONNECTION_STRING",
     );
@@ -134,7 +137,9 @@ export class BlobStorageService {
       this.logger.debug(`Uploaded blob: ${blobName} to ${containerName}`);
       return blockBlobClient.url;
     } catch (error) {
-      this.logger.error(`Failed to upload blob: ${blobName}`, error.stack);
+      this.logger.error(`Failed to upload blob: ${blobName}`, {
+        stack: error instanceof Error ? error.stack : String(error),
+      });
       throw error;
     }
   }

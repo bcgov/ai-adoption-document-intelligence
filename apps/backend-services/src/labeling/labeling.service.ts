@@ -7,13 +7,13 @@ import {
 import {
   ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import {
   LabeledDocumentData,
   LabelingProjectData,
 } from "@/database/database.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { LabelingUploadDto } from "@/labeling/dto/labeling-upload.dto";
 import { LabelingOcrService } from "@/labeling/labeling-ocr.service";
 import { Page } from "@/ocr/azure-types";
@@ -29,11 +29,10 @@ import { SaveLabelsDto } from "./dto/label.dto";
 
 @Injectable()
 export class LabelingService {
-  private readonly logger = new Logger(LabelingService.name);
-
   constructor(
     private readonly db: DatabaseService,
     private readonly labelingOcrService: LabelingOcrService,
+    private readonly logger: AppLoggerService,
   ) {}
 
   // ========== PROJECT OPERATIONS ==========

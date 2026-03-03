@@ -1,3 +1,5 @@
+import { Context } from '@temporalio/activity';
+import { createActivityLogger } from '../logger';
 import { getPrismaClient } from './database-client';
 
 /**
@@ -9,20 +11,20 @@ export async function storeDocumentRejection(params: {
   reason: string;
   reviewer?: string;
   annotations?: string;
+  requestId?: string;
 }): Promise<void> {
   const activityName = 'storeDocumentRejection';
-  const { documentId, reason, reviewer, annotations } = params;
+  const { documentId, reason, reviewer, annotations, requestId } = params;
+  const workflowExecutionId = Context.current().info.workflowExecution?.workflowId;
+  const log = createActivityLogger(activityName, { workflowExecutionId, requestId, documentId });
   const startTime = Date.now();
 
-  console.log(JSON.stringify({
-    activity: activityName,
+  log.info('Store document rejection start', {
     event: 'start',
-    documentId,
     reason,
     reviewer,
     hasAnnotations: !!annotations,
-    timestamp: new Date().toISOString()
-  }));
+  });
 
   try {
     const prisma = getPrismaClient();
@@ -42,26 +44,21 @@ export async function storeDocumentRejection(params: {
       },
     });
 
-    console.log(JSON.stringify({
-      activity: activityName,
+    log.info('Store document rejection complete', {
       event: 'complete',
-      documentId,
       reason,
-      timestamp: new Date().toISOString()
-    }));
+    });
   } catch (error) {
     const duration = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(JSON.stringify({
-      activity: activityName,
+    const stack = error instanceof Error ? error.stack : undefined;
+    log.error('Store document rejection error', {
       event: 'error',
-      documentId,
       reason,
       error: errorMessage,
       durationMs: duration,
-      stack: error instanceof Error ? error.stack : undefined,
-      timestamp: new Date().toISOString()
-    }));
+      stack,
+    });
     throw error;
   }
 }

@@ -8,8 +8,9 @@
  * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 13.3
  */
 
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import * as fs from "fs/promises";
 import * as path from "path";
 
@@ -26,10 +27,12 @@ export interface BlobStorageInterface {
 
 @Injectable()
 export class LocalBlobStorageService implements BlobStorageInterface {
-  private readonly logger = new Logger(LocalBlobStorageService.name);
   private readonly basePath: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly logger: AppLoggerService,
+  ) {
     this.basePath = this.configService.get<string>(
       "LOCAL_BLOB_STORAGE_PATH",
       "./data/blobs",

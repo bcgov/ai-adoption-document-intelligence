@@ -5,15 +5,17 @@ import {
   PrismaClient,
   ReviewStatus,
 } from "@generated/client";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import type { ReviewSessionData } from "./database.types";
 import { PrismaService } from "./prisma.service";
 
 @Injectable()
 export class ReviewDbService {
-  private readonly logger = new Logger(ReviewDbService.name);
-
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
   private get prisma(): PrismaClient {
     return this.prismaService.prisma;
@@ -23,7 +25,7 @@ export class ReviewDbService {
     documentId: string,
     reviewerId: string,
   ): Promise<ReviewSessionData> {
-    this.logger.debug("Creating review session for document: %s", documentId);
+    this.logger.debug("Creating review session for document", { documentId });
     const session = await this.prisma.reviewSession.create({
       data: {
         document_id: documentId,
@@ -43,7 +45,7 @@ export class ReviewDbService {
   }
 
   async findReviewSession(id: string): Promise<ReviewSessionData | null> {
-    this.logger.debug("Finding review session: %s", id);
+    this.logger.debug("Finding review session", { id });
     const session = await this.prisma.reviewSession.findUnique({
       where: { id },
       include: {
@@ -136,7 +138,7 @@ export class ReviewDbService {
     id: string,
     data: { status?: ReviewStatus; completed_at?: Date },
   ): Promise<ReviewSessionData | null> {
-    this.logger.debug("Updating review session: %s", id);
+    this.logger.debug("Updating review session", { id });
     try {
       const session = await this.prisma.reviewSession.update({
         where: { id },
@@ -170,7 +172,7 @@ export class ReviewDbService {
       action: import("@generated/client").CorrectionAction;
     },
   ): Promise<import("@generated/client").FieldCorrection> {
-    this.logger.debug("Creating field correction for session: %s", sessionId);
+    this.logger.debug("Creating field correction for session", { sessionId });
     return this.prisma.fieldCorrection.create({
       data: {
         session_id: sessionId,
@@ -182,7 +184,7 @@ export class ReviewDbService {
   async findSessionCorrections(
     sessionId: string,
   ): Promise<import("@generated/client").FieldCorrection[]> {
-    this.logger.debug("Finding corrections for session: %s", sessionId);
+    this.logger.debug("Finding corrections for session", { sessionId });
     return this.prisma.fieldCorrection.findMany({
       where: { session_id: sessionId },
       orderBy: { created_at: "asc" },

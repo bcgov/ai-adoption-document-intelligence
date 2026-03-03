@@ -6,9 +6,10 @@ import {
   ReviewSession,
   ReviewStatus,
 } from "@generated/client";
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { DatabaseService } from "../database/database.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { AnalyticsService } from "./analytics.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
@@ -35,15 +36,14 @@ interface ReviewSessionWithDocument extends ReviewSession {
 
 @Injectable()
 export class HitlService {
-  private readonly logger = new Logger(HitlService.name);
-
   constructor(
     private readonly db: DatabaseService,
     private readonly analyticsService: AnalyticsService,
+    private readonly logger: AppLoggerService,
   ) {}
 
   async getQueue(filters: QueueFilterDto, groupIds?: string[]) {
-    this.logger.debug("Getting review queue with filters", filters);
+    this.logger.debug("Getting review queue with filters", { ...filters });
 
     const maxConfidence = filters.maxConfidence ?? 0.9;
 

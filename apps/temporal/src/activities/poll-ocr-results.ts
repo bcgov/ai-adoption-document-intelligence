@@ -1,7 +1,9 @@
+import { Context } from '@temporalio/activity';
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from '@azure-rest/ai-document-intelligence';
+import { createActivityLogger } from '../logger';
 import type { OCRResponse, PollResult } from '../types';
 
 /**
@@ -11,21 +13,23 @@ import type { OCRResponse, PollResult } from '../types';
 export async function pollOCRResults(params: {
   apimRequestId: string;
   modelId: string;
+  requestId?: string;
 }): Promise<PollResult> {
   const activityName = 'pollOCRResults';
-  const { apimRequestId, modelId } = params;
+  const { apimRequestId, modelId, requestId } = params;
+  const workflowExecutionId = Context.current().info.workflowExecution?.workflowId;
+  const log = createActivityLogger(activityName, {
+    workflowExecutionId,
+    requestId,
+    apimRequestId,
+    modelId,
+  });
+
+  log.info('Poll OCR start', { event: 'start', useMock: process.env.MOCK_AZURE_OCR === 'true' });
+
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
   const useMock = process.env.MOCK_AZURE_OCR === 'true';
-
-  console.log(JSON.stringify({
-    activity: activityName,
-    event: 'start',
-    apimRequestId,
-    modelId,
-    useMock,
-    timestamp: new Date().toISOString()
-  }));
 
   // Mock mode for testing
   if (useMock) {
@@ -54,13 +58,7 @@ export async function pollOCRResults(params: {
       }
     };
 
-    console.log(JSON.stringify({
-      activity: activityName,
-      event: 'complete_mock',
-      apimRequestId,
-      status: 'succeeded',
-      timestamp: new Date().toISOString()
-    }));
+    log.info('Poll OCR complete (mock)', { event: 'complete_mock', status: 'succeeded' });
 
     return {
       status: 'succeeded',
@@ -69,30 +67,20 @@ export async function pollOCRResults(params: {
   }
 
   if (!endpoint || !apiKey) {
-    console.error(JSON.stringify({
-      activity: activityName,
+    log.error('Azure Document Intelligence credentials not configured', {
       event: 'error',
-      apimRequestId,
-      modelId,
       error: 'missing_credentials',
-      message: 'Azure Document Intelligence credentials not configured',
-      timestamp: new Date().toISOString()
-    }));
+    });
     throw new Error(
       'Azure Document Intelligence credentials not configured. Set AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_API_KEY environment variables.'
     );
   }
 
   if (!apimRequestId || typeof apimRequestId !== 'string') {
-    console.error(JSON.stringify({
-      activity: activityName,
+    log.error('APIM Request ID not available for polling', {
       event: 'error',
-      apimRequestId,
-      modelId,
       error: 'invalid_apim_request_id',
-      message: 'APIM Request ID not available for polling',
-      timestamp: new Date().toISOString()
-    }));
+    });
     throw new Error('APIM Request ID not available for polling');
   }
 
@@ -115,15 +103,11 @@ export async function pollOCRResults(params: {
       .get();
 
     if (isUnexpected(response)) {
-      console.error(JSON.stringify({
-        activity: activityName,
+      log.error('Azure API error polling OCR', {
         event: 'error',
-        apimRequestId,
         error: 'azure_api_error',
         status: response.status,
-        body: response.body,
-        timestamp: new Date().toISOString()
-      }));
+      });
       throw new Error(
         `Failed to poll OCR results. Status: ${response.status}`
       );
@@ -132,44 +116,26 @@ export async function pollOCRResults(params: {
     const responseBody = response.body as OCRResponse;
 
     if (!responseBody) {
-      console.error(JSON.stringify({
-        activity: activityName,
+      log.error('Empty response from Azure OCR polling endpoint', {
         event: 'error',
-        apimRequestId,
         error: 'empty_response_body',
-        message: 'Empty response from Azure OCR polling endpoint',
-        timestamp: new Date().toISOString()
-      }));
+      });
       throw new Error('Empty response from Azure OCR polling endpoint');
     }
 
     const status = responseBody.status || 'unknown';
-    console.log(JSON.stringify({
-      activity: activityName,
-      event: 'complete',
-      apimRequestId,
-      status,
-      timestamp: new Date().toISOString()
-    }));
+    log.info('Poll OCR complete', { event: 'complete', status });
 
     return {
       status: status as 'running' | 'succeeded' | 'failed',
       response: responseBody
     };
   } catch (error) {
-    const errorDetails: Record<string, unknown> = {
-      activity: activityName,
+    log.error('Poll OCR failed', {
       event: 'error',
-      apimRequestId,
       error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    };
-
-    if (error instanceof Error && error.stack) {
-      errorDetails.stack = error.stack;
-    }
-
-    console.error(JSON.stringify(errorDetails));
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     throw error;
   }
 }

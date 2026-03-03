@@ -21,6 +21,8 @@ import {
 } from "@azure/storage-blob";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { BlobStorageService } from "./blob-storage.service";
 
 describe("BlobStorageService", () => {
@@ -74,6 +76,7 @@ describe("BlobStorageService", () => {
       providers: [
         BlobStorageService,
         { provide: ConfigService, useValue: configService },
+        { provide: AppLoggerService, useValue: mockAppLogger },
       ],
     }).compile();
 
@@ -100,6 +103,7 @@ describe("BlobStorageService", () => {
         providers: [
           BlobStorageService,
           { provide: ConfigService, useValue: configService },
+          { provide: AppLoggerService, useValue: mockAppLogger },
         ],
       }).compile();
 
@@ -360,6 +364,7 @@ describe("BlobStorageService", () => {
         providers: [
           BlobStorageService,
           { provide: ConfigService, useValue: configService },
+          { provide: AppLoggerService, useValue: mockAppLogger },
         ],
       }).compile();
 

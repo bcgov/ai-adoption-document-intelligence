@@ -1,5 +1,7 @@
+import { Context } from '@temporalio/activity';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { createActivityLogger } from '../logger';
 import type { PreparedFileData } from '../types';
 import { resolveBlobKeyToPath } from '../blob-storage/blob-path-resolver';
 
@@ -10,6 +12,7 @@ export interface PrepareFileDataInput {
   fileType?: 'pdf' | 'image';
   contentType?: string;
   modelId?: string;
+  requestId?: string;
 }
 
 async function readBlobData(blobKey: string): Promise<Buffer> {
@@ -29,18 +32,18 @@ export async function prepareFileData(
   input: PrepareFileDataInput,
 ): Promise<{ preparedData: PreparedFileData }> {
   const activityName = 'prepareFileData';
+  const { requestId } = input;
+  const workflowExecutionId = Context.current().info.workflowExecution?.workflowId;
+  const log = createActivityLogger(activityName, { workflowExecutionId, requestId, documentId: input.documentId });
   const blobKey = input.blobKey;
 
-  console.log(JSON.stringify({
-    activity: activityName,
+  log.info('Prepare file data start', {
     event: 'start',
-    documentId: input.documentId,
     fileName: input.fileName || 'not provided',
     fileType: input.fileType || 'not provided',
     contentType: input.contentType || 'not provided',
     blobKey,
-    timestamp: new Date().toISOString()
-  }));
+  });
 
   if (!blobKey || typeof blobKey !== 'string') {
     throw new Error('No blobKey provided. blobKey is required to read file data.');
@@ -86,15 +89,12 @@ export async function prepareFileData(
   if (fileType === 'pdf' || contentType.includes('pdf')) {
     const pdfSignature = fileBuffer.slice(0, 4).toString();
     if (pdfSignature !== '%PDF' && fileBuffer.length > 4) {
-      console.warn(JSON.stringify({
-        activity: activityName,
+      log.warn('Prepare file data: invalid PDF signature', {
         event: 'warn',
-        documentId: input.documentId,
         fileName,
         warning: 'File does not have valid PDF signature',
         pdfSignature,
-        timestamp: new Date().toISOString()
-      }));
+      });
     }
   }
 
@@ -109,17 +109,14 @@ export async function prepareFileData(
     modelId
   };
 
-  console.log(JSON.stringify({
-    activity: activityName,
+  log.info('Prepare file data complete', {
     event: 'complete',
-    documentId: input.documentId,
     fileName,
     fileType,
     contentType,
     modelId,
     fileSize,
-    timestamp: new Date().toISOString()
-  }));
+  });
 
   // Return with port name as key for output binding
   return {

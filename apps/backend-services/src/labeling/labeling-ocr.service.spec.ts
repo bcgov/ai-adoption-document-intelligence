@@ -5,6 +5,8 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { of } from "rxjs";
 import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService } from "../database/database.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingOcrService } from "./labeling-ocr.service";
 
@@ -65,6 +67,7 @@ describe("LabelingOcrService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LabelingOcrService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: DatabaseService,
           useValue: mockDb,

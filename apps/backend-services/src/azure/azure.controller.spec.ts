@@ -3,6 +3,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureController } from "./azure.controller";
 import {
   ClassifierSource,
@@ -47,6 +48,7 @@ describe("AzureController", () => {
       storageService,
       databaseService,
       azureService,
+      mockAppLogger,
     );
   });
 
