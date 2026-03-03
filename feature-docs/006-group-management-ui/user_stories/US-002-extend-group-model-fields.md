@@ -5,17 +5,17 @@
 **So that** groups can carry descriptive context and be soft-deleted without losing data.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Migration adds the new columns to `group`
+- [x] **Scenario 1**: Migration adds the new columns to `group`
     - **Given** the Prisma `Group` model is updated
     - **When** the migration is applied
     - **Then** the `group` table has three new nullable columns: `description String?`, `deleted_at DateTime?`, and `deleted_by String?`
 
-- [ ] **Scenario 2**: Existing group records are unaffected
+- [x] **Scenario 2**: Existing group records are unaffected
     - **Given** existing group records in the database
     - **When** the migration is applied
     - **Then** all existing rows have `NULL` for the three new columns and remain otherwise intact
 
-- [ ] **Scenario 3**: Prisma Client is regenerated
+- [x] **Scenario 3**: Prisma Client is regenerated
     - **Given** the migration has been applied
     - **When** `npm run db:generate` is run from `apps/backend-services`
     - **Then** the generated Prisma Client types include the new optional fields on the `Group` type

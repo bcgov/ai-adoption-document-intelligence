@@ -115,6 +115,9 @@ model User {
   actedMembershipRequests   GroupMembershipRequest[] @relation(name: "MembershipRequestActor")
   createdMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestCreatedBy")
   updatedMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestUpdatedBy")
+  createdGroups             Group[]                  @relation(name: "GroupCreatedBy")
+  updatedGroups             Group[]                  @relation(name: "GroupUpdatedBy")
+  deletedGroups             Group[]                  @relation(name: "GroupDeletedBy")
 
   @@map("user")
 }
@@ -271,6 +274,16 @@ model ClassifierModel {
 model Group {
   id                  String                   @id @default(cuid())
   name                String                   @unique
+  description         String?
+  created_by          String?
+  created_at          DateTime                 @default(now())
+  updated_by          String?
+  updated_at          DateTime                 @updatedAt
+  deleted_at          DateTime?
+  deleted_by          String?
+  creator             User?                    @relation(name: "GroupCreatedBy", fields: [created_by], references: [id])
+  updator             User?                    @relation(name: "GroupUpdatedBy", fields: [updated_by], references: [id])
+  deleter             User?                    @relation(name: "GroupDeletedBy", fields: [deleted_by], references: [id])
   classifier_models   ClassifierModel[]
   user_groups         UserGroup[]
   membership_requests GroupMembershipRequest[]

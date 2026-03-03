@@ -8,8 +8,8 @@ User stories for **Group Management UI**.
 
 | # | Story | Status |
 |---|-------|--------|
-| US-001 | [Add `UserGroupRole` Table via Prisma Migration](./US-001-add-user-group-role-table.md) | - [ ] |
-| US-002 | [Extend `Group` Model with `description`, `deleted_at`, and `deleted_by` Fields](./US-002-extend-group-model-fields.md) | - [ ] |
+| US-001 | [Add `UserGroupRole` Table via Prisma Migration](./US-001-add-user-group-role-table.md) | - [x] |
+| US-002 | [Extend `Group` Model with `description`, `deleted_at`, and `deleted_by` Fields](./US-002-extend-group-model-fields.md) | - [x] |
 
 ---
 
