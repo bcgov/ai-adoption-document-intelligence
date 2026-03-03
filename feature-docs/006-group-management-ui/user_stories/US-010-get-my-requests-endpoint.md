@@ -5,22 +5,22 @@
 **So that** I can review the history and status of my requests.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Returns all requests for the authenticated user
+- [x] **Scenario 1**: Returns all requests for the authenticated user
     - **Given** a caller with one or more membership requests across various groups
     - **When** `GET /api/groups/requests/mine` is called
     - **Then** a `200 OK` response is returned with all requests belonging to the caller, including `groupId`, `groupName`, `status`, `createdAt`, and `reason` fields
 
-- [ ] **Scenario 2**: Returns empty array when no requests exist
+- [x] **Scenario 2**: Returns empty array when no requests exist
     - **Given** a caller with no membership requests
     - **When** `GET /api/groups/requests/mine` is called
     - **Then** a `200 OK` response is returned with an empty array
 
-- [ ] **Scenario 3**: Status filter returns only matching requests
+- [x] **Scenario 3**: Status filter returns only matching requests
     - **Given** a caller with requests in various statuses
     - **When** `GET /api/groups/requests/mine?status=PENDING` is called
     - **Then** only requests with status `PENDING` are returned
 
-- [ ] **Scenario 4**: Unit tests pass
+- [x] **Scenario 4**: Unit tests pass
     - **Given** the implemented endpoint
     - **When** unit tests are run
     - **Then** all tests covering the above scenarios pass

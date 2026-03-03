@@ -1199,3 +1199,85 @@ describe("getGroupRequests", () => {
     );
   });
 });
+
+describe("getMyRequests", () => {
+  const userId = "user-1";
+  const createdAt = new Date("2026-01-01T00:00:00.000Z");
+  const mockRequests = [
+    {
+      id: "req1",
+      user_id: userId,
+      group_id: "group-1",
+      status: "PENDING",
+      reason: null,
+      created_at: createdAt,
+      group: { name: "Group One" },
+    },
+    {
+      id: "req2",
+      user_id: userId,
+      group_id: "group-2",
+      status: "APPROVED",
+      reason: "Looks good",
+      created_at: createdAt,
+      group: { name: "Group Two" },
+    },
+  ];
+
+  const buildDb = (requests = mockRequests) => ({
+    prisma: {
+      groupMembershipRequest: {
+        findMany: jest.fn().mockResolvedValue(requests),
+      },
+    },
+  });
+
+  it("should return all requests for the user with groupName included", async () => {
+    const db = buildDb();
+    const svc = new GroupService(db as any);
+    const result = await svc.getMyRequests(userId);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({
+      id: "req1",
+      groupId: "group-1",
+      groupName: "Group One",
+      status: "PENDING",
+      reason: undefined,
+      createdAt,
+    });
+    expect(result[1]).toMatchObject({
+      id: "req2",
+      groupId: "group-2",
+      groupName: "Group Two",
+      status: "APPROVED",
+      reason: "Looks good",
+    });
+  });
+
+  it("should return an empty array when the user has no requests", async () => {
+    const db = buildDb([]);
+    const svc = new GroupService(db as any);
+    const result = await svc.getMyRequests(userId);
+    expect(result).toEqual([]);
+  });
+
+  it("should pass status filter to the database query when provided", async () => {
+    const db = buildDb([mockRequests[0]]);
+    const svc = new GroupService(db as any);
+    await svc.getMyRequests(userId, "PENDING" as any);
+    expect(db.prisma.groupMembershipRequest.findMany).toHaveBeenCalledWith({
+      where: { user_id: userId, status: "PENDING" },
+      include: { group: { select: { name: true } } },
+    });
+  });
+
+  it("should not include status in the query when status is undefined", async () => {
+    const db = buildDb();
+    const svc = new GroupService(db as any);
+    await svc.getMyRequests(userId);
+    expect(db.prisma.groupMembershipRequest.findMany).toHaveBeenCalledWith({
+      where: { user_id: userId },
+      include: { group: { select: { name: true } } },
+    });
+  });
+});

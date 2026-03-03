@@ -25,6 +25,7 @@ import { User } from "../auth/types";
 import { GroupMemberDto } from "./dto/group-member.dto";
 import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { MembershipRequestActionDto } from "./dto/membership-request-action.dto";
+import { MyMembershipRequestDto } from "./dto/my-membership-request.dto";
 import { RequestMembershipDto } from "./dto/request-membership.dto";
 import { UserGroupDto } from "./dto/user-group.dto";
 import { GroupService } from "./group.service";
@@ -107,6 +108,46 @@ export class GroupController {
     }
     await this.groupService.requestMembership(userId, body.groupId);
     return { success: true };
+  }
+
+  /**
+   * Get all membership requests made by the authenticated caller
+   * GET /api/groups/requests/mine
+   */
+  @ApiOperation({ summary: "Get all membership requests made by the caller" })
+  @ApiResponse({
+    status: 200,
+    description: "List of membership requests made by the caller.",
+    type: [MyMembershipRequestDto],
+  })
+  @ApiResponse({ status: 400, description: "Invalid status query parameter." })
+  @ApiResponse({ status: 401, description: "Unauthorized." })
+  @KeycloakSSOAuth()
+  @Get("requests/mine")
+  async getMyRequests(
+    @Req() req: Request,
+    @Query("status") status?: string,
+  ): Promise<MyMembershipRequestDto[]> {
+    const userId = req.resolvedIdentity?.userId;
+    if (!userId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+
+    const validStatuses = Object.values($Enums.GroupMembershipRequestStatus);
+    let parsedStatus: $Enums.GroupMembershipRequestStatus | undefined;
+    if (status !== undefined) {
+      if (
+        !validStatuses.includes(status as $Enums.GroupMembershipRequestStatus)
+      ) {
+        throw new HttpException(
+          `Invalid status value. Must be one of: ${validStatuses.join(", ")}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      parsedStatus = status as $Enums.GroupMembershipRequestStatus;
+    }
+
+    return await this.groupService.getMyRequests(userId, parsedStatus);
   }
 
   /**

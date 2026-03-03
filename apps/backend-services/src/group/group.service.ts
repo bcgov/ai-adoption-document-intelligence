@@ -8,6 +8,7 @@ import {
 import { DatabaseService } from "../database/database.service";
 import { GroupMemberDto } from "./dto/group-member.dto";
 import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
+import { MyMembershipRequestDto } from "./dto/my-membership-request.dto";
 import { UserGroupDto } from "./dto/user-group.dto";
 
 @Injectable()
@@ -448,6 +449,35 @@ export class GroupService {
       actorId: r.actor_id ?? undefined,
       reason: r.reason ?? undefined,
       resolvedAt: r.resolved_at ?? undefined,
+      createdAt: r.created_at,
+    }));
+  }
+
+  /**
+   * Returns all membership requests made by the given user across all groups, with optional status filtering.
+   * @param userId - The ID of the requesting user (from resolvedIdentity.userId).
+   * @param status - Optional status filter; when provided only requests matching the status are returned.
+   * @returns An array of MyMembershipRequestDto objects.
+   */
+  async getMyRequests(
+    userId: string,
+    status?: $Enums.GroupMembershipRequestStatus,
+  ): Promise<MyMembershipRequestDto[]> {
+    const requests =
+      await this.databaseService.prisma.groupMembershipRequest.findMany({
+        where: {
+          user_id: userId,
+          ...(status !== undefined ? { status } : {}),
+        },
+        include: { group: { select: { name: true } } },
+      });
+
+    return requests.map((r) => ({
+      id: r.id,
+      groupId: r.group_id,
+      groupName: r.group.name,
+      status: r.status,
+      reason: r.reason ?? undefined,
       createdAt: r.created_at,
     }));
   }
