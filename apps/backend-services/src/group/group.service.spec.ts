@@ -322,15 +322,17 @@ describe("assignUserToGroup", () => {
   it("should throw NotFoundException when group does not exist", async () => {
     const db = buildDb({ group: null });
     const svc = new GroupService(db as any);
-    await expect(svc.assignUserToGroup(callerId, userId, groupId)).rejects.toThrow(
-      "Group not found",
-    );
+    await expect(
+      svc.assignUserToGroup(callerId, userId, groupId),
+    ).rejects.toThrow("Group not found");
   });
 
   it("should throw ForbiddenException when caller is not a member and not a system admin", async () => {
     const db = buildDb({ isSystemAdmin: false, isUserInGroup: false });
     const svc = new GroupService(db as any);
-    await expect(svc.assignUserToGroup(callerId, userId, groupId)).rejects.toThrow(
+    await expect(
+      svc.assignUserToGroup(callerId, userId, groupId),
+    ).rejects.toThrow(
       "You do not have permission to view members of this group",
     );
   });
@@ -426,6 +428,7 @@ describe("approveMembershipRequest", () => {
   const buildDb = (
     findUniqueResult: unknown,
     transactionFn = jest.fn().mockResolvedValue([{}, {}]),
+    isSystemAdmin = true,
   ) => ({
     prisma: {
       groupMembershipRequest: {
@@ -434,29 +437,35 @@ describe("approveMembershipRequest", () => {
       },
       userGroup: {
         upsert: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(null),
       },
       $transaction: transactionFn,
     },
+    isUserSystemAdmin: jest.fn().mockResolvedValue(isSystemAdmin),
   });
 
   it("should execute a transaction adding the user to the group and updating the request to APPROVED", async () => {
     const transactionFn = jest.fn().mockResolvedValue([{}, {}]);
     const mockUpsert = { then: jest.fn() };
     const mockUpdate = { then: jest.fn() };
-    const prisma = {
-      groupMembershipRequest: {
-        findUnique: jest.fn().mockResolvedValue(pendingRequest),
-        update: jest.fn().mockReturnValue(mockUpdate),
+    const db = {
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: jest.fn().mockReturnValue(mockUpdate),
+        },
+        userGroup: {
+          upsert: jest.fn().mockReturnValue(mockUpsert),
+          findUnique: jest.fn().mockResolvedValue(null),
+        },
+        $transaction: transactionFn,
       },
-      userGroup: {
-        upsert: jest.fn().mockReturnValue(mockUpsert),
-      },
-      $transaction: transactionFn,
+      isUserSystemAdmin: jest.fn().mockResolvedValue(true),
     };
-    const svc = new GroupService({ prisma } as any);
+    const svc = new GroupService(db as any);
     await svc.approveMembershipRequest(adminId, requestId);
 
-    expect(prisma.userGroup.upsert).toHaveBeenCalledWith({
+    expect(db.prisma.userGroup.upsert).toHaveBeenCalledWith({
       where: {
         user_id_group_id: {
           user_id: pendingRequest.user_id,
@@ -469,7 +478,7 @@ describe("approveMembershipRequest", () => {
         group_id: pendingRequest.group_id,
       },
     });
-    expect(prisma.groupMembershipRequest.update).toHaveBeenCalledWith({
+    expect(db.prisma.groupMembershipRequest.update).toHaveBeenCalledWith({
       where: { id: requestId },
       data: expect.objectContaining({
         status: "APPROVED",
@@ -482,19 +491,23 @@ describe("approveMembershipRequest", () => {
   });
 
   it("should store reason when provided", async () => {
-    const prisma = {
-      groupMembershipRequest: {
-        findUnique: jest.fn().mockResolvedValue(pendingRequest),
-        update: jest.fn().mockReturnValue({}),
+    const db = {
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: jest.fn().mockReturnValue({}),
+        },
+        userGroup: {
+          upsert: jest.fn().mockReturnValue({}),
+          findUnique: jest.fn().mockResolvedValue(null),
+        },
+        $transaction: jest.fn().mockResolvedValue([{}, {}]),
       },
-      userGroup: {
-        upsert: jest.fn().mockReturnValue({}),
-      },
-      $transaction: jest.fn().mockResolvedValue([{}, {}]),
+      isUserSystemAdmin: jest.fn().mockResolvedValue(true),
     };
-    const svc = new GroupService({ prisma } as any);
+    const svc = new GroupService(db as any);
     await svc.approveMembershipRequest(adminId, requestId, "Looks good");
-    expect(prisma.groupMembershipRequest.update).toHaveBeenCalledWith({
+    expect(db.prisma.groupMembershipRequest.update).toHaveBeenCalledWith({
       where: { id: requestId },
       data: expect.objectContaining({ reason: "Looks good" }),
     });
@@ -502,17 +515,21 @@ describe("approveMembershipRequest", () => {
 
   it("should not include reason key when reason is not provided", async () => {
     const updateFn = jest.fn().mockReturnValue({});
-    const prisma = {
-      groupMembershipRequest: {
-        findUnique: jest.fn().mockResolvedValue(pendingRequest),
-        update: updateFn,
+    const db = {
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: updateFn,
+        },
+        userGroup: {
+          upsert: jest.fn().mockReturnValue({}),
+          findUnique: jest.fn().mockResolvedValue(null),
+        },
+        $transaction: jest.fn().mockResolvedValue([{}, {}]),
       },
-      userGroup: {
-        upsert: jest.fn().mockReturnValue({}),
-      },
-      $transaction: jest.fn().mockResolvedValue([{}, {}]),
+      isUserSystemAdmin: jest.fn().mockResolvedValue(true),
     };
-    const svc = new GroupService({ prisma } as any);
+    const svc = new GroupService(db as any);
     await svc.approveMembershipRequest(adminId, requestId);
     const callData = updateFn.mock.calls[0][0].data;
     expect(callData).not.toHaveProperty("reason");
@@ -534,6 +551,90 @@ describe("approveMembershipRequest", () => {
       ).rejects.toThrow("Only PENDING requests can be approved");
     }
   });
+
+  it("should succeed when caller is a group admin for the request's group", async () => {
+    const db = {
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: jest.fn().mockReturnValue({}),
+        },
+        userGroup: {
+          upsert: jest.fn().mockReturnValue({}),
+          findUnique: jest.fn().mockResolvedValue({
+            user_id: adminId,
+            group_id: pendingRequest.group_id,
+            role: "ADMIN",
+          }),
+        },
+        $transaction: jest.fn().mockResolvedValue([{}, {}]),
+      },
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    };
+    const svc = new GroupService(db as any);
+    await expect(
+      svc.approveMembershipRequest(adminId, requestId),
+    ).resolves.toBeUndefined();
+  });
+
+  it("should succeed when caller is a system admin", async () => {
+    const svc = new GroupService(
+      buildDb(pendingRequest, undefined, true) as any,
+    );
+    await expect(
+      svc.approveMembershipRequest(adminId, requestId),
+    ).resolves.toBeUndefined();
+  });
+
+  it("should throw ForbiddenException when caller is a regular group member", async () => {
+    const db = {
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: jest.fn(),
+        },
+        userGroup: {
+          upsert: jest.fn(),
+          findUnique: jest.fn().mockResolvedValue({
+            user_id: adminId,
+            group_id: pendingRequest.group_id,
+            role: "MEMBER",
+          }),
+        },
+        $transaction: jest.fn(),
+      },
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    };
+    const svc = new GroupService(db as any);
+    await expect(
+      svc.approveMembershipRequest(adminId, requestId),
+    ).rejects.toThrow(
+      "Only group admins or system admins can approve or deny membership requests",
+    );
+  });
+
+  it("should throw ForbiddenException when caller is a group admin for a different group", async () => {
+    const db = {
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: jest.fn(),
+        },
+        userGroup: {
+          upsert: jest.fn(),
+          findUnique: jest.fn().mockResolvedValue(null),
+        },
+        $transaction: jest.fn(),
+      },
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    };
+    const svc = new GroupService(db as any);
+    await expect(
+      svc.approveMembershipRequest(adminId, requestId),
+    ).rejects.toThrow(
+      "Only group admins or system admins can approve or deny membership requests",
+    );
+  });
 });
 
 describe("denyMembershipRequest", () => {
@@ -546,24 +647,34 @@ describe("denyMembershipRequest", () => {
     status: "PENDING",
   };
 
-  const buildDb = (findUniqueResult: unknown) => ({
+  const buildDb = (findUniqueResult: unknown, isSystemAdmin = true) => ({
     prisma: {
       groupMembershipRequest: {
         findUnique: jest.fn().mockResolvedValue(findUniqueResult),
         update: jest.fn().mockResolvedValue({}),
       },
+      userGroup: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
     },
+    isUserSystemAdmin: jest.fn().mockResolvedValue(isSystemAdmin),
   });
 
   it("should update the request to DENIED with actor_id, resolved_at, and updated_by", async () => {
     const updateFn = jest.fn().mockResolvedValue({});
-    const prisma = {
-      groupMembershipRequest: {
-        findUnique: jest.fn().mockResolvedValue(pendingRequest),
-        update: updateFn,
+    const db = {
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: updateFn,
+        },
+        userGroup: {
+          findUnique: jest.fn().mockResolvedValue(null),
+        },
       },
+      isUserSystemAdmin: jest.fn().mockResolvedValue(true),
     };
-    const svc = new GroupService({ prisma } as any);
+    const svc = new GroupService(db as any);
     await svc.denyMembershipRequest(adminId, requestId);
 
     expect(updateFn).toHaveBeenCalledWith({
@@ -579,13 +690,19 @@ describe("denyMembershipRequest", () => {
 
   it("should store reason when provided", async () => {
     const updateFn = jest.fn().mockResolvedValue({});
-    const prisma = {
-      groupMembershipRequest: {
-        findUnique: jest.fn().mockResolvedValue(pendingRequest),
-        update: updateFn,
+    const db = {
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: updateFn,
+        },
+        userGroup: {
+          findUnique: jest.fn().mockResolvedValue(null),
+        },
       },
+      isUserSystemAdmin: jest.fn().mockResolvedValue(true),
     };
-    const svc = new GroupService({ prisma } as any);
+    const svc = new GroupService(db as any);
     await svc.denyMembershipRequest(adminId, requestId, "Not eligible");
     expect(updateFn).toHaveBeenCalledWith({
       where: { id: requestId },
@@ -595,13 +712,19 @@ describe("denyMembershipRequest", () => {
 
   it("should not include reason key when reason is not provided", async () => {
     const updateFn = jest.fn().mockResolvedValue({});
-    const prisma = {
-      groupMembershipRequest: {
-        findUnique: jest.fn().mockResolvedValue(pendingRequest),
-        update: updateFn,
+    const db = {
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: updateFn,
+        },
+        userGroup: {
+          findUnique: jest.fn().mockResolvedValue(null),
+        },
       },
+      isUserSystemAdmin: jest.fn().mockResolvedValue(true),
     };
-    const svc = new GroupService({ prisma } as any);
+    const svc = new GroupService(db as any);
     await svc.denyMembershipRequest(adminId, requestId);
     const callData = updateFn.mock.calls[0][0].data;
     expect(callData).not.toHaveProperty("reason");
@@ -622,6 +745,78 @@ describe("denyMembershipRequest", () => {
         svc.denyMembershipRequest(adminId, requestId),
       ).rejects.toThrow("Only PENDING requests can be denied");
     }
+  });
+
+  it("should succeed when caller is a group admin for the request's group", async () => {
+    const db = {
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        userGroup: {
+          findUnique: jest.fn().mockResolvedValue({
+            user_id: adminId,
+            group_id: pendingRequest.group_id,
+            role: "ADMIN",
+          }),
+        },
+      },
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    };
+    const svc = new GroupService(db as any);
+    await expect(
+      svc.denyMembershipRequest(adminId, requestId),
+    ).resolves.toBeUndefined();
+  });
+
+  it("should succeed when caller is a system admin", async () => {
+    const svc = new GroupService(buildDb(pendingRequest, true) as any);
+    await expect(
+      svc.denyMembershipRequest(adminId, requestId),
+    ).resolves.toBeUndefined();
+  });
+
+  it("should throw ForbiddenException when caller is a regular group member", async () => {
+    const db = {
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: jest.fn(),
+        },
+        userGroup: {
+          findUnique: jest.fn().mockResolvedValue({
+            user_id: adminId,
+            group_id: pendingRequest.group_id,
+            role: "MEMBER",
+          }),
+        },
+      },
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    };
+    const svc = new GroupService(db as any);
+    await expect(svc.denyMembershipRequest(adminId, requestId)).rejects.toThrow(
+      "Only group admins or system admins can approve or deny membership requests",
+    );
+  });
+
+  it("should throw ForbiddenException when caller is a group admin for a different group", async () => {
+    const db = {
+      prisma: {
+        groupMembershipRequest: {
+          findUnique: jest.fn().mockResolvedValue(pendingRequest),
+          update: jest.fn(),
+        },
+        userGroup: {
+          findUnique: jest.fn().mockResolvedValue(null),
+        },
+      },
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    };
+    const svc = new GroupService(db as any);
+    await expect(svc.denyMembershipRequest(adminId, requestId)).rejects.toThrow(
+      "Only group admins or system admins can approve or deny membership requests",
+    );
   });
 });
 

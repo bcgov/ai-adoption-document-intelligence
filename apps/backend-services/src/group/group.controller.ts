@@ -158,6 +158,10 @@ export class GroupController {
     description: "Membership request approved successfully.",
   })
   @ApiResponse({ status: 400, description: "Request is not in PENDING state." })
+  @ApiResponse({
+    status: 403,
+    description: "Caller is not a group admin or system admin.",
+  })
   @ApiResponse({ status: 404, description: "Membership request not found." })
   @ApiParam({
     name: "requestId",
@@ -167,12 +171,11 @@ export class GroupController {
   @KeycloakSSOAuth()
   @Patch("requests/:requestId/approve")
   async approveMembershipRequest(
-    @Req() req: Request & { user?: User },
+    @Req() req: Request,
     @Param("requestId") requestId: string,
     @Body() body: MembershipRequestActionDto,
   ): Promise<{ success: boolean }> {
-    // TODO: Add check to ensure req.user has admin privileges before allowing approval of membership requests
-    const adminId = req.user?.sub;
+    const adminId = req.resolvedIdentity?.userId;
     if (!adminId) {
       throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
     }
@@ -195,6 +198,10 @@ export class GroupController {
   })
   @ApiResponse({ status: 400, description: "Request is not in PENDING state." })
   @ApiResponse({ status: 401, description: "Unauthorized." })
+  @ApiResponse({
+    status: 403,
+    description: "Caller is not a group admin or system admin.",
+  })
   @ApiResponse({ status: 404, description: "Membership request not found." })
   @ApiParam({
     name: "requestId",
@@ -204,12 +211,11 @@ export class GroupController {
   @KeycloakSSOAuth()
   @Patch("requests/:requestId/deny")
   async denyMembershipRequest(
-    @Req() req: Request & { user?: User },
+    @Req() req: Request,
     @Param("requestId") requestId: string,
     @Body() body: MembershipRequestActionDto,
   ): Promise<{ success: boolean }> {
-    // TODO: Add check to ensure req.user has admin privileges before allowing denial of membership requests
-    const adminId = req.user?.sub;
+    const adminId = req.resolvedIdentity?.userId;
     if (!adminId) {
       throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
     }

@@ -149,16 +149,16 @@ describe("GroupController", () => {
   });
 
   describe("approveMembershipRequest", () => {
-    it("should call service with adminId from JWT, requestId from param, and reason from body", async () => {
-      const sub = "jwt-admin-id";
+    it("should call service with adminId from resolvedIdentity, requestId from param, and reason from body", async () => {
+      const adminId = "admin-id";
       const requestId = "req1";
       jest.spyOn(service, "approveMembershipRequest").mockResolvedValueOnce();
-      const req = { user: { sub } } as any;
+      const req = { resolvedIdentity: { userId: adminId } } as any;
       const result = await controller.approveMembershipRequest(req, requestId, {
         reason: "Approved",
       });
       expect(service.approveMembershipRequest).toHaveBeenCalledWith(
-        sub,
+        adminId,
         requestId,
         "Approved",
       );
@@ -166,20 +166,20 @@ describe("GroupController", () => {
     });
 
     it("should call service without reason when body has no reason", async () => {
-      const sub = "jwt-admin-id";
+      const adminId = "admin-id";
       const requestId = "req1";
       jest.spyOn(service, "approveMembershipRequest").mockResolvedValueOnce();
-      const req = { user: { sub } } as any;
+      const req = { resolvedIdentity: { userId: adminId } } as any;
       await controller.approveMembershipRequest(req, requestId, {});
       expect(service.approveMembershipRequest).toHaveBeenCalledWith(
-        sub,
+        adminId,
         requestId,
         undefined,
       );
     });
 
-    it("should throw 401 if no user in request", async () => {
-      const req = { user: undefined } as any;
+    it("should throw 401 if resolvedIdentity is undefined", async () => {
+      const req = { resolvedIdentity: undefined } as any;
       await expect(
         controller.approveMembershipRequest(req, "req1", {}),
       ).rejects.toThrow(
@@ -187,8 +187,8 @@ describe("GroupController", () => {
       );
     });
 
-    it("should throw 401 if user has no sub claim", async () => {
-      const req = { user: {} } as any;
+    it("should throw 401 if resolvedIdentity has no userId", async () => {
+      const req = { resolvedIdentity: {} } as any;
       await expect(
         controller.approveMembershipRequest(req, "req1", {}),
       ).rejects.toThrow(
@@ -272,16 +272,16 @@ describe("GroupController", () => {
   });
 
   describe("denyMembershipRequest", () => {
-    it("should call service with adminId from JWT, requestId from param, and reason from body", async () => {
-      const sub = "jwt-admin-id";
+    it("should call service with adminId from resolvedIdentity, requestId from param, and reason from body", async () => {
+      const adminId = "admin-id";
       const requestId = "req1";
       jest.spyOn(service, "denyMembershipRequest").mockResolvedValueOnce();
-      const req = { user: { sub } } as any;
+      const req = { resolvedIdentity: { userId: adminId } } as any;
       const result = await controller.denyMembershipRequest(req, requestId, {
         reason: "Not eligible",
       });
       expect(service.denyMembershipRequest).toHaveBeenCalledWith(
-        sub,
+        adminId,
         requestId,
         "Not eligible",
       );
@@ -289,20 +289,20 @@ describe("GroupController", () => {
     });
 
     it("should call service without reason when body has no reason", async () => {
-      const sub = "jwt-admin-id";
+      const adminId = "admin-id";
       const requestId = "req1";
       jest.spyOn(service, "denyMembershipRequest").mockResolvedValueOnce();
-      const req = { user: { sub } } as any;
+      const req = { resolvedIdentity: { userId: adminId } } as any;
       await controller.denyMembershipRequest(req, requestId, {});
       expect(service.denyMembershipRequest).toHaveBeenCalledWith(
-        sub,
+        adminId,
         requestId,
         undefined,
       );
     });
 
-    it("should throw 401 if no user in request", async () => {
-      const req = { user: undefined } as any;
+    it("should throw 401 if resolvedIdentity is undefined", async () => {
+      const req = { resolvedIdentity: undefined } as any;
       await expect(
         controller.denyMembershipRequest(req, "req1", {}),
       ).rejects.toThrow(
@@ -310,8 +310,8 @@ describe("GroupController", () => {
       );
     });
 
-    it("should throw 401 if user has no sub claim", async () => {
-      const req = { user: {} } as any;
+    it("should throw 401 if resolvedIdentity has no userId", async () => {
+      const req = { resolvedIdentity: {} } as any;
       await expect(
         controller.denyMembershipRequest(req, "req1", {}),
       ).rejects.toThrow(

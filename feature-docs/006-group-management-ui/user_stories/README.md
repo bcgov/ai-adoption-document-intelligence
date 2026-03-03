@@ -37,7 +37,7 @@ User stories for **Group Management UI**.
 | # | Story | Status |
 |---|-------|--------|
 | US-008 | [`GET /api/groups/:groupId/requests` Endpoint](./US-008-get-group-requests-endpoint.md) | - [x] |
-| US-009 | [Allow Group Admins to Approve and Deny Membership Requests](./US-009-group-admin-approve-deny-requests.md) | - [ ] |
+| US-009 | [Allow Group Admins to Approve and Deny Membership Requests](./US-009-group-admin-approve-deny-requests.md) | - [x] |
 | US-010 | [`GET /api/groups/requests/mine` Endpoint](./US-010-get-my-requests-endpoint.md) | - [ ] |
 
 ---
