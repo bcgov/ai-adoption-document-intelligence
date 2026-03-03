@@ -105,7 +105,7 @@ describe("getAllGroups", () => {
 });
 
 describe("getUserGroups", () => {
-  it("should return non-deleted user group memberships with role", async () => {
+  it("should return non-deleted user group memberships with role when caller is the same user", async () => {
     const mockUserGroups = [
       { group: { id: "g1", name: "Group 1" }, role: "ADMIN" },
       { group: { id: "g2", name: "Group 2" }, role: "MEMBER" },
@@ -116,7 +116,7 @@ describe("getUserGroups", () => {
       },
     };
     const service = new GroupService({ prisma: mockPrisma } as any);
-    const result = await service.getUserGroups("user1");
+    const result = await service.getUserGroups("user1", "user1");
     expect(result).toEqual([
       { id: "g1", name: "Group 1", role: "ADMIN" },
       { id: "g2", name: "Group 2", role: "MEMBER" },
@@ -138,7 +138,7 @@ describe("getUserGroups", () => {
       },
     };
     const service = new GroupService({ prisma: mockPrisma } as any);
-    const result = await service.getUserGroups("user1");
+    const result = await service.getUserGroups("user1", "user1");
     expect(result).toEqual([
       { id: "g1", name: "Active Group", role: "MEMBER" },
     ]);
@@ -146,6 +146,68 @@ describe("getUserGroups", () => {
       expect.objectContaining({
         where: { user_id: "user1", group: { deleted_at: null } },
       }),
+    );
+  });
+
+  it("should return all groups for target user when caller is a system admin", async () => {
+    const targetUserGroups = [
+      { group: { id: "g1", name: "Group 1" }, role: "MEMBER" },
+    ];
+    const mockPrisma = {
+      userGroup: {
+        findMany: jest.fn().mockResolvedValue(targetUserGroups),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ is_system_admin: true }),
+      },
+    };
+    const service = new GroupService({
+      prisma: mockPrisma,
+      isUserSystemAdmin: jest.fn().mockResolvedValue(true),
+    } as any);
+    const result = await service.getUserGroups("admin1", "user1");
+    expect(result).toEqual([{ id: "g1", name: "Group 1", role: "MEMBER" }]);
+  });
+
+  it("should return only shared groups when caller is a group admin but not a system admin", async () => {
+    const callerAdminMemberships = [{ group_id: "g1" }, { group_id: "g3" }];
+    const sharedUserGroups = [
+      { group: { id: "g1", name: "Group 1" }, role: "MEMBER" },
+    ];
+    const mockPrisma = {
+      userGroup: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce(callerAdminMemberships)
+          .mockResolvedValueOnce(sharedUserGroups),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ is_system_admin: false }),
+      },
+    };
+    const service = new GroupService({
+      prisma: mockPrisma,
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    } as any);
+    const result = await service.getUserGroups("admin1", "user1");
+    expect(result).toEqual([{ id: "g1", name: "Group 1", role: "MEMBER" }]);
+  });
+
+  it("should throw ForbiddenException when caller is a regular member querying another user", async () => {
+    const mockPrisma = {
+      userGroup: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ is_system_admin: false }),
+      },
+    };
+    const service = new GroupService({
+      prisma: mockPrisma,
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    } as any);
+    await expect(service.getUserGroups("caller1", "user1")).rejects.toThrow(
+      "You do not have permission to view another user's group memberships",
     );
   });
 });

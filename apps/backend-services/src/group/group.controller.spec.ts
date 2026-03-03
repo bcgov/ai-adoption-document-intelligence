@@ -1,8 +1,10 @@
 import { HttpException, HttpStatus } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { GroupMemberDto } from "./dto/group-member.dto";
 import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { MyMembershipRequestDto } from "./dto/my-membership-request.dto";
 import { RequestMembershipDto } from "./dto/request-membership.dto";
+import { UserGroupDto } from "./dto/user-group.dto";
 import { GroupController } from "./group.controller";
 import { GroupService } from "./group.service";
 
@@ -24,6 +26,7 @@ describe("GroupController", () => {
             denyMembershipRequest: jest.fn(),
             createGroup: jest.fn(),
             updateGroup: jest.fn(),
+            getUserGroups: jest.fn(),
             getGroupMembers: jest.fn(),
             getGroupRequests: jest.fn(),
             getMyRequests: jest.fn(),
@@ -36,6 +39,49 @@ describe("GroupController", () => {
 
     controller = module.get<GroupController>(GroupController);
     service = module.get<GroupService>(GroupService);
+  });
+
+  describe("getUserGroups", () => {
+    it("should call service with callerId from resolvedIdentity and userId from param", async () => {
+      const callerId = "caller-id";
+      const userId = "user1";
+      const mockGroups: UserGroupDto[] = [
+        { id: "g1", name: "Group 1", role: "MEMBER" },
+      ];
+      jest.spyOn(service, "getUserGroups").mockResolvedValueOnce(mockGroups);
+      const req = { resolvedIdentity: { userId: callerId } } as any;
+      const result = await controller.getUserGroups(req, userId);
+      expect(service.getUserGroups).toHaveBeenCalledWith(callerId, userId);
+      expect(result).toEqual(mockGroups);
+    });
+
+    it("should throw 401 if resolvedIdentity is undefined", async () => {
+      const req = { resolvedIdentity: undefined } as any;
+      await expect(controller.getUserGroups(req, "user1")).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should throw 401 if resolvedIdentity has no userId", async () => {
+      const req = { resolvedIdentity: {} } as any;
+      await expect(controller.getUserGroups(req, "user1")).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should propagate ForbiddenException from the service", async () => {
+      jest
+        .spyOn(service, "getUserGroups")
+        .mockRejectedValueOnce(
+          new Error(
+            "You do not have permission to view another user's group memberships",
+          ),
+        );
+      const req = { resolvedIdentity: { userId: "caller-id" } } as any;
+      await expect(controller.getUserGroups(req, "other-user")).rejects.toThrow(
+        "You do not have permission to view another user's group memberships",
+      );
+    });
   });
 
   describe("addGroupMember", () => {

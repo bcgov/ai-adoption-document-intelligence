@@ -81,13 +81,23 @@ export class GroupController {
     description: "List of groups the user is a member of.",
     type: [UserGroupDto],
   })
+  @ApiResponse({ status: 401, description: "Unauthorized." })
+  @ApiResponse({
+    status: 403,
+    description: "Caller does not have permission to view this user's groups.",
+  })
   @ApiParam({ name: "userId", description: "User ID", type: String })
   @KeycloakSSOAuth()
   @Get("/user/:userId")
   async getUserGroups(
+    @Req() req: Request,
     @Param("userId") userId: string,
   ): Promise<UserGroupDto[]> {
-    return await this.groupService.getUserGroups(userId);
+    const callerId = req.resolvedIdentity?.userId;
+    if (!callerId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+    return await this.groupService.getUserGroups(callerId, userId);
   }
 
   /**

@@ -349,7 +349,10 @@ describe("AuthController", () => {
       expect(databaseService.isUserSystemAdmin).toHaveBeenCalledWith(
         "user-123",
       );
-      expect(groupService.getUserGroups).toHaveBeenCalledWith("user-123");
+      expect(groupService.getUserGroups).toHaveBeenCalledWith(
+        "user-123",
+        "user-123",
+      );
       expect(result).toEqual({
         sub: "user-123",
         name: "Test User",
@@ -401,7 +404,10 @@ describe("AuthController", () => {
       expect(databaseService.isUserSystemAdmin).toHaveBeenCalledWith(
         "admin-user",
       );
-      expect(groupService.getUserGroups).toHaveBeenCalledWith("admin-user");
+      expect(groupService.getUserGroups).toHaveBeenCalledWith(
+        "admin-user",
+        "admin-user",
+      );
       expect(groupService.getAllGroups).not.toHaveBeenCalled();
       expect(result.isAdmin).toBe(true);
       expect(result.groups).toEqual(adminGroups);

@@ -40,8 +40,60 @@ export class GroupService {
 
   /**
    * Returns all non-deleted groups a user is a member of, including their role in each group.
+   * Access is controlled based on the caller's role:
+   * - System admins can view all groups for any user.
+   * - The user themselves can view all their own groups.
+   * - Group admins (admin role in any group) can only see groups where both the caller and the target user are members.
+   * - Regular members cannot view another user's group memberships.
+   * @param callerId - The ID of the caller making the request.
+   * @param userId - The ID of the user whose groups are being retrieved.
    */
-  async getUserGroups(userId: string): Promise<UserGroupDto[]> {
+  async getUserGroups(
+    callerId: string,
+    userId: string,
+  ): Promise<UserGroupDto[]> {
+    if (callerId === userId) {
+      return this.fetchUserGroups(userId);
+    }
+
+    const isSystemAdmin =
+      await this.databaseService.isUserSystemAdmin(callerId);
+    if (isSystemAdmin) {
+      return this.fetchUserGroups(userId);
+    }
+
+    const callerAdminMemberships =
+      await this.databaseService.prisma.userGroup.findMany({
+        where: { user_id: callerId, role: GroupRole.ADMIN },
+      });
+
+    if (callerAdminMemberships.length === 0) {
+      throw new ForbiddenException(
+        "You do not have permission to view another user's group memberships",
+      );
+    }
+
+    const callerGroupIds = callerAdminMemberships.map((m) => m.group_id);
+    const userGroups = await this.databaseService.prisma.userGroup.findMany({
+      where: {
+        user_id: userId,
+        group_id: { in: callerGroupIds },
+        group: { deleted_at: null },
+      },
+      include: { group: true },
+    });
+    return userGroups.map((ug) => ({
+      id: ug.group.id,
+      name: ug.group.name,
+      role: ug.role,
+    }));
+  }
+
+  /**
+   * Fetches all non-deleted groups a user belongs to with their role in each group.
+   * @param userId - The ID of the user whose groups to fetch.
+   */
+  private async fetchUserGroups(userId: string): Promise<UserGroupDto[]> {
     const userGroups = await this.databaseService.prisma.userGroup.findMany({
       where: { user_id: userId, group: { deleted_at: null } },
       include: { group: true },

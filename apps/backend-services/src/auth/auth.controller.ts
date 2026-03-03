@@ -288,7 +288,7 @@ export class AuthController {
     const userId = req.resolvedIdentity?.userId ?? "";
 
     const isAdmin = await this.databaseService.isUserSystemAdmin(userId);
-    const groups = await this.groupService.getUserGroups(userId);
+    const groups = await this.groupService.getUserGroups(userId, userId);
 
     return {
       sub: userId,
