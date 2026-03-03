@@ -5,17 +5,17 @@
 **So that** I can leave groups without requiring an admin to remove me.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Member successfully leaves a group
+- [x] **Scenario 1**: Member successfully leaves a group
     - **Given** a caller who is a member of the specified group
     - **When** `DELETE /api/groups/:groupId/leave` is called
     - **Then** a `200 OK` response is returned and the caller's `UserGroup` record for the group is deleted
 
-- [ ] **Scenario 2**: Returns `400` when caller is not a member
+- [x] **Scenario 2**: Returns `400` when caller is not a member
     - **Given** a caller who is not a member of the specified group
     - **When** `DELETE /api/groups/:groupId/leave` is called
     - **Then** a `400 Bad Request` response is returned
 
-- [ ] **Scenario 3**: Unit tests pass
+- [x] **Scenario 3**: Unit tests pass
     - **Given** the implemented endpoint
     - **When** unit tests are run
     - **Then** all tests covering the above scenarios pass

@@ -330,6 +330,24 @@ export class GroupService {
   }
 
   /**
+   * Removes the calling user from a group they are a member of.
+   * Throws BadRequestException if the caller is not a member of the group.
+   * @param userId - The ID of the user leaving the group (from resolvedIdentity.userId).
+   * @param groupId - The ID of the group to leave.
+   */
+  async leaveGroup(userId: string, groupId: string): Promise<void> {
+    const membership = await this.databaseService.prisma.userGroup.findUnique({
+      where: { user_id_group_id: { user_id: userId, group_id: groupId } },
+    });
+    if (!membership) {
+      throw new BadRequestException("User is not a member of this group");
+    }
+    await this.databaseService.prisma.userGroup.delete({
+      where: { user_id_group_id: { user_id: userId, group_id: groupId } },
+    });
+  }
+
+  /**
    * Removes a user from a group, with authorization enforcement.
    * The caller must be a group admin (UserGroup record with role = ADMIN) or a system admin.
    * Throws NotFoundException if the group does not exist.

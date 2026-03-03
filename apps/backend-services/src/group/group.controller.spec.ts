@@ -22,6 +22,7 @@ describe("GroupController", () => {
             denyMembershipRequest: jest.fn(),
             getGroupMembers: jest.fn(),
             removeGroupMember: jest.fn(),
+            leaveGroup: jest.fn(),
           },
         },
       ],
@@ -291,6 +292,41 @@ describe("GroupController", () => {
         controller.denyMembershipRequest(req, "req1", {}),
       ).rejects.toThrow(
         new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+  });
+
+  describe("leaveGroup", () => {
+    it("should call service with userId from resolvedIdentity and return success", async () => {
+      const userId = "caller-id";
+      const groupId = "group1";
+      jest.spyOn(service, "leaveGroup").mockResolvedValueOnce();
+      const req = { resolvedIdentity: { userId } } as any;
+      const result = await controller.leaveGroup(req, groupId);
+      expect(service.leaveGroup).toHaveBeenCalledWith(userId, groupId);
+      expect(result).toEqual({ success: true });
+    });
+
+    it("should throw 401 when resolvedIdentity is missing", async () => {
+      const req = { resolvedIdentity: undefined } as any;
+      await expect(controller.leaveGroup(req, "group1")).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should propagate BadRequestException when user is not a member", async () => {
+      const userId = "caller-id";
+      jest
+        .spyOn(service, "leaveGroup")
+        .mockRejectedValueOnce(
+          new HttpException(
+            "User is not a member of this group",
+            HttpStatus.BAD_REQUEST,
+          ),
+        );
+      const req = { resolvedIdentity: { userId } } as any;
+      await expect(controller.leaveGroup(req, "group1")).rejects.toThrow(
+        "User is not a member of this group",
       );
     });
   });

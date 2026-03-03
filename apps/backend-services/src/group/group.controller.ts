@@ -349,4 +349,32 @@ export class GroupController {
     await this.groupService.removeGroupMember(callerId, groupId, userId);
     return { success: true };
   }
+
+  /**
+   * Leave a group the caller is a member of
+   * DELETE /api/groups/:groupId/leave
+   */
+  @ApiOperation({ summary: "Leave a group the caller belongs to" })
+  @ApiResponse({
+    status: 200,
+    description: "Successfully left the group.",
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Caller is not a member of the group.",
+  })
+  @ApiParam({ name: "groupId", description: "Group ID", type: String })
+  @KeycloakSSOAuth()
+  @Delete(":groupId/leave")
+  async leaveGroup(
+    @Req() req: Request,
+    @Param("groupId") groupId: string,
+  ): Promise<{ success: boolean }> {
+    const userId = req.resolvedIdentity?.userId;
+    if (!userId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+    await this.groupService.leaveGroup(userId, groupId);
+    return { success: true };
+  }
 }

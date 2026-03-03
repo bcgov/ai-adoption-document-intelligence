@@ -782,3 +782,41 @@ describe("removeGroupMember", () => {
     });
   });
 });
+
+describe("leaveGroup", () => {
+  const userId = "user1";
+  const groupId = "group1";
+  const membership = { user_id: userId, group_id: groupId };
+
+  it("should delete the user's UserGroup record when they are a member", async () => {
+    const mockDelete = jest.fn().mockResolvedValue(undefined);
+    const db = {
+      prisma: {
+        userGroup: {
+          findUnique: jest.fn().mockResolvedValue(membership),
+          delete: mockDelete,
+        },
+      },
+    };
+    const svc = new GroupService(db as any);
+    await svc.leaveGroup(userId, groupId);
+    expect(mockDelete).toHaveBeenCalledWith({
+      where: { user_id_group_id: { user_id: userId, group_id: groupId } },
+    });
+  });
+
+  it("should throw BadRequestException when user is not a member", async () => {
+    const db = {
+      prisma: {
+        userGroup: {
+          findUnique: jest.fn().mockResolvedValue(null),
+          delete: jest.fn(),
+        },
+      },
+    };
+    const svc = new GroupService(db as any);
+    await expect(svc.leaveGroup(userId, groupId)).rejects.toThrow(
+      "User is not a member of this group",
+    );
+  });
+});
