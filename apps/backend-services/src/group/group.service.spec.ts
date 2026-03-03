@@ -35,33 +35,98 @@ describe("GroupService", () => {
 });
 
 describe("deleteGroup", () => {
-  it("should delete a group by ID", async () => {
+  it("should soft-delete a group by ID when caller is a system admin", async () => {
     const mockPrisma = {
       group: {
         findUnique: jest
           .fn()
           .mockResolvedValue({ id: "g1", name: "Test Group" }),
-        delete: jest.fn().mockResolvedValue(undefined),
+        update: jest.fn().mockResolvedValue(undefined),
       },
     };
-    const service = new GroupService({ prisma: mockPrisma } as any);
-    await service.deleteGroup("g1");
+    const service = new GroupService({
+      prisma: mockPrisma,
+      isUserSystemAdmin: jest.fn().mockResolvedValue(true),
+    } as any);
+    await service.deleteGroup("g1", "admin-user");
     expect(mockPrisma.group.findUnique).toHaveBeenCalledWith({
       where: { id: "g1" },
     });
-    expect(mockPrisma.group.delete).toHaveBeenCalledWith({
+    expect(mockPrisma.group.update).toHaveBeenCalledWith({
       where: { id: "g1" },
+      data: expect.objectContaining({ deleted_by: "admin-user" }),
     });
   });
-  it("should throw if group not found", async () => {
+
+  it("should set deleted_at on soft-delete", async () => {
+    const mockPrisma = {
+      group: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: "g1", name: "Test Group" }),
+        update: jest.fn().mockResolvedValue(undefined),
+      },
+    };
+    const service = new GroupService({
+      prisma: mockPrisma,
+      isUserSystemAdmin: jest.fn().mockResolvedValue(true),
+    } as any);
+    await service.deleteGroup("g1", "admin-user");
+    const updateCall = mockPrisma.group.update.mock.calls[0][0];
+    expect(updateCall.data.deleted_at).toBeInstanceOf(Date);
+  });
+
+  it("should throw ForbiddenException if caller is not a system admin", async () => {
+    const mockPrisma = {
+      group: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+      },
+    };
+    const service = new GroupService({
+      prisma: mockPrisma,
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    } as any);
+    await expect(service.deleteGroup("g1", "regular-user")).rejects.toThrow(
+      "Only system admins can delete groups",
+    );
+    expect(mockPrisma.group.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.group.update).not.toHaveBeenCalled();
+  });
+
+  it("should throw NotFoundException if group not found", async () => {
     const mockPrisma = {
       group: {
         findUnique: jest.fn().mockResolvedValue(null),
+        update: jest.fn(),
+      },
+    };
+    const service = new GroupService({
+      prisma: mockPrisma,
+      isUserSystemAdmin: jest.fn().mockResolvedValue(true),
+    } as any);
+    await expect(service.deleteGroup("g1", "admin-user")).rejects.toThrow(
+      "Group not found",
+    );
+    expect(mockPrisma.group.update).not.toHaveBeenCalled();
+  });
+
+  it("should not cascade-delete associated records", async () => {
+    const mockPrisma = {
+      group: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: "g1", name: "Test Group" }),
+        update: jest.fn().mockResolvedValue(undefined),
         delete: jest.fn(),
       },
     };
-    const service = new GroupService({ prisma: mockPrisma } as any);
-    await expect(service.deleteGroup("g1")).rejects.toThrow("Group not found");
+    const service = new GroupService({
+      prisma: mockPrisma,
+      isUserSystemAdmin: jest.fn().mockResolvedValue(true),
+    } as any);
+    await service.deleteGroup("g1", "admin-user");
+    expect(mockPrisma.group.delete).not.toHaveBeenCalled();
   });
 });
 

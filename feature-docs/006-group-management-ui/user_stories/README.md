@@ -48,7 +48,7 @@ User stories for **Group Management UI**.
 |---|-------|--------|
 | US-011 | [`POST /api/groups` — Create Group (System Admin Only)](./US-011-create-group-endpoint.md) | - [x] |
 | US-012 | [`PUT /api/groups/:groupId` — Update Group (System Admin Only)](./US-012-update-group-endpoint.md) | - [ ] |
-| US-013 | [`DELETE /api/groups/:groupId` — Soft-Delete Group (System Admin Only)](./US-013-soft-delete-group-endpoint.md) | - [ ] |
+| US-013 | [`DELETE /api/groups/:groupId` — Soft-Delete Group (System Admin Only)](./US-013-soft-delete-group-endpoint.md) | - [x] |
 
 ---
 

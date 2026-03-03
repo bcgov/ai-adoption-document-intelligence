@@ -16,16 +16,28 @@ import { UserGroupDto } from "./dto/user-group.dto";
 export class GroupService {
   constructor(private readonly databaseService: DatabaseService) {}
   /**
-   * Deletes an existing group by ID.
+   * Soft-deletes an existing group by ID.
+   * Sets `deleted_at` to the current timestamp and `deleted_by` to the caller's userId.
+   * Only system admins may perform this operation.
+   * @param groupId - The ID of the group to soft-delete.
+   * @param callerId - The ID of the user performing the deletion.
    */
-  async deleteGroup(groupId: string): Promise<void> {
+  async deleteGroup(groupId: string, callerId: string): Promise<void> {
+    const isSystemAdmin =
+      await this.databaseService.isUserSystemAdmin(callerId);
+    if (!isSystemAdmin) {
+      throw new ForbiddenException("Only system admins can delete groups");
+    }
     const group = await this.databaseService.prisma.group.findUnique({
       where: { id: groupId },
     });
     if (!group) {
       throw new NotFoundException("Group not found");
     }
-    await this.databaseService.prisma.group.delete({ where: { id: groupId } });
+    await this.databaseService.prisma.group.update({
+      where: { id: groupId },
+      data: { deleted_at: new Date(), deleted_by: callerId },
+    });
   }
 
   /**

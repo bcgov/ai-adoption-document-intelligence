@@ -43,19 +43,28 @@ export class GroupController {
   constructor(private readonly groupService: GroupService) {}
 
   /**
-   * Delete an existing group
+   * Soft-delete an existing group (system admin only)
    * DELETE /api/groups/:groupId
    */
-  @ApiOperation({ summary: "Delete an existing group" })
-  @ApiResponse({ status: 200, description: "Group deleted successfully." })
+  @ApiOperation({
+    summary: "Soft-delete an existing group (system admin only)",
+  })
+  @ApiResponse({ status: 200, description: "Group soft-deleted successfully." })
+  @ApiResponse({ status: 401, description: "Unauthorized." })
+  @ApiResponse({ status: 403, description: "Caller is not a system admin." })
   @ApiResponse({ status: 404, description: "Group not found." })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
   @KeycloakSSOAuth()
   @Delete(":groupId")
   async deleteGroup(
+    @Req() req: Request,
     @Param("groupId") groupId: string,
   ): Promise<{ success: boolean }> {
-    await this.groupService.deleteGroup(groupId);
+    const callerId = req.resolvedIdentity?.userId;
+    if (!callerId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+    await this.groupService.deleteGroup(groupId, callerId);
     return { success: true };
   }
 

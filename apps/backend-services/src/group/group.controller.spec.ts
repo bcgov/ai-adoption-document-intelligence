@@ -26,6 +26,7 @@ describe("GroupController", () => {
             denyMembershipRequest: jest.fn(),
             createGroup: jest.fn(),
             updateGroup: jest.fn(),
+            deleteGroup: jest.fn(),
             getUserGroups: jest.fn(),
             getGroupMembers: jest.fn(),
             getGroupRequests: jest.fn(),
@@ -716,6 +717,53 @@ describe("GroupController", () => {
       await expect(
         controller.updateGroup(req, groupId, { name: "Existing Name" }),
       ).rejects.toThrow("Group with this name already exists");
+    });
+  });
+  describe("deleteGroup", () => {
+    const groupId = "group-to-delete";
+
+    it("should soft-delete a group and return success when caller is a system admin", async () => {
+      jest.spyOn(service, "deleteGroup").mockResolvedValueOnce(undefined);
+      const req = { resolvedIdentity: { userId: "admin-id" } } as any;
+      const result = await controller.deleteGroup(req, groupId);
+      expect(service.deleteGroup).toHaveBeenCalledWith(groupId, "admin-id");
+      expect(result).toEqual({ success: true });
+    });
+
+    it("should throw 401 if resolvedIdentity is undefined", async () => {
+      const req = { resolvedIdentity: undefined } as any;
+      await expect(controller.deleteGroup(req, groupId)).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should throw 401 if resolvedIdentity has no userId", async () => {
+      const req = { resolvedIdentity: {} } as any;
+      await expect(controller.deleteGroup(req, groupId)).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should propagate ForbiddenException when caller is not a system admin", async () => {
+      jest
+        .spyOn(service, "deleteGroup")
+        .mockRejectedValueOnce(
+          new Error("Only system admins can delete groups"),
+        );
+      const req = { resolvedIdentity: { userId: "non-admin" } } as any;
+      await expect(controller.deleteGroup(req, groupId)).rejects.toThrow(
+        "Only system admins can delete groups",
+      );
+    });
+
+    it("should propagate NotFoundException when group does not exist", async () => {
+      jest
+        .spyOn(service, "deleteGroup")
+        .mockRejectedValueOnce(new Error("Group not found"));
+      const req = { resolvedIdentity: { userId: "admin-id" } } as any;
+      await expect(controller.deleteGroup(req, "nonexistent")).rejects.toThrow(
+        "Group not found",
+      );
     });
   });
 });
