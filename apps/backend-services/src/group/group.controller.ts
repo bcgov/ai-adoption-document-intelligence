@@ -10,6 +10,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
 } from "@nestjs/common";
@@ -29,6 +30,7 @@ import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { MembershipRequestActionDto } from "./dto/membership-request-action.dto";
 import { MyMembershipRequestDto } from "./dto/my-membership-request.dto";
 import { RequestMembershipDto } from "./dto/request-membership.dto";
+import { UpdateGroupDto } from "./dto/update-group.dto";
 import { UserGroupDto } from "./dto/user-group.dto";
 import { GroupService } from "./group.service";
 
@@ -268,6 +270,45 @@ export class GroupController {
       body.reason,
     );
     return { success: true };
+  }
+
+  /**
+   * Update an existing group's name and description (system admin only)
+   * PATCH /api/groups/:groupId
+   */
+  @ApiOperation({ summary: "Update an existing group (system admin only)" })
+  @ApiResponse({
+    status: 200,
+    description: "Group updated successfully.",
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized." })
+  @ApiResponse({
+    status: 403,
+    description: "Caller is not a system admin.",
+  })
+  @ApiResponse({ status: 404, description: "Group not found." })
+  @ApiResponse({
+    status: 409,
+    description: "A group with the given name already exists.",
+  })
+  @ApiParam({ name: "groupId", description: "Group ID", type: String })
+  @KeycloakSSOAuth()
+  @Patch(":groupId")
+  async updateGroup(
+    @Req() req: Request,
+    @Param("groupId") groupId: string,
+    @Body() body: UpdateGroupDto,
+  ): Promise<{ id: string; name: string; description: string | null }> {
+    const callerId = req.resolvedIdentity?.userId;
+    if (!callerId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+    return await this.groupService.updateGroup(
+      callerId,
+      groupId,
+      body.name,
+      body.description,
+    );
   }
 
   /**

@@ -23,6 +23,7 @@ describe("GroupController", () => {
             approveMembershipRequest: jest.fn(),
             denyMembershipRequest: jest.fn(),
             createGroup: jest.fn(),
+            updateGroup: jest.fn(),
             getGroupMembers: jest.fn(),
             getGroupRequests: jest.fn(),
             getMyRequests: jest.fn(),
@@ -572,6 +573,102 @@ describe("GroupController", () => {
       const req = { resolvedIdentity: { userId: "admin-id" } } as any;
       await expect(
         controller.createGroup(req, { name: "Existing Group" }),
+      ).rejects.toThrow("Group with this name already exists");
+    });
+  });
+
+  describe("updateGroup", () => {
+    const groupId = "group-1";
+
+    it("should call service with callerId, groupId, name, and description and return updated group", async () => {
+      const callerId = "admin-id";
+      const mockGroup = {
+        id: groupId,
+        name: "Updated Name",
+        description: "Desc",
+      };
+      jest.spyOn(service, "updateGroup").mockResolvedValueOnce(mockGroup);
+      const req = { resolvedIdentity: { userId: callerId } } as any;
+      const result = await controller.updateGroup(req, groupId, {
+        name: "Updated Name",
+        description: "Desc",
+      });
+      expect(service.updateGroup).toHaveBeenCalledWith(
+        callerId,
+        groupId,
+        "Updated Name",
+        "Desc",
+      );
+      expect(result).toEqual(mockGroup);
+    });
+
+    it("should call service without description when not provided", async () => {
+      const callerId = "admin-id";
+      const mockGroup = {
+        id: groupId,
+        name: "Updated Name",
+        description: null,
+      };
+      jest.spyOn(service, "updateGroup").mockResolvedValueOnce(mockGroup);
+      const req = { resolvedIdentity: { userId: callerId } } as any;
+      await controller.updateGroup(req, groupId, { name: "Updated Name" });
+      expect(service.updateGroup).toHaveBeenCalledWith(
+        callerId,
+        groupId,
+        "Updated Name",
+        undefined,
+      );
+    });
+
+    it("should throw 401 when resolvedIdentity is missing", async () => {
+      const req = { resolvedIdentity: undefined } as any;
+      await expect(
+        controller.updateGroup(req, groupId, { name: "Updated Name" }),
+      ).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should throw 401 when resolvedIdentity has no userId", async () => {
+      const req = { resolvedIdentity: {} } as any;
+      await expect(
+        controller.updateGroup(req, groupId, { name: "Updated Name" }),
+      ).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should propagate ForbiddenException when caller is not a system admin", async () => {
+      jest
+        .spyOn(service, "updateGroup")
+        .mockRejectedValueOnce(
+          new Error("Only system admins can update groups"),
+        );
+      const req = { resolvedIdentity: { userId: "non-admin" } } as any;
+      await expect(
+        controller.updateGroup(req, groupId, { name: "Updated Name" }),
+      ).rejects.toThrow("Only system admins can update groups");
+    });
+
+    it("should propagate NotFoundException when group does not exist", async () => {
+      jest
+        .spyOn(service, "updateGroup")
+        .mockRejectedValueOnce(new Error("Group not found"));
+      const req = { resolvedIdentity: { userId: "admin-id" } } as any;
+      await expect(
+        controller.updateGroup(req, "nonexistent", { name: "Updated Name" }),
+      ).rejects.toThrow("Group not found");
+    });
+
+    it("should propagate ConflictException when group name already exists", async () => {
+      jest
+        .spyOn(service, "updateGroup")
+        .mockRejectedValueOnce(
+          new Error("Group with this name already exists"),
+        );
+      const req = { resolvedIdentity: { userId: "admin-id" } } as any;
+      await expect(
+        controller.updateGroup(req, groupId, { name: "Existing Name" }),
       ).rejects.toThrow("Group with this name already exists");
     });
   });

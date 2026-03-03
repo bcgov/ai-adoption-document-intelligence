@@ -1319,3 +1319,104 @@ describe("getMyRequests", () => {
     });
   });
 });
+
+describe("updateGroup", () => {
+  const callerId = "admin-user";
+  const groupId = "group-1";
+
+  const buildDb = ({
+    isSystemAdmin = true,
+    existingGroup = {
+      id: groupId,
+      name: "Old Name",
+      deleted_at: null,
+    } as unknown,
+    duplicateGroup = null as unknown,
+    updatedGroup = {
+      id: groupId,
+      name: "New Name",
+      description: null,
+    } as unknown,
+  } = {}) => ({
+    prisma: {
+      group: {
+        findUnique: jest.fn().mockResolvedValue(existingGroup),
+        findFirst: jest.fn().mockResolvedValue(duplicateGroup),
+        update: jest.fn().mockResolvedValue(updatedGroup),
+      },
+    },
+    isUserSystemAdmin: jest.fn().mockResolvedValue(isSystemAdmin),
+  });
+
+  it("should update the group when caller is a system admin", async () => {
+    const mockUpdated = { id: groupId, name: "New Name", description: null };
+    const db = buildDb({ updatedGroup: mockUpdated });
+    const service = new GroupService(db as any);
+    const result = await service.updateGroup(callerId, groupId, "New Name");
+    expect(result).toEqual(mockUpdated);
+    expect(db.isUserSystemAdmin).toHaveBeenCalledWith(callerId);
+    expect(db.prisma.group.findUnique).toHaveBeenCalledWith({
+      where: { id: groupId, deleted_at: null },
+    });
+    expect(db.prisma.group.update).toHaveBeenCalledWith({
+      where: { id: groupId },
+      data: { name: "New Name", description: null, updated_by: callerId },
+      select: { id: true, name: true, description: true },
+    });
+  });
+
+  it("should include description when provided", async () => {
+    const mockUpdated = {
+      id: groupId,
+      name: "New Name",
+      description: "A description",
+    };
+    const db = buildDb({ updatedGroup: mockUpdated });
+    const service = new GroupService(db as any);
+    const result = await service.updateGroup(
+      callerId,
+      groupId,
+      "New Name",
+      "A description",
+    );
+    expect(result).toEqual(mockUpdated);
+    expect(db.prisma.group.update).toHaveBeenCalledWith({
+      where: { id: groupId },
+      data: {
+        name: "New Name",
+        description: "A description",
+        updated_by: callerId,
+      },
+      select: { id: true, name: true, description: true },
+    });
+  });
+
+  it("should throw ForbiddenException if caller is not a system admin", async () => {
+    const db = buildDb({ isSystemAdmin: false });
+    const service = new GroupService(db as any);
+    await expect(
+      service.updateGroup(callerId, groupId, "New Name"),
+    ).rejects.toThrow("Only system admins can update groups");
+    expect(db.prisma.group.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("should throw NotFoundException if group does not exist", async () => {
+    const db = buildDb({ existingGroup: null });
+    const service = new GroupService(db as any);
+    await expect(
+      service.updateGroup(callerId, groupId, "New Name"),
+    ).rejects.toThrow("Group not found");
+    expect(db.prisma.group.update).not.toHaveBeenCalled();
+  });
+
+  it("should throw ConflictException if another group already uses the new name", async () => {
+    const db = buildDb({
+      duplicateGroup: { id: "other-group", name: "New Name" },
+    });
+    const service = new GroupService(db as any);
+    await expect(
+      service.updateGroup(callerId, groupId, "New Name"),
+    ).rejects.toThrow("Group with this name already exists");
+    expect(db.prisma.group.update).not.toHaveBeenCalled();
+  });
+});

@@ -301,6 +301,54 @@ export class GroupService {
     return group;
   }
 
+  /**
+   * Updates an existing group's name and optional description.
+   * Only system admins are permitted to update groups.
+   * Throws ForbiddenException if the caller is not a system admin.
+   * Throws NotFoundException if the group does not exist or has been soft-deleted.
+   * Throws ConflictException if another group already uses the provided name.
+   * @param callerId - The ID of the caller (from resolvedIdentity.userId).
+   * @param groupId - The ID of the group to update.
+   * @param name - The new name for the group.
+   * @param description - Optional new description for the group.
+   */
+  async updateGroup(
+    callerId: string,
+    groupId: string,
+    name: string,
+    description?: string,
+  ): Promise<{ id: string; name: string; description: string | null }> {
+    const isSystemAdmin =
+      await this.databaseService.isUserSystemAdmin(callerId);
+    if (!isSystemAdmin) {
+      throw new ForbiddenException("Only system admins can update groups");
+    }
+
+    const group = await this.databaseService.prisma.group.findUnique({
+      where: { id: groupId, deleted_at: null },
+    });
+    if (!group) {
+      throw new NotFoundException("Group not found");
+    }
+
+    const duplicate = await this.databaseService.prisma.group.findFirst({
+      where: { name, id: { not: groupId }, deleted_at: null },
+    });
+    if (duplicate) {
+      throw new ConflictException("Group with this name already exists");
+    }
+
+    return await this.databaseService.prisma.group.update({
+      where: { id: groupId },
+      data: {
+        name,
+        description: description ?? null,
+        updated_by: callerId,
+      },
+      select: { id: true, name: true, description: true },
+    });
+  }
+
   async assignUserToGroup(
     callerId: string,
     userId: string,
