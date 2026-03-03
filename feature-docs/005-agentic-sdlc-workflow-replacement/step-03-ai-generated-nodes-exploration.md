@@ -1,7 +1,7 @@
-# Step 7: AI-generated custom correction nodes (exploration)
+# Step 3: AI-generated custom correction nodes (exploration)
 
-**Parent:** [OCR Correction and Agentic SDLC Requirements](../../docs/OCR_CORRECTION_AND_AGENTIC_SDLC_REQUIREMENTS.md) — Section 9  
-**Implementation order:** 7 (can be done in parallel or after Step 6)  
+**Parent:** [Feature 005 REQUIREMENTS](./REQUIREMENTS.md) — Section 3  
+**Implementation order:** 3 (can be done in parallel or after Step 2)  
 **Dependencies:** None required; exploration only unless one approach is chosen for implementation.
 
 ---

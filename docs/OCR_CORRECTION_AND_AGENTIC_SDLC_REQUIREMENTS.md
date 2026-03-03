@@ -2,11 +2,13 @@
 
 **Context:** Agentic SDLC. This document is the single source of requirements for automatic development. Implement in dependency order; each section may be split into user stories or tasks.
 
-**Benchmarking:** Sections 6–8 (automatic workflow tests, conditional replacement, feedback loop) build on the existing **benchmarking system** (feature 003). That system already provides: benchmark projects and definitions, versioned datasets with ground truth (DVC-backed), benchmark runs via Temporal, schema-aware and black-box evaluators, baseline promotion, regression comparison with configurable thresholds, scheduled runs, and regression reporting. OCR/Agentic SDLC requirements use that system for "current workflow" vs "candidate workflow" comparison and degradation detection; no separate benchmark implementation is required.
+**Feature split:** Requirements are implemented in two features. **Feature 004** (OCR Correction Tools and Benchmark Comparison) covers Sections 1–6 and Section 10: confusion matrices, correction tools, AI HITL processing, workflow modification utility, and benchmark integration so you can **run the baseline, make corrections, and have AI review the results**; design decisions can be made from there. **Feature 005** (Agentic SDLC Workflow Replacement and Feedback Loop) covers Sections 7–9: conditional workflow replacement, the full Temporal feedback loop, and AI-generated nodes exploration; it is implemented later. See [feature-docs/004-ocr-correction-agentic-sdlc/](../feature-docs/004-ocr-correction-agentic-sdlc/) and [feature-docs/005-agentic-sdlc-workflow-replacement/](../feature-docs/005-agentic-sdlc-workflow-replacement/).
+
+**Benchmarking:** Sections 6–8 build on the existing **benchmarking system** (feature 003). That system already provides: benchmark projects and definitions, versioned datasets with ground truth (DVC-backed), benchmark runs via Temporal, schema-aware and black-box evaluators, baseline promotion, regression comparison with configurable thresholds, scheduled runs, and regression reporting. OCR/Agentic SDLC requirements use that system for "current workflow" vs "candidate workflow" comparison and degradation detection; no separate benchmark implementation is required.
 
 **Related docs:** [ENRICHMENT.md](./ENRICHMENT.md), [HITL_ARCHITECTURE.md](./HITL_ARCHITECTURE.md), [graph-workflows/DAG_WORKFLOW_ENGINE.md](./graph-workflows/DAG_WORKFLOW_ENGINE.md), [graph-workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md](./graph-workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md), [benchmarking/BENCHMARKING_GUIDE.md](./benchmarking/BENCHMARKING_GUIDE.md), [feature-docs/003-benchmarking-system/REQUIREMENTS.md](../feature-docs/003-benchmarking-system/REQUIREMENTS.md).
 
-**Step-by-step implementation:** The requirements below are broken into implementable steps in [feature-docs/004-ocr-correction-agentic-sdlc/](../feature-docs/004-ocr-correction-agentic-sdlc/). Each step document includes the relevant requirements, acceptance criteria, and dependencies. See the [README](../feature-docs/004-ocr-correction-agentic-sdlc/README.md) for the implementation order and links to all step docs.
+**Step-by-step implementation:** **Feature 004** (steps 1–4): [feature-docs/004-ocr-correction-agentic-sdlc/](../feature-docs/004-ocr-correction-agentic-sdlc/) — confusion matrices, correction tools, AI HITL processing, benchmark integration. **Feature 005** (steps 1–3): [feature-docs/005-agentic-sdlc-workflow-replacement/](../feature-docs/005-agentic-sdlc-workflow-replacement/) — conditional replacement, feedback loop, AI-generated nodes exploration. See each feature’s README for implementation order and step docs.
 
 ---
 
@@ -174,12 +176,17 @@
 
 ## 11. Implementation order (for automatic development)
 
+**Feature 004** (implement first — run baseline, make corrections, AI review results):
+
 1. **Confusion matrices:** Document and, if applicable, implement ingestion/derivation of confusion-matrix–style data (Section 2).
-2. **OCR correction tools:** Implement at least two correction tools and simple correction nodes, including spellcheck (Sections 3 and 4).
+2. **OCR correction tools:** Implement at least three correction tools and simple correction nodes, including spellcheck (Sections 3 and 4).
 3. **AI HITL processing:** Implement AI processing of HITL feedback and tool-selection output (Section 5).
 4. **Integrate with benchmarking system:** Use the existing benchmarking system for Section 6. Define (or reuse) a benchmark project and definition for the OCR workflow; support workflow versioning and an optional workflow override when starting a run so the candidate can be run under the same definition. Establish a baseline run for the current workflow. Implement the workflow modification utility (graph edit + optional persistence of new workflow version). Add automation (or Temporal activities) to start a run for the candidate (same definition, workflow override), wait for completion, and read the baseline comparison result. Add or register evaluators for OCR correction metrics if needed (Section 10).
-5. **Conditional replacement:** Implement the automation that, when the baseline comparison reports no degradation, sets the candidate workflow as the new current version (workflow versioning; update active workflow pointer, do not overwrite in place) (Section 7).
-6. **Feedback loop:** Implement the loop as a Temporal workflow (or schedule + workflow): HITL data → AI recommendation → workflow modification → start benchmark run (same definition, workflow override) → wait for run completion → read comparison → conditional replacement. Document trigger (on-demand, schedule, or event) (Section 8).
+
+**Feature 005** (implement later — after design decisions from 004):
+
+5. **Conditional replacement:** Implement the automation that, when the baseline comparison reports no degradation, sets the candidate workflow as the new current version (Section 7). See [feature-docs/005-agentic-sdlc-workflow-replacement/](../feature-docs/005-agentic-sdlc-workflow-replacement/).
+6. **Feedback loop:** Implement the loop as a Temporal workflow (or schedule + workflow) (Section 8).
 7. **AI-generated nodes:** Complete exploration and, if chosen, implement with validation (Section 9).
 
 ---
@@ -196,3 +203,4 @@
 | Benchmarking (operational guide) | `docs/benchmarking/BENCHMARKING_GUIDE.md` |
 | Benchmark concepts (baseline, regression, definitions) | `docs/benchmarking/BENCHMARKING_GUIDE.md` § Workflow, § Establish a Baseline, § Regression Reports; `feature-docs/003-benchmarking-system` (user stories US-034, US-035, US-037) |
 | Evaluator interface and registry | `apps/backend-services/src/benchmark/evaluator.interface.ts`, `evaluator-registry.service.ts`, `benchmark.module.ts` |
+| Feature 005 (replacement, loop, exploration) | [feature-docs/005-agentic-sdlc-workflow-replacement/](../feature-docs/005-agentic-sdlc-workflow-replacement/) |
