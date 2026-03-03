@@ -25,20 +25,21 @@ export class GroupService {
   }
 
   /**
-   * Returns all existing groups.
+   * Returns all existing non-deleted groups.
    */
   async getAllGroups(): Promise<Array<{ id: string; name: string }>> {
     return await this.databaseService.prisma.group.findMany({
+      where: { deleted_at: null },
       select: { id: true, name: true },
     });
   }
 
   /**
-   * Returns all groups a user is a member of, including their role in each group.
+   * Returns all non-deleted groups a user is a member of, including their role in each group.
    */
   async getUserGroups(userId: string): Promise<UserGroupDto[]> {
     const userGroups = await this.databaseService.prisma.userGroup.findMany({
-      where: { user_id: userId },
+      where: { user_id: userId, group: { deleted_at: null } },
       include: { group: true },
     });
     return userGroups.map((ug) => ({

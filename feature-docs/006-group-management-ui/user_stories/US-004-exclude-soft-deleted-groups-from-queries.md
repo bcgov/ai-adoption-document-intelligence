@@ -5,22 +5,22 @@
 **So that** soft-deleted groups do not appear in listings or other group-related responses.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Soft-deleted groups are excluded from `GET /api/groups`
+- [x] **Scenario 1**: Soft-deleted groups are excluded from `GET /api/groups`
     - **Given** the database contains both active and soft-deleted groups
     - **When** `GET /api/groups` is called
     - **Then** only groups where `deleted_at IS NULL` are returned
 
-- [ ] **Scenario 2**: Soft-deleted groups are excluded from `GET /api/groups/user/:userId`
+- [x] **Scenario 2**: Soft-deleted groups are excluded from `GET /api/groups/user/:userId`
     - **Given** a user is a member of both an active and a soft-deleted group
     - **When** `GET /api/groups/user/:userId` is called
     - **Then** only the active group is returned
 
-- [ ] **Scenario 3**: Soft-deleted groups are excluded from the `/me` response group list
+- [x] **Scenario 3**: Soft-deleted groups are excluded from the `/me` response group list
     - **Given** a user is a member of a soft-deleted group
     - **When** `GET /api/auth/me` is called
     - **Then** the soft-deleted group does not appear in the `groups` array
 
-- [ ] **Scenario 4**: Unit tests cover the soft-delete exclusion logic
+- [x] **Scenario 4**: Unit tests cover the soft-delete exclusion logic
     - **Given** the updated service/query layer
     - **When** unit tests are run
     - **Then** tests assert that soft-deleted groups are filtered out

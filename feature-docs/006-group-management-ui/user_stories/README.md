@@ -18,7 +18,7 @@ User stories for **Group Management UI**.
 | # | Story | Status |
 |---|-------|--------|
 | US-003 | [Return Admin Status and Group Roles from the Database in `/me`](./US-003-me-endpoint-roles-from-db.md) | - [x] |
-| US-004 | [Exclude Soft-Deleted Groups from All Group Queries](./US-004-exclude-soft-deleted-groups-from-queries.md) | - [ ] |
+| US-004 | [Exclude Soft-Deleted Groups from All Group Queries](./US-004-exclude-soft-deleted-groups-from-queries.md) | - [x] |
 
 ---
 
