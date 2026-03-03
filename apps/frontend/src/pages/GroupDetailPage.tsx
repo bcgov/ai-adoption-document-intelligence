@@ -14,12 +14,13 @@ import {
 import { notifications } from "@mantine/notifications";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { type JSX, useState } from "react";
-import { useMatch } from "react-router-dom";
+import { useMatch, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useGroup } from "../auth/GroupContext";
 import {
   type GroupMember,
   useGroupMembers,
+  useLeaveGroup,
   useMyGroups,
   useRemoveGroupMember,
 } from "../data/hooks/useGroups";
@@ -166,11 +167,32 @@ export function GroupDetailPage(): JSX.Element {
   const groupId = match?.params.groupId;
   const { user, isSystemAdmin } = useAuth();
   const { availableGroups } = useGroup();
+  const navigate = useNavigate();
+  const [leaveGroupOpen, setLeaveGroupOpen] = useState(false);
 
   const { data: myGroups } = useMyGroups(user?.sub ?? "");
 
-  const isMember =
-    isSystemAdmin || (availableGroups.some((g) => g.id === groupId) ?? false);
+  const isActualMember = availableGroups.some((g) => g.id === groupId);
+
+  const isMember = isSystemAdmin || isActualMember;
+
+  const leaveMutation = useLeaveGroup(groupId ?? "");
+
+  const handleLeaveConfirm = () => {
+    leaveMutation.mutate(undefined, {
+      onSuccess: () => {
+        navigate("/groups");
+      },
+      onError: () => {
+        notifications.show({
+          title: "Error",
+          message: "Failed to leave group. Please try again.",
+          color: "red",
+        });
+        setLeaveGroupOpen(false);
+      },
+    });
+  };
 
   const isAdmin =
     isSystemAdmin ||
@@ -189,12 +211,24 @@ export function GroupDetailPage(): JSX.Element {
 
   return (
     <Stack gap="lg">
-      <Stack gap={2}>
-        <Title order={2}>{groupName}</Title>
-        <Text c="dimmed" size="sm">
-          Group details and membership.
-        </Text>
-      </Stack>
+      <Group justify="space-between" align="flex-start">
+        <Stack gap={2}>
+          <Title order={2}>{groupName}</Title>
+          <Text c="dimmed" size="sm">
+            Group details and membership.
+          </Text>
+        </Stack>
+        {isActualMember && (
+          <Button
+            variant="outline"
+            color="red"
+            onClick={() => setLeaveGroupOpen(true)}
+            data-testid="leave-group-btn"
+          >
+            Leave Group
+          </Button>
+        )}
+      </Group>
 
       <Tabs defaultValue="members">
         <Tabs.List>
@@ -207,6 +241,32 @@ export function GroupDetailPage(): JSX.Element {
           </Tabs.Panel>
         )}
       </Tabs>
+
+      <Modal
+        opened={leaveGroupOpen}
+        onClose={() => setLeaveGroupOpen(false)}
+        title="Leave Group"
+        data-testid="leave-group-modal"
+      >
+        <Text>Are you sure you want to leave this group?</Text>
+        <Group justify="flex-end" mt="md">
+          <Button
+            variant="default"
+            onClick={() => setLeaveGroupOpen(false)}
+            data-testid="leave-group-cancel-btn"
+          >
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            loading={leaveMutation.isPending}
+            onClick={handleLeaveConfirm}
+            data-testid="leave-group-confirm-btn"
+          >
+            Leave
+          </Button>
+        </Group>
+      </Modal>
     </Stack>
   );
 }

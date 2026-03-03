@@ -29,6 +29,8 @@ const mockUseMyGroups = vi.fn();
 const mockUseGroupMembers = vi.fn();
 const mockRemoveMutate = vi.fn();
 const mockUseRemoveGroupMember = vi.fn();
+const mockLeaveMutate = vi.fn();
+const mockUseLeaveGroup = vi.fn();
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -42,6 +44,7 @@ vi.mock("../data/hooks/useGroups", () => ({
   useMyGroups: () => mockUseMyGroups(),
   useGroupMembers: () => mockUseGroupMembers(),
   useRemoveGroupMember: () => mockUseRemoveGroupMember(),
+  useLeaveGroup: () => mockUseLeaveGroup(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -70,6 +73,7 @@ const members: GroupMember[] = [
 ];
 
 const idleRemove = { mutate: mockRemoveMutate, isPending: false };
+const idleLeave = { mutate: mockLeaveMutate, isPending: false };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -77,6 +81,7 @@ const idleRemove = { mutate: mockRemoveMutate, isPending: false };
 
 /**
  * Renders GroupDetailPage routed to /groups/:groupId.
+ * Includes a /groups route for validating post-leave navigation.
  */
 const renderPage = (groupId = GROUP_ID) =>
   render(
@@ -84,6 +89,10 @@ const renderPage = (groupId = GROUP_ID) =>
       <MantineProvider>
         <Routes>
           <Route path="/groups/:groupId" element={<GroupDetailPage />} />
+          <Route
+            path="/groups"
+            element={<div data-testid="groups-list-page" />}
+          />
         </Routes>
       </MantineProvider>
     </MemoryRouter>,
@@ -97,6 +106,7 @@ describe("GroupDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseRemoveGroupMember.mockReturnValue(idleRemove);
+    mockUseLeaveGroup.mockReturnValue(idleLeave);
     mockUseGroup.mockReturnValue({ availableGroups });
     mockUseGroupMembers.mockReturnValue({
       data: members,
@@ -442,6 +452,141 @@ describe("GroupDetailPage", () => {
       await waitFor(() => {
         expect(screen.getByTestId("members-error")).toBeInTheDocument();
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // US-018 – Leave Group action
+  // -------------------------------------------------------------------------
+  describe("US-018 – Leave Group action", () => {
+    const memberSetup = () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "u-1" },
+        isSystemAdmin: false,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: myGroupsMember,
+        isLoading: false,
+        isError: false,
+      });
+    };
+
+    // Scenario 1 – Leave Group button visible to member
+    it("shows the Leave Group button when the user is an actual group member", () => {
+      memberSetup();
+      renderPage();
+
+      expect(screen.getByTestId("leave-group-btn")).toBeInTheDocument();
+    });
+
+    it("does not show the Leave Group button when the user is only a system admin (not a roster member)", () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "admin-1" },
+        isSystemAdmin: true,
+      });
+      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseMyGroups.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+      });
+
+      renderPage();
+
+      expect(screen.queryByTestId("leave-group-btn")).not.toBeInTheDocument();
+    });
+
+    // Scenario 2 – Clicking Leave Group opens confirmation dialog
+    it("opens the Leave Group confirmation dialog when the button is clicked (no mutation fired)", async () => {
+      memberSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("leave-group-btn"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("leave-group-confirm-btn"),
+        ).toBeInTheDocument();
+      });
+
+      expect(mockLeaveMutate).not.toHaveBeenCalled();
+    });
+
+    // Scenario 3 – Confirming leaves the group and redirects
+    it("calls the leave mutation when the user confirms, then redirects to /groups on success", async () => {
+      memberSetup();
+
+      mockLeaveMutate.mockImplementation(
+        (_arg: undefined, callbacks: { onSuccess?: () => void }) => {
+          callbacks?.onSuccess?.();
+        },
+      );
+
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("leave-group-btn"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("leave-group-confirm-btn"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("leave-group-confirm-btn"));
+
+      expect(mockLeaveMutate).toHaveBeenCalled();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("groups-list-page")).toBeInTheDocument();
+      });
+    });
+
+    // Scenario 4 – Cancelling the dialog does nothing
+    it("does not call the leave mutation when the user cancels", async () => {
+      memberSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("leave-group-btn"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("leave-group-cancel-btn"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("leave-group-cancel-btn"));
+
+      expect(mockLeaveMutate).not.toHaveBeenCalled();
+    });
+
+    it("shows an error notification when the leave API call fails", async () => {
+      memberSetup();
+
+      let capturedOnError: ((error: Error) => void) | undefined;
+      mockLeaveMutate.mockImplementation(
+        (_arg: undefined, callbacks: { onError?: (error: Error) => void }) => {
+          capturedOnError = callbacks?.onError;
+        },
+      );
+
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("leave-group-btn"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("leave-group-confirm-btn"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("leave-group-confirm-btn"));
+      act(() => {
+        capturedOnError?.(new Error("API error"));
+      });
+
+      expect(mockNotificationsShow).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "red" }),
+      );
     });
   });
 });

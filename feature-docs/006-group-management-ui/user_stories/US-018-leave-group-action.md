@@ -5,22 +5,22 @@
 **So that** I can remove myself without needing an admin to do it.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Leave Group button is visible to the current authenticated member
+- [x] **Scenario 1**: Leave Group button is visible to the current authenticated member
     - **Given** the authenticated user is a member of the group
     - **When** the Members tab is rendered
     - **Then** a `Leave Group` button is shown in a clearly separated section (e.g., a danger zone or header action)
 
-- [ ] **Scenario 2**: Clicking Leave Group opens a confirmation dialog
+- [x] **Scenario 2**: Clicking Leave Group opens a confirmation dialog
     - **Given** the Members tab is visible
     - **When** the `Leave Group` button is clicked
     - **Then** a confirmation dialog is shown warning the user they will be removed from the group
 
-- [ ] **Scenario 3**: Confirming leaves the group and redirects
+- [x] **Scenario 3**: Confirming leaves the group and redirects
     - **Given** the confirmation dialog is open
     - **When** the user confirms
     - **Then** `DELETE /api/groups/:groupId/leave` is called; on success the user is redirected to `/groups`
 
-- [ ] **Scenario 4**: Cancelling the dialog does nothing
+- [x] **Scenario 4**: Cancelling the dialog does nothing
     - **Given** the confirmation dialog is open
     - **When** the user cancels
     - **Then** no API call is made and the user remains on the page

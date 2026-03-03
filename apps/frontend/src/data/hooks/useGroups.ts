@@ -190,9 +190,7 @@ export function useRemoveGroupMember(groupId: string) {
         `/groups/${groupId}/members/${userId}`,
       );
       if (!response.success || !response.data) {
-        throw new Error(
-          response.message ?? "Failed to remove group member",
-        );
+        throw new Error(response.message ?? "Failed to remove group member");
       }
       return response.data;
     },
@@ -200,6 +198,30 @@ export function useRemoveGroupMember(groupId: string) {
       queryClient.invalidateQueries({
         queryKey: ["groups", groupId, "members"],
       });
+    },
+  });
+}
+
+/**
+ * Removes the authenticated user from a group via DELETE /api/groups/:groupId/leave.
+ * Invalidates all group-related queries on success.
+ *
+ * @param groupId - The ID of the group to leave.
+ * @returns A react-query mutation result.
+ */
+export function useLeaveGroup(groupId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<void> => {
+      const response = await apiService.delete<{ success: boolean }>(
+        `/groups/${groupId}/leave`,
+      );
+      if (!response.success) {
+        throw new Error(response.message ?? "Failed to leave group");
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groups"] });
     },
   });
 }
