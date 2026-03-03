@@ -21,6 +21,7 @@ describe("GroupController", () => {
             approveMembershipRequest: jest.fn(),
             denyMembershipRequest: jest.fn(),
             getGroupMembers: jest.fn(),
+            removeGroupMember: jest.fn(),
           },
         },
       ],
@@ -197,6 +198,51 @@ describe("GroupController", () => {
       await expect(controller.getGroupMembers(req, "group1")).rejects.toThrow(
         new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
       );
+    });
+  });
+
+  describe("removeGroupMember", () => {
+    it("should call service with callerId from resolvedIdentity, groupId, and userId from params", async () => {
+      const callerId = "caller-id";
+      const groupId = "group1";
+      const userId = "user1";
+      jest.spyOn(service, "removeGroupMember").mockResolvedValueOnce();
+      const req = { resolvedIdentity: { userId: callerId } } as any;
+      const result = await controller.removeGroupMember(req, groupId, userId);
+      expect(service.removeGroupMember).toHaveBeenCalledWith(
+        callerId,
+        groupId,
+        userId,
+      );
+      expect(result).toEqual({ success: true });
+    });
+
+    it("should throw 401 if resolvedIdentity is undefined", async () => {
+      const req = { resolvedIdentity: undefined } as any;
+      await expect(
+        controller.removeGroupMember(req, "group1", "user1"),
+      ).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should throw 401 if resolvedIdentity has no userId", async () => {
+      const req = { resolvedIdentity: {} } as any;
+      await expect(
+        controller.removeGroupMember(req, "group1", "user1"),
+      ).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should propagate errors thrown by the service", async () => {
+      jest
+        .spyOn(service, "removeGroupMember")
+        .mockRejectedValueOnce(new Error("Forbidden"));
+      const req = { resolvedIdentity: { userId: "caller-id" } } as any;
+      await expect(
+        controller.removeGroupMember(req, "group1", "user1"),
+      ).rejects.toThrow("Forbidden");
     });
   });
 

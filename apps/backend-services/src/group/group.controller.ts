@@ -8,14 +8,12 @@ import {
   Param,
   Patch,
   Post,
-  Query,
   Req,
 } from "@nestjs/common";
 import {
   ApiBody,
   ApiOperation,
   ApiParam,
-  ApiQuery,
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
@@ -319,24 +317,36 @@ export class GroupController {
   }
 
   /**
-   * Remove a user from a group
-   * DELETE /api/groups/user/:userId?groupId=groupId
-   * Note: groupId is passed as a query parameter to allow for multiple group removals without needing to change the endpoint structure.
+   * Remove a specific member from a group
+   * DELETE /api/groups/:groupId/members/:userId
    */
-  @ApiOperation({ summary: "Remove a user from a group" })
+  @ApiOperation({ summary: "Remove a member from a group" })
   @ApiResponse({
     status: 200,
-    description: "User removed from group successfully.",
+    description: "Member removed from group successfully.",
   })
-  @ApiQuery({ name: "groupId", description: "Group ID", type: String })
-  @ApiParam({ name: "userId", description: "User ID", type: String })
+  @ApiResponse({
+    status: 403,
+    description: "Caller is not a group admin or system admin.",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Group not found or user is not a member.",
+  })
+  @ApiParam({ name: "groupId", description: "Group ID", type: String })
+  @ApiParam({ name: "userId", description: "User ID to remove", type: String })
   @KeycloakSSOAuth()
-  @Delete("user/:userId")
-  async removeUserFromGroup(
-    @Query("groupId") groupId: string,
+  @Delete(":groupId/members/:userId")
+  async removeGroupMember(
+    @Req() req: Request,
+    @Param("groupId") groupId: string,
     @Param("userId") userId: string,
   ): Promise<{ success: boolean }> {
-    await this.groupService.removeUserFromGroup(groupId, userId);
+    const callerId = req.resolvedIdentity?.userId;
+    if (!callerId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+    await this.groupService.removeGroupMember(callerId, groupId, userId);
     return { success: true };
   }
 }

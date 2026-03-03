@@ -330,37 +330,55 @@ export class GroupService {
   }
 
   /**
-   * Removes a user from a group by userId and groupId.
-   * Throws an error if the group or user does not exist, or if the user is not a member.
+   * Removes a user from a group, with authorization enforcement.
+   * The caller must be a group admin (UserGroup record with role = ADMIN) or a system admin.
+   * Throws NotFoundException if the group does not exist.
+   * Throws ForbiddenException if the caller lacks the required role.
+   * Throws NotFoundException if the target user is not a member of the group.
+   * @param callerId - The ID of the user performing the removal (from resolvedIdentity.userId).
+   * @param groupId - The ID of the group.
+   * @param userId - The ID of the user to remove.
    */
-  async removeUserFromGroup(groupId: string, userId: string): Promise<void> {
-    // Check if group exists
+  async removeGroupMember(
+    callerId: string,
+    groupId: string,
+    userId: string,
+  ): Promise<void> {
     const group = await this.databaseService.prisma.group.findUnique({
       where: { id: groupId },
     });
     if (!group) {
       throw new NotFoundException("Group not found");
     }
-    // Check if user-group relation exists
-    const userGroup = await this.databaseService.prisma.userGroup.findUnique({
-      where: {
-        user_id_group_id: {
-          user_id: userId,
-          group_id: groupId,
-        },
-      },
-    });
-    if (!userGroup) {
-      throw new NotFoundException("User not a member of this group");
+
+    const isSystemAdmin =
+      await this.databaseService.isUserSystemAdmin(callerId);
+    if (!isSystemAdmin) {
+      const callerMembership =
+        await this.databaseService.prisma.userGroup.findUnique({
+          where: {
+            user_id_group_id: { user_id: callerId, group_id: groupId },
+          },
+        });
+      if (callerMembership?.role !== GroupRole.ADMIN) {
+        throw new ForbiddenException(
+          "Only group admins or system admins can remove members",
+        );
+      }
     }
-    // Remove the user from the group
-    await this.databaseService.prisma.userGroup.delete({
-      where: {
-        user_id_group_id: {
-          user_id: userId,
-          group_id: groupId,
+
+    const targetMembership =
+      await this.databaseService.prisma.userGroup.findUnique({
+        where: {
+          user_id_group_id: { user_id: userId, group_id: groupId },
         },
-      },
+      });
+    if (!targetMembership) {
+      throw new NotFoundException("User is not a member of this group");
+    }
+
+    await this.databaseService.prisma.userGroup.delete({
+      where: { user_id_group_id: { user_id: userId, group_id: groupId } },
     });
   }
 }
