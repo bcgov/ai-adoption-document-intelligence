@@ -820,3 +820,131 @@ describe("leaveGroup", () => {
     );
   });
 });
+
+describe("getGroupRequests", () => {
+  const callerId = "admin-1";
+  const groupId = "group-1";
+  const mockGroup = { id: groupId, deleted_at: null };
+  const mockRequests = [
+    {
+      id: "req1",
+      user_id: "user-1",
+      group_id: groupId,
+      status: "PENDING",
+      actor_id: null,
+      reason: null,
+      resolved_at: null,
+      created_at: new Date("2026-01-01T00:00:00.000Z"),
+    },
+    {
+      id: "req2",
+      user_id: "user-2",
+      group_id: groupId,
+      status: "APPROVED",
+      actor_id: "admin-1",
+      reason: "Looks good",
+      resolved_at: new Date("2026-01-02T00:00:00.000Z"),
+      created_at: new Date("2026-01-01T12:00:00.000Z"),
+    },
+  ];
+
+  const buildDb = ({
+    group = mockGroup,
+    requests = mockRequests,
+    callerUserGroup = { user_id: callerId, group_id: groupId, role: "ADMIN" },
+    isSystemAdmin = false,
+  }: {
+    group?: unknown;
+    requests?: unknown[];
+    callerUserGroup?: unknown;
+    isSystemAdmin?: boolean;
+  }) => ({
+    prisma: {
+      group: { findUnique: jest.fn().mockResolvedValue(group) },
+      userGroup: { findUnique: jest.fn().mockResolvedValue(callerUserGroup) },
+      groupMembershipRequest: {
+        findMany: jest.fn().mockResolvedValue(requests),
+      },
+    },
+    isUserSystemAdmin: jest.fn().mockResolvedValue(isSystemAdmin),
+  });
+
+  it("should return all requests for a group admin", async () => {
+    const db = buildDb({});
+    const svc = new GroupService(db as any);
+    const result = await svc.getGroupRequests(callerId, groupId);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      id: "req1",
+      userId: "user-1",
+      groupId,
+      status: "PENDING",
+      createdAt: mockRequests[0].created_at,
+    });
+    expect(result[0].actorId).toBeUndefined();
+    expect(result[0].reason).toBeUndefined();
+    expect(result[0].resolvedAt).toBeUndefined();
+    expect(result[1]).toMatchObject({
+      id: "req2",
+      actorId: "admin-1",
+      reason: "Looks good",
+    });
+  });
+
+  it("should return all requests for a system admin without checking group membership", async () => {
+    const db = buildDb({ isSystemAdmin: true });
+    const svc = new GroupService(db as any);
+    await svc.getGroupRequests(callerId, groupId);
+    expect(db.isUserSystemAdmin).toHaveBeenCalledWith(callerId);
+    expect(db.prisma.userGroup.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("should pass status filter to the database query when provided", async () => {
+    const db = buildDb({ requests: [mockRequests[0]] });
+    const svc = new GroupService(db as any);
+    await svc.getGroupRequests(callerId, groupId, "PENDING" as any);
+    expect(db.prisma.groupMembershipRequest.findMany).toHaveBeenCalledWith({
+      where: { group_id: groupId, status: "PENDING" },
+    });
+  });
+
+  it("should not include status in the query when status is undefined", async () => {
+    const db = buildDb({});
+    const svc = new GroupService(db as any);
+    await svc.getGroupRequests(callerId, groupId);
+    expect(db.prisma.groupMembershipRequest.findMany).toHaveBeenCalledWith({
+      where: { group_id: groupId },
+    });
+  });
+
+  it("should throw ForbiddenException when caller is a non-admin group member", async () => {
+    const db = buildDb({
+      callerUserGroup: {
+        user_id: callerId,
+        group_id: groupId,
+        role: "MEMBER",
+      },
+    });
+    const svc = new GroupService(db as any);
+    await expect(svc.getGroupRequests(callerId, groupId)).rejects.toThrow(
+      "Only group admins or system admins can view membership requests",
+    );
+    expect(db.prisma.groupMembershipRequest.findMany).not.toHaveBeenCalled();
+  });
+
+  it("should throw ForbiddenException when caller is not a group member", async () => {
+    const db = buildDb({ callerUserGroup: null });
+    const svc = new GroupService(db as any);
+    await expect(svc.getGroupRequests(callerId, groupId)).rejects.toThrow(
+      "Only group admins or system admins can view membership requests",
+    );
+  });
+
+  it("should throw NotFoundException when group does not exist", async () => {
+    const db = buildDb({ group: null });
+    const svc = new GroupService(db as any);
+    await expect(svc.getGroupRequests(callerId, groupId)).rejects.toThrow(
+      "Group not found",
+    );
+  });
+});

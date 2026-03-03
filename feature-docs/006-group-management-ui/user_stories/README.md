@@ -27,8 +27,8 @@ User stories for **Group Management UI**.
 | # | Story | Status |
 |---|-------|--------|
 | US-005 | [`GET /api/groups/:groupId/members` Endpoint](./US-005-get-group-members-endpoint.md) | - [x] |
-| US-006 | [`DELETE /api/groups/:groupId/members/:userId` Endpoint](./US-006-remove-group-member-endpoint.md) | - [ ] |
-| US-007 | [`DELETE /api/groups/:groupId/leave` Endpoint](./US-007-leave-group-endpoint.md) | - [ ] |
+| US-006 | [`DELETE /api/groups/:groupId/members/:userId` Endpoint](./US-006-remove-group-member-endpoint.md) | - [x] |
+| US-007 | [`DELETE /api/groups/:groupId/leave` Endpoint](./US-007-leave-group-endpoint.md) | - [x] |
 
 ---
 
@@ -36,7 +36,7 @@ User stories for **Group Management UI**.
 
 | # | Story | Status |
 |---|-------|--------|
-| US-008 | [`GET /api/groups/:groupId/requests` Endpoint](./US-008-get-group-requests-endpoint.md) | - [ ] |
+| US-008 | [`GET /api/groups/:groupId/requests` Endpoint](./US-008-get-group-requests-endpoint.md) | - [x] |
 | US-009 | [Allow Group Admins to Approve and Deny Membership Requests](./US-009-group-admin-approve-deny-requests.md) | - [ ] |
 | US-010 | [`GET /api/groups/requests/mine` Endpoint](./US-010-get-my-requests-endpoint.md) | - [ ] |
 

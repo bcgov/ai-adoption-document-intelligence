@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { RequestMembershipDto } from "./dto/request-membership.dto";
 import { GroupController } from "./group.controller";
 import { GroupService } from "./group.service";
@@ -21,6 +22,7 @@ describe("GroupController", () => {
             approveMembershipRequest: jest.fn(),
             denyMembershipRequest: jest.fn(),
             getGroupMembers: jest.fn(),
+            getGroupRequests: jest.fn(),
             removeGroupMember: jest.fn(),
             leaveGroup: jest.fn(),
           },
@@ -293,6 +295,82 @@ describe("GroupController", () => {
       ).rejects.toThrow(
         new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
       );
+    });
+  });
+
+  describe("getGroupRequests", () => {
+    it("should return requests when callerId from resolvedIdentity is provided", async () => {
+      const callerId = "admin-id";
+      const groupId = "group1";
+      const mockRequests: GroupMembershipRequestDto[] = [
+        {
+          id: "req1",
+          userId: "user1",
+          groupId,
+          status: "PENDING",
+          createdAt: new Date(),
+        },
+      ];
+      jest
+        .spyOn(service, "getGroupRequests")
+        .mockResolvedValueOnce(mockRequests);
+      const req = { resolvedIdentity: { userId: callerId } } as any;
+      const result = await controller.getGroupRequests(req, groupId, undefined);
+      expect(service.getGroupRequests).toHaveBeenCalledWith(
+        callerId,
+        groupId,
+        undefined,
+      );
+      expect(result).toEqual(mockRequests);
+    });
+
+    it("should pass parsed status to service when valid status query param is provided", async () => {
+      const callerId = "admin-id";
+      const groupId = "group1";
+      jest.spyOn(service, "getGroupRequests").mockResolvedValueOnce([]);
+      const req = { resolvedIdentity: { userId: callerId } } as any;
+      await controller.getGroupRequests(req, groupId, "PENDING");
+      expect(service.getGroupRequests).toHaveBeenCalledWith(
+        callerId,
+        groupId,
+        "PENDING",
+      );
+    });
+
+    it("should throw 400 when an invalid status value is provided", async () => {
+      const req = { resolvedIdentity: { userId: "admin-id" } } as any;
+      await expect(
+        controller.getGroupRequests(req, "group1", "INVALID"),
+      ).rejects.toThrow("Invalid status value");
+      expect(service.getGroupRequests).not.toHaveBeenCalled();
+    });
+
+    it("should throw 401 when resolvedIdentity is undefined", async () => {
+      const req = { resolvedIdentity: undefined } as any;
+      await expect(
+        controller.getGroupRequests(req, "group1", undefined),
+      ).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should throw 401 when resolvedIdentity has no userId", async () => {
+      const req = { resolvedIdentity: {} } as any;
+      await expect(
+        controller.getGroupRequests(req, "group1", undefined),
+      ).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should propagate errors thrown by the service", async () => {
+      jest
+        .spyOn(service, "getGroupRequests")
+        .mockRejectedValueOnce(new Error("Forbidden"));
+      const req = { resolvedIdentity: { userId: "admin-id" } } as any;
+      await expect(
+        controller.getGroupRequests(req, "group1", undefined),
+      ).rejects.toThrow("Forbidden");
     });
   });
 

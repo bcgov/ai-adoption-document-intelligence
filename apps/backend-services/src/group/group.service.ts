@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
 import { GroupMemberDto } from "./dto/group-member.dto";
+import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { UserGroupDto } from "./dto/user-group.dto";
 
 @Injectable()
@@ -345,6 +346,64 @@ export class GroupService {
     await this.databaseService.prisma.userGroup.delete({
       where: { user_id_group_id: { user_id: userId, group_id: groupId } },
     });
+  }
+
+  /**
+   * Returns all membership requests for a group, with optional status filtering.
+   * Authorization: the caller must be a group admin (UserGroup record with role = ADMIN) or a system admin.
+   * @param callerId - The ID of the caller (from resolvedIdentity.userId).
+   * @param groupId - The ID of the group whose requests are being retrieved.
+   * @param status - Optional status filter; when provided only requests matching the status are returned.
+   * @returns An array of GroupMembershipRequestDto objects.
+   * @throws NotFoundException when the group does not exist.
+   * @throws ForbiddenException when the caller is not a group admin or system admin.
+   */
+  async getGroupRequests(
+    callerId: string,
+    groupId: string,
+    status?: $Enums.GroupMembershipRequestStatus,
+  ): Promise<GroupMembershipRequestDto[]> {
+    const group = await this.databaseService.prisma.group.findUnique({
+      where: { id: groupId, deleted_at: null },
+    });
+    if (!group) {
+      throw new NotFoundException("Group not found");
+    }
+
+    const isSystemAdmin =
+      await this.databaseService.isUserSystemAdmin(callerId);
+    if (!isSystemAdmin) {
+      const callerMembership =
+        await this.databaseService.prisma.userGroup.findUnique({
+          where: {
+            user_id_group_id: { user_id: callerId, group_id: groupId },
+          },
+        });
+      if (callerMembership?.role !== GroupRole.ADMIN) {
+        throw new ForbiddenException(
+          "Only group admins or system admins can view membership requests",
+        );
+      }
+    }
+
+    const requests =
+      await this.databaseService.prisma.groupMembershipRequest.findMany({
+        where: {
+          group_id: groupId,
+          ...(status !== undefined ? { status } : {}),
+        },
+      });
+
+    return requests.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      groupId: r.group_id,
+      status: r.status,
+      actorId: r.actor_id ?? undefined,
+      reason: r.reason ?? undefined,
+      resolvedAt: r.resolved_at ?? undefined,
+      createdAt: r.created_at,
+    }));
   }
 
   /**

@@ -1,3 +1,4 @@
+import { $Enums } from "@generated/client";
 import {
   Body,
   Controller,
@@ -8,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
 } from "@nestjs/common";
 import {
@@ -21,6 +23,7 @@ import { Request } from "express";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { User } from "../auth/types";
 import { GroupMemberDto } from "./dto/group-member.dto";
+import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { MembershipRequestActionDto } from "./dto/membership-request-action.dto";
 import { RequestMembershipDto } from "./dto/request-membership.dto";
 import { UserGroupDto } from "./dto/user-group.dto";
@@ -285,6 +288,61 @@ export class GroupController {
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  /**
+   * Get all membership requests for a group, with optional status filtering
+   * GET /api/groups/:groupId/requests
+   */
+  @ApiOperation({
+    summary: "Get membership requests for a group with optional status filter",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "List of membership requests for the group.",
+    type: [GroupMembershipRequestDto],
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid status query parameter.",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Caller is not a group admin or system admin.",
+  })
+  @ApiResponse({ status: 404, description: "Group not found." })
+  @ApiParam({ name: "groupId", description: "Group ID", type: String })
+  @KeycloakSSOAuth()
+  @Get(":groupId/requests")
+  async getGroupRequests(
+    @Req() req: Request,
+    @Param("groupId") groupId: string,
+    @Query("status") status?: string,
+  ): Promise<GroupMembershipRequestDto[]> {
+    const callerId = req.resolvedIdentity?.userId;
+    if (!callerId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
+    }
+
+    const validStatuses = Object.values($Enums.GroupMembershipRequestStatus);
+    let parsedStatus: $Enums.GroupMembershipRequestStatus | undefined;
+    if (status !== undefined) {
+      if (
+        !validStatuses.includes(status as $Enums.GroupMembershipRequestStatus)
+      ) {
+        throw new HttpException(
+          `Invalid status value. Must be one of: ${validStatuses.join(", ")}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      parsedStatus = status as $Enums.GroupMembershipRequestStatus;
+    }
+
+    return await this.groupService.getGroupRequests(
+      callerId,
+      groupId,
+      parsedStatus,
+    );
   }
 
   /**
