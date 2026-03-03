@@ -10,6 +10,11 @@ export class GroupMembershipRequestDto {
   @ApiProperty({ description: "The ID of the user who made the request" })
   userId: string;
 
+  @ApiProperty({
+    description: "The email address of the user who made the request",
+  })
+  email: string;
+
   @ApiProperty({ description: "The ID of the group the request is for" })
   groupId: string;
 

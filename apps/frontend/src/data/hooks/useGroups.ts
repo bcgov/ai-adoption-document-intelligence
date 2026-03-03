@@ -31,6 +31,19 @@ export interface MyMembershipRequest {
   createdAt: string;
 }
 
+/** A single membership request for a group, returned by GET /api/groups/:groupId/requests */
+export interface GroupRequest {
+  id: string;
+  userId: string;
+  email: string;
+  groupId: string;
+  status: string;
+  actorId?: string;
+  reason?: string;
+  resolvedAt?: string;
+  createdAt: string;
+}
+
 /**
  * Fetches all available groups from the API.
  *
@@ -123,6 +136,34 @@ export function useMyRequests(status?: string) {
       }
       return response.data ?? [];
     },
+  });
+}
+
+/**
+ * Fetches all membership requests for a specific group, optionally filtered by status,
+ * via GET /api/groups/:groupId/requests.
+ * Only accessible by group admins and system admins.
+ *
+ * @param groupId - The ID of the group whose requests to fetch.
+ * @param status - Optional status filter (PENDING, APPROVED, DENIED, CANCELLED).
+ * @returns A react-query result containing the list of group membership requests.
+ */
+export function useGroupRequests(groupId: string, status?: string) {
+  return useQuery({
+    queryKey: ["groups", groupId, "requests", status],
+    queryFn: async (): Promise<GroupRequest[]> => {
+      const params = status ? `?status=${status}` : "";
+      const response = await apiService.get<GroupRequest[]>(
+        `/groups/${groupId}/requests${params}`,
+      );
+      if (!response.success) {
+        throw new Error(
+          response.message ?? "Failed to fetch group membership requests",
+        );
+      }
+      return response.data ?? [];
+    },
+    enabled: !!groupId,
   });
 }
 

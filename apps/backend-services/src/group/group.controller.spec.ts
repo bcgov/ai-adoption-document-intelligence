@@ -379,6 +379,7 @@ describe("GroupController", () => {
         {
           id: "req1",
           userId: "user1",
+          email: "user1@example.com",
           groupId,
           status: "PENDING",
           createdAt: new Date(),

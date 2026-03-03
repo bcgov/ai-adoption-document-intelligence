@@ -1251,6 +1251,7 @@ describe("getGroupRequests", () => {
       reason: null,
       resolved_at: null,
       created_at: new Date("2026-01-01T00:00:00.000Z"),
+      user: { email: "user1@example.com" },
     },
     {
       id: "req2",
@@ -1261,6 +1262,7 @@ describe("getGroupRequests", () => {
       reason: "Looks good",
       resolved_at: new Date("2026-01-02T00:00:00.000Z"),
       created_at: new Date("2026-01-01T12:00:00.000Z"),
+      user: { email: "user2@example.com" },
     },
   ];
 
@@ -1293,6 +1295,7 @@ describe("getGroupRequests", () => {
     expect(result[0]).toMatchObject({
       id: "req1",
       userId: "user-1",
+      email: "user1@example.com",
       groupId,
       status: "PENDING",
       createdAt: mockRequests[0].created_at,
@@ -1321,6 +1324,7 @@ describe("getGroupRequests", () => {
     await svc.getGroupRequests(callerId, groupId, "PENDING" as any);
     expect(db.prisma.groupMembershipRequest.findMany).toHaveBeenCalledWith({
       where: { group_id: groupId, status: "PENDING" },
+      include: { user: true },
     });
   });
 
@@ -1330,6 +1334,7 @@ describe("getGroupRequests", () => {
     await svc.getGroupRequests(callerId, groupId);
     expect(db.prisma.groupMembershipRequest.findMany).toHaveBeenCalledWith({
       where: { group_id: groupId },
+      include: { user: true },
     });
   });
 

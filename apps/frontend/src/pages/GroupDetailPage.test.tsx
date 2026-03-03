@@ -9,7 +9,11 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { GroupMember, UserGroup } from "../data/hooks/useGroups";
+import type {
+  GroupMember,
+  GroupRequest,
+  UserGroup,
+} from "../data/hooks/useGroups";
 import { GroupDetailPage } from "./GroupDetailPage";
 
 const { mockNotificationsShow } = vi.hoisted(() => ({
@@ -31,6 +35,7 @@ const mockRemoveMutate = vi.fn();
 const mockUseRemoveGroupMember = vi.fn();
 const mockLeaveMutate = vi.fn();
 const mockUseLeaveGroup = vi.fn();
+const mockUseGroupRequests = vi.fn();
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -45,6 +50,7 @@ vi.mock("../data/hooks/useGroups", () => ({
   useGroupMembers: () => mockUseGroupMembers(),
   useRemoveGroupMember: () => mockUseRemoveGroupMember(),
   useLeaveGroup: () => mockUseLeaveGroup(),
+  useGroupRequests: () => mockUseGroupRequests(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -70,6 +76,26 @@ const members: GroupMember[] = [
     joinedAt: "2026-01-10T00:00:00Z",
   },
   { userId: "u-2", email: "bob@example.com", joinedAt: "2026-02-01T00:00:00Z" },
+];
+
+const groupRequests: GroupRequest[] = [
+  {
+    id: "req-1",
+    userId: "u-3",
+    email: "charlie@example.com",
+    groupId: GROUP_ID,
+    status: "PENDING",
+    createdAt: "2026-03-01T00:00:00Z",
+  },
+  {
+    id: "req-2",
+    userId: "u-4",
+    email: "diana@example.com",
+    groupId: GROUP_ID,
+    status: "APPROVED",
+    reason: "Approved",
+    createdAt: "2026-02-15T00:00:00Z",
+  },
 ];
 
 const idleRemove = { mutate: mockRemoveMutate, isPending: false };
@@ -110,6 +136,11 @@ describe("GroupDetailPage", () => {
     mockUseGroup.mockReturnValue({ availableGroups });
     mockUseGroupMembers.mockReturnValue({
       data: members,
+      isLoading: false,
+      isError: false,
+    });
+    mockUseGroupRequests.mockReturnValue({
+      data: groupRequests,
       isLoading: false,
       isError: false,
     });
@@ -587,6 +618,179 @@ describe("GroupDetailPage", () => {
       expect(mockNotificationsShow).toHaveBeenCalledWith(
         expect.objectContaining({ color: "red" }),
       );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // US-019 – Membership Requests tab
+  // -------------------------------------------------------------------------
+  describe("US-019 – Membership Requests tab", () => {
+    const adminSetup = () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "u-1" },
+        isSystemAdmin: false,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: myGroupsAdmin,
+        isLoading: false,
+        isError: false,
+      });
+    };
+
+    const memberSetup = () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "u-1" },
+        isSystemAdmin: false,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: myGroupsMember,
+        isLoading: false,
+        isError: false,
+      });
+    };
+
+    const sysAdminSetup = () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "admin-1" },
+        isSystemAdmin: true,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+      });
+    };
+
+    // Scenario 1 – Tab not visible to regular members
+    it("does not show the Membership Requests tab for a regular group member", () => {
+      memberSetup();
+      renderPage();
+
+      expect(
+        screen.queryByRole("tab", { name: "Membership Requests" }),
+      ).not.toBeInTheDocument();
+    });
+
+    // Scenario 2 – Tab visible to group admins
+    it("shows the Membership Requests tab for a group admin", () => {
+      adminSetup();
+      renderPage();
+
+      expect(
+        screen.getByRole("tab", { name: "Membership Requests" }),
+      ).toBeInTheDocument();
+    });
+
+    it("shows the Membership Requests tab for a system admin", () => {
+      sysAdminSetup();
+      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      renderPage();
+
+      expect(
+        screen.getByRole("tab", { name: "Membership Requests" }),
+      ).toBeInTheDocument();
+    });
+
+    // Scenario 2 – Table columns and data displayed
+    it("displays the requests table with correct columns when the tab is active", async () => {
+      adminSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+
+      await waitFor(() => {
+        const table = screen.getByTestId("requests-table");
+        expect(
+          within(table).getByRole("columnheader", { name: "Email" }),
+        ).toBeInTheDocument();
+        expect(
+          within(table).getByRole("columnheader", { name: "Requested" }),
+        ).toBeInTheDocument();
+        expect(
+          within(table).getByRole("columnheader", { name: "Reason" }),
+        ).toBeInTheDocument();
+        expect(
+          within(table).getByRole("columnheader", { name: "Status" }),
+        ).toBeInTheDocument();
+        expect(
+          within(table).getByRole("columnheader", { name: "Actions" }),
+        ).toBeInTheDocument();
+        expect(
+          within(table).getByText("charlie@example.com"),
+        ).toBeInTheDocument();
+        expect(
+          within(table).getByText("diana@example.com"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    // Scenario 3 – Status filter defaults to PENDING
+    it("renders the status filter with PENDING as the default value", async () => {
+      adminSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("requests-status-filter")).toBeInTheDocument();
+        // Mantine Select renders a visible input with the label of the selected option
+        const inputs = screen.getAllByDisplayValue("Pending");
+        expect(inputs.length).toBeGreaterThan(0);
+      });
+    });
+
+    // Scenario 5 – Loading state
+    it("shows a loader while requests are loading", async () => {
+      adminSetup();
+      mockUseGroupRequests.mockReturnValue({
+        data: undefined,
+        isLoading: true,
+        isError: false,
+      });
+
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("requests-loading")).toBeInTheDocument();
+      });
+    });
+
+    // Scenario 5 – Error state
+    it("shows an error alert when requests fail to load", async () => {
+      adminSetup();
+      mockUseGroupRequests.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: true,
+      });
+
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("requests-error")).toBeInTheDocument();
+      });
+    });
+
+    // Empty state
+    it("shows an empty state when there are no requests", async () => {
+      adminSetup();
+      mockUseGroupRequests.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+      });
+
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("requests-empty")).toBeInTheDocument();
+      });
     });
   });
 });

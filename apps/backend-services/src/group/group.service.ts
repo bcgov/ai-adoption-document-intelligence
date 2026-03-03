@@ -567,11 +567,13 @@ export class GroupService {
           group_id: groupId,
           ...(status !== undefined ? { status } : {}),
         },
+        include: { user: true },
       });
 
     return requests.map((r) => ({
       id: r.id,
       userId: r.user_id,
+      email: r.user?.email ?? "",
       groupId: r.group_id,
       status: r.status,
       actorId: r.actor_id ?? undefined,

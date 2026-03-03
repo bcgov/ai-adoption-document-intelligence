@@ -39,6 +39,7 @@ Returns an array of membership request objects.
   {
     "id": "req-uuid",
     "userId": "user-uuid",
+    "email": "user@example.com",
     "groupId": "group-uuid",
     "status": "PENDING",
     "createdAt": "2026-01-01T00:00:00.000Z"
@@ -46,6 +47,7 @@ Returns an array of membership request objects.
   {
     "id": "req-uuid-2",
     "userId": "user-uuid-2",
+    "email": "user2@example.com",
     "groupId": "group-uuid",
     "status": "APPROVED",
     "actorId": "admin-uuid",
@@ -60,6 +62,7 @@ Returns an array of membership request objects.
 |-------------|--------|--------------------------------------------------------------------|
 | id          | string | The unique identifier of the request                               |
 | userId      | string | The ID of the user who made the request                            |
+| email       | string | The email address of the user who made the request                 |
 | groupId     | string | The ID of the group the request is for                             |
 | status      | string | Current status: `PENDING`, `APPROVED`, `DENIED`, or `CANCELLED`   |
 | actorId     | string | (Optional) ID of the admin who acted on the request                |
