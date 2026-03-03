@@ -29,4 +29,4 @@
 - The caller's identity is resolved from `req.resolvedIdentity.userId`.
 - Decorate with JSDoc, `@ApiOperation`, `@ApiResponse`, `@ApiParam`.
 - This endpoint is distinct from `DELETE /api/groups/:groupId/members/:userId` even though the underlying DB operation is the same, to provide clearer semantics and separate access control.
-- Any associated `UserGroupRole` records for the leaving user in this group may also be removed.
+- The `UserGroup` record (which contains the user's role) is hard-deleted.

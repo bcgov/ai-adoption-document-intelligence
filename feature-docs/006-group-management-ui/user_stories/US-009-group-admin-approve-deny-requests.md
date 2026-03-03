@@ -42,5 +42,5 @@
 
 ## Technical Notes / Assumptions
 - Update the authorization check on the existing approve and deny endpoints; do not create new endpoints.
-- The request's `group_id` is used to look up whether the caller has a `UserGroupRole` record with `role = 'group-admin'` for that group.
+- The request's `group_id` is used to look up whether the caller has a `UserGroup` record with `role = ADMIN` for that group.
 - Update related controller/service unit tests.

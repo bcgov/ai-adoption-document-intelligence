@@ -37,5 +37,5 @@
 
 ## Technical Notes / Assumptions
 - Decorate with JSDoc, `@ApiOperation`, `@ApiResponse`, `@ApiParam`.
-- Authorization: caller must have a `UserGroupRole` record with `role = 'group-admin'` for the group, or be a system admin.
+- Authorization: caller must have a `UserGroup` record with `role = ADMIN` for the group, or be a system admin.
 - The `UserGroup` record is hard-deleted (not soft-deleted).
