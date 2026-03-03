@@ -22,6 +22,7 @@ describe("GroupController", () => {
             cancelMembershipRequest: jest.fn(),
             approveMembershipRequest: jest.fn(),
             denyMembershipRequest: jest.fn(),
+            createGroup: jest.fn(),
             getGroupMembers: jest.fn(),
             getGroupRequests: jest.fn(),
             getMyRequests: jest.fn(),
@@ -498,6 +499,80 @@ describe("GroupController", () => {
       await expect(controller.leaveGroup(req, "group1")).rejects.toThrow(
         "User is not a member of this group",
       );
+    });
+  });
+
+  describe("createGroup", () => {
+    it("should call service with callerId, name, and description and return the created group", async () => {
+      const callerId = "admin-id";
+      const mockGroup = { id: "g1", name: "New Group", description: "Desc" };
+      jest.spyOn(service, "createGroup").mockResolvedValueOnce(mockGroup);
+      const req = { resolvedIdentity: { userId: callerId } } as any;
+      const result = await controller.createGroup(req, {
+        name: "New Group",
+        description: "Desc",
+      });
+      expect(service.createGroup).toHaveBeenCalledWith(
+        callerId,
+        "New Group",
+        "Desc",
+      );
+      expect(result).toEqual(mockGroup);
+    });
+
+    it("should call service without description when not provided", async () => {
+      const callerId = "admin-id";
+      const mockGroup = { id: "g1", name: "New Group", description: null };
+      jest.spyOn(service, "createGroup").mockResolvedValueOnce(mockGroup);
+      const req = { resolvedIdentity: { userId: callerId } } as any;
+      await controller.createGroup(req, { name: "New Group" });
+      expect(service.createGroup).toHaveBeenCalledWith(
+        callerId,
+        "New Group",
+        undefined,
+      );
+    });
+
+    it("should throw 401 when resolvedIdentity is missing", async () => {
+      const req = { resolvedIdentity: undefined } as any;
+      await expect(
+        controller.createGroup(req, { name: "New Group" }),
+      ).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should throw 401 when resolvedIdentity has no userId", async () => {
+      const req = { resolvedIdentity: {} } as any;
+      await expect(
+        controller.createGroup(req, { name: "New Group" }),
+      ).rejects.toThrow(
+        new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED),
+      );
+    });
+
+    it("should propagate ForbiddenException when caller is not a system admin", async () => {
+      jest
+        .spyOn(service, "createGroup")
+        .mockRejectedValueOnce(
+          new Error("Only system admins can create groups"),
+        );
+      const req = { resolvedIdentity: { userId: "non-admin" } } as any;
+      await expect(
+        controller.createGroup(req, { name: "New Group" }),
+      ).rejects.toThrow("Only system admins can create groups");
+    });
+
+    it("should propagate ConflictException when group name already exists", async () => {
+      jest
+        .spyOn(service, "createGroup")
+        .mockRejectedValueOnce(
+          new Error("Group with this name already exists"),
+        );
+      const req = { resolvedIdentity: { userId: "admin-id" } } as any;
+      await expect(
+        controller.createGroup(req, { name: "Existing Group" }),
+      ).rejects.toThrow("Group with this name already exists");
     });
   });
 });

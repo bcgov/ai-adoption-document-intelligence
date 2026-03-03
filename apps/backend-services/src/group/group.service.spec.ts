@@ -239,38 +239,76 @@ describe("requestMembership", () => {
   });
 });
 describe("createGroup", () => {
-  it("should create a new group", async () => {
-    const mockGroup = { id: "g1", name: "Test Group" };
-    const mockPrisma = {
+  const callerId = "admin-user";
+
+  const buildDb = ({
+    isSystemAdmin = true,
+    existingGroup = null as unknown,
+    createdGroup = { id: "g1", name: "Test Group", description: null },
+  } = {}) => ({
+    prisma: {
       group: {
-        findUnique: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue(mockGroup),
+        findUnique: jest.fn().mockResolvedValue(existingGroup),
+        create: jest.fn().mockResolvedValue(createdGroup),
       },
-    };
-    const service = new GroupService({ prisma: mockPrisma } as any);
-    const result = await service.createGroup("Test Group");
+    },
+    isUserSystemAdmin: jest.fn().mockResolvedValue(isSystemAdmin),
+  });
+
+  it("should create a new group when caller is a system admin", async () => {
+    const mockGroup = { id: "g1", name: "Test Group", description: null };
+    const db = buildDb({ createdGroup: mockGroup });
+    const service = new GroupService(db as any);
+    const result = await service.createGroup(callerId, "Test Group");
     expect(result).toEqual(mockGroup);
-    expect(mockPrisma.group.findUnique).toHaveBeenCalledWith({
+    expect(db.isUserSystemAdmin).toHaveBeenCalledWith(callerId);
+    expect(db.prisma.group.findUnique).toHaveBeenCalledWith({
       where: { name: "Test Group" },
     });
-    expect(mockPrisma.group.create).toHaveBeenCalledWith({
+    expect(db.prisma.group.create).toHaveBeenCalledWith({
       data: { name: "Test Group" },
+      select: { id: true, name: true, description: true },
     });
   });
 
-  it("should throw if group name exists", async () => {
-    const mockPrisma = {
-      group: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({ id: "g1", name: "Test Group" }),
-        create: jest.fn(),
-      },
+  it("should include description when provided", async () => {
+    const mockGroup = {
+      id: "g1",
+      name: "Test Group",
+      description: "A test group",
     };
-    const service = new GroupService({ prisma: mockPrisma } as any);
-    await expect(service.createGroup("Test Group")).rejects.toThrow(
+    const db = buildDb({ createdGroup: mockGroup });
+    const service = new GroupService(db as any);
+    const result = await service.createGroup(
+      callerId,
+      "Test Group",
+      "A test group",
+    );
+    expect(result).toEqual(mockGroup);
+    expect(db.prisma.group.create).toHaveBeenCalledWith({
+      data: { name: "Test Group", description: "A test group" },
+      select: { id: true, name: true, description: true },
+    });
+  });
+
+  it("should throw ForbiddenException if caller is not a system admin", async () => {
+    const db = buildDb({ isSystemAdmin: false });
+    const service = new GroupService(db as any);
+    await expect(service.createGroup(callerId, "Test Group")).rejects.toThrow(
+      "Only system admins can create groups",
+    );
+    expect(db.prisma.group.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("should throw ConflictException if group name already exists", async () => {
+    const db = buildDb({
+      existingGroup: { id: "g1", name: "Test Group" },
+    });
+    const service = new GroupService(db as any);
+    await expect(service.createGroup(callerId, "Test Group")).rejects.toThrow(
       "Group with this name already exists",
     );
+    expect(db.prisma.group.create).not.toHaveBeenCalled();
   });
 });
 

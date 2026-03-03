@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   HttpException,
   HttpStatus,
   Param,
@@ -22,6 +23,7 @@ import {
 import { Request } from "express";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { User } from "../auth/types";
+import { CreateGroupDto } from "./dto/create-group.dto";
 import { GroupMemberDto } from "./dto/group-member.dto";
 import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { MembershipRequestActionDto } from "./dto/membership-request-action.dto";
@@ -269,30 +271,37 @@ export class GroupController {
   }
 
   /**
-   * Create a new group
+   * Create a new group (system admin only)
    * POST /api/groups
    */
-  @ApiOperation({ summary: "Create a new group" })
+  @ApiOperation({ summary: "Create a new group (system admin only)" })
   @ApiResponse({ status: 201, description: "Group created successfully." })
   @ApiResponse({ status: 400, description: "Invalid input." })
-  @ApiBody({
-    schema: {
-      properties: { name: { type: "string", description: "Group name" } },
-    },
+  @ApiResponse({ status: 401, description: "Unauthorized." })
+  @ApiResponse({
+    status: 403,
+    description: "Caller is not a system admin.",
+  })
+  @ApiResponse({
+    status: 409,
+    description: "A group with the given name already exists.",
   })
   @KeycloakSSOAuth()
+  @HttpCode(HttpStatus.CREATED)
   @Post()
   async createGroup(
-    @Body("name") name: string,
-  ): Promise<{ id: string; name: string }> {
-    if (!name || typeof name !== "string") {
-      throw new HttpException("Group name is required", HttpStatus.BAD_REQUEST);
+    @Req() req: Request,
+    @Body() body: CreateGroupDto,
+  ): Promise<{ id: string; name: string; description: string | null }> {
+    const callerId = req.resolvedIdentity?.userId;
+    if (!callerId) {
+      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
     }
-    try {
-      return await this.groupService.createGroup(name);
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
-    }
+    return await this.groupService.createGroup(
+      callerId,
+      body.name,
+      body.description,
+    );
   }
 
   /**

@@ -1,6 +1,7 @@
 import { $Enums, GroupRole } from "@generated/client";
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -268,19 +269,34 @@ export class GroupService {
 
   /**
    * Creates a new group with the given name and optional description.
-   * Throws an error if a group with the same name already exists.
+   * Only system admins are permitted to create groups.
+   * Throws ForbiddenException if the caller is not a system admin.
+   * Throws ConflictException if a group with the same name already exists.
+   * @param callerId - The ID of the caller (from resolvedIdentity.userId).
+   * @param name - The name of the new group.
+   * @param description - Optional description for the group.
    */
-  async createGroup(name: string): Promise<{ id: string; name: string }> {
-    // Check for duplicate group name
+  async createGroup(
+    callerId: string,
+    name: string,
+    description?: string,
+  ): Promise<{ id: string; name: string; description: string | null }> {
+    const isSystemAdmin =
+      await this.databaseService.isUserSystemAdmin(callerId);
+    if (!isSystemAdmin) {
+      throw new ForbiddenException("Only system admins can create groups");
+    }
+
     const existing = await this.databaseService.prisma.group.findUnique({
       where: { name },
     });
     if (existing) {
-      throw new NotFoundException("Group with this name already exists");
+      throw new ConflictException("Group with this name already exists");
     }
-    // Create the group
+
     const group = await this.databaseService.prisma.group.create({
-      data: { name },
+      data: { name, ...(description !== undefined ? { description } : {}) },
+      select: { id: true, name: true, description: true },
     });
     return group;
   }
