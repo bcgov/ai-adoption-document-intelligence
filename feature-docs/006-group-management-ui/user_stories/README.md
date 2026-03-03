@@ -56,7 +56,7 @@ User stories for **Group Management UI**.
 
 | # | Story | Status |
 |---|-------|--------|
-| US-014 | [Add Groups Link to Sidebar Navigation](./US-014-sidebar-navigation-links.md) | - [ ] |
+| US-014 | [Add Groups Link to Sidebar Navigation](./US-014-sidebar-navigation-links.md) | - [x] |
 
 ---
 

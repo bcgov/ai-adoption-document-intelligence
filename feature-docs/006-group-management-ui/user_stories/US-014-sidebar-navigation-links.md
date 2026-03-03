@@ -5,17 +5,17 @@
 **So that** I can access group management and my request history from one place.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Groups link is visible to all authenticated users
+- [x] **Scenario 1**: Groups link is visible to all authenticated users
     - **Given** any authenticated user
     - **When** the sidebar is rendered
     - **Then** a `Groups` navigation link is shown that routes to `/groups`
 
-- [ ] **Scenario 2**: Clicking Groups navigates to `/groups`
+- [x] **Scenario 2**: Clicking Groups navigates to `/groups`
     - **Given** the sidebar is rendered
     - **When** the user clicks the `Groups` link
     - **Then** the application navigates to `/groups`
 
-- [ ] **Scenario 3**: The Groups link is active when on any `/groups` route
+- [x] **Scenario 3**: The Groups link is active when on any `/groups` route
     - **Given** the user is on `/groups` or `/groups/:groupId`
     - **When** the sidebar is rendered
     - **Then** the `Groups` link is shown in its active/highlighted state

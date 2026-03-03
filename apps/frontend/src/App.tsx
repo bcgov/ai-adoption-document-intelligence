@@ -23,9 +23,10 @@ import {
   IconSettings,
   IconTags,
   IconUpload,
+  IconUsers,
 } from "@tabler/icons-react";
 import { JSX, useMemo, useState } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext";
 import { MembershipPageGuard, NoGroupGuard } from "./auth/NoGroupGuard";
 import "./App.css";
@@ -40,6 +41,7 @@ import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/Labe
 import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
 import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
 import ClassifierPage from "./pages/ClassifierPage";
+import { GroupsPage } from "./pages/GroupsPage";
 import { RequestMembershipPage } from "./pages/RequestMembershipPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
@@ -61,6 +63,9 @@ const NAV_COLLAPSED = 72;
 
 function MainApp(): JSX.Element {
   const { logout, user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isGroupsRoute = location.pathname.startsWith("/groups");
   const [activeView, setActiveView] = useState<MainView>("upload");
   const [workflowView, setWorkflowView] = useState<WorkflowView>("list");
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
@@ -119,12 +124,6 @@ function MainApp(): JSX.Element {
         label: "Classify",
         description: "Build & use classifiers",
         icon: IconFlagQuestion,
-      },
-      {
-        value: "settings" as MainView,
-        label: "Settings",
-        description: "API key management",
-        icon: IconSettings,
       },
     ],
     [],
@@ -219,6 +218,7 @@ function MainApp(): JSX.Element {
                   color={active ? "blue" : "gray"}
                   onClick={() => {
                     setActiveView(item.value);
+                    if (isGroupsRoute) navigate("/");
                     if (item.value === "workflows") {
                       setWorkflowView("list");
                       setSelectedWorkflowId(null);
@@ -234,6 +234,7 @@ function MainApp(): JSX.Element {
                     radius="md"
                     onClick={() => {
                       setActiveView(item.value);
+                      if (isGroupsRoute) navigate("/");
                       if (item.value === "workflows") {
                         setWorkflowView("list");
                         setSelectedWorkflowId(null);
@@ -246,12 +247,68 @@ function MainApp(): JSX.Element {
                 </Tooltip>
               );
             })}
+            {navbarOpened ? (
+              <NavLink
+                label="Groups"
+                description="Manage groups"
+                leftSection={<IconUsers size={18} />}
+                active={isGroupsRoute}
+                variant={isGroupsRoute ? "light" : "subtle"}
+                color={isGroupsRoute ? "blue" : "gray"}
+                onClick={() => navigate("/groups")}
+              />
+            ) : (
+              <Tooltip label="Groups" position="right">
+                <ActionIcon
+                  variant={isGroupsRoute ? "light" : "subtle"}
+                  color={isGroupsRoute ? "blue" : "gray"}
+                  size="lg"
+                  radius="md"
+                  onClick={() => navigate("/groups")}
+                  aria-label="Groups"
+                >
+                  <IconUsers size={18} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+            {navbarOpened ? (
+              <NavLink
+                label="Settings"
+                description="API key management"
+                leftSection={<IconSettings size={18} />}
+                active={activeView === "settings"}
+                variant={activeView === "settings" ? "light" : "subtle"}
+                color={activeView === "settings" ? "blue" : "gray"}
+                onClick={() => {
+                  setActiveView("settings");
+                  if (isGroupsRoute) navigate("/");
+                }}
+              />
+            ) : (
+              <Tooltip label="Settings" position="right">
+                <ActionIcon
+                  variant={activeView === "settings" ? "light" : "subtle"}
+                  color={activeView === "settings" ? "blue" : "gray"}
+                  size="lg"
+                  radius="md"
+                  onClick={() => {
+                    setActiveView("settings");
+                    if (isGroupsRoute) navigate("/");
+                  }}
+                  aria-label="Settings"
+                >
+                  <IconSettings size={18} />
+                </ActionIcon>
+              </Tooltip>
+            )}
           </Stack>
         </AppShell.Navbar>
 
         <AppShell.Main>
           <Stack gap="lg" style={{ flex: 1, minHeight: 0 }}>
-            {activeView === "settings" ? (
+            {isGroupsRoute ? (
+              <GroupsPage />
+            ) : activeView === "settings" ? (
               <SettingsPage />
             ) : activeView === "labeling" ? (
               selectedProjectId ? (
@@ -324,7 +381,7 @@ function MainApp(): JSX.Element {
                   }}
                 />
               ) : null
-            ) : activeView == "classify" ? (
+            ) : activeView === "classify" ? (
               <ClassifierPage />
             ) : (
               <>
