@@ -41,6 +41,7 @@ import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/Labe
 import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
 import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
 import ClassifierPage from "./pages/ClassifierPage";
+import { GroupDetailPage } from "./pages/GroupDetailPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { RequestMembershipPage } from "./pages/RequestMembershipPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -65,7 +66,8 @@ function MainApp(): JSX.Element {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isGroupsRoute = location.pathname.startsWith("/groups");
+  const isGroupsRoute = location.pathname === "/groups";
+  const isGroupDetailRoute = location.pathname.startsWith("/groups/");
   const [activeView, setActiveView] = useState<MainView>("upload");
   const [workflowView, setWorkflowView] = useState<WorkflowView>("list");
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
@@ -308,6 +310,8 @@ function MainApp(): JSX.Element {
           <Stack gap="lg" style={{ flex: 1, minHeight: 0 }}>
             {isGroupsRoute ? (
               <GroupsPage />
+            ) : isGroupDetailRoute ? (
+              <GroupDetailPage />
             ) : activeView === "settings" ? (
               <SettingsPage />
             ) : activeView === "labeling" ? (

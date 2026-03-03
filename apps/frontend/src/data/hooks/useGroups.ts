@@ -14,6 +14,13 @@ export interface UserGroup {
   role: string;
 }
 
+/** A single member of a group, returned by GET /api/groups/:groupId/members */
+export interface GroupMember {
+  userId: string;
+  email: string;
+  joinedAt: string;
+}
+
 /** Membership request belonging to the authenticated caller, returned by GET /api/groups/requests/mine */
 export interface MyMembershipRequest {
   id: string;
@@ -143,6 +150,55 @@ export function useCancelMembershipRequest() {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["groups", "requests", "mine"],
+      });
+    },
+  });
+}
+
+/**
+ * Fetches all members of a group via GET /api/groups/:groupId/members.
+ *
+ * @param groupId - The ID of the group whose members to fetch.
+ * @returns A react-query result containing the list of group members.
+ */
+export function useGroupMembers(groupId: string) {
+  return useQuery({
+    queryKey: ["groups", groupId, "members"],
+    queryFn: async (): Promise<GroupMember[]> => {
+      const response = await apiService.get<GroupMember[]>(
+        `/groups/${groupId}/members`,
+      );
+      if (!response.success) {
+        throw new Error(response.message ?? "Failed to fetch group members");
+      }
+      return response.data ?? [];
+    },
+  });
+}
+
+/**
+ * Removes a member from a group via DELETE /api/groups/:groupId/members/:userId.
+ * Invalidates the members query for the group on success.
+ *
+ * @returns A react-query mutation result.
+ */
+export function useRemoveGroupMember(groupId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string): Promise<{ success: boolean }> => {
+      const response = await apiService.delete<{ success: boolean }>(
+        `/groups/${groupId}/members/${userId}`,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(
+          response.message ?? "Failed to remove group member",
+        );
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["groups", groupId, "members"],
       });
     },
   });
