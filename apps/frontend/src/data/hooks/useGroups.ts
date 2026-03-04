@@ -349,3 +349,31 @@ export function useLeaveGroup(groupId: string) {
     },
   });
 }
+
+/** Payload for creating a new group */
+export interface CreateGroupPayload {
+  name: string;
+  description?: string;
+}
+
+/**
+ * Creates a new group via POST /api/groups.
+ * Invalidates the all-groups query on success.
+ *
+ * @returns A react-query mutation result containing the created group.
+ */
+export function useCreateGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CreateGroupPayload): Promise<GroupInfo> => {
+      const response = await apiService.post<GroupInfo>("/groups", payload);
+      if (!response.success || !response.data) {
+        throw new Error(response.message ?? "Failed to create group");
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groups", "all"] });
+    },
+  });
+}

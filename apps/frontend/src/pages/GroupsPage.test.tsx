@@ -30,6 +30,8 @@ const mockUseLeaveGroup = vi.fn();
 const mockLeaveMutate = vi.fn();
 const mockUseRequestMembership = vi.fn();
 const mockRequestMutate = vi.fn();
+const mockUseCreateGroup = vi.fn();
+const mockCreateMutate = vi.fn();
 
 const { mockNotificationsShow } = vi.hoisted(() => ({
   mockNotificationsShow: vi.fn(),
@@ -49,6 +51,7 @@ vi.mock("../data/hooks/useGroups", () => ({
   useCancelMembershipRequest: () => mockUseCancelMembershipRequest(),
   useLeaveGroup: () => mockUseLeaveGroup(),
   useRequestMembership: () => mockUseRequestMembership(),
+  useCreateGroup: () => mockUseCreateGroup(),
 }));
 
 vi.mock("react-router-dom", async (importOriginal) => {
@@ -111,6 +114,11 @@ const idleRequest = {
   variables: undefined,
 };
 
+const idleCreate = {
+  mutate: mockCreateMutate,
+  isPending: false,
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -138,6 +146,7 @@ describe("GroupsPage", () => {
     mockUseCancelMembershipRequest.mockReturnValue(idleCancel);
     mockUseLeaveGroup.mockReturnValue(idleLeave);
     mockUseRequestMembership.mockReturnValue(idleRequest);
+    mockUseCreateGroup.mockReturnValue(idleCreate);
     mockUseMyRequests.mockReturnValue({
       data: pendingRequests,
       isLoading: false,
@@ -1028,6 +1037,180 @@ describe("GroupsPage", () => {
       await waitFor(() => {
         expect(screen.getByTestId("all-groups-error")).toBeInTheDocument();
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Create Group – US-024
+  // -------------------------------------------------------------------------
+  describe("Create Group – system admin feature", () => {
+    const setupGroups = () => {
+      mockUseMyGroups.mockReturnValue({
+        data: myGroups,
+        isLoading: false,
+        isError: false,
+      });
+      mockUseAllGroups.mockReturnValue({
+        data: allGroups,
+        isLoading: false,
+        isError: false,
+      });
+    };
+
+    it("shows the Create Group button for system admins", () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "admin-1" },
+        isSystemAdmin: true,
+      });
+      setupGroups();
+
+      renderPage();
+
+      expect(screen.getByTestId("create-group-btn")).toBeInTheDocument();
+    });
+
+    it("does not show the Create Group button for non-admin users", () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "user-1" },
+        isSystemAdmin: false,
+      });
+      setupGroups();
+
+      renderPage();
+
+      expect(screen.queryByTestId("create-group-btn")).not.toBeInTheDocument();
+    });
+
+    it("opens the Create Group modal when the button is clicked", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "admin-1" },
+        isSystemAdmin: true,
+      });
+      setupGroups();
+
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("create-group-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("create-group-modal")).toBeInTheDocument();
+      });
+    });
+
+    it("submits the form and closes the modal on success", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "admin-1" },
+        isSystemAdmin: true,
+      });
+      setupGroups();
+      mockUseCreateGroup.mockReturnValue({
+        ...idleCreate,
+        mutate: (_payload: unknown, callbacks: { onSuccess?: () => void }) => {
+          callbacks?.onSuccess?.();
+        },
+      });
+
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("create-group-btn"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("create-group-submit-btn"),
+        ).toBeInTheDocument();
+      });
+
+      const nameInput = screen.getByRole("textbox", { name: /name/i });
+      fireEvent.change(nameInput, {
+        target: { value: "New Group" },
+      });
+
+      fireEvent.click(screen.getByTestId("create-group-submit-btn"));
+
+      await waitFor(() => {
+        expect(mockNotificationsShow).toHaveBeenCalledWith(
+          expect.objectContaining({ color: "green" }),
+        );
+      });
+
+      // Modal content should be unmounted after successful close
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("create-group-submit-btn"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("shows an inline error when the server rejects the submission", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "admin-1" },
+        isSystemAdmin: true,
+      });
+      setupGroups();
+      mockUseCreateGroup.mockReturnValue({
+        ...idleCreate,
+        mutate: (
+          _payload: unknown,
+          callbacks: { onError?: (err: Error) => void },
+        ) => {
+          callbacks?.onError?.(
+            new Error("A group with that name already exists"),
+          );
+        },
+      });
+
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("create-group-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("create-group-name")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+        target: { value: "Duplicate Group" },
+      });
+
+      fireEvent.click(screen.getByTestId("create-group-submit-btn"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("create-group-server-error"),
+        ).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText("A group with that name already exists"),
+      ).toBeInTheDocument();
+
+      // Modal should remain open
+      expect(screen.getByTestId("create-group-modal")).toBeInTheDocument();
+    });
+
+    it("shows a validation error when name is empty on submit", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "admin-1" },
+        isSystemAdmin: true,
+      });
+      setupGroups();
+
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("create-group-btn"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("create-group-submit-btn"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("create-group-submit-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Name is required")).toBeInTheDocument();
+      });
+
+      expect(mockCreateMutate).not.toHaveBeenCalled();
     });
   });
 });

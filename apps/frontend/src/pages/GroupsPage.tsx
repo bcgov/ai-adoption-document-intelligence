@@ -8,8 +8,11 @@ import {
   Stack,
   Tabs,
   Text,
+  Textarea,
+  TextInput,
   Title,
 } from "@mantine/core";
+import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { IconAlertCircle, IconUsersGroup } from "@tabler/icons-react";
 import type { JSX } from "react";
@@ -24,11 +27,126 @@ import {
 import {
   useAllGroups,
   useCancelMembershipRequest,
+  useCreateGroup,
   useLeaveGroup,
   useMyGroups,
   useMyRequests,
   useRequestMembership,
 } from "../data/hooks/useGroups";
+
+interface CreateGroupModalProps {
+  opened: boolean;
+  onClose: () => void;
+}
+
+/**
+ * Modal form for creating a new group. Only accessible by system admins.
+ *
+ * @param opened - Whether the modal is open.
+ * @param onClose - Callback to close the modal.
+ */
+function CreateGroupModal({
+  opened,
+  onClose,
+}: CreateGroupModalProps): JSX.Element {
+  const createGroup = useCreateGroup();
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const form = useForm({
+    initialValues: {
+      name: "",
+      description: "",
+    },
+    validate: {
+      name: (value) => (value.trim().length > 0 ? null : "Name is required"),
+    },
+  });
+
+  /**
+   * Resets form state and closes the modal.
+   */
+  const handleClose = () => {
+    form.reset();
+    setServerError(null);
+    onClose();
+  };
+
+  /**
+   * Submits the create group form, handles success and error feedback.
+   */
+  const handleSubmit = form.onSubmit((values) => {
+    setServerError(null);
+    createGroup.mutate(
+      {
+        name: values.name.trim(),
+        description: values.description.trim() || undefined,
+      },
+      {
+        onSuccess: () => {
+          handleClose();
+          notifications.show({
+            title: "Group Created",
+            message: `Group "${values.name.trim()}" was created successfully.`,
+            color: "green",
+          });
+        },
+        onError: (error) => {
+          setServerError(
+            error.message ?? "Failed to create group. Please try again.",
+          );
+        },
+      },
+    );
+  });
+
+  return (
+    <Modal
+      opened={opened}
+      onClose={handleClose}
+      title="Create Group"
+      data-testid="create-group-modal"
+    >
+      <form onSubmit={handleSubmit}>
+        <Stack>
+          <TextInput
+            label="Name"
+            placeholder="Group name"
+            withAsterisk
+            data-testid="create-group-name"
+            {...form.getInputProps("name")}
+          />
+          <Textarea
+            label="Description"
+            placeholder="Group description (optional)"
+            data-testid="create-group-description"
+            {...form.getInputProps("description")}
+          />
+          {serverError && (
+            <Alert color="red" data-testid="create-group-server-error">
+              {serverError}
+            </Alert>
+          )}
+          <Group justify="flex-end" mt="md">
+            <Button
+              variant="default"
+              onClick={handleClose}
+              data-testid="create-group-cancel-btn"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={createGroup.isPending}
+              data-testid="create-group-submit-btn"
+            >
+              Create
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </Modal>
+  );
+}
 
 /**
  * Tab panel showing all available groups in the system.
@@ -192,11 +310,7 @@ function MyGroupsTab(): JSX.Element {
     null,
   );
 
-  const {
-    data: groups,
-    isLoading,
-    isError,
-  } = useMyGroups(user?.sub ?? "");
+  const { data: groups, isLoading, isError } = useMyGroups(user?.sub ?? "");
 
   const leaveMutation = useLeaveGroup(pendingLeaveGroupId ?? "");
 
@@ -358,14 +472,32 @@ function MyRequestsTab(): JSX.Element {
  * authenticated user's groups and their membership requests.
  */
 export function GroupsPage(): JSX.Element {
+  const { isSystemAdmin } = useAuth();
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
+
   return (
     <Stack gap="lg">
-      <Stack gap={2}>
-        <Title order={2}>Groups</Title>
-        <Text c="dimmed" size="sm">
-          Manage groups and memberships.
-        </Text>
-      </Stack>
+      <Group justify="space-between" align="flex-start">
+        <Stack gap={2}>
+          <Title order={2}>Groups</Title>
+          <Text c="dimmed" size="sm">
+            Manage groups and memberships.
+          </Text>
+        </Stack>
+        {isSystemAdmin && (
+          <Button
+            onClick={() => setCreateGroupOpen(true)}
+            data-testid="create-group-btn"
+          >
+            Create Group
+          </Button>
+        )}
+      </Group>
+
+      <CreateGroupModal
+        opened={createGroupOpen}
+        onClose={() => setCreateGroupOpen(false)}
+      />
 
       <Tabs defaultValue="my-groups">
         <Tabs.List>

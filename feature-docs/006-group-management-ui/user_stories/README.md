@@ -101,7 +101,7 @@ User stories for **Group Management UI**.
 
 | # | Story | Status |
 |---|-------|--------|
-| US-024 | [Create Group Button and Form (System Admin)](./US-024-create-group-form.md) | - [ ] |
+| US-024 | [Create Group Button and Form (System Admin)](./US-024-create-group-form.md) | - [x] |
 | US-025 | [Edit Group Button and Form (System Admin)](./US-025-edit-group-form.md) | - [ ] |
 | US-026 | [Delete Group with Soft-Delete Confirmation (System Admin)](./US-026-delete-group-action.md) | - [ ] |
 
