@@ -15,7 +15,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useGroup } from "../auth/GroupContext";
 import { MembersTab } from "../components/group/MembersTab";
 import { GroupRequestsTab } from "../components/group/GroupRequestsTab";
-import { useLeaveGroup, useMyGroups } from "../data/hooks/useGroups";
+import { useAllGroups, useLeaveGroup, useMyGroups } from "../data/hooks/useGroups";
 
 /**
  * Page shown at `/groups/:groupId`. Displays group details and the Members tab
@@ -33,9 +33,11 @@ export function GroupDetailPage(): JSX.Element {
 
   const { data: myGroups } = useMyGroups(user?.sub ?? "");
 
-  const isActualMember = availableGroups.some((g) => g.id === groupId);
+  const { data: allGroups } = useAllGroups();
 
-  const isMember = isSystemAdmin || isActualMember;
+  const isMember = availableGroups.some((g) => g.id === groupId);
+
+  const canViewMembers = isSystemAdmin || isMember;
 
   const leaveMutation = useLeaveGroup(groupId ?? "");
 
@@ -60,7 +62,7 @@ export function GroupDetailPage(): JSX.Element {
     (myGroups?.some((g) => g.id === groupId && g.role === "ADMIN") ?? false);
 
   const groupName =
-    availableGroups.find((g) => g.id === groupId)?.name ?? groupId ?? "Group";
+    allGroups?.find((g) => g.id === groupId)?.name ?? groupId ?? "Group";
 
   if (!groupId) {
     return (
@@ -79,7 +81,7 @@ export function GroupDetailPage(): JSX.Element {
             Group details and membership.
           </Text>
         </Stack>
-        {isActualMember && (
+        {isMember && (
           <Button
             variant="outline"
             color="red"
@@ -93,11 +95,11 @@ export function GroupDetailPage(): JSX.Element {
 
       <Tabs value={activeTab} onChange={(v) => setActiveTab(v ?? "members")}>
         <Tabs.List>
-          {isMember && <Tabs.Tab value="members">Members</Tabs.Tab>}
+          {canViewMembers && <Tabs.Tab value="members">Members</Tabs.Tab>}
           {isAdmin && <Tabs.Tab value="requests">Membership Requests</Tabs.Tab>}
         </Tabs.List>
 
-        {isMember && (
+        {canViewMembers && (
           <Tabs.Panel value="members" pt="md">
             <MembersTab groupId={groupId} isAdmin={isAdmin} />
           </Tabs.Panel>

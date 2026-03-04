@@ -76,6 +76,7 @@ export interface RequestMembershipPayload {
  * @returns A react-query mutation result.
  */
 export function useRequestMembership() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (
       payload: RequestMembershipPayload,
@@ -90,6 +91,11 @@ export function useRequestMembership() {
         );
       }
       return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["groups", "requests", "mine"],
+      });
     },
   });
 }

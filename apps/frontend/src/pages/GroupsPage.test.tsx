@@ -26,6 +26,10 @@ const mockUseMyRequests = vi.fn();
 const mockMutate = vi.fn();
 const mockUseCancelMembershipRequest = vi.fn();
 const mockNavigate = vi.fn();
+const mockUseLeaveGroup = vi.fn();
+const mockLeaveMutate = vi.fn();
+const mockUseRequestMembership = vi.fn();
+const mockRequestMutate = vi.fn();
 
 const { mockNotificationsShow } = vi.hoisted(() => ({
   mockNotificationsShow: vi.fn(),
@@ -43,6 +47,8 @@ vi.mock("../data/hooks/useGroups", () => ({
   useAllGroups: () => mockUseAllGroups(),
   useMyRequests: () => mockUseMyRequests(),
   useCancelMembershipRequest: () => mockUseCancelMembershipRequest(),
+  useLeaveGroup: () => mockUseLeaveGroup(),
+  useRequestMembership: () => mockUseRequestMembership(),
 }));
 
 vi.mock("react-router-dom", async (importOriginal) => {
@@ -63,9 +69,9 @@ const myGroups: UserGroup[] = [
 ];
 
 const allGroups: GroupInfo[] = [
-  { id: "g-1", name: "My Team A" },
+  { id: "g-1", name: "My Team A", description: "Team A description" },
   { id: "g-2", name: "My Team B" },
-  { id: "g-3", name: "Other Team" },
+  { id: "g-3", name: "Other Team", description: "Other team description" },
 ];
 
 const pendingRequests: MyMembershipRequest[] = [
@@ -94,6 +100,17 @@ const idleCancel = {
   isPending: false,
 };
 
+const idleLeave = {
+  mutate: mockLeaveMutate,
+  isPending: false,
+};
+
+const idleRequest = {
+  mutate: mockRequestMutate,
+  isPending: false,
+  variables: undefined,
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -119,6 +136,8 @@ describe("GroupsPage", () => {
     vi.clearAllMocks();
     mockNotificationsShow.mockReset();
     mockUseCancelMembershipRequest.mockReturnValue(idleCancel);
+    mockUseLeaveGroup.mockReturnValue(idleLeave);
+    mockUseRequestMembership.mockReturnValue(idleRequest);
     mockUseMyRequests.mockReturnValue({
       data: pendingRequests,
       isLoading: false,
@@ -127,10 +146,10 @@ describe("GroupsPage", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Scenario 1 – Two tabs render
+  // Scenario 1 – Three tabs render
   // -------------------------------------------------------------------------
-  describe("Scenario 1 – Page renders with two tabs", () => {
-    it("shows the My Groups and My Requests tabs", () => {
+  describe("Scenario 1 – Page renders with three tabs", () => {
+    it("shows the My Groups, My Requests, and All Groups tabs", () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "user-1" },
         isSystemAdmin: false,
@@ -153,6 +172,9 @@ describe("GroupsPage", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByRole("tab", { name: "My Requests" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "All Groups" }),
       ).toBeInTheDocument();
     });
   });
@@ -669,6 +691,342 @@ describe("GroupsPage", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("requests-error")).toBeInTheDocument();
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 7 – All Groups tab
+  // -------------------------------------------------------------------------
+  describe("Scenario 7 – All Groups tab", () => {
+    const setupAuth = (systemAdmin = false) => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "user-1" },
+        isSystemAdmin: systemAdmin,
+      });
+    };
+
+    const setupGroups = () => {
+      mockUseMyGroups.mockReturnValue({
+        data: myGroups,
+        isLoading: false,
+        isError: false,
+      });
+      mockUseAllGroups.mockReturnValue({
+        data: allGroups,
+        isLoading: false,
+        isError: false,
+      });
+      // No pending requests by default in All Groups tab tests
+      mockUseMyRequests.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+      });
+    };
+
+    it("renders the All Groups tab", () => {
+      setupAuth();
+      setupGroups();
+      renderPage();
+
+      expect(
+        screen.getByRole("tab", { name: "All Groups" }),
+      ).toBeInTheDocument();
+    });
+
+    it("shows Name, Description, and Actions column headers", async () => {
+      setupAuth();
+      setupGroups();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+        expect(
+          within(panel).getByRole("columnheader", { name: "Name" }),
+        ).toBeInTheDocument();
+        expect(
+          within(panel).getByRole("columnheader", { name: "Description" }),
+        ).toBeInTheDocument();
+        expect(
+          within(panel).getByRole("columnheader", { name: "Actions" }),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("displays group names and descriptions", async () => {
+      setupAuth();
+      setupGroups();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+        expect(within(panel).getByText("My Team A")).toBeInTheDocument();
+        expect(
+          within(panel).getByText("Team A description"),
+        ).toBeInTheDocument();
+        expect(within(panel).getByText("Other Team")).toBeInTheDocument();
+        expect(
+          within(panel).getByText("Other team description"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("shows a Leave button for groups the user is already a member of", async () => {
+      setupAuth();
+      setupGroups();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("leave-btn-g-1")).toBeInTheDocument();
+        expect(screen.getByTestId("leave-btn-g-2")).toBeInTheDocument();
+      });
+    });
+
+    it("shows a Join button for groups the user is not a member of", async () => {
+      setupAuth();
+      setupGroups();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("join-btn-g-3")).toBeInTheDocument();
+      });
+    });
+
+    it("disables the Join button when the user has a pending request for that group", async () => {
+      setupAuth();
+      setupGroups();
+      mockUseMyRequests.mockReturnValue({
+        data: pendingRequests,
+        isLoading: false,
+        isError: false,
+      });
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("join-btn-g-3")).toBeDisabled();
+      });
+    });
+
+    it("calls the request mutation when Join is clicked", async () => {
+      setupAuth();
+      setupGroups();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("join-btn-g-3")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("join-btn-g-3"));
+
+      expect(mockRequestMutate).toHaveBeenCalledWith(
+        { groupId: "g-3" },
+        expect.any(Object),
+      );
+    });
+
+    it("shows a success notification when Join succeeds", async () => {
+      setupAuth();
+      setupGroups();
+      mockUseRequestMembership.mockReturnValue({
+        ...idleRequest,
+        mutate: (_payload: unknown, callbacks: { onSuccess?: () => void }) => {
+          callbacks?.onSuccess?.();
+        },
+      });
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("join-btn-g-3")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("join-btn-g-3"));
+
+      expect(mockNotificationsShow).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "green" }),
+      );
+    });
+
+    it("shows an error notification when Join fails", async () => {
+      setupAuth();
+      setupGroups();
+      mockUseRequestMembership.mockReturnValue({
+        ...idleRequest,
+        mutate: (_payload: unknown, callbacks: { onError?: () => void }) => {
+          callbacks?.onError?.();
+        },
+      });
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("join-btn-g-3")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("join-btn-g-3"));
+
+      expect(mockNotificationsShow).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "red" }),
+      );
+    });
+
+    it("opens the leave confirmation modal when Leave is clicked", async () => {
+      setupAuth();
+      setupGroups();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("leave-btn-g-1")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("leave-btn-g-1"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("leave-group-confirm-btn"),
+        ).toBeInTheDocument();
+      });
+
+      expect(mockLeaveMutate).not.toHaveBeenCalled();
+    });
+
+    it("calls the leave mutation when the confirmation modal is confirmed", async () => {
+      setupAuth();
+      setupGroups();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("leave-btn-g-1")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("leave-btn-g-1"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("leave-group-confirm-btn"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("leave-group-confirm-btn"));
+
+      expect(mockLeaveMutate).toHaveBeenCalledWith(
+        undefined,
+        expect.any(Object),
+      );
+    });
+
+    it("does not call the leave mutation when the modal is dismissed", async () => {
+      setupAuth();
+      setupGroups();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("leave-btn-g-1")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("leave-btn-g-1"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("leave-group-back-btn")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("leave-group-back-btn"));
+
+      expect(mockLeaveMutate).not.toHaveBeenCalled();
+    });
+
+    it("shows an error notification when leave fails", async () => {
+      setupAuth();
+      setupGroups();
+      mockUseLeaveGroup.mockReturnValue({
+        ...idleLeave,
+        mutate: (_: undefined, callbacks: { onError?: () => void }) => {
+          callbacks?.onError?.();
+        },
+      });
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("leave-btn-g-1")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("leave-btn-g-1"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("leave-group-confirm-btn"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("leave-group-confirm-btn"));
+
+      expect(mockNotificationsShow).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "red" }),
+      );
+    });
+
+    it("shows a loader while All Groups data is loading", async () => {
+      setupAuth();
+      mockUseMyGroups.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+      });
+      mockUseAllGroups.mockReturnValue({
+        data: undefined,
+        isLoading: true,
+        isError: false,
+      });
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("all-groups-loading")).toBeInTheDocument();
+      });
+    });
+
+    it("shows an error alert when All Groups fails to load", async () => {
+      setupAuth();
+      mockUseMyGroups.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+      });
+      mockUseAllGroups.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: true,
+      });
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("all-groups-error")).toBeInTheDocument();
       });
     });
   });
