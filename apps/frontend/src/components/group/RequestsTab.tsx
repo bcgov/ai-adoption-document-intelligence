@@ -31,6 +31,7 @@ const REQUEST_STATUS_OPTIONS = [
   { value: "APPROVED", label: "Approved" },
   { value: "DENIED", label: "Denied" },
   { value: "CANCELLED", label: "Cancelled" },
+  { value: "", label: "All" },
 ];
 
 /**
@@ -160,6 +161,7 @@ export function RequestsTab({
             <Table.Tr>
               <Table.Th>Email</Table.Th>
               <Table.Th>Requested</Table.Th>
+              <Table.Th>Resolved</Table.Th>
               <Table.Th>Reason</Table.Th>
               <Table.Th>Status</Table.Th>
               <Table.Th>Actions</Table.Th>
@@ -171,6 +173,11 @@ export function RequestsTab({
                 <Table.Td>{request.email}</Table.Td>
                 <Table.Td>
                   {new Date(request.createdAt).toLocaleDateString()}
+                </Table.Td>
+                <Table.Td>
+                  {request.resolvedAt
+                    ? new Date(request.resolvedAt).toLocaleDateString()
+                    : "-"}
                 </Table.Td>
                 <Table.Td>{request.reason ?? "-"}</Table.Td>
                 <Table.Td>{request.status}</Table.Td>
