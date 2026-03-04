@@ -2,13 +2,13 @@
 // when decorators (e.g. @Throttle) are evaluated at import time.
 import "dotenv/config";
 
+import { createLogger } from "@ai-di/shared-logging";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { json, urlencoded } from "body-parser";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import { createLogger } from "@ai-di/shared-logging";
 import { AppModule } from "./app.module";
 
 const logger = createLogger("backend-services");

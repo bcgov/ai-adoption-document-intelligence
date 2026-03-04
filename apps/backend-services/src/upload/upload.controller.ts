@@ -20,9 +20,9 @@ import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
-import { AppLoggerService } from "../logging/app-logger.service";
 import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "../document/document.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
 import { UploadDocumentResponseDto } from "./dto/upload-document-response.dto";

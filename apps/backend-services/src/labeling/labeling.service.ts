@@ -13,9 +13,9 @@ import {
   LabeledDocumentData,
   LabelingProjectData,
 } from "@/database/database.service";
-import { AppLoggerService } from "@/logging/app-logger.service";
 import { LabelingUploadDto } from "@/labeling/dto/labeling-upload.dto";
 import { LabelingOcrService } from "@/labeling/labeling-ocr.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { Page } from "@/ocr/azure-types";
 import { DatabaseService } from "../database/database.service";
 import { AddDocumentDto } from "./dto/add-document.dto";

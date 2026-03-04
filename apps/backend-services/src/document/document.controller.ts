@@ -27,6 +27,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
+import { AuditService } from "@/audit/audit.service";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
@@ -39,6 +40,7 @@ import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
+import { getRequestContext } from "../logging/request-context";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
@@ -52,6 +54,7 @@ export class DocumentController {
     private readonly temporalClientService: TemporalClientService,
     private readonly blobStorage: LocalBlobStorageService,
     private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Get("/:documentId")
@@ -522,6 +525,22 @@ export class DocumentController {
         comments: body.comments,
         rejectionReason: body.rejectionReason,
         annotations: body.annotations,
+      });
+
+      const requestContext = getRequestContext();
+      await this.auditService.recordEvent({
+        event_type: "human_approval_signal_sent",
+        resource_type: "workflow_run",
+        resource_id: workflowId,
+        actor_id: body.reviewer ?? requestContext?.userId ?? undefined,
+        document_id: documentId,
+        workflow_execution_id: workflowId,
+        group_id: document.group_id,
+        request_id: requestContext?.requestId ?? undefined,
+        payload: {
+          approved: body.approved,
+          reviewer: body.reviewer ?? undefined,
+        },
       });
 
       this.logger.log(

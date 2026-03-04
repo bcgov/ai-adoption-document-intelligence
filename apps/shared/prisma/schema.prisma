@@ -334,6 +334,30 @@ model GroupMembershipRequest {
   @@map("group_membership_request")
 }
 
+// ========== AUDIT ==========
+
+model AuditEvent {
+  id                     String   @id @default(cuid())
+  occurred_at            DateTime @default(now())
+  event_type             String
+  actor_id               String?
+  resource_type          String
+  resource_id            String
+  document_id            String?
+  workflow_execution_id  String?
+  group_id               String?
+  request_id             String?
+  payload                Json?
+
+  @@index([occurred_at])
+  @@index([event_type])
+  @@index([resource_type])
+  @@index([document_id])
+  @@index([workflow_execution_id])
+  @@index([group_id])
+  @@map("audit_events")
+}
+
 // ========== HITL MODELS ==========
 
 model ReviewSession {

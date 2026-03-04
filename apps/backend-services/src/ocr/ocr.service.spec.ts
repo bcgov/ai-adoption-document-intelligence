@@ -1,10 +1,11 @@
 import { DocumentStatus } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
-import { DatabaseService, DocumentData } from "../database/database.service";
+import { AuditService } from "@/audit/audit.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import { DatabaseService, DocumentData } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { OcrService } from "./ocr.service";
 
@@ -22,6 +23,7 @@ const defaultDocument = {
   apim_request_id: "uuidHere",
   model_id: "prebuilt-layout",
   workflow_config_id: "workflow-config-123",
+  group_id: "group-1",
 } as DocumentData;
 
 describe("OcrService", () => {
@@ -80,6 +82,10 @@ describe("OcrService", () => {
             delete: jest.fn().mockResolvedValue(undefined),
           },
         },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
@@ -112,6 +118,7 @@ describe("OcrService", () => {
             {} as TemporalClientService,
             mockBlobStorage as any,
             mockAppLogger,
+            { recordEvent: jest.fn() } as unknown as AuditService,
           ),
       ).not.toThrow();
     });

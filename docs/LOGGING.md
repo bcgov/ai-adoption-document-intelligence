@@ -30,7 +30,7 @@ Example:
 ## Where Logs Are Stored
 
 - **Stdout only.** All services emit logs to stdout in the agreed NDJSON format.
-- **Platform aggregation:** Storage and retention are handled by the cluster’s log aggregation (e.g. OpenShift Logging / Elasticsearch or Loki). No application-level log files or audit store are in scope.
+- **Platform aggregation:** Storage and retention are handled by the cluster’s log aggregation (e.g. OpenShift Logging / Elasticsearch or Loki). No application-level log files are written for logs. A separate database-backed audit table records workflow runs and HITL events; see [AUDIT.md](./AUDIT.md). Audit write failures are non-fatal.
 
 ## Correlation IDs and Tracing
 

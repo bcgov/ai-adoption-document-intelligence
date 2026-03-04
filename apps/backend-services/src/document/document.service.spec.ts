@@ -1,9 +1,9 @@
 import { DocumentStatus } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
-import { DatabaseService } from "../database/database.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "./document.service";
 
 describe("DocumentService", () => {

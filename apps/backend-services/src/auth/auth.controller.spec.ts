@@ -1,9 +1,9 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request, Response } from "express";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { AuthController } from "./auth.controller";
 import { AuthService, LoginUrlResult } from "./auth.service";
-import { AppLoggerService } from "../logging/app-logger.service";
 import { AUTH_COOKIE_NAMES, COOKIE_OPTIONS } from "./cookie-auth.utils";
 import { OAuthCallbackQueryDto } from "./dto";
 import { TokenResponseDto } from "./dto/token-response.dto";

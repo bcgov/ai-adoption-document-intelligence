@@ -5,6 +5,10 @@ import { DatabaseService } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { DocumentController } from "./document.controller";
 
+const mockAuditService = {
+  recordEvent: jest.fn().mockResolvedValue(undefined),
+};
+
 describe("DocumentController", () => {
   let controller: DocumentController;
   let databaseService: jest.Mocked<DatabaseService>;
@@ -42,6 +46,7 @@ describe("DocumentController", () => {
       temporalClientService,
       blobStorage,
       mockAppLogger,
+      mockAuditService as any,
     );
   });
 

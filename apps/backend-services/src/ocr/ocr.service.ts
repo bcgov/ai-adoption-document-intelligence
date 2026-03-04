@@ -5,9 +5,11 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AuditService } from "@/audit/audit.service";
 import { LocalBlobStorageService } from "@/blob-storage/local-blob-storage.service";
 import { DatabaseService } from "@/database/database.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { getRequestContext } from "@/logging/request-context";
 import {
   AnalysisResponse,
   AnalysisResult,
@@ -30,6 +32,7 @@ export class OcrService {
     private temporalClientService: TemporalClientService,
     private blobStorage: LocalBlobStorageService,
     private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -111,6 +114,22 @@ export class OcrService {
           workflow_execution_id: workflowExecutionId,
         },
       );
+
+      const requestContext = getRequestContext();
+      await this.auditService.recordEvent({
+        event_type: "workflow_run_started",
+        resource_type: "workflow_run",
+        resource_id: workflowExecutionId,
+        document_id: documentId,
+        workflow_execution_id: workflowExecutionId,
+        group_id: document.group_id,
+        request_id: requestContext?.requestId ?? undefined,
+        actor_id: requestContext?.userId ?? undefined,
+        payload: {
+          workflow_config_id: workflowConfigId ?? undefined,
+          request_id: requestContext?.requestId ?? undefined,
+        },
+      });
 
       this.logger.log(
         `Started OCR workflow for document ${documentId}, Temporal execution ID: ${workflowExecutionId}${workflowConfigId ? `, using workflow config: ${workflowConfigId}` : ", using default workflow"}`,

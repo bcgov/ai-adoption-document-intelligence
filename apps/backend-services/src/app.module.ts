@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { AuditModule } from "@/audit/audit.module";
 import { AzureModule } from "@/azure/azure.module";
 import { ApiKeyModule } from "./api-key/api-key.module";
 import { AuthModule } from "./auth/auth.module";
@@ -44,6 +45,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     }),
     AuthModule,
     ApiKeyModule,
+    AuditModule,
     DatabaseModule,
     DocumentModule,
     QueueModule,

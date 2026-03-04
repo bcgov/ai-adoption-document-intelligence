@@ -201,8 +201,8 @@ export const CreateClassifierModal = (props: CreateClassifierModalProps) => {
             form.reset();
             setIsOpen(false);
             props.afterSubmit?.();
-          } catch (error) {
-            console.error("Failed to create classifier", error);
+          } catch {
+            // Error surfaced by onCreate / query invalidation
           }
         })}
       >

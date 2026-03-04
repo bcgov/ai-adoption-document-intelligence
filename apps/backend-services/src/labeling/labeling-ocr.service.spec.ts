@@ -3,10 +3,10 @@ import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { of } from "rxjs";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
-import { DatabaseService } from "../database/database.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import { DatabaseService } from "../database/database.service";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingOcrService } from "./labeling-ocr.service";
 

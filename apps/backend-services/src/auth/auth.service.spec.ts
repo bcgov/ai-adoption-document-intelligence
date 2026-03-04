@@ -1,9 +1,9 @@
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as client from "openid-client";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { PrismaService } from "../database/prisma.service";
 import { AppLoggerService } from "../logging/app-logger.service";
-import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AuthService } from "./auth.service";
 import { TokenClaims } from "./dto/token-response.dto";
 
@@ -102,7 +102,8 @@ describe("AuthService", () => {
     it("should throw if config missing", () => {
       (configService.get as jest.Mock).mockReturnValueOnce(undefined);
       expect(
-        () => new AuthService(configService, prismaService as any, mockAppLogger),
+        () =>
+          new AuthService(configService, prismaService as any, mockAppLogger),
       ).toThrow("SSO_AUTH_SERVER_URL and SSO_REALM must be configured");
     });
 
@@ -117,7 +118,8 @@ describe("AuthService", () => {
         return config[key];
       });
       expect(
-        () => new AuthService(configService, prismaService as any, mockAppLogger),
+        () =>
+          new AuthService(configService, prismaService as any, mockAppLogger),
       ).toThrow("SSO_CLIENT_ID and SSO_CLIENT_SECRET must be configured");
     });
   });
@@ -132,7 +134,11 @@ describe("AuthService", () => {
     });
 
     it("should throw if discovery fails", async () => {
-      const newService = new AuthService(configService, prismaService as any, mockAppLogger);
+      const newService = new AuthService(
+        configService,
+        prismaService as any,
+        mockAppLogger,
+      );
       (client.discovery as jest.Mock).mockRejectedValueOnce(
         new Error("Discovery failed"),
       );

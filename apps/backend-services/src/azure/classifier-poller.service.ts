@@ -39,8 +39,8 @@ export class ClassifierPollerService {
       }
     } catch (error) {
       this.logger.error("Error polling active classifiers", {
-      stack: error instanceof Error ? error.stack : String(error),
-    });
+        stack: error instanceof Error ? error.stack : String(error),
+      });
     }
   }
 

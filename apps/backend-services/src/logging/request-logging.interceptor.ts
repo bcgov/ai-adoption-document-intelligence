@@ -6,10 +6,12 @@ import {
 } from "@nestjs/common";
 import type { Request } from "express";
 import { tap } from "rxjs";
-import { requestContext } from "./request-context";
 import { AppLoggerService } from "./app-logger.service";
+import { requestContext } from "./request-context";
 
+// Augment Express Request for request-scoped logging timing (standard pattern; namespace required)
 declare global {
+  // biome-ignore lint/style/noNamespace: Express type augmentation requires namespace
   namespace Express {
     interface Request {
       _loggingStartTime?: number;

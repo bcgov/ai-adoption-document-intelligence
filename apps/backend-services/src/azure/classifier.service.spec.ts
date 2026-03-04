@@ -1,10 +1,10 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureService } from "../azure/azure.service";
 import { BlobService } from "../azure/blob.service";
 import { ClassifierStatus } from "../azure/dto/classifier-constants.dto";
 import { DatabaseService } from "../database/database.service";
-import { AppLoggerService } from "@/logging/app-logger.service";
-import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { StorageService } from "../storage/storage.service";
 import { ClassifierService } from "./classifier.service";
 

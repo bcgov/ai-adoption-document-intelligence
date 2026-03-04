@@ -1,10 +1,10 @@
-import { Injectable } from "@nestjs/common";
 import {
   createLogger,
   getLogLevel,
-  type Logger as SharedLogger,
   type LogContext,
+  type Logger as SharedLogger,
 } from "@ai-di/shared-logging";
+import { Injectable } from "@nestjs/common";
 import { getRequestContext } from "./request-context";
 
 const BASE_LOGGER = createLogger("backend-services");

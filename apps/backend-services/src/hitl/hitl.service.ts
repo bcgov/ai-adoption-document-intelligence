@@ -7,9 +7,11 @@ import {
   ReviewStatus,
 } from "@generated/client";
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { AuditService } from "@/audit/audit.service";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { DatabaseService } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
+import { getRequestContext } from "../logging/request-context";
 import { AnalyticsService } from "./analytics.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
@@ -40,6 +42,7 @@ export class HitlService {
     private readonly db: DatabaseService,
     private readonly analyticsService: AnalyticsService,
     private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {}
 
   async getQueue(filters: QueueFilterDto, groupIds?: string[]) {
@@ -174,6 +177,23 @@ export class HitlService {
       reviewerId,
     );
 
+    const requestContext = getRequestContext();
+    const doc = session.document as {
+      group_id?: string;
+      workflow_execution_id?: string;
+    };
+    await this.auditService.recordEvent({
+      event_type: "review_session_started",
+      resource_type: "review_session",
+      resource_id: session.id,
+      actor_id: reviewerId,
+      document_id: session.document_id,
+      workflow_execution_id: doc.workflow_execution_id ?? undefined,
+      group_id: doc.group_id ?? undefined,
+      request_id: requestContext?.requestId ?? undefined,
+      payload: { document_id: session.document_id },
+    });
+
     return {
       id: session.id,
       documentId: session.document_id,
@@ -243,6 +263,23 @@ export class HitlService {
       ),
     );
 
+    const requestContext = getRequestContext();
+    const doc = session.document as {
+      group_id?: string;
+      workflow_execution_id?: string;
+    };
+    await this.auditService.recordEvent({
+      event_type: "review_corrections_submitted",
+      resource_type: "review_session",
+      resource_id: sessionId,
+      actor_id: requestContext?.userId ?? undefined,
+      document_id: session.document_id,
+      workflow_execution_id: doc.workflow_execution_id ?? undefined,
+      group_id: doc.group_id ?? undefined,
+      request_id: requestContext?.requestId ?? undefined,
+      payload: { correction_count: savedCorrections.length },
+    });
+
     return {
       sessionId,
       corrections: savedCorrections,
@@ -261,6 +298,23 @@ export class HitlService {
     const updated = await this.db.updateReviewSession(sessionId, {
       status: ReviewStatus.approved,
       completed_at: new Date(),
+    });
+
+    const requestContext = getRequestContext();
+    const doc = session.document as {
+      group_id?: string;
+      workflow_execution_id?: string;
+    };
+    await this.auditService.recordEvent({
+      event_type: "review_session_approved",
+      resource_type: "review_session",
+      resource_id: sessionId,
+      actor_id: requestContext?.userId ?? undefined,
+      document_id: session.document_id,
+      workflow_execution_id: doc.workflow_execution_id ?? undefined,
+      group_id: doc.group_id ?? undefined,
+      request_id: requestContext?.requestId ?? undefined,
+      payload: { document_id: session.document_id },
     });
 
     return {
@@ -291,6 +345,23 @@ export class HitlService {
       completed_at: new Date(),
     });
 
+    const requestContext = getRequestContext();
+    const doc = session.document as {
+      group_id?: string;
+      workflow_execution_id?: string;
+    };
+    await this.auditService.recordEvent({
+      event_type: "review_session_escalated",
+      resource_type: "review_session",
+      resource_id: sessionId,
+      actor_id: requestContext?.userId ?? undefined,
+      document_id: session.document_id,
+      workflow_execution_id: doc.workflow_execution_id ?? undefined,
+      group_id: doc.group_id ?? undefined,
+      request_id: requestContext?.requestId ?? undefined,
+      payload: { document_id: session.document_id, reason: dto.reason },
+    });
+
     return {
       id: updated.id,
       status: updated.status,
@@ -310,6 +381,23 @@ export class HitlService {
     const updated = await this.db.updateReviewSession(sessionId, {
       status: ReviewStatus.skipped,
       completed_at: new Date(),
+    });
+
+    const requestContext = getRequestContext();
+    const doc = session.document as {
+      group_id?: string;
+      workflow_execution_id?: string;
+    };
+    await this.auditService.recordEvent({
+      event_type: "review_session_skipped",
+      resource_type: "review_session",
+      resource_id: sessionId,
+      actor_id: requestContext?.userId ?? undefined,
+      document_id: session.document_id,
+      workflow_execution_id: doc.workflow_execution_id ?? undefined,
+      group_id: doc.group_id ?? undefined,
+      request_id: requestContext?.requestId ?? undefined,
+      payload: { document_id: session.document_id },
     });
 
     return {

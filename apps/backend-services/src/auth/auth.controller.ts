@@ -21,6 +21,7 @@ import {
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
+import { AppLoggerService } from "../logging/app-logger.service";
 import {
   THROTTLE_AUTH_LIMIT,
   THROTTLE_AUTH_REFRESH_LIMIT,
@@ -37,7 +38,6 @@ import {
   setAuthCookies,
 } from "./cookie-auth.utils";
 import { MeResponseDto, OAuthCallbackQueryDto, RefreshReturnDto } from "./dto";
-import { AppLoggerService } from "../logging/app-logger.service";
 import { Public } from "./public.decorator";
 import { User } from "./types";
 

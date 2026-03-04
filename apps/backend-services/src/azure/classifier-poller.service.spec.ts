@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { DatabaseService } from "../database/database.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { DatabaseService } from "../database/database.service";
 import { AzureService } from "./azure.service";
 import { BlobService } from "./blob.service";
 import { ClassifierService } from "./classifier.service";
