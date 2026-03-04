@@ -27,6 +27,13 @@ const mockMutate = vi.fn();
 const mockUseCancelMembershipRequest = vi.fn();
 const mockNavigate = vi.fn();
 
+const { mockNotificationsShow } = vi.hoisted(() => ({
+  mockNotificationsShow: vi.fn(),
+}));
+vi.mock("@mantine/notifications", () => ({
+  notifications: { show: mockNotificationsShow },
+}));
+
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
@@ -110,6 +117,7 @@ const renderPage = () =>
 describe("GroupsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockNotificationsShow.mockReset();
     mockUseCancelMembershipRequest.mockReturnValue(idleCancel);
     mockUseMyRequests.mockReturnValue({
       data: pendingRequests,
@@ -339,7 +347,7 @@ describe("GroupsPage", () => {
       });
     });
 
-    it("calls the cancel mutation when the cancel button is clicked", async () => {
+    it("opens the confirmation dialog when the cancel button is clicked", async () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "user-1" },
         isSystemAdmin: false,
@@ -367,7 +375,137 @@ describe("GroupsPage", () => {
 
       fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
-      expect(mockMutate).toHaveBeenCalledWith("req-1");
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("cancel-request-confirm-btn"),
+        ).toBeInTheDocument();
+      });
+
+      expect(mockMutate).not.toHaveBeenCalled();
+    });
+
+    it("calls the cancel mutation when the confirmation dialog is confirmed", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "user-1" },
+        isSystemAdmin: false,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: myGroups,
+        isLoading: false,
+        isError: false,
+      });
+      mockUseAllGroups.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+      });
+
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /cancel/i }),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("cancel-request-confirm-btn"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("cancel-request-confirm-btn"));
+
+      expect(mockMutate).toHaveBeenCalledWith("req-1", expect.any(Object));
+    });
+
+    it("does not call the cancel mutation when the confirmation dialog is dismissed", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "user-1" },
+        isSystemAdmin: false,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: myGroups,
+        isLoading: false,
+        isError: false,
+      });
+      mockUseAllGroups.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+      });
+
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /cancel/i }),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("cancel-request-back-btn"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("cancel-request-back-btn"));
+
+      expect(mockMutate).not.toHaveBeenCalled();
+    });
+
+    it("shows an error notification when the cancel API call fails", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "user-1" },
+        isSystemAdmin: false,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: myGroups,
+        isLoading: false,
+        isError: false,
+      });
+      mockUseAllGroups.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+      });
+      mockMutate.mockImplementation(
+        (_: string, callbacks: { onError?: () => void }) => {
+          callbacks?.onError?.();
+        },
+      );
+
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /cancel/i }),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("cancel-request-confirm-btn"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("cancel-request-confirm-btn"));
+
+      expect(mockNotificationsShow).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "red" }),
+      );
     });
 
     it("defaults the status filter to PENDING", async () => {

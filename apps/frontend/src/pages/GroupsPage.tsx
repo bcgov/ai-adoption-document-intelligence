@@ -3,7 +3,9 @@ import {
   Badge,
   Button,
   Center,
+  Group,
   Loader,
+  Modal,
   Select,
   Stack,
   Table,
@@ -11,6 +13,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { IconAlertCircle, IconUsersGroup } from "@tabler/icons-react";
 import type { JSX } from "react";
 import { useState } from "react";
@@ -130,7 +133,26 @@ function MyGroupsTab(): JSX.Element {
  */
 function MyRequestsTab(): JSX.Element {
   const [statusFilter, setStatusFilter] = useState<RequestStatus>("PENDING");
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const cancelMutation = useCancelMembershipRequest();
+
+  /**
+   * Submits the cancel request after the user confirms the action in the dialog.
+   */
+  const handleConfirmCancel = () => {
+    if (!cancelConfirmId) return;
+    cancelMutation.mutate(cancelConfirmId, {
+      onSuccess: () => setCancelConfirmId(null),
+      onError: () => {
+        notifications.show({
+          title: "Error",
+          message: "Failed to cancel membership request. Please try again.",
+          color: "red",
+        });
+        setCancelConfirmId(null);
+      },
+    });
+  };
 
   const { data: requests, isLoading, isError } = useMyRequests(statusFilter);
 
@@ -205,8 +227,7 @@ function MyRequestsTab(): JSX.Element {
                       size="xs"
                       variant="light"
                       color="red"
-                      loading={cancelMutation.isPending}
-                      onClick={() => cancelMutation.mutate(request.id)}
+                      onClick={() => setCancelConfirmId(request.id)}
                     >
                       Cancel
                     </Button>
@@ -217,6 +238,32 @@ function MyRequestsTab(): JSX.Element {
           </Table.Tbody>
         </Table>
       )}
+
+      <Modal
+        opened={cancelConfirmId !== null}
+        onClose={() => setCancelConfirmId(null)}
+        title="Cancel Membership Request"
+        data-testid="cancel-request-modal"
+      >
+        <Text>Are you sure you want to cancel this membership request?</Text>
+        <Group justify="flex-end" mt="md">
+          <Button
+            variant="default"
+            onClick={() => setCancelConfirmId(null)}
+            data-testid="cancel-request-back-btn"
+          >
+            Back
+          </Button>
+          <Button
+            color="red"
+            loading={cancelMutation.isPending}
+            onClick={handleConfirmCancel}
+            data-testid="cancel-request-confirm-btn"
+          >
+            Confirm
+          </Button>
+        </Group>
+      </Modal>
     </Stack>
   );
 }
