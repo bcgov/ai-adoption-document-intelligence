@@ -76,7 +76,7 @@ export class GroupController {
   @ApiResponse({ status: 200, description: "List of groups." })
   @KeycloakSSOAuth()
   @Get()
-  async getAllGroups(): Promise<Array<{ id: string; name: string }>> {
+  async getAllGroups(): Promise<Array<{ id: string; name: string; description?: string }>> {
     return await this.groupService.getAllGroups();
   }
 

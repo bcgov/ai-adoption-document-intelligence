@@ -16,4 +16,10 @@ export class UserGroupDto {
     enum: GroupRole,
   })
   role: GroupRole;
+
+  @ApiProperty({
+    description: "Optional description of the group",
+    required: false,
+  })
+  description?: string;
 }

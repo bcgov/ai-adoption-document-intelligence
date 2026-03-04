@@ -43,10 +43,10 @@ export class GroupService {
   /**
    * Returns all existing non-deleted groups.
    */
-  async getAllGroups(): Promise<Array<{ id: string; name: string }>> {
+  async getAllGroups(): Promise<Array<{ id: string; name: string; description?: string }>> {
     return await this.databaseService.prisma.group.findMany({
       where: { deleted_at: null },
-      select: { id: true, name: true },
+      select: { id: true, name: true, description: true },
     });
   }
 
@@ -98,6 +98,7 @@ export class GroupService {
       id: ug.group.id,
       name: ug.group.name,
       role: ug.role,
+      description: ug.group.description ?? undefined,
     }));
   }
 
@@ -114,6 +115,7 @@ export class GroupService {
       id: ug.group.id,
       name: ug.group.name,
       role: ug.role,
+      description: ug.group.description ?? undefined,
     }));
   }
 
