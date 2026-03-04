@@ -800,6 +800,19 @@ describe("approveMembershipRequest", () => {
       "Only group admins or system admins can approve or deny membership requests",
     );
   });
+
+  it("should succeed when approving a user who was previously approved, removed, and re-applied (re-approval scenario)", async () => {
+    // This test documents that there is no application-level guard preventing
+    // a second approval for the same user+group. The previously broad DB unique
+    // constraint @@unique([group_id, user_id, status]) incorrectly blocked this;
+    // it has been replaced with a partial index on PENDING rows only.
+    const svc = new GroupService(
+      buildDb(pendingRequest, undefined, true) as any,
+    );
+    await expect(
+      svc.approveMembershipRequest(adminId, requestId),
+    ).resolves.toBeUndefined();
+  });
 });
 
 describe("denyMembershipRequest", () => {

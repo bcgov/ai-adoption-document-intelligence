@@ -36,6 +36,8 @@ const mockUseRemoveGroupMember = vi.fn();
 const mockLeaveMutate = vi.fn();
 const mockUseLeaveGroup = vi.fn();
 const mockUseGroupRequests = vi.fn();
+const mockApproveMutate = vi.fn();
+const mockUseApproveMembershipRequest = vi.fn();
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -51,6 +53,7 @@ vi.mock("../data/hooks/useGroups", () => ({
   useRemoveGroupMember: () => mockUseRemoveGroupMember(),
   useLeaveGroup: () => mockUseLeaveGroup(),
   useGroupRequests: () => mockUseGroupRequests(),
+  useApproveMembershipRequest: () => mockUseApproveMembershipRequest(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -100,6 +103,7 @@ const groupRequests: GroupRequest[] = [
 
 const idleRemove = { mutate: mockRemoveMutate, isPending: false };
 const idleLeave = { mutate: mockLeaveMutate, isPending: false };
+const idleApprove = { mutate: mockApproveMutate, isPending: false };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -133,6 +137,7 @@ describe("GroupDetailPage", () => {
     vi.clearAllMocks();
     mockUseRemoveGroupMember.mockReturnValue(idleRemove);
     mockUseLeaveGroup.mockReturnValue(idleLeave);
+    mockUseApproveMembershipRequest.mockReturnValue(idleApprove);
     mockUseGroup.mockReturnValue({ availableGroups });
     mockUseGroupMembers.mockReturnValue({
       data: members,
@@ -791,6 +796,280 @@ describe("GroupDetailPage", () => {
       await waitFor(() => {
         expect(screen.getByTestId("requests-empty")).toBeInTheDocument();
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // US-020 – Approve Membership Request Action
+  // -------------------------------------------------------------------------
+  describe("US-020 – Approve Membership Request Action", () => {
+    const adminSetup = () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "u-1" },
+        isSystemAdmin: false,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: myGroupsAdmin,
+        isLoading: false,
+        isError: false,
+      });
+    };
+
+    // Scenario 3 – Approve button only visible on PENDING rows
+    it("shows the Approve button only on PENDING rows", async () => {
+      adminSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+
+      await waitFor(() => {
+        // req-1 is PENDING — should have Approve button
+        expect(
+          screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+        ).toBeInTheDocument();
+        // req-2 is APPROVED — should NOT have Approve button
+        expect(
+          screen.queryByTestId(`approve-btn-${groupRequests[1].id}`),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("does not show Approve buttons when user is not an admin", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "u-1" },
+        isSystemAdmin: false,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: myGroupsMember,
+        isLoading: false,
+        isError: false,
+      });
+
+      renderPage();
+
+      // Regular member does not see the Requests tab, but check just in case
+      expect(
+        screen.queryByRole("tab", { name: "Membership Requests" }),
+      ).not.toBeInTheDocument();
+    });
+
+    // Scenario 1 – Clicking Approve opens the modal (no immediate mutation)
+    it("opens the approve modal when the Approve button is clicked without calling the mutation", async () => {
+      adminSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("approve-confirm-btn")).toBeInTheDocument();
+      });
+
+      expect(mockApproveMutate).not.toHaveBeenCalled();
+    });
+
+    // Scenario 2 – Optional reason field is shown in the modal
+    it("shows a reason input inside the approve modal", async () => {
+      adminSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("approve-reason-input"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    // Scenario 1 (continued) – Confirming calls the approve mutation
+    it("calls the approve mutation with the correct requestId when confirmed", async () => {
+      adminSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("approve-confirm-btn")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("approve-confirm-btn"));
+
+      expect(mockApproveMutate).toHaveBeenCalledWith(
+        { requestId: groupRequests[0].id, reason: undefined },
+        expect.any(Object),
+      );
+    });
+
+    // After approval, active tab switches back to Members
+    it("switches to the Members tab and shows members after successful approval", async () => {
+      adminSetup();
+
+      mockApproveMutate.mockImplementation(
+        (
+          _payload: { requestId: string; reason?: string },
+          callbacks: { onSuccess?: () => void },
+        ) => {
+          callbacks?.onSuccess?.();
+        },
+      );
+
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("approve-confirm-btn")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("approve-confirm-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("members-table")).toBeInTheDocument();
+      });
+    });
+
+    // Scenario 2 – Reason is passed when provided
+    it("passes the typed reason to the mutation when provided", async () => {
+      adminSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("approve-reason-input"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("approve-reason-input"), {
+        target: { value: "Looks good" },
+      });
+
+      fireEvent.click(screen.getByTestId("approve-confirm-btn"));
+
+      expect(mockApproveMutate).toHaveBeenCalledWith(
+        { requestId: groupRequests[0].id, reason: "Looks good" },
+        expect.any(Object),
+      );
+    });
+
+    // Cancel button closes modal without mutating
+    it("does not call the mutation when Cancel is clicked in the approve modal", async () => {
+      adminSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("approve-cancel-btn")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("approve-cancel-btn"));
+
+      expect(mockApproveMutate).not.toHaveBeenCalled();
+    });
+
+    // Scenario 4 – Error notification shown on API failure
+    it("shows an error notification when the approve API call fails", async () => {
+      adminSetup();
+
+      let capturedOnError: ((error: Error) => void) | undefined;
+      mockApproveMutate.mockImplementation(
+        (
+          _payload: { requestId: string; reason?: string },
+          callbacks: { onError?: (error: Error) => void },
+        ) => {
+          capturedOnError = callbacks?.onError;
+        },
+      );
+
+      renderPage();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("approve-confirm-btn")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("approve-confirm-btn"));
+
+      act(() => {
+        capturedOnError?.(new Error("API error"));
+      });
+
+      expect(mockNotificationsShow).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "red" }),
+      );
     });
   });
 });

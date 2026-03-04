@@ -243,6 +243,48 @@ export function useRemoveGroupMember(groupId: string) {
   });
 }
 
+/** Payload for approving or denying a membership request */
+export interface MembershipRequestActionPayload {
+  requestId: string;
+  reason?: string;
+}
+
+/**
+ * Approves a pending membership request via PATCH /api/groups/requests/:requestId/approve.
+ * Invalidates the group requests queries on success.
+ *
+ * @param groupId - The ID of the group, used to invalidate the requests query cache.
+ * @returns A react-query mutation result.
+ */
+export function useApproveMembershipRequest(groupId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      requestId,
+      reason,
+    }: MembershipRequestActionPayload): Promise<{ success: boolean }> => {
+      const response = await apiService.patch<{ success: boolean }>(
+        `/groups/requests/${requestId}/approve`,
+        { reason },
+      );
+      if (!response.success || !response.data) {
+        throw new Error(
+          response.message ?? "Failed to approve membership request",
+        );
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["groups", groupId, "requests"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["groups", groupId, "members"],
+      });
+    },
+  });
+}
+
 /**
  * Removes the authenticated user from a group via DELETE /api/groups/:groupId/leave.
  * Invalidates all group-related queries on success.

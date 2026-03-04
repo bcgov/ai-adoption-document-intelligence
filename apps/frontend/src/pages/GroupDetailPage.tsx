@@ -29,6 +29,7 @@ export function GroupDetailPage(): JSX.Element {
   const { availableGroups } = useGroup();
   const navigate = useNavigate();
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("members");
 
   const { data: myGroups } = useMyGroups(user?.sub ?? "");
 
@@ -90,7 +91,7 @@ export function GroupDetailPage(): JSX.Element {
         )}
       </Group>
 
-      <Tabs defaultValue="members">
+      <Tabs value={activeTab} onChange={(v) => setActiveTab(v ?? "members")}>
         <Tabs.List>
           {isMember && <Tabs.Tab value="members">Members</Tabs.Tab>}
           {isAdmin && <Tabs.Tab value="requests">Membership Requests</Tabs.Tab>}
@@ -103,7 +104,11 @@ export function GroupDetailPage(): JSX.Element {
         )}
         {isAdmin && (
           <Tabs.Panel value="requests" pt="md">
-            <RequestsTab groupId={groupId} />
+            <RequestsTab
+              groupId={groupId}
+              isAdmin={isAdmin}
+              onApproveSuccess={() => setActiveTab("members")}
+            />
           </Tabs.Panel>
         )}
       </Tabs>

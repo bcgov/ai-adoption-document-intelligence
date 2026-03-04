@@ -1,21 +1,29 @@
 import {
   Alert,
+  Button,
   Center,
+  Group,
   Loader,
+  Modal,
   Select,
   Stack,
   Table,
   Text,
+  Textarea,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { type JSX, useState } from "react";
 import {
   type GroupRequest,
+  useApproveMembershipRequest,
   useGroupRequests,
 } from "../../data/hooks/useGroups";
 
 interface RequestsTabProps {
   groupId: string;
+  isAdmin: boolean;
+  onApproveSuccess?: () => void;
 }
 
 const REQUEST_STATUS_OPTIONS = [
@@ -30,16 +38,58 @@ const REQUEST_STATUS_OPTIONS = [
  * Only visible to group admins and system admins.
  * Supports status filtering, defaulting to PENDING.
  * Resolved and cancelled rows are read-only (no action buttons).
+ * PENDING rows show an Approve button (with optional reason) when `isAdmin` is true.
  *
  * @param props.groupId - The ID of the group whose requests to display.
+ * @param props.isAdmin - Whether the current user is a group admin or system admin.
  */
-export function RequestsTab({ groupId }: RequestsTabProps): JSX.Element {
+export function RequestsTab({
+  groupId,
+  isAdmin,
+  onApproveSuccess,
+}: RequestsTabProps): JSX.Element {
   const [statusFilter, setStatusFilter] = useState<string>("PENDING");
+  const [approveModalOpen, setApproveModalOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<GroupRequest | null>(
+    null,
+  );
+  const [approveReason, setApproveReason] = useState("");
+
   const {
     data: requests,
     isLoading,
     isError,
   } = useGroupRequests(groupId, statusFilter);
+
+  const approveMutation = useApproveMembershipRequest(groupId);
+
+  const openApproveModal = (request: GroupRequest) => {
+    setSelectedRequest(request);
+    setApproveReason("");
+    setApproveModalOpen(true);
+  };
+
+  const handleApproveSubmit = () => {
+    if (!selectedRequest) return;
+    approveMutation.mutate(
+      { requestId: selectedRequest.id, reason: approveReason || undefined },
+      {
+        onSuccess: () => {
+          setApproveModalOpen(false);
+          setSelectedRequest(null);
+          setApproveReason("");
+          onApproveSuccess?.();
+        },
+        onError: () => {
+          notifications.show({
+            title: "Error",
+            message: "Failed to approve membership request. Please try again.",
+            color: "red",
+          });
+        },
+      },
+    );
+  };
 
   if (isLoading) {
     return (
@@ -96,12 +146,62 @@ export function RequestsTab({ groupId }: RequestsTabProps): JSX.Element {
                 </Table.Td>
                 <Table.Td>{request.reason ?? "-"}</Table.Td>
                 <Table.Td>{request.status}</Table.Td>
-                <Table.Td />
+                <Table.Td>
+                  {isAdmin && request.status === "PENDING" && (
+                    <Button
+                      size="xs"
+                      color="green"
+                      variant="light"
+                      data-testid={`approve-btn-${request.id}`}
+                      onClick={() => openApproveModal(request)}
+                    >
+                      Approve
+                    </Button>
+                  )}
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       )}
+
+      <Modal
+        opened={approveModalOpen}
+        onClose={() => setApproveModalOpen(false)}
+        title="Approve Membership Request"
+        data-testid="approve-modal"
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            Approving request from <strong>{selectedRequest?.email}</strong>.
+            You may optionally provide a reason.
+          </Text>
+          <Textarea
+            label="Reason (optional)"
+            placeholder="Enter a reason..."
+            value={approveReason}
+            onChange={(e) => setApproveReason(e.currentTarget.value)}
+            data-testid="approve-reason-input"
+          />
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() => setApproveModalOpen(false)}
+              data-testid="approve-cancel-btn"
+            >
+              Cancel
+            </Button>
+            <Button
+              color="green"
+              loading={approveMutation.isPending}
+              onClick={handleApproveSubmit}
+              data-testid="approve-confirm-btn"
+            >
+              Approve
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }
