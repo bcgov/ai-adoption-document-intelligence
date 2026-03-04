@@ -12,6 +12,7 @@ const mockUseAuth = vi.fn();
 const mockUseAllGroups = vi.fn();
 const mockMutate = vi.fn();
 const mockUseRequestMembership = vi.fn();
+const mockUseMyRequests = vi.fn();
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -20,6 +21,7 @@ vi.mock("../auth/AuthContext", () => ({
 vi.mock("../data/hooks/useGroups", () => ({
   useAllGroups: () => mockUseAllGroups(),
   useRequestMembership: () => mockUseRequestMembership(),
+  useMyRequests: () => mockUseMyRequests(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -59,13 +61,18 @@ describe("RequestMembershipPage", () => {
     vi.clearAllMocks();
     mockUseAuth.mockReturnValue({ logout: vi.fn() });
     mockUseRequestMembership.mockReturnValue(idleMutation());
+    mockUseMyRequests.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    });
   });
 
   // -------------------------------------------------------------------------
   // Scenario 1 – Page lists all available groups
   // -------------------------------------------------------------------------
   describe("Scenario 1 – Page lists all available groups", () => {
-    it("renders a table row for each group returned by the API", () => {
+    it("renders a row for each group returned by the API", () => {
       mockUseAllGroups.mockReturnValue({
         data: groups,
         isLoading: false,
@@ -74,7 +81,7 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      expect(screen.getByTestId("groups-table")).toBeInTheDocument();
+      expect(screen.getByTestId("groups-search")).toBeInTheDocument();
       expect(screen.getByText("Group Alpha")).toBeInTheDocument();
       expect(screen.getByText("Group Beta")).toBeInTheDocument();
     });
@@ -117,10 +124,10 @@ describe("RequestMembershipPage", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Filtering
+  // Search / filter
   // -------------------------------------------------------------------------
-  describe("Filter input", () => {
-    it("renders the filter input when groups are loaded", () => {
+  describe("Search input", () => {
+    it("renders the search input when groups are loaded", () => {
       mockUseAllGroups.mockReturnValue({
         data: groups,
         isLoading: false,
@@ -129,10 +136,10 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      expect(screen.getByTestId("group-filter")).toBeInTheDocument();
+      expect(screen.getByTestId("groups-search")).toBeInTheDocument();
     });
 
-    it("hides groups that do not match the filter", () => {
+    it("hides groups that do not match the search term", () => {
       mockUseAllGroups.mockReturnValue({
         data: groups,
         isLoading: false,
@@ -141,7 +148,7 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      fireEvent.change(screen.getByTestId("group-filter"), {
+      fireEvent.change(screen.getByTestId("groups-search"), {
         target: { value: "Alpha" },
       });
 
@@ -149,7 +156,7 @@ describe("RequestMembershipPage", () => {
       expect(screen.queryByText("Group Beta")).not.toBeInTheDocument();
     });
 
-    it("shows the no-match message when the filter produces no results", () => {
+    it("shows no rows when the search term produces no results", () => {
       mockUseAllGroups.mockReturnValue({
         data: groups,
         isLoading: false,
@@ -158,11 +165,12 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      fireEvent.change(screen.getByTestId("group-filter"), {
+      fireEvent.change(screen.getByTestId("groups-search"), {
         target: { value: "zzznomatch" },
       });
 
-      expect(screen.getByTestId("no-groups-message")).toBeInTheDocument();
+      expect(screen.queryByText("Group Alpha")).not.toBeInTheDocument();
+      expect(screen.queryByText("Group Beta")).not.toBeInTheDocument();
     });
   });
 
@@ -170,7 +178,7 @@ describe("RequestMembershipPage", () => {
   // Scenario 2 – User can submit a membership request
   // -------------------------------------------------------------------------
   describe("Scenario 2 – User can submit a membership request", () => {
-    it("renders a request button for each group row", () => {
+    it("renders a join button for each group row", () => {
       mockUseAllGroups.mockReturnValue({
         data: groups,
         isLoading: false,
@@ -179,11 +187,11 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      expect(screen.getByTestId("request-button-group-a")).toBeInTheDocument();
-      expect(screen.getByTestId("request-button-group-b")).toBeInTheDocument();
+      expect(screen.getByTestId("join-btn-group-a")).toBeInTheDocument();
+      expect(screen.getByTestId("join-btn-group-b")).toBeInTheDocument();
     });
 
-    it("calls mutate with the correct groupId when the row button is clicked", () => {
+    it("calls mutate with the correct groupId when the join button is clicked", () => {
       mockUseAllGroups.mockReturnValue({
         data: groups,
         isLoading: false,
@@ -192,7 +200,7 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByTestId("request-button-group-a"));
+      fireEvent.click(screen.getByTestId("join-btn-group-a"));
 
       expect(mockMutate).toHaveBeenCalledWith({ groupId: "group-a" });
     });
@@ -218,7 +226,7 @@ describe("RequestMembershipPage", () => {
       expect(screen.getByTestId("request-success")).toBeInTheDocument();
     });
 
-    it("disables all row buttons after a successful submission", () => {
+    it("shows 'Request Pending' and disables the button for the joined group", () => {
       mockUseAllGroups.mockReturnValue({
         data: groups,
         isLoading: false,
@@ -228,16 +236,30 @@ describe("RequestMembershipPage", () => {
         ...idleMutation(),
         isSuccess: true,
       });
+      // Simulate the cache having been updated with the new pending request
+      mockUseMyRequests.mockReturnValue({
+        data: [
+          {
+            id: "req-1",
+            groupId: "group-a",
+            groupName: "Group Alpha",
+            status: "PENDING",
+            createdAt: "2026-01-01T00:00:00Z",
+          },
+        ],
+        isLoading: false,
+        isError: false,
+      });
 
       renderPage();
 
-      // Both buttons should be disabled (success disables all)
-      const buttons = screen.queryAllByRole("button", {
-        name: /request access/i,
-      });
-      for (const btn of buttons) {
-        expect(btn).toBeDisabled();
-      }
+      // group-a button is disabled and shows "Request Pending"
+      expect(screen.getByTestId("join-btn-group-a")).toBeDisabled();
+      expect(screen.getByTestId("join-btn-group-a")).toHaveTextContent(
+        "Request Pending",
+      );
+      // group-b button is still joinable
+      expect(screen.getByTestId("join-btn-group-b")).not.toBeDisabled();
     });
   });
 

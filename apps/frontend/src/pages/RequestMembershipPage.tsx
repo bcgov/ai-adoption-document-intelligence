@@ -1,32 +1,33 @@
 import {
   Alert,
-  Badge,
   Box,
   Button,
   Center,
   Group,
   Loader,
   Stack,
-  Table,
   Text,
-  TextInput,
   Title,
 } from "@mantine/core";
 import {
   IconAlertCircle,
   IconCircleCheck,
   IconLogout,
-  IconSearch,
   IconUsers,
+  IconUsersGroup,
 } from "@tabler/icons-react";
 import type { JSX } from "react";
-import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
-import { useAllGroups, useRequestMembership } from "../data/hooks/useGroups";
+import { GroupsTable } from "../components/group/GroupsTable";
+import {
+  useAllGroups,
+  useMyRequests,
+  useRequestMembership,
+} from "../data/hooks/useGroups";
 
 /**
  * Page shown to authenticated users who have no group memberships.
- * Displays a filterable table of all available groups, each with a
+ * Displays a filterable, sortable table of all available groups, each with a
  * per-row button to submit a membership request for administrator review.
  *
  * Users are redirected here by the `NoGroupGuard` when they try to access
@@ -39,14 +40,12 @@ export function RequestMembershipPage(): JSX.Element {
     isLoading: groupsLoading,
     isError: groupsError,
   } = useAllGroups();
+  const { data: pendingRequests } = useMyRequests("PENDING");
   const requestMutation = useRequestMembership();
-  const [filter, setFilter] = useState("");
-  const [submittedGroupId, setSubmittedGroupId] = useState<string | null>(null);
 
-  const filteredGroups =
-    groups?.filter((g) =>
-      g.name.toLowerCase().includes(filter.toLowerCase()),
-    ) ?? [];
+  const pendingRequestGroupIds = new Set(
+    (pendingRequests ?? []).map((r) => r.groupId),
+  );
 
   /**
    * Fires the membership request mutation for the given group.
@@ -54,7 +53,6 @@ export function RequestMembershipPage(): JSX.Element {
    * @param groupId - The ID of the group to request membership for.
    */
   const handleRequest = (groupId: string): void => {
-    setSubmittedGroupId(groupId);
     requestMutation.mutate({ groupId });
   };
 
@@ -122,75 +120,32 @@ export function RequestMembershipPage(): JSX.Element {
             </Alert>
           )}
 
-          {!groupsLoading && !groupsError && (
-            <>
-              <TextInput
-                placeholder="Filter groups…"
-                leftSection={<IconSearch size={16} />}
-                value={filter}
-                onChange={(e) => setFilter(e.currentTarget.value)}
-                aria-label="Filter groups"
-                data-testid="group-filter"
-              />
+          {!groupsLoading && !groupsError && groups?.length === 0 && (
+            <Text
+              c="dimmed"
+              ta="center"
+              size="sm"
+              data-testid="no-groups-message"
+            >
+              No groups are available. Contact an administrator.
+            </Text>
+          )}
 
-              {filteredGroups.length === 0 ? (
-                <Text
-                  c="dimmed"
-                  ta="center"
-                  size="sm"
-                  data-testid="no-groups-message"
-                >
-                  {groups?.length === 0
-                    ? "No groups are available. Contact an administrator."
-                    : "No groups match your filter."}
-                </Text>
-              ) : (
-                <Table striped highlightOnHover data-testid="groups-table">
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Group name</Table.Th>
-                      <Table.Th />
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {filteredGroups.map((group) => {
-                      const isThisRow = submittedGroupId === group.id;
-                      const requested = requestMutation.isSuccess && isThisRow;
-                      return (
-                        <Table.Tr key={group.id}>
-                          <Table.Td>{group.name}</Table.Td>
-                          <Table.Td ta="right">
-                            {requested ? (
-                              <Badge
-                                color="green"
-                                variant="light"
-                                data-testid={`requested-badge-${group.id}`}
-                              >
-                                Requested
-                              </Badge>
-                            ) : (
-                              <Button
-                                size="xs"
-                                variant="light"
-                                onClick={() => handleRequest(group.id)}
-                                disabled={
-                                  requestMutation.isPending ||
-                                  requestMutation.isSuccess
-                                }
-                                loading={requestMutation.isPending && isThisRow}
-                                data-testid={`request-button-${group.id}`}
-                              >
-                                Request access
-                              </Button>
-                            )}
-                          </Table.Td>
-                        </Table.Tr>
-                      );
-                    })}
-                  </Table.Tbody>
-                </Table>
-              )}
-            </>
+          {!groupsLoading && !groupsError && !!groups?.length && (
+            <GroupsTable
+              groups={groups}
+              memberGroupIds={new Set()}
+              pendingRequestGroupIds={pendingRequestGroupIds}
+              onJoin={handleRequest}
+              onLeave={() => {
+                // Users on this page have no memberships; Leave is never rendered
+              }}
+              joinLoadingGroupId={
+                requestMutation.isPending
+                  ? (requestMutation.variables?.groupId ?? null)
+                  : null
+              }
+            />
           )}
         </Stack>
       </Center>
