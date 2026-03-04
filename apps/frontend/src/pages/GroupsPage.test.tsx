@@ -792,9 +792,11 @@ describe("GroupsPage", () => {
 
       fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
 
+      const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+
       await waitFor(() => {
-        expect(screen.getByTestId("leave-btn-g-1")).toBeInTheDocument();
-        expect(screen.getByTestId("leave-btn-g-2")).toBeInTheDocument();
+        expect(within(panel).getByTestId("leave-btn-g-1")).toBeInTheDocument();
+        expect(within(panel).getByTestId("leave-btn-g-2")).toBeInTheDocument();
       });
     });
 
@@ -901,11 +903,13 @@ describe("GroupsPage", () => {
 
       fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
 
+      const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+
       await waitFor(() => {
-        expect(screen.getByTestId("leave-btn-g-1")).toBeInTheDocument();
+        expect(within(panel).getByTestId("leave-btn-g-1")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTestId("leave-btn-g-1"));
+      fireEvent.click(within(panel).getByTestId("leave-btn-g-1"));
 
       await waitFor(() => {
         expect(
@@ -923,11 +927,13 @@ describe("GroupsPage", () => {
 
       fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
 
+      const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+
       await waitFor(() => {
-        expect(screen.getByTestId("leave-btn-g-1")).toBeInTheDocument();
+        expect(within(panel).getByTestId("leave-btn-g-1")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTestId("leave-btn-g-1"));
+      fireEvent.click(within(panel).getByTestId("leave-btn-g-1"));
 
       await waitFor(() => {
         expect(
@@ -950,11 +956,13 @@ describe("GroupsPage", () => {
 
       fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
 
+      const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+
       await waitFor(() => {
-        expect(screen.getByTestId("leave-btn-g-1")).toBeInTheDocument();
+        expect(within(panel).getByTestId("leave-btn-g-1")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTestId("leave-btn-g-1"));
+      fireEvent.click(within(panel).getByTestId("leave-btn-g-1"));
 
       await waitFor(() => {
         expect(screen.getByTestId("leave-group-back-btn")).toBeInTheDocument();
@@ -978,11 +986,13 @@ describe("GroupsPage", () => {
 
       fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
 
+      const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+
       await waitFor(() => {
-        expect(screen.getByTestId("leave-btn-g-1")).toBeInTheDocument();
+        expect(within(panel).getByTestId("leave-btn-g-1")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTestId("leave-btn-g-1"));
+      fireEvent.click(within(panel).getByTestId("leave-btn-g-1"));
 
       await waitFor(() => {
         expect(

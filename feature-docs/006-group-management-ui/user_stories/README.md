@@ -93,7 +93,7 @@ User stories for **Group Management UI**.
 | # | Story | Status |
 |---|-------|--------|
 | US-022 | [My Requests Tab on the Groups Page](./US-022-my-requests-page.md) | - [x] |
-| US-023 | [Cancel Membership Request Action on My Requests Tab](./US-023-cancel-request-action.md) | - [ ] |
+| US-023 | [Cancel Membership Request Action on My Requests Tab](./US-023-cancel-request-action.md) | - [x] |
 
 ---
 
@@ -103,7 +103,7 @@ User stories for **Group Management UI**.
 |---|-------|--------|
 | US-024 | [Create Group Button and Form (System Admin)](./US-024-create-group-form.md) | - [x] |
 | US-025 | [Edit Group Button and Form (System Admin)](./US-025-edit-group-form.md) | - [x] |
-| US-026 | [Delete Group with Soft-Delete Confirmation (System Admin)](./US-026-delete-group-action.md) | - [ ] |
+| US-026 | [Delete Group with Soft-Delete Confirmation (System Admin)](./US-026-delete-group-action.md) | - [x] |
 
 ---
 
@@ -111,4 +111,4 @@ User stories for **Group Management UI**.
 
 | # | Story | Status |
 |---|-------|--------|
-| US-027 | [Display Group Description on Request Membership Page](./US-027-group-description-on-request-page.md) | - [ ] |
+| US-027 | [Display Group Description on Request Membership Page](./US-027-group-description-on-request-page.md) | - [x] |

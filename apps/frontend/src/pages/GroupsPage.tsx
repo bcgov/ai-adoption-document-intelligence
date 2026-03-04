@@ -304,13 +304,26 @@ function AllGroupsTab(): JSX.Element {
  * System admins see all groups; regular users see only their own groups.
  */
 function MyGroupsTab(): JSX.Element {
-  const { user } = useAuth();
+  const { user, isSystemAdmin } = useAuth();
   const navigate = useNavigate();
   const [pendingLeaveGroupId, setPendingLeaveGroupId] = useState<string | null>(
     null,
   );
 
-  const { data: groups, isLoading, isError } = useMyGroups(user?.sub ?? "");
+  const {
+    data: myGroupsData,
+    isLoading: myGroupsLoading,
+    isError: myGroupsError,
+  } = useMyGroups(user?.sub ?? "");
+  const {
+    data: allGroupsData,
+    isLoading: allGroupsLoading,
+    isError: allGroupsError,
+  } = useAllGroups();
+
+  const isLoading = isSystemAdmin ? allGroupsLoading : myGroupsLoading;
+  const isError = isSystemAdmin ? allGroupsError : myGroupsError;
+  const groups = isSystemAdmin ? allGroupsData : myGroupsData;
 
   const leaveMutation = useLeaveGroup(pendingLeaveGroupId ?? "");
 

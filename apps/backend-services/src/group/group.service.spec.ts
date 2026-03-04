@@ -149,7 +149,7 @@ describe("getAllGroups", () => {
     ]);
     expect(mockPrisma.group.findMany).toHaveBeenCalledWith({
       where: { deleted_at: null },
-      select: { id: true, name: true },
+      select: { id: true, name: true, description: true },
     });
   });
 

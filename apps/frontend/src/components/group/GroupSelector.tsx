@@ -1,9 +1,9 @@
 import type { ComboboxItem } from "@mantine/core";
 import { Anchor, Select, Tooltip } from "@mantine/core";
 import type { JSX } from "react";
-import { useGroup } from "../../auth/GroupContext";
-import { useAllGroups } from "@/data/hooks/useGroups";
 import { useAuth } from "@/auth/AuthContext";
+import { useAllGroups } from "@/data/hooks/useGroups";
+import { useGroup } from "../../auth/GroupContext";
 
 /**
  * A searchable dropdown that lets the authenticated user switch their active group.
@@ -19,7 +19,7 @@ export function GroupSelector(): JSX.Element {
   const auth = useAuth(); // Ensure we re-render when auth state changes, to update available groups and handle logout cases
   const { data: allGroups } = useAllGroups();
 
-  const groups = auth.isSystemAdmin ? allGroups ?? [] : availableGroups;
+  const groups = auth.isSystemAdmin ? (allGroups ?? []) : availableGroups;
 
   if (groups.length === 0) {
     return (

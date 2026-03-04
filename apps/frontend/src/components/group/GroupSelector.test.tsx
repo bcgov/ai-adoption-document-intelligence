@@ -9,6 +9,14 @@ vi.mock("../../auth/GroupContext", () => ({
   useGroup: () => mockUseGroup(),
 }));
 
+vi.mock("../../auth/AuthContext", () => ({
+  useAuth: () => ({ isSystemAdmin: false }),
+}));
+
+vi.mock("@/data/hooks/useGroups", () => ({
+  useAllGroups: () => ({ data: undefined }),
+}));
+
 const groupAlpha = { id: "alpha", name: "Alpha Team" };
 const groupBeta = { id: "beta", name: "Beta Team" };
 

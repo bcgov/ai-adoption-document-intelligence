@@ -1,7 +1,6 @@
 import {
   ActionIcon,
   AppShell,
-  Avatar,
   Button,
   Group,
   NavLink,
@@ -142,7 +141,7 @@ function MainApp(): JSX.Element {
         <AppShell.Header>
           <Group h="100%" px="md" justify="space-between">
             <Group>
-              <Title order={3}>Document intelligence</Title>
+              <Title order={3}>Document Intelligence</Title>
             </Group>
             <Group>
               <GroupSelector />
@@ -154,7 +153,6 @@ function MainApp(): JSX.Element {
                   {user?.profile?.email ?? "Logged in"}
                 </Text>
               </Stack>
-              <Avatar radius="xl">{user?.profile?.name?.[0] ?? "U"}</Avatar>
               <Button
                 variant="light"
                 color="red"
