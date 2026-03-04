@@ -72,9 +72,9 @@ User stories for **Group Management UI**.
 
 | # | Story | Status |
 |---|-------|--------|
-| US-016 | [Group Detail Page — Members Tab](./US-016-group-detail-members-tab.md) | - [ ] |
-| US-017 | [Remove Member Action on Group Detail Page](./US-017-remove-member-action.md) | - [ ] |
-| US-018 | [Leave Group Action on Group Detail Page](./US-018-leave-group-action.md) | - [ ] |
+| US-016 | [Group Detail Page — Members Tab](./US-016-group-detail-members-tab.md) | - [x] |
+| US-017 | [Remove Member Action on Group Detail Page](./US-017-remove-member-action.md) | - [x] |
+| US-018 | [Leave Group Action on Group Detail Page](./US-018-leave-group-action.md) | - [x] |
 
 ---
 
@@ -82,9 +82,9 @@ User stories for **Group Management UI**.
 
 | # | Story | Status |
 |---|-------|--------|
-| US-019 | [Group Detail Page — Membership Requests Tab](./US-019-group-detail-requests-tab.md) | - [ ] |
-| US-020 | [Approve Membership Request Action](./US-020-approve-request-action.md) | - [ ] |
-| US-021 | [Deny Membership Request Action](./US-021-deny-request-action.md) | - [ ] |
+| US-019 | [Group Detail Page — Membership Requests Tab](./US-019-group-detail-requests-tab.md) | - [x] |
+| US-020 | [Approve Membership Request Action](./US-020-approve-request-action.md) | - [x] |
+| US-021 | [Deny Membership Request Action](./US-021-deny-request-action.md) | - [x] |
 
 ---
 

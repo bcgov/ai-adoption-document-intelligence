@@ -104,11 +104,7 @@ export function GroupDetailPage(): JSX.Element {
         )}
         {isAdmin && (
           <Tabs.Panel value="requests" pt="md">
-            <RequestsTab
-              groupId={groupId}
-              isAdmin={isAdmin}
-              onApproveSuccess={() => setActiveTab("members")}
-            />
+            <RequestsTab groupId={groupId} isAdmin={isAdmin} />
           </Tabs.Panel>
         )}
       </Tabs>
