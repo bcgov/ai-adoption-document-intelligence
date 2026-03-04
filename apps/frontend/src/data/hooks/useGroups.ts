@@ -378,6 +378,30 @@ export function useCreateGroup() {
   });
 }
 
+/**
+ * Soft-deletes a group via DELETE /api/groups/:groupId.
+ * Invalidates the all-groups query on success.
+ *
+ * @param groupId - The ID of the group to delete.
+ * @returns A react-query mutation result.
+ */
+export function useDeleteGroup(groupId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<void> => {
+      const response = await apiService.delete<{ success: boolean }>(
+        `/groups/${groupId}`,
+      );
+      if (!response.success) {
+        throw new Error(response.message ?? "Failed to delete group");
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groups", "all"] });
+    },
+  });
+}
+
 /** Payload for updating an existing group */
 export interface UpdateGroupPayload {
   name: string;

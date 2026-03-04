@@ -46,6 +46,8 @@ const mockUseRequestMembership = vi.fn();
 const mockUseMyRequests = vi.fn();
 const mockUpdateMutate = vi.fn();
 const mockUseUpdateGroup = vi.fn();
+const mockDeleteMutate = vi.fn();
+const mockUseDeleteGroup = vi.fn();
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -67,6 +69,7 @@ vi.mock("../data/hooks/useGroups", () => ({
   useRequestMembership: () => mockUseRequestMembership(),
   useMyRequests: () => mockUseMyRequests(),
   useUpdateGroup: () => mockUseUpdateGroup(),
+  useDeleteGroup: () => mockUseDeleteGroup(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -158,7 +161,14 @@ describe("GroupDetailPage", () => {
     mockUseMyRequests.mockReturnValue({ data: [], isLoading: false });
     mockUseAllGroups.mockReturnValue({ data: [], isLoading: false });
     mockUseGroup.mockReturnValue({ availableGroups });
-    mockUseUpdateGroup.mockReturnValue({ mutate: mockUpdateMutate, isPending: false });
+    mockUseUpdateGroup.mockReturnValue({
+      mutate: mockUpdateMutate,
+      isPending: false,
+    });
+    mockUseDeleteGroup.mockReturnValue({
+      mutate: mockDeleteMutate,
+      isPending: false,
+    });
     mockUseGroupMembers.mockReturnValue({
       data: members,
       isLoading: false,
@@ -181,61 +191,105 @@ describe("GroupDetailPage", () => {
         isSystemAdmin: false,
       });
       mockUseGroup.mockReturnValue({ availableGroups: [] });
-      mockUseMyGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+      mockUseMyGroups.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+      });
     };
 
-    it("shows the Join button for a non-member", () => {
+    it("shows the Join menu item for a non-member", async () => {
       nonMemberSetup();
       mockUseMyRequests.mockReturnValue({ data: [], isLoading: false });
 
       renderPage();
 
-      expect(screen.getByTestId("join-group-btn")).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => {
+        expect(screen.getByTestId("join-group-menu-item")).toBeInTheDocument();
+      });
     });
 
-    it("Join button is enabled when there is no pending request", () => {
+    it("Join menu item is enabled when there is no pending request", async () => {
       nonMemberSetup();
       mockUseMyRequests.mockReturnValue({ data: [], isLoading: false });
 
       renderPage();
 
-      expect(screen.getByTestId("join-group-btn")).not.toBeDisabled();
-      expect(screen.getByTestId("join-group-btn")).toHaveTextContent("Join");
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => {
+        const item = screen.getByTestId("join-group-menu-item");
+        expect(item).toHaveTextContent("Join");
+      });
     });
 
-    it("Join button is disabled and shows 'Request Pending' when there is a pending request for this group", () => {
+    it("Join menu item shows 'Request Pending' when there is a pending request for this group", async () => {
       nonMemberSetup();
       mockUseMyRequests.mockReturnValue({
-        data: [{ id: "req-99", groupId: GROUP_ID, groupName: "Alpha Team", status: "PENDING", createdAt: "2026-03-01T00:00:00Z" }],
+        data: [
+          {
+            id: "req-99",
+            groupId: GROUP_ID,
+            groupName: "Alpha Team",
+            status: "PENDING",
+            createdAt: "2026-03-01T00:00:00Z",
+          },
+        ],
         isLoading: false,
       });
 
       renderPage();
 
-      const btn = screen.getByTestId("join-group-btn");
-      expect(btn).toBeDisabled();
-      expect(btn).toHaveTextContent("Request Pending");
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => {
+        const item = screen.getByTestId("join-group-menu-item");
+        expect(item).toHaveTextContent("Request Pending");
+      });
     });
 
-    it("does not show the Join button for an existing member", () => {
-      mockUseAuth.mockReturnValue({ user: { sub: "u-1" }, isSystemAdmin: false });
-      mockUseMyGroups.mockReturnValue({ data: myGroupsMember, isLoading: false, isError: false });
+    it("does not show the Join menu item for an existing member", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "u-1" },
+        isSystemAdmin: false,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: myGroupsMember,
+        isLoading: false,
+        isError: false,
+      });
       mockUseMyRequests.mockReturnValue({ data: [], isLoading: false });
 
       renderPage();
 
-      expect(screen.queryByTestId("join-group-btn")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("join-group-menu-item"),
+        ).not.toBeInTheDocument();
+      });
     });
 
-    it("does not show the Join button for a system admin", () => {
-      mockUseAuth.mockReturnValue({ user: { sub: "admin-1" }, isSystemAdmin: true });
+    it("does not show the Join menu item for a system admin", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "admin-1" },
+        isSystemAdmin: true,
+      });
       mockUseGroup.mockReturnValue({ availableGroups: [] });
-      mockUseMyGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+      mockUseMyGroups.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+      });
       mockUseMyRequests.mockReturnValue({ data: [], isLoading: false });
 
       renderPage();
 
-      expect(screen.queryByTestId("join-group-btn")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("join-group-menu-item"),
+        ).not.toBeInTheDocument();
+      });
     });
   });
 
@@ -595,15 +649,18 @@ describe("GroupDetailPage", () => {
       });
     };
 
-    // Scenario 1 – Leave Group button visible to member
-    it("shows the Leave Group button when the user is an actual group member", () => {
+    // Scenario 1 – Leave Group menu item visible to member
+    it("shows the Leave Group menu item when the user is an actual group member", async () => {
       memberSetup();
       renderPage();
 
-      expect(screen.getByTestId("leave-group-btn")).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => {
+        expect(screen.getByTestId("leave-group-menu-item")).toBeInTheDocument();
+      });
     });
 
-    it("does not show the Leave Group button when the user is only a system admin (not a roster member)", () => {
+    it("does not show the Leave Group menu item when the user is only a system admin (not a roster member)", async () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "admin-1" },
         isSystemAdmin: true,
@@ -617,15 +674,22 @@ describe("GroupDetailPage", () => {
 
       renderPage();
 
-      expect(screen.queryByTestId("leave-group-btn")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("leave-group-menu-item"),
+        ).not.toBeInTheDocument();
+      });
     });
 
     // Scenario 2 – Clicking Leave Group opens confirmation dialog
-    it("opens the Leave Group confirmation dialog when the button is clicked (no mutation fired)", async () => {
+    it("opens the Leave Group confirmation dialog when the menu item is clicked (no mutation fired)", async () => {
       memberSetup();
       renderPage();
 
-      fireEvent.click(screen.getByTestId("leave-group-btn"));
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("leave-group-menu-item"));
+      fireEvent.click(screen.getByTestId("leave-group-menu-item"));
 
       await waitFor(() => {
         expect(
@@ -648,7 +712,9 @@ describe("GroupDetailPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByTestId("leave-group-btn"));
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("leave-group-menu-item"));
+      fireEvent.click(screen.getByTestId("leave-group-menu-item"));
 
       await waitFor(() => {
         expect(
@@ -670,7 +736,9 @@ describe("GroupDetailPage", () => {
       memberSetup();
       renderPage();
 
-      fireEvent.click(screen.getByTestId("leave-group-btn"));
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("leave-group-menu-item"));
+      fireEvent.click(screen.getByTestId("leave-group-menu-item"));
 
       await waitFor(() => {
         expect(
@@ -695,7 +763,9 @@ describe("GroupDetailPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByTestId("leave-group-btn"));
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("leave-group-menu-item"));
+      fireEvent.click(screen.getByTestId("leave-group-menu-item"));
 
       await waitFor(() => {
         expect(
@@ -825,7 +895,9 @@ describe("GroupDetailPage", () => {
       fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
 
       await waitFor(() => {
-        expect(screen.getByTestId("requests-status-filter")).toBeInTheDocument();
+        expect(
+          screen.getByTestId("requests-status-filter"),
+        ).toBeInTheDocument();
         // Mantine Select renders a visible input with the label of the selected option
         const inputs = screen.getAllByDisplayValue("Pending");
         expect(inputs.length).toBeGreaterThan(0);
@@ -954,9 +1026,7 @@ describe("GroupDetailPage", () => {
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(
-        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
-      );
+      fireEvent.click(screen.getByTestId(`approve-btn-${groupRequests[0].id}`));
 
       await waitFor(() => {
         expect(screen.getByTestId("approve-confirm-btn")).toBeInTheDocument();
@@ -978,14 +1048,10 @@ describe("GroupDetailPage", () => {
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(
-        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
-      );
+      fireEvent.click(screen.getByTestId(`approve-btn-${groupRequests[0].id}`));
 
       await waitFor(() => {
-        expect(
-          screen.getByTestId("approve-reason-input"),
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("approve-reason-input")).toBeInTheDocument();
       });
     });
 
@@ -1002,9 +1068,7 @@ describe("GroupDetailPage", () => {
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(
-        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
-      );
+      fireEvent.click(screen.getByTestId(`approve-btn-${groupRequests[0].id}`));
 
       await waitFor(() => {
         expect(screen.getByTestId("approve-confirm-btn")).toBeInTheDocument();
@@ -1041,9 +1105,7 @@ describe("GroupDetailPage", () => {
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(
-        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
-      );
+      fireEvent.click(screen.getByTestId(`approve-btn-${groupRequests[0].id}`));
 
       await waitFor(() => {
         expect(screen.getByTestId("approve-confirm-btn")).toBeInTheDocument();
@@ -1069,14 +1131,10 @@ describe("GroupDetailPage", () => {
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(
-        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
-      );
+      fireEvent.click(screen.getByTestId(`approve-btn-${groupRequests[0].id}`));
 
       await waitFor(() => {
-        expect(
-          screen.getByTestId("approve-reason-input"),
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("approve-reason-input")).toBeInTheDocument();
       });
 
       fireEvent.change(screen.getByTestId("approve-reason-input"), {
@@ -1104,9 +1162,7 @@ describe("GroupDetailPage", () => {
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(
-        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
-      );
+      fireEvent.click(screen.getByTestId(`approve-btn-${groupRequests[0].id}`));
 
       await waitFor(() => {
         expect(screen.getByTestId("approve-cancel-btn")).toBeInTheDocument();
@@ -1141,9 +1197,7 @@ describe("GroupDetailPage", () => {
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(
-        screen.getByTestId(`approve-btn-${groupRequests[0].id}`),
-      );
+      fireEvent.click(screen.getByTestId(`approve-btn-${groupRequests[0].id}`));
 
       await waitFor(() => {
         expect(screen.getByTestId("approve-confirm-btn")).toBeInTheDocument();
@@ -1165,55 +1219,102 @@ describe("GroupDetailPage", () => {
   // Edit Group button and modal (system admin only)
   // -------------------------------------------------------------------------
   describe("Edit Group", () => {
-    const GROUP_WITH_DESC = { id: GROUP_ID, name: "Alpha Team", description: "A great team" };
-
-    const adminSetupWithGroup = () => {
-      mockUseAuth.mockReturnValue({ user: { sub: "admin-1" }, isSystemAdmin: true });
-      mockUseGroup.mockReturnValue({ availableGroups: [] });
-      mockUseMyGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
-      mockUseAllGroups.mockReturnValue({ data: [GROUP_WITH_DESC], isLoading: false });
+    const GROUP_WITH_DESC = {
+      id: GROUP_ID,
+      name: "Alpha Team",
+      description: "A great team",
     };
 
-    it("shows the Edit Group button for a system admin", () => {
-      adminSetupWithGroup();
-      renderPage();
-      expect(screen.getByTestId("edit-group-btn")).toBeInTheDocument();
-    });
-
-    it("does not show the Edit Group button for a regular member", () => {
-      mockUseAuth.mockReturnValue({ user: { sub: "u-1" }, isSystemAdmin: false });
-      mockUseMyGroups.mockReturnValue({ data: myGroupsMember, isLoading: false, isError: false });
-      renderPage();
-      expect(screen.queryByTestId("edit-group-btn")).not.toBeInTheDocument();
-    });
-
-    it("does not show the Edit Group button for a non-member non-admin", () => {
-      mockUseAuth.mockReturnValue({ user: { sub: "u-99" }, isSystemAdmin: false });
+    const adminSetupWithGroup = () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "admin-1" },
+        isSystemAdmin: true,
+      });
       mockUseGroup.mockReturnValue({ availableGroups: [] });
-      mockUseMyGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+      mockUseMyGroups.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+      });
+      mockUseAllGroups.mockReturnValue({
+        data: [GROUP_WITH_DESC],
+        isLoading: false,
+      });
+    };
+
+    it("shows the Edit Group menu item for a system admin", async () => {
+      adminSetupWithGroup();
       renderPage();
-      expect(screen.queryByTestId("edit-group-btn")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => {
+        expect(screen.getByTestId("edit-group-menu-item")).toBeInTheDocument();
+      });
     });
 
-    it("opens a modal pre-populated with current name and description when Edit Group is clicked", async () => {
+    it("does not show the Edit Group menu item for a regular member", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "u-1" },
+        isSystemAdmin: false,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: myGroupsMember,
+        isLoading: false,
+        isError: false,
+      });
+      renderPage();
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("edit-group-menu-item"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("does not show the Edit Group menu item for a non-member non-admin", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "u-99" },
+        isSystemAdmin: false,
+      });
+      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseMyGroups.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+      });
+      renderPage();
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("edit-group-menu-item"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("opens a modal pre-populated with current name and description when Edit Group menu item is clicked", async () => {
       adminSetupWithGroup();
       renderPage();
 
-      fireEvent.click(screen.getByTestId("edit-group-btn"));
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("edit-group-menu-item"));
+      fireEvent.click(screen.getByTestId("edit-group-menu-item"));
 
       await waitFor(() => {
         expect(screen.getByTestId("edit-group-name")).toBeInTheDocument();
       });
 
       expect(screen.getByTestId("edit-group-name")).toHaveValue("Alpha Team");
-      expect(screen.getByTestId("edit-group-description")).toHaveValue("A great team");
+      expect(screen.getByTestId("edit-group-description")).toHaveValue(
+        "A great team",
+      );
     });
 
     it("calls the update mutation with new values on submit", async () => {
       adminSetupWithGroup();
       renderPage();
 
-      fireEvent.click(screen.getByTestId("edit-group-btn"));
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("edit-group-menu-item"));
+      fireEvent.click(screen.getByTestId("edit-group-menu-item"));
 
       await waitFor(() => {
         expect(screen.getByTestId("edit-group-name")).toBeInTheDocument();
@@ -1238,7 +1339,9 @@ describe("GroupDetailPage", () => {
       adminSetupWithGroup();
       renderPage();
 
-      fireEvent.click(screen.getByTestId("edit-group-btn"));
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("edit-group-menu-item"));
+      fireEvent.click(screen.getByTestId("edit-group-menu-item"));
 
       await waitFor(() => {
         expect(screen.getByTestId("edit-group-name")).toBeInTheDocument();
@@ -1251,7 +1354,9 @@ describe("GroupDetailPage", () => {
       fireEvent.click(screen.getByTestId("edit-group-submit-btn"));
 
       expect(mockUpdateMutate).not.toHaveBeenCalled();
-      expect(screen.getByTestId("edit-group-error")).toHaveTextContent("Name is required.");
+      expect(screen.getByTestId("edit-group-error")).toHaveTextContent(
+        "Name is required.",
+      );
     });
 
     it("shows an inline error and keeps modal open when the API call fails", async () => {
@@ -1268,7 +1373,9 @@ describe("GroupDetailPage", () => {
         },
       );
 
-      fireEvent.click(screen.getByTestId("edit-group-btn"));
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("edit-group-menu-item"));
+      fireEvent.click(screen.getByTestId("edit-group-menu-item"));
 
       await waitFor(() => {
         expect(screen.getByTestId("edit-group-submit-btn")).toBeInTheDocument();
@@ -1281,7 +1388,9 @@ describe("GroupDetailPage", () => {
       });
 
       expect(screen.getByTestId("edit-group-name")).toBeInTheDocument();
-      expect(screen.getByTestId("edit-group-error")).toHaveTextContent("Name already in use");
+      expect(screen.getByTestId("edit-group-error")).toHaveTextContent(
+        "Name already in use",
+      );
     });
 
     it("closes the modal and shows a success notification after a successful update", async () => {
@@ -1298,7 +1407,9 @@ describe("GroupDetailPage", () => {
         },
       );
 
-      fireEvent.click(screen.getByTestId("edit-group-btn"));
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("edit-group-menu-item"));
+      fireEvent.click(screen.getByTestId("edit-group-menu-item"));
 
       await waitFor(() => {
         expect(screen.getByTestId("edit-group-submit-btn")).toBeInTheDocument();
@@ -1323,7 +1434,9 @@ describe("GroupDetailPage", () => {
       adminSetupWithGroup();
       renderPage();
 
-      fireEvent.click(screen.getByTestId("edit-group-btn"));
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("edit-group-menu-item"));
+      fireEvent.click(screen.getByTestId("edit-group-menu-item"));
 
       await waitFor(() => {
         expect(screen.getByTestId("edit-group-cancel-btn")).toBeInTheDocument();
@@ -1336,6 +1449,145 @@ describe("GroupDetailPage", () => {
       });
 
       expect(mockUpdateMutate).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // US-026 – Delete Group action
+  // -------------------------------------------------------------------------
+  describe("US-026 – Delete Group action", () => {
+    const adminSetup = () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "admin-1" },
+        isSystemAdmin: true,
+      });
+      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseMyGroups.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+      });
+    };
+
+    // Scenario 1 – Delete Group menu item visible to system admin
+    it("shows the Delete Group menu item for a system admin", async () => {
+      adminSetup();
+      renderPage();
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("delete-group-menu-item"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    // Scenario 2 – Delete Group menu item not visible to regular members
+    it("does not show the Delete Group menu item for a regular member", async () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "u-1" },
+        isSystemAdmin: false,
+      });
+      mockUseMyGroups.mockReturnValue({
+        data: myGroupsMember,
+        isLoading: false,
+        isError: false,
+      });
+      renderPage();
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("delete-group-menu-item"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    // Scenario 3 – Clicking Delete opens confirmation dialog
+    it("opens the Delete Group confirmation dialog when the menu item is clicked (no mutation fired)", async () => {
+      adminSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("delete-group-menu-item"));
+      fireEvent.click(screen.getByTestId("delete-group-menu-item"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("delete-group-modal")).toBeInTheDocument();
+        expect(
+          screen.getByTestId("delete-group-confirm-btn"),
+        ).toBeInTheDocument();
+      });
+
+      expect(mockDeleteMutate).not.toHaveBeenCalled();
+    });
+
+    // Scenario 4 – Confirming calls mutation and navigates away
+    it("calls the delete mutation on confirm and navigates to /groups on success", async () => {
+      adminSetup();
+
+      mockDeleteMutate.mockImplementation(
+        (_arg: undefined, callbacks: { onSuccess?: () => void }) => {
+          callbacks?.onSuccess?.();
+        },
+      );
+
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("delete-group-menu-item"));
+      fireEvent.click(screen.getByTestId("delete-group-menu-item"));
+
+      await waitFor(() => screen.getByTestId("delete-group-confirm-btn"));
+      fireEvent.click(screen.getByTestId("delete-group-confirm-btn"));
+
+      expect(mockDeleteMutate).toHaveBeenCalled();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("groups-list-page")).toBeInTheDocument();
+      });
+    });
+
+    // Scenario 5 – Cancelling does nothing
+    it("does not call the delete mutation when the user cancels", async () => {
+      adminSetup();
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("delete-group-menu-item"));
+      fireEvent.click(screen.getByTestId("delete-group-menu-item"));
+
+      await waitFor(() => screen.getByTestId("delete-group-cancel-btn"));
+      fireEvent.click(screen.getByTestId("delete-group-cancel-btn"));
+
+      expect(mockDeleteMutate).not.toHaveBeenCalled();
+    });
+
+    // Scenario 6 – Error notification on API failure
+    it("shows an error notification when the delete API call fails", async () => {
+      adminSetup();
+
+      let capturedOnError: ((error: Error) => void) | undefined;
+      mockDeleteMutate.mockImplementation(
+        (_arg: undefined, callbacks: { onError?: (error: Error) => void }) => {
+          capturedOnError = callbacks?.onError;
+        },
+      );
+
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
+      await waitFor(() => screen.getByTestId("delete-group-menu-item"));
+      fireEvent.click(screen.getByTestId("delete-group-menu-item"));
+
+      await waitFor(() => screen.getByTestId("delete-group-confirm-btn"));
+      fireEvent.click(screen.getByTestId("delete-group-confirm-btn"));
+
+      act(() => {
+        capturedOnError?.(new Error("API error"));
+      });
+
+      expect(mockNotificationsShow).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "red" }),
+      );
     });
   });
 });

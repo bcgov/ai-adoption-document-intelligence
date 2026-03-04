@@ -1,36 +1,36 @@
 # US-026: Delete Group with Soft-Delete Confirmation (System Admin)
 
 **As a** system admin,
-**I want to** soft-delete a group from the Groups listing page via a confirmation dialog,
+**I want to** soft-delete a group from the Group Details page via a confirmation dialog,
 **So that** I can disable a group while preserving historical data.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Delete button is visible per group row for system admins
-    - **Given** a user with the `system-admin` role on `/groups`
-    - **When** the groups list renders
-    - **Then** a `Delete` button (or icon) is shown per group row
+- [x] **Scenario 1**: Delete action is visible on the Group Details page for system admins
+    - **Given** a user with the `system-admin` role on `/groups/:groupId`
+    - **When** the Group Details page renders
+    - **Then** a `Delete Group` option is visible in the actions menu
 
-- [ ] **Scenario 2**: Delete button is not visible to non-admin users
-    - **Given** a regular user on `/groups`
-    - **When** the groups list renders
-    - **Then** no `Delete` button is visible
+- [x] **Scenario 2**: Delete action is not visible to non-admin users
+    - **Given** a regular user on `/groups/:groupId`
+    - **When** the Group Details page renders
+    - **Then** no `Delete Group` option is visible
 
-- [ ] **Scenario 3**: Clicking Delete opens a confirmation dialog explaining the action
-    - **Given** the admin clicks `Delete` for a group
+- [x] **Scenario 3**: Clicking Delete opens a confirmation dialog explaining the action
+    - **Given** the admin clicks `Delete Group` from the actions menu
     - **When** the confirmation dialog opens
     - **Then** the dialog clearly states that this action will disable the group and cannot be easily undone
 
-- [ ] **Scenario 4**: Confirming removes the group from the listing
+- [x] **Scenario 4**: Confirming navigates away and removes the group from the listing
     - **Given** the confirmation dialog is open
     - **When** the admin confirms
-    - **Then** `DELETE /api/groups/:groupId` is called, the dialog closes, and the deleted group no longer appears in the groups list
+    - **Then** `DELETE /api/groups/:groupId` is called, the dialog closes, the user is navigated to `/groups`, and the deleted group no longer appears in the groups list
 
-- [ ] **Scenario 5**: Cancelling the dialog does nothing
+- [x] **Scenario 5**: Cancelling the dialog does nothing
     - **Given** the confirmation dialog is open
     - **When** the admin cancels
-    - **Then** no API call is made and the group remains in the listing
+    - **Then** no API call is made and the group page remains unchanged
 
-- [ ] **Scenario 6**: Error state is shown on API failure
+- [x] **Scenario 6**: Error state is shown on API failure
     - **Given** the API returns an error
     - **When** the deletion is attempted
     - **Then** an error notification or message is displayed

@@ -2,6 +2,7 @@ import {
   Alert,
   Button,
   Group,
+  Menu,
   Modal,
   Stack,
   Tabs,
@@ -19,6 +20,7 @@ import { GroupRequestsTab } from "../components/group/GroupRequestsTab";
 import { MembersTab } from "../components/group/MembersTab";
 import {
   useAllGroups,
+  useDeleteGroup,
   useLeaveGroup,
   useMyGroups,
   useMyRequests,
@@ -43,6 +45,7 @@ export function GroupDetailPage(): JSX.Element {
 
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false);
   const [editGroupOpen, setEditGroupOpen] = useState(false);
+  const [deleteGroupOpen, setDeleteGroupOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
@@ -54,6 +57,7 @@ export function GroupDetailPage(): JSX.Element {
 
   const leaveMutation = useLeaveGroup(groupId ?? "");
   const updateMutation = useUpdateGroup(groupId ?? "");
+  const deleteMutation = useDeleteGroup(groupId ?? "");
   const requestMutation = useRequestMembership();
   const { data: myPendingRequests } = useMyRequests("PENDING");
 
@@ -80,6 +84,26 @@ export function GroupDetailPage(): JSX.Element {
   const isAdmin =
     isSystemAdmin ||
     (myGroups?.some((g) => g.id === groupId && g.role === "ADMIN") ?? false);
+
+  /**
+   * Confirms and executes the soft-delete of the current group, then navigates
+   * back to the groups listing.
+   */
+  const handleDeleteConfirm = () => {
+    deleteMutation.mutate(undefined, {
+      onSuccess: () => {
+        navigate("/groups");
+      },
+      onError: () => {
+        notifications.show({
+          title: "Error",
+          message: "Failed to delete group. Please try again.",
+          color: "red",
+        });
+        setDeleteGroupOpen(false);
+      },
+    });
+  };
 
   /**
    * Opens the edit group modal pre-populated with the group's current values.
@@ -174,37 +198,54 @@ export function GroupDetailPage(): JSX.Element {
           </Text>
         </Stack>
         <Group gap="xs">
-          {isSystemAdmin && (
-            <Button
-              variant="outline"
-              onClick={handleOpenEditGroup}
-              data-testid="edit-group-btn"
-            >
-              Edit Group
-            </Button>
-          )}
-          {isMember && (
-            <Button
-              variant="outline"
-              color="red"
-              onClick={() => setLeaveGroupOpen(true)}
-              data-testid="leave-group-btn"
-            >
-              Leave Group
-            </Button>
-          )}
+          <Menu shadow="md" width={180} position="bottom-end">
+            <Menu.Target>
+              <Button variant="outline" data-testid="group-actions-menu-btn">
+                Actions
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              {isSystemAdmin && (
+                <Menu.Item
+                  onClick={handleOpenEditGroup}
+                  data-testid="edit-group-menu-item"
+                >
+                  Edit Group
+                </Menu.Item>
+              )}
+              {isMember && (
+                <Menu.Item
+                  color="red"
+                  onClick={() => setLeaveGroupOpen(true)}
+                  data-testid="leave-group-menu-item"
+                >
+                  Leave Group
+                </Menu.Item>
+              )}
+              {!isMember && !isSystemAdmin && (
+                <Menu.Item
+                  onClick={handleJoin}
+                  disabled={hasPendingRequest || requestMutation.isPending}
+                  data-testid="join-group-menu-item"
+                >
+                  {hasPendingRequest ? "Request Pending" : "Join"}
+                </Menu.Item>
+              )}
+              {isSystemAdmin && (
+                <>
+                  <Menu.Divider />
+                  <Menu.Item
+                    color="red"
+                    onClick={() => setDeleteGroupOpen(true)}
+                    data-testid="delete-group-menu-item"
+                  >
+                    Delete Group
+                  </Menu.Item>
+                </>
+              )}
+            </Menu.Dropdown>
+          </Menu>
         </Group>
-        {!isMember && !isSystemAdmin && (
-          <Button
-            variant="outline"
-            loading={requestMutation.isPending}
-            disabled={hasPendingRequest}
-            onClick={handleJoin}
-            data-testid="join-group-btn"
-          >
-            {hasPendingRequest ? "Request Pending" : "Join"}
-          </Button>
-        )}
       </Group>
 
       {groupDescription && (
@@ -273,6 +314,35 @@ export function GroupDetailPage(): JSX.Element {
             </Button>
           </Group>
         </Stack>
+      </Modal>
+
+      <Modal
+        opened={deleteGroupOpen}
+        onClose={() => setDeleteGroupOpen(false)}
+        title="Delete Group"
+        data-testid="delete-group-modal"
+      >
+        <Text>
+          Are you sure you want to delete this group? This action will disable
+          the group and cannot be easily undone.
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button
+            variant="default"
+            onClick={() => setDeleteGroupOpen(false)}
+            data-testid="delete-group-cancel-btn"
+          >
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            loading={deleteMutation.isPending}
+            onClick={handleDeleteConfirm}
+            data-testid="delete-group-confirm-btn"
+          >
+            Delete
+          </Button>
+        </Group>
       </Modal>
 
       <Modal
