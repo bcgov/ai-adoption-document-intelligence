@@ -23,9 +23,19 @@ The **Remove** button per row is visible only to group admins and system admins.
 
 ### Leave Group Action
 
-A **Leave Group** button is shown in a **Danger Zone** section below the members table. It is visible only to users who are actual roster members of the group (i.e. present in `availableGroups`). System admins who are not roster members do not see this button.
+A **Leave Group** button is shown in the header actions area. It is visible only to users who are actual roster members of the group (i.e. present in `availableGroups`). System admins who are not roster members do not see this button.
 
 Clicking it opens a Mantine `Modal` confirmation dialog. On confirmation, `DELETE /api/groups/:groupId/leave` is called. On success the user is redirected to `/groups` and all group-related queries are invalidated.
+
+### Edit Group Action (System Admin only)
+
+An **Edit Group** button is shown in the header actions area. It is visible only to system admins.
+
+Clicking it opens a Mantine `Modal` form pre-populated with the group's current `Name` and `Description`. Submitting the form calls `PATCH /api/groups/:groupId`. On success the modal closes, a green notification is shown, and the all-groups query (`["groups", "all"]`) is invalidated so the page reflects the updated values.
+
+If the API returns an error (e.g. duplicate name), the error message is displayed inline within the modal and the modal remains open.
+
+Client-side validation: the `Name` field is required — submitting with an empty name shows an inline error without calling the API.
 
 ## Membership Requests Tab
 
@@ -65,19 +75,21 @@ The Groups page (`/groups`) navigates to this page when a group row is clicked. 
 | `useGroupMembers(groupId)` | `GET /api/groups/:groupId/members` | MembersTab |
 | `useRemoveGroupMember(groupId)` | `DELETE /api/groups/:groupId/members/:userId` | MembersTab |
 | `useLeaveGroup(groupId)` | `DELETE /api/groups/:groupId/leave` | MembersTab |
+| `useUpdateGroup(groupId)` | `PUT /api/groups/:groupId` | GroupDetailPage (edit group modal) |
 | `useGroupRequests(groupId, status?)` | `GET /api/groups/:groupId/requests?status=...` | RequestsTab |
 | `useMyGroups(userId)` | `GET /api/groups/user/:userId` | GroupDetailPage (admin role lookup) |
-| `useGroup()` (GroupContext) | — (cached from `/me`) | GroupDetailPage (membership check + group name) |
+| `useAllGroups()` | `GET /api/groups` | GroupDetailPage (group name + description) |
+| `useGroup()` (GroupContext) | — (cached from `/me`) | GroupDetailPage (membership check) |
 
 ## Authorization
 
-| Role | Can see Members tab | Can see Remove button | Can see Leave Group button | Can see Requests tab |
-|------|--------------------|-----------------------|---------------------------|----------------------|
-| Non-member | No | No | No | No |
-| Group member (`MEMBER`) | Yes | No | Yes | No |
-| Group admin (`ADMIN`) | Yes | Yes | Yes | Yes |
-| System admin (not a roster member) | Yes | Yes | No | Yes |
-| System admin (also a roster member) | Yes | Yes | Yes | Yes |
+| Role | Can see Members tab | Can see Remove button | Can see Leave Group button | Can see Requests tab | Can see Edit Group button |
+|------|--------------------|-----------------------|---------------------------|----------------------|---------------------------|
+| Non-member | No | No | No | No | No |
+| Group member (`MEMBER`) | Yes | No | Yes | No | No |
+| Group admin (`ADMIN`) | Yes | Yes | Yes | Yes | No |
+| System admin (not a roster member) | Yes | Yes | No | Yes | Yes |
+| System admin (also a roster member) | Yes | Yes | Yes | Yes | Yes |
 
 - Membership is determined by checking `useGroup().availableGroups` (populated from `GET /api/auth/me` via GroupContext).
 - `isActualMember` is true when `availableGroups` contains the current group (used for the Leave Group button).
@@ -88,4 +100,5 @@ The Groups page (`/groups`) navigates to this page when a group row is clicked. 
 
 - `useRemoveGroupMember` invalidates `["groups", groupId, "members"]` on success.
 - `useLeaveGroup` invalidates all `["groups"]` queries on success and the caller redirects to `/groups`.
+- `useUpdateGroup` invalidates `["groups", "all"]` on success.
 - `useGroupRequests` query key is `["groups", groupId, "requests", status]`; changing the status filter causes an automatic re-fetch.

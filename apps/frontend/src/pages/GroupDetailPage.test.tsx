@@ -44,6 +44,8 @@ const mockUseDenyMembershipRequest = vi.fn();
 const mockJoinMutate = vi.fn();
 const mockUseRequestMembership = vi.fn();
 const mockUseMyRequests = vi.fn();
+const mockUpdateMutate = vi.fn();
+const mockUseUpdateGroup = vi.fn();
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -64,6 +66,7 @@ vi.mock("../data/hooks/useGroups", () => ({
   useDenyMembershipRequest: () => mockUseDenyMembershipRequest(),
   useRequestMembership: () => mockUseRequestMembership(),
   useMyRequests: () => mockUseMyRequests(),
+  useUpdateGroup: () => mockUseUpdateGroup(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -155,6 +158,7 @@ describe("GroupDetailPage", () => {
     mockUseMyRequests.mockReturnValue({ data: [], isLoading: false });
     mockUseAllGroups.mockReturnValue({ data: [], isLoading: false });
     mockUseGroup.mockReturnValue({ availableGroups });
+    mockUseUpdateGroup.mockReturnValue({ mutate: mockUpdateMutate, isPending: false });
     mockUseGroupMembers.mockReturnValue({
       data: members,
       isLoading: false,
@@ -1154,6 +1158,184 @@ describe("GroupDetailPage", () => {
       expect(mockNotificationsShow).toHaveBeenCalledWith(
         expect.objectContaining({ color: "red" }),
       );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Edit Group button and modal (system admin only)
+  // -------------------------------------------------------------------------
+  describe("Edit Group", () => {
+    const GROUP_WITH_DESC = { id: GROUP_ID, name: "Alpha Team", description: "A great team" };
+
+    const adminSetupWithGroup = () => {
+      mockUseAuth.mockReturnValue({ user: { sub: "admin-1" }, isSystemAdmin: true });
+      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseMyGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+      mockUseAllGroups.mockReturnValue({ data: [GROUP_WITH_DESC], isLoading: false });
+    };
+
+    it("shows the Edit Group button for a system admin", () => {
+      adminSetupWithGroup();
+      renderPage();
+      expect(screen.getByTestId("edit-group-btn")).toBeInTheDocument();
+    });
+
+    it("does not show the Edit Group button for a regular member", () => {
+      mockUseAuth.mockReturnValue({ user: { sub: "u-1" }, isSystemAdmin: false });
+      mockUseMyGroups.mockReturnValue({ data: myGroupsMember, isLoading: false, isError: false });
+      renderPage();
+      expect(screen.queryByTestId("edit-group-btn")).not.toBeInTheDocument();
+    });
+
+    it("does not show the Edit Group button for a non-member non-admin", () => {
+      mockUseAuth.mockReturnValue({ user: { sub: "u-99" }, isSystemAdmin: false });
+      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseMyGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+      renderPage();
+      expect(screen.queryByTestId("edit-group-btn")).not.toBeInTheDocument();
+    });
+
+    it("opens a modal pre-populated with current name and description when Edit Group is clicked", async () => {
+      adminSetupWithGroup();
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("edit-group-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("edit-group-name")).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId("edit-group-name")).toHaveValue("Alpha Team");
+      expect(screen.getByTestId("edit-group-description")).toHaveValue("A great team");
+    });
+
+    it("calls the update mutation with new values on submit", async () => {
+      adminSetupWithGroup();
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("edit-group-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("edit-group-name")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("edit-group-name"), {
+        target: { value: "Updated Team" },
+      });
+      fireEvent.change(screen.getByTestId("edit-group-description"), {
+        target: { value: "Updated description" },
+      });
+
+      fireEvent.click(screen.getByTestId("edit-group-submit-btn"));
+
+      expect(mockUpdateMutate).toHaveBeenCalledWith(
+        { name: "Updated Team", description: "Updated description" },
+        expect.any(Object),
+      );
+    });
+
+    it("shows a validation error and does not call mutation when name is empty", async () => {
+      adminSetupWithGroup();
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("edit-group-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("edit-group-name")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("edit-group-name"), {
+        target: { value: "" },
+      });
+
+      fireEvent.click(screen.getByTestId("edit-group-submit-btn"));
+
+      expect(mockUpdateMutate).not.toHaveBeenCalled();
+      expect(screen.getByTestId("edit-group-error")).toHaveTextContent("Name is required.");
+    });
+
+    it("shows an inline error and keeps modal open when the API call fails", async () => {
+      adminSetupWithGroup();
+      renderPage();
+
+      let capturedOnError: ((error: Error) => void) | undefined;
+      mockUpdateMutate.mockImplementation(
+        (
+          _payload: { name: string; description?: string },
+          callbacks: { onError?: (error: Error) => void },
+        ) => {
+          capturedOnError = callbacks?.onError;
+        },
+      );
+
+      fireEvent.click(screen.getByTestId("edit-group-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("edit-group-submit-btn")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("edit-group-submit-btn"));
+
+      act(() => {
+        capturedOnError?.(new Error("Name already in use"));
+      });
+
+      expect(screen.getByTestId("edit-group-name")).toBeInTheDocument();
+      expect(screen.getByTestId("edit-group-error")).toHaveTextContent("Name already in use");
+    });
+
+    it("closes the modal and shows a success notification after a successful update", async () => {
+      adminSetupWithGroup();
+      renderPage();
+
+      let capturedOnSuccess: (() => void) | undefined;
+      mockUpdateMutate.mockImplementation(
+        (
+          _payload: { name: string; description?: string },
+          callbacks: { onSuccess?: () => void },
+        ) => {
+          capturedOnSuccess = callbacks?.onSuccess;
+        },
+      );
+
+      fireEvent.click(screen.getByTestId("edit-group-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("edit-group-submit-btn")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("edit-group-submit-btn"));
+
+      act(() => {
+        capturedOnSuccess?.();
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByTestId("edit-group-name")).not.toBeInTheDocument();
+      });
+
+      expect(mockNotificationsShow).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "green" }),
+      );
+    });
+
+    it("closes the modal when Cancel is clicked", async () => {
+      adminSetupWithGroup();
+      renderPage();
+
+      fireEvent.click(screen.getByTestId("edit-group-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("edit-group-cancel-btn")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("edit-group-cancel-btn"));
+
+      await waitFor(() => {
+        expect(screen.queryByTestId("edit-group-name")).not.toBeInTheDocument();
+      });
+
+      expect(mockUpdateMutate).not.toHaveBeenCalled();
     });
   });
 });

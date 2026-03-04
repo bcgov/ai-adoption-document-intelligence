@@ -377,3 +377,35 @@ export function useCreateGroup() {
     },
   });
 }
+
+/** Payload for updating an existing group */
+export interface UpdateGroupPayload {
+  name: string;
+  description?: string;
+}
+
+/**
+ * Updates an existing group's name and description via PATCH /api/groups/:groupId.
+ * Invalidates the all-groups query on success.
+ *
+ * @param groupId - The ID of the group to update.
+ * @returns A react-query mutation result containing the updated group.
+ */
+export function useUpdateGroup(groupId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: UpdateGroupPayload): Promise<GroupInfo> => {
+      const response = await apiService.patch<GroupInfo>(
+        `/groups/${groupId}`,
+        payload,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message ?? "Failed to update group");
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groups", "all"] });
+    },
+  });
+}

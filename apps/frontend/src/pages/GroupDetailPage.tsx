@@ -6,6 +6,8 @@ import {
   Stack,
   Tabs,
   Text,
+  Textarea,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
@@ -13,14 +15,15 @@ import { type JSX, useState } from "react";
 import { useMatch, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useGroup } from "../auth/GroupContext";
-import { MembersTab } from "../components/group/MembersTab";
 import { GroupRequestsTab } from "../components/group/GroupRequestsTab";
+import { MembersTab } from "../components/group/MembersTab";
 import {
   useAllGroups,
   useLeaveGroup,
   useMyGroups,
   useMyRequests,
   useRequestMembership,
+  useUpdateGroup,
 } from "../data/hooks/useGroups";
 
 /**
@@ -39,6 +42,10 @@ export function GroupDetailPage(): JSX.Element {
   const canViewMembers = isSystemAdmin || isMember;
 
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false);
+  const [editGroupOpen, setEditGroupOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("members");
 
   const { data: myGroups } = useMyGroups(user?.sub ?? "");
@@ -46,6 +53,7 @@ export function GroupDetailPage(): JSX.Element {
   const { data: allGroups } = useAllGroups();
 
   const leaveMutation = useLeaveGroup(groupId ?? "");
+  const updateMutation = useUpdateGroup(groupId ?? "");
   const requestMutation = useRequestMembership();
   const { data: myPendingRequests } = useMyRequests("PENDING");
 
@@ -73,11 +81,54 @@ export function GroupDetailPage(): JSX.Element {
     isSystemAdmin ||
     (myGroups?.some((g) => g.id === groupId && g.role === "ADMIN") ?? false);
 
+  /**
+   * Opens the edit group modal pre-populated with the group's current values.
+   */
+  const handleOpenEditGroup = () => {
+    setEditName(groupName === groupId ? "" : groupName);
+    setEditDescription(groupDescription ?? "");
+    setEditError(null);
+    setEditGroupOpen(true);
+  };
+
+  /**
+   * Submits the edit group form, calling PUT /api/groups/:groupId.
+   */
+  const handleEditGroupSubmit = () => {
+    if (!editName.trim()) {
+      setEditError("Name is required.");
+      return;
+    }
+    setEditError(null);
+    updateMutation.mutate(
+      {
+        name: editName.trim(),
+        description: editDescription.trim() || undefined,
+      },
+      {
+        onSuccess: () => {
+          setEditGroupOpen(false);
+          notifications.show({
+            title: "Group Updated",
+            message: "The group has been updated successfully.",
+            color: "green",
+          });
+        },
+        onError: (err) => {
+          setEditError(
+            err instanceof Error ? err.message : "Failed to update group.",
+          );
+        },
+      },
+    );
+  };
+
   const groupName =
     allGroups?.find((g) => g.id === groupId)?.name ?? groupId ?? "Group";
 
-  const groupDescription =
-    allGroups?.find((g) => g.id === groupId)?.description;
+  const groupDescription = allGroups?.find(
+    (g) => g.id === groupId,
+  )?.description;
 
   /**
    * Submits a membership request for the current user to join this group.
@@ -97,8 +148,7 @@ export function GroupDetailPage(): JSX.Element {
         onError: () => {
           notifications.show({
             title: "Error",
-            message:
-              "Failed to submit membership request. Please try again.",
+            message: "Failed to submit membership request. Please try again.",
             color: "red",
           });
         },
@@ -123,16 +173,27 @@ export function GroupDetailPage(): JSX.Element {
             Group details and membership.
           </Text>
         </Stack>
-        {isMember && (
-          <Button
-            variant="outline"
-            color="red"
-            onClick={() => setLeaveGroupOpen(true)}
-            data-testid="leave-group-btn"
-          >
-            Leave Group
-          </Button>
-        )}
+        <Group gap="xs">
+          {isSystemAdmin && (
+            <Button
+              variant="outline"
+              onClick={handleOpenEditGroup}
+              data-testid="edit-group-btn"
+            >
+              Edit Group
+            </Button>
+          )}
+          {isMember && (
+            <Button
+              variant="outline"
+              color="red"
+              onClick={() => setLeaveGroupOpen(true)}
+              data-testid="leave-group-btn"
+            >
+              Leave Group
+            </Button>
+          )}
+        </Group>
         {!isMember && !isSystemAdmin && (
           <Button
             variant="outline"
@@ -151,10 +212,7 @@ export function GroupDetailPage(): JSX.Element {
       )}
 
       {canViewMembers && (
-        <Tabs
-          value={activeTab}
-          onChange={(v) => setActiveTab(v ?? "members")}
-        >
+        <Tabs value={activeTab} onChange={(v) => setActiveTab(v ?? "members")}>
           <Tabs.List>
             <Tabs.Tab value="members">Members</Tabs.Tab>
             {isAdmin && (
@@ -172,6 +230,50 @@ export function GroupDetailPage(): JSX.Element {
           )}
         </Tabs>
       )}
+
+      <Modal
+        opened={editGroupOpen}
+        onClose={() => setEditGroupOpen(false)}
+        title="Edit Group"
+        data-testid="edit-group-modal"
+      >
+        <Stack gap="sm">
+          <TextInput
+            label="Name"
+            required
+            value={editName}
+            onChange={(e) => setEditName(e.currentTarget.value)}
+            data-testid="edit-group-name"
+          />
+          <Textarea
+            label="Description"
+            value={editDescription}
+            onChange={(e) => setEditDescription(e.currentTarget.value)}
+            data-testid="edit-group-description"
+          />
+          {editError && (
+            <Text c="red" size="sm" data-testid="edit-group-error">
+              {editError}
+            </Text>
+          )}
+          <Group justify="flex-end" mt="xs">
+            <Button
+              variant="default"
+              onClick={() => setEditGroupOpen(false)}
+              data-testid="edit-group-cancel-btn"
+            >
+              Cancel
+            </Button>
+            <Button
+              loading={updateMutation.isPending}
+              onClick={handleEditGroupSubmit}
+              data-testid="edit-group-submit-btn"
+            >
+              Save
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Modal
         opened={leaveGroupOpen}
