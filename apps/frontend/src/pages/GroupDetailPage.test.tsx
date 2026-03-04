@@ -30,6 +30,7 @@ vi.mock("@mantine/notifications", () => ({
 const mockUseAuth = vi.fn();
 const mockUseGroup = vi.fn();
 const mockUseMyGroups = vi.fn();
+const mockUseAllGroups = vi.fn();
 const mockUseGroupMembers = vi.fn();
 const mockRemoveMutate = vi.fn();
 const mockUseRemoveGroupMember = vi.fn();
@@ -38,6 +39,11 @@ const mockUseLeaveGroup = vi.fn();
 const mockUseGroupRequests = vi.fn();
 const mockApproveMutate = vi.fn();
 const mockUseApproveMembershipRequest = vi.fn();
+const mockDenyMutate = vi.fn();
+const mockUseDenyMembershipRequest = vi.fn();
+const mockJoinMutate = vi.fn();
+const mockUseRequestMembership = vi.fn();
+const mockUseMyRequests = vi.fn();
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -49,11 +55,15 @@ vi.mock("../auth/GroupContext", () => ({
 
 vi.mock("../data/hooks/useGroups", () => ({
   useMyGroups: () => mockUseMyGroups(),
+  useAllGroups: () => mockUseAllGroups(),
   useGroupMembers: () => mockUseGroupMembers(),
   useRemoveGroupMember: () => mockUseRemoveGroupMember(),
   useLeaveGroup: () => mockUseLeaveGroup(),
   useGroupRequests: () => mockUseGroupRequests(),
   useApproveMembershipRequest: () => mockUseApproveMembershipRequest(),
+  useDenyMembershipRequest: () => mockUseDenyMembershipRequest(),
+  useRequestMembership: () => mockUseRequestMembership(),
+  useMyRequests: () => mockUseMyRequests(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -104,6 +114,8 @@ const groupRequests: GroupRequest[] = [
 const idleRemove = { mutate: mockRemoveMutate, isPending: false };
 const idleLeave = { mutate: mockLeaveMutate, isPending: false };
 const idleApprove = { mutate: mockApproveMutate, isPending: false };
+const idleDeny = { mutate: mockDenyMutate, isPending: false };
+const idleJoin = { mutate: mockJoinMutate, isPending: false };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -138,6 +150,10 @@ describe("GroupDetailPage", () => {
     mockUseRemoveGroupMember.mockReturnValue(idleRemove);
     mockUseLeaveGroup.mockReturnValue(idleLeave);
     mockUseApproveMembershipRequest.mockReturnValue(idleApprove);
+    mockUseDenyMembershipRequest.mockReturnValue(idleDeny);
+    mockUseRequestMembership.mockReturnValue(idleJoin);
+    mockUseMyRequests.mockReturnValue({ data: [], isLoading: false });
+    mockUseAllGroups.mockReturnValue({ data: [], isLoading: false });
     mockUseGroup.mockReturnValue({ availableGroups });
     mockUseGroupMembers.mockReturnValue({
       data: members,
@@ -148,6 +164,74 @@ describe("GroupDetailPage", () => {
       data: groupRequests,
       isLoading: false,
       isError: false,
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Join button – non-member behaviour
+  // -------------------------------------------------------------------------
+  describe("Join button", () => {
+    const nonMemberSetup = () => {
+      mockUseAuth.mockReturnValue({
+        user: { sub: "u-99" },
+        isSystemAdmin: false,
+      });
+      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseMyGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+    };
+
+    it("shows the Join button for a non-member", () => {
+      nonMemberSetup();
+      mockUseMyRequests.mockReturnValue({ data: [], isLoading: false });
+
+      renderPage();
+
+      expect(screen.getByTestId("join-group-btn")).toBeInTheDocument();
+    });
+
+    it("Join button is enabled when there is no pending request", () => {
+      nonMemberSetup();
+      mockUseMyRequests.mockReturnValue({ data: [], isLoading: false });
+
+      renderPage();
+
+      expect(screen.getByTestId("join-group-btn")).not.toBeDisabled();
+      expect(screen.getByTestId("join-group-btn")).toHaveTextContent("Join");
+    });
+
+    it("Join button is disabled and shows 'Request Pending' when there is a pending request for this group", () => {
+      nonMemberSetup();
+      mockUseMyRequests.mockReturnValue({
+        data: [{ id: "req-99", groupId: GROUP_ID, groupName: "Alpha Team", status: "PENDING", createdAt: "2026-03-01T00:00:00Z" }],
+        isLoading: false,
+      });
+
+      renderPage();
+
+      const btn = screen.getByTestId("join-group-btn");
+      expect(btn).toBeDisabled();
+      expect(btn).toHaveTextContent("Request Pending");
+    });
+
+    it("does not show the Join button for an existing member", () => {
+      mockUseAuth.mockReturnValue({ user: { sub: "u-1" }, isSystemAdmin: false });
+      mockUseMyGroups.mockReturnValue({ data: myGroupsMember, isLoading: false, isError: false });
+      mockUseMyRequests.mockReturnValue({ data: [], isLoading: false });
+
+      renderPage();
+
+      expect(screen.queryByTestId("join-group-btn")).not.toBeInTheDocument();
+    });
+
+    it("does not show the Join button for a system admin", () => {
+      mockUseAuth.mockReturnValue({ user: { sub: "admin-1" }, isSystemAdmin: true });
+      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseMyGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+      mockUseMyRequests.mockReturnValue({ data: [], isLoading: false });
+
+      renderPage();
+
+      expect(screen.queryByTestId("join-group-btn")).not.toBeInTheDocument();
     });
   });
 

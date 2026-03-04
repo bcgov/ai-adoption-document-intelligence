@@ -15,7 +15,13 @@ import { useAuth } from "../auth/AuthContext";
 import { useGroup } from "../auth/GroupContext";
 import { MembersTab } from "../components/group/MembersTab";
 import { GroupRequestsTab } from "../components/group/GroupRequestsTab";
-import { useAllGroups, useLeaveGroup, useMyGroups } from "../data/hooks/useGroups";
+import {
+  useAllGroups,
+  useLeaveGroup,
+  useMyGroups,
+  useMyRequests,
+  useRequestMembership,
+} from "../data/hooks/useGroups";
 
 /**
  * Page shown at `/groups/:groupId`. Displays group details and the Members tab
@@ -28,6 +34,10 @@ export function GroupDetailPage(): JSX.Element {
   const { user, isSystemAdmin } = useAuth();
   const { availableGroups } = useGroup();
   const navigate = useNavigate();
+
+  const isMember = availableGroups.some((g) => g.id === groupId);
+  const canViewMembers = isSystemAdmin || isMember;
+
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("members");
 
@@ -35,11 +45,13 @@ export function GroupDetailPage(): JSX.Element {
 
   const { data: allGroups } = useAllGroups();
 
-  const isMember = availableGroups.some((g) => g.id === groupId);
-
-  const canViewMembers = isSystemAdmin || isMember;
-
   const leaveMutation = useLeaveGroup(groupId ?? "");
+  const requestMutation = useRequestMembership();
+  const { data: myPendingRequests } = useMyRequests("PENDING");
+
+  const hasPendingRequest = (myPendingRequests ?? []).some(
+    (r) => r.groupId === groupId,
+  );
 
   const handleLeaveConfirm = () => {
     leaveMutation.mutate(undefined, {
@@ -63,6 +75,36 @@ export function GroupDetailPage(): JSX.Element {
 
   const groupName =
     allGroups?.find((g) => g.id === groupId)?.name ?? groupId ?? "Group";
+
+  const groupDescription =
+    allGroups?.find((g) => g.id === groupId)?.description;
+
+  /**
+   * Submits a membership request for the current user to join this group.
+   */
+  const handleJoin = () => {
+    if (!groupId) return;
+    requestMutation.mutate(
+      { groupId },
+      {
+        onSuccess: () => {
+          notifications.show({
+            title: "Request Submitted",
+            message: "Your membership request has been submitted.",
+            color: "green",
+          });
+        },
+        onError: () => {
+          notifications.show({
+            title: "Error",
+            message:
+              "Failed to submit membership request. Please try again.",
+            color: "red",
+          });
+        },
+      },
+    );
+  };
 
   if (!groupId) {
     return (
@@ -91,25 +133,45 @@ export function GroupDetailPage(): JSX.Element {
             Leave Group
           </Button>
         )}
+        {!isMember && !isSystemAdmin && (
+          <Button
+            variant="outline"
+            loading={requestMutation.isPending}
+            disabled={hasPendingRequest}
+            onClick={handleJoin}
+            data-testid="join-group-btn"
+          >
+            {hasPendingRequest ? "Request Pending" : "Join"}
+          </Button>
+        )}
       </Group>
 
-      <Tabs value={activeTab} onChange={(v) => setActiveTab(v ?? "members")}>
-        <Tabs.List>
-          {canViewMembers && <Tabs.Tab value="members">Members</Tabs.Tab>}
-          {isAdmin && <Tabs.Tab value="requests">Membership Requests</Tabs.Tab>}
-        </Tabs.List>
+      {groupDescription && (
+        <Text data-testid="group-description">{groupDescription}</Text>
+      )}
 
-        {canViewMembers && (
+      {canViewMembers && (
+        <Tabs
+          value={activeTab}
+          onChange={(v) => setActiveTab(v ?? "members")}
+        >
+          <Tabs.List>
+            <Tabs.Tab value="members">Members</Tabs.Tab>
+            {isAdmin && (
+              <Tabs.Tab value="requests">Membership Requests</Tabs.Tab>
+            )}
+          </Tabs.List>
+
           <Tabs.Panel value="members" pt="md">
             <MembersTab groupId={groupId} isAdmin={isAdmin} />
           </Tabs.Panel>
-        )}
-        {isAdmin && (
-          <Tabs.Panel value="requests" pt="md">
-            <GroupRequestsTab groupId={groupId} isAdmin={isAdmin} />
-          </Tabs.Panel>
-        )}
-      </Tabs>
+          {isAdmin && (
+            <Tabs.Panel value="requests" pt="md">
+              <GroupRequestsTab groupId={groupId} isAdmin={isAdmin} />
+            </Tabs.Panel>
+          )}
+        </Tabs>
+      )}
 
       <Modal
         opened={leaveGroupOpen}

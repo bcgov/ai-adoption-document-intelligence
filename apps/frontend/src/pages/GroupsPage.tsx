@@ -186,7 +186,7 @@ function AllGroupsTab(): JSX.Element {
  * System admins see all groups; regular users see only their own groups.
  */
 function MyGroupsTab(): JSX.Element {
-  const { user, isSystemAdmin } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [pendingLeaveGroupId, setPendingLeaveGroupId] = useState<string | null>(
     null,
