@@ -1,18 +1,5 @@
-import {
-  Alert,
-  Button,
-  Center,
-  Group,
-  Loader,
-  Modal,
-  Select,
-  Stack,
-  Table,
-  Text,
-  Textarea,
-} from "@mantine/core";
+import { Button, Group, Modal, Stack, Text, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconAlertCircle } from "@tabler/icons-react";
 import { type JSX, useState } from "react";
 import {
   type GroupRequest,
@@ -20,19 +7,12 @@ import {
   useDenyMembershipRequest,
   useGroupRequests,
 } from "../../data/hooks/useGroups";
+import { makeGroupRequestColumns, RequestsTable } from "./RequestsTable";
 
 interface RequestsTabProps {
   groupId: string;
   isAdmin: boolean;
 }
-
-const REQUEST_STATUS_OPTIONS = [
-  { value: "PENDING", label: "Pending" },
-  { value: "APPROVED", label: "Approved" },
-  { value: "DENIED", label: "Denied" },
-  { value: "CANCELLED", label: "Cancelled" },
-  { value: "", label: "All" },
-];
 
 /**
  * Tab panel showing all membership requests for the group.
@@ -44,11 +24,10 @@ const REQUEST_STATUS_OPTIONS = [
  * @param props.groupId - The ID of the group whose requests to display.
  * @param props.isAdmin - Whether the current user is a group admin or system admin.
  */
-export function RequestsTab({
+export function GroupRequestsTab({
   groupId,
   isAdmin,
 }: RequestsTabProps): JSX.Element {
-  const [statusFilter, setStatusFilter] = useState<string>("PENDING");
   const [approveModalOpen, setApproveModalOpen] = useState(false);
   const [denyModalOpen, setDenyModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<GroupRequest | null>(
@@ -57,27 +36,34 @@ export function RequestsTab({
   const [approveReason, setApproveReason] = useState("");
   const [denyReason, setDenyReason] = useState("");
 
-  const {
-    data: requests,
-    isLoading,
-    isError,
-  } = useGroupRequests(groupId, statusFilter);
-
   const approveMutation = useApproveMembershipRequest(groupId);
   const denyMutation = useDenyMembershipRequest(groupId);
 
+  /**
+   * Opens the approve modal for the given request.
+   *
+   * @param request - The request to approve.
+   */
   const openApproveModal = (request: GroupRequest) => {
     setSelectedRequest(request);
     setApproveReason("");
     setApproveModalOpen(true);
   };
 
+  /**
+   * Opens the deny modal for the given request.
+   *
+   * @param request - The request to deny.
+   */
   const openDenyModal = (request: GroupRequest) => {
     setSelectedRequest(request);
     setDenyReason("");
     setDenyModalOpen(true);
   };
 
+  /**
+   * Submits the approve mutation after the user confirms the action in the modal.
+   */
   const handleApproveSubmit = () => {
     if (!selectedRequest) return;
     approveMutation.mutate(
@@ -99,6 +85,9 @@ export function RequestsTab({
     );
   };
 
+  /**
+   * Submits the deny mutation after the user confirms the action in the modal.
+   */
   const handleDenySubmit = () => {
     if (!selectedRequest) return;
     denyMutation.mutate(
@@ -120,96 +109,18 @@ export function RequestsTab({
     );
   };
 
-  if (isLoading) {
-    return (
-      <Center py="xl" data-testid="requests-loading">
-        <Loader />
-      </Center>
-    );
-  }
-
-  if (isError) {
-    return (
-      <Alert
-        icon={<IconAlertCircle size={16} />}
-        color="red"
-        data-testid="requests-error"
-      >
-        Failed to load membership requests. Please try again.
-      </Alert>
-    );
-  }
+  const columns = makeGroupRequestColumns(
+    isAdmin,
+    openApproveModal,
+    openDenyModal,
+  );
 
   return (
-    <Stack gap="md">
-      <Select
-        label="Filter by status"
-        data={REQUEST_STATUS_OPTIONS}
-        value={statusFilter}
-        onChange={(value) => setStatusFilter(value ?? "PENDING")}
-        data-testid="requests-status-filter"
-        w={200}
+    <>
+      <RequestsTable
+        fetchData={(status) => useGroupRequests(groupId, status)}
+        columns={columns}
       />
-
-      {!requests || requests.length === 0 ? (
-        <Center py="xl" data-testid="requests-empty">
-          <Text c="dimmed">No requests found.</Text>
-        </Center>
-      ) : (
-        <Table highlightOnHover data-testid="requests-table">
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Email</Table.Th>
-              <Table.Th>Requested</Table.Th>
-              <Table.Th>Resolved</Table.Th>
-              <Table.Th>Reason</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {requests.map((request: GroupRequest) => (
-              <Table.Tr key={request.id}>
-                <Table.Td>{request.email}</Table.Td>
-                <Table.Td>
-                  {new Date(request.createdAt).toLocaleDateString()}
-                </Table.Td>
-                <Table.Td>
-                  {request.resolvedAt
-                    ? new Date(request.resolvedAt).toLocaleDateString()
-                    : "-"}
-                </Table.Td>
-                <Table.Td>{request.reason ?? "-"}</Table.Td>
-                <Table.Td>{request.status}</Table.Td>
-                <Table.Td>
-                  {isAdmin && request.status === "PENDING" && (
-                    <Group gap="xs">
-                      <Button
-                        size="xs"
-                        color="green"
-                        variant="light"
-                        data-testid={`approve-btn-${request.id}`}
-                        onClick={() => openApproveModal(request)}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        size="xs"
-                        color="red"
-                        variant="light"
-                        data-testid={`deny-btn-${request.id}`}
-                        onClick={() => openDenyModal(request)}
-                      >
-                        Deny
-                      </Button>
-                    </Group>
-                  )}
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
 
       <Modal
         opened={approveModalOpen}
@@ -286,6 +197,6 @@ export function RequestsTab({
           </Group>
         </Stack>
       </Modal>
-    </Stack>
+    </>
   );
 }

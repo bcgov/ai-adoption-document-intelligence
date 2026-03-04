@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GroupRequest } from "../../data/hooks/useGroups";
-import { RequestsTab } from "./RequestsTab";
+import { GroupRequestsTab } from "./GroupRequestsTab";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -92,7 +92,7 @@ const idleMutation = (mutate: ReturnType<typeof vi.fn>) => ({
 const renderTab = (isAdmin = true) =>
   render(
     <MantineProvider>
-      <RequestsTab groupId="group-1" isAdmin={isAdmin} />
+      <GroupRequestsTab groupId="group-1" isAdmin={isAdmin} />
     </MantineProvider>,
   );
 

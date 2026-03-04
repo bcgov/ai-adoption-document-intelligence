@@ -1,12 +1,10 @@
 import {
   Alert,
-  Badge,
   Button,
   Center,
   Group,
   Loader,
   Modal,
-  Select,
   Stack,
   Table,
   Tabs,
@@ -20,35 +18,15 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import {
+  makeMyRequestColumns,
+  RequestsTable,
+} from "../components/group/RequestsTable";
+import {
   useAllGroups,
   useCancelMembershipRequest,
   useMyGroups,
   useMyRequests,
 } from "../data/hooks/useGroups";
-
-const REQUEST_STATUSES = [
-  "PENDING",
-  "APPROVED",
-  "DENIED",
-  "CANCELLED",
-] as const;
-type RequestStatus = (typeof REQUEST_STATUSES)[number];
-
-/** Maps a request status string to a Mantine badge colour */
-function statusColor(status: string): string {
-  switch (status) {
-    case "PENDING":
-      return "yellow";
-    case "APPROVED":
-      return "green";
-    case "DENIED":
-      return "red";
-    case "CANCELLED":
-      return "gray";
-    default:
-      return "gray";
-  }
-}
 
 /**
  * Tab panel showing the groups associated with the authenticated user.
@@ -62,7 +40,7 @@ function MyGroupsTab(): JSX.Element {
     data: myGroups,
     isLoading: myGroupsLoading,
     isError: myGroupsError,
-  } = useMyGroups(user?.sub ?? "", { enabled: !isSystemAdmin });
+  } = useMyGroups(user?.sub ?? "");
 
   const {
     data: allGroups,
@@ -110,6 +88,7 @@ function MyGroupsTab(): JSX.Element {
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Name</Table.Th>
+          <Table.Th>Description</Table.Th>
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
@@ -120,6 +99,7 @@ function MyGroupsTab(): JSX.Element {
             onClick={() => navigate(`/groups/${group.id}`)}
           >
             <Table.Td>{group.name}</Table.Td>
+            <Table.Td>{group.description}</Table.Td>
           </Table.Tr>
         ))}
       </Table.Tbody>
@@ -132,7 +112,6 @@ function MyGroupsTab(): JSX.Element {
  * with a status filter (defaults to PENDING) and a cancel action for pending requests.
  */
 function MyRequestsTab(): JSX.Element {
-  const [statusFilter, setStatusFilter] = useState<RequestStatus>("PENDING");
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const cancelMutation = useCancelMembershipRequest();
 
@@ -154,90 +133,14 @@ function MyRequestsTab(): JSX.Element {
     });
   };
 
-  const { data: requests, isLoading, isError } = useMyRequests(statusFilter);
-
-  if (isLoading) {
-    return (
-      <Center py="xl" data-testid="requests-loading">
-        <Loader />
-      </Center>
-    );
-  }
-
-  if (isError) {
-    return (
-      <Alert
-        icon={<IconAlertCircle size={16} />}
-        color="red"
-        data-testid="requests-error"
-      >
-        Failed to load membership requests. Please try again.
-      </Alert>
-    );
-  }
+  const columns = makeMyRequestColumns((id) => setCancelConfirmId(id));
 
   return (
-    <Stack gap="md">
-      <Select
-        label="Status"
-        value={statusFilter}
-        data={REQUEST_STATUSES.map((s) => ({ value: s, label: s }))}
-        onChange={(value) => {
-          if (value && REQUEST_STATUSES.includes(value as RequestStatus)) {
-            setStatusFilter(value as RequestStatus);
-          }
-        }}
-        w={180}
-        aria-label="Filter by status"
+    <>
+      <RequestsTable
+        fetchData={(status) => useMyRequests(status)}
+        columns={columns}
       />
-
-      {requests && requests.length === 0 ? (
-        <Center py="xl" data-testid="requests-empty">
-          <Text c="dimmed">
-            No {statusFilter.toLowerCase()} requests found.
-          </Text>
-        </Center>
-      ) : (
-        <Table>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Group</Table.Th>
-              <Table.Th>Submitted</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Reason</Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {requests?.map((request) => (
-              <Table.Tr key={request.id}>
-                <Table.Td>{request.groupName}</Table.Td>
-                <Table.Td>
-                  {new Date(request.createdAt).toLocaleDateString()}
-                </Table.Td>
-                <Table.Td>
-                  <Badge color={statusColor(request.status)}>
-                    {request.status}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>{request.reason ?? "—"}</Table.Td>
-                <Table.Td>
-                  {request.status === "PENDING" && (
-                    <Button
-                      size="xs"
-                      variant="light"
-                      color="red"
-                      onClick={() => setCancelConfirmId(request.id)}
-                    >
-                      Cancel
-                    </Button>
-                  )}
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
 
       <Modal
         opened={cancelConfirmId !== null}
@@ -264,7 +167,7 @@ function MyRequestsTab(): JSX.Element {
           </Button>
         </Group>
       </Modal>
-    </Stack>
+    </>
   );
 }
 

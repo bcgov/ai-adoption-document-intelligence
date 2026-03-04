@@ -5,6 +5,7 @@ import { apiService } from "../services/api.service";
 export interface GroupInfo {
   id: string;
   name: string;
+  description?: string;
 }
 
 /** Group membership for the current user, returned by GET /api/groups/user/:userId */
@@ -12,6 +13,7 @@ export interface UserGroup {
   id: string;
   name: string;
   role: string;
+  description?: string;
 }
 
 /** A single member of a group, returned by GET /api/groups/:groupId/members */
@@ -29,6 +31,7 @@ export interface MyMembershipRequest {
   status: string;
   reason?: string;
   createdAt: string;
+  resolvedAt?: string;
 }
 
 /** A single membership request for a group, returned by GET /api/groups/:groupId/requests */
@@ -98,7 +101,7 @@ export function useRequestMembership() {
  * @param options - Optional react-query options (e.g. `enabled`).
  * @returns A react-query result containing the list of groups the user belongs to.
  */
-export function useMyGroups(userId: string, options?: { enabled?: boolean }) {
+export function useMyGroups(userId: string) {
   return useQuery({
     queryKey: ["groups", "user", userId],
     queryFn: async (): Promise<UserGroup[]> => {
@@ -110,7 +113,6 @@ export function useMyGroups(userId: string, options?: { enabled?: boolean }) {
       }
       return response.data ?? [];
     },
-    enabled: !!userId && (options?.enabled ?? true),
   });
 }
 

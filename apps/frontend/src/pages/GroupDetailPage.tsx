@@ -14,7 +14,7 @@ import { useMatch, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useGroup } from "../auth/GroupContext";
 import { MembersTab } from "../components/group/MembersTab";
-import { RequestsTab } from "../components/group/RequestsTab";
+import { GroupRequestsTab } from "../components/group/GroupRequestsTab";
 import { useLeaveGroup, useMyGroups } from "../data/hooks/useGroups";
 
 /**
@@ -104,7 +104,7 @@ export function GroupDetailPage(): JSX.Element {
         )}
         {isAdmin && (
           <Tabs.Panel value="requests" pt="md">
-            <RequestsTab groupId={groupId} isAdmin={isAdmin} />
+            <GroupRequestsTab groupId={groupId} isAdmin={isAdmin} />
           </Tabs.Panel>
         )}
       </Tabs>
