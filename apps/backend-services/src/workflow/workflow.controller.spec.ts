@@ -113,6 +113,29 @@ describe("WorkflowController", () => {
         "group-1",
       ]);
     });
+
+    it("filters by groupId when groupId query param is provided", async () => {
+      const req = { resolvedIdentity: { userId: "user-1" } } as Request;
+      workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
+      const result = await controller.getWorkflows("group-1", req);
+      expect(result).toEqual({ workflows: [mockWorkflowInfo] });
+      expect(databaseService.isUserInGroup).toHaveBeenCalledWith(
+        "user-1",
+        "group-1",
+      );
+      expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith([
+        "group-1",
+      ]);
+    });
+
+    it("throws ForbiddenException when groupId is provided but identity is not a member", async () => {
+      const req = { resolvedIdentity: { userId: "user-1" } } as Request;
+      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      await expect(controller.getWorkflows("group-1", req)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
+    });
   });
 
   describe("getWorkflow", () => {

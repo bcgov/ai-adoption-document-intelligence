@@ -264,19 +264,20 @@ export class AuthController {
   /**
    * Returns the authenticated user's profile information, including group memberships.
    * Requires a valid access_token cookie or Bearer token.
-   * The frontend uses this to display user info, schedule token refresh, and
-   * determine available groups without making an additional API call.
+   * The frontend uses this to display user info, schedule token refresh, determine
+   * system-admin status, and access available groups with per-group roles.
    * System-admin users receive all groups in the system.
    */
   @Get("me")
   @ApiOperation({
     summary: "Get current user profile from validated JWT",
     description:
-      "Returns the user's profile, token expiry, and group memberships. System-admins receive all groups.",
+      "Returns the user's profile, token expiry, system-admin status, and group memberships with per-group roles. System-admins receive all groups.",
   })
   @ApiOkResponse({
     type: MeResponseDto,
-    description: "Returns current user profile, token expiry, and groups",
+    description:
+      "Returns current user profile, token expiry, admin status, and groups with roles",
   })
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({ description: "Invalid token" })
@@ -284,12 +285,10 @@ export class AuthController {
     const user = req.user as User;
     const now = Math.floor(Date.now() / 1000);
     const exp = (user.exp as number) || now;
-    const userId = user.sub || "";
+    const userId = req.resolvedIdentity?.userId ?? "";
 
     const isAdmin = await this.databaseService.isUserSystemAdmin(userId);
-    const groups = isAdmin
-      ? await this.groupService.getAllGroups()
-      : await this.groupService.getUserGroups(userId);
+    const groups = await this.groupService.getUserGroups(userId, userId);
 
     return {
       sub: userId,
@@ -297,7 +296,7 @@ export class AuthController {
       preferred_username:
         (user.preferred_username as string) || (user.idir_username as string),
       email: user.email,
-      roles: user.roles || [],
+      isAdmin,
       expires_in: Math.max(exp - now, 0),
       groups,
     };

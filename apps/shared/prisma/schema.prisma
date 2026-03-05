@@ -99,8 +99,6 @@ model User {
 
   apiKeys ApiKey[]
 
-  userRoles UserRole[]
-
   workflows Workflow[]
 
   labelingProjects LabelingProject[]
@@ -111,31 +109,17 @@ model User {
 
   userGroups UserGroup[]
 
+  is_system_admin Boolean @default(false)
+
   membershipRequests        GroupMembershipRequest[] @relation(name: "MembershipRequestUser")
   actedMembershipRequests   GroupMembershipRequest[] @relation(name: "MembershipRequestActor")
   createdMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestCreatedBy")
   updatedMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestUpdatedBy")
+  createdGroups             Group[]                  @relation(name: "GroupCreatedBy")
+  updatedGroups             Group[]                  @relation(name: "GroupUpdatedBy")
+  deletedGroups             Group[]                  @relation(name: "GroupDeletedBy")
 
   @@map("user")
-}
-
-model Role {
-  id          String     @id @default(cuid())
-  name        String     @unique
-  description String?
-  userRoles   UserRole[]
-
-  @@map("role")
-}
-
-model UserRole {
-  user_id String
-  user    User   @relation(fields: [user_id], references: [id])
-  role_id String
-  role    Role   @relation(fields: [role_id], references: [id])
-
-  @@id([user_id, role_id])
-  @@map("user_role")
 }
 
 model Workflow {
@@ -290,6 +274,16 @@ model ClassifierModel {
 model Group {
   id                  String                   @id @default(cuid())
   name                String                   @unique
+  description         String?
+  created_by          String?
+  created_at          DateTime                 @default(now())
+  updated_by          String?
+  updated_at          DateTime                 @updatedAt
+  deleted_at          DateTime?
+  deleted_by          String?
+  creator             User?                    @relation(name: "GroupCreatedBy", fields: [created_by], references: [id])
+  updator             User?                    @relation(name: "GroupUpdatedBy", fields: [updated_by], references: [id])
+  deleter             User?                    @relation(name: "GroupDeletedBy", fields: [deleted_by], references: [id])
   classifier_models   ClassifierModel[]
   user_groups         UserGroup[]
   membership_requests GroupMembershipRequest[]
@@ -303,12 +297,15 @@ model Group {
 }
 
 model UserGroup {
-  user_id  String
-  user     User?  @relation(fields: [user_id], references: [id])
-  group_id String
-  group    Group? @relation(fields: [group_id], references: [id])
+  user_id    String
+  user       User?      @relation(fields: [user_id], references: [id])
+  group_id   String
+  group      Group?     @relation(fields: [group_id], references: [id])
+  role       GroupRole  @default(MEMBER)
+  created_at DateTime   @default(now())
 
   @@id([user_id, group_id])
+  @@index([group_id])
   @@map("user_group")
 }
 
@@ -431,4 +428,9 @@ enum GroupMembershipRequestStatus {
   APPROVED
   DENIED
   CANCELLED
+}
+
+enum GroupRole {
+  ADMIN
+  MEMBER
 }

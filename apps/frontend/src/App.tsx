@@ -1,8 +1,6 @@
 import {
   ActionIcon,
   AppShell,
-  Avatar,
-  Badge,
   Button,
   Group,
   NavLink,
@@ -23,105 +21,87 @@ import {
   IconSettings,
   IconTags,
   IconUpload,
+  IconUsers,
 } from "@tabler/icons-react";
-import { JSX, useMemo, useState } from "react";
-import { Route, Routes } from "react-router-dom";
+import type { ComponentType, JSX } from "react";
+import { useMemo, useState } from "react";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext";
 import { MembershipPageGuard, NoGroupGuard } from "./auth/NoGroupGuard";
 import "./App.css";
 import { Login } from "./components";
 import { DocumentViewerModal } from "./components/document/DocumentViewerModal";
 import { GroupSelector } from "./components/group/GroupSelector";
-import { ProcessingQueue } from "./components/queue/ProcessingQueue";
-import { DocumentUploadPanel } from "./components/upload/DocumentUploadPanel";
-import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
-import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWorkspacePage";
-import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/LabelingWorkspacePage";
-import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
-import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
-import ClassifierPage from "./pages/ClassifierPage";
 import { RequestMembershipPage } from "./pages/RequestMembershipPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
-import { WorkflowListPage } from "./pages/WorkflowListPage";
+import { AppRoutes } from "./Routes";
 import type { Document } from "./shared/types";
 
-type MainView =
-  | "upload"
-  | "queue"
-  | "workflows"
-  | "labeling"
-  | "review"
-  | "classify"
-  | "settings";
-type WorkflowView = "list" | "create" | "edit";
+interface NavItem {
+  path: string;
+  label: string;
+  description: string;
+  icon: ComponentType<{ size?: number }>;
+}
 
 const NAV_EXPANDED = 240;
 const NAV_COLLAPSED = 72;
 
 function MainApp(): JSX.Element {
   const { logout, user } = useAuth();
-  const [activeView, setActiveView] = useState<MainView>("upload");
-  const [workflowView, setWorkflowView] = useState<WorkflowView>("list");
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
-    null,
-  );
+  const navigate = useNavigate();
+  const location = useLocation();
   const [navbarOpened, { toggle: toggleNavbar }] = useDisclosure(true);
   const [viewerOpened, setViewerOpened] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(
     null,
   );
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-    null,
-  );
-  const [selectedProjectDocumentId, setSelectedProjectDocumentId] = useState<
-    string | null
-  >(null);
-  const [activeReviewSessionId, setActiveReviewSessionId] = useState<
-    string | null
-  >(null);
-  const [reviewSessionReadOnly, setReviewSessionReadOnly] = useState(false);
 
-  const navItems = useMemo(
+  const navItems = useMemo<NavItem[]>(
     () => [
       {
-        value: "upload" as MainView,
+        path: "/upload",
         label: "Upload",
         description: "Send new files",
         icon: IconUpload,
       },
       {
-        value: "queue" as MainView,
+        path: "/queue",
         label: "Processing queue",
         description: "Track statuses",
         icon: IconList,
       },
       {
-        value: "labeling" as MainView,
+        path: "/labeling",
         label: "Training Labels",
         description: "Create datasets",
         icon: IconTags,
       },
       {
-        value: "review" as MainView,
+        path: "/review",
         label: "HITL Review",
         description: "Validate OCR results",
         icon: IconClipboardCheck,
       },
       {
-        value: "workflows" as MainView,
+        path: "/workflows",
         label: "Workflows",
         description: "Manage workflows",
         icon: IconFlask,
       },
       {
-        value: "classify" as MainView,
+        path: "/classify",
         label: "Classify",
         description: "Build & use classifiers",
         icon: IconFlagQuestion,
       },
       {
-        value: "settings" as MainView,
+        path: "/groups",
+        label: "Groups",
+        description: "Manage groups",
+        icon: IconUsers,
+      },
+      {
+        path: "/settings",
         label: "Settings",
         description: "API key management",
         icon: IconSettings,
@@ -129,6 +109,15 @@ function MainApp(): JSX.Element {
     ],
     [],
   );
+
+  const isNavItemActive = (path: string): boolean => {
+    if (path === "/upload") {
+      return (
+        location.pathname === "/" || location.pathname.startsWith("/upload")
+      );
+    }
+    return location.pathname.startsWith(path);
+  };
 
   const openViewer = (doc: Document) => {
     setSelectedDocument(doc);
@@ -152,10 +141,7 @@ function MainApp(): JSX.Element {
         <AppShell.Header>
           <Group h="100%" px="md" justify="space-between">
             <Group>
-              <Title order={3}>Document intelligence</Title>
-              <Badge variant="light" color="blue">
-                Live OCR
-              </Badge>
+              <Title order={3}>Document Intelligence</Title>
             </Group>
             <Group>
               <GroupSelector />
@@ -167,7 +153,6 @@ function MainApp(): JSX.Element {
                   {user?.profile?.email ?? "Logged in"}
                 </Text>
               </Stack>
-              <Avatar radius="xl">{user?.profile?.name?.[0] ?? "U"}</Avatar>
               <Button
                 variant="light"
                 color="red"
@@ -206,39 +191,27 @@ function MainApp(): JSX.Element {
           <Stack gap="xs">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const active = activeView === item.value;
+              const active = isNavItemActive(item.path);
 
               return navbarOpened ? (
                 <NavLink
-                  key={item.value}
+                  key={item.path}
                   label={item.label}
                   description={item.description}
                   leftSection={<Icon size={18} />}
                   active={active}
                   variant={active ? "light" : "subtle"}
                   color={active ? "blue" : "gray"}
-                  onClick={() => {
-                    setActiveView(item.value);
-                    if (item.value === "workflows") {
-                      setWorkflowView("list");
-                      setSelectedWorkflowId(null);
-                    }
-                  }}
+                  onClick={() => navigate(item.path)}
                 />
               ) : (
-                <Tooltip key={item.value} label={item.label} position="right">
+                <Tooltip key={item.path} label={item.label} position="right">
                   <ActionIcon
                     variant={active ? "light" : "subtle"}
                     color={active ? "blue" : "gray"}
                     size="lg"
                     radius="md"
-                    onClick={() => {
-                      setActiveView(item.value);
-                      if (item.value === "workflows") {
-                        setWorkflowView("list");
-                        setSelectedWorkflowId(null);
-                      }
-                    }}
+                    onClick={() => navigate(item.path)}
                     aria-label={item.label}
                   >
                     <Icon size={18} />
@@ -251,108 +224,7 @@ function MainApp(): JSX.Element {
 
         <AppShell.Main>
           <Stack gap="lg" style={{ flex: 1, minHeight: 0 }}>
-            {activeView === "settings" ? (
-              <SettingsPage />
-            ) : activeView === "labeling" ? (
-              selectedProjectId ? (
-                selectedProjectDocumentId ? (
-                  <LabelingWorkspacePage
-                    projectId={selectedProjectId}
-                    documentId={selectedProjectDocumentId}
-                    onBack={() => setSelectedProjectDocumentId(null)}
-                  />
-                ) : (
-                  <ProjectDetailPage
-                    projectId={selectedProjectId}
-                    onBack={() => setSelectedProjectId(null)}
-                    onOpenDocument={(documentId) =>
-                      setSelectedProjectDocumentId(documentId)
-                    }
-                  />
-                )
-              ) : (
-                <ProjectListPage
-                  onSelectProject={(projectId) =>
-                    setSelectedProjectId(projectId)
-                  }
-                />
-              )
-            ) : activeView === "review" ? (
-              activeReviewSessionId ? (
-                <ReviewWorkspacePage
-                  sessionId={activeReviewSessionId}
-                  onBack={() => {
-                    setActiveReviewSessionId(null);
-                    setReviewSessionReadOnly(false);
-                  }}
-                  readOnly={reviewSessionReadOnly}
-                />
-              ) : (
-                <ReviewQueuePage
-                  onStartSession={(sessionId, readOnly) => {
-                    setActiveReviewSessionId(sessionId);
-                    setReviewSessionReadOnly(readOnly || false);
-                  }}
-                />
-              )
-            ) : activeView === "workflows" ? (
-              workflowView === "list" ? (
-                <WorkflowListPage
-                  onEdit={(workflowId) => {
-                    setSelectedWorkflowId(workflowId);
-                    setWorkflowView("edit");
-                  }}
-                  onCreate={() => setWorkflowView("create")}
-                />
-              ) : workflowView === "create" ? (
-                <WorkflowEditorPage
-                  mode="create"
-                  onBack={() => setWorkflowView("list")}
-                  onSave={() => setWorkflowView("list")}
-                />
-              ) : workflowView === "edit" && selectedWorkflowId ? (
-                <WorkflowEditorPage
-                  mode="edit"
-                  workflowId={selectedWorkflowId}
-                  onBack={() => {
-                    setWorkflowView("list");
-                    setSelectedWorkflowId(null);
-                  }}
-                  onSave={() => {
-                    setWorkflowView("list");
-                    setSelectedWorkflowId(null);
-                  }}
-                />
-              ) : null
-            ) : activeView == "classify" ? (
-              <ClassifierPage />
-            ) : (
-              <>
-                <Group justify="space-between">
-                  <Stack gap={2}>
-                    <Title order={2}>
-                      {activeView === "upload"
-                        ? "Upload documents"
-                        : "Processing monitor"}
-                    </Title>
-                    <Text c="dimmed" size="sm">
-                      {activeView === "upload"
-                        ? "Add new images and track their ingestion progress."
-                        : "View the OCR pipeline and drill into results."}
-                    </Text>
-                  </Stack>
-                  <Badge variant="outline" size="lg">
-                    {new Date().toLocaleDateString()}
-                  </Badge>
-                </Group>
-
-                {activeView === "upload" ? (
-                  <DocumentUploadPanel />
-                ) : (
-                  <ProcessingQueue onSelectDocument={openViewer} />
-                )}
-              </>
-            )}
+            <AppRoutes onSelectDocument={openViewer} />
           </Stack>
         </AppShell.Main>
       </AppShell>

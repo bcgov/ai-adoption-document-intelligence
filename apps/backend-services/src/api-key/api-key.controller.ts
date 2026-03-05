@@ -87,8 +87,7 @@ export class ApiKeyController {
     @Req() req: Request,
     @Body() body: GenerateApiKeyRequestDto,
   ): Promise<{ apiKey: GeneratedApiKeyDto }> {
-    const user = req.user;
-    const userId = user?.sub as string;
+    const userId = req.resolvedIdentity?.userId ?? "";
     if (!userId) {
       throw new BadRequestException(
         "User ID is required to generate an API key",
@@ -147,8 +146,7 @@ export class ApiKeyController {
     @Req() req: Request,
     @Body() body: ApiKeyByIdRequestDto,
   ): Promise<{ apiKey: GeneratedApiKeyDto }> {
-    const user = req.user;
-    const userId = user?.sub as string;
+    const userId = req.resolvedIdentity?.userId ?? "";
     if (!userId) {
       throw new BadRequestException(
         "User ID is required to regenerate an API key",

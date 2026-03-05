@@ -1,6 +1,8 @@
 import type { ComboboxItem } from "@mantine/core";
 import { Anchor, Select, Tooltip } from "@mantine/core";
 import type { JSX } from "react";
+import { useAuth } from "@/auth/AuthContext";
+import { useAllGroups } from "@/data/hooks/useGroups";
 import { useGroup } from "../../auth/GroupContext";
 
 /**
@@ -14,8 +16,12 @@ import { useGroup } from "../../auth/GroupContext";
  */
 export function GroupSelector(): JSX.Element {
   const { availableGroups, activeGroup, setActiveGroup } = useGroup();
+  const auth = useAuth(); // Ensure we re-render when auth state changes, to update available groups and handle logout cases
+  const { data: allGroups } = useAllGroups();
 
-  if (availableGroups.length === 0) {
+  const groups = auth.isSystemAdmin ? (allGroups ?? []) : availableGroups;
+
+  if (groups.length === 0) {
     return (
       <Anchor
         href="/request-membership"
@@ -28,7 +34,7 @@ export function GroupSelector(): JSX.Element {
     );
   }
 
-  const data: ComboboxItem[] = availableGroups.map((g) => ({
+  const data: ComboboxItem[] = groups.map((g) => ({
     value: g.id,
     label: g.name,
   }));
@@ -41,7 +47,7 @@ export function GroupSelector(): JSX.Element {
    */
   const handleChange = (value: string | null): void => {
     if (!value) return;
-    const group = availableGroups.find((g) => g.id === value);
+    const group = groups?.find((g) => g.id === value);
     if (group) setActiveGroup(group);
   };
 
