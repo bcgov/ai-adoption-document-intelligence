@@ -6,7 +6,8 @@ import { ResolvedIdentity } from "./types";
  * Resolves the set of group IDs the resolved identity has access to, or
  * `undefined` when the identity has unrestricted access (system-admin).
  *
- * - **API key path** (`identity.groupId` is set): returns `[identity.groupId]`.
+ * - **API key path** (`identity.groupRoles` is set): returns the keys of
+ *   `identity.groupRoles` as the accessible group IDs.
  * - **JWT / system-admin path** (`identity.userId` is set): checks the database
  *   for the `system-admin` role. If the user is a system-admin, returns
  *   `undefined` so the caller applies no group filter and all records are
@@ -29,8 +30,8 @@ export async function getIdentityGroupIds(
     return [];
   }
 
-  if (identity.groupId !== undefined) {
-    return [identity.groupId];
+  if (identity.groupRoles !== undefined) {
+    return Object.keys(identity.groupRoles);
   }
 
   if (identity.userId !== undefined) {
@@ -54,8 +55,8 @@ export async function getIdentityGroupIds(
  *
  * - **Null groupId**: throws `404 Not Found` to prevent leaking the existence
  *   of orphaned records that have no group assignment.
- * - **API key path** (`identity.groupId` is set): throws `403 Forbidden` when
- *   the identity's group does not match the requested `groupId`.
+ * - **API key path** (`identity.groupRoles` is set): throws `403 Forbidden` when
+ *   the requested `groupId` is not present in `identity.groupRoles`.
  * - **JWT path** (`identity.userId` is set): throws `403 Forbidden` when the
  *   user is not a member of the group, verified via a database lookup.
  * - **Unauthenticated / no identity**: always throws `403 Forbidden`.
@@ -83,8 +84,8 @@ export async function identityCanAccessGroup(
     throw new ForbiddenException("User does not belong to requested group.");
   }
 
-  if (identity.groupId !== undefined) {
-    if (identity.groupId !== groupId) {
+  if (identity.groupRoles !== undefined) {
+    if (!(groupId in identity.groupRoles)) {
       throw new ForbiddenException("User does not belong to requested group.");
     }
     return;

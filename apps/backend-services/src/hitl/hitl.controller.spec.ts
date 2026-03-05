@@ -1,5 +1,6 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { GroupRole } from "@generated/client";
 import { Request } from "express";
 import { DatabaseService } from "../database/database.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
@@ -85,8 +86,8 @@ describe("HitlController", () => {
 
     it("delegates to service with group ID from API key identity", async () => {
       const req = {
-        resolvedIdentity: { groupId: "group-1" },
-      } as Request;
+        resolvedIdentity: { groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       hitlService.getQueue.mockResolvedValue({
         documents: [],
         total: 0,

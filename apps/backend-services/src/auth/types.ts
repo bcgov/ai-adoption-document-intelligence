@@ -1,3 +1,5 @@
+import { GroupRole } from "@generated/client";
+
 /**
  * User interface representing the validated JWT payload.
  * Extended with Keycloak-specific claims and normalized roles.
@@ -14,15 +16,18 @@ export interface User {
 /**
  * Resolved requestor identity attached to the request by the IdentityGuard.
  *
- * Exactly one of `userId` or `groupId` is set per authenticated request:
  * - `userId`: JWT-authenticated. The service layer must look up group
  *   membership in the database.
- * - `groupId`: API-key-authenticated. The key is group-scoped; no user lookup
- *   is needed.
+ * - `isSystemAdmin`: Indicates the identity has unrestricted system-admin access.
+ * - `groupRoles`: A map of group IDs to the identity's role within each group.
+ *   Both API-key and JWT paths populate this field using the same shape.
+ *   For the API-key path the guard sets this directly; for the JWT path the
+ *   service layer may populate it after a role lookup.
  */
 export interface ResolvedIdentity {
   userId?: string;
-  groupId?: string;
+  isSystemAdmin?: boolean;
+  groupRoles?: Record<string, GroupRole>;
 }
 
 declare module "express" {

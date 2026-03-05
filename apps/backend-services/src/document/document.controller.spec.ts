@@ -1,4 +1,5 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import { GroupRole } from "@generated/client";
 import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
 import { DatabaseService } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
@@ -15,7 +16,7 @@ describe("DocumentController", () => {
     resolvedIdentity: { userId },
   });
   const createMockApiKeyReq = (groupId = mockGroupId) => ({
-    resolvedIdentity: { groupId },
+    resolvedIdentity: { groupRoles: { [groupId]: GroupRole.MEMBER } },
   });
 
   beforeEach(async () => {

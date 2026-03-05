@@ -1,5 +1,6 @@
 import { ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
+import { GroupRole } from "@generated/client";
 import { IdentityGuard } from "./identity.guard";
 
 describe("IdentityGuard", () => {
@@ -40,7 +41,7 @@ describe("IdentityGuard", () => {
     expect(request.resolvedIdentity).toEqual({ userId: "jwt-user-id" });
   });
 
-  it("should not include groupId in resolvedIdentity for a JWT request", () => {
+  it("should not include groupRoles in resolvedIdentity for a JWT request", () => {
     const request: Record<string, unknown> = {
       user: { sub: "jwt-user-id" },
     };
@@ -48,7 +49,7 @@ describe("IdentityGuard", () => {
     guard.canActivate(createContext(request));
 
     expect(
-      (request.resolvedIdentity as { groupId?: string }).groupId,
+      (request.resolvedIdentity as { groupRoles?: unknown }).groupRoles,
     ).toBeUndefined();
   });
 
@@ -56,7 +57,7 @@ describe("IdentityGuard", () => {
   // Scenario 2: API key authentication
   // ---------------------------------------------------------------------------
 
-  it("should set resolvedIdentity with only groupId for an API-key-authenticated request", () => {
+  it("should set resolvedIdentity with groupRoles for an API-key-authenticated request", () => {
     const request: Record<string, unknown> = {
       // No request.user — API key auth does not set a user object
       apiKeyGroupId: "group-abc",
@@ -65,7 +66,9 @@ describe("IdentityGuard", () => {
     const result = guard.canActivate(createContext(request));
 
     expect(result).toBe(true);
-    expect(request.resolvedIdentity).toEqual({ groupId: "group-abc" });
+    expect(request.resolvedIdentity).toEqual({
+      groupRoles: { "group-abc": GroupRole.MEMBER },
+    });
   });
 
   it("should not include userId in resolvedIdentity for API key authentication", () => {
@@ -89,7 +92,9 @@ describe("IdentityGuard", () => {
 
     guard.canActivate(createContext(request));
 
-    expect(request.resolvedIdentity).toEqual({ groupId: "group-id" });
+    expect(request.resolvedIdentity).toEqual({
+      groupRoles: { "group-id": GroupRole.MEMBER },
+    });
   });
 
   // ---------------------------------------------------------------------------

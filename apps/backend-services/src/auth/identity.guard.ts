@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
+import { GroupRole } from "@generated/client";
 import { Request } from "express";
 
 /**
@@ -15,12 +16,13 @@ import { Request } from "express";
  * {@link ResolvedIdentity} object to `request.resolvedIdentity` for
  * consumption by downstream service-layer authorization helpers.
  *
- * Exactly one of `userId` or `groupId` is set per authenticated request:
+ * Populates `resolvedIdentity` on the request:
  * - **JWT path**: `resolvedIdentity.userId` is extracted from `request.user.sub`.
  *   Group membership must be looked up by the service layer.
- * - **API key path**: `resolvedIdentity.groupId` is taken from
- *   `request.apiKeyGroupId` (set by `ApiKeyAuthGuard`). The key is
- *   group-scoped so no user lookup is needed.
+ * - **API key path**: `resolvedIdentity.groupRoles` is populated using
+ *   `request.apiKeyGroupId` (set by `ApiKeyAuthGuard`) as the key with a
+ *   default role of `GroupRole.MEMBER`. The key is group-scoped so no user
+ *   lookup is needed.
  *
  * Always returns `true`; this guard never blocks requests on its own.
  */
@@ -37,9 +39,11 @@ export class IdentityGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
 
     if (request.apiKeyGroupId) {
-      // API key authentication path: the key is group-scoped, so groupId is
-      // the only identity we need. No user lookup required.
-      request.resolvedIdentity = { groupId: request.apiKeyGroupId };
+      // API key authentication path: the key is group-scoped, so groupRoles is
+      // populated with the group ID and a default MEMBER role. No user lookup required.
+      request.resolvedIdentity = {
+        groupRoles: { [request.apiKeyGroupId]: GroupRole.MEMBER },
+      };
     } else if (request.user?.sub) {
       // JWT authentication path: resolve userId from the Passport-validated
       // user object. Group membership is determined by the service layer.

@@ -1,5 +1,6 @@
 import { ForbiddenException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { GroupRole } from "@generated/client";
 import { Request } from "express";
 import { DatabaseService } from "../database/database.service";
 import type { GraphWorkflowConfig } from "./graph-workflow-types";
@@ -105,7 +106,9 @@ describe("WorkflowController", () => {
     });
 
     it("returns workflows for an API key's group", async () => {
-      const req = { resolvedIdentity: { groupId: "group-1" } } as Request;
+      const req = {
+        resolvedIdentity: { groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
       const result = await controller.getWorkflows(undefined, req);
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });

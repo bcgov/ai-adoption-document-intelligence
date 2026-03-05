@@ -1,4 +1,5 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import { GroupRole } from "@generated/client";
 import { DatabaseService } from "@/database/database.service";
 import {
   getIdentityGroupIds,
@@ -21,7 +22,10 @@ describe("getIdentityGroupIds", () => {
   });
 
   it("should return a single-element array for an API key identity", async () => {
-    const result = await getIdentityGroupIds({ groupId: "group-abc" }, mockDb);
+    const result = await getIdentityGroupIds(
+      { groupRoles: { "group-abc": GroupRole.MEMBER } },
+      mockDb,
+    );
     expect(result).toEqual(["group-abc"]);
   });
 
@@ -76,7 +80,11 @@ describe("identityCanAccessGroup", () => {
 
     it("should throw NotFoundException when identity is an API key identity", async () => {
       await expect(
-        identityCanAccessGroup({ groupId: "group-1" }, null, mockDb),
+        identityCanAccessGroup(
+          { groupRoles: { "group-1": GroupRole.MEMBER } },
+          null,
+          mockDb,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -117,21 +125,33 @@ describe("identityCanAccessGroup", () => {
     });
   });
 
-  describe("API key path (groupId on identity)", () => {
-    it("should resolve without throwing when the identity groupId matches the requested groupId", async () => {
+  describe("API key path (groupRoles on identity)", () => {
+    it("should resolve without throwing when the requested groupId is in groupRoles", async () => {
       await expect(
-        identityCanAccessGroup({ groupId: "group-1" }, "group-1", mockDb),
+        identityCanAccessGroup(
+          { groupRoles: { "group-1": GroupRole.MEMBER } },
+          "group-1",
+          mockDb,
+        ),
       ).resolves.not.toThrow();
     });
 
-    it("should throw ForbiddenException when the identity groupId does not match the requested groupId", async () => {
+    it("should throw ForbiddenException when the requested groupId is not in groupRoles", async () => {
       await expect(
-        identityCanAccessGroup({ groupId: "group-2" }, "group-1", mockDb),
+        identityCanAccessGroup(
+          { groupRoles: { "group-2": GroupRole.MEMBER } },
+          "group-1",
+          mockDb,
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it("should not call isUserInGroup", async () => {
-      await identityCanAccessGroup({ groupId: "group-1" }, "group-1", mockDb);
+      await identityCanAccessGroup(
+        { groupRoles: { "group-1": GroupRole.MEMBER } },
+        "group-1",
+        mockDb,
+      );
       expect(mockDb.isUserInGroup).not.toHaveBeenCalled();
     });
   });

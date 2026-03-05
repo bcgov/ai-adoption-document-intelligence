@@ -10,8 +10,8 @@ This folder contains atomic user stories derived from the [REQUIREMENTS.md](../R
 
 Establish the foundational types, decorator, and guard wiring before any enforcement is added.
 
-- [ ] [US-001: Create `@Identity` Method Decorator with Options Interface](US-001-create-identity-decorator.md)
-- [ ] [US-002: Extend `ResolvedIdentity` Type with `isSystemAdmin` and `groupRoles`](US-002-extend-resolved-identity-type.md)
+- [x] [US-001: Create `@Identity` Method Decorator with Options Interface](US-001-create-identity-decorator.md)
+- [x] [US-002: Extend `ResolvedIdentity` Type with `isSystemAdmin` and `groupRoles`](US-002-extend-resolved-identity-type.md)
 - [ ] [US-003: Enrich `resolvedIdentity` for API Key Requests in `IdentityGuard`](US-003-guard-enrichment-api-key-path.md)
 - [ ] [US-004: Enrich `resolvedIdentity` for JWT Requests in `IdentityGuard`](US-004-guard-enrichment-jwt-path.md)
 - [ ] [US-010: `IdentityGuard` Pass-Through When `@Identity` Is Absent](US-010-guard-passthrough-no-decorator.md)
