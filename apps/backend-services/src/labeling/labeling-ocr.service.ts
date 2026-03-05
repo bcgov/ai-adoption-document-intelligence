@@ -70,6 +70,7 @@ export class LabelingOcrService {
       apim_request_id: null,
       model_id: "prebuilt-layout",
       ocr_result: null,
+      group_id: dto.group_id,
     });
 
     return labelingDocument;

@@ -5,7 +5,15 @@
 - Do not create features that are not explicitly described in specifications, if there is a gap, include it summary notes after implementing the task. If there is a question regarding the implementation, do not make assumptions, stop and clarify from the user.
 - When creating or modifying features, create/update documentation in /docs-md folder
 - Do not include any document-specific implementation, the system is generic and must support arbitrary workloads
+- Changes to files must pass any linting and formatting checks. If there are any errors, fix them before submitting the code for review.
 
+## Frontend Implementation Guidelines
+- Use React functional components and hooks for state management and side effects.
+- Use Mantine components for UI elements and styling consistency.
+- Use Tanstack React Query for data fetching and mutations, with proper error handling and loading states.
+- Ensure all API interactions are typed correctly using TypeScript interfaces and types.
+- Write unit tests for components and hooks using React Testing Library and Vitest, covering various states and edge cases.
+- Follow accessibility best practices, including proper use of ARIA attributes and keyboard navigation.
 
 ## Backend Implementation Guidelines
 - Functions in js/ts and jsx/tsx files should be documented with JSDoc comments, including parameter and return types, and a description of the function's purpose.

@@ -11,16 +11,19 @@ import {
   Textarea,
   TextInput,
   Title,
+  Tooltip,
 } from "@mantine/core";
 import { IconFolder, IconPlus } from "@tabler/icons-react";
 import { FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useGroup } from "@/auth/GroupContext";
 import { ProjectCard } from "../components/ProjectCard";
 import { useProjects } from "../hooks/useProjects";
 
 export const ProjectListPage: FC = () => {
   const navigate = useNavigate();
   const { projects, isLoading, createProject, isCreating } = useProjects();
+  const { activeGroup } = useGroup();
   const [createModalOpened, setCreateModalOpened] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
@@ -54,12 +57,20 @@ export const ProjectListPage: FC = () => {
             Create and manage labeling projects for custom model training
           </Text>
         </Stack>
-        <Button
-          leftSection={<IconPlus size={18} />}
-          onClick={() => setCreateModalOpened(true)}
+        <Tooltip
+          label="A group must be selected to create a project"
+          disabled={!!activeGroup}
         >
-          New Project
-        </Button>
+          <span>
+            <Button
+              leftSection={<IconPlus size={18} />}
+              disabled={!activeGroup}
+              onClick={() => setCreateModalOpened(true)}
+            >
+              New Project
+            </Button>
+          </span>
+        </Tooltip>
       </Group>
 
       {projects.length === 0 ? (
@@ -73,12 +84,20 @@ export const ProjectListPage: FC = () => {
                   Create your first labeling project to get started
                 </Text>
               </Stack>
-              <Button
-                leftSection={<IconPlus size={18} />}
-                onClick={() => setCreateModalOpened(true)}
+              <Tooltip
+                label="A group must be selected to create a project"
+                disabled={!!activeGroup}
               >
-                Create Project
-              </Button>
+                <span>
+                  <Button
+                    leftSection={<IconPlus size={18} />}
+                    disabled={!activeGroup}
+                    onClick={() => setCreateModalOpened(true)}
+                  >
+                    Create Project
+                  </Button>
+                </span>
+              </Tooltip>
             </Stack>
           </Center>
         </Card>

@@ -12,6 +12,14 @@ import { apiService } from "../data/services/api.service";
 import { API_BASE_URL } from "../shared/constants";
 
 /**
+ * Represents a group the user belongs to.
+ */
+export interface Group {
+  id: string;
+  name: string;
+}
+
+/**
  * Response shape from GET /api/auth/me.
  */
 interface MeResponse {
@@ -19,8 +27,9 @@ interface MeResponse {
   name?: string;
   preferred_username?: string;
   email?: string;
-  roles: string[];
+  isAdmin: boolean;
   expires_in: number;
+  groups: Group[];
 }
 
 /**
@@ -34,7 +43,7 @@ interface RefreshResponse {
  * Local representation of an authenticated user.
  * Profile data comes from the /me endpoint — the frontend never touches raw tokens.
  */
-interface AuthUser {
+export interface AuthUser {
   sub: string;
   expires_at: number;
   profile: {
@@ -43,7 +52,8 @@ interface AuthUser {
     email?: string;
     [key: string]: unknown;
   };
-  roles: string[];
+  isSystemAdmin: boolean;
+  groups: Group[];
 }
 
 /**
@@ -52,6 +62,7 @@ interface AuthUser {
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
+  isSystemAdmin: boolean;
   user: AuthUser | null;
   login: () => void;
   logout: () => void;
@@ -113,7 +124,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         preferred_username: me.preferred_username,
         email: me.email,
       },
-      roles: me.roles,
+      isSystemAdmin: me.isAdmin,
+      groups: me.groups ?? [],
     };
   }, []);
 
@@ -239,6 +251,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = {
     isAuthenticated: !!user,
     isLoading,
+    isSystemAdmin: user?.isSystemAdmin ?? false,
     user,
     login,
     logout,

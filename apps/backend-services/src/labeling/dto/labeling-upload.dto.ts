@@ -38,4 +38,9 @@ export class LabelingUploadDto {
   @IsOptional()
   @ApiProperty({ type: Object })
   metadata?: Record<string, unknown>;
+
+  @IsString()
+  @IsNotEmpty()
+  @ApiProperty()
+  group_id: string;
 }

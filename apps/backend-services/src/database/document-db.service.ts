@@ -44,6 +44,7 @@ export class DocumentDbService {
           workflow_id: data.workflow_id || null,
           workflow_config_id: data.workflow_config_id || null,
           workflow_execution_id: data.workflow_execution_id || null,
+          group_id: data.group_id,
         },
       });
       this.logger.debug("Document created: %s", document.id);
@@ -78,10 +79,11 @@ export class DocumentDbService {
     }
   }
 
-  async findAllDocuments(): Promise<DocumentData[]> {
+  async findAllDocuments(groupIds?: string[]): Promise<DocumentData[]> {
     this.logger.debug("Finding all documents");
     try {
       const documents = await this.prisma.document.findMany({
+        where: groupIds ? { group_id: { in: groupIds } } : undefined,
         orderBy: { created_at: "desc" },
       });
       this.logger.debug("Found %d documents", documents.length);
@@ -226,6 +228,38 @@ export class DocumentDbService {
     } catch (error) {
       this.logger.error(
         "Failed to create/update OCR result: %s",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Deletes a document by its ID.
+   *
+   * @param id - The unique identifier of the document to delete.
+   * @returns `true` if the document was deleted, `false` if not found.
+   */
+  async deleteDocument(id: string): Promise<boolean> {
+    this.logger.debug("Deleting document: %s", id);
+    try {
+      await this.prisma.document.delete({
+        where: { id },
+      });
+      this.logger.debug("Document deleted: %s", id);
+      return true;
+    } catch (error: unknown) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code: string }).code === "P2025"
+      ) {
+        this.logger.debug("Document not found for deletion: %s", id);
+        return false;
+      }
+      this.logger.error(
+        "Failed to delete document: %s",
         error instanceof Error ? error.message : String(error),
       );
       throw error;

@@ -8,20 +8,28 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Req,
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
   ApiBody,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "@/auth/identity.helpers";
+import { DatabaseService } from "@/database/database.service";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
@@ -36,28 +44,50 @@ import { WorkflowInfo, WorkflowService } from "./workflow.service";
 @ApiTags("Workflow")
 @Controller("api/workflows")
 export class WorkflowController {
-  constructor(private readonly workflowService: WorkflowService) {}
+  constructor(
+    private readonly workflowService: WorkflowService,
+    private readonly databaseService: DatabaseService,
+  ) {}
 
   @Get()
   @ApiKeyAuth()
   @KeycloakSSOAuth()
-  @ApiOperation({ summary: "List all workflows for the current user" })
+  @ApiOperation({ summary: "List all workflows for the current user's groups" })
+  @ApiQuery({
+    name: "groupId",
+    required: false,
+    description: "Optional group ID to filter workflows by a specific group",
+  })
   @ApiOkResponse({
     description:
-      "Returns the list of workflows owned by the authenticated user",
+      "Returns the list of workflows belonging to the authenticated user's groups",
     type: WorkflowListResponseDto,
   })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getWorkflows(
+    @Query("groupId") groupId: string | undefined,
     @Req() req: Request,
   ): Promise<{ workflows: WorkflowInfo[] }> {
-    const user = req.user;
-    const userId = user?.sub as string;
+    if (groupId) {
+      await identityCanAccessGroup(
+        req.resolvedIdentity,
+        groupId,
+        this.databaseService,
+      );
+      const workflows = await this.workflowService.getGroupWorkflows([groupId]);
+      return { workflows };
+    }
 
-    if (!userId) {
+    const groupIds = await getIdentityGroupIds(
+      req.resolvedIdentity,
+      this.databaseService,
+    );
+
+    if (groupIds.length === 0) {
       return { workflows: [] };
     }
 
-    const workflows = await this.workflowService.getUserWorkflows(userId);
+    const workflows = await this.workflowService.getGroupWorkflows(groupIds);
     return { workflows };
   }
 
@@ -71,6 +101,7 @@ export class WorkflowController {
     type: WorkflowResponseDto,
   })
   @ApiNotFoundResponse({ description: "Workflow not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getWorkflow(
     @Param("id") id: string,
     @Req() req: Request,
@@ -79,6 +110,13 @@ export class WorkflowController {
     const userId = user?.sub as string;
 
     const workflow = await this.workflowService.getWorkflow(id, userId);
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      workflow.groupId,
+      this.databaseService,
+    );
+
     return { workflow };
   }
 
@@ -106,6 +144,12 @@ export class WorkflowController {
     const user = req.user;
     const userId = user?.sub as string;
 
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      dto.groupId,
+      this.databaseService,
+    );
+
     const workflow = await this.workflowService.createWorkflow(userId, dto);
     return { workflow };
   }
@@ -128,6 +172,7 @@ export class WorkflowController {
     description: "Invalid request body or workflow config validation failed",
   })
   @ApiNotFoundResponse({ description: "Workflow not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async updateWorkflow(
     @Param("id") id: string,
     @Body() dto: Partial<CreateWorkflowDto>,
@@ -135,6 +180,14 @@ export class WorkflowController {
   ): Promise<{ workflow: WorkflowInfo }> {
     const user = req.user;
     const userId = user?.sub as string;
+
+    const existing = await this.workflowService.getWorkflow(id, userId);
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      existing.groupId,
+      this.databaseService,
+    );
 
     const workflow = await this.workflowService.updateWorkflow(id, userId, dto);
     return { workflow };
@@ -148,12 +201,21 @@ export class WorkflowController {
   @ApiParam({ name: "id", description: "Workflow ID" })
   @ApiNoContentResponse({ description: "Workflow deleted successfully" })
   @ApiNotFoundResponse({ description: "Workflow not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async deleteWorkflow(
     @Param("id") id: string,
     @Req() req: Request,
   ): Promise<void> {
     const user = req.user;
     const userId = user?.sub as string;
+
+    const existing = await this.workflowService.getWorkflow(id, userId);
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      existing.groupId,
+      this.databaseService,
+    );
 
     await this.workflowService.deleteWorkflow(id, userId);
   }

@@ -92,8 +92,8 @@ export class DatabaseService {
     return this.labelingDocumentDb.updateLabelingDocument(id, data);
   }
 
-  async findAllDocuments(): Promise<DocumentData[]> {
-    return this.documentDb.findAllDocuments();
+  async findAllDocuments(groupIds?: string[]): Promise<DocumentData[]> {
+    return this.documentDb.findAllDocuments(groupIds);
   }
 
   async updateDocument(
@@ -101,6 +101,10 @@ export class DatabaseService {
     data: Partial<Omit<DocumentData, "id" | "created_at">>,
   ): Promise<DocumentData | null> {
     return this.documentDb.updateDocument(id, data);
+  }
+
+  async deleteDocument(id: string): Promise<boolean> {
+    return this.documentDb.deleteDocument(id);
   }
 
   async findOcrResult(documentId: string) {
@@ -119,6 +123,7 @@ export class DatabaseService {
     name: string;
     description?: string;
     created_by: string;
+    group_id: string;
   }): Promise<LabelingProjectData> {
     return this.labelingProjectDb.createLabelingProject(data);
   }
@@ -128,9 +133,9 @@ export class DatabaseService {
   }
 
   async findAllLabelingProjects(
-    userId?: string,
+    groupIds?: string[],
   ): Promise<LabelingProjectData[]> {
-    return this.labelingProjectDb.findAllLabelingProjects(userId);
+    return this.labelingProjectDb.findAllLabelingProjects(groupIds);
   }
 
   async updateLabelingProject(
@@ -253,6 +258,7 @@ export class DatabaseService {
     limit?: number;
     offset?: number;
     reviewStatus?: "pending" | "reviewed" | "all";
+    groupIds?: string[];
   }) {
     return this.reviewDb.findReviewQueue(filters);
   }
@@ -285,6 +291,7 @@ export class DatabaseService {
     startDate?: Date;
     endDate?: Date;
     reviewerId?: string;
+    groupIds?: string[];
   }) {
     return this.reviewDb.getReviewAnalytics(filters);
   }
@@ -366,5 +373,19 @@ export class DatabaseService {
       },
     });
     return entry != null;
+  }
+
+  /**
+   * Checks whether a user is a system admin.
+   *
+   * @param userId - The ID of the user to check.
+   * @returns `true` when the user has `is_system_admin` set to `true`, `false` otherwise.
+   */
+  async isUserSystemAdmin(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { is_system_admin: true },
+    });
+    return user?.is_system_admin ?? false;
   }
 }

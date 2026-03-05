@@ -30,6 +30,7 @@ export type LabelingDocumentData = {
   apim_request_id?: string | null;
   model_id: string;
   ocr_result?: Prisma.JsonValue | null;
+  group_id: string;
 };
 export type LabeledDocumentData = LabeledDocument & {
   labeling_document: LabelingDocumentData;

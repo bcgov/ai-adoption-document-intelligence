@@ -29,6 +29,7 @@ export class LabelingProjectDbService {
     name: string;
     description?: string;
     created_by: string;
+    group_id: string;
   }): Promise<LabelingProjectData> {
     this.logger.debug("Creating labeling project: %s", data.name);
     const project = await this.prisma.labelingProject.create({
@@ -36,6 +37,7 @@ export class LabelingProjectDbService {
         name: data.name,
         description: data.description,
         created_by: data.created_by,
+        group_id: data.group_id,
         status: ProjectStatus.active,
       },
       include: {
@@ -63,11 +65,11 @@ export class LabelingProjectDbService {
   }
 
   async findAllLabelingProjects(
-    userId?: string,
+    groupIds?: string[],
   ): Promise<LabelingProjectData[]> {
     this.logger.debug("Finding all labeling projects");
     const projects = await this.prisma.labelingProject.findMany({
-      where: userId ? { created_by: userId } : undefined,
+      where: groupIds ? { group_id: { in: groupIds } } : undefined,
       orderBy: { updated_at: "desc" },
       include: {
         field_schema: { orderBy: { display_order: "asc" } },

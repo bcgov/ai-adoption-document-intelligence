@@ -96,6 +96,7 @@ export interface UploadDocumentPayload {
   metadata?: Record<string, unknown>;
   model_id: string;
   workflow_id?: string;
+  group_id: string;
 }
 
 export interface ApiResponse<T> {

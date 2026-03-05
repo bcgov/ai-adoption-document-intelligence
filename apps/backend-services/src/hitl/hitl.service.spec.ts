@@ -42,6 +42,7 @@ describe("HitlService", () => {
     workflow_id: null,
     workflow_config_id: null,
     workflow_execution_id: null,
+    group_id: "group-1",
   };
 
   const mockOcrResult = {
@@ -262,6 +263,7 @@ describe("HitlService", () => {
         limit: 50,
         offset: 0,
         reviewStatus: "pending",
+        groupIds: undefined,
       });
     });
   });
@@ -311,6 +313,7 @@ describe("HitlService", () => {
         status: "completed_ocr",
         limit: 1000,
         reviewStatus: "pending",
+        groupIds: undefined,
       });
     });
 
@@ -339,6 +342,7 @@ describe("HitlService", () => {
         status: "completed_ocr",
         limit: 1000,
         reviewStatus: "reviewed",
+        groupIds: undefined,
       });
     });
   });
@@ -743,7 +747,10 @@ describe("HitlService", () => {
 
       const result = await service.getAnalytics(filters);
 
-      expect(mockAnalyticsService.getAnalytics).toHaveBeenCalledWith(filters);
+      expect(mockAnalyticsService.getAnalytics).toHaveBeenCalledWith(
+        filters,
+        undefined,
+      );
       expect(result).toEqual(mockAnalytics);
     });
   });

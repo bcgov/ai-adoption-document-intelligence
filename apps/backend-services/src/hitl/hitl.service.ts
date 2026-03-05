@@ -45,7 +45,7 @@ export class HitlService {
     private readonly moduleRef: ModuleRef,
   ) {}
 
-  async getQueue(filters: QueueFilterDto) {
+  async getQueue(filters: QueueFilterDto, groupIds?: string[]) {
     this.logger.debug("Getting review queue with filters", filters);
 
     const maxConfidence = filters.maxConfidence ?? 0.9;
@@ -69,6 +69,7 @@ export class HitlService {
       limit: filters.limit ?? 50,
       offset: filters.offset ?? 0,
       reviewStatus: reviewStatusFilter,
+      groupIds,
     });
 
     // Filter by confidence if OCR results exist
@@ -119,7 +120,7 @@ export class HitlService {
     };
   }
 
-  async getQueueStats(reviewStatus?: ReviewStatusFilter) {
+  async getQueueStats(reviewStatus?: ReviewStatusFilter, groupIds?: string[]) {
     this.logger.debug("Getting queue statistics");
 
     const reviewStatusFilter =
@@ -133,6 +134,7 @@ export class HitlService {
       status: DocumentStatus.completed_ocr,
       limit: 1000,
       reviewStatus: reviewStatusFilter,
+      groupIds,
     });
 
     const lowConfidenceDocs = allDocs.filter((doc: DocumentWithOcrResult) => {
@@ -148,7 +150,7 @@ export class HitlService {
       });
     });
 
-    const analytics = await this.analyticsService.getAnalytics({});
+    const analytics = await this.analyticsService.getAnalytics({}, groupIds);
 
     return {
       totalDocuments: allDocs.length,
@@ -372,8 +374,8 @@ export class HitlService {
     };
   }
 
-  async getAnalytics(filters: AnalyticsFilterDto) {
+  async getAnalytics(filters: AnalyticsFilterDto, groupIds?: string[]) {
     this.logger.debug("Getting analytics");
-    return this.analyticsService.getAnalytics(filters);
+    return this.analyticsService.getAnalytics(filters, groupIds);
   }
 }

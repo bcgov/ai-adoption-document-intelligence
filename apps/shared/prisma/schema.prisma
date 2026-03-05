@@ -33,7 +33,10 @@ model Document {
   ocr_result            OcrResult?
   review_sessions       ReviewSession[]
   groundTruthJob        DatasetGroundTruthJob?
+  group_id              String
+  group                 Group           @relation(fields: [group_id], references: [id])
 
+  @@index([group_id])
   @@map("documents")
 }
 
@@ -53,7 +56,10 @@ model LabelingDocument {
   model_id          String            @default("prebuilt-layout")
   ocr_result        Json?
   labeled_documents LabeledDocument[]
+  group_id          String
+  group             Group             @relation(fields: [group_id], references: [id])
 
+  @@index([group_id])
   @@map("labeling_documents")
 }
 
@@ -69,14 +75,19 @@ model OcrResult {
 }
 
 model ApiKey {
-  id         String    @id @default(cuid())
-  key_hash   String    @unique
-  key_prefix String
-  user_id    String?
-  user       User?     @relation(fields: [user_id], references: [id])
-  created_at DateTime  @default(now())
-  last_used  DateTime?
+  id                   String    @id @default(cuid())
+  key_hash             String    @unique
+  key_prefix           String
+  /// The user who most recently generated or regenerated this key. Recorded for
+  /// audit purposes only; not used for authentication identity resolution.
+  generating_user_id   String?
+  generating_user      User?     @relation(fields: [generating_user_id], references: [id])
+  group_id             String
+  group                Group     @relation(fields: [group_id], references: [id])
+  created_at           DateTime  @default(now())
+  last_used            DateTime?
 
+  @@index([group_id])
   @@map("api_keys")
 }
 
@@ -89,8 +100,6 @@ model User {
 
   apiKeys ApiKey[]
 
-  userRoles UserRole[]
-
   workflows Workflow[]
 
   labelingProjects LabelingProject[]
@@ -101,45 +110,34 @@ model User {
 
   userGroups UserGroup[]
 
+  is_system_admin Boolean @default(false)
+
   membershipRequests        GroupMembershipRequest[] @relation(name: "MembershipRequestUser")
   actedMembershipRequests   GroupMembershipRequest[] @relation(name: "MembershipRequestActor")
   createdMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestCreatedBy")
   updatedMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestUpdatedBy")
+  createdGroups             Group[]                  @relation(name: "GroupCreatedBy")
+  updatedGroups             Group[]                  @relation(name: "GroupUpdatedBy")
+  deletedGroups             Group[]                  @relation(name: "GroupDeletedBy")
 
   @@map("user")
 }
 
-model Role {
-  id          String     @id @default(cuid())
-  name        String     @unique
-  description String?
-  userRoles   UserRole[]
-
-  @@map("role")
-}
-
-model UserRole {
-  user_id String
-  user    User   @relation(fields: [user_id], references: [id])
-  role_id String
-  role    Role   @relation(fields: [role_id], references: [id])
-
-  @@id([user_id, role_id])
-  @@map("user_role")
-}
-
 model Workflow {
-  id                   String                @id @default(cuid())
-  name                 String
-  description          String?
-  user_id              String
-  user                 User                  @relation(fields: [user_id], references: [id])
-  config               Json                  // GraphWorkflowConfig stored as JSON
-  version              Int                   @default(1)
-  created_at           DateTime              @default(now())
-  updated_at           DateTime              @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  user_id     String
+  user        User     @relation(fields: [user_id], references: [id])
+  config      Json // GraphWorkflowConfig stored as JSON
+  version     Int      @default(1)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
   benchmarkDefinitions BenchmarkDefinition[]
+  group_id    String
+  group       Group    @relation(fields: [group_id], references: [id])
 
+  @@index([group_id])
   @@map("workflows")
 }
 
@@ -158,7 +156,10 @@ model LabelingProject {
   documents      LabeledDocument[]
   training_jobs  TrainingJob[]
   trained_models TrainedModel[]
+  group_id       String
+  group          Group             @relation(fields: [group_id], references: [id])
 
+  @@index([group_id])
   @@map("labeling_projects")
 }
 
@@ -275,20 +276,38 @@ model ClassifierModel {
 model Group {
   id                  String                   @id @default(cuid())
   name                String                   @unique
+  description         String?
+  created_by          String?
+  created_at          DateTime                 @default(now())
+  updated_by          String?
+  updated_at          DateTime                 @updatedAt
+  deleted_at          DateTime?
+  deleted_by          String?
+  creator             User?                    @relation(name: "GroupCreatedBy", fields: [created_by], references: [id])
+  updator             User?                    @relation(name: "GroupUpdatedBy", fields: [updated_by], references: [id])
+  deleter             User?                    @relation(name: "GroupDeletedBy", fields: [deleted_by], references: [id])
   classifier_models   ClassifierModel[]
   user_groups         UserGroup[]
   membership_requests GroupMembershipRequest[]
+  documents           Document[]
+  workflows           Workflow[]
+  labeling_projects   LabelingProject[]
+  labeling_documents  LabelingDocument[]
+  api_keys            ApiKey[]
 
   @@map("group")
 }
 
 model UserGroup {
-  user_id  String
-  user     User?  @relation(fields: [user_id], references: [id])
-  group_id String
-  group    Group? @relation(fields: [group_id], references: [id])
+  user_id    String
+  user       User?      @relation(fields: [user_id], references: [id])
+  group_id   String
+  group      Group?     @relation(fields: [group_id], references: [id])
+  role       GroupRole  @default(MEMBER)
+  created_at DateTime   @default(now())
 
   @@id([user_id, group_id])
+  @@index([group_id])
   @@map("user_group")
 }
 
@@ -310,6 +329,7 @@ model GroupMembershipRequest {
   updated_by  String
   updator     User                         @relation(name: "MembershipRequestUpdatedBy", fields: [updated_by], references: [id])
 
+  @@unique([group_id, user_id, status])
   @@map("group_membership_request")
 }
 
@@ -604,4 +624,9 @@ enum GroupMembershipRequestStatus {
   APPROVED
   DENIED
   CANCELLED
+}
+
+enum GroupRole {
+  ADMIN
+  MEMBER
 }

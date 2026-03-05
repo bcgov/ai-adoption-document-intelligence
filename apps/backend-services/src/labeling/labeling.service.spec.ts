@@ -174,15 +174,15 @@ describe("LabelingService", () => {
       expect(result).toEqual(projects);
     });
 
-    it("should return projects for specific user", async () => {
+    it("should return projects for specific groups", async () => {
       const projects = [mockProject];
       mockDbService.findAllLabelingProjects.mockResolvedValueOnce(projects);
 
-      const result = await service.getProjects("user-1");
+      const result = await service.getProjects(["group-1"]);
 
-      expect(mockDbService.findAllLabelingProjects).toHaveBeenCalledWith(
-        "user-1",
-      );
+      expect(mockDbService.findAllLabelingProjects).toHaveBeenCalledWith([
+        "group-1",
+      ]);
       expect(result).toEqual(projects);
     });
   });
@@ -192,6 +192,7 @@ describe("LabelingService", () => {
       const dto: CreateProjectDto = {
         name: "New Project",
         description: "Test Description",
+        group_id: "group-1",
       };
 
       mockDbService.createLabelingProject.mockResolvedValueOnce(mockProject);
@@ -202,6 +203,7 @@ describe("LabelingService", () => {
         name: dto.name,
         description: dto.description,
         created_by: "user-1",
+        group_id: "group-1",
       });
       expect(result).toEqual(mockProject);
     });
@@ -975,6 +977,7 @@ describe("LabelingService", () => {
         file: "data:application/pdf;base64,dGVzdA==",
         file_type: LabelingFileType.PDF,
         original_filename: "invoice.pdf",
+        group_id: "group-1",
       };
 
       mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
@@ -1015,6 +1018,7 @@ describe("LabelingService", () => {
           title: "test",
           file: "base64",
           file_type: LabelingFileType.PDF,
+          group_id: "group-1",
         }),
       ).rejects.toThrow(NotFoundException);
     });

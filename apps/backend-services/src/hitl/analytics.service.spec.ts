@@ -55,6 +55,7 @@ describe("AnalyticsService", () => {
         startDate: filters.startDate,
         endDate: filters.endDate,
         reviewerId: filters.reviewerId,
+        groupIds: undefined,
       });
 
       expect(result).toEqual({
@@ -160,6 +161,7 @@ describe("AnalyticsService", () => {
         startDate: filters.startDate,
         endDate: filters.endDate,
         reviewerId: filters.reviewerId,
+        groupIds: undefined,
       });
     });
 
@@ -182,6 +184,7 @@ describe("AnalyticsService", () => {
         startDate: undefined,
         endDate: undefined,
         reviewerId: "reviewer-2",
+        groupIds: undefined,
       });
     });
 

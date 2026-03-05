@@ -82,6 +82,7 @@ describe("TrainingService", () => {
       apim_request_id: null,
       model_id: "prebuilt-layout",
       ocr_result: { analyzeResult: { content: "test" } },
+      group_id: "group-1",
     },
     labels: [
       {

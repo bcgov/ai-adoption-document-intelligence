@@ -66,6 +66,7 @@ export class ReviewDbService {
     limit?: number;
     offset?: number;
     reviewStatus?: "pending" | "reviewed" | "all";
+    groupIds?: string[];
   }): Promise<Document[]> {
     this.logger.debug("Finding review queue");
 
@@ -74,6 +75,10 @@ export class ReviewDbService {
       // Exclude documents belonging to ground truth generation jobs
       groundTruthJob: { is: null },
     };
+
+    if (filters.groupIds) {
+      where.group_id = { in: filters.groupIds };
+    }
 
     if (filters.modelId) {
       where.model_id = filters.modelId;
@@ -190,6 +195,7 @@ export class ReviewDbService {
     startDate?: Date;
     endDate?: Date;
     reviewerId?: string;
+    groupIds?: string[];
   }): Promise<{
     totalSessions: number;
     completedSessions: number;
@@ -207,6 +213,9 @@ export class ReviewDbService {
     }
     if (filters.reviewerId) {
       where.reviewer_id = filters.reviewerId;
+    }
+    if (filters.groupIds) {
+      where.document = { group_id: { in: filters.groupIds } };
     }
 
     const [sessions, corrections] = await Promise.all([
