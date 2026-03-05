@@ -5,22 +5,22 @@
 **So that** I can declaratively configure authentication and authorization requirements on controller methods in a single, consistent annotation.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Decorator is defined and importable
+- [x] **Scenario 1**: Decorator is defined and importable
     - **Given** the `@Identity` decorator module exists
     - **When** a developer imports and applies `@Identity(options)` to a controller method
     - **Then** the decorator compiles without TypeScript errors and attaches metadata to the handler
 
-- [ ] **Scenario 2**: Options interface is correctly typed
+- [x] **Scenario 2**: Options interface is correctly typed
     - **Given** the `IdentityOptions` TypeScript interface is defined
     - **When** an invalid option value (e.g. wrong type for `minimumRole`) is provided
     - **Then** the TypeScript compiler reports a type error
 
-- [ ] **Scenario 3**: Options object is retrievable as metadata
+- [x] **Scenario 3**: Options object is retrievable as metadata
     - **Given** `@Identity(options)` is applied to a handler
     - **When** `Reflector.get` (or `getAllAndOverride`) is called for the metadata key
     - **Then** the exact options object passed to the decorator is returned
 
-- [ ] **Scenario 4**: Decorator can be applied with no options (all defaults)
+- [x] **Scenario 4**: Decorator can be applied with no options (all defaults)
     - **Given** `@Identity({})` is applied
     - **When** the metadata is read
     - **Then** all options resolve to their defaults (`requireSystemAdmin: false`, `allowApiKey: false`, no `groupIdFrom`, no `minimumRole`)
