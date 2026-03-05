@@ -1,6 +1,7 @@
 import { Stack, Text, Title } from "@mantine/core";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { useAuth } from "./auth/useAuth";
+import { MembershipPageGuard, NoGroupGuard } from "./auth/NoGroupGuard";
 import "./App.css";
 import { Login } from "./components";
 import {
@@ -20,7 +21,10 @@ import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/Labe
 import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
 import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
 import { RootLayout } from "./layouts/RootLayout";
+import { GroupDetailPage } from "./pages/GroupDetailPage";
+import { GroupsPage } from "./pages/GroupsPage";
 import { QueuePage } from "./pages/QueuePage";
+import { RequestMembershipPage } from "./pages/RequestMembershipPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UploadPage } from "./pages/UploadPage";
 import ClassifierPage from "./pages/ClassifierPage";
@@ -29,8 +33,20 @@ import { WorkflowListPage } from "./pages/WorkflowListPage";
 
 const router = createBrowserRouter([
   {
+    path: "/request-membership",
+    element: (
+      <MembershipPageGuard>
+        <RequestMembershipPage />
+      </MembershipPageGuard>
+    ),
+  },
+  {
     path: "/",
-    element: <RootLayout />,
+    element: (
+      <NoGroupGuard>
+        <RootLayout />
+      </NoGroupGuard>
+    ),
     children: [
       { index: true, element: <UploadPage /> },
       { path: "queue", element: <QueuePage /> },
@@ -59,6 +75,10 @@ const router = createBrowserRouter([
       // Review with nested routes
       { path: "review", element: <ReviewQueuePage /> },
       { path: "review/:sessionId", element: <ReviewWorkspacePage /> },
+
+      // Groups
+      { path: "groups", element: <GroupsPage /> },
+      { path: "groups/:groupId", element: <GroupDetailPage /> },
 
       // Benchmarking routes
       { path: "benchmarking/datasets", element: <DatasetListPage /> },

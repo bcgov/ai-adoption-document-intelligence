@@ -3,6 +3,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import * as bcrypt from "bcrypt";
 import {
   FieldType,
+  GroupRole,
   PrismaClient,
   ProjectStatus,
   SplitType,
@@ -17,6 +18,9 @@ import * as path from "node:path";
 const prisma = new PrismaClient({
   adapter: new PrismaPg(getPrismaPgOptions(process.env.DATABASE_URL)),
 });
+
+const SEED_GROUP_ID = "seed-default-group";
+const SEED_GROUP_NAME = "Default";
 
 const SDPR_TEMPLATE_PROJECT_ID = "seed-sdpr-monthly-report-template";
 const SDPR_TEMPLATE_PROJECT_NAME = "SDPR monthly report template";
@@ -521,6 +525,7 @@ async function seedBenchmarkingData() {
       user_id: "test-user",
       config: standardOcrConfig,
       version: 1,
+      group_id: SEED_GROUP_ID,
     },
   });
 
@@ -541,6 +546,7 @@ async function seedBenchmarkingData() {
       user_id: "test-user",
       config: multiPageReportConfig,
       version: 1,
+      group_id: SEED_GROUP_ID,
     },
   });
 
@@ -1346,6 +1352,7 @@ async function seedLabelingData() {
       description: SDPR_TEMPLATE_PROJECT_DESCRIPTION,
       created_by: SDPR_TEMPLATE_PROJECT_CREATED_BY,
       status: ProjectStatus.active,
+      group_id: SEED_GROUP_ID,
     },
   });
 
@@ -1401,12 +1408,13 @@ async function seedTestApiKey() {
     where: { key_hash: keyHash },
     update: {
       key_prefix: keyPrefix,
-      user_id: "test-user",
+      generating_user_id: "test-user",
     },
     create: {
-      user_id: "test-user",
+      generating_user_id: "test-user",
       key_hash: keyHash,
       key_prefix: keyPrefix,
+      group_id: SEED_GROUP_ID,
     },
   });
 
@@ -1431,10 +1439,79 @@ async function seedUsers() {
   console.log("  ✓ Users seeded");
 }
 
+async function seedGroup() {
+  console.log("👥 Seeding default group...");
+
+  const group = await prisma.group.upsert({
+    where: { id: SEED_GROUP_ID },
+    update: {},
+    create: {
+      id: SEED_GROUP_ID,
+      name: SEED_GROUP_NAME,
+      description: "Default seeded group",
+      created_by: "seed",
+    },
+  });
+
+  // Add test-user as ADMIN of the default group
+  await prisma.userGroup.upsert({
+    where: {
+      user_id_group_id: { user_id: "test-user", group_id: group.id },
+    },
+    update: {},
+    create: {
+      user_id: "test-user",
+      group_id: group.id,
+      role: GroupRole.ADMIN,
+    },
+  });
+
+  // Add seed user as ADMIN of the default group
+  await prisma.userGroup.upsert({
+    where: {
+      user_id_group_id: { user_id: "seed", group_id: group.id },
+    },
+    update: {},
+    create: {
+      user_id: "seed",
+      group_id: group.id,
+      role: GroupRole.ADMIN,
+    },
+  });
+
+  // If SEED_USER_SUB is set, create/upsert that user and add to group
+  const seedUserSub = process.env.SEED_USER_SUB;
+  const seedUserEmail = process.env.SEED_USER_EMAIL ?? "dev@example.com";
+  if (seedUserSub) {
+    await prisma.user.upsert({
+      where: { id: seedUserSub },
+      update: { is_system_admin: true },
+      create: { id: seedUserSub, email: seedUserEmail, is_system_admin: true },
+    });
+
+    await prisma.userGroup.upsert({
+      where: {
+        user_id_group_id: { user_id: seedUserSub, group_id: group.id },
+      },
+      update: {},
+      create: {
+        user_id: seedUserSub,
+        group_id: group.id,
+        role: GroupRole.ADMIN,
+      },
+    });
+
+    console.log(`  ✓ User ${seedUserSub} added to default group`);
+  }
+
+  console.log("  ✓ Default group seeded");
+}
+
 async function main() {
   console.log("🌱 Starting database seed...\n");
 
   await seedUsers();
+  await seedGroup();
   await seedTestApiKey();
   await seedLabelingData();
   await seedBenchmarkingData();

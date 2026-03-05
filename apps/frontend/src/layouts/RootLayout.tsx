@@ -26,10 +26,12 @@ import {
   IconSettings,
   IconTags,
   IconUpload,
+  IconUsers,
 } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
+import { GroupSelector } from "../components/group/GroupSelector";
 
 const NAV_EXPANDED = 240;
 const NAV_COLLAPSED = 72;
@@ -81,6 +83,12 @@ export function RootLayout() {
         icon: IconFlagQuestion,
       },
       {
+        path: "/groups",
+        label: "Groups",
+        description: "Manage groups",
+        icon: IconUsers,
+      },
+      {
         path: "/settings",
         label: "Settings",
         description: "API key management",
@@ -130,6 +138,7 @@ export function RootLayout() {
             </Badge>
           </Group>
           <Group>
+            <GroupSelector />
             <Stack gap={0}>
               <Text size="sm" fw={600}>
                 {user?.profile?.name ?? "Authenticated user"}
