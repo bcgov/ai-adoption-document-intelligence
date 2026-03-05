@@ -372,19 +372,16 @@ export class DatabaseService {
   }
 
   /**
-   * Checks whether a user holds the `system-admin` role.
+   * Checks whether a user is a system admin.
    *
    * @param userId - The ID of the user to check.
-   * @returns `true` when the user has a UserRole record linked to a Role with
-   *   name `"system-admin"`, `false` otherwise.
+   * @returns `true` when the user has `is_system_admin` set to `true`, `false` otherwise.
    */
   async isUserSystemAdmin(userId: string): Promise<boolean> {
-    const entry = await this.prisma.userRole.findFirst({
-      where: {
-        user_id: userId,
-        role: { name: "system-admin" },
-      },
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { is_system_admin: true },
     });
-    return entry != null;
+    return user?.is_system_admin ?? false;
   }
 }

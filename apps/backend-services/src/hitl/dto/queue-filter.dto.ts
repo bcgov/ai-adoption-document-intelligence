@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   Min,
 } from "class-validator";
@@ -63,6 +64,13 @@ export class QueueFilterDto {
   @IsOptional()
   @IsEnum(ReviewStatusFilter)
   reviewStatus?: ReviewStatusFilter;
+
+  @ApiPropertyOptional({
+    description: "Scope results to a specific group ID",
+  })
+  @IsOptional()
+  @IsUUID()
+  group_id?: string;
 }
 
 export class AnalyticsFilterDto {
@@ -80,4 +88,11 @@ export class AnalyticsFilterDto {
   @IsOptional()
   @IsString()
   reviewerId?: string;
+
+  @ApiPropertyOptional({
+    description: "Scope results to a specific group ID",
+  })
+  @IsOptional()
+  @IsUUID()
+  group_id?: string;
 }

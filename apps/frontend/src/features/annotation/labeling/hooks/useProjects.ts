@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
 
 interface FieldSchema {
@@ -76,20 +77,25 @@ interface CreateProjectDto {
   description?: string;
 }
 
+interface CreateProjectPayload extends CreateProjectDto {
+  group_id: string;
+}
+
 interface UpdateProjectDto {
   name?: string;
   description?: string;
   status?: string;
 }
 
-export const useProjects = (userId?: string) => {
+export const useProjects = () => {
   const queryClient = useQueryClient();
+  const { activeGroup } = useGroup();
 
   const projectsQuery = useQuery({
-    queryKey: ["labeling-projects", userId],
+    queryKey: ["labeling-projects", activeGroup?.id],
     queryFn: async () => {
-      const endpoint = userId
-        ? `/labeling/projects?userId=${userId}`
+      const endpoint = activeGroup?.id
+        ? `/labeling/projects?group_id=${activeGroup.id}`
         : "/labeling/projects";
       const response = await apiService.get<Project[]>(endpoint);
       return response.data || [];
@@ -98,9 +104,16 @@ export const useProjects = (userId?: string) => {
 
   const createProjectMutation = useMutation({
     mutationFn: async (data: CreateProjectDto) => {
+      if (!activeGroup) {
+        throw new Error("No active group selected");
+      }
+      const payload: CreateProjectPayload = {
+        ...data,
+        group_id: activeGroup.id,
+      };
       const response = await apiService.post<Project>(
         "/labeling/projects",
-        data,
+        payload,
       );
       return response.data;
     },
@@ -143,6 +156,7 @@ export const useProjects = (userId?: string) => {
     isLoading: projectsQuery.isLoading,
     error: projectsQuery.error,
     createProject: createProjectMutation.mutate,
+    createProjectAsync: createProjectMutation.mutateAsync,
     updateProject: updateProjectMutation.mutate,
     deleteProject: deleteProjectMutation.mutate,
     isCreating: createProjectMutation.isPending,

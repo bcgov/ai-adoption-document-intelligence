@@ -365,13 +365,30 @@ async getMe(@Req() req: Request): Promise<MeResponseDto> {
   const user = req.user as User;
   const now = Math.floor(Date.now() / 1000);
   const exp = (user.exp as number) || now;
+  const userId = user.sub || "";
+
+  const isAdmin = await this.databaseService.isUserSystemAdmin(userId);
+  const groups = isAdmin
+    ? await this.groupService.getAllGroups()
+    : await this.groupService.getUserGroups(userId);
+
+  const userId = user.sub || "";
+
+  const isAdmin = await this.databaseService.isUserSystemAdmin(userId);
+  const groups = isAdmin
+    ? await this.groupService.getAllGroups()
+    : await this.groupService.getUserGroups(userId);
+
   return {
-    sub: user.sub || "",
+    sub: userId,
+    sub: userId,
     name: (user.name as string) || (user.display_name as string),
     preferred_username: (user.preferred_username as string) || (user.idir_username as string),
     email: user.email,
     roles: user.roles || [],
     expires_in: Math.max(exp - now, 0),
+    groups,  // all groups for system-admin, otherwise user's memberships
+    groups,  // all groups for system-admin, otherwise user's memberships
   };
 }
 ```
@@ -720,6 +737,10 @@ export class AppModule {}
     },
     {
       provide: APP_GUARD,
+      useClass: IdentityGuard,  // Resolves requestor identity onto request.resolvedIdentity
+    },
+    {
+      provide: APP_GUARD,
       useClass: RolesGuard,  // Enforces @Roles decorator
     },
     {
@@ -735,6 +756,10 @@ export class AuthModule {}
 **Guard Execution Order:**
 1. `ThrottlerGuard` → Enforces per-IP rate limits (global default or per-route override)
 2. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
+3. `ApiKeyAuthGuard` → Checks per-IP failed-attempt limit (configurable, default 20/min) → Validates API key (if applicable) → Sets `request.user` and `request.apiKeyGroupId`
+4. `IdentityGuard` → Resolves requestor identity from `request.user` → Sets `request.resolvedIdentity` (includes `userId`; includes `groupId` for API key auth)
+5. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
+6. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
 3. `ApiKeyAuthGuard` → Checks per-IP failed-attempt limit (configurable, default 20/min) → Validates API key (if applicable) → Sets `request.user` and `request.apiKeyGroupId`
 4. `IdentityGuard` → Resolves requestor identity from `request.user` → Sets `request.resolvedIdentity` (includes `userId`; includes `groupId` for API key auth)
 5. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
@@ -951,7 +976,8 @@ const fetchMe = useCallback(async (): Promise<AuthUser | null> => {
 **How It Works:**
 1. Browser automatically sends auth cookies with the request
 2. Backend's `JwtAuthGuard` validates the `access_token` cookie
-3. If valid, returns `MeResponseDto` with user profile and `expires_in`
+3. If valid, returns `MeResponseDto` with user profile, `expires_in`, and `groups` (the user's group memberships, or all groups for system-admins)
+3. If valid, returns `MeResponseDto` with user profile, `expires_in`, and `groups` (the user's group memberships, or all groups for system-admins)
 4. `meResponseToUser()` computes `expires_at` from `expires_in` and builds the `AuthUser` object
 5. If invalid/missing, returns 401 and frontend shows logged-out state
 
@@ -1495,6 +1521,7 @@ See [GROUP_RESOURCE_AUTHORIZATION.md](./GROUP_RESOURCE_AUTHORIZATION.md) for the
 ## Decorator Composition Rules
 
 The guard chain runs globally in this order: `JwtAuthGuard` → `ApiKeyAuthGuard` → `IdentityGuard` → `RolesGuard` → `CsrfGuard`. Decorators control which guards activate. The following rules define how to combine decorators safely.
+The guard chain runs globally in this order: `JwtAuthGuard` → `ApiKeyAuthGuard` → `IdentityGuard` → `RolesGuard` → `CsrfGuard`. Decorators control which guards activate. The following rules define how to combine decorators safely.
 
 ### Available Decorators
 
@@ -1505,7 +1532,7 @@ The guard chain runs globally in this order: `JwtAuthGuard` → `ApiKeyAuthGuard
 | `@KeycloakSSOAuth()` | Swagger documentation only | Adds `ApiBearerAuth` and `ApiUnauthorizedResponse` to OpenAPI spec. **No runtime effect** — JWT is enforced globally |
 | `@Roles(...)` | Requires specific roles | `RolesGuard` checks `request.user.roles` for at least one match. Applies to both JWT and API key users |
 
-> **Identity resolution**: `IdentityGuard` runs after every authenticated request (JWT or API key) and populates `request.resolvedIdentity` with `{ userId }` for JWT users and `{ groupId }` for API key users. This is consumed by service-layer group authorization helpers (`getIdentityGroupIds` and `identityCanAccessGroup` in `identity.helpers.ts`). See [GROUP_RESOURCE_AUTHORIZATION.md](./GROUP_RESOURCE_AUTHORIZATION.md) for details.
+> **Identity resolution**: `IdentityGuard` runs after every authenticated request (JWT or API key) and populates `request.resolvedIdentity` with `{ userId }` for JWT users and `{ userId, groupId }` for API key users. This is consumed by service-layer group authorization helpers.
 
 ### Valid Decorator Combinations
 

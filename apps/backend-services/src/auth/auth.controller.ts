@@ -21,6 +21,8 @@ import {
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
+import { DatabaseService } from "../database/database.service";
+import { GroupService } from "../group/group.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import {
   THROTTLE_AUTH_LIMIT,
@@ -51,6 +53,8 @@ import { User } from "./types";
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly groupService: GroupService,
+    private readonly databaseService: DatabaseService,
     private readonly logger: AppLoggerService,
   ) {}
 
@@ -258,17 +262,22 @@ export class AuthController {
   }
 
   /**
-   * Returns the authenticated user's profile information.
+   * Returns the authenticated user's profile information, including group memberships.
    * Requires a valid access_token cookie or Bearer token.
-   * The frontend uses this to display user info and schedule token refresh.
+   * The frontend uses this to display user info, schedule token refresh, determine
+   * system-admin status, and access available groups with per-group roles.
+   * System-admin users receive all groups in the system.
    */
   @Get("me")
   @ApiOperation({
     summary: "Get current user profile from validated JWT",
+    description:
+      "Returns the user's profile, token expiry, system-admin status, and group memberships with per-group roles. System-admins receive all groups.",
   })
   @ApiOkResponse({
     type: MeResponseDto,
-    description: "Returns current user profile and token expiry",
+    description:
+      "Returns current user profile, token expiry, admin status, and groups with roles",
   })
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({ description: "Invalid token" })
@@ -276,15 +285,20 @@ export class AuthController {
     const user = req.user as User;
     const now = Math.floor(Date.now() / 1000);
     const exp = (user.exp as number) || now;
+    const userId = req.resolvedIdentity?.userId ?? "";
+
+    const isAdmin = await this.databaseService.isUserSystemAdmin(userId);
+    const groups = await this.groupService.getUserGroups(userId, userId);
 
     return {
-      sub: user.sub || "",
+      sub: userId,
       name: (user.name as string) || (user.display_name as string),
       preferred_username:
         (user.preferred_username as string) || (user.idir_username as string),
       email: user.email,
-      roles: user.roles || [],
+      isAdmin,
       expires_in: Math.max(exp - now, 0),
+      groups,
     };
   }
 }

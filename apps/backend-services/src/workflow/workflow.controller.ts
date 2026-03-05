@@ -8,6 +8,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Req,
 } from "@nestjs/common";
 import {
@@ -20,6 +21,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
@@ -51,14 +53,31 @@ export class WorkflowController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "List all workflows for the current user's groups" })
+  @ApiQuery({
+    name: "groupId",
+    required: false,
+    description: "Optional group ID to filter workflows by a specific group",
+  })
   @ApiOkResponse({
     description:
       "Returns the list of workflows belonging to the authenticated user's groups",
     type: WorkflowListResponseDto,
   })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getWorkflows(
+    @Query("groupId") groupId: string | undefined,
     @Req() req: Request,
   ): Promise<{ workflows: WorkflowInfo[] }> {
+    if (groupId) {
+      await identityCanAccessGroup(
+        req.resolvedIdentity,
+        groupId,
+        this.databaseService,
+      );
+      const workflows = await this.workflowService.getGroupWorkflows([groupId]);
+      return { workflows };
+    }
+
     const groupIds = await getIdentityGroupIds(
       req.resolvedIdentity,
       this.databaseService,

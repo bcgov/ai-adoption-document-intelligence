@@ -145,6 +145,46 @@ describe("DocumentController", () => {
         { ...mockDocument, status: "needs_validation", needsReview: true },
       ]);
     });
+
+    it("should filter documents by group_id when provided", async () => {
+      databaseService.findAllDocuments.mockResolvedValue([{ id: "1" } as any]);
+      const result = await controller.getAllDocuments(
+        mockReqWithIdentity as any,
+        mockGroupId,
+      );
+      expect(result).toEqual([{ id: "1" }]);
+      expect(databaseService.isUserInGroup).toHaveBeenCalledWith(
+        "user-1",
+        mockGroupId,
+      );
+      expect(databaseService.findAllDocuments).toHaveBeenCalledWith([
+        mockGroupId,
+      ]);
+    });
+
+    it("should throw ForbiddenException when group_id is provided and user is not a member", async () => {
+      databaseService.isUserInGroup.mockResolvedValue(false);
+      await expect(
+        controller.getAllDocuments(mockReqWithIdentity as any, mockGroupId),
+      ).rejects.toThrow(ForbiddenException);
+      expect(databaseService.findAllDocuments).not.toHaveBeenCalled();
+    });
+
+    it("should return all group documents when group_id is omitted", async () => {
+      databaseService.findAllDocuments.mockResolvedValue([
+        { id: "1" } as any,
+        { id: "2" } as any,
+      ]);
+      const result = await controller.getAllDocuments(
+        mockReqWithIdentity as any,
+        undefined,
+      );
+      expect(result).toEqual([{ id: "1" }, { id: "2" }]);
+      expect(databaseService.getUsersGroups).toHaveBeenCalledWith("user-1");
+      expect(databaseService.findAllDocuments).toHaveBeenCalledWith([
+        mockGroupId,
+      ]);
+    });
   });
 
   describe("getOcrResult", () => {

@@ -39,6 +39,7 @@ export interface ClassificationRequestResponse {
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ClassifierModel } from "@/shared/types/classifier";
+import { useGroup } from "../../auth/GroupContext";
 import { apiService } from "../services/api.service";
 
 interface UploadClassifierDocumentsResponse {
@@ -48,11 +49,15 @@ interface UploadClassifierDocumentsResponse {
 }
 
 export function useClassifier() {
+  const { activeGroup } = useGroup();
+
   const getClassifiers = useQuery({
-    queryKey: ["getClassifiers"],
+    queryKey: ["getClassifiers", activeGroup?.id ?? null],
     queryFn: async (): Promise<ClassifierModel[]> => {
-      const response =
-        await apiService.get<ClassifierModel[]>("/azure/classifier");
+      const endpoint = activeGroup?.id
+        ? `/azure/classifier?group_id=${activeGroup.id}`
+        : "/azure/classifier";
+      const response = await apiService.get<ClassifierModel[]>(endpoint);
       if (response.success && response.data) return response.data;
       throw new Error(response.message || "Failed to fetch classifiers");
     },

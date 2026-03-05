@@ -39,3 +39,13 @@ Allows an authenticated user to cancel their own pending group membership reques
 - `CANCELLED` is distinct from `DENIED`: `CANCELLED` is initiated by the requesting user; `DENIED` is initiated by an admin.
 - On successful cancellation, `status` is set to `CANCELLED`, `actor_id` and `updated_by` are set to the requesting user's ID, and `resolved_at` is set to the current timestamp.
 - `reason` is optional; if not supplied, it remains `null`.
+
+## Frontend UI
+
+Cancellation is exposed in the **My Requests** tab on the Groups page (`/groups`).
+
+- A **Cancel** button is shown only for rows with `PENDING` status.
+- Clicking **Cancel** opens a Mantine `Modal` asking the user to confirm the cancellation.
+- Clicking **Confirm** in the modal calls `PATCH /api/groups/requests/:requestId/cancel` and, on success, closes the modal and invalidates the `my-requests` query so the table refreshes.
+- Clicking **Back** dismisses the modal without making any API call.
+- If the API call fails, a red error notification is shown via `@mantine/notifications`.

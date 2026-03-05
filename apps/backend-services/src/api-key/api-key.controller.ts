@@ -23,6 +23,7 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import {
+  ApiKeyByIdRequestDto,
   ApiKeyInfoDto,
   ApiKeyInfoWrapperDto,
   GenerateApiKeyRequestDto,
@@ -86,8 +87,7 @@ export class ApiKeyController {
     @Req() req: Request,
     @Body() body: GenerateApiKeyRequestDto,
   ): Promise<{ apiKey: GeneratedApiKeyDto }> {
-    const user = req.user;
-    const userId = user?.sub as string;
+    const userId = req.resolvedIdentity?.userId ?? "";
     if (!userId) {
       throw new BadRequestException(
         "User ID is required to generate an API key",
@@ -108,27 +108,34 @@ export class ApiKeyController {
   @Delete()
   @HttpCode(HttpStatus.NO_CONTENT)
   @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Delete the API key for a group" })
-  @ApiBody({ type: GenerateApiKeyRequestDto })
+  @ApiOperation({ summary: "Delete the API key by its ID" })
+  @ApiQuery({
+    name: "id",
+    description: "The ID of the API key to delete",
+  })
   @ApiNoContentResponse({ description: "API key deleted successfully" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   @ApiUnauthorizedResponse({ description: "User is not authenticated" })
   async deleteApiKey(
     @Req() req: Request,
-    @Body() body: GenerateApiKeyRequestDto,
+    @Query("id") id: string,
   ): Promise<void> {
+    if (!id) {
+      throw new BadRequestException("id query parameter is required");
+    }
+    const groupId = await this.apiKeyService.getApiKeyGroupId(id);
     await identityCanAccessGroup(
       req.resolvedIdentity,
-      body.groupId,
+      groupId,
       this.databaseService,
     );
-    await this.apiKeyService.deleteApiKey(body.groupId);
+    await this.apiKeyService.deleteApiKey(id);
   }
 
   @Post("regenerate")
   @KeycloakSSOAuth()
-  @ApiOperation({ summary: "Regenerate the API key for a group" })
-  @ApiBody({ type: GenerateApiKeyRequestDto })
+  @ApiOperation({ summary: "Regenerate the API key by its ID" })
+  @ApiBody({ type: ApiKeyByIdRequestDto })
   @ApiOkResponse({
     description: "Returns the newly generated API key",
     type: GeneratedApiKeyWrapperDto,
@@ -137,24 +144,21 @@ export class ApiKeyController {
   @ApiUnauthorizedResponse({ description: "User is not authenticated" })
   async regenerateApiKey(
     @Req() req: Request,
-    @Body() body: GenerateApiKeyRequestDto,
+    @Body() body: ApiKeyByIdRequestDto,
   ): Promise<{ apiKey: GeneratedApiKeyDto }> {
-    const user = req.user;
-    const userId = user?.sub as string;
+    const userId = req.resolvedIdentity?.userId ?? "";
     if (!userId) {
       throw new BadRequestException(
         "User ID is required to regenerate an API key",
       );
     }
+    const groupId = await this.apiKeyService.getApiKeyGroupId(body.id);
     await identityCanAccessGroup(
       req.resolvedIdentity,
-      body.groupId,
+      groupId,
       this.databaseService,
     );
-    const apiKey = await this.apiKeyService.regenerateApiKey(
-      userId,
-      body.groupId,
-    );
+    const apiKey = await this.apiKeyService.regenerateApiKey(userId, body.id);
     return { apiKey };
   }
 }

@@ -53,7 +53,7 @@ describe("AzureController", () => {
   });
 
   describe("getClassifiers", () => {
-    it("should return classifiers for user groups", async () => {
+    it("should return classifiers for all user groups when group_id is not provided", async () => {
       const mockGroups = [{ group_id: "g1" }, { group_id: "g2" }];
       const mockClassifiers = [
         { id: "c1", group_id: "g1" },
@@ -64,12 +64,36 @@ describe("AzureController", () => {
         .fn()
         .mockResolvedValue(mockClassifiers);
       const req = createMockReq();
-      const result = await controller.getClassifiers(req);
+      const result = await controller.getClassifiers(req, undefined);
       expect(result).toEqual(mockClassifiers);
       expect(databaseService.getUsersGroups).toHaveBeenCalledWith("user1");
       expect(databaseService.getClassifierModelsForGroups).toHaveBeenCalledWith(
         ["g1", "g2"],
       );
+    });
+
+    it("should return classifiers for the specified group when group_id is provided and user is a member", async () => {
+      const mockClassifiers = [{ id: "c1", group_id: "g1" }];
+      databaseService.isUserInGroup = jest.fn().mockResolvedValue(true);
+      databaseService.getClassifierModelsForGroups = jest
+        .fn()
+        .mockResolvedValue(mockClassifiers);
+      const req = createMockReq();
+      const result = await controller.getClassifiers(req, "g1");
+      expect(result).toEqual(mockClassifiers);
+      expect(databaseService.isUserInGroup).toHaveBeenCalledWith("user1", "g1");
+      expect(databaseService.getClassifierModelsForGroups).toHaveBeenCalledWith(
+        ["g1"],
+      );
+    });
+
+    it("should throw ForbiddenException when group_id is provided and user is not a member", async () => {
+      databaseService.isUserInGroup = jest.fn().mockResolvedValue(false);
+      const req = createMockReq();
+      await expect(controller.getClassifiers(req, "g1")).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(databaseService.isUserInGroup).toHaveBeenCalledWith("user1", "g1");
     });
   });
   describe("createClassifier", () => {

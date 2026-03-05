@@ -37,6 +37,23 @@ export class ApiKeyService {
     };
   }
 
+  /**
+   * Looks up an API key record by its ID and returns the associated group ID.
+   * Throws NotFoundException when no matching key exists.
+   *
+   * @param keyId - The UUID of the API key record.
+   * @returns The group ID the key belongs to.
+   */
+  async getApiKeyGroupId(keyId: string): Promise<string> {
+    const apiKey = await this.prisma.apiKey.findUnique({
+      where: { id: keyId },
+    });
+    if (!apiKey) {
+      throw new NotFoundException("No API key found with this ID");
+    }
+    return apiKey.group_id;
+  }
+
   async generateApiKey(
     userId: string,
     groupId: string,
@@ -72,20 +89,21 @@ export class ApiKeyService {
     };
   }
 
-  async deleteApiKey(groupId: string): Promise<void> {
-    const deleted = await this.prisma.apiKey.deleteMany({
-      where: { group_id: groupId },
+  async deleteApiKey(keyId: string): Promise<void> {
+    const deleted = await this.prisma.apiKey.delete({
+      where: { id: keyId },
     });
-    if (deleted.count === 0) {
-      throw new NotFoundException("No API key found for this group");
+    if (!deleted) {
+      throw new NotFoundException("No API key found with this ID");
     }
-    this.logger.log(`API key(s) deleted for group ${groupId}`);
+    this.logger.log(`API key ${keyId} deleted`);
   }
 
   async regenerateApiKey(
     userId: string,
-    groupId: string,
+    keyId: string,
   ): Promise<GeneratedApiKeyDto> {
+    const groupId = await this.getApiKeyGroupId(keyId);
     return this.generateApiKey(userId, groupId);
   }
 

@@ -9,9 +9,11 @@ import { ApiKeyService } from "./api-key.service";
 // Mock Prisma
 const mockPrismaApiKey = {
   findFirst: jest.fn(),
+  findUnique: jest.fn(),
   findMany: jest.fn(),
   create: jest.fn(),
   deleteMany: jest.fn(),
+  delete: jest.fn(),
   update: jest.fn(),
 };
 const mockPrismaService = {
@@ -130,19 +132,41 @@ describe("ApiKeyService", () => {
     });
   });
 
-  describe("deleteApiKey", () => {
-    it("should throw NotFoundException if no key exists", async () => {
-      mockPrismaApiKey.deleteMany.mockResolvedValue({ count: 0 });
-      await expect(service.deleteApiKey("group123")).rejects.toThrow(
+  describe("getApiKeyGroupId", () => {
+    it("should return the group ID for a valid key", async () => {
+      mockPrismaApiKey.findUnique.mockResolvedValue({
+        id: "key123",
+        group_id: "group123",
+      });
+
+      const result = await service.getApiKeyGroupId("key123");
+
+      expect(result).toBe("group123");
+      expect(mockPrismaApiKey.findUnique).toHaveBeenCalledWith({
+        where: { id: "key123" },
+      });
+    });
+
+    it("should throw NotFoundException when key does not exist", async () => {
+      mockPrismaApiKey.findUnique.mockResolvedValue(null);
+
+      await expect(service.getApiKeyGroupId("missing")).rejects.toThrow(
         NotFoundException,
       );
     });
+  });
 
-    it("should delete existing key", async () => {
-      mockPrismaApiKey.deleteMany.mockResolvedValue({ count: 1 });
-      await service.deleteApiKey("group123");
-      expect(mockPrismaApiKey.deleteMany).toHaveBeenCalledWith({
-        where: { group_id: "group123" },
+  describe("deleteApiKey", () => {
+    it("should throw NotFoundException if no key exists", async () => {
+      mockPrismaApiKey.delete.mockRejectedValue({ code: "P2025" });
+      await expect(service.deleteApiKey("key123")).rejects.toBeDefined();
+    });
+
+    it("should delete a key by its ID", async () => {
+      mockPrismaApiKey.delete.mockResolvedValue({ id: "key123" });
+      await service.deleteApiKey("key123");
+      expect(mockPrismaApiKey.delete).toHaveBeenCalledWith({
+        where: { id: "key123" },
       });
     });
   });

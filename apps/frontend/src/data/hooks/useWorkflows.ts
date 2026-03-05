@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useGroup } from "../../auth/GroupContext";
 import { GraphWorkflowConfig } from "../../types/workflow";
 import { apiService } from "../services/api.service";
 
@@ -29,10 +30,15 @@ interface WorkflowResponse {
 }
 
 export function useWorkflows() {
+  const { activeGroup } = useGroup();
+
   return useQuery({
-    queryKey: ["workflows"],
+    queryKey: ["workflows", activeGroup?.id],
     queryFn: async (): Promise<WorkflowInfo[]> => {
-      const response = await apiService.get<WorkflowsResponse>("/workflows");
+      const url = activeGroup?.id
+        ? `/workflows?groupId=${activeGroup.id}`
+        : "/workflows";
+      const response = await apiService.get<WorkflowsResponse>(url);
       if (!response.success) {
         throw new Error(response.message || "Failed to fetch workflows");
       }
@@ -59,13 +65,17 @@ export function useWorkflow(id: string) {
 
 export function useCreateWorkflow() {
   const queryClient = useQueryClient();
+  const { activeGroup } = useGroup();
 
   return useMutation({
     mutationFn: async (dto: CreateWorkflowDto): Promise<WorkflowInfo> => {
-      const response = await apiService.post<WorkflowResponse>(
-        "/workflows",
-        dto,
-      );
+      if (!activeGroup) {
+        throw new Error("No active group selected");
+      }
+      const response = await apiService.post<WorkflowResponse>("/workflows", {
+        ...dto,
+        groupId: activeGroup.id,
+      });
       if (!response.success || !response.data) {
         throw new Error(response.message || "Failed to create workflow");
       }

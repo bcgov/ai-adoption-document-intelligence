@@ -12,6 +12,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   Res,
 } from "@nestjs/common";
@@ -24,6 +25,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
@@ -185,20 +187,42 @@ export class DocumentController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({ summary: "Get all documents" })
+  @ApiQuery({
+    name: "group_id",
+    required: false,
+    description:
+      "Filter documents by group ID. When provided, only documents belonging to this group are returned.",
+  })
   @ApiOkResponse({
     description: "Returns a list of all documents",
     type: [DocumentDataDto],
   })
+  @ApiForbiddenResponse({
+    description: "Access denied: not a member of the specified group",
+  })
   async getAllDocuments(
     @Req() req: Request,
+    @Query("group_id") groupId?: string,
   ): Promise<(DocumentData & { needsReview?: boolean })[]> {
     this.logger.debug("=== DocumentController.getAllDocuments ===");
 
-    try {
-      const groupIds = await getIdentityGroupIds(
+    let groupIds: string[] | undefined;
+
+    if (groupId !== undefined) {
+      await identityCanAccessGroup(
+        req.resolvedIdentity,
+        groupId,
+        this.databaseService,
+      );
+      groupIds = [groupId];
+    } else {
+      groupIds = await getIdentityGroupIds(
         req.resolvedIdentity,
         this.databaseService,
       );
+    }
+
+    try {
       const documents = await this.databaseService.findAllDocuments(groupIds);
 
       // Check workflow status for documents that have workflow_execution_id
