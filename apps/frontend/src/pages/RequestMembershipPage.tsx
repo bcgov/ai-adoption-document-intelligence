@@ -14,7 +14,6 @@ import {
   IconCircleCheck,
   IconLogout,
   IconUsers,
-  IconUsersGroup,
 } from "@tabler/icons-react";
 import type { JSX } from "react";
 import { useAuth } from "../auth/AuthContext";

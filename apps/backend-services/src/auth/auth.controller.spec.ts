@@ -3,6 +3,8 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { Request, Response } from "express";
 import { DatabaseService } from "../database/database.service";
 import { GroupService } from "../group/group.service";
+import { DatabaseService } from "../database/database.service";
+import { GroupService } from "../group/group.service";
 import { AuthController } from "./auth.controller";
 import { AuthService, LoginUrlResult } from "./auth.service";
 import { AUTH_COOKIE_NAMES, COOKIE_OPTIONS } from "./cookie-auth.utils";
@@ -13,6 +15,8 @@ import { User } from "./types";
 describe("AuthController", () => {
   let controller: AuthController;
   let authService: jest.Mocked<AuthService>;
+  let groupService: jest.Mocked<GroupService>;
+  let databaseService: jest.Mocked<Pick<DatabaseService, "isUserSystemAdmin">>;
   let groupService: jest.Mocked<GroupService>;
   let databaseService: jest.Mocked<Pick<DatabaseService, "isUserSystemAdmin">>;
   let res: jest.Mocked<Response>;
@@ -39,6 +43,15 @@ describe("AuthController", () => {
       isUserSystemAdmin: jest.fn().mockResolvedValue(false),
     } as unknown as jest.Mocked<Pick<DatabaseService, "isUserSystemAdmin">>;
 
+    groupService = {
+      getUserGroups: jest.fn().mockResolvedValue([]),
+      getAllGroups: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<GroupService>;
+
+    databaseService = {
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    } as unknown as jest.Mocked<Pick<DatabaseService, "isUserSystemAdmin">>;
+
     res = {
       redirect: jest.fn(),
       status: jest.fn().mockReturnThis(),
@@ -54,6 +67,11 @@ describe("AuthController", () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
+      providers: [
+        { provide: AuthService, useValue: authService },
+        { provide: GroupService, useValue: groupService },
+        { provide: DatabaseService, useValue: databaseService },
+      ],
       providers: [
         { provide: AuthService, useValue: authService },
         { provide: GroupService, useValue: groupService },
@@ -361,11 +379,13 @@ describe("AuthController", () => {
         isAdmin: false,
         expires_in: expect.any(Number),
         groups: userGroups,
+        groups: userGroups,
       });
       expect(result.expires_in).toBeGreaterThan(0);
       expect(result.expires_in).toBeLessThanOrEqual(3600);
     });
 
+    it("should return empty groups array for user with no memberships", async () => {
     it("should return empty groups array for user with no memberships", async () => {
       const user: User = {
         sub: "user-456",
@@ -424,6 +444,7 @@ describe("AuthController", () => {
       const result = await controller.getMe(req as Request);
 
       expect(result.expires_in).toBe(0);
+      expect(result.groups).toEqual([]);
       expect(result.groups).toEqual([]);
     });
   });

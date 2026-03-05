@@ -143,6 +143,15 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 │  │                              │                                      │    │
 │  │                              ▼                                      │    │
 │  │  ┌────────────────────────────────────────────────────────────┐   │    │
+│  │  │        IdentityGuard (Identity Resolution)                  │   │    │
+│  │  │  - Resolves requestor identity after authentication         │   │    │
+│  │  │  - JWT: sets resolvedIdentity.userId from request.user.sub  │   │    │
+│  │  │  - API key: sets resolvedIdentity.groupId from apiKeyGroupId│   │    │
+│  │  │  - Always returns true (never blocks requests)              │   │    │
+│  │  └────────────────────────────────────────────────────────────┘   │    │
+│  │                              │                                      │    │
+│  │                              ▼                                      │    │
+│  │  ┌────────────────────────────────────────────────────────────┐   │    │
 │  │  │        RolesGuard (RBAC Enforcement)                        │   │    │
 │  │  │  - Reads @Roles decorator metadata                          │   │    │
 │  │  │  - Validates request.user.roles against required roles      │   │    │
@@ -233,10 +242,12 @@ apps/backend-services/src/auth/
 ├── keycloak-jwt.strategy.ts    # Passport JWT strategy (cookie-first extraction)
 ├── jwt-auth.guard.ts           # Passport-based auth guard (cookie-first, Bearer fallback)
 ├── api-key-auth.guard.ts       # API key validation guard with failed-attempt throttling
+├── identity.guard.ts           # Identity resolution guard — attaches ResolvedIdentity to request
+├── identity.helpers.ts         # Authorization helpers — getIdentityGroupIds() and identityCanAccessGroup()
 ├── roles.guard.ts              # RBAC enforcement guard
 ├── public.decorator.ts         # @Public() metadata
 ├── roles.decorator.ts          # @Roles(...) metadata
-├── types.ts                    # User interface and Express augmentation
+├── types.ts                    # User and ResolvedIdentity interfaces, Express Request augmentation
 └── dto/
     ├── index.ts                      # Barrel export
     ├── token-response.dto.ts         # Keycloak token response structure
@@ -361,13 +372,22 @@ async getMe(@Req() req: Request): Promise<MeResponseDto> {
     ? await this.groupService.getAllGroups()
     : await this.groupService.getUserGroups(userId);
 
+  const userId = user.sub || "";
+
+  const isAdmin = await this.databaseService.isUserSystemAdmin(userId);
+  const groups = isAdmin
+    ? await this.groupService.getAllGroups()
+    : await this.groupService.getUserGroups(userId);
+
   return {
+    sub: userId,
     sub: userId,
     name: (user.name as string) || (user.display_name as string),
     preferred_username: (user.preferred_username as string) || (user.idir_username as string),
     email: user.email,
     roles: user.roles || [],
     expires_in: Math.max(exp - now, 0),
+    groups,  // all groups for system-admin, otherwise user's memberships
     groups,  // all groups for system-admin, otherwise user's memberships
   };
 }
@@ -717,6 +737,10 @@ export class AppModule {}
     },
     {
       provide: APP_GUARD,
+      useClass: IdentityGuard,  // Resolves requestor identity onto request.resolvedIdentity
+    },
+    {
+      provide: APP_GUARD,
       useClass: RolesGuard,  // Enforces @Roles decorator
     },
     {
@@ -732,6 +756,10 @@ export class AuthModule {}
 **Guard Execution Order:**
 1. `ThrottlerGuard` → Enforces per-IP rate limits (global default or per-route override)
 2. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
+3. `ApiKeyAuthGuard` → Checks per-IP failed-attempt limit (configurable, default 20/min) → Validates API key (if applicable) → Sets `request.user` and `request.apiKeyGroupId`
+4. `IdentityGuard` → Resolves requestor identity from `request.user` → Sets `request.resolvedIdentity` (includes `userId`; includes `groupId` for API key auth)
+5. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
+6. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
 3. `ApiKeyAuthGuard` → Checks per-IP failed-attempt limit (configurable, default 20/min) → Validates API key (if applicable) → Sets `request.user` and `request.apiKeyGroupId`
 4. `IdentityGuard` → Resolves requestor identity from `request.user` → Sets `request.resolvedIdentity` (includes `userId`; includes `groupId` for API key auth)
 5. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
@@ -948,6 +976,7 @@ const fetchMe = useCallback(async (): Promise<AuthUser | null> => {
 **How It Works:**
 1. Browser automatically sends auth cookies with the request
 2. Backend's `JwtAuthGuard` validates the `access_token` cookie
+3. If valid, returns `MeResponseDto` with user profile, `expires_in`, and `groups` (the user's group memberships, or all groups for system-admins)
 3. If valid, returns `MeResponseDto` with user profile, `expires_in`, and `groups` (the user's group memberships, or all groups for system-admins)
 4. `meResponseToUser()` computes `expires_at` from `expires_in` and builds the `AuthUser` object
 5. If invalid/missing, returns 401 and frontend shows logged-out state
@@ -1454,10 +1483,44 @@ The `KeycloakJwtStrategy` normalizes these into `request.user.roles`:
 user.roles = ["user", "offline_access", "document-editor", "workflow-viewer"]
 ```
 
+### Group-Scoped Authorization
+
+In addition to RBAC (role-based access control), the system enforces **group-scoped authorization** on all primary resources. Every resource (document, workflow, OCR result, HITL session, etc.) has a `group_id` foreign key, and access is restricted to identities that belong to the resource's group.
+
+#### Identity Resolution
+
+The `IdentityGuard` (global guard, position 4) runs after authentication and attaches a `ResolvedIdentity` to `request.resolvedIdentity`. Exactly one of `userId` or `groupId` is set per authenticated request:
+
+| Auth Method | Identity Field | Group Resolution |
+|------------|---------------|-----------------|
+| JWT (Keycloak SSO) | `resolvedIdentity.userId` | Service layer queries `UserGroup` table for the user's group memberships |
+| API Key | `resolvedIdentity.groupId` | Key is group-scoped — `groupId` is the only group the key can access |
+
+#### Authorization Helpers
+
+Two shared helpers in `identity.helpers.ts` are used by controllers to enforce group access:
+
+**`getIdentityGroupIds(identity, db)`** — Returns the list of group IDs the identity can access, or `undefined` for system-admins (unrestricted access). Used by list/query endpoints to filter results.
+
+- **API key** → `[identity.groupId]`
+- **JWT system-admin** → `undefined` (no group filter — sees all records)
+- **JWT regular user** → user's group IDs from `UserGroup` table
+
+**`identityCanAccessGroup(identity, groupId, db)`** — Asserts that the identity can access a specific group. Throws HTTP exceptions on failure. Used by single-resource endpoints after fetching the resource's `group_id`.
+
+- `groupId === null` → `404 Not Found` (orphaned record)
+- No identity → `403 Forbidden`
+- API key group mismatch → `403 Forbidden`
+- JWT user not in group → `403 Forbidden`
+- JWT system-admin → always allowed
+
+See [GROUP_RESOURCE_AUTHORIZATION.md](./GROUP_RESOURCE_AUTHORIZATION.md) for the full controller-by-controller coverage.
+
 ---
 
 ## Decorator Composition Rules
 
+The guard chain runs globally in this order: `JwtAuthGuard` → `ApiKeyAuthGuard` → `IdentityGuard` → `RolesGuard` → `CsrfGuard`. Decorators control which guards activate. The following rules define how to combine decorators safely.
 The guard chain runs globally in this order: `JwtAuthGuard` → `ApiKeyAuthGuard` → `IdentityGuard` → `RolesGuard` → `CsrfGuard`. Decorators control which guards activate. The following rules define how to combine decorators safely.
 
 ### Available Decorators
@@ -1588,8 +1651,9 @@ export class WebhookController {
 3. `ApiKeyAuthGuard` checks if user is already authenticated (e.g., via JWT) — if so, skips API key validation
 4. If no `X-API-Key` header is provided and no user is authenticated, rejects with `401 Unauthorized` — this prevents unauthenticated access on endpoints decorated only with `@ApiKeyAuth()`
 5. Validates the API key against the database (prefix lookup + bcrypt comparison)
-6. Sets `request.user` with user info and roles from the API key record
-7. `RolesGuard` can enforce roles — API keys inherit the creating user's roles at generation time
+6. Sets `request.user` with user info and roles from the API key record, and sets `request.apiKeyGroupId` to the key's owning group ID
+7. `IdentityGuard` resolves `request.resolvedIdentity = { groupId: request.apiKeyGroupId }` — the key is group-scoped
+8. `RolesGuard` can enforce roles — API keys inherit the creating user's roles at generation time
 
 **Role Inheritance:**
 
@@ -1651,12 +1715,16 @@ model ApiKey {
   id         String    @id @default(cuid())
   key_hash   String    @unique
   key_prefix String
-  user_id    String    @unique
+  user_id    String
   user_email String
+  group_id   String
   roles      String[]  @default([])
   created_at DateTime  @default(now())
   last_used  DateTime?
 
+  group      Group     @relation(fields: [group_id], references: [id])
+
+  @@unique([group_id])
   @@map("api_keys")
 }
 ```
@@ -1665,16 +1733,18 @@ model ApiKey {
 |--------------|----------------------------------------------------------------|
 | `key_hash`   | Bcrypt hash of the full API key — used for authentication      |
 | `key_prefix` | First 8 chars of the key in plaintext — used for indexed lookup |
-| `user_id`    | Unique constraint ensures one API key per user                 |
+| `user_id`    | The user who generated the key                                 |
+| `group_id`   | Unique constraint ensures one API key per group — the key is scoped to this group |
 | `roles`      | Snapshot of the user's Keycloak roles at key generation time   |
 | `last_used`  | Updated on each successful validation                          |
 
 ### Key Lifecycle
 
-- **One key per user** — generating a new key when one exists requires deletion or regeneration
-- **Regeneration** deletes the old key and creates a new one, capturing the user's current roles
+- **One key per group** — each group can have one active API key. Generating a new key when one exists requires deletion or regeneration
+- **Regeneration** deletes the old key and creates a new one, capturing the requesting user's current roles
 - **Full key shown once** — after generation, only the `key_prefix` is visible for identification
 - **Roles are static** — to update roles on an API key after a user's Keycloak roles change, regenerate the key
+- **Group-scoped** — API key requests can only access resources belonging to the key's group
 
 ---
 
