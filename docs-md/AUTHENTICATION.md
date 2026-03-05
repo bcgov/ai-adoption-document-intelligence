@@ -146,7 +146,7 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 │  │  │        IdentityGuard (Identity Resolution)                  │   │    │
 │  │  │  - Resolves requestor identity after authentication         │   │    │
 │  │  │  - JWT: sets resolvedIdentity.userId from request.user.sub  │   │    │
-│  │  │  - API key: sets resolvedIdentity.groupId from apiKeyGroupId│   │    │
+│  │  │  - API key + @Identity: sets isSystemAdmin=false, groupRoles│   │    │
 │  │  │  - Always returns true (never blocks requests)              │   │    │
 │  │  └────────────────────────────────────────────────────────────┘   │    │
 │  │                              │                                      │    │
@@ -744,7 +744,7 @@ export class AuthModule {}
 1. `ThrottlerGuard` → Enforces per-IP rate limits (global default or per-route override)
 2. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
 3. `ApiKeyAuthGuard` → Checks per-IP failed-attempt limit (configurable, default 20/min) → Validates API key (if applicable) → Sets `request.user` and `request.apiKeyGroupId`
-4. `IdentityGuard` → Resolves requestor identity from `request.user` → Sets `request.resolvedIdentity` (includes `userId`; includes `groupId` for API key auth)
+4. `IdentityGuard` → Resolves requestor identity → Sets `request.resolvedIdentity` (`{ userId }` for JWT; `{ isSystemAdmin: false, groupRoles }` for API key when `@Identity` is present)
 5. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
 6. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
 
@@ -1513,7 +1513,7 @@ The guard chain runs globally in this order: `JwtAuthGuard` → `ApiKeyAuthGuard
 | `@KeycloakSSOAuth()` | Swagger documentation only | Adds `ApiBearerAuth` and `ApiUnauthorizedResponse` to OpenAPI spec. **No runtime effect** — JWT is enforced globally |
 | `@Roles(...)` | Requires specific roles | `RolesGuard` checks `request.user.roles` for at least one match. Applies to both JWT and API key users |
 
-> **Identity resolution**: `IdentityGuard` runs after every authenticated request (JWT or API key) and populates `request.resolvedIdentity` with `{ userId }` for JWT users and `{ userId, groupId }` for API key users. This is consumed by service-layer group authorization helpers.
+> **Identity resolution**: `IdentityGuard` runs after every authenticated request. For JWT users it sets `{ userId }`. For API key users it sets `{ isSystemAdmin: false, groupRoles: { [groupId]: GroupRole.MEMBER } }` when the handler has `@Identity`, otherwise sets `{}`. This is consumed by service-layer group authorization helpers.
 
 ### Valid Decorator Combinations
 
@@ -1633,7 +1633,7 @@ export class WebhookController {
 4. If no `X-API-Key` header is provided and no user is authenticated, rejects with `401 Unauthorized` — this prevents unauthenticated access on endpoints decorated only with `@ApiKeyAuth()`
 5. Validates the API key against the database (prefix lookup + bcrypt comparison)
 6. Sets `request.user` with user info and roles from the API key record, and sets `request.apiKeyGroupId` to the key's owning group ID
-7. `IdentityGuard` resolves `request.resolvedIdentity = { groupId: request.apiKeyGroupId }` — the key is group-scoped
+7. `IdentityGuard` resolves — when `@Identity` is present on the handler: `request.resolvedIdentity = { isSystemAdmin: false, groupRoles: { [apiKeyGroupId]: GroupRole.MEMBER } }`; when absent: `request.resolvedIdentity = {}`
 8. `RolesGuard` can enforce roles — API keys inherit the creating user's roles at generation time
 
 **Role Inheritance:**

@@ -1,6 +1,7 @@
+import { GroupRole } from "@generated/client";
 import { ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { GroupRole } from "@generated/client";
+import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
 import { IdentityGuard } from "./identity.guard";
 
 describe("IdentityGuard", () => {
@@ -19,9 +20,27 @@ describe("IdentityGuard", () => {
       getClass: () => ({}),
     }) as unknown as ExecutionContext;
 
+  /**
+   * Creates a Reflector mock that returns the given IdentityOptions for
+   * IDENTITY_KEY and `true` for the isPublic key.
+   */
+  const createReflectorWithIdentity = (
+    identityOptions: IdentityOptions = {},
+  ): Reflector =>
+    ({
+      getAllAndOverride: jest
+        .fn()
+        .mockImplementation((key: string) =>
+          key === IDENTITY_KEY ? identityOptions : true,
+        ),
+    }) as unknown as Reflector;
+
   beforeEach(() => {
     reflector = {
-      getAllAndOverride: jest.fn().mockReturnValue(true),
+      getAllAndOverride: jest.fn().mockImplementation((key: string) => {
+        if (key === "isPublic") return true;
+        return undefined; // No @Identity by default
+      }),
     } as unknown as Reflector;
     guard = new IdentityGuard(reflector);
   });
@@ -57,16 +76,18 @@ describe("IdentityGuard", () => {
   // Scenario 2: API key authentication
   // ---------------------------------------------------------------------------
 
-  it("should set resolvedIdentity with groupRoles for an API-key-authenticated request", () => {
+  it("should set resolvedIdentity with groupRoles and isSystemAdmin for an API-key-authenticated request when @Identity is present", () => {
+    const identityGuard = new IdentityGuard(createReflectorWithIdentity());
     const request: Record<string, unknown> = {
       // No request.user — API key auth does not set a user object
       apiKeyGroupId: "group-abc",
     };
 
-    const result = guard.canActivate(createContext(request));
+    const result = identityGuard.canActivate(createContext(request));
 
     expect(result).toBe(true);
     expect(request.resolvedIdentity).toEqual({
+      isSystemAdmin: false,
       groupRoles: { "group-abc": GroupRole.MEMBER },
     });
   });
@@ -83,18 +104,61 @@ describe("IdentityGuard", () => {
     ).toBeUndefined();
   });
 
-  it("should prefer API key path over JWT path when apiKeyGroupId is set", () => {
+  it("should prefer API key path over JWT path when apiKeyGroupId is set and @Identity is present", () => {
+    const identityGuard = new IdentityGuard(createReflectorWithIdentity());
     // Edge case: both present (should not happen in practice, but guard should be deterministic)
     const request: Record<string, unknown> = {
       user: { sub: "some-user" },
       apiKeyGroupId: "group-id",
     };
 
-    guard.canActivate(createContext(request));
+    identityGuard.canActivate(createContext(request));
 
     expect(request.resolvedIdentity).toEqual({
+      isSystemAdmin: false,
       groupRoles: { "group-id": GroupRole.MEMBER },
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-003: API key enrichment controlled by @Identity presence
+  // ---------------------------------------------------------------------------
+
+  it("should set isSystemAdmin to false when @Identity is present and request uses an API key", () => {
+    const identityGuard = new IdentityGuard(createReflectorWithIdentity());
+    const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
+
+    identityGuard.canActivate(createContext(request));
+
+    expect(
+      (request.resolvedIdentity as { isSystemAdmin?: boolean }).isSystemAdmin,
+    ).toBe(false);
+  });
+
+  it("should set groupRoles with the scoped group as MEMBER when @Identity is present and request uses an API key", () => {
+    const identityGuard = new IdentityGuard(createReflectorWithIdentity());
+    const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
+
+    identityGuard.canActivate(createContext(request));
+
+    expect(
+      (request.resolvedIdentity as { groupRoles?: Record<string, GroupRole> })
+        .groupRoles,
+    ).toEqual({ "group-123": GroupRole.MEMBER });
+  });
+
+  it("should not set isSystemAdmin or groupRoles when @Identity is absent and request uses an API key", () => {
+    // Default guard has no @Identity in reflector mock
+    const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
+
+    guard.canActivate(createContext(request));
+
+    const identity = request.resolvedIdentity as {
+      isSystemAdmin?: boolean;
+      groupRoles?: Record<string, GroupRole>;
+    };
+    expect(identity.isSystemAdmin).toBeUndefined();
+    expect(identity.groupRoles).toBeUndefined();
   });
 
   // ---------------------------------------------------------------------------
