@@ -81,7 +81,7 @@ describe("WorkflowController", () => {
   describe("getWorkflows", () => {
     it("returns empty array when no identity is set", async () => {
       const req = { resolvedIdentity: undefined } as Request;
-      const result = await controller.getWorkflows(req);
+      const result = await controller.getWorkflows(undefined, req);
       expect(result).toEqual({ workflows: [] });
       expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
     });
@@ -89,7 +89,7 @@ describe("WorkflowController", () => {
     it("returns empty array when user belongs to no groups", async () => {
       const req = { resolvedIdentity: { userId: "user-1" } } as Request;
       (databaseService.getUsersGroups as jest.Mock).mockResolvedValueOnce([]);
-      const result = await controller.getWorkflows(req);
+      const result = await controller.getWorkflows(undefined, req);
       expect(result).toEqual({ workflows: [] });
       expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
     });
@@ -97,7 +97,7 @@ describe("WorkflowController", () => {
     it("returns workflows for the user's groups", async () => {
       const req = { resolvedIdentity: { userId: "user-1" } } as Request;
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
-      const result = await controller.getWorkflows(req);
+      const result = await controller.getWorkflows(undefined, req);
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
       expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith([
         "group-1",
@@ -107,7 +107,7 @@ describe("WorkflowController", () => {
     it("returns workflows for an API key's group", async () => {
       const req = { resolvedIdentity: { groupId: "group-1" } } as Request;
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
-      const result = await controller.getWorkflows(req);
+      const result = await controller.getWorkflows(undefined, req);
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
       expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith([
         "group-1",

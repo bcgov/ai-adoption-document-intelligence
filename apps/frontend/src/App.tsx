@@ -25,10 +25,13 @@ import {
   IconUpload,
 } from "@tabler/icons-react";
 import { JSX, useMemo, useState } from "react";
+import { Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext";
+import { MembershipPageGuard, NoGroupGuard } from "./auth/NoGroupGuard";
 import "./App.css";
 import { Login } from "./components";
 import { DocumentViewerModal } from "./components/document/DocumentViewerModal";
+import { GroupSelector } from "./components/group/GroupSelector";
 import { ProcessingQueue } from "./components/queue/ProcessingQueue";
 import { DocumentUploadPanel } from "./components/upload/DocumentUploadPanel";
 import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
@@ -37,6 +40,7 @@ import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/Labe
 import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
 import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
 import ClassifierPage from "./pages/ClassifierPage";
+import { RequestMembershipPage } from "./pages/RequestMembershipPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
@@ -55,8 +59,8 @@ type WorkflowView = "list" | "create" | "edit";
 const NAV_EXPANDED = 240;
 const NAV_COLLAPSED = 72;
 
-function AppContent(): JSX.Element {
-  const { isAuthenticated, isLoading, logout, user } = useAuth();
+function MainApp(): JSX.Element {
+  const { logout, user } = useAuth();
   const [activeView, setActiveView] = useState<MainView>("upload");
   const [workflowView, setWorkflowView] = useState<WorkflowView>("list");
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
@@ -131,19 +135,6 @@ function AppContent(): JSX.Element {
     setViewerOpened(true);
   };
 
-  if (isLoading) {
-    return (
-      <Stack align="center" justify="center" mih="100vh">
-        <Title order={3}>Loading…</Title>
-        <Text c="dimmed">Checking authentication status</Text>
-      </Stack>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Login />;
-  }
-
   return (
     <>
       <AppShell
@@ -167,6 +158,7 @@ function AppContent(): JSX.Element {
               </Badge>
             </Group>
             <Group>
+              <GroupSelector />
               <Stack gap={0}>
                 <Text size="sm" fw={600}>
                   {user?.profile?.name ?? "Authenticated user"}
@@ -371,6 +363,44 @@ function AppContent(): JSX.Element {
         onClose={() => setViewerOpened(false)}
       />
     </>
+  );
+}
+
+function AppContent(): JSX.Element {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <Stack align="center" justify="center" mih="100vh">
+        <Title order={3}>Loading…</Title>
+        <Text c="dimmed">Checking authentication status</Text>
+      </Stack>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
+  return (
+    <Routes>
+      <Route
+        path="/request-membership"
+        element={
+          <MembershipPageGuard>
+            <RequestMembershipPage />
+          </MembershipPageGuard>
+        }
+      />
+      <Route
+        path="*"
+        element={
+          <NoGroupGuard>
+            <MainApp />
+          </NoGroupGuard>
+        }
+      />
+    </Routes>
   );
 }
 

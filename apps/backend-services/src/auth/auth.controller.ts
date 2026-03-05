@@ -22,6 +22,8 @@ import {
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
+import { DatabaseService } from "../database/database.service";
+import { GroupService } from "../group/group.service";
 import {
   THROTTLE_AUTH_LIMIT,
   THROTTLE_AUTH_REFRESH_LIMIT,
@@ -50,7 +52,11 @@ import { User } from "./types";
 @Controller("api/auth")
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly groupService: GroupService,
+    private readonly databaseService: DatabaseService,
+  ) {}
 
   /**
    * Refreshes provider tokens using the refresh_token HttpOnly cookie.
@@ -256,17 +262,21 @@ export class AuthController {
   }
 
   /**
-   * Returns the authenticated user's profile information.
+   * Returns the authenticated user's profile information, including group memberships.
    * Requires a valid access_token cookie or Bearer token.
-   * The frontend uses this to display user info and schedule token refresh.
+   * The frontend uses this to display user info, schedule token refresh, and
+   * determine available groups without making an additional API call.
+   * System-admin users receive all groups in the system.
    */
   @Get("me")
   @ApiOperation({
     summary: "Get current user profile from validated JWT",
+    description:
+      "Returns the user's profile, token expiry, and group memberships. System-admins receive all groups.",
   })
   @ApiOkResponse({
     type: MeResponseDto,
-    description: "Returns current user profile and token expiry",
+    description: "Returns current user profile, token expiry, and groups",
   })
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({ description: "Invalid token" })
@@ -274,15 +284,22 @@ export class AuthController {
     const user = req.user as User;
     const now = Math.floor(Date.now() / 1000);
     const exp = (user.exp as number) || now;
+    const userId = user.sub || "";
+
+    const isAdmin = await this.databaseService.isUserSystemAdmin(userId);
+    const groups = isAdmin
+      ? await this.groupService.getAllGroups()
+      : await this.groupService.getUserGroups(userId);
 
     return {
-      sub: user.sub || "",
+      sub: userId,
       name: (user.name as string) || (user.display_name as string),
       preferred_username:
         (user.preferred_username as string) || (user.idir_username as string),
       email: user.email,
       roles: user.roles || [],
       expires_in: Math.max(exp - now, 0),
+      groups,
     };
   }
 }

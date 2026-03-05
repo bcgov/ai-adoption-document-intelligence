@@ -26,6 +26,7 @@ import {
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
 import {
@@ -77,13 +78,27 @@ export class AzureController {
   @ApiOperation({
     summary: "Get classifiers for user groups",
     description:
-      "Retrieves all classifiers for the groups the user belongs to.",
+      "Retrieves classifiers for the specified group, or all groups the user belongs to when no group_id is provided.",
+  })
+  @ApiQuery({
+    name: "group_id",
+    required: false,
+    description:
+      "Optional group ID to filter classifiers. When provided, only classifiers for that group are returned and access is validated.",
   })
   @ApiCreatedResponse({
     description: "Classifiers retrieved successfully",
     type: [ClassifierModelResponseDto],
   })
-  async getClassifiers(@Request() req) {
+  async getClassifiers(@Request() req, @Query("group_id") groupId?: string) {
+    if (groupId) {
+      await identityCanAccessGroup(
+        req.resolvedIdentity,
+        groupId,
+        this.databaseService,
+      );
+      return this.databaseService.getClassifierModelsForGroups([groupId]);
+    }
     const groupIds = await getIdentityGroupIds(
       req.resolvedIdentity,
       this.databaseService,

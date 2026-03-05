@@ -236,7 +236,7 @@ describe("removeUserFromGroup", () => {
       );
     });
 
-    it("should return silently when user is already a member", async () => {
+    it("should throw when user is already a member", async () => {
       const createRequest = jest.fn();
       const databaseService = {
         prisma: {
@@ -253,11 +253,13 @@ describe("removeUserFromGroup", () => {
         },
       };
       const svc = new GroupService(databaseService as any);
-      await svc.requestMembership(userId, groupId);
+      await expect(svc.requestMembership(userId, groupId)).rejects.toThrow(
+        "User is already a member of this group",
+      );
       expect(createRequest).not.toHaveBeenCalled();
     });
 
-    it("should return silently when user already has a PENDING request", async () => {
+    it("should throw when user already has a PENDING request", async () => {
       const createRequest = jest.fn();
       const databaseService = {
         prisma: {
@@ -272,7 +274,9 @@ describe("removeUserFromGroup", () => {
         },
       };
       const svc = new GroupService(databaseService as any);
-      await svc.requestMembership(userId, groupId);
+      await expect(svc.requestMembership(userId, groupId)).rejects.toThrow(
+        "A pending membership request already exists for this group",
+      );
       expect(createRequest).not.toHaveBeenCalled();
     });
   });
