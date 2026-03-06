@@ -18,9 +18,7 @@ import {
   useLocation,
   useNavigate,
   useParams,
-  useSearchParams,
 } from "react-router-dom";
-import { useAuth } from "@/auth/useAuth";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { DocumentViewer } from "../../core/document-viewer/DocumentViewer";
@@ -457,7 +455,7 @@ export const ReviewWorkspacePage: FC = () => {
             }
           }}
         >
-          {session?.document?.ocr_result?.enrichment_summary && (
+          {session?.document?.ocr_result?.enrichment_summary != null && (
             <EnrichmentSummaryPanel
               summary={
                 session.document.ocr_result

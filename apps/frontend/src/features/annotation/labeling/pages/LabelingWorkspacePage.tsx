@@ -938,7 +938,7 @@ export const LabelingWorkspacePage: FC = () => {
                               ? "#228be6"
                               : "#adb5bd",
                         }}
-                        onClick={(event) => {
+                        onClick={() => {
                           handleWordSelect(element.id);
                         }}
                         title={

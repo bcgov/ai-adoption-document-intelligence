@@ -10,7 +10,7 @@ interface FieldEditorProps {
 }
 
 export const FieldEditor: FC<FieldEditorProps> = ({
-  field,
+  field: _field,
   value,
   onChange,
   readOnly,

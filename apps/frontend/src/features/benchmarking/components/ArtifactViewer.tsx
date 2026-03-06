@@ -1,7 +1,5 @@
 import {
-  ActionIcon,
   Alert,
-  Box,
   Button,
   Card,
   Center,
@@ -14,9 +12,8 @@ import {
   Stack,
   Text,
   Textarea,
-  Title,
 } from "@mantine/core";
-import { IconAlertCircle, IconDownload, IconX } from "@tabler/icons-react";
+import { IconAlertCircle, IconDownload } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { apiService } from "@/data/services/api.service";
 
@@ -83,7 +80,7 @@ export function ArtifactViewer({
               setImageUrl(url);
             } else {
               // Fallback for mocked responses: convert to data URL
-              const blob = new Blob([response.data], { type: mimeType });
+              const blob = new Blob([response.data as BlobPart], { type: mimeType });
               const url = URL.createObjectURL(blob);
               setImageUrl(url);
             }
@@ -138,7 +135,7 @@ export function ArtifactViewer({
             throw new Error(response.message || "Failed to load artifact");
           }
 
-          setContent(response.data);
+          setContent(response.data as string);
         }
         // Default: show download option
         else {
@@ -177,7 +174,7 @@ export function ArtifactViewer({
         throw new Error(response.message || "Failed to download artifact");
       }
 
-      const url = URL.createObjectURL(response.data);
+      const url = URL.createObjectURL(response.data as Blob);
       const link = document.createElement("a");
       link.href = url;
       link.download = artifact.path.split("/").pop() || "artifact";
@@ -221,7 +218,7 @@ export function ArtifactViewer({
             <Text fw={600} size="lg" data-testid="artifact-viewer-title">
               Artifact Viewer
             </Text>
-            <Code size="xs" data-testid="artifact-path-display">
+            <Code fz="xs" data-testid="artifact-path-display">
               {artifact.path}
             </Code>
           </Stack>
@@ -236,7 +233,7 @@ export function ArtifactViewer({
               <Text size="sm" fw={500}>
                 Type:
               </Text>
-              <Code size="sm" data-testid="artifact-type-value">
+              <Code fz="sm" data-testid="artifact-type-value">
                 {artifact.type}
               </Code>
             </Group>
@@ -244,7 +241,7 @@ export function ArtifactViewer({
               <Text size="sm" fw={500}>
                 MIME Type:
               </Text>
-              <Code size="sm" data-testid="artifact-mime-type-value">
+              <Code fz="sm" data-testid="artifact-mime-type-value">
                 {artifact.mimeType}
               </Code>
             </Group>
@@ -253,7 +250,7 @@ export function ArtifactViewer({
                 <Text size="sm" fw={500}>
                   Sample ID:
                 </Text>
-                <Code size="sm" data-testid="artifact-sample-id-value">
+                <Code fz="sm" data-testid="artifact-sample-id-value">
                   {artifact.sampleId}
                 </Code>
               </Group>
@@ -263,7 +260,7 @@ export function ArtifactViewer({
                 <Text size="sm" fw={500}>
                   Node ID:
                 </Text>
-                <Code size="sm" data-testid="artifact-node-id-value">
+                <Code fz="sm" data-testid="artifact-node-id-value">
                   {artifact.nodeId}
                 </Code>
               </Group>

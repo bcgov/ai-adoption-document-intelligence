@@ -112,7 +112,7 @@ export function ProjectDetailPage() {
   }, [isUpdating]);
 
   const handleCreateDefinition = (data: CreateDefinitionFormData) => {
-    createDefinition(data);
+    createDefinition({ ...data, splitId: data.splitId ?? "" });
   };
 
   const handleEditDefinition = () => {
@@ -476,7 +476,7 @@ export function ProjectDetailPage() {
                       {run.tags &&
                       typeof run.tags === "object" &&
                       "version" in run.tags
-                        ? run.tags.version
+                        ? String((run.tags as Record<string, unknown>).version)
                         : run.id.substring(0, 8)}
                     </Table.Td>
                     <Table.Td

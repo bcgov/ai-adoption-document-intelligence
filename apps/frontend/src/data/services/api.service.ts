@@ -104,7 +104,7 @@ class ApiService {
     method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
     endpoint: string,
     data?: unknown,
-    config?: Record<string, unknown>,
+    _config?: Record<string, unknown>,
   ): Promise<ApiResponse<T>> {
     try {
       let headers = undefined;

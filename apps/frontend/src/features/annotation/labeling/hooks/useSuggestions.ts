@@ -25,6 +25,7 @@ export const useSuggestions = (projectId?: string, documentId?: string) => {
     mutationFn: async () => {
       const response = await apiService.post<LabelSuggestionDto[]>(
         `/labeling/projects/${projectId}/documents/${documentId}/suggestions`,
+        {},
       );
       return response.data || [];
     },

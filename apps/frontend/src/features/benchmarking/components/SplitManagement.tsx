@@ -200,7 +200,7 @@ interface CreateSplitDialogProps {
 function CreateSplitDialog({
   datasetId,
   versionId,
-  samples,
+  samples: _samples,
   open,
   onClose,
 }: CreateSplitDialogProps) {
@@ -373,7 +373,7 @@ function EditSplitDialog({
   datasetId,
   versionId,
   split,
-  samples,
+  samples: _samples,
   open,
   onClose,
 }: EditSplitDialogProps) {

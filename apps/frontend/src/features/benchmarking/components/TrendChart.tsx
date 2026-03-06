@@ -11,7 +11,6 @@ import { useSessionStorage } from "@mantine/hooks";
 import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ReferenceLine,

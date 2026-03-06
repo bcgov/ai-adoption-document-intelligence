@@ -35,14 +35,14 @@ const activeGroup: Group = { id: "group-1", name: "Group One" };
 /**
  * Renders ProjectListPage inside required providers.
  */
-const renderPage = (onSelectProject?: (id: string) => void) => {
+const renderPage = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
       <MantineProvider>
-        <ProjectListPage onSelectProject={onSelectProject} />
+        <ProjectListPage />
       </MantineProvider>
     </QueryClientProvider>,
   );

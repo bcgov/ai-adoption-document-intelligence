@@ -59,7 +59,7 @@ export interface AuthUser {
 /**
  * API exposed by the `AuthProvider`. Any component can consume these helpers via `useAuth`.
  */
-interface AuthContextType {
+export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isSystemAdmin: boolean;

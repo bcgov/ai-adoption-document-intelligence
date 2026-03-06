@@ -41,13 +41,13 @@ class MockDataTransfer {
   }
 }
 
-global.DataTransfer = MockDataTransfer as unknown as typeof DataTransfer;
+(globalThis as Record<string, unknown>).DataTransfer = MockDataTransfer as unknown as typeof DataTransfer;
 
 /**
  * Mantine's floating/popover components use ResizeObserver internally.
  * jsdom does not implement it, so we provide a no-op stub.
  */
-global.ResizeObserver = class ResizeObserver {
+(globalThis as Record<string, unknown>).ResizeObserver = class ResizeObserver {
   observe(_target: Element) {
     return undefined;
   }
