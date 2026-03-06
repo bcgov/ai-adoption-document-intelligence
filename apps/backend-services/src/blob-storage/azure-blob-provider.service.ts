@@ -10,7 +10,7 @@ import {
   BlobServiceClient,
   ContainerClient,
 } from "@azure/storage-blob";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
   AzureBlobStorageConfig,
@@ -33,7 +33,9 @@ export function createAzureContainerClient(
 }
 
 @Injectable()
-export class AzureBlobProviderService implements BlobStorageInterface {
+export class AzureBlobProviderService
+  implements BlobStorageInterface, OnModuleInit
+{
   private readonly logger = new Logger(AzureBlobProviderService.name);
   private readonly containerClient: ContainerClient;
   private readonly containerName: string;
@@ -65,6 +67,23 @@ export class AzureBlobProviderService implements BlobStorageInterface {
     this.logger.log(
       `Azure blob storage initialized: container=${this.containerName}`,
     );
+  }
+
+  async onModuleInit(): Promise<void> {
+    if (!this.containerClient) {
+      return;
+    }
+    try {
+      await this.containerClient.createIfNotExists();
+      this.logger.log(
+        `Ensured container exists: ${this.containerName}`,
+      );
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Failed to ensure container "${this.containerName}" exists: ${err.message}`,
+      );
+    }
   }
 
   /**
