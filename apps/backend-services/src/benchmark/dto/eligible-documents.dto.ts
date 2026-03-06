@@ -17,6 +17,10 @@ export class EligibleDocumentsFilterDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @IsOptional()
+  @IsString()
+  group_id?: string;
 }
 
 export class EligibleDocumentDto {

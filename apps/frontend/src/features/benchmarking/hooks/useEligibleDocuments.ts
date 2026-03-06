@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
 
 export interface EligibleDocument {
@@ -23,8 +24,11 @@ export const useEligibleDocuments = (
   limit = 20,
   search?: string,
 ) => {
+  const { activeGroup } = useGroup();
+  const activeGroupId = activeGroup?.id;
+
   const query = useQuery({
-    queryKey: ["hitl-eligible-documents", page, limit, search],
+    queryKey: ["hitl-eligible-documents", page, limit, search, activeGroupId],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: String(page),
@@ -32,6 +36,9 @@ export const useEligibleDocuments = (
       });
       if (search) {
         params.set("search", search);
+      }
+      if (activeGroupId) {
+        params.set("group_id", activeGroupId);
       }
 
       const response = await apiService.get<EligibleDocumentsResponse>(

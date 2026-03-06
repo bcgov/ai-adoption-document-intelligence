@@ -305,7 +305,7 @@ export class AzureController {
 
     const prefix = `classifier/${group_id}/${name}/`;
     const documents = await this.blobStorage.list(prefix);
-    return documents;
+    return documents.map((doc) => doc.slice(prefix.length));
   }
 
   @Delete("classifier/documents")

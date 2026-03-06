@@ -537,14 +537,14 @@ describe("AzureController", () => {
     it("should return documents if user in group and classifier exists", async () => {
       databaseService.isUserInGroup.mockResolvedValue(true);
       databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
-      storageService.getStoragePath.mockReturnValue("/path");
-      storageService.listBlobsInFolder = jest
-        .fn()
-        .mockResolvedValue(["doc1", "doc2"]);
+      storageService.list.mockResolvedValue([
+        "classifier/g1/c1/labelA/doc1",
+        "classifier/g1/c1/labelB/doc2",
+      ]);
       const req = createMockReq();
       const query = { name: "c1", group_id: "g1" };
       const result = await controller.getClassifierDocuments(req, query);
-      expect(result).toEqual(["doc1", "doc2"]);
+      expect(result).toEqual(["labelA/doc1", "labelB/doc2"]);
       expect(storageService.list).toHaveBeenCalledWith(
         "classifier/g1/c1/",
       );

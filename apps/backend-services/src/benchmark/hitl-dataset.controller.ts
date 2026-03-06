@@ -68,10 +68,20 @@ export class HitlDatasetController {
     @Query() filters: EligibleDocumentsFilterDto,
     @Req() req: Request,
   ) {
-    const groupIds = await getIdentityGroupIds(
-      req.resolvedIdentity,
-      this.databaseService,
-    );
+    let groupIds: string[];
+    if (filters.group_id) {
+      await identityCanAccessGroup(
+        req.resolvedIdentity,
+        filters.group_id,
+        this.databaseService,
+      );
+      groupIds = [filters.group_id];
+    } else {
+      groupIds = await getIdentityGroupIds(
+        req.resolvedIdentity,
+        this.databaseService,
+      );
+    }
 
     if (groupIds.length === 0) {
       return { documents: [], total: 0, page: 1, limit: 20 };

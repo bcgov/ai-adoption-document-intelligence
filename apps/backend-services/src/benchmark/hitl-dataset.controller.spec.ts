@@ -86,6 +86,16 @@ describe("HitlDatasetController", () => {
         search: "invoice",
       }, ["test-group"]);
     });
+
+    it("should scope to specific group_id when provided", async () => {
+      await controller.listEligibleDocuments({
+        group_id: "specific-group",
+      }, mockReq);
+
+      expect(mockService.listEligibleDocuments).toHaveBeenCalledWith({
+        group_id: "specific-group",
+      }, ["specific-group"]);
+    });
   });
 
   describe("createDatasetFromHitl", () => {
