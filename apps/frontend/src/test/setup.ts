@@ -41,7 +41,8 @@ class MockDataTransfer {
   }
 }
 
-(globalThis as Record<string, unknown>).DataTransfer = MockDataTransfer as unknown as typeof DataTransfer;
+(globalThis as Record<string, unknown>).DataTransfer =
+  MockDataTransfer as unknown as typeof DataTransfer;
 
 /**
  * Mantine's floating/popover components use ResizeObserver internally.

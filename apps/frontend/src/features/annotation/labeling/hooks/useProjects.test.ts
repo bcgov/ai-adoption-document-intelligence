@@ -70,7 +70,10 @@ describe("useProjects – createProject", () => {
   describe("Scenario 1 – group_id is injected automatically from activeGroup", () => {
     it("includes activeGroup.id as group_id in the POST body without the caller providing it", async () => {
       mockUseGroup.mockReturnValue({ activeGroup });
-      vi.mocked(apiService.post).mockResolvedValue({ data: newProject, success: true });
+      vi.mocked(apiService.post).mockResolvedValue({
+        data: newProject,
+        success: true,
+      });
 
       const { result } = renderHook(() => useProjects(), {
         wrapper: createWrapper(),
@@ -94,7 +97,10 @@ describe("useProjects – createProject", () => {
 
     it("returns the project returned by the API", async () => {
       mockUseGroup.mockReturnValue({ activeGroup });
-      vi.mocked(apiService.post).mockResolvedValue({ data: newProject, success: true });
+      vi.mocked(apiService.post).mockResolvedValue({
+        data: newProject,
+        success: true,
+      });
 
       const { result } = renderHook(() => useProjects(), {
         wrapper: createWrapper(),

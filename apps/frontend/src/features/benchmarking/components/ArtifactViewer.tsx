@@ -80,7 +80,9 @@ export function ArtifactViewer({
               setImageUrl(url);
             } else {
               // Fallback for mocked responses: convert to data URL
-              const blob = new Blob([response.data as BlobPart], { type: mimeType });
+              const blob = new Blob([response.data as BlobPart], {
+                type: mimeType,
+              });
               const url = URL.createObjectURL(blob);
               setImageUrl(url);
             }
