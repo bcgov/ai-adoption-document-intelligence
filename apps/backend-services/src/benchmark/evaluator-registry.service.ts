@@ -1,72 +1,57 @@
 /**
  * Evaluator Registry Service
  *
- * Maintains a registry of evaluator implementations and provides lookup by type.
- * Mirrors the Activity Registry pattern from apps/temporal/src/activity-registry.ts.
+ * Maintains a registry of known evaluator types for validation purposes.
+ * Actual evaluator implementations live in apps/temporal/src/evaluators/.
  *
  * See feature-docs/003-benchmarking-system/user-stories/US-014-evaluator-interface-registry.md
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 13.2
  */
 
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { BenchmarkEvaluator } from "./evaluator.interface";
+import { Injectable, Logger } from "@nestjs/common";
 
 @Injectable()
 export class EvaluatorRegistryService {
   private readonly logger = new Logger(EvaluatorRegistryService.name);
-  private readonly evaluators = new Map<string, BenchmarkEvaluator>();
+  private readonly evaluatorTypes = new Set<string>();
 
   /**
-   * Register an evaluator by type
+   * Register a known evaluator type
    */
-  register(evaluator: BenchmarkEvaluator): void {
-    if (!evaluator.type) {
-      throw new Error("Evaluator must have a type string");
+  registerType(type: string): void {
+    if (!type) {
+      throw new Error("Evaluator type must be a non-empty string");
     }
 
-    if (this.evaluators.has(evaluator.type)) {
+    if (this.evaluatorTypes.has(type)) {
       this.logger.warn(
-        `Evaluator type "${evaluator.type}" is already registered. Overwriting.`,
+        `Evaluator type "${type}" is already registered. Skipping.`,
       );
+      return;
     }
 
-    this.evaluators.set(evaluator.type, evaluator);
-    this.logger.debug(`Registered evaluator: ${evaluator.type}`);
-  }
-
-  /**
-   * Get an evaluator by type
-   */
-  getEvaluator(type: string): BenchmarkEvaluator {
-    const evaluator = this.evaluators.get(type);
-
-    if (!evaluator) {
-      throw new NotFoundException(
-        `Evaluator type "${type}" is not registered. Available types: ${this.getAvailableTypes().join(", ")}`,
-      );
-    }
-
-    return evaluator;
+    this.evaluatorTypes.add(type);
+    this.logger.debug(`Registered evaluator type: ${type}`);
   }
 
   /**
    * Get all available evaluator types
    */
   getAvailableTypes(): string[] {
-    return Array.from(this.evaluators.keys()).sort();
+    return Array.from(this.evaluatorTypes).sort();
   }
 
   /**
    * Check if an evaluator type is registered
    */
   hasEvaluator(type: string): boolean {
-    return this.evaluators.has(type);
+    return this.evaluatorTypes.has(type);
   }
 
   /**
-   * Get the count of registered evaluators
+   * Get the count of registered evaluator types
    */
   getCount(): number {
-    return this.evaluators.size;
+    return this.evaluatorTypes.size;
   }
 }

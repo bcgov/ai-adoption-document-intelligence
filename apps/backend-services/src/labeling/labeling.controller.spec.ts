@@ -1,7 +1,7 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import { BLOB_STORAGE } from "../blob-storage/blob-storage.interface";
 import { DatabaseService } from "../database/database.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
@@ -98,7 +98,7 @@ describe("LabelingController", () => {
           useValue: labelingService,
         },
         {
-          provide: LocalBlobStorageService,
+          provide: BLOB_STORAGE,
           useValue: {},
         },
         {

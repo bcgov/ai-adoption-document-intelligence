@@ -161,8 +161,7 @@ describe("AzureController", () => {
     it("should upload files if user in group and classifier exists", async () => {
       databaseService.isUserInGroup.mockResolvedValue(true);
       databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
-      storageService.getStoragePath.mockReturnValue("/path");
-      storageService.saveFilesBulk.mockResolvedValue(["file1"]);
+      storageService.write.mockResolvedValue(undefined);
       const req = createMockReq();
       const files = [mockFile];
       const body = { name: "c1", label: "l1", group_id: "g1" };
@@ -506,8 +505,7 @@ describe("AzureController", () => {
     it("should throw InternalServerErrorException if deleteByPrefix throws", async () => {
       databaseService.isUserInGroup.mockResolvedValue(true);
       databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
-      storageService.getStoragePath.mockReturnValue("/path/to/folder");
-      storageService.deleteFolderRecursive.mockImplementation(() => {
+      storageService.deleteByPrefix.mockImplementation(() => {
         throw new Error("fail");
       });
       const req = createMockReq();
@@ -521,8 +519,7 @@ describe("AzureController", () => {
     it("should delete a specific folder if folder param is provided", async () => {
       databaseService.isUserInGroup.mockResolvedValue(true);
       databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
-      storageService.getStoragePath.mockReturnValue("/path/to/folder");
-      storageService.deleteFolderRecursive.mockResolvedValue(undefined);
+      storageService.deleteByPrefix.mockResolvedValue(undefined);
       const req = createMockReq();
       const query = { name: "c1", group_id: "g1", folder: "f1" };
       await expect(

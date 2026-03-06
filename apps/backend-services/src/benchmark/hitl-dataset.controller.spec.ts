@@ -114,13 +114,16 @@ describe("HitlDatasetController", () => {
       );
     });
 
-    it("should throw when user ID is missing", async () => {
-      await expect(
-        controller.createDatasetFromHitl(
-          { name: "Test", documentIds: ["doc-1"], groupId: "test-group" },
-          mockReqNoUser,
-        ),
-      ).rejects.toThrow(BadRequestException);
+    it("uses anonymous user ID when user ID is missing", async () => {
+      await controller.createDatasetFromHitl(
+        { name: "Test", documentIds: ["doc-1"], groupId: "test-group" },
+        mockReqNoUser,
+      );
+
+      expect(mockService.createDatasetFromHitl).toHaveBeenCalledWith(
+        { name: "Test", documentIds: ["doc-1"], groupId: "test-group" },
+        "anonymous",
+      );
     });
   });
 
@@ -142,14 +145,18 @@ describe("HitlDatasetController", () => {
       );
     });
 
-    it("should throw when user ID is missing", async () => {
-      await expect(
-        controller.addVersionFromHitl(
-          "dataset-1",
-          { documentIds: ["doc-1"] },
-          mockReqNoUser,
-        ),
-      ).rejects.toThrow(BadRequestException);
+    it("uses anonymous user ID when user ID is missing", async () => {
+      await controller.addVersionFromHitl(
+        "dataset-1",
+        { documentIds: ["doc-1"] },
+        mockReqNoUser,
+      );
+
+      expect(mockService.addVersionFromHitl).toHaveBeenCalledWith(
+        "dataset-1",
+        { documentIds: ["doc-1"] },
+        "anonymous",
+      );
     });
   });
 });

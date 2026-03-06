@@ -92,18 +92,18 @@ describe("DatasetController", () => {
       expect(result).toEqual(mockResponse);
     });
 
-    it("throws BadRequestException when user ID is missing", async () => {
+    it("uses anonymous user ID when user ID is missing", async () => {
       const mockRequestNoUser = {
         user: undefined,
         resolvedIdentity: { userId: undefined },
       } as unknown as Request;
 
-      await expect(
-        controller.createDataset(createDto, mockRequestNoUser),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        controller.createDataset(createDto, mockRequestNoUser),
-      ).rejects.toThrow("User ID not found in request");
+      await controller.createDataset(createDto, mockRequestNoUser);
+
+      expect(mockDatasetService.createDataset).toHaveBeenCalledWith(
+        createDto,
+        "anonymous",
+      );
     });
 
     it("propagates validation errors from service", async () => {
@@ -255,7 +255,7 @@ describe("DatasetController", () => {
       expect(result).toEqual(mockResponse);
     });
 
-    it("throws BadRequestException when user ID is missing", async () => {
+    it("uses anonymous user ID when user ID is missing", async () => {
       const mockRequestNoUser = {
         user: undefined,
         resolvedIdentity: { userId: undefined },
@@ -263,9 +263,13 @@ describe("DatasetController", () => {
 
       mockDatasetService.getDatasetById.mockResolvedValue({ id: "dataset-123", groupId: "test-group" });
 
-      await expect(
-        controller.createVersion("dataset-123", createDto, mockRequestNoUser),
-      ).rejects.toThrow(BadRequestException);
+      await controller.createVersion("dataset-123", createDto, mockRequestNoUser);
+
+      expect(mockDatasetService.createVersion).toHaveBeenCalledWith(
+        "dataset-123",
+        createDto,
+        "anonymous",
+      );
     });
   });
 
@@ -409,15 +413,18 @@ describe("DatasetController", () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it("throws BadRequestException when user ID is missing", async () => {
+    it("uses anonymous user ID when user ID is missing", async () => {
       const mockRequestNoUser = { user: undefined, resolvedIdentity: { userId: undefined } } as unknown as Request;
       mockDatasetService.getDatasetById.mockResolvedValue({ id: "dataset-123", groupId: "test-group" });
-      await expect(
-        controller.uploadFilesToVersion("dataset-123", "version-123", mockFiles, mockRequestNoUser),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        controller.uploadFilesToVersion("dataset-123", "version-123", mockFiles, mockRequestNoUser),
-      ).rejects.toThrow("User ID not found in request");
+
+      await controller.uploadFilesToVersion("dataset-123", "version-123", mockFiles, mockRequestNoUser);
+
+      expect(mockDatasetService.uploadFilesToVersion).toHaveBeenCalledWith(
+        "dataset-123",
+        "version-123",
+        mockFiles,
+        "anonymous",
+      );
     });
   });
 

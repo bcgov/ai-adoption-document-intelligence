@@ -11,7 +11,6 @@ import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
-import { BenchmarkEvaluator } from "./evaluator.interface";
 import { EvaluatorRegistryService } from "./evaluator-registry.service";
 
 // Mock Prisma
@@ -49,11 +48,6 @@ describe("BenchmarkDefinitionService", () => {
   let evaluatorRegistry: EvaluatorRegistryService;
   let temporalService: BenchmarkTemporalService;
   let prisma: PrismaClient;
-
-  const mockEvaluator: BenchmarkEvaluator = {
-    type: "schema-aware",
-    evaluate: jest.fn(),
-  };
 
   const mockProject = {
     id: "project-1",
@@ -146,8 +140,8 @@ describe("BenchmarkDefinitionService", () => {
     // Access the private prisma instance
     prisma = service["prisma"];
 
-    // Register mock evaluator
-    evaluatorRegistry.register(mockEvaluator);
+    // Register mock evaluator type
+    evaluatorRegistry.registerType("schema-aware");
   });
 
   afterEach(() => {

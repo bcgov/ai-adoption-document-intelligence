@@ -14,9 +14,6 @@ import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetController } from "./dataset.controller";
 import { DatasetService } from "./dataset.service";
 import { EvaluatorRegistryService } from "./evaluator-registry.service";
-import { FieldAccuracyEvaluator } from "./evaluators/field-accuracy.evaluator";
-import { SchemaAwareEvaluator } from "./evaluators/schema-aware.evaluator";
-import { BlackBoxEvaluator } from "./evaluators/black-box.evaluator";
 import { GroundTruthGenerationController } from "./ground-truth-generation.controller";
 import { GroundTruthGenerationService } from "./ground-truth-generation.service";
 import { HitlDatasetController } from "./hitl-dataset.controller";
@@ -42,9 +39,6 @@ import { HitlDatasetService } from "./hitl-dataset.service";
     BenchmarkTemporalService,
     EvaluatorRegistryService,
     AuditLogService,
-    FieldAccuracyEvaluator,
-    SchemaAwareEvaluator,
-    BlackBoxEvaluator,
   ],
   exports: [
     DatasetService,
@@ -61,15 +55,10 @@ import { HitlDatasetService } from "./hitl-dataset.service";
 export class BenchmarkModule implements OnModuleInit {
   constructor(
     private readonly evaluatorRegistry: EvaluatorRegistryService,
-    private readonly fieldAccuracyEvaluator: FieldAccuracyEvaluator,
-    private readonly schemaAwareEvaluator: SchemaAwareEvaluator,
-    private readonly blackBoxEvaluator: BlackBoxEvaluator,
   ) {}
 
   onModuleInit() {
-    // Register evaluators on module initialization
-    this.evaluatorRegistry.register(this.fieldAccuracyEvaluator);
-    this.evaluatorRegistry.register(this.schemaAwareEvaluator);
-    this.evaluatorRegistry.register(this.blackBoxEvaluator);
+    this.evaluatorRegistry.registerType("schema-aware");
+    this.evaluatorRegistry.registerType("black-box");
   }
 }
