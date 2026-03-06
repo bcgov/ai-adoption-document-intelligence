@@ -37,7 +37,10 @@ const mockPrismaClient = {
     deleteMany: jest.fn(),
   },
   split: {
+    create: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn().mockResolvedValue([]),
+    update: jest.fn(),
     updateMany: jest.fn(),
     deleteMany: jest.fn(),
   },
@@ -737,6 +740,1029 @@ describe("DatasetService", () => {
       await expect(
         service.updateVersionName("dataset-1", "version-1", "test"),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // List Samples
+  // -----------------------------------------------------------------------
+  describe("listSamples", () => {
+    const validManifest = {
+      schemaVersion: "1.0",
+      samples: [
+        {
+          id: "s1",
+          inputs: [{ path: "inputs/s1.pdf", mimeType: "application/pdf" }],
+          groundTruth: [{ path: "ground-truth/s1.json", format: "json" }],
+        },
+        {
+          id: "s2",
+          inputs: [{ path: "inputs/s2.pdf", mimeType: "application/pdf" }],
+          groundTruth: [{ path: "ground-truth/s2.json", format: "json" }],
+        },
+      ],
+    };
+
+    it("returns paginated samples", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: "datasets/dataset-1/v1",
+      });
+      (mockBlobStorage.exists as jest.Mock).mockResolvedValueOnce(true);
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from(JSON.stringify(validManifest)),
+      );
+
+      const result = await service.listSamples("dataset-1", "v1", 1, 20);
+
+      expect(result.samples).toHaveLength(2);
+      expect(result.total).toBe(2);
+      expect(result.page).toBe(1);
+    });
+
+    it("returns empty when version has no storagePrefix", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: null,
+      });
+
+      const result = await service.listSamples("dataset-1", "v1");
+
+      expect(result.samples).toEqual([]);
+      expect(result.total).toBe(0);
+    });
+
+    it("throws NotFoundException when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.listSamples("dataset-1", "nonexistent"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Get Ground Truth
+  // -----------------------------------------------------------------------
+  describe("getGroundTruth", () => {
+    it("returns ground truth content", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: "datasets/dataset-1/v1",
+      });
+
+      const manifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "s1",
+            inputs: [{ path: "inputs/s1.pdf", mimeType: "application/pdf" }],
+            groundTruth: [{ path: "ground-truth/s1.json", format: "json" }],
+          },
+        ],
+      };
+
+      // First read: exists check for manifest
+      (mockBlobStorage.exists as jest.Mock).mockResolvedValueOnce(true);
+      // Second read: manifest content
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from(JSON.stringify(manifest)),
+      );
+      // Third read: ground truth file content
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from(JSON.stringify({ field: "value" })),
+      );
+
+      const result = await service.getGroundTruth("dataset-1", "v1", "s1");
+
+      expect(result.sampleId).toBe("s1");
+      expect(result.content).toEqual({ field: "value" });
+      expect(result.format).toBe("json");
+    });
+
+    it("throws when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getGroundTruth("dataset-1", "v1", "s1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws when version has no files", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: null,
+      });
+
+      await expect(
+        service.getGroundTruth("dataset-1", "v1", "s1"),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("throws when sample not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: "datasets/dataset-1/v1",
+      });
+
+      const manifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "other",
+            inputs: [{ path: "inputs/other.pdf", mimeType: "application/pdf" }],
+            groundTruth: [{ path: "ground-truth/other.json", format: "json" }],
+          },
+        ],
+      };
+
+      (mockBlobStorage.exists as jest.Mock).mockResolvedValueOnce(true);
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from(JSON.stringify(manifest)),
+      );
+
+      await expect(
+        service.getGroundTruth("dataset-1", "v1", "nonexistent"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws when sample has no ground truth files", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: "datasets/dataset-1/v1",
+      });
+
+      const manifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "s1",
+            inputs: [{ path: "inputs/s1.pdf", mimeType: "application/pdf" }],
+            groundTruth: [],
+          },
+        ],
+      };
+
+      (mockBlobStorage.exists as jest.Mock).mockResolvedValueOnce(true);
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from(JSON.stringify(manifest)),
+      );
+
+      await expect(
+        service.getGroundTruth("dataset-1", "v1", "s1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Get Sample File
+  // -----------------------------------------------------------------------
+  describe("getSampleFile", () => {
+    it("returns file buffer, filename, and mime type", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: "datasets/dataset-1/v1",
+      });
+
+      (mockBlobStorage.exists as jest.Mock).mockResolvedValueOnce(true);
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from("pdf content"),
+      );
+
+      const result = await service.getSampleFile(
+        "dataset-1",
+        "v1",
+        "inputs/sample.pdf",
+      );
+
+      expect(result.filename).toBe("sample.pdf");
+      expect(result.mimeType).toBe("application/pdf");
+      expect(result.buffer).toEqual(Buffer.from("pdf content"));
+    });
+
+    it("throws when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getSampleFile("dataset-1", "v1", "inputs/sample.pdf"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws when version has no files", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: null,
+      });
+
+      await expect(
+        service.getSampleFile("dataset-1", "v1", "inputs/sample.pdf"),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("throws on directory traversal attempt", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: "datasets/dataset-1/v1",
+      });
+
+      await expect(
+        service.getSampleFile("dataset-1", "v1", "../../../etc/passwd"),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("throws when file does not exist", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: "datasets/dataset-1/v1",
+      });
+
+      (mockBlobStorage.exists as jest.Mock).mockResolvedValueOnce(false);
+
+      await expect(
+        service.getSampleFile("dataset-1", "v1", "inputs/missing.pdf"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("detects json mime type", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: "datasets/dataset-1/v1",
+      });
+
+      (mockBlobStorage.exists as jest.Mock).mockResolvedValueOnce(true);
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from("{}"),
+      );
+
+      const result = await service.getSampleFile(
+        "dataset-1",
+        "v1",
+        "ground-truth/sample.json",
+      );
+
+      expect(result.mimeType).toBe("application/json");
+    });
+
+    it("uses octet-stream for unknown extension", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: "datasets/dataset-1/v1",
+      });
+
+      (mockBlobStorage.exists as jest.Mock).mockResolvedValueOnce(true);
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from("data"),
+      );
+
+      const result = await service.getSampleFile(
+        "dataset-1",
+        "v1",
+        "inputs/sample.xyz",
+      );
+
+      expect(result.mimeType).toBe("application/octet-stream");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Validate Dataset Version
+  // -----------------------------------------------------------------------
+  describe("validateDatasetVersion", () => {
+    const mockVersion = {
+      id: "v1",
+      datasetId: "dataset-1",
+      storagePrefix: "datasets/dataset-1/v1",
+      groundTruthSchema: null,
+    };
+
+    it("validates with no issues for a valid dataset", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+
+      const manifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "s1",
+            inputs: [{ path: "inputs/s1.pdf", mimeType: "application/pdf" }],
+            groundTruth: [{ path: "ground-truth/s1.json", format: "json" }],
+          },
+        ],
+      };
+
+      (mockBlobStorage.exists as jest.Mock).mockResolvedValue(true);
+      (mockBlobStorage.read as jest.Mock)
+        .mockResolvedValueOnce(Buffer.from(JSON.stringify(manifest)))
+        .mockResolvedValueOnce(
+          Buffer.from(JSON.stringify({ field: "value" })),
+        );
+
+      const result = await service.validateDatasetVersion(
+        "dataset-1",
+        "v1",
+        {},
+      );
+
+      expect(result.valid).toBe(true);
+      expect(result.totalSamples).toBe(1);
+    });
+
+    it("detects missing ground truth", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+
+      const manifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "s1",
+            inputs: [{ path: "inputs/s1.pdf", mimeType: "application/pdf" }],
+            groundTruth: [],
+          },
+        ],
+      };
+
+      (mockBlobStorage.exists as jest.Mock).mockResolvedValue(true);
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from(JSON.stringify(manifest)),
+      );
+
+      const result = await service.validateDatasetVersion(
+        "dataset-1",
+        "v1",
+        {},
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.issueCount.missingGroundTruth).toBe(1);
+    });
+
+    it("throws when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.validateDatasetVersion("dataset-1", "v1", {}),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws when version has no files", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        ...mockVersion,
+        storagePrefix: null,
+      });
+
+      await expect(
+        service.validateDatasetVersion("dataset-1", "v1", {}),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("detects missing ground truth files in storage", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+
+      const manifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "s1",
+            inputs: [{ path: "inputs/s1.pdf", mimeType: "application/pdf" }],
+            groundTruth: [{ path: "ground-truth/s1.json", format: "json" }],
+          },
+        ],
+      };
+
+      // manifest exists
+      (mockBlobStorage.exists as jest.Mock)
+        .mockResolvedValueOnce(true) // manifest exists
+        .mockResolvedValueOnce(false) // gt file does not exist
+        .mockResolvedValueOnce(true); // input file exists
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from(JSON.stringify(manifest)),
+      );
+
+      const result = await service.validateDatasetVersion(
+        "dataset-1",
+        "v1",
+        {},
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.issueCount.corruption).toBeGreaterThan(0);
+    });
+
+    it("supports sampling with sampleSize", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+
+      const samples = Array.from({ length: 10 }, (_, i) => ({
+        id: `s${i}`,
+        inputs: [{ path: `inputs/s${i}.pdf`, mimeType: "application/pdf" }],
+        groundTruth: [{ path: `ground-truth/s${i}.json`, format: "json" }],
+      }));
+
+      const manifest = { schemaVersion: "1.0", samples };
+
+      (mockBlobStorage.exists as jest.Mock).mockResolvedValue(true);
+      (mockBlobStorage.read as jest.Mock)
+        .mockResolvedValueOnce(Buffer.from(JSON.stringify(manifest)));
+
+      // Return valid JSON for gt files
+      for (let i = 0; i < 3; i++) {
+        (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+          Buffer.from(JSON.stringify({ data: i })),
+        );
+      }
+
+      const result = await service.validateDatasetVersion(
+        "dataset-1",
+        "v1",
+        { sampleSize: 3 },
+      );
+
+      expect(result.sampled).toBe(true);
+      expect(result.totalSamples).toBe(10);
+    });
+
+    it("validates with schema and detects violations", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        ...mockVersion,
+        groundTruthSchema: {
+          type: "object",
+          required: ["name"],
+          properties: { name: { type: "string" } },
+        },
+      });
+
+      const manifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "s1",
+            inputs: [{ path: "inputs/s1.pdf", mimeType: "application/pdf" }],
+            groundTruth: [{ path: "ground-truth/s1.json", format: "json" }],
+          },
+        ],
+      };
+
+      (mockBlobStorage.exists as jest.Mock).mockResolvedValue(true);
+      (mockBlobStorage.read as jest.Mock)
+        .mockResolvedValueOnce(Buffer.from(JSON.stringify(manifest)))
+        .mockResolvedValueOnce(Buffer.from(JSON.stringify({ notName: 123 })));
+
+      const result = await service.validateDatasetVersion(
+        "dataset-1",
+        "v1",
+        {},
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.issueCount.schemaViolations).toBeGreaterThan(0);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Create Split
+  // -----------------------------------------------------------------------
+  describe("createSplit", () => {
+    it("creates a split successfully", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+      });
+      mockPrismaClient.split.findFirst.mockResolvedValue(null);
+      mockPrismaClient.split.create.mockResolvedValue({
+        id: "split-1",
+        datasetVersionId: "v1",
+        name: "test-split",
+        type: "test",
+        sampleIds: ["s1", "s2"],
+        stratificationRules: null,
+        frozen: false,
+        createdAt: new Date(),
+      });
+
+      const result = await service.createSplit("dataset-1", "v1", {
+        name: "test-split",
+        type: "test",
+        sampleIds: ["s1", "s2"],
+      });
+
+      expect(result.id).toBe("split-1");
+      expect(result.name).toBe("test-split");
+      expect(result.sampleIds).toEqual(["s1", "s2"]);
+    });
+
+    it("throws when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createSplit("dataset-1", "v1", {
+          name: "test",
+          type: "test",
+          sampleIds: [],
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws when split name already exists", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+      });
+      mockPrismaClient.split.findFirst.mockResolvedValue({
+        id: "existing",
+        name: "test-split",
+      });
+
+      await expect(
+        service.createSplit("dataset-1", "v1", {
+          name: "test-split",
+          type: "test",
+          sampleIds: [],
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // List Splits
+  // -----------------------------------------------------------------------
+  describe("listSplits", () => {
+    it("returns splits for a version", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+      });
+      mockPrismaClient.split.findMany.mockResolvedValue([
+        {
+          id: "split-1",
+          datasetVersionId: "v1",
+          name: "test",
+          type: "test",
+          sampleIds: ["s1", "s2"],
+          frozen: false,
+          stratificationRules: null,
+          createdAt: new Date(),
+        },
+      ]);
+
+      const result = await service.listSplits("dataset-1", "v1");
+
+      expect(result).toHaveLength(1);
+      expect(result[0].sampleCount).toBe(2);
+    });
+
+    it("throws when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.listSplits("dataset-1", "v1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Get Split
+  // -----------------------------------------------------------------------
+  describe("getSplit", () => {
+    it("returns split details", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+      });
+      mockPrismaClient.split.findFirst.mockResolvedValue({
+        id: "split-1",
+        datasetVersionId: "v1",
+        name: "test",
+        type: "test",
+        sampleIds: ["s1"],
+        frozen: false,
+        stratificationRules: null,
+        createdAt: new Date(),
+      });
+
+      const result = await service.getSplit("dataset-1", "v1", "split-1");
+
+      expect(result.id).toBe("split-1");
+      expect(result.sampleCount).toBe(1);
+    });
+
+    it("throws when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getSplit("dataset-1", "v1", "split-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws when split not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+      });
+      mockPrismaClient.split.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getSplit("dataset-1", "v1", "nonexistent"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Update Split
+  // -----------------------------------------------------------------------
+  describe("updateSplit", () => {
+    it("updates split sample IDs", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+      });
+      mockPrismaClient.split.findFirst.mockResolvedValue({
+        id: "split-1",
+        datasetVersionId: "v1",
+        frozen: false,
+      });
+      mockPrismaClient.split.update.mockResolvedValue({
+        id: "split-1",
+        datasetVersionId: "v1",
+        name: "test",
+        type: "test",
+        sampleIds: ["s1", "s2", "s3"],
+        frozen: false,
+        createdAt: new Date(),
+      });
+
+      const result = await service.updateSplit("dataset-1", "v1", "split-1", {
+        sampleIds: ["s1", "s2", "s3"],
+      });
+
+      expect(result.sampleIds).toEqual(["s1", "s2", "s3"]);
+    });
+
+    it("throws when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateSplit("dataset-1", "v1", "split-1", {
+          sampleIds: [],
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws when split not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+      });
+      mockPrismaClient.split.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateSplit("dataset-1", "v1", "nonexistent", {
+          sampleIds: [],
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws when split is frozen", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+      });
+      mockPrismaClient.split.findFirst.mockResolvedValue({
+        id: "split-1",
+        datasetVersionId: "v1",
+        frozen: true,
+      });
+
+      await expect(
+        service.updateSplit("dataset-1", "v1", "split-1", {
+          sampleIds: [],
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Freeze Split
+  // -----------------------------------------------------------------------
+  describe("freezeSplit", () => {
+    it("freezes a split", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+      });
+      mockPrismaClient.split.findFirst.mockResolvedValue({
+        id: "split-1",
+        datasetVersionId: "v1",
+        frozen: false,
+      });
+      mockPrismaClient.split.update.mockResolvedValue({
+        id: "split-1",
+        datasetVersionId: "v1",
+        name: "test",
+        type: "test",
+        frozen: true,
+      });
+
+      const result = await service.freezeSplit("dataset-1", "v1", "split-1");
+
+      expect(result.frozen).toBe(true);
+    });
+
+    it("throws when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.freezeSplit("dataset-1", "v1", "split-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws when split not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+      });
+      mockPrismaClient.split.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.freezeSplit("dataset-1", "v1", "nonexistent"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Update Version After HITL Import
+  // -----------------------------------------------------------------------
+  describe("updateVersionAfterHitlImport", () => {
+    it("updates storagePrefix and documentCount", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+      });
+      mockPrismaClient.datasetVersion.update.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        version: "1.0.0",
+        name: null,
+        storagePrefix: "datasets/dataset-1/v1",
+        manifestPath: "dataset-manifest.json",
+        documentCount: 10,
+        groundTruthSchema: null,
+        frozen: false,
+        createdAt: new Date(),
+      });
+
+      const result = await service.updateVersionAfterHitlImport(
+        "dataset-1",
+        "v1",
+        "datasets/dataset-1/v1",
+        10,
+      );
+
+      expect(result.documentCount).toBe(10);
+      expect(result.storagePrefix).toBe("datasets/dataset-1/v1");
+    });
+
+    it("throws when version not found", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateVersionAfterHitlImport(
+          "dataset-1",
+          "v1",
+          "prefix",
+          5,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Delete Sample - additional branch coverage
+  // -----------------------------------------------------------------------
+  describe("deleteSample - additional branches", () => {
+    it("throws when dataset not found", async () => {
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.deleteSample("nonexistent", "v1", "s1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws when version not found", async () => {
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.deleteSample("dataset-1", "nonexistent", "s1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws when version has no storagePrefix", async () => {
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: null,
+      });
+
+      await expect(
+        service.deleteSample("dataset-1", "v1", "s1"),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("removes sample ID from splits that reference it", async () => {
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: "datasets/dataset-1/v1",
+      });
+
+      const manifest = {
+        schemaVersion: "1.0",
+        samples: [
+          {
+            id: "s1",
+            inputs: [{ path: "inputs/s1.pdf", mimeType: "application/pdf" }],
+            groundTruth: [],
+          },
+        ],
+      };
+
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from(JSON.stringify(manifest)),
+      );
+      mockPrismaClient.datasetVersion.update.mockResolvedValue({});
+      mockPrismaClient.split.findMany.mockResolvedValue([
+        { id: "split-1", sampleIds: ["s1", "s2"] },
+      ]);
+      mockPrismaClient.split.update.mockResolvedValue({});
+
+      await service.deleteSample("dataset-1", "v1", "s1");
+
+      expect(mockPrismaClient.split.update).toHaveBeenCalledWith({
+        where: { id: "split-1" },
+        data: { sampleIds: ["s2"] },
+      });
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Delete Version - additional branch coverage
+  // -----------------------------------------------------------------------
+  describe("deleteVersion - additional branches", () => {
+    it("rejects when version has benchmark definitions", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: "datasets/dataset-1/v1",
+        benchmarkDefinitions: [{ id: "def-1", name: "Def 1" }],
+      });
+
+      await expect(
+        service.deleteVersion("dataset-1", "v1"),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("handles version with no storagePrefix", async () => {
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+        id: "v1",
+        datasetId: "dataset-1",
+        storagePrefix: null,
+        benchmarkDefinitions: [],
+      });
+      mockPrismaClient.split.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.datasetVersion.delete.mockResolvedValue({});
+
+      await service.deleteVersion("dataset-1", "v1");
+
+      // Should not try to delete storage
+      expect(mockBlobStorage.deleteByPrefix).not.toHaveBeenCalled();
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Upload Files - additional branch coverage
+  // -----------------------------------------------------------------------
+  describe("uploadFilesToVersion - additional branches", () => {
+    const mockVersion = {
+      id: "version-1",
+      datasetId: "dataset-1",
+      version: "1.0.0",
+      storagePrefix: null,
+      manifestPath: "dataset-manifest.json",
+      documentCount: 0,
+      groundTruthSchema: null,
+      createdAt: new Date(),
+    };
+
+    it("throws BadRequestException on NoSuchBucket error", async () => {
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+
+      (mockBlobStorage.write as jest.Mock).mockRejectedValueOnce(
+        new Error("NoSuchBucket: bucket does not exist"),
+      );
+
+      await expect(
+        service.uploadFilesToVersion(
+          "dataset-1",
+          "version-1",
+          [
+            {
+              fieldname: "files",
+              originalname: "test.pdf",
+              encoding: "7bit",
+              mimetype: "application/pdf",
+              buffer: Buffer.from("data"),
+              size: 4,
+            },
+          ],
+          "user-1",
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("throws BadRequestException on Failed to write blob error", async () => {
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+
+      (mockBlobStorage.write as jest.Mock).mockRejectedValueOnce(
+        new Error("Failed to write blob: connection timeout"),
+      );
+
+      await expect(
+        service.uploadFilesToVersion(
+          "dataset-1",
+          "version-1",
+          [
+            {
+              fieldname: "files",
+              originalname: "test.pdf",
+              encoding: "7bit",
+              mimetype: "application/pdf",
+              buffer: Buffer.from("data"),
+              size: 4,
+            },
+          ],
+          "user-1",
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("deduplicates filenames in the same directory", async () => {
+      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
+      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+
+      const dupeFiles = [
+        {
+          fieldname: "files",
+          originalname: "sample.pdf",
+          encoding: "7bit",
+          mimetype: "application/pdf",
+          buffer: Buffer.from("pdf1"),
+          size: 4,
+        },
+        {
+          fieldname: "files",
+          originalname: "sample.pdf",
+          encoding: "7bit",
+          mimetype: "application/pdf",
+          buffer: Buffer.from("pdf2"),
+          size: 4,
+        },
+      ];
+
+      (mockBlobStorage.read as jest.Mock).mockRejectedValueOnce(
+        new Error("Not found"),
+      );
+      mockPrismaClient.datasetVersion.update.mockResolvedValue({
+        ...mockVersion,
+        storagePrefix: "datasets/dataset-1/version-1",
+        documentCount: 2,
+      });
+
+      const result = await service.uploadFilesToVersion(
+        "dataset-1",
+        "version-1",
+        dupeFiles,
+        "user-1",
+      );
+
+      const filenames = result.uploadedFiles.map(
+        (f: { filename: string }) => f.filename,
+      );
+      expect(filenames).toContain("sample.pdf");
+      expect(filenames).toContain("sample_2.pdf");
     });
   });
 });
