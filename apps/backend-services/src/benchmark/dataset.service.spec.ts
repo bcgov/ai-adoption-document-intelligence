@@ -1064,9 +1064,7 @@ describe("DatasetService", () => {
       (mockBlobStorage.exists as jest.Mock).mockResolvedValue(true);
       (mockBlobStorage.read as jest.Mock)
         .mockResolvedValueOnce(Buffer.from(JSON.stringify(manifest)))
-        .mockResolvedValueOnce(
-          Buffer.from(JSON.stringify({ field: "value" })),
-        );
+        .mockResolvedValueOnce(Buffer.from(JSON.stringify({ field: "value" })));
 
       const result = await service.validateDatasetVersion(
         "dataset-1",
@@ -1171,8 +1169,9 @@ describe("DatasetService", () => {
       const manifest = { schemaVersion: "1.0", samples };
 
       (mockBlobStorage.exists as jest.Mock).mockResolvedValue(true);
-      (mockBlobStorage.read as jest.Mock)
-        .mockResolvedValueOnce(Buffer.from(JSON.stringify(manifest)));
+      (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
+        Buffer.from(JSON.stringify(manifest)),
+      );
 
       // Return valid JSON for gt files
       for (let i = 0; i < 3; i++) {
@@ -1181,11 +1180,9 @@ describe("DatasetService", () => {
         );
       }
 
-      const result = await service.validateDatasetVersion(
-        "dataset-1",
-        "v1",
-        { sampleSize: 3 },
-      );
+      const result = await service.validateDatasetVersion("dataset-1", "v1", {
+        sampleSize: 3,
+      });
 
       expect(result.sampled).toBe(true);
       expect(result.totalSamples).toBe(10);
@@ -1323,9 +1320,9 @@ describe("DatasetService", () => {
     it("throws when version not found", async () => {
       mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.listSplits("dataset-1", "v1"),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.listSplits("dataset-1", "v1")).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -1535,12 +1532,7 @@ describe("DatasetService", () => {
       mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.updateVersionAfterHitlImport(
-          "dataset-1",
-          "v1",
-          "prefix",
-          5,
-        ),
+        service.updateVersionAfterHitlImport("dataset-1", "v1", "prefix", 5),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -1628,9 +1620,9 @@ describe("DatasetService", () => {
         benchmarkDefinitions: [{ id: "def-1", name: "Def 1" }],
       });
 
-      await expect(
-        service.deleteVersion("dataset-1", "v1"),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.deleteVersion("dataset-1", "v1")).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it("handles version with no storagePrefix", async () => {

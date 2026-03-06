@@ -10,10 +10,7 @@ jest.mock("@/auth/identity.helpers", () => ({
   getIdentityGroupIds: jest.fn().mockResolvedValue(["test-group"]),
 }));
 
-import {
-  BadRequestException,
-  NotFoundException,
-} from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
 import { DatabaseService } from "@/database/database.service";
@@ -201,10 +198,7 @@ describe("BenchmarkRunController", () => {
 
       const result = await controller.cancelRun(projectId, "run-1", mockReq);
 
-      expect(mockRunService.cancelRun).toHaveBeenCalledWith(
-        projectId,
-        "run-1",
-      );
+      expect(mockRunService.cancelRun).toHaveBeenCalledWith(projectId, "run-1");
       expect(result).toEqual(expected);
     });
 
@@ -229,11 +223,7 @@ describe("BenchmarkRunController", () => {
 
       mockRunService.getDrillDown.mockResolvedValue(expected);
 
-      const result = await controller.getDrillDown(
-        projectId,
-        "run-1",
-        mockReq,
-      );
+      const result = await controller.getDrillDown(projectId, "run-1", mockReq);
 
       expect(mockRunService.getDrillDown).toHaveBeenCalledWith(
         projectId,
@@ -337,9 +327,7 @@ describe("BenchmarkRunController", () => {
   describe("POST /runs/:runId/baseline", () => {
     it("promotes a run to baseline", async () => {
       const promoteDto: PromoteBaselineDto = {
-        thresholds: [
-          { metricName: "accuracy", type: "absolute", value: 0.9 },
-        ],
+        thresholds: [{ metricName: "accuracy", type: "absolute", value: 0.9 }],
       };
       const expected = {
         runId: "run-1",
@@ -404,10 +392,7 @@ describe("BenchmarkRunController", () => {
 
       await controller.deleteRun(projectId, "run-1", mockReq);
 
-      expect(mockRunService.deleteRun).toHaveBeenCalledWith(
-        projectId,
-        "run-1",
-      );
+      expect(mockRunService.deleteRun).toHaveBeenCalledWith(projectId, "run-1");
     });
 
     it("throws when run is still active", async () => {

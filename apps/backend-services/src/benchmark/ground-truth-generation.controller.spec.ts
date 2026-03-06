@@ -131,11 +131,7 @@ describe("GroundTruthGenerationController", () => {
 
       mockGroundTruthService.getJobs.mockResolvedValue(expected);
 
-      const result = await controller.getJobs(
-        datasetId,
-        versionId,
-        mockReq,
-      );
+      const result = await controller.getJobs(datasetId, versionId, mockReq);
 
       expect(mockGroundTruthService.getJobs).toHaveBeenCalledWith(
         datasetId,

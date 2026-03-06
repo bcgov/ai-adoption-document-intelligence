@@ -163,9 +163,7 @@ describe("BenchmarkTemporalService", () => {
 
       await service.cancelBenchmarkRunWorkflow("benchmark-run-run-1");
 
-      expect(mockWorkflowGetHandle).toHaveBeenCalledWith(
-        "benchmark-run-run-1",
-      );
+      expect(mockWorkflowGetHandle).toHaveBeenCalledWith("benchmark-run-run-1");
       expect(mockCancel).toHaveBeenCalled();
     });
 
@@ -322,9 +320,9 @@ describe("BenchmarkTemporalService", () => {
         delete: jest.fn().mockRejectedValue(new Error("Not found")),
       });
 
-      await expect(
-        service.deleteSchedule("bad-schedule"),
-      ).rejects.toThrow("Failed to delete schedule");
+      await expect(service.deleteSchedule("bad-schedule")).rejects.toThrow(
+        "Failed to delete schedule",
+      );
     });
 
     it("handles non-Error thrown objects on delete", async () => {
@@ -332,9 +330,9 @@ describe("BenchmarkTemporalService", () => {
         delete: jest.fn().mockRejectedValue("delete error"),
       });
 
-      await expect(
-        service.deleteSchedule("bad-schedule"),
-      ).rejects.toThrow("Failed to delete schedule");
+      await expect(service.deleteSchedule("bad-schedule")).rejects.toThrow(
+        "Failed to delete schedule",
+      );
     });
   });
 
@@ -355,9 +353,7 @@ describe("BenchmarkTemporalService", () => {
         }),
       });
 
-      const result = await service.getScheduleInfo(
-        "benchmark-schedule-def-1",
-      );
+      const result = await service.getScheduleInfo("benchmark-schedule-def-1");
 
       expect(result).toEqual({
         scheduleId: "benchmark-schedule-def-1",
@@ -392,9 +388,9 @@ describe("BenchmarkTemporalService", () => {
         describe: jest.fn().mockRejectedValue(new Error("Not found")),
       });
 
-      await expect(
-        service.getScheduleInfo("bad-schedule"),
-      ).rejects.toThrow("Failed to get schedule info");
+      await expect(service.getScheduleInfo("bad-schedule")).rejects.toThrow(
+        "Failed to get schedule info",
+      );
     });
 
     it("handles non-Error thrown objects on describe", async () => {
@@ -402,9 +398,9 @@ describe("BenchmarkTemporalService", () => {
         describe: jest.fn().mockRejectedValue("describe error"),
       });
 
-      await expect(
-        service.getScheduleInfo("bad-schedule"),
-      ).rejects.toThrow("Failed to get schedule info");
+      await expect(service.getScheduleInfo("bad-schedule")).rejects.toThrow(
+        "Failed to get schedule info",
+      );
     });
   });
 

@@ -884,9 +884,7 @@ describe("DatasetController", () => {
       );
 
       expect(result).toEqual({
-        splits: [
-          { id: "split-1", name: "test", type: "test", sampleCount: 5 },
-        ],
+        splits: [{ id: "split-1", name: "test", type: "test", sampleCount: 5 }],
       });
     });
   });
