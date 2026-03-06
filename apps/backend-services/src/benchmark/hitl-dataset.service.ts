@@ -46,7 +46,7 @@ interface DocumentWithReview {
   }>;
 }
 
-interface SkippedDocument {
+export interface SkippedDocument {
   documentId: string;
   reason: string;
 }
