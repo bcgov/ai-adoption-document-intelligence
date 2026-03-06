@@ -112,7 +112,7 @@ export class LabelingOcrService {
   private async requestOcr(blobKey: string): Promise<string> {
     const fileBuffer = await this.blobStorage.read(blobKey);
 
-    const url = `${this.azureEndpoint}/documentModels/prebuilt-layout:analyze?api-version=2024-11-30&features=keyValuePairs`;
+    const url = `${this.azureEndpoint}/documentintelligence/documentModels/prebuilt-layout:analyze?api-version=2024-11-30&features=keyValuePairs`;
 
     const headers = {
       "api-key": this.azureApiKey,
@@ -142,7 +142,7 @@ export class LabelingOcrService {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const response = await lastValueFrom(
         this.httpService.get(
-          `${this.azureEndpoint}/documentModels/prebuilt-layout/analyzeResults/${apimRequestId}?api-version=2024-11-30`,
+          `${this.azureEndpoint}/documentintelligence/documentModels/prebuilt-layout/analyzeResults/${apimRequestId}?api-version=2024-11-30`,
           { headers: { "api-key": this.azureApiKey } },
         ),
       );

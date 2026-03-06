@@ -50,6 +50,7 @@ interface LabelingUploadPayload {
   file_type: "pdf" | "image" | "scan";
   original_filename?: string;
   metadata?: Record<string, unknown>;
+  group_id: string;
 }
 
 import { MAX_FILE_SIZE, SUPPORTED_FILE_TYPES } from "@/shared/constants";
@@ -170,6 +171,7 @@ export const ProjectDetailPage: FC = () => {
           size: file.size,
           lastModified: file.lastModified,
         },
+        group_id: project!.group_id,
       };
 
       const response = await apiService.post<{

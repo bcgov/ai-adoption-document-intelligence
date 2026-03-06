@@ -47,7 +47,7 @@ export async function extractOCRResults(params: {
       }
       const normalizedEndpoint = normalizeEndpoint(endpoint);
       const normalizedModelId = modelId || 'prebuilt-layout';
-      const url = `${normalizedEndpoint}/documentModels/${normalizedModelId}/analyzeResults/${apimRequestId}?api-version=2024-11-30`;
+      const url = `${normalizedEndpoint}/documentintelligence/documentModels/${normalizedModelId}/analyzeResults/${apimRequestId}?api-version=2024-11-30`;
       const response = await axios.get<OCRResponse>(url, {
         headers: { 'api-key': apiKey }
       });

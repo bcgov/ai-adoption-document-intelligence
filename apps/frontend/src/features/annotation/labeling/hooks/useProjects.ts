@@ -35,6 +35,7 @@ interface Project {
   description?: string;
   status: string;
   created_by: string;
+  group_id: string;
   created_at: string;
   updated_at: string;
   field_schema: FieldSchema[];

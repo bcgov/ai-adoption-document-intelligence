@@ -296,7 +296,7 @@ export class ClassifierService {
       const docIntelligenceEndpoint = this.azureService.getEndpoint();
       operationLocation = operationLocation.replace(
         /https:\/\/[^/]+/,
-        docIntelligenceEndpoint,
+        docIntelligenceEndpoint.replace(/\/$/, ""),
       );
 
       // Update classifier record

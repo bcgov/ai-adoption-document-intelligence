@@ -8,18 +8,11 @@ import type { PreparedFileData, SubmissionResult } from '../types';
 import { getBlobStorageClient } from '../blob-storage/blob-storage-client';
 
 /**
- * Normalize endpoint for the Azure SDK. The SDK appends "/documentintelligence" to the
- * endpoint, so if the env var already includes that path (e.g. APIM), strip it to avoid
- * double segment and 404.
+ * Normalize endpoint URL by removing trailing slash.
  */
-function normalizeEndpointForSdk(url: string | undefined): string {
+function normalizeEndpoint(url: string | undefined): string {
   if (!url) return '';
-  let normalized = url.endsWith('/') ? url.slice(0, -1) : url;
-  const suffix = '/documentintelligence';
-  if (normalized.toLowerCase().endsWith(suffix)) {
-    normalized = normalized.slice(0, -suffix.length);
-  }
-  return normalized;
+  return url.endsWith('/') ? url.slice(0, -1) : url;
 }
 
 async function readBlobData(blobKey: string): Promise<Buffer> {
@@ -105,7 +98,7 @@ export async function submitToAzureOCR(params: {
     );
   }
 
-  const normalizedEndpoint = normalizeEndpointForSdk(endpoint);
+  const normalizedEndpoint = normalizeEndpoint(endpoint);
   const modelId = fileData.modelId || 'prebuilt-layout';
 
   try {
