@@ -18,8 +18,8 @@ import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import CodeMirror from "@uiw/react-codemirror";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GraphConfigFormEditor } from "../components/workflow/GraphConfigFormEditor";
 import { useNavigate, useParams } from "react-router-dom";
+import { GraphConfigFormEditor } from "../components/workflow/GraphConfigFormEditor";
 import { GraphVisualization } from "../components/workflow/GraphVisualization";
 import {
   CreateWorkflowDto,

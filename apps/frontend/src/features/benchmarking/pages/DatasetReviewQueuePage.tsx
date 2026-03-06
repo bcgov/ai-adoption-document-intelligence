@@ -1,7 +1,7 @@
 import {
+  Anchor,
   Badge,
   Breadcrumbs,
-  Anchor,
   Button,
   Card,
   Center,
@@ -22,11 +22,11 @@ import {
 } from "@tabler/icons-react";
 import { FC, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useDataset } from "../hooks/useDatasets";
 import {
-  useDatasetReviewQueue,
   type DatasetReviewQueueDocument,
+  useDatasetReviewQueue,
 } from "../hooks/useDatasetReviewQueue";
+import { useDataset } from "../hooks/useDatasets";
 
 export const DatasetReviewQueuePage: FC = () => {
   const { id: datasetId, versionId } = useParams<{
@@ -38,11 +38,10 @@ export const DatasetReviewQueuePage: FC = () => {
 
   const { dataset } = useDataset(datasetId || "");
 
-  const pendingQueue = useDatasetReviewQueue(
-    datasetId || "",
-    versionId || "",
-    { limit: 50, reviewStatus: "pending" },
-  );
+  const pendingQueue = useDatasetReviewQueue(datasetId || "", versionId || "", {
+    limit: 50,
+    reviewStatus: "pending",
+  });
 
   const reviewedQueue = useDatasetReviewQueue(
     datasetId || "",
@@ -72,10 +71,7 @@ export const DatasetReviewQueuePage: FC = () => {
       confidence?: number;
     }>;
     if (fields.length === 0) return 0;
-    const sum = fields.reduce(
-      (acc, field) => acc + (field.confidence || 0),
-      0,
-    );
+    const sum = fields.reduce((acc, field) => acc + (field.confidence || 0), 0);
     return sum / fields.length;
   };
 
@@ -120,9 +116,7 @@ export const DatasetReviewQueuePage: FC = () => {
         <Anchor onClick={() => navigate("/benchmarking/datasets")}>
           Datasets
         </Anchor>
-        <Anchor
-          onClick={() => navigate(`/benchmarking/datasets/${datasetId}`)}
-        >
+        <Anchor onClick={() => navigate(`/benchmarking/datasets/${datasetId}`)}>
           {dataset?.name || "Dataset"}
         </Anchor>
         <Text>Ground Truth Review</Text>
@@ -323,9 +317,7 @@ export const DatasetReviewQueuePage: FC = () => {
                       <Table.Td>
                         <Badge
                           variant="light"
-                          color={getStatusColor(
-                            doc.lastSession?.status || "",
-                          )}
+                          color={getStatusColor(doc.lastSession?.status || "")}
                           size="sm"
                         >
                           {doc.lastSession?.status || "N/A"}

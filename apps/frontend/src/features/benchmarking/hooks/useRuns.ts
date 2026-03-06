@@ -92,9 +92,7 @@ export const useRuns = (projectId: string) => {
 
   const deleteRunMutation = useMutation({
     mutationFn: async (runId: string) => {
-      await apiService.delete(
-        `/benchmark/projects/${projectId}/runs/${runId}`,
-      );
+      await apiService.delete(`/benchmark/projects/${projectId}/runs/${runId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -480,18 +478,20 @@ export const useHistoricalRuns = (projectId: string, definitionId: string) => {
       );
 
       const detailResponses = await Promise.all(detailPromises);
-      const historicalRuns: HistoricalRunData[] = detailResponses.map((response) => {
-        const run = response.data;
-        return {
-          id: run.id,
-          definitionId: run.definitionId,
-          definitionName: run.definitionName,
-          status: run.status,
-          completedAt: run.completedAt,
-          metrics: run.metrics as Record<string, number>,
-          isBaseline: run.isBaseline,
-        };
-      });
+      const historicalRuns: HistoricalRunData[] = detailResponses.map(
+        (response) => {
+          const run = response.data;
+          return {
+            id: run.id,
+            definitionId: run.definitionId,
+            definitionName: run.definitionName,
+            status: run.status,
+            completedAt: run.completedAt,
+            metrics: run.metrics as Record<string, number>,
+            isBaseline: run.isBaseline,
+          };
+        },
+      );
 
       return historicalRuns;
     },

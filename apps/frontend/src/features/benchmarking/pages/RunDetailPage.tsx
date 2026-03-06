@@ -30,6 +30,7 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { TEMPORAL_UI_URL } from "@/shared/constants";
 import { ArtifactViewer } from "../components/ArtifactViewer";
 import { BaselineThresholdDialog } from "../components/BaselineThresholdDialog";
 import { useDefinition } from "../hooks/useDefinitions";
@@ -41,7 +42,6 @@ import {
   useRun,
   useStartRun,
 } from "../hooks/useRuns";
-import { TEMPORAL_UI_URL } from "@/shared/constants";
 import { formatDurationFromDates, getStatusColor } from "../utils";
 
 interface FieldComparisonResult {
@@ -89,9 +89,15 @@ function FieldErrorDetails({
     if (fieldResult) {
       // Determine error type
       let errorType = "mismatch";
-      if (fieldResult.expected !== undefined && fieldResult.predicted === undefined) {
+      if (
+        fieldResult.expected !== undefined &&
+        fieldResult.predicted === undefined
+      ) {
         errorType = "missing";
-      } else if (fieldResult.expected === undefined && fieldResult.predicted !== undefined) {
+      } else if (
+        fieldResult.expected === undefined &&
+        fieldResult.predicted !== undefined
+      ) {
         errorType = "extra";
       }
 
@@ -116,7 +122,8 @@ function FieldErrorDetails({
   return (
     <>
       <Text size="sm" c="dimmed">
-        {affectedSamples.length} sample{affectedSamples.length !== 1 ? "s" : ""} with errors on this field
+        {affectedSamples.length} sample{affectedSamples.length !== 1 ? "s" : ""}{" "}
+        with errors on this field
       </Text>
       <Table striped highlightOnHover data-testid="field-error-detail-table">
         <Table.Thead>
@@ -213,7 +220,7 @@ export function RunDetailPage() {
   // Fetch all per-sample results when field drawer is open
   const { results: allSampleResults } = usePerSampleResults(
     drawerField !== null ? projectId : "",
-    drawerField !== null ? (runId || "") : "",
+    drawerField !== null ? runId || "" : "",
     {},
     1,
     10000,
@@ -246,7 +253,11 @@ export function RunDetailPage() {
   };
 
   const handleThresholdSubmit = (
-    thresholds: Array<{ metricName: string; type: "absolute" | "relative"; value: number }>
+    thresholds: Array<{
+      metricName: string;
+      type: "absolute" | "relative";
+      value: number;
+    }>,
   ) => {
     promoteToBaseline(
       { thresholds },
@@ -265,11 +276,14 @@ export function RunDetailPage() {
         onError: (error) => {
           notifications.show({
             title: "Error",
-            message: error instanceof Error ? error.message : "Failed to promote run to baseline",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to promote run to baseline",
             color: "red",
           });
         },
-      }
+      },
     );
   };
 
@@ -291,7 +305,10 @@ export function RunDetailPage() {
 
   const canCancel = run.status === "running" || run.status === "pending";
   const canRerun = run.status === "completed" || run.status === "failed";
-  const canEditThresholds = run.isBaseline && run.baselineThresholds && run.baselineThresholds.length > 0;
+  const canEditThresholds =
+    run.isBaseline &&
+    run.baselineThresholds &&
+    run.baselineThresholds.length > 0;
   const temporalUrl = `${TEMPORAL_UI_URL}/namespaces/default/workflows/${run.temporalWorkflowId}`;
 
   // All possible artifact types (from schema) - should always be available in filter dropdown
@@ -483,28 +500,31 @@ export function RunDetailPage() {
         </Alert>
       )}
 
-      {run.status === "completed" && !run.baselineComparison && !run.isBaseline && (
-        <Alert
-          icon={<IconAlertCircle size={16} />}
-          color="blue"
-          title="No Baseline Set"
-          data-testid="no-baseline-alert"
-        >
-          <Stack gap="sm">
-            <Text>
-              No baseline has been set for this definition. Promote this run to baseline to enable performance comparisons for future runs.
-            </Text>
-            <Button
-              leftSection={<IconTrophy size={16} />}
-              onClick={handlePromoteBaseline}
-              loading={isPromoting}
-              data-testid="promote-to-baseline-suggestion-btn"
-            >
-              Promote this run to Baseline
-            </Button>
-          </Stack>
-        </Alert>
-      )}
+      {run.status === "completed" &&
+        !run.baselineComparison &&
+        !run.isBaseline && (
+          <Alert
+            icon={<IconAlertCircle size={16} />}
+            color="blue"
+            title="No Baseline Set"
+            data-testid="no-baseline-alert"
+          >
+            <Stack gap="sm">
+              <Text>
+                No baseline has been set for this definition. Promote this run
+                to baseline to enable performance comparisons for future runs.
+              </Text>
+              <Button
+                leftSection={<IconTrophy size={16} />}
+                onClick={handlePromoteBaseline}
+                loading={isPromoting}
+                data-testid="promote-to-baseline-suggestion-btn"
+              >
+                Promote this run to Baseline
+              </Button>
+            </Stack>
+          </Alert>
+        )}
 
       <Card>
         <Stack gap="md">
@@ -586,7 +606,8 @@ export function RunDetailPage() {
                   <Table.Td fw={500}>Retention Policy</Table.Td>
                   <Table.Td>
                     <Text size="sm" c="dimmed">
-                      Protected from retention - baseline runs are exempt from cleanup
+                      Protected from retention - baseline runs are exempt from
+                      cleanup
                     </Text>
                   </Table.Td>
                 </Table.Tr>
@@ -606,7 +627,11 @@ export function RunDetailPage() {
               Comparing against baseline run:{" "}
               <Code>{run.baselineComparison.baselineRunId}</Code>
             </Text>
-            <Table striped highlightOnHover data-testid="baseline-comparison-table">
+            <Table
+              striped
+              highlightOnHover
+              data-testid="baseline-comparison-table"
+            >
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Metric</Table.Th>
@@ -669,7 +694,10 @@ export function RunDetailPage() {
       )}
 
       {run.status === "completed" && run.metrics && (
-        <Accordion variant="contained" data-testid="aggregated-metrics-accordion">
+        <Accordion
+          variant="contained"
+          data-testid="aggregated-metrics-accordion"
+        >
           <Accordion.Item value="metrics">
             <Accordion.Control>
               <Title order={3} data-testid="aggregated-metrics-heading">
@@ -677,7 +705,11 @@ export function RunDetailPage() {
               </Title>
             </Accordion.Control>
             <Accordion.Panel>
-              <Table striped highlightOnHover data-testid="aggregated-metrics-table">
+              <Table
+                striped
+                highlightOnHover
+                data-testid="aggregated-metrics-table"
+              >
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Metric Name</Table.Th>
@@ -825,7 +857,11 @@ export function RunDetailPage() {
               drillDown.fieldErrorBreakdown.length > 0 && (
                 <Stack gap="xs">
                   <Text fw={500}>Per-Field Error Breakdown</Text>
-                  <Table striped highlightOnHover data-testid="field-error-breakdown-table">
+                  <Table
+                    striped
+                    highlightOnHover
+                    data-testid="field-error-breakdown-table"
+                  >
                     <Table.Thead>
                       <Table.Tr>
                         <Table.Th>Field Name</Table.Th>
@@ -858,7 +894,6 @@ export function RunDetailPage() {
                   </Table>
                 </Stack>
               )}
-
           </Stack>
         </Card>
       )}
@@ -878,7 +913,7 @@ export function RunDetailPage() {
             setThresholdDialogOpened(false);
             setIsEditingThresholds(false);
           }}
-          metrics={(run.metrics as Record<string, number>)}
+          metrics={run.metrics as Record<string, number>}
           onSubmit={handleThresholdSubmit}
           isPromoting={isPromoting}
           existingBaseline={
@@ -889,7 +924,11 @@ export function RunDetailPage() {
                 }
               : undefined
           }
-          existingThresholds={isEditingThresholds ? run.baselineThresholds || undefined : undefined}
+          existingThresholds={
+            isEditingThresholds
+              ? run.baselineThresholds || undefined
+              : undefined
+          }
           isEditing={isEditingThresholds}
         />
       )}
@@ -918,7 +957,6 @@ export function RunDetailPage() {
           </ScrollArea>
         )}
       </Drawer>
-
     </Stack>
   );
 }

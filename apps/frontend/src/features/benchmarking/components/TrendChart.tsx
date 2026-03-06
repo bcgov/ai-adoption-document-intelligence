@@ -1,16 +1,24 @@
-import { Card, Select, Stack, Text, Loader, Center, MultiSelect } from "@mantine/core";
-import { useState, useMemo, useEffect } from "react";
-import { useSessionStorage } from "@mantine/hooks";
 import {
-  LineChart,
+  Card,
+  Center,
+  Loader,
+  MultiSelect,
+  Select,
+  Stack,
+  Text,
+} from "@mantine/core";
+import { useSessionStorage } from "@mantine/hooks";
+import { useEffect, useMemo, useState } from "react";
+import {
+  CartesianGrid,
+  Legend,
   Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  ReferenceLine,
 } from "recharts";
 import type { HistoricalRunData, MetricComparison } from "../hooks/useRuns";
 
@@ -122,7 +130,10 @@ export function TrendChart({
     if (!baselineComparison) return {};
     const thresholdMap: Record<string, number | null> = {};
     baselineComparison.metricComparisons.forEach((comparison) => {
-      if (comparison.threshold && selectedMetrics.includes(comparison.metricName)) {
+      if (
+        comparison.threshold &&
+        selectedMetrics.includes(comparison.metricName)
+      ) {
         // Calculate threshold value based on baseline value and threshold
         if (comparison.threshold.type === "relative") {
           thresholdMap[comparison.metricName] =
@@ -192,7 +203,13 @@ export function TrendChart({
     return (
       <div
         data-testid="chart-legend"
-        style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 16, flexWrap: "wrap" }}
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: 16,
+          marginTop: 16,
+          flexWrap: "wrap",
+        }}
       >
         {selectedMetrics.map((metricName, index) => {
           const isHidden = hiddenMetrics.has(metricName);
@@ -219,7 +236,9 @@ export function TrendChart({
                   borderRadius: 2,
                 }}
               />
-              <Text size="sm" component="span">{metricName}</Text>
+              <Text size="sm" component="span">
+                {metricName}
+              </Text>
             </div>
           );
         })}
@@ -319,12 +338,16 @@ export function TrendChart({
       </div>
 
       <Text size="sm" c="dimmed" data-testid="date-range-label">
-        Showing {dateRangeLabel.toLowerCase()} ({filteredRuns.length} run{filteredRuns.length !== 1 ? "s" : ""})
+        Showing {dateRangeLabel.toLowerCase()} ({filteredRuns.length} run
+        {filteredRuns.length !== 1 ? "s" : ""})
       </Text>
 
       <div data-testid="trend-chart">
         <ResponsiveContainer width="100%" height={400}>
-          <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+          <LineChart
+            data={chartData}
+            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+          >
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
@@ -377,7 +400,14 @@ export function TrendChart({
                   stroke={color}
                   strokeWidth={2}
                   strokeOpacity={isHidden ? 0 : 1}
-                  dot={<CustomDot dataKey={metricName} cx={0} cy={0} payload={{}} />}
+                  dot={
+                    <CustomDot
+                      dataKey={metricName}
+                      cx={0}
+                      cy={0}
+                      payload={{}}
+                    />
+                  }
                   activeDot={{ r: 6 }}
                   className={`trend-line-${metricName}`}
                   hide={isHidden}

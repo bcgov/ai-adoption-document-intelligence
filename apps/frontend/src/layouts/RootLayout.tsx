@@ -186,90 +186,91 @@ export function RootLayout() {
         </ActionIcon>
 
         <ScrollArea flex={1} p="md">
-        <Stack gap="xs">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active =
-              !isBenchmarkingRoute &&
-              (location.pathname === item.path ||
-                (item.path !== "/" && location.pathname.startsWith(item.path)));
+          <Stack gap="xs">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active =
+                !isBenchmarkingRoute &&
+                (location.pathname === item.path ||
+                  (item.path !== "/" &&
+                    location.pathname.startsWith(item.path)));
 
-            return navbarOpened ? (
-              <NavLink
-                key={item.path}
-                label={item.label}
-                description={item.description}
-                leftSection={<Icon size={18} />}
-                active={active}
-                variant={active ? "light" : "subtle"}
-                color={active ? "blue" : "gray"}
-                onClick={() => navigate(item.path)}
-              />
-            ) : (
-              <Tooltip key={item.path} label={item.label} position="right">
-                <ActionIcon
+              return navbarOpened ? (
+                <NavLink
+                  key={item.path}
+                  label={item.label}
+                  description={item.description}
+                  leftSection={<Icon size={18} />}
+                  active={active}
                   variant={active ? "light" : "subtle"}
                   color={active ? "blue" : "gray"}
-                  size="lg"
-                  radius="md"
                   onClick={() => navigate(item.path)}
-                  aria-label={item.label}
-                >
-                  <Icon size={18} />
-                </ActionIcon>
-              </Tooltip>
-            );
-          })}
-
-          {navbarOpened ? (
-            <NavLink
-              label="Benchmarking"
-              description="Benchmark management"
-              leftSection={<IconChartBar size={18} />}
-              active={isBenchmarkingRoute}
-              variant={isBenchmarkingRoute ? "light" : "subtle"}
-              color={isBenchmarkingRoute ? "blue" : "gray"}
-              childrenOffset={28}
-              defaultOpened={isBenchmarkingRoute}
-              data-testid="benchmarking-nav"
-            >
-              {benchmarkingNavItems.map((item) => {
-                const Icon = item.icon;
-                const active =
-                  location.pathname === item.path ||
-                  location.pathname.startsWith(item.path + "/");
-
-                return (
-                  <NavLink
-                    key={item.path}
-                    label={item.label}
-                    description={item.description}
-                    leftSection={<Icon size={16} />}
-                    active={active}
-                    variant={active ? "filled" : "subtle"}
+                />
+              ) : (
+                <Tooltip key={item.path} label={item.label} position="right">
+                  <ActionIcon
+                    variant={active ? "light" : "subtle"}
                     color={active ? "blue" : "gray"}
+                    size="lg"
+                    radius="md"
                     onClick={() => navigate(item.path)}
-                    data-testid={`${item.label.toLowerCase()}-nav-link`}
-                  />
-                );
-              })}
-            </NavLink>
-          ) : (
-            <Tooltip label="Benchmarking" position="right">
-              <ActionIcon
+                    aria-label={item.label}
+                  >
+                    <Icon size={18} />
+                  </ActionIcon>
+                </Tooltip>
+              );
+            })}
+
+            {navbarOpened ? (
+              <NavLink
+                label="Benchmarking"
+                description="Benchmark management"
+                leftSection={<IconChartBar size={18} />}
+                active={isBenchmarkingRoute}
                 variant={isBenchmarkingRoute ? "light" : "subtle"}
                 color={isBenchmarkingRoute ? "blue" : "gray"}
-                size="lg"
-                radius="md"
-                onClick={() => navigate("/benchmarking/datasets")}
-                aria-label="Benchmarking"
-                data-testid="benchmarking-nav-collapsed"
+                childrenOffset={28}
+                defaultOpened={isBenchmarkingRoute}
+                data-testid="benchmarking-nav"
               >
-                <IconChartBar size={18} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </Stack>
+                {benchmarkingNavItems.map((item) => {
+                  const Icon = item.icon;
+                  const active =
+                    location.pathname === item.path ||
+                    location.pathname.startsWith(item.path + "/");
+
+                  return (
+                    <NavLink
+                      key={item.path}
+                      label={item.label}
+                      description={item.description}
+                      leftSection={<Icon size={16} />}
+                      active={active}
+                      variant={active ? "filled" : "subtle"}
+                      color={active ? "blue" : "gray"}
+                      onClick={() => navigate(item.path)}
+                      data-testid={`${item.label.toLowerCase()}-nav-link`}
+                    />
+                  );
+                })}
+              </NavLink>
+            ) : (
+              <Tooltip label="Benchmarking" position="right">
+                <ActionIcon
+                  variant={isBenchmarkingRoute ? "light" : "subtle"}
+                  color={isBenchmarkingRoute ? "blue" : "gray"}
+                  size="lg"
+                  radius="md"
+                  onClick={() => navigate("/benchmarking/datasets")}
+                  aria-label="Benchmarking"
+                  data-testid="benchmarking-nav-collapsed"
+                >
+                  <IconChartBar size={18} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </Stack>
         </ScrollArea>
       </AppShell.Navbar>
 

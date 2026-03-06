@@ -28,7 +28,9 @@ export function ValidationReport({ validation }: ValidationReportProps) {
       <Card padding="lg" withBorder data-testid="validation-status-card">
         <Group justify="space-between">
           <div>
-            <Title order={4} data-testid="validation-result-title">Validation Result</Title>
+            <Title order={4} data-testid="validation-result-title">
+              Validation Result
+            </Title>
             {validation.sampled && (
               <Text size="sm" c="dimmed" data-testid="validation-sample-info">
                 Sampled {validation.sampleSize} of {validation.totalSamples}{" "}
@@ -119,7 +121,10 @@ export function ValidationReport({ validation }: ValidationReportProps) {
                 <strong>Total Issues</strong>
               </Table.Td>
               <Table.Td>
-                <Badge color={totalIssues > 0 ? "red" : "green"} data-testid="total-issues-count">
+                <Badge
+                  color={totalIssues > 0 ? "red" : "green"}
+                  data-testid="total-issues-count"
+                >
                   {totalIssues}
                 </Badge>
               </Table.Td>
@@ -130,21 +135,36 @@ export function ValidationReport({ validation }: ValidationReportProps) {
 
       {/* Detailed Issues */}
       {validation.issues.length > 0 && (
-        <Card padding="lg" withBorder data-testid="validation-detailed-issues-card">
+        <Card
+          padding="lg"
+          withBorder
+          data-testid="validation-detailed-issues-card"
+        >
           <Title order={5} mb="md" data-testid="detailed-issues-title">
             Detailed Issues
           </Title>
           <Stack gap="sm" data-testid="issues-list">
             {validation.issues.map((issue, index) => (
-              <Card key={index} padding="md" withBorder data-testid={`issue-card-${index}`}>
+              <Card
+                key={index}
+                padding="md"
+                withBorder
+                data-testid={`issue-card-${index}`}
+              >
                 <Group justify="space-between" mb="xs">
                   <Group gap="xs">
                     <IconAlertCircle
                       size={20}
                       color={issue.severity === "error" ? "red" : "orange"}
                     />
-                    <Text fw={500} data-testid={`issue-sample-id-${index}`}>{issue.sampleId}</Text>
-                    <Badge size="sm" color={getCategoryColor(issue.category)} data-testid={`issue-category-${index}`}>
+                    <Text fw={500} data-testid={`issue-sample-id-${index}`}>
+                      {issue.sampleId}
+                    </Text>
+                    <Badge
+                      size="sm"
+                      color={getCategoryColor(issue.category)}
+                      data-testid={`issue-category-${index}`}
+                    >
                       {formatCategory(issue.category)}
                     </Badge>
                   </Group>
@@ -160,7 +180,11 @@ export function ValidationReport({ validation }: ValidationReportProps) {
                   {issue.message}
                 </Text>
                 {issue.filePath && (
-                  <Text size="xs" c="dimmed" data-testid={`issue-file-path-${index}`}>
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                    data-testid={`issue-file-path-${index}`}
+                  >
                     File: <Code>{issue.filePath}</Code>
                   </Text>
                 )}

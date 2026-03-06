@@ -70,10 +70,10 @@ export const useDatasets = (page = 1, limit = 20) => {
       if (!activeGroup) {
         throw new Error("No active group selected");
       }
-      const response = await apiService.post<Dataset>(
-        "/benchmark/datasets",
-        { ...data, groupId: activeGroup.id },
-      );
+      const response = await apiService.post<Dataset>("/benchmark/datasets", {
+        ...data,
+        groupId: activeGroup.id,
+      });
       if (!response.success) {
         throw new Error(response.message || "Failed to create dataset");
       }

@@ -17,7 +17,15 @@ import { CreateDatasetFromHitlDialog } from "../components/CreateDatasetFromHitl
 import { useDatasets } from "../hooks/useDatasets";
 
 export function DatasetListPage() {
-  const { datasets, isLoading, error, createDataset, isCreating, createError, resetCreateError } = useDatasets();
+  const {
+    datasets,
+    isLoading,
+    error,
+    createDataset,
+    isCreating,
+    createError,
+    resetCreateError,
+  } = useDatasets();
   const [createDialogOpened, setCreateDialogOpened] = useState(false);
   const [hitlDialogOpened, setHitlDialogOpened] = useState(false);
   const navigate = useNavigate();
@@ -35,7 +43,9 @@ export function DatasetListPage() {
       <Center h="70vh">
         <Stack align="center" gap="md">
           <Text c="red">Failed to load datasets</Text>
-          <Text size="sm" c="dimmed">{error.message || 'Unknown error'}</Text>
+          <Text size="sm" c="dimmed">
+            {error.message || "Unknown error"}
+          </Text>
         </Stack>
       </Center>
     );
@@ -146,7 +156,9 @@ export function DatasetListPage() {
       <CreateDatasetFromHitlDialog
         opened={hitlDialogOpened}
         onClose={() => setHitlDialogOpened(false)}
-        onSuccess={(datasetId) => navigate(`/benchmarking/datasets/${datasetId}`)}
+        onSuccess={(datasetId) =>
+          navigate(`/benchmarking/datasets/${datasetId}`)
+        }
       />
     </Stack>
   );

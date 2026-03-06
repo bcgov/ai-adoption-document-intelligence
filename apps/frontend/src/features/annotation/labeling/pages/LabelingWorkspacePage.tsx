@@ -391,20 +391,14 @@ export const LabelingWorkspacePage: FC = () => {
     const nextAssignments: Record<string, string> = {};
 
     for (const suggestion of suggestions) {
-      let assignedCount = 0;
-      let skippedCount = 0;
-
       for (const elementId of suggestion.element_ids) {
         if (!elementSet.has(elementId)) {
-          skippedCount++;
           continue;
         }
         if (nextAssignments[elementId]) {
-          skippedCount++;
           continue;
         }
         nextAssignments[elementId] = suggestion.field_key;
-        assignedCount++;
       }
     }
     setWordAssignments(nextAssignments);
@@ -459,7 +453,7 @@ export const LabelingWorkspacePage: FC = () => {
         const suggestions = await loadSuggestionsAsync();
         applySuggestionsToAssignments(suggestions);
       } catch (error) {
-        console.error("Failed to auto-load suggestions", error);
+        void error;
       } finally {
         setAutoSuggestionApplied(true);
       }

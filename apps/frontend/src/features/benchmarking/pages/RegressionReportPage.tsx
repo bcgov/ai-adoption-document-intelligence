@@ -25,8 +25,8 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useRun, useHistoricalRuns } from "../hooks/useRuns";
 import { TrendChart } from "../components/TrendChart";
+import { useHistoricalRuns, useRun } from "../hooks/useRuns";
 
 function getSeverityColor(
   deltaPercent: number,
@@ -52,10 +52,10 @@ export function RegressionReportPage() {
   const navigate = useNavigate();
 
   const { run, isLoading } = useRun(projectId, runId || "", false);
-  const {
-    historicalRuns,
-    isLoading: isLoadingHistorical,
-  } = useHistoricalRuns(projectId, run?.definitionId || "");
+  const { historicalRuns, isLoading: isLoadingHistorical } = useHistoricalRuns(
+    projectId,
+    run?.definitionId || "",
+  );
 
   const [showRegressionsOnly, setShowRegressionsOnly] = useState(false);
   const [drillDownMetric, setDrillDownMetric] = useState<string | null>(null);
@@ -75,14 +75,16 @@ export function RegressionReportPage() {
       status: run.status,
       startedAt: run.startedAt,
       completedAt: run.completedAt,
-      baselineComparison: run.baselineComparison.metricComparisons.map((comparison) => ({
-        metricName: comparison.metricName,
-        currentValue: comparison.currentValue,
-        baselineValue: comparison.baselineValue,
-        delta: comparison.delta,
-        deltaPercent: comparison.deltaPercent,
-        status: comparison.passed ? "PASS" : "FAIL",
-      })),
+      baselineComparison: run.baselineComparison.metricComparisons.map(
+        (comparison) => ({
+          metricName: comparison.metricName,
+          currentValue: comparison.currentValue,
+          baselineValue: comparison.baselineValue,
+          delta: comparison.delta,
+          deltaPercent: comparison.deltaPercent,
+          status: comparison.passed ? "PASS" : "FAIL",
+        }),
+      ),
       generatedAt: new Date().toISOString(),
     };
 
@@ -227,7 +229,8 @@ export function RegressionReportPage() {
           </Text>
           <Stack align="center" gap="xs">
             <Text size="sm">
-              Promote this run to baseline or select a baseline run to enable regression reports.
+              Promote this run to baseline or select a baseline run to enable
+              regression reports.
             </Text>
             <Button
               component="a"
@@ -336,7 +339,12 @@ export function RegressionReportPage() {
             </Text>
             <Group gap="xs">
               {run.baselineComparison.regressedMetrics.map((metric) => (
-                <Badge key={metric} data-testid="regressed-metric-badge" color="red" size="lg">
+                <Badge
+                  key={metric}
+                  data-testid="regressed-metric-badge"
+                  color="red"
+                  size="lg"
+                >
                   {metric}
                 </Badge>
               ))}
@@ -383,7 +391,9 @@ export function RegressionReportPage() {
               data-testid="show-regressions-only-toggle"
               label="Show only regressions"
               checked={showRegressionsOnly}
-              onChange={(event) => setShowRegressionsOnly(event.currentTarget.checked)}
+              onChange={(event) =>
+                setShowRegressionsOnly(event.currentTarget.checked)
+              }
             />
           </Group>
 
@@ -394,8 +404,8 @@ export function RegressionReportPage() {
               icon={<IconAlertCircle size={16} />}
             >
               Showing {filteredComparisons.length} of{" "}
-              {run.baselineComparison.metricComparisons.length} metrics (regressed
-              only)
+              {run.baselineComparison.metricComparisons.length} metrics
+              (regressed only)
             </Alert>
           )}
 
@@ -526,25 +536,47 @@ export function RegressionReportPage() {
                     <Table.Tbody>
                       <Table.Tr>
                         <Table.Td fw={500}>Current Value</Table.Td>
-                        <Table.Td><Code>{comparison.currentValue.toFixed(4)}</Code></Table.Td>
+                        <Table.Td>
+                          <Code>{comparison.currentValue.toFixed(4)}</Code>
+                        </Table.Td>
                       </Table.Tr>
                       <Table.Tr>
                         <Table.Td fw={500}>Baseline Value</Table.Td>
-                        <Table.Td><Code>{comparison.baselineValue.toFixed(4)}</Code></Table.Td>
+                        <Table.Td>
+                          <Code>{comparison.baselineValue.toFixed(4)}</Code>
+                        </Table.Td>
                       </Table.Tr>
                       <Table.Tr>
                         <Table.Td fw={500}>Delta</Table.Td>
                         <Table.Td>
-                          <Code c={comparison.delta > 0 ? "green" : comparison.delta < 0 ? "red" : undefined}>
-                            {comparison.delta > 0 ? "+" : ""}{comparison.delta.toFixed(4)}
+                          <Code
+                            c={
+                              comparison.delta > 0
+                                ? "green"
+                                : comparison.delta < 0
+                                  ? "red"
+                                  : undefined
+                            }
+                          >
+                            {comparison.delta > 0 ? "+" : ""}
+                            {comparison.delta.toFixed(4)}
                           </Code>
                         </Table.Td>
                       </Table.Tr>
                       <Table.Tr>
                         <Table.Td fw={500}>Delta %</Table.Td>
                         <Table.Td>
-                          <Code c={comparison.deltaPercent > 0 ? "green" : comparison.deltaPercent < 0 ? "red" : undefined}>
-                            {comparison.deltaPercent > 0 ? "+" : ""}{comparison.deltaPercent.toFixed(2)}%
+                          <Code
+                            c={
+                              comparison.deltaPercent > 0
+                                ? "green"
+                                : comparison.deltaPercent < 0
+                                  ? "red"
+                                  : undefined
+                            }
+                          >
+                            {comparison.deltaPercent > 0 ? "+" : ""}
+                            {comparison.deltaPercent.toFixed(2)}%
                           </Code>
                         </Table.Td>
                       </Table.Tr>
@@ -617,16 +649,12 @@ export function RegressionReportPage() {
             readOnly
           />
           <Group justify="flex-end">
-            <Button
-              data-testid="copy-url-btn"
-              onClick={handleCopyShareUrl}
-            >
+            <Button data-testid="copy-url-btn" onClick={handleCopyShareUrl}>
               Copy URL
             </Button>
           </Group>
         </Stack>
       </Modal>
-
     </Stack>
   );
 }

@@ -1,6 +1,14 @@
-import { Modal, Stack, TextInput, Select, Button, Text, Alert } from "@mantine/core";
-import { useState, useEffect } from "react";
+import {
+  Alert,
+  Button,
+  Modal,
+  Select,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 
 interface MetricThreshold {
   metricName: string;
@@ -46,7 +54,9 @@ export function BaselineThresholdDialog({
     }));
   };
 
-  const [thresholds, setThresholds] = useState<MetricThreshold[]>(initializeThresholds());
+  const [thresholds, setThresholds] = useState<MetricThreshold[]>(
+    initializeThresholds(),
+  );
 
   // Reset thresholds when dialog opens
   useEffect(() => {
@@ -76,13 +86,17 @@ export function BaselineThresholdDialog({
     return null;
   };
 
-  const handleThresholdChange = (metricName: string, field: "type" | "value", newValue: string | number) => {
+  const handleThresholdChange = (
+    metricName: string,
+    field: "type" | "value",
+    newValue: string | number,
+  ) => {
     setThresholds((prev) =>
       prev.map((t) =>
         t.metricName === metricName
           ? { ...t, [field]: field === "value" ? Number(newValue) : newValue }
-          : t
-      )
+          : t,
+      ),
     );
 
     // Clear error for this metric
@@ -115,19 +129,25 @@ export function BaselineThresholdDialog({
     <Modal
       opened={opened}
       onClose={onClose}
-      title={isEditing ? "Edit Baseline Thresholds" : "Configure Baseline Thresholds"}
+      title={
+        isEditing ? "Edit Baseline Thresholds" : "Configure Baseline Thresholds"
+      }
       size="lg"
       data-testid="baseline-threshold-dialog"
     >
       <Stack gap="md">
         {existingBaseline && !isEditing && (
-          <Alert color="yellow" icon={<IconAlertCircle size={16} />} data-testid="existing-baseline-warning">
+          <Alert
+            color="yellow"
+            icon={<IconAlertCircle size={16} />}
+            data-testid="existing-baseline-warning"
+          >
             <Text size="sm" fw={600}>
               Existing baseline will be demoted
             </Text>
             <Text size="sm">
-              The current baseline run for "{existingBaseline.definitionName}" will be demoted. This run will become
-              the new baseline.
+              The current baseline run for "{existingBaseline.definitionName}"
+              will be demoted. This run will become the new baseline.
             </Text>
           </Alert>
         )}
@@ -141,7 +161,10 @@ export function BaselineThresholdDialog({
         <Stack gap="sm">
           {thresholds.map((threshold) => {
             const currentValue = metrics[threshold.metricName];
-            const formattedValue = typeof currentValue === "number" ? currentValue.toFixed(4) : "N/A";
+            const formattedValue =
+              typeof currentValue === "number"
+                ? currentValue.toFixed(4)
+                : "N/A";
             return (
               <Stack key={threshold.metricName} gap="xs">
                 <Text size="sm" fw={500}>
@@ -157,7 +180,13 @@ export function BaselineThresholdDialog({
                       { value: "absolute", label: "Absolute" },
                     ]}
                     value={threshold.type}
-                    onChange={(value) => handleThresholdChange(threshold.metricName, "type", value || "relative")}
+                    onChange={(value) =>
+                      handleThresholdChange(
+                        threshold.metricName,
+                        "type",
+                        value || "relative",
+                      )
+                    }
                     style={{ width: "140px" }}
                     data-testid={`threshold-type-${threshold.metricName}`}
                   />
@@ -167,7 +196,13 @@ export function BaselineThresholdDialog({
                     min="0"
                     max={threshold.type === "relative" ? "1" : undefined}
                     value={threshold.value}
-                    onChange={(e) => handleThresholdChange(threshold.metricName, "value", e.currentTarget.value)}
+                    onChange={(e) =>
+                      handleThresholdChange(
+                        threshold.metricName,
+                        "value",
+                        e.currentTarget.value,
+                      )
+                    }
                     error={errors[threshold.metricName]}
                     style={{ flex: 1 }}
                     data-testid={`threshold-value-${threshold.metricName}`}
@@ -183,11 +218,27 @@ export function BaselineThresholdDialog({
           })}
         </Stack>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem" }}>
-          <Button variant="default" onClick={onClose} disabled={isPromoting} data-testid="cancel-threshold-btn">
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "0.5rem",
+            marginTop: "1rem",
+          }}
+        >
+          <Button
+            variant="default"
+            onClick={onClose}
+            disabled={isPromoting}
+            data-testid="cancel-threshold-btn"
+          >
             Cancel
           </Button>
-          <Button onClick={handleSubmit} loading={isPromoting} data-testid="submit-threshold-btn">
+          <Button
+            onClick={handleSubmit}
+            loading={isPromoting}
+            data-testid="submit-threshold-btn"
+          >
             {isEditing ? "Update Thresholds" : "Promote to Baseline"}
           </Button>
         </div>

@@ -58,7 +58,8 @@ export const useCreateDatasetFromHitl = () => {
       );
       if (!response.success) {
         throw new Error(
-          response.message || "Failed to create dataset from verified documents",
+          response.message ||
+            "Failed to create dataset from verified documents",
         );
       }
       return response.data;

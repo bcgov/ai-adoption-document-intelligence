@@ -15,8 +15,8 @@ import {
 } from "@mantine/core";
 import { IconAlertCircle, IconSearch } from "@tabler/icons-react";
 import { useCallback, useState } from "react";
-import { useEligibleDocuments } from "../hooks/useEligibleDocuments";
 import { useCreateDatasetFromHitl } from "../hooks/useCreateDatasetFromHitl";
+import { useEligibleDocuments } from "../hooks/useEligibleDocuments";
 
 interface CreateDatasetFromHitlDialogProps {
   opened: boolean;

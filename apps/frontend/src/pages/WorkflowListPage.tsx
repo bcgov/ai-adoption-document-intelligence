@@ -193,7 +193,9 @@ export function WorkflowListPage() {
                       <ActionIcon
                         variant="light"
                         color="blue"
-                        onClick={() => navigate(`/workflows/${workflow.id}/edit`)}
+                        onClick={() =>
+                          navigate(`/workflows/${workflow.id}/edit`)
+                        }
                       >
                         <IconEdit size={16} />
                       </ActionIcon>

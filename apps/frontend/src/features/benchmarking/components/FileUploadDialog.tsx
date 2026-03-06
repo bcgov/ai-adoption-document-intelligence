@@ -12,7 +12,12 @@ import {
   Text,
 } from "@mantine/core";
 import { Dropzone } from "@mantine/dropzone";
-import { IconFile, IconInfoCircle, IconUpload, IconX } from "@tabler/icons-react";
+import {
+  IconFile,
+  IconInfoCircle,
+  IconUpload,
+  IconX,
+} from "@tabler/icons-react";
 import { useState } from "react";
 import { useDatasetUpload } from "../hooks/useDatasetUpload";
 
@@ -37,7 +42,10 @@ export function FileUploadDialog({
   onClose,
 }: FileUploadDialogProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const { upload, isUploading, isSuccess, error, reset } = useDatasetUpload(datasetId, versionId);
+  const { upload, isUploading, isSuccess, error, reset } = useDatasetUpload(
+    datasetId,
+    versionId,
+  );
 
   const handleDrop = (files: File[]) => {
     setSelectedFiles((prev) => [...prev, ...files]);
@@ -127,47 +135,64 @@ export function FileUploadDialog({
             <Accordion variant="contained" data-testid="upload-help-section">
               <Accordion.Item value="help">
                 <Accordion.Control icon={<IconInfoCircle size={16} />}>
-                  <Text size="sm" fw={500}>How files are categorized &amp; paired</Text>
+                  <Text size="sm" fw={500}>
+                    How files are categorized &amp; paired
+                  </Text>
                 </Accordion.Control>
                 <Accordion.Panel>
                   <Stack gap="xs">
                     <div>
-                      <Text size="sm" fw={500} mb={4}>File categorization</Text>
+                      <Text size="sm" fw={500} mb={4}>
+                        File categorization
+                      </Text>
                       <Text size="sm" c="dimmed">
                         Files are automatically categorized by type:
                       </Text>
                       <List size="sm" mt={4}>
                         <List.Item>
-                          <Badge size="xs" variant="light" color="blue" mr={4}>Ground Truth</Badge>
+                          <Badge size="xs" variant="light" color="blue" mr={4}>
+                            Ground Truth
+                          </Badge>
                           JSON, JSONL, CSV, XLSX, Parquet files
                         </List.Item>
                         <List.Item>
-                          <Badge size="xs" variant="light" color="gray" mr={4}>Input</Badge>
+                          <Badge size="xs" variant="light" color="gray" mr={4}>
+                            Input
+                          </Badge>
                           Everything else (images, PDFs, etc.)
                         </List.Item>
                       </List>
                     </div>
                     <div>
-                      <Text size="sm" fw={500} mb={4}>Pairing ground truth with inputs</Text>
+                      <Text size="sm" fw={500} mb={4}>
+                        Pairing ground truth with inputs
+                      </Text>
                       <Text size="sm" c="dimmed">
-                        Ground truth files are paired with inputs by matching the <strong>base filename</strong> —
-                        a <Code>.json</Code> file with the same name as the input document is treated as its ground truth.
+                        Ground truth files are paired with inputs by matching
+                        the <strong>base filename</strong> — a{" "}
+                        <Code>.json</Code> file with the same name as the input
+                        document is treated as its ground truth.
                       </Text>
                       <List size="sm" mt={4}>
                         <List.Item>
-                          <Code>invoice-001.pdf</Code> + <Code>invoice-001.json</Code> → paired as one sample
+                          <Code>invoice-001.pdf</Code> +{" "}
+                          <Code>invoice-001.json</Code> → paired as one sample
                         </List.Item>
                         <List.Item>
-                          <Code>receipt.png</Code> + <Code>receipt.json</Code> → paired as one sample
+                          <Code>receipt.png</Code> + <Code>receipt.json</Code> →
+                          paired as one sample
                         </List.Item>
                       </List>
                     </div>
                     <div>
-                      <Text size="sm" fw={500} mb={4}>Example</Text>
+                      <Text size="sm" fw={500} mb={4}>
+                        Example
+                      </Text>
                       <Text size="sm" c="dimmed">
-                        Uploading <Code>receipt.png</Code> and <Code>receipt.json</Code> creates
-                        one sample with both an input document and ground truth.
-                        Duplicate filenames within a single upload are not allowed.
+                        Uploading <Code>receipt.png</Code> and{" "}
+                        <Code>receipt.json</Code> creates one sample with both
+                        an input document and ground truth. Duplicate filenames
+                        within a single upload are not allowed.
                       </Text>
                     </div>
                   </Stack>
@@ -181,7 +206,11 @@ export function FileUploadDialog({
                   Selected Files ({selectedFiles.length})
                 </Text>
                 {selectedFiles.map((file, index) => (
-                  <Group key={index} justify="space-between" data-testid={`file-item-${index}`}>
+                  <Group
+                    key={index}
+                    justify="space-between"
+                    data-testid={`file-item-${index}`}
+                  >
                     <Text size="sm" truncate>
                       {file.name} ({(file.size / 1024).toFixed(2)} KB)
                     </Text>
@@ -200,7 +229,9 @@ export function FileUploadDialog({
               </Stack>
             )}
 
-            {isUploading && <Progress value={100} animated data-testid="upload-progress" />}
+            {isUploading && (
+              <Progress value={100} animated data-testid="upload-progress" />
+            )}
           </>
         )}
 
@@ -212,7 +243,10 @@ export function FileUploadDialog({
 
         {error && (
           <Text c="red" size="sm" data-testid="upload-error-message">
-            Upload failed: {error instanceof Error ? error.message : "An unexpected error occurred"}
+            Upload failed:{" "}
+            {error instanceof Error
+              ? error.message
+              : "An unexpected error occurred"}
           </Text>
         )}
 

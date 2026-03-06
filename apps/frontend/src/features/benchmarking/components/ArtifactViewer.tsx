@@ -16,11 +16,7 @@ import {
   Textarea,
   Title,
 } from "@mantine/core";
-import {
-  IconAlertCircle,
-  IconDownload,
-  IconX,
-} from "@tabler/icons-react";
+import { IconAlertCircle, IconDownload, IconX } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { apiService } from "@/data/services/api.service";
 
@@ -92,14 +88,13 @@ export function ArtifactViewer({
               setImageUrl(url);
             }
           } catch (err) {
-            throw new Error(`Failed to create image URL: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            throw new Error(
+              `Failed to create image URL: ${err instanceof Error ? err.message : "Unknown error"}`,
+            );
           }
         }
         // Handle JSON
-        else if (
-          mimeType.includes("json") ||
-          artifact.path.endsWith(".json")
-        ) {
+        else if (mimeType.includes("json") || artifact.path.endsWith(".json")) {
           const response = await apiService.get(
             `/benchmark/projects/${projectId}/runs/${artifact.runId}/artifacts/${artifact.id}/content`,
             { responseType: "text" },
@@ -201,7 +196,6 @@ export function ArtifactViewer({
     return null;
   }
 
-  const isImage = artifact.mimeType.toLowerCase().startsWith("image/");
   const isJson =
     artifact.mimeType.toLowerCase().includes("json") ||
     artifact.path.endsWith(".json");
@@ -227,7 +221,9 @@ export function ArtifactViewer({
             <Text fw={600} size="lg" data-testid="artifact-viewer-title">
               Artifact Viewer
             </Text>
-            <Code size="xs" data-testid="artifact-path-display">{artifact.path}</Code>
+            <Code size="xs" data-testid="artifact-path-display">
+              {artifact.path}
+            </Code>
           </Stack>
         </Group>
       }
@@ -240,20 +236,26 @@ export function ArtifactViewer({
               <Text size="sm" fw={500}>
                 Type:
               </Text>
-              <Code size="sm" data-testid="artifact-type-value">{artifact.type}</Code>
+              <Code size="sm" data-testid="artifact-type-value">
+                {artifact.type}
+              </Code>
             </Group>
             <Group>
               <Text size="sm" fw={500}>
                 MIME Type:
               </Text>
-              <Code size="sm" data-testid="artifact-mime-type-value">{artifact.mimeType}</Code>
+              <Code size="sm" data-testid="artifact-mime-type-value">
+                {artifact.mimeType}
+              </Code>
             </Group>
             {artifact.sampleId && (
               <Group>
                 <Text size="sm" fw={500}>
                   Sample ID:
                 </Text>
-                <Code size="sm" data-testid="artifact-sample-id-value">{artifact.sampleId}</Code>
+                <Code size="sm" data-testid="artifact-sample-id-value">
+                  {artifact.sampleId}
+                </Code>
               </Group>
             )}
             {artifact.nodeId && (
@@ -261,7 +263,9 @@ export function ArtifactViewer({
                 <Text size="sm" fw={500}>
                   Node ID:
                 </Text>
-                <Code size="sm" data-testid="artifact-node-id-value">{artifact.nodeId}</Code>
+                <Code size="sm" data-testid="artifact-node-id-value">
+                  {artifact.nodeId}
+                </Code>
               </Group>
             )}
           </Stack>
@@ -280,7 +284,11 @@ export function ArtifactViewer({
         </Group>
 
         {/* Content Viewer */}
-        <Card withBorder style={{ flex: 1, overflow: "hidden" }} data-testid="artifact-content-card">
+        <Card
+          withBorder
+          style={{ flex: 1, overflow: "hidden" }}
+          data-testid="artifact-content-card"
+        >
           {loading ? (
             <Center h={300}>
               <Loader data-testid="artifact-loading-spinner" />

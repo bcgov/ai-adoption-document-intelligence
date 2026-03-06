@@ -12,16 +12,12 @@ import {
   Table,
   Text,
 } from "@mantine/core";
-import {
-  IconAlertCircle,
-  IconPlayerPlay,
-  IconEye,
-} from "@tabler/icons-react";
+import { IconAlertCircle, IconEye, IconPlayerPlay } from "@tabler/icons-react";
 import { FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  useGroundTruthGeneration,
   type GroundTruthJobStatus,
+  useGroundTruthGeneration,
 } from "../hooks/useGroundTruthGeneration";
 import { useWorkflows } from "../hooks/useWorkflows";
 
@@ -167,11 +163,7 @@ export const GroundTruthGenerationPanel: FC<
                   )}
                 </Group>
               </Group>
-              <Progress
-                value={progressPercent}
-                size="lg"
-                color="green"
-              />
+              <Progress value={progressPercent} size="lg" color="green" />
               <Group justify="space-between">
                 <Text size="sm" c="dimmed">
                   {completedCount} of {total} samples completed

@@ -62,7 +62,11 @@ export const useDatasetVersions = (datasetId: string) => {
   });
 
   const createVersionMutation = useMutation({
-    mutationFn: async (data?: { version?: string; name?: string; groundTruthSchema?: Record<string, unknown> }) => {
+    mutationFn: async (data?: {
+      version?: string;
+      name?: string;
+      groundTruthSchema?: Record<string, unknown>;
+    }) => {
       const response = await apiService.post<DatasetVersion>(
         `/benchmark/datasets/${datasetId}/versions`,
         data || {},
@@ -145,11 +149,7 @@ export const useDatasetVersions = (datasetId: string) => {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: [
-          "benchmark-dataset-samples",
-          datasetId,
-          variables.versionId,
-        ],
+        queryKey: ["benchmark-dataset-samples", datasetId, variables.versionId],
       });
       queryClient.invalidateQueries({
         queryKey: ["benchmark-dataset-versions", datasetId],
@@ -174,7 +174,7 @@ export const useDatasetVersions = (datasetId: string) => {
     deleteSample: deleteSampleMutation.mutate,
     isDeletingSample: deleteSampleMutation.isPending,
     deletingSampleId: deleteSampleMutation.isPending
-      ? deleteSampleMutation.variables?.sampleId ?? null
+      ? (deleteSampleMutation.variables?.sampleId ?? null)
       : null,
   };
 };
@@ -245,10 +245,7 @@ export const useAllDatasetVersions = () => {
   };
 };
 
-export const useAllSamples = (
-  datasetId: string,
-  versionId: string,
-) => {
+export const useAllSamples = (datasetId: string, versionId: string) => {
   const samplesQuery = useQuery({
     queryKey: ["benchmark-dataset-all-samples", datasetId, versionId],
     queryFn: async () => {

@@ -34,8 +34,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useProject } from "../hooks/useProjects";
 import { usePerSampleResults, useRun } from "../hooks/useRuns";
 import {
-  drillDownPanelRegistry,
   type DrillDownPanelComponent,
+  drillDownPanelRegistry,
 } from "../registry/drillDownPanelRegistry";
 
 /**
@@ -102,7 +102,9 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
               {Object.entries(metrics).map(([key, value]) => (
                 <Table.Tr key={key}>
                   <Table.Td>{key}</Table.Td>
-                  <Table.Td>{typeof value === "number" ? value.toFixed(4) : value}</Table.Td>
+                  <Table.Td>
+                    {typeof value === "number" ? value.toFixed(4) : value}
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -117,7 +119,8 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
           </Text>
           {groundTruth === undefined && prediction === undefined ? (
             <Text size="sm" c="dimmed">
-              Expected and actual data is not available for this sample. This data will be available for runs started after this update.
+              Expected and actual data is not available for this sample. This
+              data will be available for runs started after this update.
             </Text>
           ) : (
             <Grid>
@@ -128,7 +131,8 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
                 <JsonInput
                   value={
                     groundTruth !== undefined
-                      ? (JSON.stringify(groundTruth, null, 2) || "{}") as string
+                      ? ((JSON.stringify(groundTruth, null, 2) ||
+                          "{}") as string)
                       : "N/A"
                   }
                   readOnly
@@ -144,7 +148,8 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
                 <JsonInput
                   value={
                     prediction !== undefined
-                      ? (JSON.stringify(prediction, null, 2) || "{}") as string
+                      ? ((JSON.stringify(prediction, null, 2) ||
+                          "{}") as string)
                       : "N/A"
                   }
                   readOnly
@@ -304,9 +309,7 @@ export function ResultsDrillDownPage() {
             variant="subtle"
             leftSection={<IconArrowLeft size={16} />}
             onClick={() =>
-              navigate(
-                `/benchmarking/projects/${projectId}/runs/${runId}`,
-              )
+              navigate(`/benchmarking/projects/${projectId}/runs/${runId}`)
             }
             data-testid="back-to-run-details-btn"
           >
@@ -422,9 +425,12 @@ export function ResultsDrillDownPage() {
                 <Table.Tr>
                   <Table.Th>Sample ID</Table.Th>
                   <Table.Th>Status</Table.Th>
-                  {availableDimensions.filter((d) => d !== "pass").slice(0, 3).map((dim) => (
-                    <Table.Th key={dim}>{dim}</Table.Th>
-                  ))}
+                  {availableDimensions
+                    .filter((d) => d !== "pass")
+                    .slice(0, 3)
+                    .map((dim) => (
+                      <Table.Th key={dim}>{dim}</Table.Th>
+                    ))}
                   <Table.Th>Metrics</Table.Th>
                   <Table.Th>Actions</Table.Th>
                 </Table.Tr>
@@ -438,18 +444,27 @@ export function ResultsDrillDownPage() {
                     <Table.Td>
                       <Badge
                         color={result.pass ? "green" : "red"}
-                        leftSection={result.pass ? <IconCheck size={12} /> : <IconX size={12} />}
+                        leftSection={
+                          result.pass ? (
+                            <IconCheck size={12} />
+                          ) : (
+                            <IconX size={12} />
+                          )
+                        }
                       >
                         {result.pass ? "PASS" : "FAIL"}
                       </Badge>
                     </Table.Td>
-                    {availableDimensions.filter((d) => d !== "pass").slice(0, 3).map((dim) => (
-                      <Table.Td key={dim}>
-                        {result.metadata[dim] !== undefined
-                          ? String(result.metadata[dim])
-                          : "-"}
-                      </Table.Td>
-                    ))}
+                    {availableDimensions
+                      .filter((d) => d !== "pass")
+                      .slice(0, 3)
+                      .map((dim) => (
+                        <Table.Td key={dim}>
+                          {result.metadata[dim] !== undefined
+                            ? String(result.metadata[dim])
+                            : "-"}
+                        </Table.Td>
+                      ))}
                     <Table.Td>
                       <Group gap={4}>
                         {Object.entries(result.metrics)
@@ -469,7 +484,7 @@ export function ResultsDrillDownPage() {
                     <Table.Td
                       onClick={() => setSelectedSample(result)}
                       data-testid={`view-sample-${result.sampleId}`}
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: "pointer" }}
                     >
                       <ActionIcon variant="subtle">
                         <IconChevronRight size={16} />
@@ -502,9 +517,7 @@ export function ResultsDrillDownPage() {
         position="right"
         size="xl"
         title={
-          <Text fw={600}>
-            Sample Details: {selectedSample?.sampleId || ""}
-          </Text>
+          <Text fw={600}>Sample Details: {selectedSample?.sampleId || ""}</Text>
         }
         data-testid="sample-detail-drawer"
       >

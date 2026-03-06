@@ -39,7 +39,11 @@ export function ProjectDetailPage() {
   const projectId = id || "";
   const navigate = useNavigate();
 
-  const { project, isLoading: isLoadingProject, error: projectError } = useProject(projectId);
+  const {
+    project,
+    isLoading: isLoadingProject,
+    error: projectError,
+  } = useProject(projectId);
   const {
     definitions,
     isLoading: isLoadingDefinitions,
@@ -48,7 +52,12 @@ export function ProjectDetailPage() {
     deleteDefinition,
     isDeletingDefinition,
   } = useDefinitions(projectId);
-  const { runs, isLoading: isLoadingRuns, deleteRun, isDeletingRun } = useRuns(projectId);
+  const {
+    runs,
+    isLoading: isLoadingRuns,
+    deleteRun,
+    isDeletingRun,
+  } = useRuns(projectId);
 
   const [createDialogOpened, setCreateDialogOpened] = useState(false);
   const [selectedDefinitionId, setSelectedDefinitionId] = useState<
@@ -67,14 +76,22 @@ export function ProjectDetailPage() {
     label: string;
   } | null>(null);
   const [deleteProjectDialogOpen, setDeleteProjectDialogOpen] = useState(false);
-  const { deleteProject, isDeletingProject, deleteError: deleteProjectError } = useProjects();
+  const {
+    deleteProject,
+    isDeletingProject,
+    deleteError: deleteProjectError,
+  } = useProjects();
 
-  const { definition, isLoading: isLoadingDefinition, updateDefinition, isUpdating } = useDefinition(
-    projectId,
-    selectedDefinitionId || "",
-  );
+  const {
+    definition,
+    isLoading: isLoadingDefinition,
+    updateDefinition,
+    isUpdating,
+  } = useDefinition(projectId, selectedDefinitionId || "");
   const [editDialogOpened, setEditDialogOpened] = useState(false);
-  const [editInitialValues, setEditInitialValues] = useState<DefinitionFormInitialValues | undefined>(undefined);
+  const [editInitialValues, setEditInitialValues] = useState<
+    DefinitionFormInitialValues | undefined
+  >(undefined);
 
   const previousIsCreatingRef = useRef(isCreating);
   const previousIsUpdatingRef = useRef(isUpdating);
@@ -188,8 +205,14 @@ export function ProjectDetailPage() {
       <Center h={400}>
         <Stack align="center" gap="sm">
           <Text c="red">Failed to load project</Text>
-          <Text size="sm" c="dimmed">{projectError.message || 'Unknown error'}</Text>
-          {projectId && <Text size="xs" c="dimmed">ID: {projectId}</Text>}
+          <Text size="sm" c="dimmed">
+            {projectError.message || "Unknown error"}
+          </Text>
+          {projectId && (
+            <Text size="xs" c="dimmed">
+              ID: {projectId}
+            </Text>
+          )}
         </Stack>
       </Center>
     );
@@ -200,7 +223,11 @@ export function ProjectDetailPage() {
       <Center h={400}>
         <Stack align="center" gap="sm">
           <Text c="dimmed">Project not found</Text>
-          {projectId && <Text size="sm" c="dimmed">ID: {projectId}</Text>}
+          {projectId && (
+            <Text size="sm" c="dimmed">
+              ID: {projectId}
+            </Text>
+          )}
         </Stack>
       </Center>
     );
@@ -318,7 +345,9 @@ export function ProjectDetailPage() {
                         variant="subtle"
                         color="red"
                         leftSection={<IconTrash size={14} />}
-                        onClick={() => handleDeleteDefinitionClick(def.id, def.name)}
+                        onClick={() =>
+                          handleDeleteDefinitionClick(def.id, def.name)
+                        }
                         loading={isDeletingDefinition}
                         data-testid={`delete-definition-btn-${def.id}`}
                       >
@@ -444,7 +473,9 @@ export function ProjectDetailPage() {
                         )
                       }
                     >
-                      {run.tags && typeof run.tags === 'object' && 'version' in run.tags
+                      {run.tags &&
+                      typeof run.tags === "object" &&
+                      "version" in run.tags
                         ? run.tags.version
                         : run.id.substring(0, 8)}
                     </Table.Td>
@@ -498,7 +529,9 @@ export function ProjectDetailPage() {
                         : "-"}
                     </Table.Td>
                     <Table.Td onClick={(e) => e.stopPropagation()}>
-                      {(run.status === "completed" || run.status === "failed" || run.status === "cancelled") && (
+                      {(run.status === "completed" ||
+                        run.status === "failed" ||
+                        run.status === "cancelled") && (
                         <Button
                           size="xs"
                           variant="subtle"
@@ -507,7 +540,9 @@ export function ProjectDetailPage() {
                           onClick={() =>
                             handleDeleteRunClick(
                               run.id,
-                              run.tags && typeof run.tags === 'object' && 'version' in run.tags
+                              run.tags &&
+                                typeof run.tags === "object" &&
+                                "version" in run.tags
                                 ? String(run.tags.version)
                                 : run.id.substring(0, 8),
                             )
@@ -557,7 +592,10 @@ export function ProjectDetailPage() {
             <Loader />
           </Center>
         ) : definition ? (
-          <DefinitionDetailView definition={definition} onEdit={handleEditDefinition} />
+          <DefinitionDetailView
+            definition={definition}
+            onEdit={handleEditDefinition}
+          />
         ) : (
           <Text c="dimmed">Definition not found</Text>
         )}
@@ -572,11 +610,16 @@ export function ProjectDetailPage() {
       >
         <Stack gap="md">
           <Text>
-            Are you sure you want to delete definition &quot;{defToDelete?.name}&quot;? All
-            associated completed runs will also be deleted. This action cannot be undone.
+            Are you sure you want to delete definition &quot;{defToDelete?.name}
+            &quot;? All associated completed runs will also be deleted. This
+            action cannot be undone.
           </Text>
           <Group justify="flex-end" gap="xs">
-            <Button variant="subtle" onClick={handleDeleteDefinitionCancel} data-testid="delete-def-cancel-btn">
+            <Button
+              variant="subtle"
+              onClick={handleDeleteDefinitionCancel}
+              data-testid="delete-def-cancel-btn"
+            >
               Cancel
             </Button>
             <Button
@@ -600,11 +643,16 @@ export function ProjectDetailPage() {
       >
         <Stack gap="md">
           <Text>
-            Are you sure you want to delete run &quot;{runToDelete?.label}&quot;? All
-            associated artifacts will also be deleted. This action cannot be undone.
+            Are you sure you want to delete run &quot;{runToDelete?.label}
+            &quot;? All associated artifacts will also be deleted. This action
+            cannot be undone.
           </Text>
           <Group justify="flex-end" gap="xs">
-            <Button variant="subtle" onClick={handleDeleteRunCancel} data-testid="delete-run-cancel-btn">
+            <Button
+              variant="subtle"
+              onClick={handleDeleteRunCancel}
+              data-testid="delete-run-cancel-btn"
+            >
               Cancel
             </Button>
             <Button
@@ -633,12 +681,16 @@ export function ProjectDetailPage() {
             </Alert>
           )}
           <Text>
-            Are you sure you want to delete project &quot;{project.name}&quot;? All
-            definitions and runs will be permanently deleted.
-            This action cannot be undone.
+            Are you sure you want to delete project &quot;{project.name}&quot;?
+            All definitions and runs will be permanently deleted. This action
+            cannot be undone.
           </Text>
           <Group justify="flex-end" gap="xs">
-            <Button variant="subtle" onClick={() => setDeleteProjectDialogOpen(false)} data-testid="delete-project-cancel-btn">
+            <Button
+              variant="subtle"
+              onClick={() => setDeleteProjectDialogOpen(false)}
+              data-testid="delete-project-cancel-btn"
+            >
               Cancel
             </Button>
             <Button

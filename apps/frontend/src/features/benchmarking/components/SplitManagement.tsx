@@ -62,7 +62,9 @@ export function SplitManagement({
   return (
     <Stack gap="md" data-testid="split-management-container">
       <Group justify="space-between">
-        <Title order={3} data-testid="splits-title">Dataset Splits</Title>
+        <Title order={3} data-testid="splits-title">
+          Dataset Splits
+        </Title>
         <Button
           leftSection={<IconPlus size={16} />}
           onClick={() => setCreateDialogOpen(true)}
@@ -88,7 +90,9 @@ export function SplitManagement({
             <Table.Tbody>
               {splits.map((split: Split) => (
                 <Table.Tr key={split.id} data-testid={`split-row-${split.id}`}>
-                  <Table.Td data-testid={`split-name-${split.id}`}>{split.name}</Table.Td>
+                  <Table.Td data-testid={`split-name-${split.id}`}>
+                    {split.name}
+                  </Table.Td>
                   <Table.Td>
                     <Badge
                       color={
@@ -105,7 +109,9 @@ export function SplitManagement({
                       {split.type}
                     </Badge>
                   </Table.Td>
-                  <Table.Td data-testid={`split-sample-count-${split.id}`}>{split.sampleCount}</Table.Td>
+                  <Table.Td data-testid={`split-sample-count-${split.id}`}>
+                    {split.sampleCount}
+                  </Table.Td>
                   <Table.Td>
                     <Badge
                       color={split.frozen ? "gray" : "green"}
@@ -147,7 +153,9 @@ export function SplitManagement({
         <Card withBorder data-testid="splits-empty-state">
           <Stack align="center" gap="md" py="xl">
             <IconLockOpen size={48} style={{ opacity: 0.5 }} />
-            <Text c="dimmed" data-testid="no-splits-message">No splits defined yet</Text>
+            <Text c="dimmed" data-testid="no-splits-message">
+              No splits defined yet
+            </Text>
             <Button
               leftSection={<IconPlus size={16} />}
               onClick={() => setCreateDialogOpen(true)}
@@ -204,7 +212,10 @@ function CreateSplitDialog({
   const createMutation = useCreateSplit(datasetId, versionId);
 
   // Fetch all samples for the multiselect (not just the paginated view)
-  const { samples: allSamples, isLoading: isLoadingAllSamples } = useAllSamples(datasetId, versionId);
+  const { samples: allSamples, isLoading: isLoadingAllSamples } = useAllSamples(
+    datasetId,
+    versionId,
+  );
 
   const sampleOptions = allSamples.map((s) => ({
     value: s.id,
@@ -271,7 +282,14 @@ function CreateSplitDialog({
             setName(e.target.value);
             setError("");
           }}
-          error={error && (error.toLowerCase().includes("name") || error.toLowerCase().includes("invalid") || error.toLowerCase().includes("character")) ? error : ""}
+          error={
+            error &&
+            (error.toLowerCase().includes("name") ||
+              error.toLowerCase().includes("invalid") ||
+              error.toLowerCase().includes("character"))
+              ? error
+              : ""
+          }
           required
           data-testid="split-name-input"
         />
@@ -372,7 +390,10 @@ function EditSplitDialog({
   );
 
   // Fetch all samples for the multiselect (not just the paginated view)
-  const { samples: allSamples, isLoading: isLoadingAllSamples } = useAllSamples(datasetId, versionId);
+  const { samples: allSamples, isLoading: isLoadingAllSamples } = useAllSamples(
+    datasetId,
+    versionId,
+  );
 
   // Load current sample IDs when split details are fetched
   useEffect(() => {
@@ -489,6 +510,7 @@ function FreezeButton({ datasetId, versionId, splitId }: FreezeButtonProps) {
 
   const handleFreeze = async () => {
     if (
+      // biome-ignore lint/suspicious/noAlert: confirm dialog is appropriate for destructive freeze action
       window.confirm(
         "Are you sure you want to freeze this split? It will become immutable. This action cannot be undone.",
       )

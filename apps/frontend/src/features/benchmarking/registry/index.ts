@@ -1,5 +1,5 @@
 export {
-  drillDownPanelRegistry,
   type DrillDownPanelComponent,
   type DrillDownPanelProps,
+  drillDownPanelRegistry,
 } from "./drillDownPanelRegistry";

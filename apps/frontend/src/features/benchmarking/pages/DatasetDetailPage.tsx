@@ -57,7 +57,6 @@ export function DatasetDetailPage() {
     isCreatingVersion,
     deleteVersion,
     isDeletingVersion,
-    deleteVersionError,
     freezeVersion,
     isFreezingVersion,
     deleteSample,
@@ -68,7 +67,9 @@ export function DatasetDetailPage() {
 
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploadVersionId, setUploadVersionId] = useState<string | null>(null);
-  const [uploadVersionLabel, setUploadVersionLabel] = useState<string | null>(null);
+  const [uploadVersionLabel, setUploadVersionLabel] = useState<string | null>(
+    null,
+  );
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(
     null,
   );
@@ -97,7 +98,9 @@ export function DatasetDetailPage() {
   const [newVersionDialogOpen, setNewVersionDialogOpen] = useState(false);
   const [newVersionName, setNewVersionName] = useState("");
   const [hitlVersionDialogOpen, setHitlVersionDialogOpen] = useState(false);
-  const [editingVersionNameId, setEditingVersionNameId] = useState<string | null>(null);
+  const [editingVersionNameId, setEditingVersionNameId] = useState<
+    string | null
+  >(null);
   const [editingVersionNameValue, setEditingVersionNameValue] = useState("");
 
   const {
@@ -129,13 +132,20 @@ export function DatasetDetailPage() {
       <Center h={400}>
         <Stack align="center" gap="sm">
           <Text c="dimmed">Dataset not found</Text>
-          {id && <Text size="sm" c="dimmed">ID: {id}</Text>}
+          {id && (
+            <Text size="sm" c="dimmed">
+              ID: {id}
+            </Text>
+          )}
         </Stack>
       </Center>
     );
   }
 
-  const handleDeleteVersionClick = (versionId: string, versionLabel: string) => {
+  const handleDeleteVersionClick = (
+    versionId: string,
+    versionLabel: string,
+  ) => {
     setVersionToDelete({ id: versionId, label: versionLabel });
     setDeleteVersionDialogOpen(true);
   };
@@ -187,7 +197,10 @@ export function DatasetDetailPage() {
     validateDataset({ versionId });
   };
 
-  const handleStartEditVersionName = (versionId: string, currentName: string | null) => {
+  const handleStartEditVersionName = (
+    versionId: string,
+    currentName: string | null,
+  ) => {
     setEditingVersionNameId(versionId);
     setEditingVersionNameValue(currentName || "");
   };
@@ -234,7 +247,7 @@ export function DatasetDetailPage() {
         );
         setSelectedGroundTruth(response.data.content);
       } catch (error) {
-        console.error("Error fetching ground truth:", error);
+        void error;
       } finally {
         setIsLoadingGroundTruth(false);
       }
@@ -309,17 +322,26 @@ export function DatasetDetailPage() {
               Versions ({versions.length})
             </Tabs.Tab>
             {selectedVersionId && (
-              <Tabs.Tab value={selectedVersionId} data-testid="sample-preview-tab">
+              <Tabs.Tab
+                value={selectedVersionId}
+                data-testid="sample-preview-tab"
+              >
                 Sample Preview
               </Tabs.Tab>
             )}
             {selectedVersionId && (
-              <Tabs.Tab value={`splits-${selectedVersionId}`} data-testid="splits-tab">
+              <Tabs.Tab
+                value={`splits-${selectedVersionId}`}
+                data-testid="splits-tab"
+              >
                 Splits
               </Tabs.Tab>
             )}
             {selectedVersionId && (
-              <Tabs.Tab value={`gt-${selectedVersionId}`} data-testid="ground-truth-tab">
+              <Tabs.Tab
+                value={`gt-${selectedVersionId}`}
+                data-testid="ground-truth-tab"
+              >
                 Ground Truth
               </Tabs.Tab>
             )}
@@ -330,9 +352,12 @@ export function DatasetDetailPage() {
               <Card>
                 <Center>
                   <Stack align="center" gap="md">
-                    <Text c="dimmed" data-testid="no-versions-message">No versions yet</Text>
+                    <Text c="dimmed" data-testid="no-versions-message">
+                      No versions yet
+                    </Text>
                     <Text size="sm" c="dimmed">
-                      Click &quot;New Version&quot; to create a version and upload files
+                      Click &quot;New Version&quot; to create a version and
+                      upload files
                     </Text>
                   </Stack>
                 </Center>
@@ -368,10 +393,15 @@ export function DatasetDetailPage() {
                             <TextInput
                               size="xs"
                               value={editingVersionNameValue}
-                              onChange={(e) => setEditingVersionNameValue(e.currentTarget.value)}
+                              onChange={(e) =>
+                                setEditingVersionNameValue(
+                                  e.currentTarget.value,
+                                )
+                              }
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") handleSaveVersionName();
-                                if (e.key === "Escape") handleCancelEditVersionName();
+                                if (e.key === "Escape")
+                                  handleCancelEditVersionName();
                               }}
                               autoFocus
                               data-testid="edit-version-name-input"
@@ -397,7 +427,10 @@ export function DatasetDetailPage() {
                           </Group>
                         ) : (
                           <Group gap="xs" wrap="nowrap">
-                            <Text size="sm" c={version.name ? undefined : "dimmed"}>
+                            <Text
+                              size="sm"
+                              c={version.name ? undefined : "dimmed"}
+                            >
                               {version.name || "-"}
                             </Text>
                             {!version.frozen && (
@@ -405,7 +438,12 @@ export function DatasetDetailPage() {
                                 size="compact-xs"
                                 variant="subtle"
                                 color="gray"
-                                onClick={() => handleStartEditVersionName(version.id, version.name)}
+                                onClick={() =>
+                                  handleStartEditVersionName(
+                                    version.id,
+                                    version.name,
+                                  )
+                                }
                                 data-testid={`edit-version-name-btn-${version.id}`}
                               >
                                 <IconEdit size={14} />
@@ -418,20 +456,30 @@ export function DatasetDetailPage() {
                         <Badge
                           color={version.frozen ? "gray" : "green"}
                           variant="light"
-                          leftSection={version.frozen ? <IconLock size={12} /> : undefined}
+                          leftSection={
+                            version.frozen ? <IconLock size={12} /> : undefined
+                          }
                         >
                           {version.frozen ? "Frozen" : "Editable"}
                         </Badge>
                       </Table.Td>
                       <Table.Td>{version.documentCount}</Table.Td>
-                      <Table.Td>{version.storagePrefix ? version.storagePrefix.substring(0, 8) : "-"}</Table.Td>
+                      <Table.Td>
+                        {version.storagePrefix
+                          ? version.storagePrefix.substring(0, 8)
+                          : "-"}
+                      </Table.Td>
                       <Table.Td>
                         {new Date(version.createdAt).toLocaleDateString()}
                       </Table.Td>
                       <Table.Td onClick={(e) => e.stopPropagation()}>
                         <Menu position="bottom-end">
                           <Menu.Target>
-                            <Button size="xs" variant="subtle" data-testid={`version-actions-btn-${version.id}`}>
+                            <Button
+                              size="xs"
+                              variant="subtle"
+                              data-testid={`version-actions-btn-${version.id}`}
+                            >
                               <IconDotsVertical size={16} />
                             </Button>
                           </Menu.Target>
@@ -475,7 +523,12 @@ export function DatasetDetailPage() {
                             <Menu.Item
                               leftSection={<IconTrash size={16} />}
                               color="red"
-                              onClick={() => handleDeleteVersionClick(version.id, version.version)}
+                              onClick={() =>
+                                handleDeleteVersionClick(
+                                  version.id,
+                                  version.version,
+                                )
+                              }
                               disabled={version.frozen || isDeletingVersion}
                               data-testid={`delete-version-menu-item-${version.id}`}
                             >
@@ -506,7 +559,11 @@ export function DatasetDetailPage() {
                     </Button>
                   )}
                   {selectedVersion?.frozen && (
-                    <Badge color="gray" variant="light" leftSection={<IconLock size={12} />}>
+                    <Badge
+                      color="gray"
+                      variant="light"
+                      leftSection={<IconLock size={12} />}
+                    >
                       Frozen
                     </Badge>
                   )}
@@ -518,7 +575,9 @@ export function DatasetDetailPage() {
                 ) : samples.length === 0 ? (
                   <Card>
                     <Center>
-                      <Text c="dimmed" data-testid="no-samples-message">No samples found</Text>
+                      <Text c="dimmed" data-testid="no-samples-message">
+                        No samples found
+                      </Text>
                     </Center>
                   </Card>
                 ) : (
@@ -535,7 +594,10 @@ export function DatasetDetailPage() {
                       </Table.Thead>
                       <Table.Tbody>
                         {samples.map((sample) => (
-                          <Table.Tr key={sample.id} data-testid={`sample-row-${sample.id}`}>
+                          <Table.Tr
+                            key={sample.id}
+                            data-testid={`sample-row-${sample.id}`}
+                          >
                             <Table.Td>{sample.id}</Table.Td>
                             <Table.Td>
                               {sample.inputs.map((input, idx) => (
@@ -566,7 +628,9 @@ export function DatasetDetailPage() {
                                   size="xs"
                                   variant="subtle"
                                   leftSection={<IconEye size={14} />}
-                                  onClick={() => handleViewGroundTruth(sample.id)}
+                                  onClick={() =>
+                                    handleViewGroundTruth(sample.id)
+                                  }
                                   data-testid={`view-ground-truth-btn-${sample.id}`}
                                 >
                                   View
@@ -583,7 +647,10 @@ export function DatasetDetailPage() {
                                         sample.id,
                                       )
                                     }
-                                    loading={isDeletingSample && deletingSampleId === sample.id}
+                                    loading={
+                                      isDeletingSample &&
+                                      deletingSampleId === sample.id
+                                    }
                                     data-testid={`delete-sample-btn-${sample.id}`}
                                   >
                                     Delete
@@ -670,10 +737,15 @@ export function DatasetDetailPage() {
       >
         <Stack gap="md">
           <Text>
-            Are you sure you want to delete version {versionToDelete?.label}? This action cannot be undone.
+            Are you sure you want to delete version {versionToDelete?.label}?
+            This action cannot be undone.
           </Text>
           <Group justify="flex-end" gap="xs">
-            <Button variant="subtle" onClick={handleDeleteVersionCancel} data-testid="delete-version-cancel-btn">
+            <Button
+              variant="subtle"
+              onClick={handleDeleteVersionCancel}
+              data-testid="delete-version-cancel-btn"
+            >
               Cancel
             </Button>
             <Button

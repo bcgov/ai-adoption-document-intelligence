@@ -10,10 +10,10 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { IconEdit, IconPlayerPlay, IconHistory } from "@tabler/icons-react";
+import { IconEdit, IconHistory, IconPlayerPlay } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
-import { useStartRun } from "../hooks/useRuns";
 import { useBaselineHistory } from "../hooks/useDefinitions";
+import { useStartRun } from "../hooks/useRuns";
 import { ScheduleConfig } from "./ScheduleConfig";
 
 interface DatasetVersionInfo {
@@ -215,9 +215,12 @@ export function DefinitionDetailView({
               <Text size="sm" c="dimmed" data-testid="baseline-promoted-info">
                 Promoted on{" "}
                 {definition.baselineRun.completedAt
-                  ? new Date(definition.baselineRun.completedAt).toLocaleString()
+                  ? new Date(
+                      definition.baselineRun.completedAt,
+                    ).toLocaleString()
                   : "unknown date"}
-                . For complete baseline change history, check audit logs for <Code>baseline_promoted</Code> events.
+                . For complete baseline change history, check audit logs for{" "}
+                <Code>baseline_promoted</Code> events.
               </Text>
             </Stack>
 
@@ -246,7 +249,9 @@ export function DefinitionDetailView({
                   <Table.Td fw={500}>Completed At</Table.Td>
                   <Table.Td data-testid="baseline-completed-at">
                     {definition.baselineRun.completedAt
-                      ? new Date(definition.baselineRun.completedAt).toLocaleString()
+                      ? new Date(
+                          definition.baselineRun.completedAt,
+                        ).toLocaleString()
                       : "—"}
                   </Table.Td>
                 </Table.Tr>
@@ -265,19 +270,21 @@ export function DefinitionDetailView({
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {Object.entries(definition.baselineRun.metrics).map(([key, value]) => {
-                    // Skip non-numeric metrics (like perSampleResults, fieldErrorBreakdown, etc.)
-                    if (typeof value !== 'number') return null;
+                  {Object.entries(definition.baselineRun.metrics).map(
+                    ([key, value]) => {
+                      // Skip non-numeric metrics (like perSampleResults, fieldErrorBreakdown, etc.)
+                      if (typeof value !== "number") return null;
 
-                    return (
-                      <Table.Tr key={key}>
-                        <Table.Td>{key}</Table.Td>
-                        <Table.Td>
-                          <Code>{value.toFixed(4)}</Code>
-                        </Table.Td>
-                      </Table.Tr>
-                    );
-                  })}
+                      return (
+                        <Table.Tr key={key}>
+                          <Table.Td>{key}</Table.Td>
+                          <Table.Td>
+                            <Code>{value.toFixed(4)}</Code>
+                          </Table.Td>
+                        </Table.Tr>
+                      );
+                    },
+                  )}
                 </Table.Tbody>
               </Table>
             </Stack>
@@ -295,23 +302,32 @@ export function DefinitionDetailView({
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {definition.baselineRun.baselineThresholds.map((threshold) => (
-                    <Table.Tr key={threshold.metricName}>
-                      <Table.Td>{threshold.metricName}</Table.Td>
-                      <Table.Td>
-                        <Badge variant="light" data-testid={`threshold-type-${threshold.metricName}`}>
-                          {threshold.type === "relative" ? "Relative (%)" : "Absolute"}
-                        </Badge>
-                      </Table.Td>
-                      <Table.Td>
-                        <Code data-testid={`threshold-value-${threshold.metricName}`}>
-                          {threshold.type === "relative"
-                            ? `${(threshold.value * 100).toFixed(0)}%`
-                            : threshold.value.toFixed(4)}
-                        </Code>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
+                  {definition.baselineRun.baselineThresholds.map(
+                    (threshold) => (
+                      <Table.Tr key={threshold.metricName}>
+                        <Table.Td>{threshold.metricName}</Table.Td>
+                        <Table.Td>
+                          <Badge
+                            variant="light"
+                            data-testid={`threshold-type-${threshold.metricName}`}
+                          >
+                            {threshold.type === "relative"
+                              ? "Relative (%)"
+                              : "Absolute"}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Code
+                            data-testid={`threshold-value-${threshold.metricName}`}
+                          >
+                            {threshold.type === "relative"
+                              ? `${(threshold.value * 100).toFixed(0)}%`
+                              : threshold.value.toFixed(4)}
+                          </Code>
+                        </Table.Td>
+                      </Table.Tr>
+                    ),
+                  )}
                 </Table.Tbody>
               </Table>
             </Stack>
@@ -340,8 +356,13 @@ export function DefinitionDetailView({
                   </Table.Thead>
                   <Table.Tbody>
                     {baselineHistory.map((entry, index) => (
-                      <Table.Tr key={index} data-testid={`baseline-history-row-${index}`}>
-                        <Table.Td data-testid={`baseline-history-date-${index}`}>
+                      <Table.Tr
+                        key={index}
+                        data-testid={`baseline-history-row-${index}`}
+                      >
+                        <Table.Td
+                          data-testid={`baseline-history-date-${index}`}
+                        >
                           {new Date(entry.promotedAt).toLocaleString()}
                         </Table.Td>
                         <Table.Td>
@@ -358,7 +379,9 @@ export function DefinitionDetailView({
                             <Code>{entry.runId.substring(0, 12)}...</Code>
                           </Button>
                         </Table.Td>
-                        <Table.Td data-testid={`baseline-history-user-${index}`}>
+                        <Table.Td
+                          data-testid={`baseline-history-user-${index}`}
+                        >
                           {entry.userId}
                         </Table.Td>
                       </Table.Tr>
@@ -424,7 +447,10 @@ export function DefinitionDetailView({
               </Table.Thead>
               <Table.Tbody>
                 {definition.runHistory.map((run) => (
-                  <Table.Tr key={run.id} data-testid={`run-history-row-${run.id}`}>
+                  <Table.Tr
+                    key={run.id}
+                    data-testid={`run-history-row-${run.id}`}
+                  >
                     <Table.Td>
                       <Code>{run.id.substring(0, 8)}</Code>
                     </Table.Td>

@@ -74,7 +74,11 @@ export function CreateDefinitionDialog({
   const [perDocumentTimeout, setPerDocumentTimeout] = useState(300000);
   const [initialized, setInitialized] = useState(false);
 
-  const { versions, isLoading: isLoadingVersions, refetch: refetchVersions } = useAllDatasetVersions();
+  const {
+    versions,
+    isLoading: isLoadingVersions,
+    refetch: refetchVersions,
+  } = useAllDatasetVersions();
   const { workflows, isLoading: isLoadingWorkflows } = useWorkflows();
 
   useEffect(() => {
@@ -87,22 +91,39 @@ export function CreateDefinitionDialog({
   }, [opened, refetchVersions]);
 
   useEffect(() => {
-    if (opened && mode === "edit" && initialValues && !initialized && versions.length > 0) {
+    if (
+      opened &&
+      mode === "edit" &&
+      initialValues &&
+      !initialized &&
+      versions.length > 0
+    ) {
       setName(initialValues.name);
       setDatasetVersionId(initialValues.datasetVersionId);
       setSplitId(initialValues.splitId || "");
       setWorkflowId(initialValues.workflowId);
       setEvaluatorType(initialValues.evaluatorType);
-      const configStr = Object.keys(initialValues.evaluatorConfig).length > 0
-        ? JSON.stringify(initialValues.evaluatorConfig, null, 2)
-        : "";
+      const configStr =
+        Object.keys(initialValues.evaluatorConfig).length > 0
+          ? JSON.stringify(initialValues.evaluatorConfig, null, 2)
+          : "";
       setEvaluatorConfigJson(configStr);
 
       const rt = initialValues.runtimeSettings;
-      setMaxParallelDocuments(typeof rt.maxParallelDocuments === "number" ? rt.maxParallelDocuments : 10);
-      setPerDocumentTimeout(typeof rt.perDocumentTimeout === "number" ? rt.perDocumentTimeout : 300000);
+      setMaxParallelDocuments(
+        typeof rt.maxParallelDocuments === "number"
+          ? rt.maxParallelDocuments
+          : 10,
+      );
+      setPerDocumentTimeout(
+        typeof rt.perDocumentTimeout === "number"
+          ? rt.perDocumentTimeout
+          : 300000,
+      );
 
-      const version = versions.find((v) => v.id === initialValues.datasetVersionId);
+      const version = versions.find(
+        (v) => v.id === initialValues.datasetVersionId,
+      );
       if (version?.splits) {
         setSplits(version.splits);
       }
@@ -216,7 +237,10 @@ export function CreateDefinitionDialog({
       }
       groups.get(groupName)!.push(item);
     }
-    return Array.from(groups.entries()).map(([group, items]) => ({ group, items }));
+    return Array.from(groups.entries()).map(([group, items]) => ({
+      group,
+      items,
+    }));
   })();
 
   const splitOptions = splits.map((s) => ({
@@ -234,12 +258,15 @@ export function CreateDefinitionDialog({
     { value: "black-box", label: "Black-Box" },
   ];
 
-
   return (
     <Modal
       opened={opened}
       onClose={handleClose}
-      title={mode === "edit" ? "Edit Benchmark Definition" : "Create Benchmark Definition"}
+      title={
+        mode === "edit"
+          ? "Edit Benchmark Definition"
+          : "Create Benchmark Definition"
+      }
       size="lg"
     >
       <Stack gap="md">
@@ -303,13 +330,18 @@ export function CreateDefinitionDialog({
         <Select
           label={
             <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
-              <Text size="sm" fw={500}>Evaluator Type</Text>
+              <Text size="sm" fw={500}>
+                Evaluator Type
+              </Text>
               <Tooltip
                 label="Determines how workflow outputs are compared to ground truth. Schema-Aware compares structured JSON fields. Black-Box treats the evaluator as an opaque scoring function."
                 multiline
                 w={300}
               >
-                <IconInfoCircle size={14} style={{ opacity: 0.6, cursor: "help" }} />
+                <IconInfoCircle
+                  size={14}
+                  style={{ opacity: 0.6, cursor: "help" }}
+                />
               </Tooltip>
             </Group>
           }
@@ -324,13 +356,18 @@ export function CreateDefinitionDialog({
           <Textarea
             label={
               <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
-                <Text size="sm" fw={500}>Evaluator Config (JSON)</Text>
+                <Text size="sm" fw={500}>
+                  Evaluator Config (JSON)
+                </Text>
                 <Tooltip
                   label="Optional JSON configuration passed to the evaluator. Keys depend on the evaluator type."
                   multiline
                   w={250}
                 >
-                  <IconInfoCircle size={14} style={{ opacity: 0.6, cursor: "help" }} />
+                  <IconInfoCircle
+                    size={14}
+                    style={{ opacity: 0.6, cursor: "help" }}
+                  />
                 </Tooltip>
               </Group>
             }
@@ -345,7 +382,12 @@ export function CreateDefinitionDialog({
             data-testid="evaluator-config-textarea"
           />
           <Text size="xs" c="dimmed">
-            Example: <Code>{'{"thresholds": {"field_accuracy": 0.9, "schema_coverage": 0.95}}'}</Code>
+            Example:{" "}
+            <Code>
+              {
+                '{"thresholds": {"field_accuracy": 0.9, "schema_coverage": 0.95}}'
+              }
+            </Code>
           </Text>
         </Stack>
 
@@ -376,10 +418,18 @@ export function CreateDefinitionDialog({
         />
 
         <Group justify="flex-end">
-          <Button variant="default" onClick={handleClose} data-testid="cancel-definition-btn">
+          <Button
+            variant="default"
+            onClick={handleClose}
+            data-testid="cancel-definition-btn"
+          >
             Cancel
           </Button>
-          <Button onClick={handleSubmit} loading={isCreating} data-testid="submit-definition-btn">
+          <Button
+            onClick={handleSubmit}
+            loading={isCreating}
+            data-testid="submit-definition-btn"
+          >
             {mode === "edit" ? "Save Changes" : "Create"}
           </Button>
         </Group>

@@ -13,7 +13,12 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { IconAlertCircle, IconDownload, IconFile, IconFileCheck } from "@tabler/icons-react";
+import {
+  IconAlertCircle,
+  IconDownload,
+  IconFile,
+  IconFileCheck,
+} from "@tabler/icons-react";
 import { useState } from "react";
 import { apiService } from "@/data/services/api.service";
 

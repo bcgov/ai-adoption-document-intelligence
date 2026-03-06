@@ -19,11 +19,7 @@ interface EligibleDocumentsResponse {
   limit: number;
 }
 
-export const useEligibleDocuments = (
-  page = 1,
-  limit = 20,
-  search?: string,
-) => {
+export const useEligibleDocuments = (page = 1, limit = 20, search?: string) => {
   const { activeGroup } = useGroup();
   const activeGroupId = activeGroup?.id;
 

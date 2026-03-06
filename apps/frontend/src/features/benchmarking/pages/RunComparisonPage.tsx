@@ -98,14 +98,14 @@ export function RunComparisonPage() {
     // Metrics
     for (const metricName of comparisonData.metricNames) {
       const row = [metricName];
-      const values = comparisonData.runs.map(
-        (r) => r.metrics[metricName],
+      const values = comparisonData.runs.map((r) => r.metrics[metricName]);
+      row.push(
+        ...values.map((v) => {
+          if (v === undefined || v === null) return "-";
+          if (typeof v === "number") return v.toFixed(4);
+          return JSON.stringify(v);
+        }),
       );
-      row.push(...values.map((v) => {
-        if (v === undefined || v === null) return "-";
-        if (typeof v === "number") return v.toFixed(4);
-        return JSON.stringify(v);
-      }));
 
       if (
         values.length >= 2 &&
@@ -183,7 +183,9 @@ export function RunComparisonPage() {
     <Stack gap="lg" data-testid="run-comparison-page">
       <Group justify="space-between">
         <div>
-          <Title order={2} data-testid="comparison-title">Run Comparison</Title>
+          <Title order={2} data-testid="comparison-title">
+            Run Comparison
+          </Title>
           <Text c="dimmed" size="sm">
             Comparing {runs.length} run{runs.length !== 1 ? "s" : ""}
           </Text>
@@ -286,7 +288,11 @@ export function RunComparisonPage() {
         <Card data-testid="metrics-comparison-card">
           <Stack gap="md">
             <Title order={3}>Metrics Comparison</Title>
-            <Table data-testid="metrics-comparison-table" striped highlightOnHover>
+            <Table
+              data-testid="metrics-comparison-table"
+              striped
+              highlightOnHover
+            >
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Metric Name</Table.Th>
@@ -327,20 +333,21 @@ export function RunComparisonPage() {
               </Table.Thead>
               <Table.Tbody>
                 {comparisonData.metricNames.map((metricName) => {
-                  const baselineValue = comparisonData.runs[0].metrics[
-                    metricName
-                  ];
+                  const baselineValue =
+                    comparisonData.runs[0].metrics[metricName];
                   const compareValue =
                     comparisonData.runs.length >= 2
                       ? comparisonData.runs[1].metrics[metricName]
                       : undefined;
 
                   const delta =
-                    typeof baselineValue === "number" && typeof compareValue === "number"
+                    typeof baselineValue === "number" &&
+                    typeof compareValue === "number"
                       ? computeDelta(compareValue, baselineValue)
                       : null;
                   const deltaPercent =
-                    typeof baselineValue === "number" && typeof compareValue === "number"
+                    typeof baselineValue === "number" &&
+                    typeof compareValue === "number"
                       ? computeDeltaPercent(compareValue, baselineValue)
                       : null;
 

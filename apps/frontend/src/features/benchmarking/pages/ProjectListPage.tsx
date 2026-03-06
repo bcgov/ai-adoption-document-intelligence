@@ -16,7 +16,14 @@ import { CreateProjectDialog } from "../components/CreateProjectDialog";
 import { useProjects } from "../hooks/useProjects";
 
 export function ProjectListPage() {
-  const { projects, isLoading, createProject, isCreating, createError, resetCreateError } = useProjects();
+  const {
+    projects,
+    isLoading,
+    createProject,
+    isCreating,
+    createError,
+    resetCreateError,
+  } = useProjects();
   const navigate = useNavigate();
   const [createDialogOpened, setCreateDialogOpened] = useState(false);
 

@@ -1,9 +1,14 @@
 import { Stack, Text, Title } from "@mantine/core";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import { useAuth } from "./auth/useAuth";
 import { MembershipPageGuard, NoGroupGuard } from "./auth/NoGroupGuard";
+import { useAuth } from "./auth/useAuth";
 import "./App.css";
 import { Login } from "./components";
+import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
+import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWorkspacePage";
+import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/LabelingWorkspacePage";
+import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
+import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
 import {
   ProjectDetailPage as BenchmarkProjectDetailPage,
   ProjectListPage as BenchmarkProjectListPage,
@@ -15,19 +20,14 @@ import {
   RunComparisonPage,
   RunDetailPage,
 } from "./features/benchmarking/pages";
-import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
-import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWorkspacePage";
-import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/LabelingWorkspacePage";
-import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
-import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
 import { RootLayout } from "./layouts/RootLayout";
+import ClassifierPage from "./pages/ClassifierPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { QueuePage } from "./pages/QueuePage";
 import { RequestMembershipPage } from "./pages/RequestMembershipPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UploadPage } from "./pages/UploadPage";
-import ClassifierPage from "./pages/ClassifierPage";
 import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
 

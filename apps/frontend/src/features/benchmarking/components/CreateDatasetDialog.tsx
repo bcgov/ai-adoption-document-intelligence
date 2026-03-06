@@ -156,7 +156,11 @@ export function CreateDatasetDialog({
             Metadata (optional)
           </Text>
           {Object.entries(metadata).map(([key, value]) => (
-            <Group key={key} justify="space-between" data-testid={`metadata-item-${key}`}>
+            <Group
+              key={key}
+              justify="space-between"
+              data-testid={`metadata-item-${key}`}
+            >
               <Text size="sm">
                 <strong>{key}:</strong> {value}
               </Text>
@@ -201,10 +205,19 @@ export function CreateDatasetDialog({
         </Stack>
 
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={handleClose} disabled={isCreating} data-testid="cancel-dataset-btn">
+          <Button
+            variant="subtle"
+            onClick={handleClose}
+            disabled={isCreating}
+            data-testid="cancel-dataset-btn"
+          >
             Cancel
           </Button>
-          <Button onClick={handleSubmit} loading={isCreating} data-testid="submit-dataset-btn">
+          <Button
+            onClick={handleSubmit}
+            loading={isCreating}
+            data-testid="submit-dataset-btn"
+          >
             Create Dataset
           </Button>
         </Group>
