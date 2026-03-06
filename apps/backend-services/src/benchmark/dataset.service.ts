@@ -83,6 +83,7 @@ export class DatasetService {
           metadata: (createDto.metadata || {}) as Prisma.JsonValue,
           storagePath: "", // Will be set after we have the ID
           createdBy: userId,
+          group_id: createDto.groupId,
         },
       });
 
@@ -136,6 +137,7 @@ export class DatasetService {
   async listDatasets(
     page: number = 1,
     limit: number = 20,
+    groupIds: string[] = [],
   ): Promise<PaginatedDatasetResponseDto> {
     this.logger.debug(`Listing datasets - page: ${page}, limit: ${limit}`);
 
@@ -143,9 +145,12 @@ export class DatasetService {
     const validLimit = Math.min(100, Math.max(1, limit));
     const skip = (validPage - 1) * validLimit;
 
-    const total = await this.prisma.dataset.count();
+    const where = { group_id: { in: groupIds } };
+
+    const total = await this.prisma.dataset.count({ where });
 
     const datasets = await this.prisma.dataset.findMany({
+      where,
       skip,
       take: validLimit,
       orderBy: { createdAt: "desc" },
@@ -1337,6 +1342,7 @@ export class DatasetService {
       metadata: unknown;
       storagePath: string;
       createdBy: string;
+      group_id: string;
       createdAt: Date;
       updatedAt: Date;
     },
@@ -1355,6 +1361,7 @@ export class DatasetService {
       metadata: dataset.metadata as Record<string, unknown>,
       storagePath: dataset.storagePath,
       createdBy: dataset.createdBy,
+      groupId: dataset.group_id,
       createdAt: dataset.createdAt,
       updatedAt: dataset.updatedAt,
       versionCount,

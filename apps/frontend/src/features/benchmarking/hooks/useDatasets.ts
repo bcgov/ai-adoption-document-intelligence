@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
 
 interface Dataset {
   id: string;
   name: string;
   description: string | null;
+  groupId: string;
   metadata: Record<string, unknown>;
   storagePath: string;
   createdBy: string;
@@ -36,12 +38,20 @@ interface CreateDatasetDto {
 
 export const useDatasets = (page = 1, limit = 20) => {
   const queryClient = useQueryClient();
+  const { activeGroup } = useGroup();
 
   const datasetsQuery = useQuery({
-    queryKey: ["benchmark-datasets", page, limit],
+    queryKey: ["benchmark-datasets", page, limit, activeGroup?.id],
     queryFn: async () => {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+      });
+      if (activeGroup?.id) {
+        params.set("groupId", activeGroup.id);
+      }
       const response = await apiService.get<PaginatedDatasets>(
-        `/benchmark/datasets?page=${page}&limit=${limit}`,
+        `/benchmark/datasets?${params.toString()}`,
       );
       return (
         response.data || {
@@ -57,9 +67,12 @@ export const useDatasets = (page = 1, limit = 20) => {
 
   const createDatasetMutation = useMutation({
     mutationFn: async (data: CreateDatasetDto) => {
+      if (!activeGroup) {
+        throw new Error("No active group selected");
+      }
       const response = await apiService.post<Dataset>(
         "/benchmark/datasets",
-        data,
+        { ...data, groupId: activeGroup.id },
       );
       if (!response.success) {
         throw new Error(response.message || "Failed to create dataset");

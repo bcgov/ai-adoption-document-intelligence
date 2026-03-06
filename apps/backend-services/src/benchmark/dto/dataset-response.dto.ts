@@ -5,6 +5,7 @@ export class DatasetResponseDto {
   metadata: Record<string, unknown>;
   storagePath: string;
   createdBy: string;
+  groupId: string;
   createdAt: Date;
   updatedAt: Date;
   versionCount?: number;

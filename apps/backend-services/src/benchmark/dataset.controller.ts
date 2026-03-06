@@ -31,6 +31,7 @@ import {
   ApiBody,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -39,6 +40,11 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "@/auth/identity.helpers";
+import { DatabaseService } from "@/database/database.service";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
@@ -63,7 +69,19 @@ import {
 @ApiTags("Benchmark - Datasets")
 @Controller("api/benchmark/datasets")
 export class DatasetController {
-  constructor(private readonly datasetService: DatasetService) {}
+  constructor(
+    private readonly datasetService: DatasetService,
+    private readonly databaseService: DatabaseService,
+  ) {}
+
+  private async assertDatasetGroupAccess(datasetId: string, req: Request): Promise<void> {
+    const dataset = await this.datasetService.getDatasetById(datasetId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      dataset.groupId,
+      this.databaseService,
+    );
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -87,12 +105,14 @@ export class DatasetController {
     @Body() createDto: CreateDatasetDto,
     @Req() req: Request,
   ): Promise<DatasetResponseDto> {
-    const user = req.user;
-    const userId = user?.sub as string;
+    const userId =
+      req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
-    if (!userId) {
-      throw new BadRequestException("User ID not found in request");
-    }
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      createDto.groupId,
+      this.databaseService,
+    );
 
     return this.datasetService.createDataset(createDto, userId);
   }
@@ -113,19 +133,45 @@ export class DatasetController {
     type: Number,
     description: "Items per page (default: 20, max: 100)",
   })
+  @ApiQuery({
+    name: "groupId",
+    required: false,
+    description: "Optional group ID to filter datasets by a specific group",
+  })
   @ApiOkResponse({
     description:
       "Returns paginated list of datasets with name, description, metadata, version count, createdBy, and timestamps",
     type: PaginatedDatasetResponseDto,
   })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async listDatasets(
     @Query("page") page?: string,
     @Query("limit") limit?: string,
+    @Query("groupId") groupId?: string,
+    @Req() req?: Request,
   ): Promise<PaginatedDatasetResponseDto> {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 20;
 
-    return this.datasetService.listDatasets(pageNum, limitNum);
+    if (groupId) {
+      await identityCanAccessGroup(
+        req!.resolvedIdentity,
+        groupId,
+        this.databaseService,
+      );
+      return this.datasetService.listDatasets(pageNum, limitNum, [groupId]);
+    }
+
+    const groupIds = await getIdentityGroupIds(
+      req!.resolvedIdentity,
+      this.databaseService,
+    );
+
+    if (groupIds.length === 0) {
+      return { data: [], total: 0, page: pageNum, limit: limitNum, totalPages: 0 };
+    }
+
+    return this.datasetService.listDatasets(pageNum, limitNum, groupIds);
   }
 
   @Get(":id")
@@ -141,8 +187,20 @@ export class DatasetController {
   @ApiNotFoundResponse({
     description: "Dataset not found",
   })
-  async getDatasetById(@Param("id") id: string): Promise<DatasetResponseDto> {
-    return this.datasetService.getDatasetById(id);
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getDatasetById(
+    @Param("id") id: string,
+    @Req() req: Request,
+  ): Promise<DatasetResponseDto> {
+    const dataset = await this.datasetService.getDatasetById(id);
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      dataset.groupId,
+      this.databaseService,
+    );
+
+    return dataset;
   }
 
   @Delete(":id")
@@ -157,7 +215,12 @@ export class DatasetController {
   @ApiNotFoundResponse({
     description: "Dataset not found",
   })
-  async deleteDataset(@Param("id") id: string): Promise<void> {
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async deleteDataset(
+    @Param("id") id: string,
+    @Req() req: Request,
+  ): Promise<void> {
+    await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.deleteDataset(id);
   }
 
@@ -199,12 +262,10 @@ export class DatasetController {
     }>,
     @Req() req: Request,
   ): Promise<UploadResponseDto> {
-    const user = req.user;
-    const userId = user?.sub as string;
+    await this.assertDatasetGroupAccess(id, req);
 
-    if (!userId) {
-      throw new BadRequestException("User ID not found in request");
-    }
+    const userId =
+      req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
     if (!files || files.length === 0) {
       throw new BadRequestException("No files provided for upload");
@@ -249,12 +310,10 @@ export class DatasetController {
     @Body() createDto: CreateVersionDto,
     @Req() req: Request,
   ): Promise<VersionResponseDto> {
-    const user = req.user;
-    const userId = user?.sub as string;
+    await this.assertDatasetGroupAccess(id, req);
 
-    if (!userId) {
-      throw new BadRequestException("User ID not found in request");
-    }
+    const userId =
+      req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
     return this.datasetService.createVersion(id, createDto, userId);
   }
@@ -272,7 +331,11 @@ export class DatasetController {
   @ApiNotFoundResponse({
     description: "Dataset not found",
   })
-  async listVersions(@Param("id") id: string): Promise<VersionListResponseDto> {
+  async listVersions(
+    @Param("id") id: string,
+    @Req() req: Request,
+  ): Promise<VersionListResponseDto> {
+    await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.listVersions(id);
   }
 
@@ -293,7 +356,9 @@ export class DatasetController {
   async getVersionById(
     @Param("id") id: string,
     @Param("versionId") versionId: string,
+    @Req() req: Request,
   ): Promise<VersionResponseDto> {
+    await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.getVersionById(id, versionId);
   }
 
@@ -325,7 +390,9 @@ export class DatasetController {
     @Param("id") id: string,
     @Param("versionId") versionId: string,
     @Body() updateDto: UpdateVersionDto,
+    @Req() req: Request,
   ): Promise<VersionResponseDto> {
+    await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.updateVersionName(
       id,
       versionId,
@@ -357,7 +424,9 @@ export class DatasetController {
   async deleteVersion(
     @Param("id") id: string,
     @Param("versionId") versionId: string,
+    @Req() req: Request,
   ): Promise<void> {
+    await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.deleteVersion(id, versionId);
   }
 
@@ -386,7 +455,9 @@ export class DatasetController {
     @Param("id") id: string,
     @Param("versionId") versionId: string,
     @Param("sampleId") sampleId: string,
+    @Req() req: Request,
   ): Promise<void> {
+    await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.deleteSample(id, versionId, sampleId);
   }
 
@@ -422,9 +493,12 @@ export class DatasetController {
   async listSamples(
     @Param("id") id: string,
     @Param("versionId") versionId: string,
+    @Req() req: Request,
     @Query("page") page?: string,
     @Query("limit") limit?: string,
   ): Promise<SampleListResponseDto> {
+    await this.assertDatasetGroupAccess(id, req);
+
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 20;
 
@@ -456,7 +530,9 @@ export class DatasetController {
     @Param("id") id: string,
     @Param("versionId") versionId: string,
     @Param("sampleId") sampleId: string,
+    @Req() req: Request,
   ): Promise<GroundTruthResponseDto> {
+    await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.getGroundTruth(id, versionId, sampleId);
   }
 
@@ -476,8 +552,11 @@ export class DatasetController {
     @Param("id") id: string,
     @Param("versionId") versionId: string,
     @Query("path") filePath: string,
+    @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
+    await this.assertDatasetGroupAccess(id, req);
+
     if (!filePath) {
       throw new BadRequestException("Query parameter 'path' is required");
     }
@@ -522,7 +601,9 @@ export class DatasetController {
     @Param("id") id: string,
     @Param("versionId") versionId: string,
     @Body() requestDto: ValidateDatasetRequestDto,
+    @Req() req: Request,
   ): Promise<ValidationResponseDto> {
+    await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.validateDatasetVersion(
       id,
       versionId,
@@ -554,7 +635,9 @@ export class DatasetController {
     @Param("id") id: string,
     @Param("versionId") versionId: string,
     @Body() createDto: CreateSplitDto,
-  ): Promise<any> {
+    @Req() req: Request,
+  ): Promise<unknown> {
+    await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.createSplit(id, versionId, createDto);
   }
 
@@ -577,7 +660,9 @@ export class DatasetController {
   async listSplits(
     @Param("id") id: string,
     @Param("versionId") versionId: string,
-  ): Promise<any> {
+    @Req() req: Request,
+  ): Promise<unknown> {
+    await this.assertDatasetGroupAccess(id, req);
     const splits = await this.datasetService.listSplits(id, versionId);
     return { splits };
   }
@@ -603,7 +688,9 @@ export class DatasetController {
     @Param("id") id: string,
     @Param("versionId") versionId: string,
     @Param("splitId") splitId: string,
-  ): Promise<any> {
+    @Req() req: Request,
+  ): Promise<unknown> {
+    await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.getSplit(id, versionId, splitId);
   }
 
@@ -634,8 +721,10 @@ export class DatasetController {
     @Param("id") id: string,
     @Param("versionId") versionId: string,
     @Param("splitId") splitId: string,
-    @Body() updateDto: any,
-  ): Promise<any> {
+    @Body() updateDto: { sampleIds: string[] },
+    @Req() req: Request,
+  ): Promise<unknown> {
+    await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.updateSplit(id, versionId, splitId, updateDto);
   }
 
@@ -658,7 +747,9 @@ export class DatasetController {
   async freezeVersion(
     @Param("id") id: string,
     @Param("versionId") versionId: string,
+    @Req() req: Request,
   ): Promise<{ id: string; datasetId: string; version: string; name: string | null; frozen: boolean }> {
+    await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.freezeVersion(id, versionId);
   }
 
@@ -683,7 +774,9 @@ export class DatasetController {
     @Param("id") id: string,
     @Param("versionId") versionId: string,
     @Param("splitId") splitId: string,
-  ): Promise<any> {
+    @Req() req: Request,
+  ): Promise<unknown> {
+    await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.freezeSplit(id, versionId, splitId);
   }
 }

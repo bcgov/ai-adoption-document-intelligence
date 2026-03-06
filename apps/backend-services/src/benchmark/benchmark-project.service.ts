@@ -39,7 +39,7 @@ export class BenchmarkProjectService {
   /**
    * Create a benchmark project
    */
-  async createProject(dto: CreateProjectDto): Promise<ProjectDetailsDto> {
+  async createProject(dto: CreateProjectDto, userId: string): Promise<ProjectDetailsDto> {
     this.logger.log(`Creating benchmark project: ${dto.name}`);
 
     try {
@@ -47,7 +47,8 @@ export class BenchmarkProjectService {
         data: {
           name: dto.name,
           description: dto.description || null,
-          createdBy: dto.createdBy,
+          createdBy: userId,
+          group_id: dto.groupId,
         },
         include: {
           benchmarkDefinitions: {
@@ -101,8 +102,11 @@ export class BenchmarkProjectService {
   /**
    * List all benchmark projects
    */
-  async listProjects(): Promise<ProjectSummaryDto[]> {
+  async listProjects(groupIds: string[]): Promise<ProjectSummaryDto[]> {
     const projects = await this.prisma.benchmarkProject.findMany({
+      where: {
+        group_id: { in: groupIds },
+      },
       include: {
         _count: {
           select: {
@@ -121,6 +125,7 @@ export class BenchmarkProjectService {
       name: project.name,
       description: project.description,
       createdBy: project.createdBy,
+      groupId: project.group_id,
       definitionCount: project._count.benchmarkDefinitions,
       runCount: project._count.benchmarkRuns,
       createdAt: project.createdAt,
@@ -225,6 +230,7 @@ export class BenchmarkProjectService {
     name: string;
     description: string | null;
     createdBy: string;
+    group_id: string;
     createdAt: Date;
     updatedAt: Date;
     benchmarkDefinitions: Array<{
@@ -271,6 +277,7 @@ export class BenchmarkProjectService {
       name: project.name,
       description: project.description,
       createdBy: project.createdBy,
+      groupId: project.group_id,
       definitions,
       recentRuns,
       createdAt: project.createdAt,

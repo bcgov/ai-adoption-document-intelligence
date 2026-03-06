@@ -1,5 +1,13 @@
+jest.mock("@/auth/identity.helpers", () => ({
+  identityCanAccessGroup: jest.fn().mockResolvedValue(undefined),
+  getIdentityGroupIds: jest.fn().mockResolvedValue(["test-group"]),
+}));
+
 import { BadRequestException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { Request } from "express";
+import { DatabaseService } from "@/database/database.service";
+import { DatasetService } from "./dataset.service";
 import { HitlDatasetController } from "./hitl-dataset.controller";
 import { HitlDatasetService } from "./hitl-dataset.service";
 
@@ -7,13 +15,25 @@ describe("HitlDatasetController", () => {
   let controller: HitlDatasetController;
   let mockService: jest.Mocked<Partial<HitlDatasetService>>;
 
-  const mockRequest = {
+  const mockReq = {
     user: { sub: "user-1" },
-  } as unknown as import("express").Request;
+    resolvedIdentity: { userId: "user-1" },
+  } as unknown as Request;
 
-  const mockRequestNoUser = {
+  const mockReqNoUser = {
     user: {},
-  } as unknown as import("express").Request;
+    resolvedIdentity: { userId: undefined },
+  } as unknown as Request;
+
+  const mockDatabaseService = {
+    isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    getUsersGroups: jest.fn().mockResolvedValue([{ group_id: 'test-group' }]),
+    isUserInGroup: jest.fn().mockResolvedValue(true),
+  };
+
+  const mockDatasetService = {
+    getDatasetById: jest.fn().mockResolvedValue({ id: "dataset-1", groupId: "test-group" }),
+  };
 
   beforeEach(async () => {
     mockService = {
@@ -38,6 +58,8 @@ describe("HitlDatasetController", () => {
       controllers: [HitlDatasetController],
       providers: [
         { provide: HitlDatasetService, useValue: mockService },
+        { provide: DatasetService, useValue: mockDatasetService },
+        { provide: DatabaseService, useValue: mockDatabaseService },
       ],
     }).compile();
 
@@ -46,9 +68,9 @@ describe("HitlDatasetController", () => {
 
   describe("listEligibleDocuments", () => {
     it("should return eligible documents", async () => {
-      const result = await controller.listEligibleDocuments({});
+      const result = await controller.listEligibleDocuments({}, mockReq);
       expect(result.documents).toEqual([]);
-      expect(mockService.listEligibleDocuments).toHaveBeenCalledWith({});
+      expect(mockService.listEligibleDocuments).toHaveBeenCalledWith({}, ["test-group"]);
     });
 
     it("should pass filter parameters", async () => {
@@ -56,13 +78,13 @@ describe("HitlDatasetController", () => {
         page: 2,
         limit: 10,
         search: "invoice",
-      });
+      }, mockReq);
 
       expect(mockService.listEligibleDocuments).toHaveBeenCalledWith({
         page: 2,
         limit: 10,
         search: "invoice",
-      });
+      }, ["test-group"]);
     });
   });
 
@@ -71,9 +93,10 @@ describe("HitlDatasetController", () => {
       const dto = {
         name: "Test Dataset",
         documentIds: ["doc-1"],
+        groupId: "test-group",
       };
 
-      const result = await controller.createDatasetFromHitl(dto, mockRequest);
+      const result = await controller.createDatasetFromHitl(dto, mockReq);
       expect(result.dataset.id).toBe("dataset-1");
       expect(mockService.createDatasetFromHitl).toHaveBeenCalledWith(
         dto,
@@ -84,8 +107,8 @@ describe("HitlDatasetController", () => {
     it("should throw when user ID is missing", async () => {
       await expect(
         controller.createDatasetFromHitl(
-          { name: "Test", documentIds: ["doc-1"] },
-          mockRequestNoUser,
+          { name: "Test", documentIds: ["doc-1"], groupId: "test-group" },
+          mockReqNoUser,
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -98,7 +121,7 @@ describe("HitlDatasetController", () => {
       const result = await controller.addVersionFromHitl(
         "dataset-1",
         dto,
-        mockRequest,
+        mockReq,
       );
 
       expect(result.version.id).toBe("version-1");
@@ -114,7 +137,7 @@ describe("HitlDatasetController", () => {
         controller.addVersionFromHitl(
           "dataset-1",
           { documentIds: ["doc-1"] },
-          mockRequestNoUser,
+          mockReqNoUser,
         ),
       ).rejects.toThrow(BadRequestException);
     });

@@ -40,7 +40,9 @@ export async function setupMockAuth(
         preferred_username: profile.preferred_username,
         email: profile.email,
         roles: ['user'],
+        isAdmin: false,
         expires_in: 3600,
+        groups: [{ id: 'seed-default-group', name: 'Default' }],
       }),
     });
   });

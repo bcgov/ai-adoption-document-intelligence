@@ -30,6 +30,11 @@ export class ProjectSummaryDto {
   createdBy: string;
 
   /**
+   * Group ID that owns this project
+   */
+  groupId: string;
+
+  /**
    * Number of benchmark definitions in this project
    */
   definitionCount: number;
@@ -143,6 +148,11 @@ export class ProjectDetailsDto {
    * User who created the project
    */
   createdBy: string;
+
+  /**
+   * Group ID that owns this project
+   */
+  groupId: string;
 
   /**
    * List of benchmark definitions

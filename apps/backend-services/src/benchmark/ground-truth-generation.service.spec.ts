@@ -208,6 +208,7 @@ describe("GroundTruthGenerationService", () => {
         datasetId,
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
+        dataset: { group_id: "test-group" },
       });
       mockPrismaClient.workflow.findUnique.mockResolvedValue({ id: workflowConfigId });
       (mockBlobStorage.read as jest.Mock).mockResolvedValue(

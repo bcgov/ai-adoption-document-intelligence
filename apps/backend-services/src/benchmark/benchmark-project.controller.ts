@@ -19,7 +19,15 @@ import {
   Logger,
   Param,
   Post,
+  Query,
+  Req,
 } from "@nestjs/common";
+import { Request } from "express";
+import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "@/auth/identity.helpers";
+import { DatabaseService } from "@/database/database.service";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
@@ -33,6 +41,7 @@ export class BenchmarkProjectController {
 
   constructor(
     private readonly benchmarkProjectService: BenchmarkProjectService,
+    private readonly databaseService: DatabaseService,
   ) {}
 
   /**
@@ -46,13 +55,23 @@ export class BenchmarkProjectController {
   @KeycloakSSOAuth()
   async createProject(
     @Body() createProjectDto: CreateProjectDto,
+    @Req() req: Request,
   ): Promise<ProjectDetailsDto> {
     this.logger.log(
       `POST /api/benchmark/projects - name: ${createProjectDto.name}`,
     );
 
+    const userId =
+      req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      createProjectDto.groupId,
+      this.databaseService,
+    );
+
     try {
-      return await this.benchmarkProjectService.createProject(createProjectDto);
+      return await this.benchmarkProjectService.createProject(createProjectDto, userId);
     } catch (error) {
       // Let NestJS HttpExceptions (ConflictException, etc.) pass through as-is
       if (error instanceof HttpException) {
@@ -70,9 +89,31 @@ export class BenchmarkProjectController {
   @Get()
   @ApiKeyAuth()
   @KeycloakSSOAuth()
-  async listProjects(): Promise<ProjectSummaryDto[]> {
+  async listProjects(
+    @Query("groupId") groupId: string | undefined,
+    @Req() req: Request,
+  ): Promise<ProjectSummaryDto[]> {
     this.logger.log("GET /api/benchmark/projects");
-    return this.benchmarkProjectService.listProjects();
+
+    if (groupId) {
+      await identityCanAccessGroup(
+        req.resolvedIdentity,
+        groupId,
+        this.databaseService,
+      );
+      return this.benchmarkProjectService.listProjects([groupId]);
+    }
+
+    const groupIds = await getIdentityGroupIds(
+      req.resolvedIdentity,
+      this.databaseService,
+    );
+
+    if (groupIds.length === 0) {
+      return [];
+    }
+
+    return this.benchmarkProjectService.listProjects(groupIds);
   }
 
   /**
@@ -83,9 +124,21 @@ export class BenchmarkProjectController {
   @Get(":id")
   @ApiKeyAuth()
   @KeycloakSSOAuth()
-  async getProjectById(@Param("id") id: string): Promise<ProjectDetailsDto> {
+  async getProjectById(
+    @Param("id") id: string,
+    @Req() req: Request,
+  ): Promise<ProjectDetailsDto> {
     this.logger.log(`GET /api/benchmark/projects/${id}`);
-    return this.benchmarkProjectService.getProjectById(id);
+
+    const project = await this.benchmarkProjectService.getProjectById(id);
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.groupId,
+      this.databaseService,
+    );
+
+    return project;
   }
 
   /**
@@ -97,8 +150,20 @@ export class BenchmarkProjectController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiKeyAuth()
   @KeycloakSSOAuth()
-  async deleteProject(@Param("id") id: string): Promise<void> {
+  async deleteProject(
+    @Param("id") id: string,
+    @Req() req: Request,
+  ): Promise<void> {
     this.logger.log(`DELETE /api/benchmark/projects/${id}`);
+
+    const project = await this.benchmarkProjectService.getProjectById(id);
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.groupId,
+      this.databaseService,
+    );
+
     return this.benchmarkProjectService.deleteProject(id);
   }
 }

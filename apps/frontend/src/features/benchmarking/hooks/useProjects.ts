@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
 
 interface ProjectSummary {
   id: string;
   name: string;
   description: string | null;
+  groupId: string;
   createdBy: string;
   definitionCount: number;
   runCount: number;
@@ -34,6 +36,7 @@ interface ProjectDetails {
   id: string;
   name: string;
   description: string | null;
+  groupId: string;
   createdBy: string;
   definitions: DefinitionSummary[];
   recentRuns: RecentRunSummary[];
@@ -44,27 +47,31 @@ interface ProjectDetails {
 interface CreateProjectDto {
   name: string;
   description?: string;
-  createdBy: string;
 }
 
 export const useProjects = () => {
   const queryClient = useQueryClient();
+  const { activeGroup } = useGroup();
 
   const projectsQuery = useQuery({
-    queryKey: ["benchmark-projects"],
+    queryKey: ["benchmark-projects", activeGroup?.id],
     queryFn: async () => {
-      const response = await apiService.get<ProjectSummary[]>(
-        "/benchmark/projects",
-      );
+      const url = activeGroup?.id
+        ? `/benchmark/projects?groupId=${activeGroup.id}`
+        : "/benchmark/projects";
+      const response = await apiService.get<ProjectSummary[]>(url);
       return response.data || [];
     },
   });
 
   const createProjectMutation = useMutation({
     mutationFn: async (data: CreateProjectDto) => {
+      if (!activeGroup) {
+        throw new Error("No active group selected");
+      }
       const response = await apiService.post<ProjectDetails>(
         "/benchmark/projects",
-        data,
+        { ...data, groupId: activeGroup.id },
       );
       if (!response.success) {
         throw new Error(response.message || "Failed to create project");

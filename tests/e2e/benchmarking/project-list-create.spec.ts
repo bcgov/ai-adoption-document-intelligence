@@ -263,7 +263,7 @@ test.describe('Project List - Empty State', () => {
     // Mock an empty projects list response (no DELETE endpoint exists for projects)
     // Track whether a project has been created so we can stop mocking
     let projectCreated = false;
-    await page.route(`${BACKEND_URL}/api/benchmark/projects`, async (route, request) => {
+    await page.route(new RegExp(`${BACKEND_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/api/benchmark/projects(\\?.*)?$`), async (route, request) => {
       if (request.method() === 'GET' && !projectCreated) {
         await route.fulfill({
           status: 200,

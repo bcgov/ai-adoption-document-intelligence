@@ -66,9 +66,6 @@ test.describe('Dataset Upload & Version Creation', () => {
   });
 
   test('should create a dataset via API for upload testing', async ({ request }) => {
-    // Create dataset via API with a unique local path
-    const uniquePath = `/tmp/e2e-dataset-upload-${Date.now()}`;
-
     const response = await request.post(`${BACKEND_URL}/api/benchmark/datasets`, {
       headers: {
         'x-api-key': TEST_API_KEY!,
@@ -77,7 +74,7 @@ test.describe('Dataset Upload & Version Creation', () => {
       data: {
         name: `Upload Test Dataset ${Date.now()}`,
         description: 'E2E test for file upload and version creation',
-        storagePath: uniquePath,
+        groupId: 'seed-default-group',
       },
     });
 

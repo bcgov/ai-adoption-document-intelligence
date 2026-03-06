@@ -20,6 +20,10 @@ export class CreateDatasetFromHitlDto {
   @IsOptional()
   metadata?: Record<string, unknown>;
 
+  @IsString()
+  @IsNotEmpty()
+  groupId: string;
+
   @IsArray()
   @IsString({ each: true })
   @ArrayMinSize(1)

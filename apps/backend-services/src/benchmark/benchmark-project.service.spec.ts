@@ -68,14 +68,15 @@ describe("BenchmarkProjectService", () => {
       const createDto: CreateProjectDto = {
         name: "Test Project",
         description: "Test description",
-        createdBy: "user@example.com",
+        groupId: "test-group",
       };
 
       const mockProject = {
         id: "project-123",
         name: createDto.name,
         description: createDto.description,
-        createdBy: createDto.createdBy,
+        createdBy: "user@example.com",
+        group_id: "test-group",
         createdAt: new Date(),
         updatedAt: new Date(),
         benchmarkDefinitions: [],
@@ -84,13 +85,14 @@ describe("BenchmarkProjectService", () => {
 
       mockPrismaClient.benchmarkProject.create.mockResolvedValue(mockProject);
 
-      const result = await service.createProject(createDto);
+      const result = await service.createProject(createDto, "user@example.com");
 
       expect(mockPrismaClient.benchmarkProject.create).toHaveBeenCalledWith({
         data: {
           name: createDto.name,
           description: createDto.description,
-          createdBy: createDto.createdBy,
+          createdBy: "user@example.com",
+          group_id: createDto.groupId,
         },
         include: expect.any(Object),
       });
@@ -104,14 +106,15 @@ describe("BenchmarkProjectService", () => {
     it("handles null description", async () => {
       const createDto: CreateProjectDto = {
         name: "Test Project",
-        createdBy: "user@example.com",
+        groupId: "test-group",
       };
 
       const mockProject = {
         id: "project-123",
         name: createDto.name,
         description: null,
-        createdBy: createDto.createdBy,
+        createdBy: "user@example.com",
+        group_id: "test-group",
         createdAt: new Date(),
         updatedAt: new Date(),
         benchmarkDefinitions: [],
@@ -120,13 +123,14 @@ describe("BenchmarkProjectService", () => {
 
       mockPrismaClient.benchmarkProject.create.mockResolvedValue(mockProject);
 
-      const result = await service.createProject(createDto);
+      const result = await service.createProject(createDto, "user@example.com");
 
       expect(mockPrismaClient.benchmarkProject.create).toHaveBeenCalledWith({
         data: {
           name: createDto.name,
           description: null,
-          createdBy: createDto.createdBy,
+          createdBy: "user@example.com",
+          group_id: createDto.groupId,
         },
         include: expect.any(Object),
       });
@@ -137,14 +141,14 @@ describe("BenchmarkProjectService", () => {
     it("throws ConflictException when project name already exists", async () => {
       const createDto: CreateProjectDto = {
         name: "Duplicate Project",
-        createdBy: "user@example.com",
+        groupId: "test-group",
       };
 
       const prismaError = new Error("Unique constraint failed") as Error & { code: string };
       prismaError.code = "P2002";
       mockPrismaClient.benchmarkProject.create.mockRejectedValue(prismaError);
 
-      await expect(service.createProject(createDto)).rejects.toThrow(
+      await expect(service.createProject(createDto, "user@example.com")).rejects.toThrow(
         ConflictException,
       );
     });
@@ -152,13 +156,13 @@ describe("BenchmarkProjectService", () => {
     it("handles database error", async () => {
       const createDto: CreateProjectDto = {
         name: "Test Project",
-        createdBy: "user@example.com",
+        groupId: "test-group",
       };
 
       const dbError = new Error("Database connection failed");
       mockPrismaClient.benchmarkProject.create.mockRejectedValue(dbError);
 
-      await expect(service.createProject(createDto)).rejects.toThrow(
+      await expect(service.createProject(createDto, "user@example.com")).rejects.toThrow(
         "Database connection failed",
       );
     });
@@ -175,6 +179,7 @@ describe("BenchmarkProjectService", () => {
           name: "Project 1",
           description: "Description 1",
           createdBy: "user1@example.com",
+          group_id: "test-group",
           createdAt: new Date("2024-01-01"),
           updatedAt: new Date("2024-01-02"),
           _count: {
@@ -187,6 +192,7 @@ describe("BenchmarkProjectService", () => {
           name: "Project 2",
           description: null,
           createdBy: "user2@example.com",
+          group_id: "test-group",
           createdAt: new Date("2024-01-03"),
           updatedAt: new Date("2024-01-04"),
           _count: {
@@ -200,7 +206,7 @@ describe("BenchmarkProjectService", () => {
         mockProjects,
       );
 
-      const result = await service.listProjects();
+      const result = await service.listProjects(["test-group"]);
 
       expect(result).toHaveLength(2);
       expect(result[0].id).toBe("project-1");
@@ -217,7 +223,7 @@ describe("BenchmarkProjectService", () => {
     it("returns empty array when no projects exist", async () => {
       mockPrismaClient.benchmarkProject.findMany.mockResolvedValue([]);
 
-      const result = await service.listProjects();
+      const result = await service.listProjects(["test-group"]);
 
       expect(result).toEqual([]);
     });
@@ -225,9 +231,12 @@ describe("BenchmarkProjectService", () => {
     it("orders projects by createdAt descending", async () => {
       mockPrismaClient.benchmarkProject.findMany.mockResolvedValue([]);
 
-      await service.listProjects();
+      await service.listProjects(["test-group"]);
 
       expect(mockPrismaClient.benchmarkProject.findMany).toHaveBeenCalledWith({
+        where: {
+          group_id: { in: ["test-group"] },
+        },
         include: expect.any(Object),
         orderBy: {
           createdAt: "desc",
@@ -247,6 +256,7 @@ describe("BenchmarkProjectService", () => {
         name: "Test Project",
         description: "Test description",
         createdBy: "user@example.com",
+        group_id: "test-group",
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-02"),
         benchmarkDefinitions: [
@@ -342,6 +352,7 @@ describe("BenchmarkProjectService", () => {
       mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue({
         id: projectId,
         name: "Test Project",
+        group_id: "test-group",
         benchmarkRuns: [],
       });
       mockPrismaClient.benchmarkProject.delete.mockResolvedValue(undefined);
@@ -365,6 +376,7 @@ describe("BenchmarkProjectService", () => {
       mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue({
         id: "project-123",
         name: "Test Project",
+        group_id: "test-group",
         benchmarkRuns: [{ id: "run-1", status: "running" }],
       });
 

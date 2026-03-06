@@ -18,11 +18,16 @@ import {
   Param,
   Post,
   Query,
+  Req,
 } from "@nestjs/common";
+import { Request } from "express";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { DatabaseService } from "@/database/database.service";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
+import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import {
   CreateRunDto,
@@ -40,7 +45,18 @@ export class BenchmarkRunController {
 
   constructor(
     private readonly benchmarkRunService: BenchmarkRunService,
+    private readonly benchmarkProjectService: BenchmarkProjectService,
+    private readonly databaseService: DatabaseService,
   ) {}
+
+  private async assertProjectGroupAccess(projectId: string, req: Request): Promise<void> {
+    const project = await this.benchmarkProjectService.getProjectById(projectId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      project.groupId,
+      this.databaseService,
+    );
+  }
 
   /**
    * Start a benchmark run
@@ -55,10 +71,12 @@ export class BenchmarkRunController {
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,
     @Body() createRunDto: CreateRunDto,
+    @Req() req: Request,
   ): Promise<RunDetailsDto> {
     this.logger.log(
       `POST /api/benchmark/projects/${projectId}/definitions/${definitionId}/runs`,
     );
+    await this.assertProjectGroupAccess(projectId, req);
     return this.benchmarkRunService.startRun(
       projectId,
       definitionId,
@@ -76,8 +94,10 @@ export class BenchmarkRunController {
   @KeycloakSSOAuth()
   async listRuns(
     @Param("projectId") projectId: string,
+    @Req() req: Request,
   ): Promise<RunSummaryDto[]> {
     this.logger.log(`GET /api/benchmark/projects/${projectId}/runs`);
+    await this.assertProjectGroupAccess(projectId, req);
     return this.benchmarkRunService.listRuns(projectId);
   }
 
@@ -92,8 +112,10 @@ export class BenchmarkRunController {
   async getRunById(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
+    @Req() req: Request,
   ): Promise<RunDetailsDto> {
     this.logger.log(`GET /api/benchmark/projects/${projectId}/runs/${runId}`);
+    await this.assertProjectGroupAccess(projectId, req);
     return this.benchmarkRunService.getRunById(projectId, runId);
   }
 
@@ -109,10 +131,12 @@ export class BenchmarkRunController {
   async cancelRun(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
+    @Req() req: Request,
   ): Promise<RunDetailsDto> {
     this.logger.log(
       `POST /api/benchmark/projects/${projectId}/runs/${runId}/cancel`,
     );
+    await this.assertProjectGroupAccess(projectId, req);
     return this.benchmarkRunService.cancelRun(projectId, runId);
   }
 
@@ -127,10 +151,12 @@ export class BenchmarkRunController {
   async getDrillDown(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
+    @Req() req: Request,
   ): Promise<DrillDownResponseDto> {
     this.logger.log(
       `GET /api/benchmark/projects/${projectId}/runs/${runId}/drill-down`,
     );
+    await this.assertProjectGroupAccess(projectId, req);
     return this.benchmarkRunService.getDrillDown(projectId, runId);
   }
 
@@ -150,10 +176,12 @@ export class BenchmarkRunController {
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
     @Query() query: Record<string, string>,
+    @Req() req: Request,
   ): Promise<PerSampleResultsResponseDto> {
     this.logger.log(
       `GET /api/benchmark/projects/${projectId}/runs/${runId}/samples`,
     );
+    await this.assertProjectGroupAccess(projectId, req);
 
     // Extract pagination params
     const page = query.page ? parseInt(query.page, 10) : 1;
@@ -191,10 +219,12 @@ export class BenchmarkRunController {
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
     @Body() promoteBaselineDto: PromoteBaselineDto,
+    @Req() req: Request,
   ): Promise<PromoteBaselineResponseDto> {
     this.logger.log(
       `POST /api/benchmark/projects/${projectId}/runs/${runId}/baseline`,
     );
+    await this.assertProjectGroupAccess(projectId, req);
     return this.benchmarkRunService.promoteToBaseline(
       projectId,
       runId,
@@ -216,10 +246,12 @@ export class BenchmarkRunController {
   async deleteRun(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
+    @Req() req: Request,
   ): Promise<void> {
     this.logger.log(
       `DELETE /api/benchmark/projects/${projectId}/runs/${runId}`,
     );
+    await this.assertProjectGroupAccess(projectId, req);
     return this.benchmarkRunService.deleteRun(projectId, runId);
   }
 }

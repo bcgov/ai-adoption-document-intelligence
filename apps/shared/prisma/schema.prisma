@@ -294,6 +294,8 @@ model Group {
   labeling_projects   LabelingProject[]
   labeling_documents  LabelingDocument[]
   api_keys            ApiKey[]
+  datasets            Dataset[]
+  benchmark_projects  BenchmarkProject[]
 
   @@map("group")
 }
@@ -429,15 +431,19 @@ enum DocumentStatus {
 
 model Dataset {
   id              String            @id @default(uuid())
-  name            String            @unique
+  name            String
   description     String?
   metadata        Json              @default("{}")
   storagePath     String            @default("")
   createdBy       String
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+  group_id        String
+  group           Group             @relation(fields: [group_id], references: [id])
   versions        DatasetVersion[]
 
+  @@unique([name, group_id])
+  @@index([group_id])
   @@map("datasets")
 }
 
@@ -479,14 +485,18 @@ model Split {
 
 model BenchmarkProject {
   id                   String                 @id @default(uuid())
-  name                 String                 @unique
+  name                 String
   description          String?
   createdBy            String
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
+  group_id             String
+  group                Group                  @relation(fields: [group_id], references: [id])
   benchmarkDefinitions BenchmarkDefinition[]
   benchmarkRuns        BenchmarkRun[]
 
+  @@unique([name, group_id])
+  @@index([group_id])
   @@map("benchmark_projects")
 }
 

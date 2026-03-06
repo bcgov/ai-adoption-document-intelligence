@@ -352,7 +352,7 @@ describe("HitlDatasetService", () => {
 
   describe("listEligibleDocuments", () => {
     it("should return eligible documents with approved sessions", async () => {
-      const result = await service.listEligibleDocuments({});
+      const result = await service.listEligibleDocuments({}, ["test-group"]);
 
       expect(result.documents).toHaveLength(2);
       expect(result.total).toBe(2);
@@ -363,7 +363,7 @@ describe("HitlDatasetService", () => {
     it("should filter by search term", async () => {
       const result = await service.listEligibleDocuments({
         search: "invoice-001",
-      });
+      }, ["test-group"]);
 
       expect(result.documents).toHaveLength(1);
       expect(result.documents[0].originalFilename).toBe("invoice-001.pdf");
@@ -373,7 +373,7 @@ describe("HitlDatasetService", () => {
       const result = await service.listEligibleDocuments({
         page: 1,
         limit: 1,
-      });
+      }, ["test-group"]);
 
       expect(result.documents).toHaveLength(1);
       expect(result.total).toBe(2);
@@ -392,7 +392,7 @@ describe("HitlDatasetService", () => {
         },
       ]);
 
-      const result = await service.listEligibleDocuments({});
+      const result = await service.listEligibleDocuments({}, ["test-group"]);
       expect(result.documents).toHaveLength(0);
     });
 
@@ -404,7 +404,7 @@ describe("HitlDatasetService", () => {
         },
       ]);
 
-      const result = await service.listEligibleDocuments({});
+      const result = await service.listEligibleDocuments({}, ["test-group"]);
       expect(result.documents).toHaveLength(0);
     });
   });
@@ -416,6 +416,7 @@ describe("HitlDatasetService", () => {
           name: "Test Dataset",
           description: "From HITL",
           documentIds: ["doc-1", "doc-2"],
+          groupId: "test-group",
         },
         "user-1",
       );
@@ -446,6 +447,7 @@ describe("HitlDatasetService", () => {
         {
           name: "Test Dataset",
           documentIds: ["doc-1", "nonexistent-doc"],
+          groupId: "test-group",
         },
         "user-1",
       );
@@ -460,6 +462,7 @@ describe("HitlDatasetService", () => {
           {
             name: "Test Dataset",
             documentIds: ["nonexistent-1", "nonexistent-2"],
+            groupId: "test-group",
           },
           "user-1",
         ),
@@ -479,6 +482,7 @@ describe("HitlDatasetService", () => {
         {
           name: "Test Dataset",
           documentIds: ["doc-1", "doc-2"],
+          groupId: "test-group",
         },
         "user-1",
       );

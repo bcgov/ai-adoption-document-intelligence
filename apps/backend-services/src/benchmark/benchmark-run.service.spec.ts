@@ -61,6 +61,7 @@ describe("BenchmarkRunService", () => {
     id: "project-1",
     name: "Test Project",
     createdBy: "user-1",
+    group_id: "test-group",
     createdAt: new Date(),
     updatedAt: new Date(),
   };

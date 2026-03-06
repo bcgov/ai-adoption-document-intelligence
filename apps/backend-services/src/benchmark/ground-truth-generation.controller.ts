@@ -15,10 +15,14 @@ import {
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
+import { Request } from "express";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { DatabaseService } from "@/database/database.service";
 import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
+import { DatasetService } from "./dataset.service";
 import {
   GroundTruthJobsListResponseDto,
   GroundTruthReviewQueueResponseDto,
@@ -28,19 +32,23 @@ import {
 } from "./dto";
 import { GroundTruthGenerationService } from "./ground-truth-generation.service";
 
-interface AuthenticatedRequest {
-  user?: {
-    sub?: string;
-    id?: string;
-  };
-}
-
 @ApiTags("benchmark-datasets")
 @Controller("api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation")
 export class GroundTruthGenerationController {
   constructor(
     private readonly groundTruthGenerationService: GroundTruthGenerationService,
+    private readonly datasetService: DatasetService,
+    private readonly databaseService: DatabaseService,
   ) {}
+
+  private async assertDatasetGroupAccess(datasetId: string, req: Request): Promise<void> {
+    const dataset = await this.datasetService.getDatasetById(datasetId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      dataset.groupId,
+      this.databaseService,
+    );
+  }
 
   @Post()
   @ApiKeyAuth()
@@ -61,9 +69,10 @@ export class GroundTruthGenerationController {
     @Param("id") datasetId: string,
     @Param("versionId") versionId: string,
     @Body() dto: StartGroundTruthGenerationDto,
-    @Req() req: AuthenticatedRequest,
+    @Req() req: Request,
   ) {
-    const userId = req.user?.sub || req.user?.id || "anonymous";
+    await this.assertDatasetGroupAccess(datasetId, req);
+    const userId = req.user?.sub || "anonymous";
     return this.groundTruthGenerationService.startGeneration(
       datasetId,
       versionId,
@@ -90,9 +99,11 @@ export class GroundTruthGenerationController {
   async getJobs(
     @Param("id") datasetId: string,
     @Param("versionId") versionId: string,
+    @Req() req: Request,
     @Query("page") page?: number,
     @Query("limit") limit?: number,
   ) {
+    await this.assertDatasetGroupAccess(datasetId, req);
     return this.groundTruthGenerationService.getJobs(
       datasetId,
       versionId,
@@ -122,10 +133,12 @@ export class GroundTruthGenerationController {
   async getReviewQueue(
     @Param("id") datasetId: string,
     @Param("versionId") versionId: string,
+    @Req() req: Request,
     @Query("limit") limit?: number,
     @Query("offset") offset?: number,
     @Query("reviewStatus") reviewStatus?: "pending" | "reviewed" | "all",
   ) {
+    await this.assertDatasetGroupAccess(datasetId, req);
     return this.groundTruthGenerationService.getReviewQueue(
       datasetId,
       versionId,
@@ -152,7 +165,9 @@ export class GroundTruthGenerationController {
   async getReviewStats(
     @Param("id") datasetId: string,
     @Param("versionId") versionId: string,
+    @Req() req: Request,
   ) {
+    await this.assertDatasetGroupAccess(datasetId, req);
     return this.groundTruthGenerationService.getReviewStats(
       datasetId,
       versionId,

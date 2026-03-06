@@ -573,6 +573,7 @@ async function seedBenchmarkingData() {
       metadata: { documentType: "invoice", language: "en" },
       storagePath: "datasets/invoice-test-dataset",
       createdBy: "test-user",
+      group_id: SEED_GROUP_ID,
     },
     create: {
       id: SEED_DATASET_ID,
@@ -581,6 +582,7 @@ async function seedBenchmarkingData() {
       metadata: { documentType: "invoice", language: "en" },
       storagePath: "datasets/invoice-test-dataset",
       createdBy: "test-user",
+      group_id: SEED_GROUP_ID,
     },
   });
 
@@ -592,6 +594,7 @@ async function seedBenchmarkingData() {
       metadata: { documentType: "receipt", language: "en" },
       storagePath: "datasets/receipt-test-dataset",
       createdBy: "seed-user",
+      group_id: SEED_GROUP_ID,
     },
     create: {
       id: SEED_DATASET_ID_2,
@@ -600,6 +603,7 @@ async function seedBenchmarkingData() {
       metadata: { documentType: "receipt", language: "en" },
       storagePath: "datasets/receipt-test-dataset",
       createdBy: "seed-user",
+      group_id: SEED_GROUP_ID,
     },
   });
 
@@ -611,6 +615,7 @@ async function seedBenchmarkingData() {
       metadata: { documentType: "government-form", language: "en" },
       storagePath: "datasets/government-forms-dataset",
       createdBy: "seed-user",
+      group_id: SEED_GROUP_ID,
     },
     create: {
       id: SEED_DATASET_ID_3,
@@ -619,6 +624,7 @@ async function seedBenchmarkingData() {
       metadata: { documentType: "government-form", language: "en" },
       storagePath: "datasets/government-forms-dataset",
       createdBy: "seed-user",
+      group_id: SEED_GROUP_ID,
     },
   });
 
@@ -808,15 +814,15 @@ async function seedBenchmarkingData() {
     update: {
       name: "Invoice Extraction Benchmark",
       description: "Benchmarking OCR accuracy on invoice documents",
-
       createdBy: "test-user",
+      group_id: SEED_GROUP_ID,
     },
     create: {
       id: SEED_PROJECT_ID,
       name: "Invoice Extraction Benchmark",
       description: "Benchmarking OCR accuracy on invoice documents",
-
       createdBy: "test-user",
+      group_id: SEED_GROUP_ID,
     },
   });
 

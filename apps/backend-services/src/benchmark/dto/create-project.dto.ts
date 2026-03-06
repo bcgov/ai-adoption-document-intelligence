@@ -23,9 +23,9 @@ export class CreateProjectDto {
   description?: string;
 
   /**
-   * User who created the project
+   * Group ID for the project
    */
   @IsNotEmpty()
   @IsString()
-  createdBy: string;
+  groupId: string;
 }

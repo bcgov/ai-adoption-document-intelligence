@@ -92,6 +92,7 @@ describe("DatasetService", () => {
     name: "Test Dataset",
     description: "Test description",
     metadata: { domain: "invoices" },
+    groupId: "test-group",
   };
 
   const mockDataset = {
@@ -101,6 +102,7 @@ describe("DatasetService", () => {
     metadata: { domain: "invoices" },
     storagePath: "datasets/dataset-1",
     createdBy: "user-1",
+    group_id: "test-group",
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -159,7 +161,7 @@ describe("DatasetService", () => {
 
     it("throws BadRequestException when name is missing", async () => {
       await expect(
-        service.createDataset({ name: "" }, "user-1"),
+        service.createDataset({ name: "", groupId: "test-group" }, "user-1"),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -188,7 +190,7 @@ describe("DatasetService", () => {
         },
       ]);
 
-      const result = await service.listDatasets(1, 20);
+      const result = await service.listDatasets(1, 20, ["test-group"]);
 
       expect(result.data).toHaveLength(1);
       expect(result.total).toBe(1);
@@ -200,7 +202,7 @@ describe("DatasetService", () => {
       mockPrismaClient.dataset.count.mockResolvedValue(0);
       mockPrismaClient.dataset.findMany.mockResolvedValue([]);
 
-      const result = await service.listDatasets(1, 20);
+      const result = await service.listDatasets(1, 20, ["test-group"]);
 
       expect(result.data).toEqual([]);
       expect(result.total).toBe(0);

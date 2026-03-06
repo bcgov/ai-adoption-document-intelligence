@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
 
 interface CreateDatasetFromHitlParams {
@@ -44,12 +45,16 @@ interface AddVersionFromHitlResponse {
 
 export const useCreateDatasetFromHitl = () => {
   const queryClient = useQueryClient();
+  const { activeGroup } = useGroup();
 
   const createDatasetMutation = useMutation({
     mutationFn: async (params: CreateDatasetFromHitlParams) => {
+      if (!activeGroup) {
+        throw new Error("No active group selected");
+      }
       const response = await apiService.post<CreateDatasetFromHitlResponse>(
         "/benchmark/datasets/from-hitl",
-        params,
+        { ...params, groupId: activeGroup.id },
       );
       if (!response.success) {
         throw new Error(

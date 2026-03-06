@@ -5,11 +5,18 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-010-benchmark-project-service-controller.md
  */
 
+jest.mock("@/auth/identity.helpers", () => ({
+  identityCanAccessGroup: jest.fn().mockResolvedValue(undefined),
+  getIdentityGroupIds: jest.fn().mockResolvedValue(["test-group"]),
+}));
+
 import {
   ConflictException,
   NotFoundException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { Request } from "express";
+import { DatabaseService } from "@/database/database.service";
 import { BenchmarkProjectController } from "./benchmark-project.controller";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { CreateProjectDto, ProjectDetailsDto, ProjectSummaryDto } from "./dto";
@@ -25,6 +32,17 @@ describe("BenchmarkProjectController", () => {
     deleteProject: jest.fn(),
   };
 
+  const mockDatabaseService = {
+    isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    getUsersGroups: jest.fn().mockResolvedValue([{ group_id: 'test-group' }]),
+    isUserInGroup: jest.fn().mockResolvedValue(true),
+  };
+
+  const mockReq = {
+    user: { sub: 'user-1' },
+    resolvedIdentity: { userId: 'user-1' },
+  } as unknown as Request;
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [BenchmarkProjectController],
@@ -32,6 +50,10 @@ describe("BenchmarkProjectController", () => {
         {
           provide: BenchmarkProjectService,
           useValue: mockBenchmarkProjectService,
+        },
+        {
+          provide: DatabaseService,
+          useValue: mockDatabaseService,
         },
       ],
     }).compile();
@@ -54,14 +76,15 @@ describe("BenchmarkProjectController", () => {
       const createDto: CreateProjectDto = {
         name: "Test Project",
         description: "Test description",
-        createdBy: "user@example.com",
+        groupId: "test-group",
       };
 
       const expectedResponse: ProjectDetailsDto = {
         id: "project-123",
         name: createDto.name,
         description: createDto.description,
-        createdBy: createDto.createdBy,
+        createdBy: "user-1",
+        groupId: "test-group",
         definitions: [],
         recentRuns: [],
         createdAt: new Date(),
@@ -72,16 +95,16 @@ describe("BenchmarkProjectController", () => {
         expectedResponse,
       );
 
-      const result = await controller.createProject(createDto);
+      const result = await controller.createProject(createDto, mockReq);
 
-      expect(service.createProject).toHaveBeenCalledWith(createDto);
+      expect(service.createProject).toHaveBeenCalledWith(createDto, "user-1");
       expect(result).toEqual(expectedResponse);
     });
 
     it("returns 409 when project name already exists", async () => {
       const createDto: CreateProjectDto = {
         name: "Existing Project",
-        createdBy: "user@example.com",
+        groupId: "test-group",
       };
 
       mockBenchmarkProjectService.createProject.mockRejectedValue(
@@ -90,7 +113,7 @@ describe("BenchmarkProjectController", () => {
         ),
       );
 
-      await expect(controller.createProject(createDto)).rejects.toThrow(
+      await expect(controller.createProject(createDto, mockReq)).rejects.toThrow(
         ConflictException,
       );
     });
@@ -107,6 +130,7 @@ describe("BenchmarkProjectController", () => {
           name: "Project 1",
           description: "Description 1",
           createdBy: "user1@example.com",
+          groupId: "test-group",
           definitionCount: 3,
           runCount: 10,
           createdAt: new Date(),
@@ -117,6 +141,7 @@ describe("BenchmarkProjectController", () => {
           name: "Project 2",
           description: null,
           createdBy: "user2@example.com",
+          groupId: "test-group",
           definitionCount: 1,
           runCount: 5,
           createdAt: new Date(),
@@ -126,9 +151,9 @@ describe("BenchmarkProjectController", () => {
 
       mockBenchmarkProjectService.listProjects.mockResolvedValue(mockProjects);
 
-      const result = await controller.listProjects();
+      const result = await controller.listProjects("test-group", mockReq);
 
-      expect(service.listProjects).toHaveBeenCalled();
+      expect(service.listProjects).toHaveBeenCalledWith(["test-group"]);
       expect(result).toEqual(mockProjects);
       expect(result).toHaveLength(2);
     });
@@ -136,7 +161,7 @@ describe("BenchmarkProjectController", () => {
     it("returns empty array when no projects exist", async () => {
       mockBenchmarkProjectService.listProjects.mockResolvedValue([]);
 
-      const result = await controller.listProjects();
+      const result = await controller.listProjects("test-group", mockReq);
 
       expect(result).toEqual([]);
     });
@@ -153,6 +178,7 @@ describe("BenchmarkProjectController", () => {
         name: "Test Project",
         description: "Test description",
         createdBy: "user@example.com",
+        groupId: "test-group",
         definitions: [
           {
             id: "def-1",
@@ -179,7 +205,7 @@ describe("BenchmarkProjectController", () => {
 
       mockBenchmarkProjectService.getProjectById.mockResolvedValue(mockProject);
 
-      const result = await controller.getProjectById(projectId);
+      const result = await controller.getProjectById(projectId, mockReq);
 
       expect(service.getProjectById).toHaveBeenCalledWith(projectId);
       expect(result).toEqual(mockProject);
@@ -197,7 +223,7 @@ describe("BenchmarkProjectController", () => {
         ),
       );
 
-      await expect(controller.getProjectById(projectId)).rejects.toThrow(
+      await expect(controller.getProjectById(projectId, mockReq)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -209,29 +235,37 @@ describe("BenchmarkProjectController", () => {
   describe("DELETE /api/benchmark/projects/:id", () => {
     it("deletes a project successfully", async () => {
       const projectId = "project-123";
+      mockBenchmarkProjectService.getProjectById.mockResolvedValue({
+        id: projectId,
+        groupId: "test-group",
+      });
       mockBenchmarkProjectService.deleteProject.mockResolvedValue(undefined);
 
-      await controller.deleteProject(projectId);
+      await controller.deleteProject(projectId, mockReq);
 
       expect(service.deleteProject).toHaveBeenCalledWith(projectId);
     });
 
     it("returns 404 when project not found", async () => {
-      mockBenchmarkProjectService.deleteProject.mockRejectedValue(
+      mockBenchmarkProjectService.getProjectById.mockRejectedValue(
         new NotFoundException("Project not found"),
       );
 
-      await expect(controller.deleteProject("non-existent")).rejects.toThrow(
+      await expect(controller.deleteProject("non-existent", mockReq)).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it("returns 409 when project has active runs", async () => {
+      mockBenchmarkProjectService.getProjectById.mockResolvedValue({
+        id: "project-123",
+        groupId: "test-group",
+      });
       mockBenchmarkProjectService.deleteProject.mockRejectedValue(
         new ConflictException("Cannot delete project: it has active runs"),
       );
 
-      await expect(controller.deleteProject("project-123")).rejects.toThrow(
+      await expect(controller.deleteProject("project-123", mockReq)).rejects.toThrow(
         ConflictException,
       );
     });

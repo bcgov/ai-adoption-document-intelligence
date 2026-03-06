@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -14,6 +13,7 @@ import {
   ApiBadRequestResponse,
   ApiBody,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -23,9 +23,15 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "@/auth/identity.helpers";
+import { DatabaseService } from "@/database/database.service";
+import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
+import { DatasetService } from "./dataset.service";
 import { HitlDatasetService } from "./hitl-dataset.service";
 import {
   AddVersionFromHitlDto,
@@ -36,7 +42,11 @@ import {
 @ApiTags("Benchmark - HITL Datasets")
 @Controller("api/benchmark/datasets")
 export class HitlDatasetController {
-  constructor(private readonly hitlDatasetService: HitlDatasetService) {}
+  constructor(
+    private readonly hitlDatasetService: HitlDatasetService,
+    private readonly datasetService: DatasetService,
+    private readonly databaseService: DatabaseService,
+  ) {}
 
   @Get("from-hitl/eligible-documents")
   @ApiKeyAuth()
@@ -53,10 +63,21 @@ export class HitlDatasetController {
     description: "Filter by filename",
   })
   @ApiOkResponse({ description: "Paginated list of eligible documents" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async listEligibleDocuments(
     @Query() filters: EligibleDocumentsFilterDto,
+    @Req() req: Request,
   ) {
-    return this.hitlDatasetService.listEligibleDocuments(filters);
+    const groupIds = await getIdentityGroupIds(
+      req.resolvedIdentity,
+      this.databaseService,
+    );
+
+    if (groupIds.length === 0) {
+      return { documents: [], total: 0, page: 1, limit: 20 };
+    }
+
+    return this.hitlDatasetService.listEligibleDocuments(filters, groupIds);
   }
 
   @Post("from-hitl")
@@ -73,14 +94,19 @@ export class HitlDatasetController {
   @ApiBadRequestResponse({
     description: "Invalid request or no documents could be processed",
   })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async createDatasetFromHitl(
     @Body() dto: CreateDatasetFromHitlDto,
     @Req() req: Request,
   ) {
-    const userId = req.user?.sub as string;
-    if (!userId) {
-      throw new BadRequestException("User ID not found in request");
-    }
+    const userId =
+      req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
+
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      dto.groupId,
+      this.databaseService,
+    );
 
     return this.hitlDatasetService.createDatasetFromHitl(dto, userId);
   }
@@ -101,15 +127,21 @@ export class HitlDatasetController {
   @ApiBadRequestResponse({
     description: "Invalid request or no documents could be processed",
   })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async addVersionFromHitl(
     @Param("id") datasetId: string,
     @Body() dto: AddVersionFromHitlDto,
     @Req() req: Request,
   ) {
-    const userId = req.user?.sub as string;
-    if (!userId) {
-      throw new BadRequestException("User ID not found in request");
-    }
+    const userId =
+      req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
+
+    const dataset = await this.datasetService.getDatasetById(datasetId);
+    await identityCanAccessGroup(
+      req.resolvedIdentity,
+      dataset.groupId,
+      this.databaseService,
+    );
 
     return this.hitlDatasetService.addVersionFromHitl(datasetId, dto, userId);
   }

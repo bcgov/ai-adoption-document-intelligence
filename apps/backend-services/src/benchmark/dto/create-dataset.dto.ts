@@ -13,4 +13,7 @@ export class CreateDatasetDto {
   @IsOptional()
   metadata?: Record<string, unknown>;
 
+  @IsString()
+  @IsNotEmpty()
+  groupId: string;
 }

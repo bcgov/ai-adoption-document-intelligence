@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
 
 interface DatasetVersion {
@@ -226,12 +227,18 @@ export const useDatasetSamples = (
 };
 
 export const useAllDatasetVersions = () => {
+  const { activeGroup } = useGroup();
+
   const versionsQuery = useQuery({
-    queryKey: ["benchmark-all-dataset-versions"],
+    queryKey: ["benchmark-all-dataset-versions", activeGroup?.id],
     queryFn: async () => {
+      const params = new URLSearchParams({ limit: "1000" });
+      if (activeGroup?.id) {
+        params.set("groupId", activeGroup.id);
+      }
       const datasetsResponse = await apiService.get<{
         data: Array<{ id: string; name: string }>;
-      }>("/benchmark/datasets?limit=1000");
+      }>(`/benchmark/datasets?${params.toString()}`);
       const datasets = datasetsResponse.data?.data || [];
 
       const allVersions: (DatasetVersion & { datasetName: string })[] = [];

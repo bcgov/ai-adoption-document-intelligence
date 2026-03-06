@@ -60,6 +60,7 @@ describe("BenchmarkDefinitionService", () => {
     name: "Test Project",
     description: "Test Description",
     createdBy: "user-1",
+    group_id: "test-group",
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -73,6 +74,7 @@ describe("BenchmarkDefinitionService", () => {
     manifestPath: "/path/to/manifest.json",
     documentCount: 100,
     groundTruthSchema: null,
+    frozen: false,
     createdAt: new Date(),
     dataset: {
       name: "Test Dataset",
@@ -95,6 +97,7 @@ describe("BenchmarkDefinitionService", () => {
     name: "Test Workflow",
     description: "Test workflow description",
     user_id: "user-1",
+    group_id: "test-group",
     config: {
       schemaVersion: "1.0",
       metadata: { name: "Test", tags: [] },

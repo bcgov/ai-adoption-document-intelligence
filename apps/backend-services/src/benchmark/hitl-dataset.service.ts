@@ -68,6 +68,7 @@ export class HitlDatasetService {
    */
   async listEligibleDocuments(
     filters: EligibleDocumentsFilterDto,
+    groupIds: string[],
   ): Promise<EligibleDocumentsResponseDto> {
     const page = filters.page ?? 1;
     const limit = Math.min(filters.limit ?? 20, 100);
@@ -77,6 +78,7 @@ export class HitlDatasetService {
       status: DocumentStatus.completed_ocr,
       reviewStatus: "reviewed",
       limit: 1000,
+      groupIds,
     })) as unknown as DocumentWithReview[];
 
     // Filter to only approved sessions and optionally by search term
@@ -145,6 +147,7 @@ export class HitlDatasetService {
         name: dto.name,
         description: dto.description,
         metadata: { ...dto.metadata, source: "hitl" },
+        groupId: dto.groupId,
       },
       userId,
     );

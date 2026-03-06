@@ -180,9 +180,12 @@ export class GroundTruthGenerationService {
   ): Promise<void> {
     const version = await this.prisma.datasetVersion.findFirst({
       where: { id: versionId, datasetId },
+      include: { dataset: { select: { group_id: true } } },
     });
 
     if (!version?.storagePrefix) return;
+
+    const groupId = version.dataset.group_id;
 
     const pendingJobs = await this.prisma.datasetGroundTruthJob.findMany({
       where: {
@@ -197,7 +200,7 @@ export class GroundTruthGenerationService {
       const batch = pendingJobs.slice(i, i + BATCH_SIZE);
       await Promise.all(
         batch.map((job) =>
-          this.processJob(job.id, datasetId, versionId, version.storagePrefix!),
+          this.processJob(job.id, datasetId, versionId, version.storagePrefix!, groupId),
         ),
       );
     }
@@ -215,6 +218,7 @@ export class GroundTruthGenerationService {
     datasetId: string,
     versionId: string,
     storagePrefix: string,
+    groupId: string,
   ): Promise<void> {
     const job = await this.prisma.datasetGroundTruthJob.findUnique({
       where: { id: jobId },
@@ -278,6 +282,7 @@ export class GroundTruthGenerationService {
         workflow_config_id: job.workflowConfigId,
         workflow_execution_id: null,
         model_id: modelId,
+        group_id: groupId,
       };
 
       await this.db.createDocument(documentData);
