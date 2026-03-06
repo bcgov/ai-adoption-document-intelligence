@@ -9,13 +9,13 @@
  */
 
 import * as fs from "fs/promises";
-import * as path from "path";
 import * as os from "os";
+import * as path from "path";
 import {
   BenchmarkEvaluator,
+  EvaluationArtifact,
   EvaluationInput,
   EvaluationResult,
-  EvaluationArtifact,
 } from "../benchmark-types";
 
 /**
@@ -65,14 +65,8 @@ export class BlackBoxEvaluator implements BenchmarkEvaluator {
 
     try {
       // Load prediction and ground truth
-      const predictionContent = await fs.readFile(
-        predictionPath,
-        "utf-8",
-      );
-      const groundTruthContent = await fs.readFile(
-        groundTruthPath,
-        "utf-8",
-      );
+      const predictionContent = await fs.readFile(predictionPath, "utf-8");
+      const groundTruthContent = await fs.readFile(groundTruthPath, "utf-8");
 
       // Try to parse as JSON
       let prediction: unknown;
@@ -89,14 +83,14 @@ export class BlackBoxEvaluator implements BenchmarkEvaluator {
         groundTruth = groundTruthContent;
       }
 
-      if (isJson && typeof prediction === "object" && typeof groundTruth === "object") {
+      if (
+        isJson &&
+        typeof prediction === "object" &&
+        typeof groundTruth === "object"
+      ) {
         return this.evaluateJson(input, prediction, groundTruth);
       } else {
-        return this.evaluateRaw(
-          input,
-          predictionContent,
-          groundTruthContent,
-        );
+        return this.evaluateRaw(input, predictionContent, groundTruthContent);
       }
     } catch (error) {
       // Handle file read errors

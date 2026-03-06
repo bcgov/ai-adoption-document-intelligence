@@ -1,6 +1,6 @@
 import {
-  validateDocumentFields,
   DocumentValidateFieldsInput,
+  validateDocumentFields,
 } from "./document-validate-fields";
 
 describe("validateDocumentFields activity", () => {
@@ -433,8 +433,8 @@ describe("validateDocumentFields activity", () => {
         documentId: "doc-9",
         processedSegments: [
           {
-            netPay: 800.00,
-            otherIncome: 100.00,
+            netPay: 800.0,
+            otherIncome: 100.0,
           },
           {
             deposits: [800.02, 100.01, 50],

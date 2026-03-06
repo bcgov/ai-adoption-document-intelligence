@@ -160,9 +160,7 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     const mismatchedFields = comparisonResults
       .filter(
         (r) =>
-          !r.matched &&
-          r.expected !== undefined &&
-          r.predicted !== undefined,
+          !r.matched && r.expected !== undefined && r.predicted !== undefined,
       )
       .map((r) => ({
         field: r.field,
@@ -211,8 +209,7 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     config: SchemaAwareConfig,
   ): FieldComparisonResult {
     // Get matching rule for this field
-    const rule =
-      config.fieldRules?.[field] ||
+    const rule = config.fieldRules?.[field] ||
       config.defaultRule || {
         rule: "exact" as const,
       };
@@ -501,7 +498,9 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
         : 0;
 
     const f1 =
-      precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
+      precision + recall > 0
+        ? (2 * precision * recall) / (precision + recall)
+        : 0;
 
     // Calculate checkbox accuracy (boolean fields)
     const booleanFields = results.filter(

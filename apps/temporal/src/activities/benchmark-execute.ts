@@ -14,13 +14,13 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 4.2, 13.1
  */
 
-import { executeChild, workflowInfo } from '@temporalio/workflow';
+import { executeChild, workflowInfo } from "@temporalio/workflow";
 import {
   GRAPH_RUNNER_VERSION,
   type GraphWorkflowConfig,
   type GraphWorkflowInput,
   type GraphWorkflowResult,
-} from '../graph-workflow-types';
+} from "../graph-workflow-types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -80,7 +80,7 @@ export interface BenchmarkExecuteOutput {
 // Constants
 // ---------------------------------------------------------------------------
 
-const BENCHMARK_TASK_QUEUE = 'benchmark-processing';
+const BENCHMARK_TASK_QUEUE = "benchmark-processing";
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 // ---------------------------------------------------------------------------
@@ -95,7 +95,7 @@ const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
  * task queue to ensure isolation from production workloads.
  */
 export async function benchmarkExecuteWorkflow(
-  params: BenchmarkExecuteInput
+  params: BenchmarkExecuteInput,
 ): Promise<BenchmarkExecuteOutput> {
   const startTime = Date.now();
   const {
@@ -111,27 +111,31 @@ export async function benchmarkExecuteWorkflow(
 
   const parentWorkflowId = workflowInfo().workflowId;
 
-  console.log(JSON.stringify({
-    activity: 'benchmarkExecuteWorkflow',
-    event: 'start',
-    sampleId,
-    parentWorkflowId,
-    taskQueue,
-    timestamp: new Date().toISOString()
-  }));
+  console.log(
+    JSON.stringify({
+      activity: "benchmarkExecuteWorkflow",
+      event: "start",
+      sampleId,
+      parentWorkflowId,
+      taskQueue,
+      timestamp: new Date().toISOString(),
+    }),
+  );
 
   try {
     // Build initial context for the child workflow.
     // The graph workflow nodes expect fields like blobKey, documentId, fileName, etc.
     // In benchmark mode, we populate these from the materialized input files.
-    const primaryInput = inputPaths[0] || '';
-    const fileName = primaryInput.split('/').pop() || 'document';
+    const primaryInput = inputPaths[0] || "";
+    const fileName = primaryInput.split("/").pop() || "document";
     const lowerName = fileName.toLowerCase();
     const isImage = /\.(jpg|jpeg|png|gif|bmp|tiff|webp)$/i.test(lowerName);
-    const fileType = isImage ? 'image' : 'pdf';
+    const fileType = isImage ? "image" : "pdf";
     const contentType = isImage
-      ? (lowerName.endsWith('.png') ? 'image/png' : 'image/jpeg')
-      : 'application/pdf';
+      ? lowerName.endsWith(".png")
+        ? "image/png"
+        : "image/jpeg"
+      : "application/pdf";
 
     const initialCtx: Record<string, unknown> = {
       ...sampleMetadata,
@@ -155,7 +159,7 @@ export async function benchmarkExecuteWorkflow(
     };
 
     // Execute the graphWorkflow as a child workflow on the specified task queue
-    const childResult = (await executeChild('graphWorkflow', {
+    const childResult = (await executeChild("graphWorkflow", {
       args: [childWorkflowInput],
       taskQueue,
       workflowId: `benchmark-${parentWorkflowId}-${sampleId}`,
@@ -167,18 +171,20 @@ export async function benchmarkExecuteWorkflow(
 
     const durationMs = Date.now() - startTime;
 
-    console.log(JSON.stringify({
-      activity: 'benchmarkExecuteWorkflow',
-      event: 'complete',
-      sampleId,
-      status: childResult.status,
-      completedNodes: childResult.completedNodes.length,
-      outputPaths: outputPaths.length,
-      durationMs,
-      timestamp: new Date().toISOString()
-    }));
+    console.log(
+      JSON.stringify({
+        activity: "benchmarkExecuteWorkflow",
+        event: "complete",
+        sampleId,
+        status: childResult.status,
+        completedNodes: childResult.completedNodes.length,
+        outputPaths: outputPaths.length,
+        durationMs,
+        timestamp: new Date().toISOString(),
+      }),
+    );
 
-    if (childResult.status === 'failed') {
+    if (childResult.status === "failed") {
       return {
         sampleId,
         success: false,
@@ -201,18 +207,21 @@ export async function benchmarkExecuteWorkflow(
     };
   } catch (error) {
     const durationMs = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     const errorType = extractErrorType(error);
 
-    console.log(JSON.stringify({
-      activity: 'benchmarkExecuteWorkflow',
-      event: 'error',
-      sampleId,
-      error: errorMessage,
-      errorType,
-      durationMs,
-      timestamp: new Date().toISOString()
-    }));
+    console.log(
+      JSON.stringify({
+        activity: "benchmarkExecuteWorkflow",
+        event: "error",
+        sampleId,
+        error: errorMessage,
+        errorType,
+        durationMs,
+        timestamp: new Date().toISOString(),
+      }),
+    );
 
     // Return failure result without crashing the parent benchmark workflow
     return {
@@ -242,23 +251,23 @@ function extractOutputPaths(ctx: Record<string, unknown>): string[] {
   // Check for explicit outputPaths in context
   if (Array.isArray(ctx.outputPaths)) {
     for (const p of ctx.outputPaths) {
-      if (typeof p === 'string') {
+      if (typeof p === "string") {
         paths.push(p);
       }
     }
   }
 
   // Check for outputPath (singular) in context
-  if (typeof ctx.outputPath === 'string') {
+  if (typeof ctx.outputPath === "string") {
     paths.push(ctx.outputPath);
   }
 
   // Check for results that contain file paths
   if (Array.isArray(ctx.results)) {
     for (const result of ctx.results) {
-      if (result && typeof result === 'object' && 'outputPath' in result) {
+      if (result && typeof result === "object" && "outputPath" in result) {
         const resultObj = result as Record<string, unknown>;
-        if (typeof resultObj.outputPath === 'string') {
+        if (typeof resultObj.outputPath === "string") {
           paths.push(resultObj.outputPath);
         }
       }
@@ -266,7 +275,7 @@ function extractOutputPaths(ctx: Record<string, unknown>): string[] {
   }
 
   // If no paths found but outputBaseDir is in ctx, use that
-  if (paths.length === 0 && typeof ctx.outputBaseDir === 'string') {
+  if (paths.length === 0 && typeof ctx.outputBaseDir === "string") {
     paths.push(ctx.outputBaseDir);
   }
 
@@ -278,7 +287,7 @@ function extractOutputPaths(ctx: Record<string, unknown>): string[] {
  */
 function findFailedNodeId(result: GraphWorkflowResult): string | undefined {
   // Check if there's error info in the context that might contain a failed node ID
-  if (result.ctx && typeof result.ctx.failedNodeId === 'string') {
+  if (result.ctx && typeof result.ctx.failedNodeId === "string") {
     return result.ctx.failedNodeId;
   }
   return undefined;
@@ -289,16 +298,25 @@ function findFailedNodeId(result: GraphWorkflowResult): string | undefined {
  */
 function extractErrorType(error: unknown): string {
   if (error instanceof Error) {
-    if ('type' in error && typeof (error as Record<string, unknown>).type === 'string') {
+    if (
+      "type" in error &&
+      typeof (error as Record<string, unknown>).type === "string"
+    ) {
       return (error as Record<string, unknown>).type as string;
     }
-    if (error.message.includes('timeout') || error.message.includes('Timeout')) {
-      return 'TIMEOUT';
+    if (
+      error.message.includes("timeout") ||
+      error.message.includes("Timeout")
+    ) {
+      return "TIMEOUT";
     }
-    if (error.message.includes('cancelled') || error.message.includes('Cancelled')) {
-      return 'CANCELLED';
+    if (
+      error.message.includes("cancelled") ||
+      error.message.includes("Cancelled")
+    ) {
+      return "CANCELLED";
     }
-    return 'WORKFLOW_EXECUTION_ERROR';
+    return "WORKFLOW_EXECUTION_ERROR";
   }
-  return 'UNKNOWN_ERROR';
+  return "UNKNOWN_ERROR";
 }

@@ -5,11 +5,11 @@
  */
 
 import type {
-  KeyValuePair,
-  OCRResult,
   AzureDocument,
   EnrichmentChange,
-} from '../types';
+  KeyValuePair,
+  OCRResult,
+} from "../types";
 
 /** Minimal field definition for rule engine (from LabelingProject.field_schema) */
 export interface FieldDef {
@@ -40,9 +40,10 @@ export function buildFieldMap(fieldDefinitions: FieldDef[]): FieldMap {
  */
 export function trimWhitespace(
   fieldKey: string,
-  value: string
+  value: string,
 ): { value: string; change: EnrichmentChange | null } {
-  if (value == null || typeof value !== 'string') return { value: value ?? '', change: null };
+  if (value == null || typeof value !== "string")
+    return { value: value ?? "", change: null };
   const trimmed = value.trim();
   if (trimmed === value) return { value: trimmed, change: null };
   return {
@@ -51,30 +52,51 @@ export function trimWhitespace(
       fieldKey,
       originalValue: value,
       correctedValue: trimmed,
-      reason: 'Trimmed leading/trailing whitespace',
-      source: 'rule',
+      reason: "Trimmed leading/trailing whitespace",
+      source: "rule",
     },
   };
 }
 
 /** Common OCR character confusions: letter -> digit (for date/number contexts) */
 const CONFUSION_MAP: Record<string, string> = {
-  O: '0',
-  o: '0',
-  I: '1',
-  l: '1',
-  S: '5',
-  s: '5',
-  B: '8',
-  G: '6',
-  Z: '2',
-  q: '9',
+  O: "0",
+  o: "0",
+  I: "1",
+  l: "1",
+  S: "5",
+  s: "5",
+  B: "8",
+  G: "6",
+  Z: "2",
+  q: "9",
 };
 
 /** Month names and abbreviations to protect from character confusion in date fields (longest first) */
 const MONTH_NAMES = [
-  'September', 'February', 'November', 'December', 'October', 'January', 'August', 'April', 'March', 'July', 'June',
-  'Sep', 'Feb', 'Nov', 'Dec', 'Oct', 'Jan', 'Aug', 'Apr', 'Mar', 'Jul', 'Jun', 'May',
+  "September",
+  "February",
+  "November",
+  "December",
+  "October",
+  "January",
+  "August",
+  "April",
+  "March",
+  "July",
+  "June",
+  "Sep",
+  "Feb",
+  "Nov",
+  "Dec",
+  "Oct",
+  "Jan",
+  "Aug",
+  "Apr",
+  "Mar",
+  "Jul",
+  "Jun",
+  "May",
 ].sort((a, b) => b.length - a.length);
 
 /**
@@ -85,7 +107,7 @@ function applyCharacterConfusionForDate(value: string): string {
   const placeholders: string[] = [];
   let masked = value;
   for (const month of MONTH_NAMES) {
-    const re = new RegExp(month.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    const re = new RegExp(month.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
     masked = masked.replace(re, () => {
       const placeholder = `\uE000${placeholders.length}\uE000`;
       placeholders.push(month);
@@ -108,16 +130,20 @@ function applyCharacterConfusionForDate(value: string): string {
 export function fixCharacterConfusion(
   fieldKey: string,
   value: string,
-  fieldType: string
+  fieldType: string,
 ): { value: string; change: EnrichmentChange | null } {
-  if (value == null || typeof value !== 'string' || !value) return { value: value ?? '', change: null };
-  const corrected = fieldType === 'date' ? applyCharacterConfusionForDate(value) : (() => {
-    let s = value;
-    for (const [from, to] of Object.entries(CONFUSION_MAP)) {
-      s = s.split(from).join(to);
-    }
-    return s;
-  })();
+  if (value == null || typeof value !== "string" || !value)
+    return { value: value ?? "", change: null };
+  const corrected =
+    fieldType === "date"
+      ? applyCharacterConfusionForDate(value)
+      : (() => {
+          let s = value;
+          for (const [from, to] of Object.entries(CONFUSION_MAP)) {
+            s = s.split(from).join(to);
+          }
+          return s;
+        })();
   if (corrected === value) return { value, change: null };
   return {
     value: corrected,
@@ -125,8 +151,8 @@ export function fixCharacterConfusion(
       fieldKey,
       originalValue: value,
       correctedValue: corrected,
-      reason: 'Fixed common OCR character confusion (e.g. O→0, l→1)',
-      source: 'rule',
+      reason: "Fixed common OCR character confusion (e.g. O→0, l→1)",
+      source: "rule",
     },
   };
 }
@@ -138,9 +164,10 @@ export function fixCharacterConfusion(
 export function normalizeDates(
   fieldKey: string,
   value: string,
-  fieldFormat?: string
+  fieldFormat?: string,
 ): { value: string; change: EnrichmentChange | null } {
-  if (value == null || typeof value !== 'string' || !value.trim()) return { value: value ?? '', change: null };
+  if (value == null || typeof value !== "string" || !value.trim())
+    return { value: value ?? "", change: null };
   const trimmed = value.trim();
   const parsed = parseDate(trimmed, fieldFormat);
   if (!parsed) return { value: trimmed, change: null };
@@ -151,8 +178,8 @@ export function normalizeDates(
       fieldKey,
       originalValue: value,
       correctedValue: parsed,
-      reason: 'Normalized date to standard format',
-      source: 'rule',
+      reason: "Normalized date to standard format",
+      source: "rule",
     },
   };
 }
@@ -162,25 +189,32 @@ function parseDate(input: string, _hint?: string): string | null {
   const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(input);
   if (iso) {
     const [, y, m, d] = iso;
-    if (parseInt(m!, 10) <= 12 && parseInt(d!, 10) <= 31) return `${y}-${m}-${d}`;
+    if (parseInt(m!, 10) <= 12 && parseInt(d!, 10) <= 31)
+      return `${y}-${m}-${d}`;
   }
   // MM/DD/YYYY or MM-DD-YYYY
-  const us = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/.exec(input.replace(/\s/g, ''));
+  const us = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/.exec(
+    input.replace(/\s/g, ""),
+  );
   if (us) {
     const [, m, d, y] = us;
     const yy = y!.length === 2 ? `20${y}` : y!;
-    const mm = m!.padStart(2, '0');
-    const dd = d!.padStart(2, '0');
-    if (parseInt(mm, 10) <= 12 && parseInt(dd, 10) <= 31) return `${yy}-${mm}-${dd}`;
+    const mm = m!.padStart(2, "0");
+    const dd = d!.padStart(2, "0");
+    if (parseInt(mm, 10) <= 12 && parseInt(dd, 10) <= 31)
+      return `${yy}-${mm}-${dd}`;
   }
   // DD/MM/YYYY
-  const eu = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/.exec(input.replace(/\s/g, ''));
+  const eu = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/.exec(
+    input.replace(/\s/g, ""),
+  );
   if (eu) {
     const [, d, m, y] = eu;
     const yy = y!.length === 2 ? `20${y}` : y!;
-    const mm = m!.padStart(2, '0');
-    const dd = d!.padStart(2, '0');
-    if (parseInt(mm, 10) <= 12 && parseInt(dd, 10) <= 31) return `${yy}-${mm}-${dd}`;
+    const mm = m!.padStart(2, "0");
+    const dd = d!.padStart(2, "0");
+    if (parseInt(mm, 10) <= 12 && parseInt(dd, 10) <= 31)
+      return `${yy}-${mm}-${dd}`;
   }
   return null;
 }
@@ -190,14 +224,15 @@ function parseDate(input: string, _hint?: string): string | null {
  */
 export function normalizeNumbers(
   fieldKey: string,
-  value: string
+  value: string,
 ): { value: string; change: EnrichmentChange | null } {
-  if (value == null || typeof value !== 'string' || !value.trim()) return { value: value ?? '', change: null };
+  if (value == null || typeof value !== "string" || !value.trim())
+    return { value: value ?? "", change: null };
   const trimmed = value.trim();
   let normalized = trimmed
-    .replace(/^[\s£$€¥,]+|[\s£$€¥,]+$/g, '')
-    .replace(/\s/g, '')
-    .replace(/,/g, '');
+    .replace(/^[\s£$€¥,]+|[\s£$€¥,]+$/g, "")
+    .replace(/\s/g, "")
+    .replace(/,/g, "");
   const num = parseFloat(normalized);
   if (Number.isNaN(num)) return { value: trimmed, change: null };
   normalized = num.toString();
@@ -208,8 +243,8 @@ export function normalizeNumbers(
       fieldKey,
       originalValue: value,
       correctedValue: normalized,
-      reason: 'Normalized number format (removed currency/separators)',
-      source: 'rule',
+      reason: "Normalized number format (removed currency/separators)",
+      source: "rule",
     },
   };
 }
@@ -221,11 +256,11 @@ export function normalizeNumbers(
 export function applyRulesToValue(
   fieldKey: string,
   value: string,
-  fieldMap: FieldMap
+  fieldMap: FieldMap,
 ): { value: string; changes: EnrichmentChange[] } {
   const changes: EnrichmentChange[] = [];
   const info = fieldMap[fieldKey];
-  const type = info?.type ?? 'string';
+  const type = info?.type ?? "string";
 
   let current = value;
 
@@ -233,14 +268,14 @@ export function applyRulesToValue(
   current = trim.value;
   if (trim.change) changes.push(trim.change);
 
-  if (type === 'date') {
+  if (type === "date") {
     const fix = fixCharacterConfusion(fieldKey, current, type);
     current = fix.value;
     if (fix.change) changes.push(fix.change);
     const norm = normalizeDates(fieldKey, current, info?.format);
     current = norm.value;
     if (norm.change) changes.push(norm.change);
-  } else if (type === 'number') {
+  } else if (type === "number") {
     const fix = fixCharacterConfusion(fieldKey, current, type);
     current = fix.value;
     if (fix.change) changes.push(fix.change);
@@ -256,14 +291,14 @@ export function applyRulesToValue(
  * Get field key from a KeyValuePair (key.content).
  */
 function getKvpKey(pair: KeyValuePair): string {
-  return (pair.key?.content ?? '').trim();
+  return (pair.key?.content ?? "").trim();
 }
 
 /**
  * Get value from a KeyValuePair (value.content).
  */
 function getKvpValue(pair: KeyValuePair): string {
-  return (pair.value?.content ?? '').trim();
+  return (pair.value?.content ?? "").trim();
 }
 
 /**
@@ -272,32 +307,48 @@ function getKvpValue(pair: KeyValuePair): string {
  */
 export function applyRules(
   ocrResult: OCRResult,
-  fieldMap: FieldMap
-): { ocrResult: OCRResult; changes: EnrichmentChange[]; rulesApplied: string[] } {
+  fieldMap: FieldMap,
+): {
+  ocrResult: OCRResult;
+  changes: EnrichmentChange[];
+  rulesApplied: string[];
+} {
   const changes: EnrichmentChange[] = [];
-  const rulesAppliedSet = new Set<string>(['trimWhitespace']);
+  const rulesAppliedSet = new Set<string>(["trimWhitespace"]);
 
   const result: OCRResult = {
     ...ocrResult,
     keyValuePairs: ocrResult.keyValuePairs.map((pair) => {
       const key = getKvpKey(pair);
       const value = getKvpValue(pair);
-      const { value: newValue, changes: fieldChanges } = applyRulesToValue(key, value, fieldMap);
+      const { value: newValue, changes: fieldChanges } = applyRulesToValue(
+        key,
+        value,
+        fieldMap,
+      );
       changes.push(...fieldChanges);
       const emptyRegion = { pageNumber: 1, polygon: [] as number[] };
       const emptySpan = { offset: 0, length: 0 };
       return {
         ...pair,
         key: { ...pair.key, content: key },
-        value: pair.value ? { ...pair.value, content: newValue } : { content: newValue, boundingRegions: [emptyRegion], spans: [emptySpan] },
+        value: pair.value
+          ? { ...pair.value, content: newValue }
+          : {
+              content: newValue,
+              boundingRegions: [emptyRegion],
+              spans: [emptySpan],
+            },
       };
     }),
   };
 
   for (const c of changes) {
-    if (c.reason.includes('character confusion')) rulesAppliedSet.add('fixCharacterConfusion');
-    else if (c.reason.includes('date')) rulesAppliedSet.add('normalizeDates');
-    else if (c.reason.includes('number')) rulesAppliedSet.add('normalizeNumbers');
+    if (c.reason.includes("character confusion"))
+      rulesAppliedSet.add("fixCharacterConfusion");
+    else if (c.reason.includes("date")) rulesAppliedSet.add("normalizeDates");
+    else if (c.reason.includes("number"))
+      rulesAppliedSet.add("normalizeNumbers");
   }
   const rulesApplied = Array.from(rulesAppliedSet);
 
@@ -305,11 +356,19 @@ export function applyRules(
     result.documents = ocrResult.documents.map((doc) => {
       const fields = { ...doc.fields };
       for (const [fieldKey, fieldData] of Object.entries(doc.fields)) {
-        const content = (fieldData as { content?: string }).content ?? (fieldData as { valueString?: string }).valueString ?? '';
-        const str = typeof content === 'string' ? content : String(content ?? '');
-        const { value: newValue, changes: fieldChanges } = applyRulesToValue(fieldKey, str, fieldMap);
+        const content =
+          (fieldData as { content?: string }).content ??
+          (fieldData as { valueString?: string }).valueString ??
+          "";
+        const str =
+          typeof content === "string" ? content : String(content ?? "");
+        const { value: newValue, changes: fieldChanges } = applyRulesToValue(
+          fieldKey,
+          str,
+          fieldMap,
+        );
         changes.push(...fieldChanges);
-        if (typeof fieldData === 'object' && fieldData !== null) {
+        if (typeof fieldData === "object" && fieldData !== null) {
           (fields as Record<string, unknown>)[fieldKey] = {
             ...(fieldData as object),
             content: newValue,
@@ -329,20 +388,22 @@ export function applyRules(
  */
 export function mergeKeyValuePairs(
   base: KeyValuePair[],
-  overlay: Array<{ key: string; value: string; confidence: number }>
+  overlay: Array<{ key: string; value: string; confidence: number }>,
 ): KeyValuePair[] {
   const byKey = new Map<string, KeyValuePair>();
   const emptySpan = { offset: 0, length: 0 };
   const emptyRegion = { pageNumber: 1, polygon: [] };
 
   for (const pair of base) {
-    const k = (pair.key?.content ?? '').trim();
-    const v = (pair.value?.content ?? '').trim();
+    const k = (pair.key?.content ?? "").trim();
+    const v = (pair.value?.content ?? "").trim();
     if (!k) continue;
     byKey.set(k, {
       ...pair,
       key: { ...pair.key, content: k },
-      value: pair.value ? { ...pair.value, content: v } : { content: v, boundingRegions: [], spans: [] },
+      value: pair.value
+        ? { ...pair.value, content: v }
+        : { content: v, boundingRegions: [], spans: [] },
     });
   }
   for (const item of overlay) {

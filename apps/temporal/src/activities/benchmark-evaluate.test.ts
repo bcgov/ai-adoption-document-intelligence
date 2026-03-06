@@ -7,15 +7,15 @@
  */
 
 import * as fs from "fs/promises";
-import * as path from "path";
 import * as os from "os";
-import {
-  benchmarkEvaluate,
-  benchmarkAggregate,
-  BenchmarkEvaluateInput,
-  BenchmarkAggregateInput,
-} from "./benchmark-evaluate";
+import * as path from "path";
 import { EvaluationResult } from "../benchmark-types";
+import {
+  BenchmarkAggregateInput,
+  BenchmarkEvaluateInput,
+  benchmarkAggregate,
+  benchmarkEvaluate,
+} from "./benchmark-evaluate";
 
 describe("benchmark-evaluate activities", () => {
   let tempDir: string;
@@ -75,14 +75,8 @@ describe("benchmark-evaluate activities", () => {
       const predictionPath = path.join(tempDir, "prediction.json");
       const groundTruthPath = path.join(tempDir, "ground-truth.json");
 
-      await fs.writeFile(
-        predictionPath,
-        JSON.stringify({ field1: "value1" }),
-      );
-      await fs.writeFile(
-        groundTruthPath,
-        JSON.stringify({ field1: "value1" }),
-      );
+      await fs.writeFile(predictionPath, JSON.stringify({ field1: "value1" }));
+      await fs.writeFile(groundTruthPath, JSON.stringify({ field1: "value1" }));
 
       const input: BenchmarkEvaluateInput = {
         sampleId: "sample-002",
@@ -153,14 +147,8 @@ describe("benchmark-evaluate activities", () => {
       const predictionPath = path.join(tempDir, "prediction.json");
       const groundTruthPath = path.join(tempDir, "ground-truth.json");
 
-      await fs.writeFile(
-        predictionPath,
-        JSON.stringify({ field1: "value1" }),
-      );
-      await fs.writeFile(
-        groundTruthPath,
-        JSON.stringify({ field1: "value2" }),
-      );
+      await fs.writeFile(predictionPath, JSON.stringify({ field1: "value1" }));
+      await fs.writeFile(groundTruthPath, JSON.stringify({ field1: "value2" }));
 
       const input: BenchmarkEvaluateInput = {
         sampleId: "sample-005",
@@ -342,8 +330,18 @@ describe("benchmark-evaluate activities", () => {
           metrics: { f1: 0.8 },
           diagnostics: {
             comparisonResults: [
-              { field: "field1", matched: true, predicted: "v1", expected: "v1" },
-              { field: "field2", matched: false, predicted: "v2", expected: "v3" },
+              {
+                field: "field1",
+                matched: true,
+                predicted: "v1",
+                expected: "v1",
+              },
+              {
+                field: "field2",
+                matched: false,
+                predicted: "v2",
+                expected: "v3",
+              },
             ],
           },
           pass: true,
@@ -353,8 +351,18 @@ describe("benchmark-evaluate activities", () => {
           metrics: { f1: 0.5 },
           diagnostics: {
             comparisonResults: [
-              { field: "field1", matched: false, predicted: "v4", expected: "v5" },
-              { field: "field2", matched: true, predicted: "v6", expected: "v6" },
+              {
+                field: "field1",
+                matched: false,
+                predicted: "v4",
+                expected: "v5",
+              },
+              {
+                field: "field2",
+                matched: true,
+                predicted: "v6",
+                expected: "v6",
+              },
             ],
           },
           pass: false,

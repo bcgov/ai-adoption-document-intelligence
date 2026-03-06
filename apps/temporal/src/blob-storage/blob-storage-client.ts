@@ -17,11 +17,8 @@ import {
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
-} from '@aws-sdk/client-s3';
-import {
-  BlobServiceClient,
-  type ContainerClient,
-} from '@azure/storage-blob';
+} from "@aws-sdk/client-s3";
+import { BlobServiceClient, type ContainerClient } from "@azure/storage-blob";
 
 /** Minimal blob-storage interface used by Temporal activities. */
 export interface BlobStorageClient {
@@ -44,15 +41,14 @@ export interface BlobStorageClient {
 // ---------------------------------------------------------------------------
 
 function createMinioClient(): { s3: S3Client; bucket: string } {
-  const endpoint = process.env.MINIO_ENDPOINT ?? 'http://localhost:9000';
-  const accessKey = process.env.MINIO_ACCESS_KEY ?? 'minioadmin';
-  const secretKey = process.env.MINIO_SECRET_KEY ?? 'minioadmin';
-  const bucket =
-    process.env.MINIO_DOCUMENT_BUCKET ?? 'document-blobs';
+  const endpoint = process.env.MINIO_ENDPOINT ?? "http://localhost:9000";
+  const accessKey = process.env.MINIO_ACCESS_KEY ?? "minioadmin";
+  const secretKey = process.env.MINIO_SECRET_KEY ?? "minioadmin";
+  const bucket = process.env.MINIO_DOCUMENT_BUCKET ?? "document-blobs";
 
   const s3 = new S3Client({
     endpoint,
-    region: 'us-east-1',
+    region: "us-east-1",
     forcePathStyle: true,
     credentials: {
       accessKeyId: accessKey,
@@ -82,9 +78,7 @@ function buildMinioClient(): BlobStorageClient {
 
     async exists(key: string): Promise<boolean> {
       try {
-        await s3.send(
-          new HeadObjectCommand({ Bucket: bucket, Key: key }),
-        );
+        await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
         return true;
       } catch {
         return false;
@@ -92,9 +86,7 @@ function buildMinioClient(): BlobStorageClient {
     },
 
     async delete(key: string): Promise<void> {
-      await s3.send(
-        new DeleteObjectCommand({ Bucket: bucket, Key: key }),
-      );
+      await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     },
 
     async list(prefix: string): Promise<string[]> {
@@ -148,11 +140,11 @@ function createAzureContainerClient(): ContainerClient {
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
   if (!connectionString) {
     throw new Error(
-      'AZURE_STORAGE_CONNECTION_STRING is required when BLOB_STORAGE_PROVIDER=azure',
+      "AZURE_STORAGE_CONNECTION_STRING is required when BLOB_STORAGE_PROVIDER=azure",
     );
   }
   const containerName =
-    process.env.AZURE_STORAGE_CONTAINER_NAME ?? 'document-blobs';
+    process.env.AZURE_STORAGE_CONTAINER_NAME ?? "document-blobs";
   const blobServiceClient =
     BlobServiceClient.fromConnectionString(connectionString);
   return blobServiceClient.getContainerClient(containerName);
@@ -213,9 +205,9 @@ let _instance: BlobStorageClient | undefined;
 export function getBlobStorageClient(): BlobStorageClient {
   if (!_instance) {
     const provider = (
-      process.env.BLOB_STORAGE_PROVIDER ?? 'minio'
+      process.env.BLOB_STORAGE_PROVIDER ?? "minio"
     ).toLowerCase();
-    if (provider === 'azure') {
+    if (provider === "azure") {
       _instance = buildAzureClient();
     } else {
       _instance = buildMinioClient();

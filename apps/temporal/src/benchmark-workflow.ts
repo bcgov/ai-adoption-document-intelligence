@@ -14,36 +14,36 @@
  */
 
 import {
+  ApplicationFailure,
+  CancellationScope,
   defineQuery,
   defineSignal,
-  setHandler,
-  proxyActivities,
-  CancellationScope,
   isCancellation,
-  ApplicationFailure,
-} from '@temporalio/workflow';
-import type { GraphWorkflowConfig } from './graph-workflow-types';
-import type { EvaluationResult, DatasetManifest } from './benchmark-types';
+  proxyActivities,
+  setHandler,
+} from "@temporalio/workflow";
 import {
-  benchmarkExecuteWorkflow,
   type BenchmarkExecuteInput,
-} from './activities/benchmark-execute';
+  benchmarkExecuteWorkflow,
+} from "./activities/benchmark-execute";
+import type { DatasetManifest, EvaluationResult } from "./benchmark-types";
+import type { GraphWorkflowConfig } from "./graph-workflow-types";
 
 // ---------------------------------------------------------------------------
 // Activity Types
 // ---------------------------------------------------------------------------
 
 type BenchmarkActivities = {
-  'benchmark.materializeDataset': (params: {
+  "benchmark.materializeDataset": (params: {
     datasetVersionId: string;
   }) => Promise<{ materializedPath: string }>;
 
-  'benchmark.loadDatasetManifest': (params: {
+  "benchmark.loadDatasetManifest": (params: {
     materializedPath: string;
     datasetVersionId: string;
   }) => Promise<{ manifest: DatasetManifest }>;
 
-  'benchmark.evaluate': (input: {
+  "benchmark.evaluate": (input: {
     sampleId: string;
     inputPaths: string[];
     predictionPaths: string[];
@@ -53,7 +53,7 @@ type BenchmarkActivities = {
     evaluatorConfig: Record<string, unknown>;
   }) => Promise<EvaluationResult>;
 
-  'benchmark.aggregate': (input: {
+  "benchmark.aggregate": (input: {
     results: EvaluationResult[];
     options?: {
       sliceDimensions?: string[];
@@ -68,18 +68,21 @@ type BenchmarkActivities = {
       passingSamples: number;
       failingSamples: number;
       passRate: number;
-      metrics: Record<string, {
-        name: string;
-        mean: number;
-        median: number;
-        stdDev: number;
-        p5: number;
-        p25: number;
-        p75: number;
-        p95: number;
-        min: number;
-        max: number;
-      }>;
+      metrics: Record<
+        string,
+        {
+          name: string;
+          mean: number;
+          median: number;
+          stdDev: number;
+          p5: number;
+          p25: number;
+          p75: number;
+          p95: number;
+          min: number;
+          max: number;
+        }
+      >;
     };
     failureAnalysis?: {
       totalSamples: number;
@@ -89,13 +92,13 @@ type BenchmarkActivities = {
     };
   }>;
 
-  'benchmark.cleanup': (input: {
+  "benchmark.cleanup": (input: {
     materializedDatasetPaths?: string[];
     temporaryOutputPaths?: string[];
     preserveCachedDatasets?: boolean;
   }) => Promise<void>;
 
-  'benchmark.updateRunStatus': (params: {
+  "benchmark.updateRunStatus": (params: {
     runId: string;
     status: string;
     metrics?: Record<string, unknown>;
@@ -103,28 +106,26 @@ type BenchmarkActivities = {
     completedAt?: Date;
   }) => Promise<void>;
 
-  'benchmark.writePrediction': (input: {
+  "benchmark.writePrediction": (input: {
     predictionData: Record<string, unknown>;
     outputDir: string;
     sampleId: string;
   }) => Promise<{ predictionPath: string }>;
 
-  'benchmark.compareAgainstBaseline': (params: {
+  "benchmark.compareAgainstBaseline": (params: {
     runId: string;
   }) => Promise<unknown>;
 };
 
 // Default activity options for benchmark activities
 const DEFAULT_ACTIVITY_OPTIONS = {
-  startToCloseTimeout: '30 minutes',
+  startToCloseTimeout: "30 minutes",
   retry: {
-    initialInterval: '1s',
-    maximumInterval: '30s',
+    initialInterval: "1s",
+    maximumInterval: "30s",
     maximumAttempts: 3,
   },
 };
-
-const activities = proxyActivities<BenchmarkActivities>(DEFAULT_ACTIVITY_OPTIONS);
 
 // ---------------------------------------------------------------------------
 // Workflow Types
@@ -175,7 +176,7 @@ export interface BenchmarkRunWorkflowInput {
 
 export interface BenchmarkRunWorkflowResult {
   /** Final status */
-  status: 'completed' | 'failed' | 'cancelled';
+  status: "completed" | "failed" | "cancelled";
 
   /** Flat metrics (metric_name.mean, metric_name.median, etc.) */
   metrics: Record<string, number>;
@@ -202,12 +203,12 @@ export interface BenchmarkRunWorkflowResult {
 export interface BenchmarkRunProgress {
   /** Current phase */
   phase:
-    | 'materializing'
-    | 'executing'
-    | 'evaluating'
-    | 'aggregating'
-    | 'cleanup'
-    | 'completed';
+    | "materializing"
+    | "executing"
+    | "evaluating"
+    | "aggregating"
+    | "cleanup"
+    | "completed";
 
   /** Total samples to process */
   totalSamples: number;
@@ -223,8 +224,8 @@ export interface BenchmarkRunProgress {
 }
 
 // Query and Signal definitions
-export const getProgress = defineQuery<BenchmarkRunProgress>('getProgress');
-export const cancelBenchmarkSignal = defineSignal('cancel');
+export const getProgress = defineQuery<BenchmarkRunProgress>("getProgress");
+export const cancelBenchmarkSignal = defineSignal("cancel");
 
 // ---------------------------------------------------------------------------
 // Helper Functions
@@ -234,7 +235,7 @@ export const cancelBenchmarkSignal = defineSignal('cancel');
  * Join path segments (deterministic helper for workflow)
  */
 function joinPath(...segments: string[]): string {
-  return segments.join('/').replace(/\/+/g, '/');
+  return segments.join("/").replace(/\/+/g, "/");
 }
 
 /**
@@ -246,7 +247,21 @@ function flattenMetrics(overall: {
   passingSamples: number;
   failingSamples: number;
   passRate: number;
-  metrics: Record<string, { name: string; mean: number; median: number; stdDev: number; p5: number; p25: number; p75: number; p95: number; min: number; max: number }>;
+  metrics: Record<
+    string,
+    {
+      name: string;
+      mean: number;
+      median: number;
+      stdDev: number;
+      p5: number;
+      p25: number;
+      p75: number;
+      p95: number;
+      min: number;
+      max: number;
+    }
+  >;
 }): Record<string, number> {
   const flat: Record<string, number> = {
     total_samples: overall.totalSamples,
@@ -280,7 +295,7 @@ function flattenMetrics(overall: {
  */
 function extractFieldValue(field: Record<string, unknown>): unknown {
   if (field.valueSelectionMark !== undefined) {
-    return field.valueSelectionMark === 'selected' ? 'selected' : 'unselected';
+    return field.valueSelectionMark === "selected" ? "selected" : "unselected";
   }
   if (field.valueNumber !== undefined) {
     return field.valueNumber;
@@ -338,7 +353,7 @@ function extractPredictionFromCtx(
     ocrResult.documents[0].fields
   ) {
     for (const [key, value] of Object.entries(ocrResult.documents[0].fields)) {
-      if (value && typeof value === 'object') {
+      if (value && typeof value === "object") {
         fields[key] = extractFieldValue(value);
       } else {
         fields[key] = value ?? null;
@@ -350,7 +365,7 @@ function extractPredictionFromCtx(
   // Prebuilt model: extract from keyValuePairs
   if (ocrResult.keyValuePairs && ocrResult.keyValuePairs.length > 0) {
     for (const pair of ocrResult.keyValuePairs) {
-      const key = pair.key?.content || 'unknown';
+      const key = pair.key?.content || "unknown";
       fields[key] = pair.value?.content ?? null;
     }
     return fields;
@@ -373,21 +388,26 @@ export async function benchmarkRunWorkflow(
   input: BenchmarkRunWorkflowInput,
 ): Promise<BenchmarkRunWorkflowResult> {
   // Progress tracking state
-  let currentPhase: BenchmarkRunProgress['phase'] = 'materializing';
+  let currentPhase: BenchmarkRunProgress["phase"] = "materializing";
   let totalSamples = 0;
   let completedSamples = 0;
   let failedSamples = 0;
   let cancelled = false;
 
   // Set up query handlers
-  setHandler(getProgress, (): BenchmarkRunProgress => ({
-    phase: currentPhase,
-    totalSamples,
-    completedSamples,
-    failedSamples,
-    percentComplete:
-      totalSamples > 0 ? Math.round((completedSamples / totalSamples) * 100) : 0,
-  }));
+  setHandler(
+    getProgress,
+    (): BenchmarkRunProgress => ({
+      phase: currentPhase,
+      totalSamples,
+      completedSamples,
+      failedSamples,
+      percentComplete:
+        totalSamples > 0
+          ? Math.round((completedSamples / totalSamples) * 100)
+          : 0,
+    }),
+  );
 
   // Set up cancel signal handler
   setHandler(cancelBenchmarkSignal, () => {
@@ -408,15 +428,25 @@ export async function benchmarkRunWorkflow(
 
   // Create activity proxy with configurable timeouts and retries (US-023 Scenario 4 & 5)
   const customActivityOptions = {
-    startToCloseTimeout: runtimeSettings.activityTimeout?.startToCloseTimeout || DEFAULT_ACTIVITY_OPTIONS.startToCloseTimeout,
+    startToCloseTimeout:
+      runtimeSettings.activityTimeout?.startToCloseTimeout ||
+      DEFAULT_ACTIVITY_OPTIONS.startToCloseTimeout,
     retry: {
-      initialInterval: runtimeSettings.activityRetry?.initialInterval || DEFAULT_ACTIVITY_OPTIONS.retry.initialInterval,
-      maximumInterval: runtimeSettings.activityRetry?.maximumInterval || DEFAULT_ACTIVITY_OPTIONS.retry.maximumInterval,
-      maximumAttempts: runtimeSettings.activityRetry?.maximumAttempts ?? DEFAULT_ACTIVITY_OPTIONS.retry.maximumAttempts,
+      initialInterval:
+        runtimeSettings.activityRetry?.initialInterval ||
+        DEFAULT_ACTIVITY_OPTIONS.retry.initialInterval,
+      maximumInterval:
+        runtimeSettings.activityRetry?.maximumInterval ||
+        DEFAULT_ACTIVITY_OPTIONS.retry.maximumInterval,
+      maximumAttempts:
+        runtimeSettings.activityRetry?.maximumAttempts ??
+        DEFAULT_ACTIVITY_OPTIONS.retry.maximumAttempts,
     },
   };
 
-  const customActivities = proxyActivities<BenchmarkActivities>(customActivityOptions);
+  const customActivities = proxyActivities<BenchmarkActivities>(
+    customActivityOptions,
+  );
 
   let materializedPath: string | undefined;
   const outputPaths: string[] = [];
@@ -426,24 +456,27 @@ export async function benchmarkRunWorkflow(
 
   try {
     // Update run status to running
-    await customActivities['benchmark.updateRunStatus']({
+    await customActivities["benchmark.updateRunStatus"]({
       runId,
-      status: 'running',
+      status: "running",
     });
 
     // ---------------------------------------------------------------------------
     // Phase 1: Materialize Dataset
     // ---------------------------------------------------------------------------
-    currentPhase = 'materializing';
+    currentPhase = "materializing";
 
-    const { materializedPath: matPath } =
-      await customActivities['benchmark.materializeDataset']({
-        datasetVersionId,
-      });
+    const { materializedPath: matPath } = await customActivities[
+      "benchmark.materializeDataset"
+    ]({
+      datasetVersionId,
+    });
     materializedPath = matPath;
 
     // Load manifest via activity
-    const { manifest } = await customActivities['benchmark.loadDatasetManifest']({
+    const { manifest } = await customActivities[
+      "benchmark.loadDatasetManifest"
+    ]({
       materializedPath,
       datasetVersionId,
     });
@@ -460,7 +493,7 @@ export async function benchmarkRunWorkflow(
 
     if (totalSamples === 0) {
       throw ApplicationFailure.create({
-        message: `No samples found in dataset for split: ${splitId || 'default'}`,
+        message: `No samples found in dataset for split: ${splitId || "default"}`,
         nonRetryable: true,
       });
     }
@@ -468,12 +501,12 @@ export async function benchmarkRunWorkflow(
     // ---------------------------------------------------------------------------
     // Phase 2 & 3: Fan-out execution and evaluation
     // ---------------------------------------------------------------------------
-    currentPhase = 'executing';
+    currentPhase = "executing";
 
     const maxParallel = runtimeSettings.maxParallelDocuments || 10;
     const timeoutMs = runtimeSettings.timeoutPerDocumentMs || 300000; // 5 min default
 
-    const childTaskQueue = 'benchmark-processing';
+    const childTaskQueue = "benchmark-processing";
 
     const evaluationResults: EvaluationResult[] = [];
 
@@ -503,7 +536,7 @@ export async function benchmarkRunWorkflow(
               // Output directory for this sample
               const outputBaseDir = joinPath(
                 materializedPath!,
-                '.benchmark-outputs',
+                ".benchmark-outputs",
                 sample.id,
               );
 
@@ -519,7 +552,8 @@ export async function benchmarkRunWorkflow(
                 taskQueue: childTaskQueue,
               };
 
-              const executeOutput = await benchmarkExecuteWorkflow(executeInput);
+              const executeOutput =
+                await benchmarkExecuteWorkflow(executeInput);
 
               return {
                 sample,
@@ -538,7 +572,7 @@ export async function benchmarkRunWorkflow(
                   error: {
                     message:
                       error instanceof Error ? error.message : String(error),
-                    type: 'EXECUTION_ERROR',
+                    type: "EXECUTION_ERROR",
                   },
                   durationMs: 0,
                 } as BenchmarkExecuteOutput,
@@ -551,7 +585,7 @@ export async function benchmarkRunWorkflow(
       });
 
       // Evaluate batch results
-      currentPhase = 'evaluating';
+      currentPhase = "evaluating";
 
       for (const result of batchResults) {
         if (cancelled) {
@@ -569,18 +603,21 @@ export async function benchmarkRunWorkflow(
               executeOutput.workflowResult?.ctx ?? {},
             );
 
-            const { predictionPath } =
-              await customActivities['benchmark.writePrediction']({
-                predictionData,
-                outputDir: joinPath(
-                  materializedPath!,
-                  '.benchmark-outputs',
-                  sample.id,
-                ),
-                sampleId: sample.id,
-              });
+            const { predictionPath } = await customActivities[
+              "benchmark.writePrediction"
+            ]({
+              predictionData,
+              outputDir: joinPath(
+                materializedPath!,
+                ".benchmark-outputs",
+                sample.id,
+              ),
+              sampleId: sample.id,
+            });
 
-            const evaluationResult = await customActivities['benchmark.evaluate']({
+            const evaluationResult = await customActivities[
+              "benchmark.evaluate"
+            ]({
               sampleId: sample.id,
               inputPaths,
               predictionPaths: [predictionPath],
@@ -602,8 +639,7 @@ export async function benchmarkRunWorkflow(
               sampleId: sample.id,
               metrics: {},
               diagnostics: {
-                error:
-                  error instanceof Error ? error.message : String(error),
+                error: error instanceof Error ? error.message : String(error),
               },
               pass: false,
             });
@@ -615,7 +651,7 @@ export async function benchmarkRunWorkflow(
             sampleId: sample.id,
             metrics: {},
             diagnostics: {
-              executionError: executeOutput.error?.message || 'Unknown error',
+              executionError: executeOutput.error?.message || "Unknown error",
             },
             pass: false,
           });
@@ -627,16 +663,16 @@ export async function benchmarkRunWorkflow(
         outputPaths.push(...executeOutput.outputPaths);
       }
 
-      currentPhase = 'executing'; // Back to executing for next batch
+      currentPhase = "executing"; // Back to executing for next batch
     }
 
     // Check if cancelled
     if (cancelled) {
-      currentPhase = 'cleanup';
+      currentPhase = "cleanup";
 
       // Clean up temporary files
       if (materializedPath) {
-        await customActivities['benchmark.cleanup']({
+        await customActivities["benchmark.cleanup"]({
           materializedDatasetPaths: [materializedPath],
           temporaryOutputPaths: outputPaths,
           preserveCachedDatasets: true,
@@ -644,14 +680,14 @@ export async function benchmarkRunWorkflow(
       }
 
       // Update run status
-      await customActivities['benchmark.updateRunStatus']({
+      await customActivities["benchmark.updateRunStatus"]({
         runId,
-        status: 'cancelled',
+        status: "cancelled",
         completedAt: new Date(),
       });
 
       return {
-        status: 'cancelled',
+        status: "cancelled",
         metrics: {},
         totalSamples,
         successfulSamples: completedSamples - failedSamples,
@@ -662,9 +698,9 @@ export async function benchmarkRunWorkflow(
     // ---------------------------------------------------------------------------
     // Phase 4: Aggregate Metrics
     // ---------------------------------------------------------------------------
-    currentPhase = 'aggregating';
+    currentPhase = "aggregating";
 
-    const aggregateResult = await customActivities['benchmark.aggregate']({
+    const aggregateResult = await customActivities["benchmark.aggregate"]({
       results: evaluationResults,
       options: {
         failureAnalysis: { topN: 10 },
@@ -672,7 +708,10 @@ export async function benchmarkRunWorkflow(
     });
 
     flatMetrics = flattenMetrics(aggregateResult.overall);
-    failureAnalysis = aggregateResult.failureAnalysis as unknown as Record<string, unknown>;
+    failureAnalysis = aggregateResult.failureAnalysis as unknown as Record<
+      string,
+      unknown
+    >;
 
     // Build the stored metrics object: flat metrics at the top level for baseline
     // comparison, plus structured data for drill-down and per-sample browsing.
@@ -694,9 +733,9 @@ export async function benchmarkRunWorkflow(
     // ---------------------------------------------------------------------------
     // Phase 5: Update BenchmarkRun Status
     // ---------------------------------------------------------------------------
-    await customActivities['benchmark.updateRunStatus']({
+    await customActivities["benchmark.updateRunStatus"]({
       runId,
-      status: 'completed',
+      status: "completed",
       metrics: aggregateResultForStorage,
       completedAt: new Date(),
     });
@@ -705,15 +744,15 @@ export async function benchmarkRunWorkflow(
     // Phase 5a: Compare Against Baseline
     // ---------------------------------------------------------------------------
     try {
-      await customActivities['benchmark.compareAgainstBaseline']({
+      await customActivities["benchmark.compareAgainstBaseline"]({
         runId,
       });
     } catch (error) {
       // Don't fail the run if baseline comparison fails
       console.error(
         JSON.stringify({
-          workflow: 'benchmarkRunWorkflow',
-          event: 'baseline_comparison_failed',
+          workflow: "benchmarkRunWorkflow",
+          event: "baseline_comparison_failed",
           runId,
           error: error instanceof Error ? error.message : String(error),
           timestamp: new Date().toISOString(),
@@ -724,18 +763,18 @@ export async function benchmarkRunWorkflow(
     // ---------------------------------------------------------------------------
     // Phase 6: Cleanup
     // ---------------------------------------------------------------------------
-    currentPhase = 'cleanup';
+    currentPhase = "cleanup";
 
-    await customActivities['benchmark.cleanup']({
+    await customActivities["benchmark.cleanup"]({
       materializedDatasetPaths: [], // Keep cached datasets
       temporaryOutputPaths: outputPaths,
       preserveCachedDatasets: true,
     });
 
-    currentPhase = 'completed';
+    currentPhase = "completed";
 
     return {
-      status: 'completed',
+      status: "completed",
       metrics: flatMetrics,
       aggregateResult: aggregateResultForStorage,
       failureAnalysis,
@@ -746,11 +785,11 @@ export async function benchmarkRunWorkflow(
   } catch (error) {
     if (isCancellation(error)) {
       // Handle cancellation
-      currentPhase = 'cleanup';
+      currentPhase = "cleanup";
 
       // Clean up temporary files
       if (materializedPath) {
-        await customActivities['benchmark.cleanup']({
+        await customActivities["benchmark.cleanup"]({
           materializedDatasetPaths: [],
           temporaryOutputPaths: outputPaths,
           preserveCachedDatasets: true,
@@ -758,14 +797,14 @@ export async function benchmarkRunWorkflow(
       }
 
       // Update run status
-      await customActivities['benchmark.updateRunStatus']({
+      await customActivities["benchmark.updateRunStatus"]({
         runId,
-        status: 'cancelled',
+        status: "cancelled",
         completedAt: new Date(),
       });
 
       return {
-        status: 'cancelled',
+        status: "cancelled",
         metrics: flatMetrics,
         totalSamples,
         successfulSamples: completedSamples - failedSamples,
@@ -776,11 +815,11 @@ export async function benchmarkRunWorkflow(
     // Handle failure
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    currentPhase = 'cleanup';
+    currentPhase = "cleanup";
 
     // Clean up temporary files
     if (materializedPath) {
-      await customActivities['benchmark.cleanup']({
+      await customActivities["benchmark.cleanup"]({
         materializedDatasetPaths: [],
         temporaryOutputPaths: outputPaths,
         preserveCachedDatasets: true,
@@ -788,16 +827,16 @@ export async function benchmarkRunWorkflow(
     }
 
     // Update run status
-    await customActivities['benchmark.updateRunStatus']({
+    await customActivities["benchmark.updateRunStatus"]({
       runId,
-      status: 'failed',
+      status: "failed",
       error: errorMessage,
       metrics: aggregateResultForStorage,
       completedAt: new Date(),
     });
 
     return {
-      status: 'failed',
+      status: "failed",
       error: errorMessage,
       metrics: flatMetrics,
       failureAnalysis,

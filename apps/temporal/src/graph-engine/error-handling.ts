@@ -4,9 +4,9 @@
  * Node error handling, error extraction, and timeout utilities.
  */
 
-import { ApplicationFailure } from '@temporalio/workflow';
-import type { GraphNode, GraphWorkflowConfig } from '../graph-workflow-types';
-import type { ExecutionState } from './execution-state';
+import { ApplicationFailure } from "@temporalio/workflow";
+import type { GraphNode, GraphWorkflowConfig } from "../graph-workflow-types";
+import type { ExecutionState } from "./execution-state";
 
 /**
  * Handle node execution error based on error policy
@@ -21,11 +21,11 @@ export function handleNodeError(
   const details = extractErrorDetails(error, nodeId);
   state.lastError.current = details;
 
-  const policy = node.errorPolicy?.onError ?? 'fail';
+  const policy = node.errorPolicy?.onError ?? "fail";
 
-  if (policy === 'skip') {
+  if (policy === "skip") {
     state.nodeStatuses.set(nodeId, {
-      status: 'skipped',
+      status: "skipped",
       error: details.message,
       completedAt: new Date().toISOString(),
     });
@@ -33,20 +33,26 @@ export function handleNodeError(
     return;
   }
 
-  if (policy === 'fallback') {
+  if (policy === "fallback") {
     const fallbackEdgeId = node.errorPolicy?.fallbackEdgeId;
     if (!fallbackEdgeId) {
       throw ApplicationFailure.create({
-        type: 'GRAPH_EXECUTION_ERROR',
+        type: "GRAPH_EXECUTION_ERROR",
         message: `Node ${nodeId} missing fallbackEdgeId for fallback policy`,
         nonRetryable: true,
       });
     }
 
-    const fallbackEdge = config.edges.find((edge) => edge.id === fallbackEdgeId);
-    if (!fallbackEdge || fallbackEdge.type !== 'error' || fallbackEdge.source !== nodeId) {
+    const fallbackEdge = config.edges.find(
+      (edge) => edge.id === fallbackEdgeId,
+    );
+    if (
+      !fallbackEdge ||
+      fallbackEdge.type !== "error" ||
+      fallbackEdge.source !== nodeId
+    ) {
       throw ApplicationFailure.create({
-        type: 'GRAPH_EXECUTION_ERROR',
+        type: "GRAPH_EXECUTION_ERROR",
         message: `Fallback edge ${fallbackEdgeId} for node ${nodeId} must exist, be type "error", and reference the node as source`,
         nonRetryable: true,
       });
@@ -54,7 +60,7 @@ export function handleNodeError(
 
     state.selectedEdges.set(nodeId, fallbackEdgeId);
     state.nodeStatuses.set(nodeId, {
-      status: 'failed',
+      status: "failed",
       error: details.message,
       completedAt: new Date().toISOString(),
     });
@@ -63,13 +69,13 @@ export function handleNodeError(
   }
 
   state.nodeStatuses.set(nodeId, {
-    status: 'failed',
+    status: "failed",
     error: details.message,
   });
 
   if (node.errorPolicy?.retryable === false) {
     throw ApplicationFailure.create({
-      type: details.type ?? 'GRAPH_EXECUTION_ERROR',
+      type: details.type ?? "GRAPH_EXECUTION_ERROR",
       message: details.message,
       nonRetryable: true,
     });
@@ -92,7 +98,7 @@ export function extractErrorDetails(
 } {
   const message = error instanceof Error ? error.message : String(error);
   const type =
-    error && typeof error === 'object' && 'type' in error
+    error && typeof error === "object" && "type" in error
       ? String((error as { type?: string }).type)
       : undefined;
   const retryable =
@@ -112,10 +118,10 @@ export function extractErrorDetails(
 export function throwPollTimeout(
   nodeId: string,
   attempt: number,
-  reason: 'maxAttempts' | 'timeout',
+  reason: "maxAttempts" | "timeout",
 ): never {
   throw ApplicationFailure.create({
-    type: 'POLL_TIMEOUT',
+    type: "POLL_TIMEOUT",
     message: `POLL_TIMEOUT: PollUntil node ${nodeId} exceeded ${reason} after ${attempt} attempts`,
     nonRetryable: true,
   });

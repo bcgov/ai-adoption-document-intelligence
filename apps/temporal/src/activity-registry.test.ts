@@ -33,18 +33,17 @@ const EXPECTED_ACTIVITY_TYPES = [
 
 describe("activity-registry", () => {
   describe("getActivityEntry", () => {
-    it.each(EXPECTED_ACTIVITY_TYPES)(
-      "resolves registered activity type: %s",
-      (activityType) => {
-        const entry = getActivityEntry(activityType);
-        expect(entry).toBeDefined();
-        expect(entry!.activityType).toBe(activityType);
-        expect(typeof entry!.activityFn).toBe("function");
-        expect(typeof entry!.defaultTimeout).toBe("string");
-        expect(entry!.defaultRetry).toBeDefined();
-        expect(typeof entry!.description).toBe("string");
-      },
-    );
+    it.each(
+      EXPECTED_ACTIVITY_TYPES,
+    )("resolves registered activity type: %s", (activityType) => {
+      const entry = getActivityEntry(activityType);
+      expect(entry).toBeDefined();
+      expect(entry!.activityType).toBe(activityType);
+      expect(typeof entry!.activityFn).toBe("function");
+      expect(typeof entry!.defaultTimeout).toBe("string");
+      expect(entry!.defaultRetry).toBeDefined();
+      expect(typeof entry!.description).toBe("string");
+    });
 
     it("returns undefined for unknown activity type", () => {
       const entry = getActivityEntry("nonexistent.activity");
@@ -84,14 +83,13 @@ describe("activity-registry", () => {
   describe("activity function references", () => {
     const allActivities = EXPECTED_ACTIVITY_TYPES;
 
-    it.each(allActivities)(
-      "maps %s to a valid activity function",
-      (activityType) => {
-        const entry = getActivityEntry(activityType);
-        expect(entry).toBeDefined();
-        expect(typeof entry!.activityFn).toBe("function");
-      },
-    );
+    it.each(
+      allActivities,
+    )("maps %s to a valid activity function", (activityType) => {
+      const entry = getActivityEntry(activityType);
+      expect(entry).toBeDefined();
+      expect(typeof entry!.activityFn).toBe("function");
+    });
   });
 
   describe("registry entry metadata", () => {

@@ -5,12 +5,9 @@
  */
 
 import * as fs from "fs/promises";
-import * as path from "path";
 import * as os from "os";
-import {
-  benchmarkCleanup,
-  BenchmarkCleanupInput,
-} from "./benchmark-cleanup";
+import * as path from "path";
+import { BenchmarkCleanupInput, benchmarkCleanup } from "./benchmark-cleanup";
 
 describe("Benchmark Cleanup Activities", () => {
   let tempDir: string;

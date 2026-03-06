@@ -8,10 +8,10 @@
 import {
   aggregateResults,
   computeAggregatedMetrics,
-  computeStatistics,
-  computeSlicedMetrics,
-  findWorstSamples,
   computePerFieldErrors,
+  computeSlicedMetrics,
+  computeStatistics,
+  findWorstSamples,
   performFailureAnalysis,
 } from "./benchmark-aggregation";
 import { EvaluationResult } from "./benchmark-types";
@@ -25,31 +25,31 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
       const results: EvaluationResult[] = [
         {
           sampleId: "sample-001",
-          metrics: { accuracy: 0.95, precision: 0.90, recall: 0.85 },
+          metrics: { accuracy: 0.95, precision: 0.9, recall: 0.85 },
           diagnostics: {},
           pass: true,
         },
         {
           sampleId: "sample-002",
-          metrics: { accuracy: 0.90, precision: 0.85, recall: 0.80 },
+          metrics: { accuracy: 0.9, precision: 0.85, recall: 0.8 },
           diagnostics: {},
           pass: true,
         },
         {
           sampleId: "sample-003",
-          metrics: { accuracy: 0.85, precision: 0.80, recall: 0.75 },
+          metrics: { accuracy: 0.85, precision: 0.8, recall: 0.75 },
           diagnostics: {},
           pass: true,
         },
         {
           sampleId: "sample-004",
-          metrics: { accuracy: 0.80, precision: 0.75, recall: 0.70 },
+          metrics: { accuracy: 0.8, precision: 0.75, recall: 0.7 },
           diagnostics: {},
           pass: false,
         },
         {
           sampleId: "sample-005",
-          metrics: { accuracy: 0.75, precision: 0.70, recall: 0.65 },
+          metrics: { accuracy: 0.75, precision: 0.7, recall: 0.65 },
           diagnostics: {},
           pass: false,
         },
@@ -79,7 +79,7 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
       const results: EvaluationResult[] = [
         {
           sampleId: "sample-001",
-          metrics: { f1: 0.90, accuracy: 0.95 },
+          metrics: { f1: 0.9, accuracy: 0.95 },
           diagnostics: {},
           pass: true,
         },
@@ -91,7 +91,7 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
         },
         {
           sampleId: "sample-003",
-          metrics: { accuracy: 0.80 },
+          metrics: { accuracy: 0.8 },
           diagnostics: {},
           pass: false,
         },
@@ -172,7 +172,7 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
       },
       {
         sampleId: "sample-002",
-        metrics: { f1: 0.45, accuracy: 0.50 },
+        metrics: { f1: 0.45, accuracy: 0.5 },
         diagnostics: { note: "worst" },
         pass: false,
       },
@@ -184,7 +184,7 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
       },
       {
         sampleId: "sample-004",
-        metrics: { f1: 0.55, accuracy: 0.60 },
+        metrics: { f1: 0.55, accuracy: 0.6 },
         diagnostics: { note: "bad" },
         pass: false,
       },
@@ -213,7 +213,7 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
 
       expect(worst[0].sampleId).toBe("sample-002");
       expect(worst[0].metricValue).toBe(0.45);
-      expect(worst[0].metrics).toEqual({ f1: 0.45, accuracy: 0.50 });
+      expect(worst[0].metrics).toEqual({ f1: 0.45, accuracy: 0.5 });
       expect(worst[0].diagnostics).toEqual({ note: "worst" });
     });
 
@@ -228,7 +228,7 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
 
       expect(worst).toHaveLength(2);
       expect(worst[0].sampleId).toBe("sample-002");
-      expect(worst[0].metricValue).toBe(0.50);
+      expect(worst[0].metricValue).toBe(0.5);
     });
   });
 

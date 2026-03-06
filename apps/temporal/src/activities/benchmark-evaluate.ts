@@ -9,15 +9,12 @@
 
 import * as fs from "fs/promises";
 import {
-  EvaluationInput,
-  EvaluationResult,
-} from "../benchmark-types";
-import { getEvaluator } from "../evaluator-registry";
-import {
+  AggregationOptions,
   aggregateResults,
   BenchmarkAggregationResult,
-  AggregationOptions,
 } from "../benchmark-aggregation";
+import { EvaluationInput, EvaluationResult } from "../benchmark-types";
+import { getEvaluator } from "../evaluator-registry";
 
 /**
  * Input for benchmark.evaluate activity
@@ -153,8 +150,7 @@ export async function benchmarkEvaluate(
     return result;
   } catch (error) {
     // Handle evaluation errors
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
 
     return {
       sampleId,

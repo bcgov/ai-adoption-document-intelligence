@@ -4,7 +4,7 @@
  * Generic utilities for workflow execution.
  */
 
-import { ApplicationFailure } from '@temporalio/workflow';
+import { ApplicationFailure } from "@temporalio/workflow";
 
 /**
  * Execute items with concurrency limiting
@@ -58,7 +58,7 @@ export function parseDurationToMs(duration: string): number {
   const match = trimmed.match(/^(\d+(?:\.\d+)?)(ms|s|m|h|d)$/);
   if (!match) {
     throw ApplicationFailure.create({
-      type: 'GRAPH_EXECUTION_ERROR',
+      type: "GRAPH_EXECUTION_ERROR",
       message: `Invalid duration string: ${duration}`,
       nonRetryable: true,
     });

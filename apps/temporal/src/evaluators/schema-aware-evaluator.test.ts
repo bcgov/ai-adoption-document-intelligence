@@ -6,10 +6,10 @@
  */
 
 import * as fs from "fs/promises";
-import * as path from "path";
 import * as os from "os";
-import { SchemaAwareEvaluator } from "./schema-aware-evaluator";
+import * as path from "path";
 import { EvaluationInput } from "../benchmark-types";
+import { SchemaAwareEvaluator } from "./schema-aware-evaluator";
 
 describe("SchemaAwareEvaluator", () => {
   let evaluator: SchemaAwareEvaluator;
@@ -171,7 +171,9 @@ describe("SchemaAwareEvaluator", () => {
 
       expect(result.metrics.matchedFields).toBe(1); // Only field1
       expect(result.diagnostics.mismatchedFields).toHaveLength(1);
-      expect((result.diagnostics.mismatchedFields as any[])[0].field).toBe("field2");
+      expect((result.diagnostics.mismatchedFields as any[])[0].field).toBe(
+        "field2",
+      );
     });
   });
 
@@ -269,9 +271,9 @@ describe("SchemaAwareEvaluator", () => {
       expect(result.metrics.matchedFields).toBe(2);
       expect(result.metrics.f1).toBe(1.0);
 
-      const amount1Result = (result.diagnostics.comparisonResults as any[]).find(
-        (r: { field: string }) => r.field === "amount1",
-      );
+      const amount1Result = (
+        result.diagnostics.comparisonResults as any[]
+      ).find((r: { field: string }) => r.field === "amount1");
       expect(amount1Result.absoluteError).toBeCloseTo(0.05, 2);
     });
 

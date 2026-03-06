@@ -1,15 +1,15 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as os from 'os';
-import { getBlobStorageClient } from '../blob-storage/blob-storage-client';
+import { execFile } from "child_process";
+import * as fs from "fs/promises";
+import * as os from "os";
+import * as path from "path";
+import { promisify } from "util";
+import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 
 const execFileAsync = promisify(execFile);
 
 export interface SplitDocumentInput {
   blobKey: string;
-  strategy: 'per-page' | 'fixed-range' | 'boundary-detection' | 'custom-ranges';
+  strategy: "per-page" | "fixed-range" | "boundary-detection" | "custom-ranges";
   fixedRangeSize?: number;
   customRanges?: Array<{ start: number; end: number }>;
   documentId?: string;
@@ -32,9 +32,7 @@ export async function splitDocument(
   const blobStorage = getBlobStorageClient();
 
   // Download source blob to a temp file (qpdf needs a local path)
-  const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), 'split-src-'),
-  );
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "split-src-"));
   const sourcePath = path.join(tempDir, path.basename(input.blobKey));
 
   try {
@@ -84,7 +82,7 @@ export async function splitDocument(
 }
 
 async function getTotalPages(filePath: string): Promise<number> {
-  const { stdout } = await execFileAsync('qpdf', ['--show-npages', filePath]);
+  const { stdout } = await execFileAsync("qpdf", ["--show-npages", filePath]);
   const count = Number(stdout.trim());
   if (!Number.isFinite(count) || count <= 0) {
     throw new Error(`Unable to read page count for ${filePath}`);
@@ -97,17 +95,17 @@ async function buildRanges(
   sourcePath: string,
   totalPages: number,
 ): Promise<Array<{ start: number; end: number }>> {
-  if (input.strategy === 'per-page') {
+  if (input.strategy === "per-page") {
     return Array.from({ length: totalPages }, (_, index) => ({
       start: index + 1,
       end: index + 1,
     }));
   }
 
-  if (input.strategy === 'fixed-range') {
+  if (input.strategy === "fixed-range") {
     const size = input.fixedRangeSize;
     if (!size || size <= 0) {
-      throw new Error('fixedRangeSize is required for fixed-range strategy');
+      throw new Error("fixedRangeSize is required for fixed-range strategy");
     }
     const ranges: Array<{ start: number; end: number }> = [];
     for (let start = 1; start <= totalPages; start += size) {
@@ -117,9 +115,9 @@ async function buildRanges(
     return ranges;
   }
 
-  if (input.strategy === 'custom-ranges') {
+  if (input.strategy === "custom-ranges") {
     if (!input.customRanges || input.customRanges.length === 0) {
-      throw new Error('customRanges is required for custom-ranges strategy');
+      throw new Error("customRanges is required for custom-ranges strategy");
     }
     validateCustomRanges(input.customRanges, totalPages);
     return input.customRanges;
@@ -170,12 +168,10 @@ async function detectBoundaries(
   sourcePath: string,
   totalPages: number,
 ): Promise<Array<{ start: number; end: number }>> {
-  const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), 'split-document-'),
-  );
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "split-document-"));
   try {
     const boundaries = new Set<number>([1]);
-    let previousFirstLine = '';
+    let previousFirstLine = "";
     let previousLength = 0;
 
     for (let page = 1; page <= totalPages; page += 1) {
@@ -224,11 +220,11 @@ async function detectBoundaries(
 }
 
 async function extractText(filePath: string): Promise<string> {
-  const { stdout } = await execFileAsync('pdftotext', [
-    '-layout',
-    '-q',
+  const { stdout } = await execFileAsync("pdftotext", [
+    "-layout",
+    "-q",
     filePath,
-    '-',
+    "-",
   ]);
   return stdout;
 }
@@ -240,12 +236,12 @@ async function extractRange(
   end: number,
 ): Promise<void> {
   const range = start === end ? `${start}` : `${start}-${end}`;
-  await execFileAsync('qpdf', [
-    '--empty',
-    '--pages',
+  await execFileAsync("qpdf", [
+    "--empty",
+    "--pages",
     sourcePath,
     range,
-    '--',
+    "--",
     outputPath,
   ]);
 }
@@ -256,19 +252,19 @@ function extractDocumentId(blobKey: string): string | undefined {
 }
 
 function padIndex(index: number): string {
-  return String(index).padStart(3, '0');
+  return String(index).padStart(3, "0");
 }
 
 function normalizeText(text: string): string {
-  return text.replace(/\r/g, '').trim();
+  return text.replace(/\r/g, "").trim();
 }
 
 function firstNonEmptyLine(text: string): string {
   return (
     text
-      .split('\n')
+      .split("\n")
       .map((line) => line.trim())
-      .find((line) => line.length > 0) ?? ''
+      .find((line) => line.length > 0) ?? ""
   );
 }
 

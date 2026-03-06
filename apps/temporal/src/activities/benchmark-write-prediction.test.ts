@@ -1,6 +1,6 @@
 import * as fs from "fs/promises";
-import * as path from "path";
 import * as os from "os";
+import * as path from "path";
 import { benchmarkWritePrediction } from "./benchmark-write-prediction";
 
 describe("benchmarkWritePrediction", () => {
@@ -18,7 +18,7 @@ describe("benchmarkWritePrediction", () => {
     const predictionData = {
       "Invoice Number": "INV-001",
       "Total Amount": "1500.00",
-      "Date": "2024-01-15",
+      Date: "2024-01-15",
     };
 
     const result = await benchmarkWritePrediction({
@@ -29,7 +29,9 @@ describe("benchmarkWritePrediction", () => {
 
     expect(result.predictionPath).toContain("sample-001-prediction.json");
 
-    const written = JSON.parse(await fs.readFile(result.predictionPath, "utf-8"));
+    const written = JSON.parse(
+      await fs.readFile(result.predictionPath, "utf-8"),
+    );
     expect(written).toEqual(predictionData);
   });
 
@@ -53,7 +55,9 @@ describe("benchmarkWritePrediction", () => {
       sampleId: "empty",
     });
 
-    const written = JSON.parse(await fs.readFile(result.predictionPath, "utf-8"));
+    const written = JSON.parse(
+      await fs.readFile(result.predictionPath, "utf-8"),
+    );
     expect(written).toEqual({});
   });
 });

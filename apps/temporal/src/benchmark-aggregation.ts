@@ -494,12 +494,15 @@ export function computePerFieldErrors(
   // This function assumes schema-aware evaluator diagnostics structure
   // which includes: missingFields, extraFields, mismatchedFields, comparisonResults
 
-  const fieldStats = new Map<string, {
-    total: number;
-    matched: number;
-    missing: number;
-    mismatched: number;
-  }>();
+  const fieldStats = new Map<
+    string,
+    {
+      total: number;
+      matched: number;
+      missing: number;
+      mismatched: number;
+    }
+  >();
 
   for (const result of results) {
     const diagnostics = result.diagnostics;
@@ -566,4 +569,3 @@ export function computePerFieldErrors(
 
   return fieldErrors;
 }
-

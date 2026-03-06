@@ -36,10 +36,7 @@ export interface BenchmarkCleanupInput {
 export async function benchmarkCleanup(
   input: BenchmarkCleanupInput,
 ): Promise<void> {
-  const {
-    materializedDatasetPaths = [],
-    temporaryOutputPaths = [],
-  } = input;
+  const { materializedDatasetPaths = [], temporaryOutputPaths = [] } = input;
 
   const errors: string[] = [];
 
@@ -52,7 +49,9 @@ export async function benchmarkCleanup(
         // Only record error if file existed but couldn't be deleted
         const fileExists = await checkFileExists(filePath);
         if (fileExists) {
-          errors.push(`Failed to delete materialized file ${filePath}: ${error}`);
+          errors.push(
+            `Failed to delete materialized file ${filePath}: ${error}`,
+          );
         }
         // If file doesn't exist, cleanup is idempotent - continue silently
       }
@@ -89,16 +88,11 @@ export async function benchmarkCleanup(
  * Remove a file or directory (recursively)
  */
 async function removeFileOrDirectory(filePath: string): Promise<void> {
-  try {
-    const stat = await fs.stat(filePath);
-    if (stat.isDirectory()) {
-      await fs.rm(filePath, { recursive: true, force: true });
-    } else {
-      await fs.unlink(filePath);
-    }
-  } catch (error) {
-    // Re-throw to be handled by caller
-    throw error;
+  const stat = await fs.stat(filePath);
+  if (stat.isDirectory()) {
+    await fs.rm(filePath, { recursive: true, force: true });
+  } else {
+    await fs.unlink(filePath);
   }
 }
 

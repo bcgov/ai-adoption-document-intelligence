@@ -6,15 +6,15 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-022-benchmark-run-workflow.md
  */
 
-import { getPrismaClient } from './database-client';
-import type { Prisma } from '../generated';
+import type { Prisma } from "../generated";
+import { getPrismaClient } from "./database-client";
 
 export interface BenchmarkUpdateRunStatusInput {
   /** Benchmark run ID */
   runId: string;
 
   /** New status */
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
 
   /** Aggregated metrics (if available) */
   metrics?: Record<string, unknown>;
@@ -58,7 +58,7 @@ export async function benchmarkUpdateRunStatus(
   }
 
   // Set startedAt when transitioning to running
-  if (status === 'running') {
+  if (status === "running") {
     updateData.startedAt = new Date();
   }
 
@@ -69,8 +69,8 @@ export async function benchmarkUpdateRunStatus(
 
   console.log(
     JSON.stringify({
-      activity: 'benchmarkUpdateRunStatus',
-      event: 'status_updated',
+      activity: "benchmarkUpdateRunStatus",
+      event: "status_updated",
       runId,
       status,
       hasMetrics: !!metrics,

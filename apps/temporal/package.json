@@ -11,6 +11,8 @@
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist",
     "db:generate": "node ../shared/scripts/generate-prisma.js",
+    "lint": "npx @biomejs/biome check",
+    "lint:fix": "npm run lint -- --write",
     "test": "jest"
   },
   "keywords": [

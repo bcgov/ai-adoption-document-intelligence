@@ -6,10 +6,10 @@
  */
 
 import * as fs from "fs/promises";
-import * as path from "path";
 import * as os from "os";
-import { BlackBoxEvaluator } from "./black-box-evaluator";
+import * as path from "path";
 import { EvaluationInput } from "../benchmark-types";
+import { BlackBoxEvaluator } from "./black-box-evaluator";
 
 describe("BlackBoxEvaluator", () => {
   let evaluator: BlackBoxEvaluator;

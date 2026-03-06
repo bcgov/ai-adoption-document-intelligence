@@ -8,7 +8,7 @@
 
 export interface MetricThreshold {
   metricName: string;
-  type: 'absolute' | 'relative';
+  type: "absolute" | "relative";
   value: number;
 }
 
@@ -52,23 +52,24 @@ export function computeMetricComparisons(
   const regressedMetrics: string[] = [];
 
   for (const [metricName, currentValueRaw] of Object.entries(currentMetrics)) {
-    if (typeof currentValueRaw !== 'number') continue;
+    if (typeof currentValueRaw !== "number") continue;
 
     const baselineValueRaw = baselineMetrics[metricName];
-    if (typeof baselineValueRaw !== 'number') continue;
+    if (typeof baselineValueRaw !== "number") continue;
 
     const currentValue = currentValueRaw;
     const baselineValue = baselineValueRaw;
     const delta = currentValue - baselineValue;
-    const deltaPercent = baselineValue !== 0 ? (delta / baselineValue) * 100 : 0;
+    const deltaPercent =
+      baselineValue !== 0 ? (delta / baselineValue) * 100 : 0;
 
     const threshold = thresholdMap.get(metricName);
     let passed = true;
 
     if (threshold) {
-      if (threshold.type === 'absolute') {
+      if (threshold.type === "absolute") {
         passed = currentValue >= threshold.value;
-      } else if (threshold.type === 'relative') {
+      } else if (threshold.type === "relative") {
         passed = currentValue >= baselineValue * threshold.value;
       }
 

@@ -277,7 +277,12 @@ export interface GraphValidationError {
 // Status / Query Types
 // ---------------------------------------------------------------------------
 
-export type NodeStatusValue = "pending" | "running" | "completed" | "failed" | "skipped";
+export type NodeStatusValue =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "skipped";
 
 export interface NodeStatus {
   status: NodeStatusValue;

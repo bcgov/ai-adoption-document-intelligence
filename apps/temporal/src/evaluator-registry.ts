@@ -9,8 +9,8 @@
  */
 
 import { BenchmarkEvaluator } from "./benchmark-types";
-import { SchemaAwareEvaluator } from "./evaluators/schema-aware-evaluator";
 import { BlackBoxEvaluator } from "./evaluators/black-box-evaluator";
+import { SchemaAwareEvaluator } from "./evaluators/schema-aware-evaluator";
 
 /**
  * Evaluator registry map

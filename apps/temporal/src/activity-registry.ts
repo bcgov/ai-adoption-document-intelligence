@@ -8,34 +8,33 @@
  * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5.5 for the full specification.
  */
 
-import type { RetryPolicy } from "./graph-workflow-types";
-
 import {
-  updateDocumentStatus,
-  prepareFileData,
-  submitToAzureOCR,
-  pollOCRResults,
-  extractOCRResults,
-  postOcrCleanup,
-  checkOcrConfidence,
-  upsertOcrResult,
-  storeDocumentRejection,
-  getWorkflowGraphConfig,
-  enrichResults,
-  benchmarkEvaluate,
   benchmarkAggregate,
   benchmarkCleanup,
-  benchmarkUpdateRunStatus,
   benchmarkCompareAgainstBaseline,
+  benchmarkEvaluate,
+  benchmarkUpdateRunStatus,
   benchmarkWritePrediction,
-  materializeDataset,
+  checkOcrConfidence,
+  enrichResults,
+  extractOCRResults,
+  getWorkflowGraphConfig,
   loadDatasetManifest,
+  materializeDataset,
+  pollOCRResults,
+  postOcrCleanup,
+  prepareFileData,
+  storeDocumentRejection,
+  submitToAzureOCR,
+  updateDocumentStatus,
+  upsertOcrResult,
 } from "./activities";
-import { splitDocument } from "./activities/split-document";
 import { classifyDocument } from "./activities/classify-document";
-import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
-import { validateDocumentFields } from "./activities/document-validate-fields";
 import { combineSegmentResult } from "./activities/combine-segment-result";
+import { validateDocumentFields } from "./activities/document-validate-fields";
+import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
+import { splitDocument } from "./activities/split-document";
+import type { RetryPolicy } from "./graph-workflow-types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -127,7 +126,9 @@ register({
 
 register({
   activityType: "document.storeRejection",
-  activityFn: storeDocumentRejection as (...args: unknown[]) => Promise<unknown>,
+  activityFn: storeDocumentRejection as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
   defaultTimeout: "30s",
   defaultRetry: { maximumAttempts: 5 },
   description: "Store document rejection data",
@@ -135,7 +136,9 @@ register({
 
 register({
   activityType: "getWorkflowGraphConfig",
-  activityFn: getWorkflowGraphConfig as (...args: unknown[]) => Promise<unknown>,
+  activityFn: getWorkflowGraphConfig as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
   defaultTimeout: "30s",
   defaultRetry: { maximumAttempts: 3 },
   description: "Load workflow configuration from database",
@@ -169,7 +172,9 @@ register({
 
 register({
   activityType: "document.splitAndClassify",
-  activityFn: splitAndClassifyDocument as (...args: unknown[]) => Promise<unknown>,
+  activityFn: splitAndClassifyDocument as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
   defaultTimeout: "5m",
   defaultRetry: { maximumAttempts: 2 },
   description: "Split PDF and classify segments based on OCR keyword markers",
@@ -177,7 +182,9 @@ register({
 
 register({
   activityType: "document.validateFields",
-  activityFn: validateDocumentFields as (...args: unknown[]) => Promise<unknown>,
+  activityFn: validateDocumentFields as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
   defaultTimeout: "2m",
   defaultRetry: { maximumAttempts: 3 },
   description: "Validate fields across related documents",
@@ -219,7 +226,9 @@ register({
 
 register({
   activityType: "benchmark.updateRunStatus",
-  activityFn: benchmarkUpdateRunStatus as (...args: unknown[]) => Promise<unknown>,
+  activityFn: benchmarkUpdateRunStatus as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
   defaultTimeout: "30s",
   defaultRetry: { maximumAttempts: 5 },
   description: "Update benchmark run status in database",
@@ -227,7 +236,9 @@ register({
 
 register({
   activityType: "benchmark.compareAgainstBaseline",
-  activityFn: benchmarkCompareAgainstBaseline as (...args: unknown[]) => Promise<unknown>,
+  activityFn: benchmarkCompareAgainstBaseline as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
   defaultTimeout: "1m",
   defaultRetry: { maximumAttempts: 3 },
   description: "Compare run metrics against baseline and detect regressions",
@@ -235,7 +246,9 @@ register({
 
 register({
   activityType: "benchmark.writePrediction",
-  activityFn: benchmarkWritePrediction as (...args: unknown[]) => Promise<unknown>,
+  activityFn: benchmarkWritePrediction as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
   defaultTimeout: "1m",
   defaultRetry: { maximumAttempts: 2 },
   description: "Write workflow prediction data to a JSON file for evaluation",
@@ -265,14 +278,19 @@ register({
  * Look up an activity registry entry by its activity type string.
  * Returns undefined if the activity type is not registered.
  */
-export function getActivityEntry(activityType: string): ActivityRegistryEntry | undefined {
+export function getActivityEntry(
+  activityType: string,
+): ActivityRegistryEntry | undefined {
   return ACTIVITY_REGISTRY_MAP.get(activityType);
 }
 
 /**
  * Get the full registry map (for runtime validation in the temporal worker).
  */
-export function getActivityRegistry(): ReadonlyMap<string, ActivityRegistryEntry> {
+export function getActivityRegistry(): ReadonlyMap<
+  string,
+  ActivityRegistryEntry
+> {
   return ACTIVITY_REGISTRY_MAP;
 }
 

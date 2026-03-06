@@ -6,5 +6,5 @@
  * Temporal's `workflowsPath` accepts a single module, so this file
  * re-exports everything from both workflow modules.
  */
-export { benchmarkRunWorkflow } from './benchmark-workflow';
-export { graphWorkflow } from './graph-workflow';
+export { benchmarkRunWorkflow } from "./benchmark-workflow";
+export { graphWorkflow } from "./graph-workflow";

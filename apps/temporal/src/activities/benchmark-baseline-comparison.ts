@@ -6,15 +6,19 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-034-baseline-management.md
  */
 
-import { getPrismaClient } from './database-client';
-import type { Prisma } from '../generated';
+import type { Prisma } from "../generated";
 import {
+  type BaselineComparison,
   computeMetricComparisons,
   type MetricThreshold,
-  type BaselineComparison,
-} from './benchmark-comparison-utils';
+} from "./benchmark-comparison-utils";
+import { getPrismaClient } from "./database-client";
 
-export type { MetricThreshold, MetricComparison, BaselineComparison } from './benchmark-comparison-utils';
+export type {
+  BaselineComparison,
+  MetricComparison,
+  MetricThreshold,
+} from "./benchmark-comparison-utils";
 
 export interface BenchmarkBaselineComparisonInput {
   /** Benchmark run ID */
@@ -47,7 +51,7 @@ export async function benchmarkCompareAgainstBaseline(
     where: {
       definitionId: run.definitionId,
       isBaseline: true,
-      status: 'completed',
+      status: "completed",
     },
   });
 
@@ -55,8 +59,8 @@ export async function benchmarkCompareAgainstBaseline(
   if (!baseline) {
     console.log(
       JSON.stringify({
-        activity: 'benchmarkCompareAgainstBaseline',
-        event: 'no_baseline_found',
+        activity: "benchmarkCompareAgainstBaseline",
+        event: "no_baseline_found",
         runId,
         definitionId: run.definitionId,
         timestamp: new Date().toISOString(),
@@ -69,8 +73,8 @@ export async function benchmarkCompareAgainstBaseline(
   if (baseline.id === runId) {
     console.log(
       JSON.stringify({
-        activity: 'benchmarkCompareAgainstBaseline',
-        event: 'skip_self_comparison',
+        activity: "benchmarkCompareAgainstBaseline",
+        event: "skip_self_comparison",
         runId,
         timestamp: new Date().toISOString(),
       }),
@@ -80,7 +84,8 @@ export async function benchmarkCompareAgainstBaseline(
 
   const currentMetrics = run.metrics as Record<string, unknown>;
   const baselineMetrics = baseline.metrics as Record<string, unknown>;
-  const thresholds = (baseline.baselineThresholds as unknown as MetricThreshold[]) || [];
+  const thresholds =
+    (baseline.baselineThresholds as unknown as MetricThreshold[]) || [];
 
   const { metricComparisons, regressedMetrics } = computeMetricComparisons(
     currentMetrics,
@@ -102,15 +107,15 @@ export async function benchmarkCompareAgainstBaseline(
       baselineComparison: comparison as unknown as Prisma.InputJsonValue,
       tags: {
         ...(run.tags as Record<string, unknown>),
-        ...(regressedMetrics.length > 0 ? { regression: 'true' } : {}),
+        ...(regressedMetrics.length > 0 ? { regression: "true" } : {}),
       } as Prisma.InputJsonValue,
     },
   });
 
   console.log(
     JSON.stringify({
-      activity: 'benchmarkCompareAgainstBaseline',
-      event: 'comparison_complete',
+      activity: "benchmarkCompareAgainstBaseline",
+      event: "comparison_complete",
       runId,
       baselineRunId: baseline.id,
       overallPassed: comparison.overallPassed,
