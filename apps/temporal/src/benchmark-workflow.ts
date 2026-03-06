@@ -14,6 +14,7 @@
  */
 
 import {
+  type ActivityOptions,
   ApplicationFailure,
   CancellationScope,
   defineQuery,
@@ -24,6 +25,7 @@ import {
 } from "@temporalio/workflow";
 import {
   type BenchmarkExecuteInput,
+  type BenchmarkExecuteOutput,
   benchmarkExecuteWorkflow,
 } from "./activities/benchmark-execute";
 import type { DatasetManifest, EvaluationResult } from "./benchmark-types";
@@ -125,7 +127,7 @@ const DEFAULT_ACTIVITY_OPTIONS = {
     maximumInterval: "30s",
     maximumAttempts: 3,
   },
-};
+} as const;
 
 // ---------------------------------------------------------------------------
 // Workflow Types
@@ -445,7 +447,7 @@ export async function benchmarkRunWorkflow(
   };
 
   const customActivities = proxyActivities<BenchmarkActivities>(
-    customActivityOptions,
+    customActivityOptions as ActivityOptions,
   );
 
   let materializedPath: string | undefined;
