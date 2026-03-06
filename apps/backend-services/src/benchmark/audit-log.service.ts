@@ -11,12 +11,9 @@ import {
   AuditAction,
   BenchmarkAuditLog,
   Prisma,
-  PrismaClient,
 } from "@generated/client";
 import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { getPrismaPgOptions } from "@/utils/database-url";
+import { PrismaService } from "@/database/prisma.service";
 
 export interface LogAuditEventParams {
   userId: string;
@@ -38,17 +35,10 @@ export interface QueryAuditLogsParams {
 @Injectable()
 export class AuditLogService {
   private readonly logger = new Logger(AuditLogService.name);
-  private prisma: PrismaClient;
+  private readonly prisma;
 
-  constructor(private configService: ConfigService) {
-    const databaseUrl = this.configService.get<string>("DATABASE_URL");
-    if (!databaseUrl) {
-      throw new Error("DATABASE_URL is required");
-    }
-
-    const options = getPrismaPgOptions(databaseUrl);
-    const adapter = new PrismaPg(options);
-    this.prisma = new PrismaClient({ adapter });
+  constructor(private readonly prismaService: PrismaService) {
+    this.prisma = this.prismaService.prisma;
   }
 
   /**

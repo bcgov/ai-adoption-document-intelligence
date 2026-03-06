@@ -10,7 +10,7 @@
 
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { Client, Connection, ScheduleClient } from "@temporalio/client";
+import { Client, Connection, ScheduleClient, type ScheduleDescription } from "@temporalio/client";
 import { WORKFLOW_TYPES } from "../temporal/workflow-types";
 import type { ScheduleInfoDto } from "./dto";
 
@@ -324,37 +324,14 @@ export class BenchmarkTemporalService {
         connection: this.connection!,
       });
       const handle = scheduleClient.getHandle(scheduleId);
-      const description = await handle.describe();
-
-      // Access nested properties safely with type assertions
-      const spec = (
-        description as unknown as {
-          spec?: { calendars?: { cronString?: string }[] };
-        }
-      ).spec;
-      const info = (
-        description as unknown as {
-          info?: {
-            nextActionTimes?: Date[];
-            recentActions?: { scheduledAt?: Date }[];
-          };
-        }
-      ).info;
-      const state = (description as unknown as { state?: { paused?: boolean } })
-        .state;
-
-      // Try to extract cron from different possible locations
-      let cron = "";
-      if (spec?.calendars?.[0]?.cronString) {
-        cron = spec.calendars[0].cronString;
-      }
+      const description: ScheduleDescription = await handle.describe();
 
       return {
         scheduleId,
-        cron,
-        nextRunTime: info?.nextActionTimes?.[0],
-        lastRunTime: info?.recentActions?.[0]?.scheduledAt,
-        paused: state?.paused || false,
+        cron: description.spec?.calendars?.[0]?.comment ?? "",
+        nextRunTime: description.info.nextActionTimes[0],
+        lastRunTime: description.info.recentActions[0]?.scheduledAt,
+        paused: description.state.paused,
       };
     } catch (error) {
       const errorMessage =

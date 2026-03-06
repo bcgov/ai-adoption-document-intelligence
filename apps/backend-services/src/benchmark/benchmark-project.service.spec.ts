@@ -5,6 +5,12 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-010-benchmark-project-service-controller.md
  */
 
+import { ConflictException, NotFoundException } from "@nestjs/common";
+import { Test, TestingModule } from "@nestjs/testing";
+import { PrismaService } from "@/database/prisma.service";
+import { BenchmarkProjectService } from "./benchmark-project.service";
+import { CreateProjectDto } from "./dto";
+
 const mockPrismaClient = {
   benchmarkProject: {
     create: jest.fn(),
@@ -14,41 +20,16 @@ const mockPrismaClient = {
   },
 };
 
-jest.mock("@prisma/adapter-pg", () => ({
-  PrismaPg: jest.fn(),
-}));
-
-jest.mock("@generated/client", () => ({
-  PrismaClient: jest.fn(() => mockPrismaClient),
-}));
-
-jest.mock("@/utils/database-url", () => ({
-  getPrismaPgOptions: jest.fn().mockReturnValue({}),
-}));
-
-import { ConflictException, NotFoundException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { Test, TestingModule } from "@nestjs/testing";
-import { BenchmarkProjectService } from "./benchmark-project.service";
-import { CreateProjectDto } from "./dto";
-
 describe("BenchmarkProjectService", () => {
   let service: BenchmarkProjectService;
-
-  const mockConfigService = {
-    get: jest.fn((key: string, defaultValue?: string) => {
-      if (key === "DATABASE_URL") return "postgresql://test";
-      return defaultValue;
-    }),
-  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BenchmarkProjectService,
         {
-          provide: ConfigService,
-          useValue: mockConfigService,
+          provide: PrismaService,
+          useValue: { prisma: mockPrismaClient },
         },
       ],
     }).compile();

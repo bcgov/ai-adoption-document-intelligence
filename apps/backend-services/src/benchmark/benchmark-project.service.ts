@@ -7,11 +7,8 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 2.4, 6.2, 11.2
  */
 
-import { PrismaClient } from "@generated/client";
 import { ConflictException, Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { getPrismaPgOptions } from "@/utils/database-url";
+import { PrismaService } from "@/database/prisma.service";
 import {
   CreateProjectDto,
   DefinitionSummary,
@@ -23,17 +20,12 @@ import {
 @Injectable()
 export class BenchmarkProjectService {
   private readonly logger = new Logger(BenchmarkProjectService.name);
-  private prisma: PrismaClient;
+  private readonly prisma;
 
   constructor(
-    private configService: ConfigService,
+    private readonly prismaService: PrismaService,
   ) {
-    const dbOptions = getPrismaPgOptions(
-      this.configService.get("DATABASE_URL"),
-    );
-    this.prisma = new PrismaClient({
-      adapter: new PrismaPg(dbOptions),
-    });
+    this.prisma = this.prismaService.prisma;
   }
 
   /**

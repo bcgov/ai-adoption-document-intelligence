@@ -16,6 +16,7 @@ interface FieldPanelProps {
   onSelectField?: (fieldKey: string) => void;
   onValueChange?: (fieldKey: string, value: string) => void;
   readOnly?: boolean;
+  emptyMessage?: string;
 }
 
 export const FieldPanel: FC<FieldPanelProps> = ({
@@ -25,13 +26,13 @@ export const FieldPanel: FC<FieldPanelProps> = ({
   onSelectField,
   onValueChange,
   readOnly,
+  emptyMessage,
 }) => {
   if (fields.length === 0) {
     return (
       <Stack gap="xs">
-        <Text fw={600}>No fields configured</Text>
         <Text size="sm" c="dimmed">
-          Add fields to this project before labeling documents.
+          {emptyMessage ?? "No fields to display."}
         </Text>
       </Stack>
     );

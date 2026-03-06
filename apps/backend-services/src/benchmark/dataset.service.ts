@@ -7,7 +7,7 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-006-dataset-service-controller.md
  */
 
-import { AuditAction, Prisma, PrismaClient, SplitType } from "@generated/client";
+import { AuditAction, Prisma, SplitType } from "@generated/client";
 import {
   BadRequestException,
   ConflictException,
@@ -16,12 +16,10 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PrismaPg } from "@prisma/adapter-pg";
 import Ajv from "ajv";
 import * as crypto from "crypto";
 import * as path from "path";
-import { getPrismaPgOptions } from "@/utils/database-url";
+import { PrismaService } from "@/database/prisma.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -47,18 +45,13 @@ import {
 @Injectable()
 export class DatasetService {
   private readonly logger = new Logger(DatasetService.name);
-  private prisma: PrismaClient;
+  private readonly prisma;
 
   constructor(
-    private configService: ConfigService,
+    private readonly prismaService: PrismaService,
     @Inject(BLOB_STORAGE) private blobStorage: BlobStorageInterface,
   ) {
-    const dbOptions = getPrismaPgOptions(
-      this.configService.get("DATABASE_URL"),
-    );
-    this.prisma = new PrismaClient({
-      adapter: new PrismaPg(dbOptions),
-    });
+    this.prisma = this.prismaService.prisma;
   }
 
   /**

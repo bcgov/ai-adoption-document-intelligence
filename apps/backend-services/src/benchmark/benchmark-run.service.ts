@@ -8,18 +8,16 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 2.6, 4.2, 4.5, 11.2
  */
 
-import { PrismaClient } from "@generated/client";
+import { Prisma } from "@generated/client";
 import {
   BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PrismaPg } from "@prisma/adapter-pg";
 import { createHash } from "crypto";
 import { execSync } from "child_process";
-import { getPrismaPgOptions } from "@/utils/database-url";
+import { PrismaService } from "@/database/prisma.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import {
   BaselineComparison,
@@ -41,19 +39,14 @@ import { DatasetService } from "./dataset.service";
 @Injectable()
 export class BenchmarkRunService {
   private readonly logger = new Logger(BenchmarkRunService.name);
-  private prisma: PrismaClient;
+  private readonly prisma;
 
   constructor(
-    private configService: ConfigService,
+    private readonly prismaService: PrismaService,
     private benchmarkTemporal: BenchmarkTemporalService,
     private datasetService: DatasetService,
   ) {
-    const dbOptions = getPrismaPgOptions(
-      this.configService.get("DATABASE_URL"),
-    );
-    this.prisma = new PrismaClient({
-      adapter: new PrismaPg(dbOptions),
-    });
+    this.prisma = this.prismaService.prisma;
   }
 
   /**
@@ -97,7 +90,7 @@ export class BenchmarkRunService {
           action,
           entityType: "BenchmarkRun",
           entityId: runId,
-          metadata: metadata as never,
+          metadata: metadata as Prisma.InputJsonValue,
           timestamp: new Date(),
         },
       });
@@ -197,8 +190,8 @@ export class BenchmarkRunService {
             ...(definition.runtimeSettings as Record<string, unknown>),
             ...(dto.runtimeSettingsOverride || {}),
           },
-        } as never,
-        tags: runTags as never,
+        } as Prisma.InputJsonValue,
+        tags: runTags as Prisma.InputJsonValue,
       },
       include: {
         definition: true,
@@ -436,11 +429,8 @@ export class BenchmarkRunService {
       tags: run.tags as Record<string, unknown>,
       error: run.error,
       isBaseline: run.isBaseline,
-      baselineThresholds: run.baselineThresholds as unknown as
-        | MetricThreshold[]
-        | null,
-      baselineComparison:
-        run.baselineComparison as unknown as BaselineComparison | null,
+      baselineThresholds: run.baselineThresholds as MetricThreshold[] | null,
+      baselineComparison: run.baselineComparison as BaselineComparison | null,
       createdAt: run.createdAt,
     };
   }
@@ -486,7 +476,7 @@ export class BenchmarkRunService {
       const headlineMetrics = run.status === "completed" ? flatOnlyMetrics : null;
 
       // Check for regression status
-      const baselineComparison = run.baselineComparison as unknown as BaselineComparison | null;
+      const baselineComparison = run.baselineComparison as BaselineComparison | null;
       const hasRegression = baselineComparison ? !baselineComparison.overallPassed : undefined;
       const regressedMetricCount = baselineComparison ? baselineComparison.regressedMetrics.length : undefined;
 
@@ -683,12 +673,12 @@ export class BenchmarkRunService {
       where: { id: runId },
       data: {
         isBaseline: true,
-        baselineThresholds: dto.thresholds ? (dto.thresholds as never) : null,
+        baselineThresholds: dto.thresholds ? (dto.thresholds as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
       },
     });
 
     // Create audit log
-    await this.createAuditLog(runId, "baseline_promoted" as never, {
+    await this.createAuditLog(runId, "baseline_promoted", {
       definitionId: run.definitionId,
       projectId: run.projectId,
       previousBaselineId: previousBaseline?.id || null,
@@ -747,7 +737,7 @@ export class BenchmarkRunService {
     const currentMetrics = run.metrics as Record<string, unknown>;
     const baselineMetrics = baseline.metrics as Record<string, unknown>;
     const thresholds =
-      (baseline.baselineThresholds as unknown as MetricThreshold[]) || [];
+      (baseline.baselineThresholds as MetricThreshold[]) || [];
 
     const metricComparisons: MetricComparison[] = [];
     const regressedMetrics: string[] = [];
@@ -810,11 +800,11 @@ export class BenchmarkRunService {
     await this.prisma.benchmarkRun.update({
       where: { id: runId },
       data: {
-        baselineComparison: comparison as never,
+        baselineComparison: comparison as unknown as Prisma.InputJsonValue,
         tags: {
           ...(run.tags as Record<string, unknown>),
           ...(regressedMetrics.length > 0 ? { regression: "true" } : {}),
-        } as never,
+        } as Prisma.InputJsonValue,
       },
     });
 

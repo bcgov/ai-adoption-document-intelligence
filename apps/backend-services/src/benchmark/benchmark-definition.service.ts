@@ -8,17 +8,16 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 2.5, 7.4, 11.2
  */
 
-import { PrismaClient } from "@generated/client";
+import { Prisma } from "@generated/client";
 import {
   BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { getPrismaPgOptions } from "@/utils/database-url";
+import { PrismaService } from "@/database/prisma.service";
 import { computeConfigHash } from "@/workflow/config-hash";
+import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import {
   BaselineRunSummary,
@@ -39,19 +38,14 @@ import { EvaluatorRegistryService } from "./evaluator-registry.service";
 @Injectable()
 export class BenchmarkDefinitionService {
   private readonly logger = new Logger(BenchmarkDefinitionService.name);
-  private prisma: PrismaClient;
+  private readonly prisma;
 
   constructor(
-    private configService: ConfigService,
+    private readonly prismaService: PrismaService,
     private readonly evaluatorRegistry: EvaluatorRegistryService,
     private readonly temporalService: BenchmarkTemporalService,
   ) {
-    const dbOptions = getPrismaPgOptions(
-      this.configService.get("DATABASE_URL"),
-    );
-    this.prisma = new PrismaClient({
-      adapter: new PrismaPg(dbOptions),
-    });
+    this.prisma = this.prismaService.prisma;
   }
 
   /**
@@ -135,7 +129,7 @@ export class BenchmarkDefinitionService {
     }
 
     // Compute workflow config hash
-    const workflowConfigHash = computeConfigHash(workflow.config as never);
+    const workflowConfigHash = computeConfigHash(workflow.config as GraphWorkflowConfig);
 
     // Create the definition
     const definition = await this.prisma.benchmarkDefinition.create({
@@ -147,8 +141,8 @@ export class BenchmarkDefinitionService {
         workflowId: dto.workflowId,
         workflowConfigHash,
         evaluatorType: dto.evaluatorType,
-        evaluatorConfig: dto.evaluatorConfig as never,
-        runtimeSettings: dto.runtimeSettings as never,
+        evaluatorConfig: dto.evaluatorConfig as Prisma.InputJsonValue,
+        runtimeSettings: dto.runtimeSettings as Prisma.InputJsonValue,
         immutable: false,
         revision: 1,
       },
@@ -183,7 +177,7 @@ export class BenchmarkDefinitionService {
       `Created benchmark definition: ${definition.id} (workflowConfigHash: ${workflowConfigHash})`,
     );
 
-    return this.mapToDefinitionDetails(definition as never);
+    return this.mapToDefinitionDetails(definition);
   }
 
   /**
@@ -380,7 +374,7 @@ export class BenchmarkDefinitionService {
       }
 
       // Recompute workflow config hash
-      workflowConfigHash = computeConfigHash(workflow.config as never);
+      workflowConfigHash = computeConfigHash(workflow.config as GraphWorkflowConfig);
     }
 
     if (dto.evaluatorType) {
@@ -412,9 +406,9 @@ export class BenchmarkDefinitionService {
           workflowConfigHash,
           evaluatorType: dto.evaluatorType ?? existing.evaluatorType,
           evaluatorConfig: (dto.evaluatorConfig ??
-            existing.evaluatorConfig) as never,
+            existing.evaluatorConfig) as Prisma.InputJsonValue,
           runtimeSettings: (dto.runtimeSettings ??
-            existing.runtimeSettings) as never,
+            existing.runtimeSettings) as Prisma.InputJsonValue,
           immutable: false,
           revision: existing.revision + 1,
         },
@@ -449,27 +443,28 @@ export class BenchmarkDefinitionService {
         `Created new revision ${newDefinition.revision} for definition ${definitionId}`,
       );
 
-      return this.mapToDefinitionDetails(newDefinition as never);
+      return this.mapToDefinitionDetails(newDefinition);
     } else {
       // Update in place
-      const updateData: Record<string, unknown> = {};
+      const updateData: Prisma.BenchmarkDefinitionUpdateInput = {};
       if (dto.name) updateData.name = dto.name;
       if (dto.datasetVersionId)
-        updateData.datasetVersionId = dto.datasetVersionId;
-      if (dto.splitId) updateData.splitId = dto.splitId;
+        updateData.datasetVersion = { connect: { id: dto.datasetVersionId } };
+      if (dto.splitId)
+        updateData.split = { connect: { id: dto.splitId } };
       if (dto.workflowId) {
-        updateData.workflowId = dto.workflowId;
+        updateData.workflow = { connect: { id: dto.workflowId } };
         updateData.workflowConfigHash = workflowConfigHash;
       }
       if (dto.evaluatorType) updateData.evaluatorType = dto.evaluatorType;
       if (dto.evaluatorConfig)
-        updateData.evaluatorConfig = dto.evaluatorConfig as never;
+        updateData.evaluatorConfig = dto.evaluatorConfig as Prisma.InputJsonValue;
       if (dto.runtimeSettings)
-        updateData.runtimeSettings = dto.runtimeSettings as never;
+        updateData.runtimeSettings = dto.runtimeSettings as Prisma.InputJsonValue;
 
       const updated = await this.prisma.benchmarkDefinition.update({
         where: { id: definitionId },
-        data: updateData as never,
+        data: updateData,
         include: {
           datasetVersion: {
             include: {
@@ -499,7 +494,7 @@ export class BenchmarkDefinitionService {
 
       this.logger.log(`Updated definition ${definitionId} in place`);
 
-      return this.mapToDefinitionDetails(updated as never);
+      return this.mapToDefinitionDetails(updated);
     }
   }
 

@@ -5,45 +5,13 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-012-benchmark-run-service-controller.md
  */
 
-import { PrismaClient } from "@generated/client";
+import { Prisma } from "@generated/client";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import { PrismaService } from "@/database/prisma.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetService } from "./dataset.service";
-
-// Mock Prisma
-jest.mock("@generated/client", () => {
-  return {
-    PrismaClient: jest.fn().mockImplementation(() => ({
-      benchmarkProject: {
-        findUnique: jest.fn(),
-      },
-      benchmarkDefinition: {
-        findFirst: jest.fn(),
-        update: jest.fn(),
-      },
-      benchmarkRun: {
-        create: jest.fn(),
-        update: jest.fn(),
-        findFirst: jest.fn(),
-        findUnique: jest.fn(),
-        findMany: jest.fn(),
-        delete: jest.fn(),
-      },
-      datasetVersion: {
-        update: jest.fn(),
-      },
-      split: {
-        update: jest.fn(),
-      },
-      benchmarkAuditLog: {
-        create: jest.fn(),
-      },
-    })),
-  };
-});
 
 // Mock child_process
 jest.mock("child_process", () => ({
@@ -51,11 +19,38 @@ jest.mock("child_process", () => ({
   exec: jest.fn(),
 }));
 
+const mockPrismaClient = {
+  benchmarkProject: {
+    findUnique: jest.fn(),
+  },
+  benchmarkDefinition: {
+    findFirst: jest.fn(),
+    update: jest.fn(),
+  },
+  benchmarkRun: {
+    create: jest.fn(),
+    update: jest.fn(),
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    delete: jest.fn(),
+  },
+  datasetVersion: {
+    update: jest.fn(),
+  },
+  split: {
+    update: jest.fn(),
+  },
+  benchmarkAuditLog: {
+    create: jest.fn(),
+  },
+};
+
 describe("BenchmarkRunService", () => {
   let service: BenchmarkRunService;
   let benchmarkTemporal: BenchmarkTemporalService;
   let datasetService: DatasetService;
-  let prisma: PrismaClient;
+  let prisma: typeof mockPrismaClient;
 
   const mockProject = {
     id: "project-1",
@@ -130,10 +125,8 @@ describe("BenchmarkRunService", () => {
       providers: [
         BenchmarkRunService,
         {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn().mockReturnValue("postgresql://test"),
-          },
+          provide: PrismaService,
+          useValue: { prisma: mockPrismaClient },
         },
         {
           provide: BenchmarkTemporalService,
@@ -169,8 +162,7 @@ describe("BenchmarkRunService", () => {
     );
     datasetService = module.get<DatasetService>(DatasetService);
 
-    // Access the private prisma instance
-    prisma = service["prisma"];
+    prisma = mockPrismaClient;
   });
 
   afterEach(() => {
@@ -767,7 +759,7 @@ describe("BenchmarkRunService", () => {
         where: { id: "run-1" },
         data: {
           isBaseline: true,
-          baselineThresholds: null,
+          baselineThresholds: Prisma.JsonNull,
         },
       });
     });

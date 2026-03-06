@@ -20,6 +20,19 @@ import {
   Query,
   Req,
 } from "@nestjs/common";
+import {
+  ApiBadRequestResponse,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from "@nestjs/swagger";
 import { Request } from "express";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { DatabaseService } from "@/database/database.service";
@@ -39,6 +52,7 @@ import {
   RunSummaryDto,
 } from "./dto";
 
+@ApiTags("Benchmark - Runs")
 @Controller("api/benchmark/projects/:projectId")
 export class BenchmarkRunController {
   private readonly logger = new Logger(BenchmarkRunController.name);
@@ -58,15 +72,25 @@ export class BenchmarkRunController {
     );
   }
 
-  /**
-   * Start a benchmark run
-   *
-   * POST /api/benchmark/projects/:projectId/definitions/:definitionId/runs
-   */
   @Post("definitions/:definitionId/runs")
   @HttpCode(HttpStatus.CREATED)
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Start a benchmark run",
+    description:
+      "Creates a BenchmarkRun record, starts the Temporal workflow, and marks the definition as immutable.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
+  @ApiBody({ type: CreateRunDto })
+  @ApiCreatedResponse({
+    description: "Run started successfully",
+    type: RunDetailsDto,
+  })
+  @ApiBadRequestResponse({ description: "Dataset version has no files or failed validation" })
+  @ApiNotFoundResponse({ description: "Definition not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async startRun(
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,
@@ -84,14 +108,17 @@ export class BenchmarkRunController {
     );
   }
 
-  /**
-   * List all runs for a project
-   *
-   * GET /api/benchmark/projects/:projectId/runs
-   */
   @Get("runs")
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({ summary: "List all runs for a project" })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiOkResponse({
+    description: "List of benchmark runs",
+    type: [RunSummaryDto],
+  })
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async listRuns(
     @Param("projectId") projectId: string,
     @Req() req: Request,
@@ -101,14 +128,18 @@ export class BenchmarkRunController {
     return this.benchmarkRunService.listRuns(projectId);
   }
 
-  /**
-   * Get run details by ID
-   *
-   * GET /api/benchmark/projects/:projectId/runs/:runId
-   */
   @Get("runs/:runId")
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Get run details by ID" })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "runId", description: "Benchmark run ID" })
+  @ApiOkResponse({
+    description: "Run details with metrics and baseline comparison",
+    type: RunDetailsDto,
+  })
+  @ApiNotFoundResponse({ description: "Run not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getRunById(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
@@ -119,15 +150,20 @@ export class BenchmarkRunController {
     return this.benchmarkRunService.getRunById(projectId, runId);
   }
 
-  /**
-   * Cancel a running benchmark
-   *
-   * POST /api/benchmark/projects/:projectId/runs/:runId/cancel
-   */
   @Post("runs/:runId/cancel")
   @HttpCode(HttpStatus.OK)
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Cancel a running benchmark" })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "runId", description: "Benchmark run ID" })
+  @ApiOkResponse({
+    description: "Run cancelled successfully",
+    type: RunDetailsDto,
+  })
+  @ApiBadRequestResponse({ description: "Run is not in a cancellable state" })
+  @ApiNotFoundResponse({ description: "Run not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async cancelRun(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
@@ -140,14 +176,23 @@ export class BenchmarkRunController {
     return this.benchmarkRunService.cancelRun(projectId, runId);
   }
 
-  /**
-   * Get drill-down summary with detailed failure analysis
-   *
-   * GET /api/benchmark/projects/:projectId/runs/:runId/drill-down
-   */
   @Get("runs/:runId/drill-down")
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Get drill-down summary with detailed failure analysis",
+    description:
+      "Returns aggregated metrics, worst-performing samples, and per-field error breakdown for a completed run.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "runId", description: "Benchmark run ID" })
+  @ApiOkResponse({
+    description: "Drill-down analysis",
+    type: DrillDownResponseDto,
+  })
+  @ApiBadRequestResponse({ description: "Run is not completed" })
+  @ApiNotFoundResponse({ description: "Run not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getDrillDown(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
@@ -160,18 +205,25 @@ export class BenchmarkRunController {
     return this.benchmarkRunService.getDrillDown(projectId, runId);
   }
 
-  /**
-   * Get per-sample results with filtering and pagination
-   *
-   * GET /api/benchmark/projects/:projectId/runs/:runId/samples
-   * Query params:
-   *   - page: Page number (default: 1)
-   *   - limit: Items per page (default: 20)
-   *   - Any metadata dimension key (e.g., docType=invoice, language=en)
-   */
   @Get("runs/:runId/samples")
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Get per-sample results with filtering and pagination",
+    description:
+      "Supports filtering by metadata dimensions (e.g., docType=invoice) and the synthetic 'pass' dimension.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "runId", description: "Benchmark run ID" })
+  @ApiQuery({ name: "page", required: false, type: Number, description: "Page number (default: 1)" })
+  @ApiQuery({ name: "limit", required: false, type: Number, description: "Items per page (default: 20)" })
+  @ApiOkResponse({
+    description: "Paginated per-sample results",
+    type: PerSampleResultsResponseDto,
+  })
+  @ApiBadRequestResponse({ description: "Run is not completed" })
+  @ApiNotFoundResponse({ description: "Run not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getPerSampleResults(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
@@ -206,15 +258,25 @@ export class BenchmarkRunController {
     );
   }
 
-  /**
-   * Promote a run to baseline
-   *
-   * POST /api/benchmark/projects/:projectId/runs/:runId/baseline
-   */
   @Post("runs/:runId/baseline")
   @HttpCode(HttpStatus.OK)
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Promote a run to baseline",
+    description:
+      "Sets the run as the baseline for its definition. Clears any previous baseline. Optionally configures regression thresholds.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "runId", description: "Benchmark run ID" })
+  @ApiBody({ type: PromoteBaselineDto })
+  @ApiOkResponse({
+    description: "Run promoted to baseline",
+    type: PromoteBaselineResponseDto,
+  })
+  @ApiBadRequestResponse({ description: "Run is not completed" })
+  @ApiNotFoundResponse({ description: "Run not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async promoteToBaseline(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
@@ -232,17 +294,20 @@ export class BenchmarkRunController {
     );
   }
 
-  /**
-   * Delete a benchmark run
-   *
-   * Only completed, failed, or cancelled runs can be deleted.
-   *
-   * DELETE /api/benchmark/projects/:projectId/runs/:runId
-   */
   @Delete("runs/:runId")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Delete a benchmark run",
+    description: "Only completed, failed, or cancelled runs can be deleted.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "runId", description: "Benchmark run ID" })
+  @ApiNoContentResponse({ description: "Run deleted successfully" })
+  @ApiBadRequestResponse({ description: "Run is still active" })
+  @ApiNotFoundResponse({ description: "Run not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async deleteRun(
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,

@@ -5,6 +5,16 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-006-dataset-service-controller.md
  */
 
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from "@nestjs/common";
+import { Test, TestingModule } from "@nestjs/testing";
+import { BLOB_STORAGE, BlobStorageInterface } from "@/blob-storage/blob-storage.interface";
+import { PrismaService } from "@/database/prisma.service";
+import { DatasetService } from "./dataset.service";
+
 const mockPrismaClient = {
   dataset: {
     create: jest.fn(),
@@ -38,41 +48,6 @@ const mockPrismaClient = {
     create: jest.fn(),
   },
 };
-
-jest.mock("@prisma/adapter-pg", () => ({
-  PrismaPg: jest.fn(),
-}));
-
-jest.mock("@generated/client", () => ({
-  PrismaClient: jest.fn(() => mockPrismaClient),
-  Prisma: {
-    PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {
-      code: string;
-      constructor(message: string, { code }: { code: string }) {
-        super(message);
-        this.code = code;
-      }
-    },
-  },
-  AuditAction: {
-    dataset_created: "dataset_created",
-    version_published: "version_published",
-  },
-}));
-
-jest.mock("@/utils/database-url", () => ({
-  getPrismaPgOptions: jest.fn().mockReturnValue({}),
-}));
-
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { Test, TestingModule } from "@nestjs/testing";
-import { BLOB_STORAGE, BlobStorageInterface } from "@/blob-storage/blob-storage.interface";
-import { DatasetService } from "./dataset.service";
 
 describe("DatasetService", () => {
   let service: DatasetService;
@@ -114,10 +89,8 @@ describe("DatasetService", () => {
       providers: [
         DatasetService,
         {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn().mockReturnValue("postgresql://test"),
-          },
+          provide: PrismaService,
+          useValue: { prisma: mockPrismaClient },
         },
         { provide: BLOB_STORAGE, useValue: mockBlobStorage },
       ],

@@ -1,4 +1,4 @@
-import { Text, TextInput } from "@mantine/core";
+import { Stack, Text, TextInput } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { FC } from "react";
 
@@ -16,7 +16,7 @@ export const FieldFilterInput: FC<FieldFilterInputProps> = ({
   filteredCount,
 }) => {
   return (
-    <>
+    <Stack gap={4} mb="sm">
       <TextInput
         size="sm"
         placeholder="Search fields"
@@ -29,6 +29,6 @@ export const FieldFilterInput: FC<FieldFilterInputProps> = ({
           Showing {filteredCount} of {totalCount} fields
         </Text>
       )}
-    </>
+    </Stack>
   );
 };

@@ -26,6 +26,7 @@ import {
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { useCanvasZoom } from "../../core/canvas/hooks/useCanvasZoom";
 import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
+import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
 import { FieldPanel } from "../../core/field-panel/FieldPanel";
 import { useFieldSchema } from "../hooks/useFieldSchema";
 import { type LabelDto, useLabels } from "../hooks/useLabels";
@@ -105,6 +106,16 @@ export const LabelingWorkspacePage: FC = () => {
     );
   }
   const { schema } = useFieldSchema(projectId);
+  const [fieldFilter, setFieldFilter] = useState("");
+  const filteredSchema = useMemo(() => {
+    if (!fieldFilter) return schema;
+    const lower = fieldFilter.toLowerCase();
+    return schema.filter(
+      (f) =>
+        f.fieldKey.toLowerCase().includes(lower) ||
+        f.fieldType.toLowerCase().includes(lower),
+    );
+  }, [schema, fieldFilter]);
   const { document: projectDocument, isLoading } = useProjectDocument(
     projectId,
     documentId,
@@ -996,6 +1007,13 @@ export const LabelingWorkspacePage: FC = () => {
             Fields
           </Text>
 
+          <FieldFilterInput
+            value={fieldFilter}
+            onChange={setFieldFilter}
+            totalCount={schema.length}
+            filteredCount={filteredSchema.length}
+          />
+
           <ScrollArea
             type="auto"
             style={{ flex: 1, minHeight: 0 }}
@@ -1016,7 +1034,7 @@ export const LabelingWorkspacePage: FC = () => {
             }}
           >
             <FieldPanel
-              fields={schema}
+              fields={filteredSchema}
               values={labelValues}
               activeFieldKey={activeFieldKey}
               onSelectField={(fieldKey) => {
@@ -1024,6 +1042,11 @@ export const LabelingWorkspacePage: FC = () => {
               }}
               onValueChange={handleValueChange}
               readOnly={true}
+              emptyMessage={
+                fieldFilter
+                  ? "No fields match your search."
+                  : "Add fields to this project before labeling documents."
+              }
             />
           </ScrollArea>
         </Paper>

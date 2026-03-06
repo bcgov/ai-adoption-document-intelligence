@@ -12,16 +12,18 @@ import { AppModule } from "./app.module";
 import { FileLogger } from "./logger/file-logger.service";
 import { LoggingInterceptor } from "./logger/logging.interceptor";
 
-const fileLogger = new FileLogger();
+const isDev = process.env.NODE_ENV !== "production";
 const logger = new Logger("Bootstrap");
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
-    logger: fileLogger,
+    ...(isDev ? { logger: new FileLogger() } : {}),
   });
 
-  // Enable HTTP request/response logging for debugging Playwright tests
-  app.useGlobalInterceptors(new LoggingInterceptor());
+  if (isDev) {
+    // Enable HTTP request/response logging for local debugging
+    app.useGlobalInterceptors(new LoggingInterceptor());
+  }
 
   // Cookie parser must be registered before routes are mounted
   app.use(cookieParser());

@@ -20,6 +20,18 @@ import {
   Put,
   Req,
 } from "@nestjs/common";
+import {
+  ApiBadRequestResponse,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from "@nestjs/swagger";
 import { Request } from "express";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { DatabaseService } from "@/database/database.service";
@@ -41,6 +53,7 @@ import {
 } from "./dto";
 import { AuditAction } from "@generated/client";
 
+@ApiTags("Benchmark - Definitions")
 @Controller("api/benchmark/projects/:projectId/definitions")
 export class BenchmarkDefinitionController {
   private readonly logger = new Logger(BenchmarkDefinitionController.name);
@@ -61,15 +74,20 @@ export class BenchmarkDefinitionController {
     );
   }
 
-  /**
-   * Create a benchmark definition
-   *
-   * POST /api/benchmark/projects/:projectId/definitions
-   */
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Create a benchmark definition" })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiBody({ type: CreateDefinitionDto })
+  @ApiCreatedResponse({
+    description: "Definition created successfully",
+    type: DefinitionDetailsDto,
+  })
+  @ApiBadRequestResponse({ description: "Invalid referenced entity or evaluator type" })
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async createDefinition(
     @Param("projectId") projectId: string,
     @Body() createDefinitionDto: CreateDefinitionDto,
@@ -85,14 +103,17 @@ export class BenchmarkDefinitionController {
     );
   }
 
-  /**
-   * List all definitions for a project
-   *
-   * GET /api/benchmark/projects/:projectId/definitions
-   */
   @Get()
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({ summary: "List all definitions for a project" })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiOkResponse({
+    description: "List of benchmark definitions",
+    type: [DefinitionSummaryDto],
+  })
+  @ApiNotFoundResponse({ description: "Project not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async listDefinitions(
     @Param("projectId") projectId: string,
     @Req() req: Request,
@@ -102,14 +123,18 @@ export class BenchmarkDefinitionController {
     return this.benchmarkDefinitionService.listDefinitions(projectId);
   }
 
-  /**
-   * Get definition details by ID
-   *
-   * GET /api/benchmark/projects/:projectId/definitions/:definitionId
-   */
   @Get(":definitionId")
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Get definition details by ID" })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
+  @ApiOkResponse({
+    description: "Definition details with run history and baseline info",
+    type: DefinitionDetailsDto,
+  })
+  @ApiNotFoundResponse({ description: "Definition not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getDefinitionById(
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,
@@ -125,14 +150,24 @@ export class BenchmarkDefinitionController {
     );
   }
 
-  /**
-   * Update a benchmark definition
-   *
-   * PUT /api/benchmark/projects/:projectId/definitions/:definitionId
-   */
   @Put(":definitionId")
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Update a benchmark definition",
+    description:
+      "Updates a definition in place if it has no runs. Creates a new revision if it has runs (immutable).",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
+  @ApiBody({ type: UpdateDefinitionDto })
+  @ApiOkResponse({
+    description: "Definition updated (or new revision created)",
+    type: DefinitionDetailsDto,
+  })
+  @ApiBadRequestResponse({ description: "Invalid referenced entity" })
+  @ApiNotFoundResponse({ description: "Definition not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async updateDefinition(
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,
@@ -150,14 +185,24 @@ export class BenchmarkDefinitionController {
     );
   }
 
-  /**
-   * Configure schedule for a benchmark definition
-   *
-   * POST /api/benchmark/projects/:projectId/definitions/:definitionId/schedule
-   */
   @Post(":definitionId/schedule")
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Configure schedule for a benchmark definition",
+    description:
+      "Creates or updates a Temporal schedule for automatic benchmark runs. Disabling deletes the existing schedule.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
+  @ApiBody({ type: ScheduleConfigDto })
+  @ApiOkResponse({
+    description: "Schedule configured, returns updated definition",
+    type: DefinitionDetailsDto,
+  })
+  @ApiBadRequestResponse({ description: "Cron expression required when enabling" })
+  @ApiNotFoundResponse({ description: "Definition not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async configureSchedule(
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,
@@ -175,14 +220,18 @@ export class BenchmarkDefinitionController {
     );
   }
 
-  /**
-   * Get schedule information for a definition
-   *
-   * GET /api/benchmark/projects/:projectId/definitions/:definitionId/schedule
-   */
   @Get(":definitionId/schedule")
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Get schedule information for a definition" })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
+  @ApiOkResponse({
+    description: "Schedule info or null if no schedule configured",
+    type: ScheduleInfoDto,
+  })
+  @ApiNotFoundResponse({ description: "Definition not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getScheduleInfo(
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,
@@ -198,14 +247,18 @@ export class BenchmarkDefinitionController {
     );
   }
 
-  /**
-   * Get baseline promotion history for a definition
-   *
-   * GET /api/benchmark/projects/:projectId/definitions/:definitionId/baseline-history
-   */
   @Get(":definitionId/baseline-history")
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Get baseline promotion history for a definition" })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
+  @ApiOkResponse({
+    description: "Baseline promotion history",
+    type: [BaselinePromotionHistoryDto],
+  })
+  @ApiNotFoundResponse({ description: "Definition not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getBaselineHistory(
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,
@@ -243,17 +296,21 @@ export class BenchmarkDefinitionController {
     return history;
   }
 
-  /**
-   * Delete a benchmark definition
-   *
-   * Cascade-deletes completed/failed runs. Rejects if there are active runs.
-   *
-   * DELETE /api/benchmark/projects/:projectId/definitions/:definitionId
-   */
   @Delete(":definitionId")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiKeyAuth()
   @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Delete a benchmark definition",
+    description:
+      "Cascade-deletes completed/failed runs. Rejects if there are active runs.",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
+  @ApiNoContentResponse({ description: "Definition deleted successfully" })
+  @ApiBadRequestResponse({ description: "Definition has active runs" })
+  @ApiNotFoundResponse({ description: "Definition not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async deleteDefinition(
     @Param("projectId") projectId: string,
     @Param("definitionId") definitionId: string,

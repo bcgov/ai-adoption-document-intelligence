@@ -1,6 +1,6 @@
 import { AuditAction } from "@generated/client";
-import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import { PrismaService } from "@/database/prisma.service";
 import { AuditLogService } from "./audit-log.service";
 
 const mockPrismaClient = {
@@ -10,26 +10,6 @@ const mockPrismaClient = {
   },
 };
 
-const mockConfigService = {
-  get: jest.fn((key: string) => {
-    if (key === "DATABASE_URL")
-      return "postgresql://test:test@localhost:5432/test";
-    return undefined;
-  }),
-};
-
-jest.mock("@prisma/adapter-pg", () => ({
-  PrismaPg: jest.fn(),
-}));
-
-jest.mock("@generated/client", () => {
-  const actual = jest.requireActual("@generated/client");
-  return {
-    ...actual,
-    PrismaClient: jest.fn(() => mockPrismaClient),
-  };
-});
-
 describe("AuditLogService", () => {
   let service: AuditLogService;
 
@@ -37,7 +17,10 @@ describe("AuditLogService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuditLogService,
-        { provide: ConfigService, useValue: mockConfigService },
+        {
+          provide: PrismaService,
+          useValue: { prisma: mockPrismaClient },
+        },
       ],
     }).compile();
 
