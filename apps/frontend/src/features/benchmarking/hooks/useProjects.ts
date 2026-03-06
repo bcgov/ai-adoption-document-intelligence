@@ -56,12 +56,12 @@ export const useProjects = () => {
   const projectsQuery = useQuery({
     queryKey: ["benchmark-projects", activeGroup?.id],
     queryFn: async () => {
-      const url = activeGroup?.id
-        ? `/benchmark/projects?groupId=${activeGroup.id}`
-        : "/benchmark/projects";
-      const response = await apiService.get<ProjectSummary[]>(url);
+      const response = await apiService.get<ProjectSummary[]>(
+        `/benchmark/projects?groupId=${activeGroup!.id}`,
+      );
       return response.data || [];
     },
+    enabled: !!activeGroup?.id,
   });
 
   const createProjectMutation = useMutation({

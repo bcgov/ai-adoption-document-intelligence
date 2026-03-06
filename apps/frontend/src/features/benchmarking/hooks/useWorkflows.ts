@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
 
 interface WorkflowInfo {
@@ -12,14 +13,17 @@ interface WorkflowInfo {
 }
 
 export const useWorkflows = () => {
+  const { activeGroup } = useGroup();
+
   const workflowsQuery = useQuery({
-    queryKey: ["workflows"],
+    queryKey: ["workflows", activeGroup?.id],
     queryFn: async () => {
       const response = await apiService.get<{ workflows: WorkflowInfo[] }>(
-        "/workflows",
+        `/workflows?groupId=${activeGroup!.id}`,
       );
       return response.data?.workflows || [];
     },
+    enabled: !!activeGroup?.id,
   });
 
   return {

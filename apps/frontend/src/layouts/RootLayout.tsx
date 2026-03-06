@@ -6,6 +6,7 @@ import {
   Button,
   Group,
   NavLink,
+  ScrollArea,
   Stack,
   Text,
   Title,
@@ -161,7 +162,7 @@ export function RootLayout() {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="md" style={{ overflow: "visible" }}>
+      <AppShell.Navbar style={{ overflow: "visible" }}>
         <ActionIcon
           variant="default"
           size="sm"
@@ -184,6 +185,7 @@ export function RootLayout() {
           )}
         </ActionIcon>
 
+        <ScrollArea flex={1} p="md">
         <Stack gap="xs">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -268,6 +270,7 @@ export function RootLayout() {
             </Tooltip>
           )}
         </Stack>
+        </ScrollArea>
       </AppShell.Navbar>
 
       <AppShell.Main>
