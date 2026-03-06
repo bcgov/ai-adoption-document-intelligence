@@ -1,6 +1,7 @@
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Group } from "@/auth/AuthContext";
 import { ProjectListPage } from "./ProjectListPage";
@@ -41,9 +42,11 @@ const renderPage = () => {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MantineProvider>
-        <ProjectListPage />
-      </MantineProvider>
+      <MemoryRouter>
+        <MantineProvider>
+          <ProjectListPage />
+        </MantineProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 };
