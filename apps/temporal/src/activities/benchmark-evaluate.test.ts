@@ -232,7 +232,7 @@ describe("benchmark-evaluate activities", () => {
       const result = await benchmarkAggregate(input);
 
       expect(result.overall.totalSamples).toBe(3);
-      expect(result.overall.passingsSamples).toBe(2);
+      expect(result.overall.passingSamples).toBe(2);
       expect(result.overall.failingSamples).toBe(1);
       expect(result.overall.passRate).toBeCloseTo(2 / 3);
       expect(result.overall.metrics).toHaveProperty("f1");
@@ -330,7 +330,7 @@ describe("benchmark-evaluate activities", () => {
       const result = await benchmarkAggregate(input);
 
       expect(result.overall.totalSamples).toBe(0);
-      expect(result.overall.passingsSamples).toBe(0);
+      expect(result.overall.passingSamples).toBe(0);
       expect(result.overall.failingSamples).toBe(0);
       expect(result.overall.passRate).toBe(0);
     });

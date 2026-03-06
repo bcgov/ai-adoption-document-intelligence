@@ -15,10 +15,11 @@
  */
 
 import { executeChild, workflowInfo } from '@temporalio/workflow';
-import type {
-  GraphWorkflowConfig,
-  GraphWorkflowInput,
-  GraphWorkflowResult,
+import {
+  GRAPH_RUNNER_VERSION,
+  type GraphWorkflowConfig,
+  type GraphWorkflowInput,
+  type GraphWorkflowResult,
 } from '../graph-workflow-types';
 
 // ---------------------------------------------------------------------------
@@ -80,7 +81,6 @@ export interface BenchmarkExecuteOutput {
 // ---------------------------------------------------------------------------
 
 const BENCHMARK_TASK_QUEUE = 'benchmark-processing';
-const GRAPH_RUNNER_VERSION = '1.0.0';
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 // ---------------------------------------------------------------------------

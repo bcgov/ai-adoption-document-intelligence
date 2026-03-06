@@ -10,7 +10,7 @@ import * as os from "os";
 import {
   benchmarkCleanup,
   BenchmarkCleanupInput,
-} from "./benchmark-logging";
+} from "./benchmark-cleanup";
 
 describe("Benchmark Cleanup Activities", () => {
   let tempDir: string;

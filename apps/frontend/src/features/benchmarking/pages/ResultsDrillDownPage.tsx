@@ -29,14 +29,13 @@ import {
   IconFilter,
   IconX,
 } from "@tabler/icons-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useProject } from "../hooks/useProjects";
 import { usePerSampleResults, useRun } from "../hooks/useRuns";
 import {
   drillDownPanelRegistry,
   type DrillDownPanelComponent,
-  type DrillDownPanelProps,
 } from "../registry/drillDownPanelRegistry";
 
 /**
@@ -198,7 +197,7 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
   );
 };
 
-export default function ResultsDrillDownPage() {
+export function ResultsDrillDownPage() {
   const { projectId, runId } = useParams<{
     projectId: string;
     runId: string;

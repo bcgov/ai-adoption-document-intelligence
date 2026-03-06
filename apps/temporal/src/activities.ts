@@ -42,10 +42,10 @@ export type {
   BenchmarkAggregateInput,
 } from './activities/benchmark-evaluate';
 
-export { benchmarkCleanup } from './activities/benchmark-logging';
+export { benchmarkCleanup } from './activities/benchmark-cleanup';
 export type {
   BenchmarkCleanupInput,
-} from './activities/benchmark-logging';
+} from './activities/benchmark-cleanup';
 
 export { benchmarkUpdateRunStatus } from './activities/benchmark-update-run';
 export type { BenchmarkUpdateRunStatusInput } from './activities/benchmark-update-run';

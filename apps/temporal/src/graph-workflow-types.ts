@@ -310,3 +310,9 @@ export interface GraphWorkflowProgress {
 export interface CancelSignal {
   mode: "graceful" | "immediate";
 }
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+export const GRAPH_RUNNER_VERSION = "1.0.0";

@@ -77,7 +77,7 @@ export interface AggregatedMetrics {
   /**
    * Number of passing samples
    */
-  passingsSamples: number;
+  passingSamples: number;
 
   /**
    * Number of failing samples
@@ -274,15 +274,15 @@ export function computeAggregatedMetrics(
   results: EvaluationResult[],
 ): AggregatedMetrics {
   const totalSamples = results.length;
-  const passingsSamples = results.filter((r) => r.pass).length;
-  const failingSamples = totalSamples - passingsSamples;
-  const passRate = totalSamples > 0 ? passingsSamples / totalSamples : 0;
+  const passingSamples = results.filter((r) => r.pass).length;
+  const failingSamples = totalSamples - passingSamples;
+  const passRate = totalSamples > 0 ? passingSamples / totalSamples : 0;
 
   // If no results, return zero-value metrics
   if (totalSamples === 0) {
     return {
       totalSamples: 0,
-      passingsSamples: 0,
+      passingSamples: 0,
       failingSamples: 0,
       passRate: 0,
       metrics: {},
@@ -311,7 +311,7 @@ export function computeAggregatedMetrics(
 
   return {
     totalSamples,
-    passingsSamples,
+    passingSamples,
     failingSamples,
     passRate,
     metrics,

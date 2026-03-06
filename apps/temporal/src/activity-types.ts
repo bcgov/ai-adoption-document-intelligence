@@ -22,6 +22,14 @@ export const REGISTERED_ACTIVITY_TYPES = [
   'document.splitAndClassify',
   'document.validateFields',
   'segment.combineResult',
+  'benchmark.evaluate',
+  'benchmark.aggregate',
+  'benchmark.cleanup',
+  'benchmark.updateRunStatus',
+  'benchmark.compareAgainstBaseline',
+  'benchmark.writePrediction',
+  'benchmark.materializeDataset',
+  'benchmark.loadDatasetManifest',
 ] as const;
 
 export type RegisteredActivityType = typeof REGISTERED_ACTIVITY_TYPES[number];

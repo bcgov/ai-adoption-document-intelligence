@@ -58,7 +58,7 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
       const aggregated = computeAggregatedMetrics(results);
 
       expect(aggregated.totalSamples).toBe(5);
-      expect(aggregated.passingsSamples).toBe(3);
+      expect(aggregated.passingSamples).toBe(3);
       expect(aggregated.failingSamples).toBe(2);
       expect(aggregated.passRate).toBe(0.6);
 
@@ -390,7 +390,7 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
 
       expect(aggregation.overall).toBeDefined();
       expect(aggregation.overall.totalSamples).toBe(2);
-      expect(aggregation.overall.passingsSamples).toBe(2);
+      expect(aggregation.overall.passingSamples).toBe(2);
       expect(aggregation.overall.metrics.f1).toBeDefined();
     });
 
@@ -533,7 +533,7 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
       const aggregated = computeAggregatedMetrics(results);
 
       expect(aggregated.totalSamples).toBe(0);
-      expect(aggregated.passingsSamples).toBe(0);
+      expect(aggregated.passingSamples).toBe(0);
       expect(aggregated.failingSamples).toBe(0);
       expect(aggregated.passRate).toBe(0);
       expect(aggregated.metrics).toEqual({});
@@ -558,7 +558,7 @@ describe("Benchmark Aggregation & Failure Analysis", () => {
       const aggregated = computeAggregatedMetrics(results);
 
       expect(aggregated.totalSamples).toBe(2);
-      expect(aggregated.passingsSamples).toBe(0);
+      expect(aggregated.passingSamples).toBe(0);
       expect(aggregated.failingSamples).toBe(2);
       expect(aggregated.passRate).toBe(0);
 

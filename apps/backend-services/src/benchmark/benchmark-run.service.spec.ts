@@ -628,7 +628,7 @@ describe("BenchmarkRunService", () => {
             },
           ],
           _aggregate: {
-            overall: { totalSamples: 2, passingsSamples: 1, failingSamples: 1, passRate: 0.5, metrics: {} },
+            overall: { totalSamples: 2, passingSamples: 1, failingSamples: 1, passRate: 0.5, metrics: {} },
             failureAnalysis: {
               worstSamples: [
                 { sampleId: "s1", metricValue: 0.5, metrics: { accuracy: 0.5 }, diagnostics: { type: "invoice" } },

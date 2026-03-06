@@ -14,6 +14,7 @@ import {
 import { IconDownload } from "@tabler/icons-react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMultipleRuns } from "../hooks/useRuns";
+import { getStatusColor } from "../utils";
 
 interface ComparisonData {
   runs: Array<{
@@ -29,23 +30,6 @@ interface ComparisonData {
   metricNames: string[];
   paramNames: string[];
   tagNames: string[];
-}
-
-function getStatusColor(status: string): string {
-  switch (status) {
-    case "pending":
-      return "blue";
-    case "running":
-      return "yellow";
-    case "completed":
-      return "green";
-    case "failed":
-      return "red";
-    case "cancelled":
-      return "gray";
-    default:
-      return "gray";
-  }
 }
 
 function computeDelta(current: number, baseline: number): number {

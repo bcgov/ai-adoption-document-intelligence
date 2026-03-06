@@ -31,7 +31,7 @@ export function useConfigureSchedule(projectId: string, definitionId: string) {
         scheduleCron?: string;
         scheduleId?: string;
       }>(
-        `/api/benchmark/projects/${projectId}/definitions/${definitionId}/schedule`,
+        `/benchmark/projects/${projectId}/definitions/${definitionId}/schedule`,
         config,
       );
       return response.data;
@@ -55,7 +55,7 @@ export function useScheduleInfo(projectId: string, definitionId: string) {
     queryKey: ["schedule-info", projectId, definitionId],
     queryFn: async () => {
       const response = await apiService.get<ScheduleInfo | null>(
-        `/api/benchmark/projects/${projectId}/definitions/${definitionId}/schedule`,
+        `/benchmark/projects/${projectId}/definitions/${definitionId}/schedule`,
       );
       return response.data;
     },

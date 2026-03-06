@@ -23,11 +23,10 @@ import {
   ApplicationFailure,
 } from '@temporalio/workflow';
 import type { GraphWorkflowConfig } from './graph-workflow-types';
-import type { EvaluationResult } from './benchmark-types';
+import type { EvaluationResult, DatasetManifest } from './benchmark-types';
 import {
   benchmarkExecuteWorkflow,
   type BenchmarkExecuteInput,
-  type BenchmarkExecuteOutput,
 } from './activities/benchmark-execute';
 
 // ---------------------------------------------------------------------------
@@ -66,7 +65,7 @@ type BenchmarkActivities = {
   }) => Promise<{
     overall: {
       totalSamples: number;
-      passingsSamples: number;
+      passingSamples: number;
       failingSamples: number;
       passRate: number;
       metrics: Record<string, {
@@ -130,22 +129,6 @@ const activities = proxyActivities<BenchmarkActivities>(DEFAULT_ACTIVITY_OPTIONS
 // ---------------------------------------------------------------------------
 // Workflow Types
 // ---------------------------------------------------------------------------
-
-export interface DatasetManifest {
-  schemaVersion: string;
-  samples: Array<{
-    id: string;
-    inputs: Array<{ path: string; mimeType: string }>;
-    groundTruth: Array<{ path: string; format: string }>;
-    metadata: Record<string, unknown>;
-  }>;
-  splits?: {
-    train?: string[];
-    validation?: string[];
-    test?: string[];
-    [splitName: string]: string[] | undefined;
-  };
-}
 
 export interface BenchmarkRunWorkflowInput {
   /** Benchmark run ID */
@@ -260,14 +243,14 @@ function joinPath(...segments: string[]): string {
  */
 function flattenMetrics(overall: {
   totalSamples: number;
-  passingsSamples: number;
+  passingSamples: number;
   failingSamples: number;
   passRate: number;
   metrics: Record<string, { name: string; mean: number; median: number; stdDev: number; p5: number; p25: number; p75: number; p95: number; min: number; max: number }>;
 }): Record<string, number> {
   const flat: Record<string, number> = {
     total_samples: overall.totalSamples,
-    passing_samples: overall.passingsSamples,
+    passing_samples: overall.passingSamples,
     failing_samples: overall.failingSamples,
     pass_rate: overall.passRate,
   };
@@ -493,7 +476,6 @@ export async function benchmarkRunWorkflow(
     const childTaskQueue = 'benchmark-processing';
 
     const evaluationResults: EvaluationResult[] = [];
-    const executionOutputs: BenchmarkExecuteOutput[] = [];
 
     // Process samples in batches with concurrency control
     for (let i = 0; i < samplesToProcess.length; i += maxParallel) {
@@ -577,8 +559,6 @@ export async function benchmarkRunWorkflow(
         }
 
         const { sample, executeOutput, inputPaths, groundTruthPaths } = result;
-
-        executionOutputs.push(executeOutput);
 
         // Only evaluate if execution succeeded
         if (executeOutput.success) {

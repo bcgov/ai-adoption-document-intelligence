@@ -8,33 +8,17 @@
 
 import { getPrismaClient } from './database-client';
 import type { Prisma } from '../generated';
+import {
+  computeMetricComparisons,
+  type MetricThreshold,
+  type BaselineComparison,
+} from './benchmark-comparison-utils';
+
+export type { MetricThreshold, MetricComparison, BaselineComparison } from './benchmark-comparison-utils';
 
 export interface BenchmarkBaselineComparisonInput {
   /** Benchmark run ID */
   runId: string;
-}
-
-export interface MetricThreshold {
-  metricName: string;
-  type: 'absolute' | 'relative';
-  value: number;
-}
-
-export interface MetricComparison {
-  metricName: string;
-  currentValue: number;
-  baselineValue: number;
-  delta: number;
-  deltaPercent: number;
-  passed: boolean;
-  threshold?: MetricThreshold;
-}
-
-export interface BaselineComparison {
-  baselineRunId: string;
-  overallPassed: boolean;
-  metricComparisons: MetricComparison[];
-  regressedMetrics: string[];
 }
 
 /**
@@ -63,6 +47,7 @@ export async function benchmarkCompareAgainstBaseline(
     where: {
       definitionId: run.definitionId,
       isBaseline: true,
+      status: 'completed',
     },
   });
 
@@ -97,55 +82,11 @@ export async function benchmarkCompareAgainstBaseline(
   const baselineMetrics = baseline.metrics as Record<string, unknown>;
   const thresholds = (baseline.baselineThresholds as unknown as MetricThreshold[]) || [];
 
-  const metricComparisons: MetricComparison[] = [];
-  const regressedMetrics: string[] = [];
-
-  // Compare each metric that exists in both runs
-  for (const metricName of Object.keys(currentMetrics)) {
-    const currentValue = currentMetrics[metricName];
-    const baselineValue = baselineMetrics[metricName];
-
-    // Skip non-numeric metrics
-    if (
-      typeof currentValue !== 'number' ||
-      typeof baselineValue !== 'number'
-    ) {
-      continue;
-    }
-
-    const delta = currentValue - baselineValue;
-    const deltaPercent =
-      baselineValue !== 0 ? (delta / baselineValue) * 100 : 0;
-
-    // Find threshold for this metric
-    const threshold = thresholds.find((t) => t.metricName === metricName);
-
-    let passed = true;
-
-    if (threshold) {
-      if (threshold.type === 'absolute') {
-        // Absolute threshold: current value must be >= threshold value
-        passed = currentValue >= threshold.value;
-      } else if (threshold.type === 'relative') {
-        // Relative threshold: current value must be >= (baseline * threshold value)
-        passed = currentValue >= baselineValue * threshold.value;
-      }
-
-      if (!passed) {
-        regressedMetrics.push(metricName);
-      }
-    }
-
-    metricComparisons.push({
-      metricName,
-      currentValue,
-      baselineValue,
-      delta,
-      deltaPercent,
-      passed,
-      threshold,
-    });
-  }
+  const { metricComparisons, regressedMetrics } = computeMetricComparisons(
+    currentMetrics,
+    baselineMetrics,
+    thresholds,
+  );
 
   const comparison: BaselineComparison = {
     baselineRunId: baseline.id,

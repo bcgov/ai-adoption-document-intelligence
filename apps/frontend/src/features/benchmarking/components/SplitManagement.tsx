@@ -22,7 +22,7 @@ import {
   Title,
 } from "@mantine/core";
 import { IconLock, IconLockOpen, IconPlus } from "@tabler/icons-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ManifestSample } from "../hooks/useDatasetVersions";
 import { useAllSamples } from "../hooks/useDatasetVersions";
 import {
@@ -31,6 +31,7 @@ import {
   type SplitType,
   useCreateSplit,
   useFreezeSplit,
+  useSplit,
   useSplits,
   useUpdateSplit,
 } from "../hooks/useSplits";
@@ -360,21 +361,25 @@ function EditSplitDialog({
 }: EditSplitDialogProps) {
   const [selectedSampleIds, setSelectedSampleIds] = useState<string[]>([]);
   const [error, setError] = useState("");
-  const [loaded, setLoaded] = useState(false);
 
   const updateMutation = useUpdateSplit(datasetId, versionId, split.id);
+
+  // Fetch the split details to get current sample IDs
+  const { data: splitDetail } = useSplit(
+    open ? datasetId : undefined,
+    open ? versionId : undefined,
+    open ? split.id : undefined,
+  );
 
   // Fetch all samples for the multiselect (not just the paginated view)
   const { samples: allSamples, isLoading: isLoadingAllSamples } = useAllSamples(datasetId, versionId);
 
-  // Load current sample IDs when dialog opens
-  useState(() => {
-    if (open && !loaded) {
-      // In a real implementation, we'd fetch the full split details
-      // For now, we'll start with an empty selection
-      setLoaded(true);
+  // Load current sample IDs when split details are fetched
+  useEffect(() => {
+    if (splitDetail?.data?.sampleIds) {
+      setSelectedSampleIds(splitDetail.data.sampleIds);
     }
-  });
+  }, [splitDetail]);
 
   const sampleOptions = allSamples.map((s) => ({
     value: s.id,

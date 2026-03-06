@@ -15,13 +15,14 @@ import {
   workflowInfo,
   proxyActivities,
 } from '@temporalio/workflow';
-import type {
-  GraphWorkflowInput,
-  GraphWorkflowResult,
-  GraphWorkflowStatus,
-  GraphWorkflowProgress,
-  NodeStatus,
-  CancelSignal,
+import {
+  GRAPH_RUNNER_VERSION,
+  type GraphWorkflowInput,
+  type GraphWorkflowResult,
+  type GraphWorkflowStatus,
+  type GraphWorkflowProgress,
+  type NodeStatus,
+  type CancelSignal,
 } from './graph-workflow-types';
 import { validateGraphConfigForExecution } from './graph-schema-validator';
 import { runGraphExecution } from './graph-engine';
@@ -36,7 +37,6 @@ type PreExecutionActivities = {
 
 // Workflow type constant
 export const GRAPH_WORKFLOW_TYPE = 'graphWorkflow';
-const GRAPH_RUNNER_VERSION = '1.0.0';
 
 // Query definitions
 export const getStatus = defineQuery<GraphWorkflowStatus>('getStatus');

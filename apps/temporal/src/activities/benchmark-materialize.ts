@@ -2,6 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { getPrismaClient } from './database-client';
 import { getBlobStorageClient } from '../blob-storage/blob-storage-client';
+import type { DatasetManifest } from '../benchmark-types';
 
 interface MaterializeDatasetParams {
   datasetVersionId: string;
@@ -185,21 +186,7 @@ export async function materializeDataset(
 // Manifest Loading Activity
 // ---------------------------------------------------------------------------
 
-export interface DatasetManifest {
-  schemaVersion: string;
-  samples: Array<{
-    id: string;
-    inputs: Array<{ path: string; mimeType: string }>;
-    groundTruth: Array<{ path: string; format: string }>;
-    metadata: Record<string, unknown>;
-  }>;
-  splits?: {
-    train?: string[];
-    validation?: string[];
-    test?: string[];
-    [splitName: string]: string[] | undefined;
-  };
-}
+export type { DatasetManifest } from '../benchmark-types';
 
 interface LoadManifestParams {
   materializedPath: string;

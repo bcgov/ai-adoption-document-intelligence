@@ -32,46 +32,7 @@ import { DefinitionDetailView } from "../components/DefinitionDetailView";
 import { useDefinition, useDefinitions } from "../hooks/useDefinitions";
 import { useProject, useProjects } from "../hooks/useProjects";
 import { useRuns } from "../hooks/useRuns";
-
-function getStatusColor(status: string): string {
-  switch (status) {
-    case "pending":
-      return "blue";
-    case "running":
-      return "yellow";
-    case "completed":
-      return "green";
-    case "failed":
-      return "red";
-    case "cancelled":
-      return "gray";
-    default:
-      return "gray";
-  }
-}
-
-function formatDuration(durationMs: number | null): string {
-  if (!durationMs) return "-";
-  const seconds = Math.floor(durationMs / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-
-  if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
-  }
-  if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s`;
-  }
-  return `${seconds}s`;
-}
-
-function getElapsedTime(startedAt: string | null): string {
-  if (!startedAt) return "-";
-  const start = new Date(startedAt).getTime();
-  const now = Date.now();
-  const elapsed = now - start;
-  return formatDuration(elapsed);
-}
+import { formatDurationMs, getElapsedTime, getStatusColor } from "../utils";
 
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -519,7 +480,7 @@ export function ProjectDetailPage() {
                     >
                       {run.status === "running" || run.status === "pending"
                         ? getElapsedTime(run.startedAt)
-                        : formatDuration(run.durationMs)}
+                        : formatDurationMs(run.durationMs)}
                     </Table.Td>
                     <Table.Td
                       style={{ cursor: "pointer" }}

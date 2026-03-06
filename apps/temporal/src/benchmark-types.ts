@@ -112,6 +112,25 @@ export interface EvaluationResult {
 }
 
 /**
+ * Dataset manifest describing samples and their files
+ */
+export interface DatasetManifest {
+  schemaVersion: string;
+  samples: Array<{
+    id: string;
+    inputs: Array<{ path: string; mimeType: string }>;
+    groundTruth: Array<{ path: string; format: string }>;
+    metadata: Record<string, unknown>;
+  }>;
+  splits?: {
+    train?: string[];
+    validation?: string[];
+    test?: string[];
+    [splitName: string]: string[] | undefined;
+  };
+}
+
+/**
  * Benchmark evaluator interface
  *
  * Evaluators are pluggable components that compare workflow predictions

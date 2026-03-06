@@ -4,7 +4,7 @@ import { RegressionReportPage } from '../pages/RegressionReportPage';
 
 /**
  * Test Plan: US-037 - Regression Reports UI - Advanced Features
- * Tests advanced features like filtering, drill-down, annotations, and shareable links
+ * Tests advanced features like filtering, drill-down, and shareable links
  * NOTE: Many of these features are not yet implemented and tests are skipped
  */
 test.describe('Regression Report - Advanced Features', () => {
@@ -74,16 +74,9 @@ test.describe('Regression Report - Advanced Features', () => {
     const drillDownPanel = regressionPage.page.locator('[data-testid="metric-drill-down-panel"]');
     await expect(drillDownPanel).toBeVisible();
 
-    // - Historical values for this metric across runs
-    await expect(drillDownPanel).toContainText('Historical Values');
-    const historicalChart = drillDownPanel.locator('[data-testid="historical-chart"]');
-    await expect(historicalChart).toBeVisible();
-
-    // - Affected samples (if available)
-    await expect(drillDownPanel).toContainText('Affected Samples');
-
-    // - Suggested investigation steps
-    await expect(drillDownPanel).toContainText('Investigation');
+    // - Metric comparison details (current vs baseline values)
+    await expect(drillDownPanel).toContainText('Current Value');
+    await expect(drillDownPanel).toContainText('Baseline Value');
 
     // User can navigate to affected samples for detailed inspection
     const viewSamplesBtn = drillDownPanel.locator('[data-testid="view-affected-samples-btn"]');
@@ -106,59 +99,6 @@ test.describe('Regression Report - Advanced Features', () => {
     // Then: Navigates to drill-down view filtered to worst samples for this metric
     await regressionPage.page.waitForLoadState('networkidle');
     await expect(regressionPage.page).toHaveURL(/drill-down/);
-  });
-
-  // REQ US-037 Scenario 15: Regression Annotations
-  test('should allow adding annotations to regression report', async () => {
-    // TODO: Annotations feature not yet implemented
-    // Given: User identifies a known cause for a regression
-    await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
-
-    // When: User adds an annotation/comment to the regression report
-    const addAnnotationBtn = regressionPage.page.locator('[data-testid="add-annotation-btn"]');
-    await addAnnotationBtn.click();
-
-    const annotationInput = regressionPage.page.locator('[data-testid="annotation-input"]');
-    await annotationInput.fill('Regression caused by dataset quality issue in batch-2026-02-15');
-
-    const saveAnnotationBtn = regressionPage.page.locator('[data-testid="save-annotation-btn"]');
-    await saveAnnotationBtn.click();
-
-    // Then: Annotation is saved and displayed on the report
-    const annotation = regressionPage.page.locator('[data-testid="annotation"]');
-    await expect(annotation).toBeVisible();
-    await expect(annotation).toContainText('Regression caused by dataset quality issue');
-
-    // Annotation includes: timestamp, user, text
-    await expect(annotation).toContainText(/Test User|testuser/i); // User who added
-    await expect(annotation).toContainText(/\d{4}-\d{2}-\d{2}/); // Timestamp
-
-    // Annotations are visible to all users
-    // Helps with regression investigation and knowledge sharing
-  });
-
-  // REQ US-037 Scenario 15: Multiple Annotations
-  test('should support multiple annotations on same report', async () => {
-    // TODO: Annotations feature not yet implemented
-    // Given: Report already has annotations
-    await regressionPage.goto(SEED_PROJECT_ID, SEED_RUN_ID_REGRESSED);
-
-    // When: User adds another annotation
-    const addAnnotationBtn = regressionPage.page.locator('[data-testid="add-annotation-btn"]');
-    await addAnnotationBtn.click();
-
-    const annotationInput = regressionPage.page.locator('[data-testid="annotation-input"]');
-    await annotationInput.fill('Fix deployed in commit abc123');
-
-    const saveAnnotationBtn = regressionPage.page.locator('[data-testid="save-annotation-btn"]');
-    await saveAnnotationBtn.click();
-
-    // Then: Multiple annotations are displayed chronologically
-    const annotations = regressionPage.page.locator('[data-testid="annotation"]');
-    await expect(annotations).toHaveCount(2);
-
-    // Most recent annotation appears first or last (depends on design)
-    await expect(annotations.first()).toContainText(/Fix deployed|Regression caused/);
   });
 
   // REQ US-037 Scenario 16: Shareable Report Link

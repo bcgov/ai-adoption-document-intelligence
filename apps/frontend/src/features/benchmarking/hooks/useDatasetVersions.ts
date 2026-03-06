@@ -179,25 +179,6 @@ export const useDatasetVersions = (datasetId: string) => {
   };
 };
 
-export const useDatasetVersion = (datasetId: string, versionId: string) => {
-  const versionQuery = useQuery({
-    queryKey: ["benchmark-dataset-version", datasetId, versionId],
-    queryFn: async () => {
-      const response = await apiService.get<DatasetVersion>(
-        `/benchmark/datasets/${datasetId}/versions/${versionId}`,
-      );
-      return response.data;
-    },
-    enabled: !!datasetId && !!versionId,
-  });
-
-  return {
-    version: versionQuery.data,
-    isLoading: versionQuery.isLoading,
-    error: versionQuery.error,
-  };
-};
-
 export const useDatasetSamples = (
   datasetId: string,
   versionId: string,

@@ -1,5 +1,6 @@
 import {
   ActionIcon,
+  Alert,
   Badge,
   Code,
   Group,
@@ -12,7 +13,8 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { IconDownload, IconFile, IconFileCheck } from "@tabler/icons-react";
+import { IconAlertCircle, IconDownload, IconFile, IconFileCheck } from "@tabler/icons-react";
+import { useState } from "react";
 import { apiService } from "@/data/services/api.service";
 
 interface SampleFile {
@@ -56,18 +58,27 @@ export function SampleDetailViewer({
   opened,
   onClose,
 }: SampleDetailViewerProps) {
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
   const handleDownload = async (filePath: string) => {
-    const blob = await apiService.getBlob(
-      `/benchmark/datasets/${datasetId}/versions/${versionId}/files/download?path=${encodeURIComponent(filePath)}`,
-    );
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filePath.split("/").pop() || "download";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      setDownloadError(null);
+      const blob = await apiService.getBlob(
+        `/benchmark/datasets/${datasetId}/versions/${versionId}/files/download?path=${encodeURIComponent(filePath)}`,
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filePath.split("/").pop() || "download";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadError(
+        err instanceof Error ? err.message : "Failed to download file",
+      );
+    }
   };
   return (
     <Modal
@@ -81,6 +92,20 @@ export function SampleDetailViewer({
       data-testid="sample-detail-viewer"
     >
       <Stack gap="md">
+        {downloadError && (
+          <Alert
+            icon={<IconAlertCircle size={16} />}
+            title="Download failed"
+            color="red"
+            variant="light"
+            withCloseButton
+            onClose={() => setDownloadError(null)}
+            data-testid="download-error-alert"
+          >
+            {downloadError}
+          </Alert>
+        )}
+
         {/* Input Files */}
         <div>
           <Group gap="xs" mb="xs">

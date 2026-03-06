@@ -41,44 +41,8 @@ import {
   useRun,
   useStartRun,
 } from "../hooks/useRuns";
-
-function getStatusColor(status: string): string {
-  switch (status) {
-    case "pending":
-      return "blue";
-    case "running":
-      return "yellow";
-    case "completed":
-      return "green";
-    case "failed":
-      return "red";
-    case "cancelled":
-      return "gray";
-    default:
-      return "gray";
-  }
-}
-
-function formatDuration(
-  startedAt: string | null,
-  completedAt: string | null,
-): string {
-  if (!startedAt) return "-";
-  const start = new Date(startedAt).getTime();
-  const end = completedAt ? new Date(completedAt).getTime() : Date.now();
-  const durationMs = Math.max(0, end - start);
-  const seconds = Math.floor(durationMs / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-
-  if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
-  }
-  if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s`;
-  }
-  return `${seconds}s`;
-}
+import { TEMPORAL_UI_URL } from "@/shared/constants";
+import { formatDurationFromDates, getStatusColor } from "../utils";
 
 interface FieldComparisonResult {
   field: string;
@@ -328,7 +292,7 @@ export function RunDetailPage() {
   const canCancel = run.status === "running" || run.status === "pending";
   const canRerun = run.status === "completed" || run.status === "failed";
   const canEditThresholds = run.isBaseline && run.baselineThresholds && run.baselineThresholds.length > 0;
-  const temporalUrl = `http://localhost:8088/namespaces/default/workflows/${run.temporalWorkflowId}`;
+  const temporalUrl = `${TEMPORAL_UI_URL}/namespaces/default/workflows/${run.temporalWorkflowId}`;
 
   // All possible artifact types (from schema) - should always be available in filter dropdown
   const allArtifactTypes = [
@@ -574,7 +538,7 @@ export function RunDetailPage() {
               <Table.Tr>
                 <Table.Td fw={500}>Duration</Table.Td>
                 <Table.Td>
-                  {formatDuration(run.startedAt, run.completedAt)}
+                  {formatDurationFromDates(run.startedAt, run.completedAt)}
                 </Table.Td>
               </Table.Tr>
               <Table.Tr>
