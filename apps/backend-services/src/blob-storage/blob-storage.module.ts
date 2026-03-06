@@ -41,7 +41,11 @@ import { MinioBlobStorageService } from "./minio-blob-storage.service";
 
         return minioService;
       },
-      inject: [ConfigService, MinioBlobStorageService, AzureBlobProviderService],
+      inject: [
+        ConfigService,
+        MinioBlobStorageService,
+        AzureBlobProviderService,
+      ],
     },
   ],
   exports: [BLOB_STORAGE, AzureStorageService],

@@ -1,11 +1,11 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { AzureService } from "../azure/azure.service";
+import { ClassifierStatus } from "../azure/dto/classifier-constants.dto";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { ClassifierStatus } from "../azure/dto/classifier-constants.dto";
 import { DatabaseService } from "../database/database.service";
 import { ClassifierService } from "./classifier.service";
 
@@ -368,9 +368,7 @@ describe("ClassifierService", () => {
       (blobStorage.list as jest.Mock).mockResolvedValue([
         "classifier/gid/cid/label/file1.pdf",
       ]);
-      (blobStorage.read as jest.Mock).mockResolvedValue(
-        Buffer.from("test"),
-      );
+      (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
       (azureStorage.uploadFile as jest.Mock).mockResolvedValue(undefined);
       const result = await service.uploadDocumentsForTraining("gid", "cid");
       expect(result[0].originalPath).toContain("file1.pdf");
@@ -415,9 +413,7 @@ describe("ClassifierService", () => {
           }),
         }),
       };
-      (blobStorage.read as jest.Mock).mockResolvedValue(
-        Buffer.from("test"),
-      );
+      (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
       const result = await service.requestClassification("file", "cid", "gid");
       expect(result.status).toBe("202");
       expect(result.content).toBe("loc");
@@ -431,9 +427,7 @@ describe("ClassifierService", () => {
           }),
         }),
       };
-      (blobStorage.read as jest.Mock).mockResolvedValue(
-        Buffer.from("test"),
-      );
+      (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
       const result = await service.requestClassification("file", "cid", "gid");
       expect(result.status).toBe("400");
       expect(result.error).toBe("fail");

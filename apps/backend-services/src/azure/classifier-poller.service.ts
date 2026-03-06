@@ -2,8 +2,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
-import { DatabaseService } from "@/database/database.service";
 import { AzureStorageService } from "@/blob-storage/azure-storage.service";
+import { DatabaseService } from "@/database/database.service";
 import { ClassifierService } from "./classifier.service";
 
 @Injectable()

@@ -31,7 +31,7 @@ const mockDatasetService = {
 
 const mockDatabaseService = {
   isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-  getUsersGroups: jest.fn().mockResolvedValue([{ group_id: 'test-group' }]),
+  getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "test-group" }]),
   isUserInGroup: jest.fn().mockResolvedValue(true),
 };
 
@@ -144,9 +144,16 @@ describe("DatasetController", () => {
 
       mockDatasetService.listDatasets.mockResolvedValue(mockResponse);
 
-      const result = await controller.listDatasets(undefined, undefined, undefined, mockReq);
+      const result = await controller.listDatasets(
+        undefined,
+        undefined,
+        undefined,
+        mockReq,
+      );
 
-      expect(mockDatasetService.listDatasets).toHaveBeenCalledWith(1, 20, ["test-group"]);
+      expect(mockDatasetService.listDatasets).toHaveBeenCalledWith(1, 20, [
+        "test-group",
+      ]);
       expect(result).toEqual(mockResponse);
     });
 
@@ -161,9 +168,16 @@ describe("DatasetController", () => {
 
       mockDatasetService.listDatasets.mockResolvedValue(mockResponse);
 
-      const result = await controller.listDatasets("2", "50", undefined, mockReq);
+      const result = await controller.listDatasets(
+        "2",
+        "50",
+        undefined,
+        mockReq,
+      );
 
-      expect(mockDatasetService.listDatasets).toHaveBeenCalledWith(2, 50, ["test-group"]);
+      expect(mockDatasetService.listDatasets).toHaveBeenCalledWith(2, 50, [
+        "test-group",
+      ]);
       expect(result).toEqual(mockResponse);
     });
   });
@@ -209,9 +223,9 @@ describe("DatasetController", () => {
         new NotFoundException("Dataset with ID nonexistent not found"),
       );
 
-      await expect(controller.getDatasetById("nonexistent", mockReq)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        controller.getDatasetById("nonexistent", mockReq),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -238,7 +252,10 @@ describe("DatasetController", () => {
         createdAt: new Date(),
       };
 
-      mockDatasetService.getDatasetById.mockResolvedValue({ id: "dataset-123", groupId: "test-group" });
+      mockDatasetService.getDatasetById.mockResolvedValue({
+        id: "dataset-123",
+        groupId: "test-group",
+      });
       mockDatasetService.createVersion.mockResolvedValue(mockResponse);
 
       const result = await controller.createVersion(
@@ -261,9 +278,16 @@ describe("DatasetController", () => {
         resolvedIdentity: { userId: undefined },
       } as unknown as Request;
 
-      mockDatasetService.getDatasetById.mockResolvedValue({ id: "dataset-123", groupId: "test-group" });
+      mockDatasetService.getDatasetById.mockResolvedValue({
+        id: "dataset-123",
+        groupId: "test-group",
+      });
 
-      await controller.createVersion("dataset-123", createDto, mockRequestNoUser);
+      await controller.createVersion(
+        "dataset-123",
+        createDto,
+        mockRequestNoUser,
+      );
 
       expect(mockDatasetService.createVersion).toHaveBeenCalledWith(
         "dataset-123",
@@ -287,7 +311,10 @@ describe("DatasetController", () => {
         ],
       };
 
-      mockDatasetService.getDatasetById.mockResolvedValue({ id: "dataset-123", groupId: "test-group" });
+      mockDatasetService.getDatasetById.mockResolvedValue({
+        id: "dataset-123",
+        groupId: "test-group",
+      });
       mockDatasetService.listVersions.mockResolvedValue(mockResponse);
 
       const result = await controller.listVersions("dataset-123", mockReq);
@@ -375,7 +402,10 @@ describe("DatasetController", () => {
         totalFiles: 1,
       };
 
-      mockDatasetService.getDatasetById.mockResolvedValue({ id: "dataset-123", groupId: "test-group" });
+      mockDatasetService.getDatasetById.mockResolvedValue({
+        id: "dataset-123",
+        groupId: "test-group",
+      });
       mockDatasetService.uploadFilesToVersion.mockResolvedValue(mockResponse);
 
       const result = await controller.uploadFilesToVersion(
@@ -395,29 +425,61 @@ describe("DatasetController", () => {
     });
 
     it("throws BadRequestException when no files provided", async () => {
-      mockDatasetService.getDatasetById.mockResolvedValue({ id: "dataset-123", groupId: "test-group" });
+      mockDatasetService.getDatasetById.mockResolvedValue({
+        id: "dataset-123",
+        groupId: "test-group",
+      });
 
       await expect(
-        controller.uploadFilesToVersion("dataset-123", "version-123", [], mockReq),
+        controller.uploadFilesToVersion(
+          "dataset-123",
+          "version-123",
+          [],
+          mockReq,
+        ),
       ).rejects.toThrow(BadRequestException);
       await expect(
-        controller.uploadFilesToVersion("dataset-123", "version-123", [], mockReq),
+        controller.uploadFilesToVersion(
+          "dataset-123",
+          "version-123",
+          [],
+          mockReq,
+        ),
       ).rejects.toThrow("No files provided for upload");
     });
 
     it("throws BadRequestException when files is undefined", async () => {
-      mockDatasetService.getDatasetById.mockResolvedValue({ id: "dataset-123", groupId: "test-group" });
+      mockDatasetService.getDatasetById.mockResolvedValue({
+        id: "dataset-123",
+        groupId: "test-group",
+      });
 
       await expect(
-        controller.uploadFilesToVersion("dataset-123", "version-123", undefined as never, mockReq),
+        controller.uploadFilesToVersion(
+          "dataset-123",
+          "version-123",
+          undefined as never,
+          mockReq,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
     it("uses anonymous user ID when user ID is missing", async () => {
-      const mockRequestNoUser = { user: undefined, resolvedIdentity: { userId: undefined } } as unknown as Request;
-      mockDatasetService.getDatasetById.mockResolvedValue({ id: "dataset-123", groupId: "test-group" });
+      const mockRequestNoUser = {
+        user: undefined,
+        resolvedIdentity: { userId: undefined },
+      } as unknown as Request;
+      mockDatasetService.getDatasetById.mockResolvedValue({
+        id: "dataset-123",
+        groupId: "test-group",
+      });
 
-      await controller.uploadFilesToVersion("dataset-123", "version-123", mockFiles, mockRequestNoUser);
+      await controller.uploadFilesToVersion(
+        "dataset-123",
+        "version-123",
+        mockFiles,
+        mockRequestNoUser,
+      );
 
       expect(mockDatasetService.uploadFilesToVersion).toHaveBeenCalledWith(
         "dataset-123",
@@ -497,7 +559,12 @@ describe("DatasetController", () => {
       );
 
       await expect(
-        controller.updateVersion("dataset-123", "nonexistent", { name: "test" }, mockReq),
+        controller.updateVersion(
+          "dataset-123",
+          "nonexistent",
+          { name: "test" },
+          mockReq,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -507,14 +574,22 @@ describe("DatasetController", () => {
       );
 
       await expect(
-        controller.updateVersion("dataset-123", "version-123", { name: "test" }, mockReq),
+        controller.updateVersion(
+          "dataset-123",
+          "version-123",
+          { name: "test" },
+          mockReq,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe("DELETE /api/benchmark/datasets/:id/versions/:versionId", () => {
     it("deletes a version successfully", async () => {
-      mockDatasetService.getDatasetById.mockResolvedValue({ id: "dataset-123", groupId: "test-group" });
+      mockDatasetService.getDatasetById.mockResolvedValue({
+        id: "dataset-123",
+        groupId: "test-group",
+      });
       mockDatasetService.deleteVersion.mockResolvedValue(undefined);
 
       await controller.deleteVersion("dataset-123", "version-123", mockReq);
@@ -528,10 +603,18 @@ describe("DatasetController", () => {
 
   describe("DELETE /api/benchmark/datasets/:id/versions/:versionId/samples/:sampleId", () => {
     it("deletes a sample successfully", async () => {
-      mockDatasetService.getDatasetById.mockResolvedValue({ id: "dataset-123", groupId: "test-group" });
+      mockDatasetService.getDatasetById.mockResolvedValue({
+        id: "dataset-123",
+        groupId: "test-group",
+      });
       mockDatasetService.deleteSample.mockResolvedValue(undefined);
 
-      await controller.deleteSample("dataset-123", "version-123", "sample-1", mockReq);
+      await controller.deleteSample(
+        "dataset-123",
+        "version-123",
+        "sample-1",
+        mockReq,
+      );
 
       expect(mockDatasetService.deleteSample).toHaveBeenCalledWith(
         "dataset-123",

@@ -230,10 +230,7 @@ export class AzureStorageService {
    * @param expiryDays - Number of days until the SAS expires (default: 7)
    * @returns SAS URL for the container
    */
-  async generateSasUrl(
-    containerName: string,
-    expiryDays = 7,
-  ): Promise<string> {
+  async generateSasUrl(containerName: string, expiryDays = 7): Promise<string> {
     try {
       if (!this.accountName || !this.accountKey) {
         throw new Error("Azure Storage account credentials not configured");
@@ -364,10 +361,7 @@ export class AzureStorageService {
    * @param prefix - Optional prefix filter
    * @returns Array of blob metadata
    */
-  async listBlobs(
-    containerName: string,
-    prefix?: string,
-  ): Promise<BlobInfo[]> {
+  async listBlobs(containerName: string, prefix?: string): Promise<BlobInfo[]> {
     try {
       const containerClient =
         this.blobServiceClient.getContainerClient(containerName);

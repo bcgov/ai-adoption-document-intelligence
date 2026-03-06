@@ -433,7 +433,7 @@ describe("BenchmarkDefinitionService", () => {
         evaluatorType: "schema-aware",
         evaluatorConfig: { threshold: 0.9 },
         runtimeSettings: { timeout: 3600 },
-          immutable: false,
+        immutable: false,
         revision: 1,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -475,7 +475,7 @@ describe("BenchmarkDefinitionService", () => {
         evaluatorType: "schema-aware",
         evaluatorConfig: { threshold: 0.9 },
         runtimeSettings: { timeout: 3600 },
-          immutable: false,
+        immutable: false,
         revision: 1,
         scheduleEnabled: false,
         scheduleCron: null,
@@ -492,9 +492,7 @@ describe("BenchmarkDefinitionService", () => {
         .spyOn(prisma.benchmarkDefinition, "findFirst")
         .mockResolvedValue(mockDefinition as never);
 
-      jest
-        .spyOn(prisma.benchmarkRun, "findFirst")
-        .mockResolvedValue(null);
+      jest.spyOn(prisma.benchmarkRun, "findFirst").mockResolvedValue(null);
 
       const result = await service.getDefinitionById("project-1", "def-1");
 
@@ -520,7 +518,7 @@ describe("BenchmarkDefinitionService", () => {
         evaluatorType: "schema-aware",
         evaluatorConfig: { threshold: 0.9 },
         runtimeSettings: { timeout: 3600 },
-          immutable: false,
+        immutable: false,
         revision: 1,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -589,7 +587,7 @@ describe("BenchmarkDefinitionService", () => {
         evaluatorType: "schema-aware",
         evaluatorConfig: { threshold: 0.9 },
         runtimeSettings: { timeout: 3600 },
-          immutable: false,
+        immutable: false,
         revision: 1,
         createdAt: new Date(),
         updatedAt: new Date(),

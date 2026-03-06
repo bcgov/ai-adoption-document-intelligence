@@ -129,7 +129,9 @@ export class BenchmarkDefinitionService {
     }
 
     // Compute workflow config hash
-    const workflowConfigHash = computeConfigHash(workflow.config as GraphWorkflowConfig);
+    const workflowConfigHash = computeConfigHash(
+      workflow.config as GraphWorkflowConfig,
+    );
 
     // Create the definition
     const definition = await this.prisma.benchmarkDefinition.create({
@@ -374,7 +376,9 @@ export class BenchmarkDefinitionService {
       }
 
       // Recompute workflow config hash
-      workflowConfigHash = computeConfigHash(workflow.config as GraphWorkflowConfig);
+      workflowConfigHash = computeConfigHash(
+        workflow.config as GraphWorkflowConfig,
+      );
     }
 
     if (dto.evaluatorType) {
@@ -428,7 +432,7 @@ export class BenchmarkDefinitionService {
             select: {
               id: true,
               status: true,
-  
+
               startedAt: true,
               completedAt: true,
             },
@@ -450,17 +454,18 @@ export class BenchmarkDefinitionService {
       if (dto.name) updateData.name = dto.name;
       if (dto.datasetVersionId)
         updateData.datasetVersion = { connect: { id: dto.datasetVersionId } };
-      if (dto.splitId)
-        updateData.split = { connect: { id: dto.splitId } };
+      if (dto.splitId) updateData.split = { connect: { id: dto.splitId } };
       if (dto.workflowId) {
         updateData.workflow = { connect: { id: dto.workflowId } };
         updateData.workflowConfigHash = workflowConfigHash;
       }
       if (dto.evaluatorType) updateData.evaluatorType = dto.evaluatorType;
       if (dto.evaluatorConfig)
-        updateData.evaluatorConfig = dto.evaluatorConfig as Prisma.InputJsonValue;
+        updateData.evaluatorConfig =
+          dto.evaluatorConfig as Prisma.InputJsonValue;
       if (dto.runtimeSettings)
-        updateData.runtimeSettings = dto.runtimeSettings as Prisma.InputJsonValue;
+        updateData.runtimeSettings =
+          dto.runtimeSettings as Prisma.InputJsonValue;
 
       const updated = await this.prisma.benchmarkDefinition.update({
         where: { id: definitionId },
@@ -481,7 +486,7 @@ export class BenchmarkDefinitionService {
             select: {
               id: true,
               status: true,
-  
+
               startedAt: true,
               completedAt: true,
             },

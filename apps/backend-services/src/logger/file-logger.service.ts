@@ -1,6 +1,6 @@
-import { ConsoleLogger, LogLevel } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
+import { ConsoleLogger, LogLevel } from "@nestjs/common";
+import * as fs from "fs";
+import * as path from "path";
 
 /**
  * Application-wide logger that replaces NestJS's default ConsoleLogger.
@@ -22,54 +22,64 @@ export class FileLogger extends ConsoleLogger {
 
   constructor(logFilePath?: string) {
     super();
-    this.logFilePath = logFilePath || path.join(process.cwd(), 'backend.log');
+    this.logFilePath = logFilePath || path.join(process.cwd(), "backend.log");
 
     try {
-      fs.writeFileSync(this.logFilePath, `=== Backend started at ${new Date().toISOString()} ===\n`);
+      fs.writeFileSync(
+        this.logFilePath,
+        `=== Backend started at ${new Date().toISOString()} ===\n`,
+      );
     } catch (error) {
-      console.error('Failed to initialize log file:', error);
+      // biome-ignore lint/suspicious/noConsole: fallback when file logger fails
+      console.error("Failed to initialize log file:", error);
     }
   }
 
-  private writeToFile(level: string, message: string, context?: string, trace?: string) {
+  private writeToFile(
+    level: string,
+    message: string,
+    context?: string,
+    trace?: string,
+  ) {
     const timestamp = new Date().toISOString();
-    const contextStr = context ? ` [${context}]` : '';
-    const logEntry = `[${timestamp}] [${level}]${contextStr} ${message}${trace ? `\n${trace}` : ''}\n`;
+    const contextStr = context ? ` [${context}]` : "";
+    const logEntry = `[${timestamp}] [${level}]${contextStr} ${message}${trace ? `\n${trace}` : ""}\n`;
 
     try {
       fs.appendFileSync(this.logFilePath, logEntry);
     } catch (error) {
-      console.error('Failed to write to log file:', error);
+      // biome-ignore lint/suspicious/noConsole: fallback when file logger fails
+      console.error("Failed to write to log file:", error);
     }
   }
 
   log(message: string, context?: string) {
     super.log(message, context);
-    this.writeToFile('LOG', message, context);
+    this.writeToFile("LOG", message, context);
   }
 
   error(message: string, trace?: string, context?: string) {
     super.error(message, trace, context);
-    this.writeToFile('ERROR', message, context, trace);
+    this.writeToFile("ERROR", message, context, trace);
   }
 
   warn(message: string, context?: string) {
     super.warn(message, context);
-    this.writeToFile('WARN', message, context);
+    this.writeToFile("WARN", message, context);
   }
 
   debug(message: string, context?: string) {
     super.debug(message, context);
-    this.writeToFile('DEBUG', message, context);
+    this.writeToFile("DEBUG", message, context);
   }
 
   verbose(message: string, context?: string) {
     super.verbose(message, context);
-    this.writeToFile('VERBOSE', message, context);
+    this.writeToFile("VERBOSE", message, context);
   }
 
   fatal(message: string, context?: string) {
     super.fatal(message, context);
-    this.writeToFile('FATAL', message, context);
+    this.writeToFile("FATAL", message, context);
   }
 }

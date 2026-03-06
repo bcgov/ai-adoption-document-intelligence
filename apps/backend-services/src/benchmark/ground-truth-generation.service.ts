@@ -17,9 +17,9 @@ import {
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
 import { DatabaseService } from "@/database/database.service";
+import { PrismaService } from "@/database/prisma.service";
 import { ExtractedFields } from "@/ocr/azure-types";
 import { OcrService } from "@/ocr/ocr.service";
-import { PrismaService } from "@/database/prisma.service";
 import {
   GroundTruthJobResponseDto,
   GroundTruthJobsListResponseDto,
@@ -200,7 +200,13 @@ export class GroundTruthGenerationService {
       const batch = pendingJobs.slice(i, i + BATCH_SIZE);
       await Promise.all(
         batch.map((job) =>
-          this.processJob(job.id, datasetId, versionId, version.storagePrefix!, groupId),
+          this.processJob(
+            job.id,
+            datasetId,
+            versionId,
+            version.storagePrefix!,
+            groupId,
+          ),
         ),
       );
     }
@@ -232,7 +238,9 @@ export class GroundTruthGenerationService {
       const sample = manifest.samples.find((s) => s.id === job.sampleId);
 
       if (!sample || sample.inputs.length === 0) {
-        throw new Error(`Sample ${job.sampleId} not found or has no input files`);
+        throw new Error(
+          `Sample ${job.sampleId} not found or has no input files`,
+        );
       }
 
       const inputFile = sample.inputs[0];
@@ -242,7 +250,9 @@ export class GroundTruthGenerationService {
       const fileBuffer = await this.blobStorage.read(inputBlobKey);
 
       // Determine file type from MIME
-      const fileType = inputFile.mimeType.startsWith("image/") ? "image" : "pdf";
+      const fileType = inputFile.mimeType.startsWith("image/")
+        ? "image"
+        : "pdf";
       const originalFilename = path.basename(inputFile.path);
       const ext = path.extname(originalFilename);
 
@@ -251,11 +261,15 @@ export class GroundTruthGenerationService {
         where: { id: job.workflowConfigId },
         select: { config: true },
       });
-      const workflowConfig = workflow?.config as { ctx?: Record<string, { defaultValue?: unknown }> } | null;
-      const modelId = (workflowConfig?.ctx?.modelId?.defaultValue as string) || "prebuilt-layout";
+      const workflowConfig = workflow?.config as {
+        ctx?: Record<string, { defaultValue?: unknown }>;
+      } | null;
+      const modelId =
+        (workflowConfig?.ctx?.modelId?.defaultValue as string) ||
+        "prebuilt-layout";
 
       // Create document record
-      const documentId = require("crypto").randomUUID();
+      const documentId = crypto.randomUUID();
       const docBlobKey = `documents/${documentId}/original${ext}`;
 
       // Write file to document storage
@@ -448,7 +462,11 @@ export class GroundTruthGenerationService {
           created_at: doc.created_at,
           updated_at: doc.updated_at,
           ocr_result: doc.ocr_result
-            ? { fields: (doc.ocr_result.keyValuePairs as Record<string, unknown>) || {} }
+            ? {
+                fields:
+                  (doc.ocr_result.keyValuePairs as Record<string, unknown>) ||
+                  {},
+              }
             : undefined,
           lastSession: lastSession
             ? {
@@ -538,7 +556,8 @@ export class GroundTruthGenerationService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    const ocrFields = job.document.ocr_result.keyValuePairs as unknown as ExtractedFields | null;
+    const ocrFields = job.document.ocr_result
+      .keyValuePairs as unknown as ExtractedFields | null;
     if (!ocrFields || typeof ocrFields !== "object") {
       throw new BadRequestException("OCR result has no extractable fields");
     }
@@ -644,9 +663,7 @@ export class GroundTruthGenerationService {
       const buffer = await this.blobStorage.read(manifestKey);
       return JSON.parse(buffer.toString("utf-8"));
     } catch {
-      throw new NotFoundException(
-        `Manifest not found at ${manifestKey}`,
-      );
+      throw new NotFoundException(`Manifest not found at ${manifestKey}`);
     }
   }
 

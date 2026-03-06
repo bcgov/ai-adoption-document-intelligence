@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  Req,
-} from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, Req } from "@nestjs/common";
 import {
   ApiCreatedResponse,
   ApiOkResponse,
@@ -33,7 +25,9 @@ import {
 import { GroundTruthGenerationService } from "./ground-truth-generation.service";
 
 @ApiTags("benchmark-datasets")
-@Controller("api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation")
+@Controller(
+  "api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation",
+)
 export class GroundTruthGenerationController {
   constructor(
     private readonly groundTruthGenerationService: GroundTruthGenerationService,
@@ -41,7 +35,10 @@ export class GroundTruthGenerationController {
     private readonly databaseService: DatabaseService,
   ) {}
 
-  private async assertDatasetGroupAccess(datasetId: string, req: Request): Promise<void> {
+  private async assertDatasetGroupAccess(
+    datasetId: string,
+    req: Request,
+  ): Promise<void> {
     const dataset = await this.datasetService.getDatasetById(datasetId);
     await identityCanAccessGroup(
       req.resolvedIdentity,
@@ -86,7 +83,8 @@ export class GroundTruthGenerationController {
   @KeycloakSSOAuth()
   @ApiOperation({
     summary: "List ground truth generation jobs",
-    description: "Returns paginated list of ground truth generation jobs for a dataset version.",
+    description:
+      "Returns paginated list of ground truth generation jobs for a dataset version.",
   })
   @ApiParam({ name: "id", description: "Dataset ID" })
   @ApiParam({ name: "versionId", description: "Dataset version ID" })
@@ -125,7 +123,11 @@ export class GroundTruthGenerationController {
   @ApiParam({ name: "versionId", description: "Dataset version ID" })
   @ApiQuery({ name: "limit", required: false, type: Number })
   @ApiQuery({ name: "offset", required: false, type: Number })
-  @ApiQuery({ name: "reviewStatus", required: false, enum: ["pending", "reviewed", "all"] })
+  @ApiQuery({
+    name: "reviewStatus",
+    required: false,
+    enum: ["pending", "reviewed", "all"],
+  })
   @ApiOkResponse({
     description: "Dataset-scoped review queue",
     type: GroundTruthReviewQueueResponseDto,

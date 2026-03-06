@@ -15,10 +15,11 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { createHash } from "crypto";
 import { execSync } from "child_process";
+import { createHash } from "crypto";
 import { PrismaService } from "@/database/prisma.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
+import { DatasetService } from "./dataset.service";
 import {
   BaselineComparison,
   CreateRunDto,
@@ -34,7 +35,6 @@ import {
   RunSummaryDto,
   SampleFailureDto,
 } from "./dto";
-import { DatasetService } from "./dataset.service";
 
 @Injectable()
 export class BenchmarkRunService {
@@ -157,7 +157,8 @@ export class BenchmarkRunService {
     );
 
     if (!validation.valid) {
-      const errorCount = validation.issueCount.schemaViolations +
+      const errorCount =
+        validation.issueCount.schemaViolations +
         validation.issueCount.missingGroundTruth +
         validation.issueCount.corruption;
       const errorIssues = validation.issues.filter(
@@ -165,8 +166,13 @@ export class BenchmarkRunService {
       );
       throw new BadRequestException(
         `Cannot start a run: dataset validation failed with ${errorCount} error(s). ` +
-        `Issues: ${errorIssues.slice(0, 5).map((i) => i.message).join("; ")}` +
-        (errorIssues.length > 5 ? ` ... and ${errorIssues.length - 5} more` : ""),
+          `Issues: ${errorIssues
+            .slice(0, 5)
+            .map((i) => i.message)
+            .join("; ")}` +
+          (errorIssues.length > 5
+            ? ` ... and ${errorIssues.length - 5} more`
+            : ""),
       );
     }
 
@@ -377,9 +383,7 @@ export class BenchmarkRunService {
       where: { id: runId },
     });
 
-    this.logger.log(
-      `Deleted benchmark run ${runId} from project ${projectId}`,
-    );
+    this.logger.log(`Deleted benchmark run ${runId} from project ${projectId}`);
   }
 
   /**
@@ -408,7 +412,11 @@ export class BenchmarkRunService {
     const rawMetrics = (run.metrics || {}) as Record<string, unknown>;
     const flatMetrics: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(rawMetrics)) {
-      if (key !== "_aggregate" && key !== "perSampleResults" && typeof value === "number") {
+      if (
+        key !== "_aggregate" &&
+        key !== "perSampleResults" &&
+        typeof value === "number"
+      ) {
         flatMetrics[key] = value;
       }
     }
@@ -469,16 +477,26 @@ export class BenchmarkRunService {
       const rawMetrics = run.metrics as Record<string, unknown>;
       const flatOnlyMetrics: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(rawMetrics || {})) {
-        if (key !== "_aggregate" && key !== "perSampleResults" && typeof value === "number") {
+        if (
+          key !== "_aggregate" &&
+          key !== "perSampleResults" &&
+          typeof value === "number"
+        ) {
           flatOnlyMetrics[key] = value;
         }
       }
-      const headlineMetrics = run.status === "completed" ? flatOnlyMetrics : null;
+      const headlineMetrics =
+        run.status === "completed" ? flatOnlyMetrics : null;
 
       // Check for regression status
-      const baselineComparison = run.baselineComparison as BaselineComparison | null;
-      const hasRegression = baselineComparison ? !baselineComparison.overallPassed : undefined;
-      const regressedMetricCount = baselineComparison ? baselineComparison.regressedMetrics.length : undefined;
+      const baselineComparison =
+        run.baselineComparison as BaselineComparison | null;
+      const hasRegression = baselineComparison
+        ? !baselineComparison.overallPassed
+        : undefined;
+      const regressedMetricCount = baselineComparison
+        ? baselineComparison.regressedMetrics.length
+        : undefined;
 
       return {
         id: run.id,
@@ -602,7 +620,11 @@ export class BenchmarkRunService {
     // Build aggregated metrics (only the flat numeric values)
     const aggregatedMetrics: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(metrics)) {
-      if (key !== "_aggregate" && key !== "perSampleResults" && typeof value === "number") {
+      if (
+        key !== "_aggregate" &&
+        key !== "perSampleResults" &&
+        typeof value === "number"
+      ) {
         aggregatedMetrics[key] = value;
       }
     }
@@ -673,7 +695,9 @@ export class BenchmarkRunService {
       where: { id: runId },
       data: {
         isBaseline: true,
-        baselineThresholds: dto.thresholds ? (dto.thresholds as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
+        baselineThresholds: dto.thresholds
+          ? (dto.thresholds as unknown as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
       },
     });
 
@@ -736,8 +760,7 @@ export class BenchmarkRunService {
 
     const currentMetrics = run.metrics as Record<string, unknown>;
     const baselineMetrics = baseline.metrics as Record<string, unknown>;
-    const thresholds =
-      (baseline.baselineThresholds as MetricThreshold[]) || [];
+    const thresholds = (baseline.baselineThresholds as MetricThreshold[]) || [];
 
     const metricComparisons: MetricComparison[] = [];
     const regressedMetrics: string[] = [];
@@ -899,7 +922,8 @@ export class BenchmarkRunService {
             const passBool = value === "true";
             if (result.pass !== passBool) return false;
           } else {
-            if (!result.metadata || result.metadata[key] !== value) return false;
+            if (!result.metadata || result.metadata[key] !== value)
+              return false;
           }
         }
         return true;

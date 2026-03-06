@@ -63,8 +63,12 @@ export class BenchmarkRunController {
     private readonly databaseService: DatabaseService,
   ) {}
 
-  private async assertProjectGroupAccess(projectId: string, req: Request): Promise<void> {
-    const project = await this.benchmarkProjectService.getProjectById(projectId);
+  private async assertProjectGroupAccess(
+    projectId: string,
+    req: Request,
+  ): Promise<void> {
+    const project =
+      await this.benchmarkProjectService.getProjectById(projectId);
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.groupId,
@@ -88,7 +92,9 @@ export class BenchmarkRunController {
     description: "Run started successfully",
     type: RunDetailsDto,
   })
-  @ApiBadRequestResponse({ description: "Dataset version has no files or failed validation" })
+  @ApiBadRequestResponse({
+    description: "Dataset version has no files or failed validation",
+  })
   @ApiNotFoundResponse({ description: "Definition not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async startRun(
@@ -215,8 +221,18 @@ export class BenchmarkRunController {
   })
   @ApiParam({ name: "projectId", description: "Benchmark project ID" })
   @ApiParam({ name: "runId", description: "Benchmark run ID" })
-  @ApiQuery({ name: "page", required: false, type: Number, description: "Page number (default: 1)" })
-  @ApiQuery({ name: "limit", required: false, type: Number, description: "Items per page (default: 20)" })
+  @ApiQuery({
+    name: "page",
+    required: false,
+    type: Number,
+    description: "Page number (default: 1)",
+  })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    type: Number,
+    description: "Items per page (default: 20)",
+  })
   @ApiOkResponse({
     description: "Paginated per-sample results",
     type: PerSampleResultsResponseDto,

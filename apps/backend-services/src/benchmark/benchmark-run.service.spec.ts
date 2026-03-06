@@ -454,7 +454,6 @@ describe("BenchmarkRunService", () => {
         }
       }
     });
-
   });
 
   // -----------------------------------------------------------------------
@@ -628,13 +627,31 @@ describe("BenchmarkRunService", () => {
             },
           ],
           _aggregate: {
-            overall: { totalSamples: 2, passingSamples: 1, failingSamples: 1, passRate: 0.5, metrics: {} },
+            overall: {
+              totalSamples: 2,
+              passingSamples: 1,
+              failingSamples: 1,
+              passRate: 0.5,
+              metrics: {},
+            },
             failureAnalysis: {
               worstSamples: [
-                { sampleId: "s1", metricValue: 0.5, metrics: { accuracy: 0.5 }, diagnostics: { type: "invoice" } },
+                {
+                  sampleId: "s1",
+                  metricValue: 0.5,
+                  metrics: { accuracy: 0.5 },
+                  diagnostics: { type: "invoice" },
+                },
               ],
               perFieldErrors: [
-                { field: "total", totalOccurrences: 20, matchCount: 15, missingCount: 3, mismatchCount: 2, errorRate: 0.25 },
+                {
+                  field: "total",
+                  totalOccurrences: 20,
+                  matchCount: 15,
+                  missingCount: 3,
+                  mismatchCount: 2,
+                  errorRate: 0.25,
+                },
               ],
             },
           },
@@ -654,7 +671,10 @@ describe("BenchmarkRunService", () => {
       expect(result.fieldErrorBreakdown![0].fieldName).toBe("total");
       expect(result.fieldErrorBreakdown![0].errorRate).toBe(0.25);
       // aggregatedMetrics should only contain flat numeric values
-      expect(result.aggregatedMetrics).toEqual({ total_samples: 2, pass_rate: 0.5 });
+      expect(result.aggregatedMetrics).toEqual({
+        total_samples: 2,
+        pass_rate: 0.5,
+      });
     });
 
     it("should throw NotFoundException when run does not exist", async () => {
@@ -1135,9 +1155,7 @@ describe("BenchmarkRunService", () => {
     });
 
     it("throws NotFoundException when run does not exist", async () => {
-      jest
-        .spyOn(prisma.benchmarkRun, "findFirst")
-        .mockResolvedValue(null);
+      jest.spyOn(prisma.benchmarkRun, "findFirst").mockResolvedValue(null);
 
       await expect(
         service.deleteRun("project-1", "nonexistent"),
@@ -1155,9 +1173,9 @@ describe("BenchmarkRunService", () => {
         .spyOn(prisma.benchmarkRun, "findFirst")
         .mockResolvedValue(mockRun as never);
 
-      await expect(
-        service.deleteRun("project-1", "run-3"),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.deleteRun("project-1", "run-3")).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it("throws BadRequestException when run is pending", async () => {
@@ -1171,9 +1189,9 @@ describe("BenchmarkRunService", () => {
         .spyOn(prisma.benchmarkRun, "findFirst")
         .mockResolvedValue(mockRun as never);
 
-      await expect(
-        service.deleteRun("project-1", "run-4"),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.deleteRun("project-1", "run-4")).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });

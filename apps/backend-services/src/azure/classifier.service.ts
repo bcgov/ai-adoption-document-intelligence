@@ -3,12 +3,12 @@ import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import "multer";
 import * as path from "path";
 import { AzureService } from "@/azure/azure.service";
+import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
+import { AzureStorageService } from "@/blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { AzureStorageService } from "@/blob-storage/azure-storage.service";
-import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { DatabaseService } from "@/database/database.service";
 
 interface DocType {
@@ -163,9 +163,7 @@ export class ClassifierService {
    * @returns A list of objects specifying the original path and new blob path.
    */
   async uploadDocumentsForTraining(groupId: string, classifierName: string) {
-    await this.azureStorage.ensureContainerExists(
-      this.classifierContainer,
-    );
+    await this.azureStorage.ensureContainerExists(this.classifierContainer);
 
     // List all files from primary blob storage under the classifier prefix
     const primaryPrefix = `classifier/${groupId}/${classifierName}/`;

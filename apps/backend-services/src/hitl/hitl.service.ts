@@ -9,9 +9,9 @@ import {
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
+import { GroundTruthGenerationService } from "../benchmark/ground-truth-generation.service";
 import { DatabaseService } from "../database/database.service";
 import { AnalyticsService } from "./analytics.service";
-import { GroundTruthGenerationService } from "../benchmark/ground-truth-generation.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";

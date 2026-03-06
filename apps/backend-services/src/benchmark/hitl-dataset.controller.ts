@@ -32,12 +32,12 @@ import {
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
 import { DatasetService } from "./dataset.service";
-import { HitlDatasetService } from "./hitl-dataset.service";
 import {
   AddVersionFromHitlDto,
   CreateDatasetFromHitlDto,
   EligibleDocumentsFilterDto,
 } from "./dto";
+import { HitlDatasetService } from "./hitl-dataset.service";
 
 @ApiTags("Benchmark - HITL Datasets")
 @Controller("api/benchmark/datasets")
@@ -109,8 +109,7 @@ export class HitlDatasetController {
     @Body() dto: CreateDatasetFromHitlDto,
     @Req() req: Request,
   ) {
-    const userId =
-      req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
+    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
     await identityCanAccessGroup(
       req.resolvedIdentity,
@@ -126,7 +125,8 @@ export class HitlDatasetController {
   @ApiKeyAuth()
   @KeycloakSSOAuth()
   @ApiOperation({
-    summary: "Add a new version to an existing dataset from HITL-verified documents",
+    summary:
+      "Add a new version to an existing dataset from HITL-verified documents",
   })
   @ApiParam({ name: "id", description: "Dataset ID" })
   @ApiBody({ type: AddVersionFromHitlDto })
@@ -143,8 +143,7 @@ export class HitlDatasetController {
     @Body() dto: AddVersionFromHitlDto,
     @Req() req: Request,
   ) {
-    const userId =
-      req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
+    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
     const dataset = await this.datasetService.getDatasetById(datasetId);
     await identityCanAccessGroup(

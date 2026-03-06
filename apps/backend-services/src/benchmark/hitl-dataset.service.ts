@@ -104,8 +104,7 @@ export class HitlDatasetService {
         .filter((s) => s.status === ReviewStatus.approved)
         .sort(
           (a, b) =>
-            (b.completed_at?.getTime() ?? 0) -
-            (a.completed_at?.getTime() ?? 0),
+            (b.completed_at?.getTime() ?? 0) - (a.completed_at?.getTime() ?? 0),
         )[0];
 
       const fields = doc.ocr_result?.keyValuePairs as ExtractedFields | null;
@@ -136,7 +135,11 @@ export class HitlDatasetService {
   async createDatasetFromHitl(
     dto: CreateDatasetFromHitlDto,
     userId: string,
-  ): Promise<{ dataset: DatasetResponseDto; version: VersionResponseDto; skipped: SkippedDocument[] }> {
+  ): Promise<{
+    dataset: DatasetResponseDto;
+    version: VersionResponseDto;
+    skipped: SkippedDocument[];
+  }> {
     this.logger.log(
       `Creating dataset "${dto.name}" from ${dto.documentIds.length} HITL documents`,
     );
@@ -242,11 +245,8 @@ export class HitlDatasetService {
           manifestSamples.push(result);
         }
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error);
-        this.logger.warn(
-          `Skipping document ${documentId}: ${message}`,
-        );
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`Skipping document ${documentId}: ${message}`);
         skipped.push({ documentId, reason: message });
       }
     }
@@ -270,19 +270,25 @@ export class HitlDatasetService {
     );
 
     // Update the version record with storagePrefix and document count
-    const updatedVersion = await this.datasetService.updateVersionAfterHitlImport(
-      datasetId,
-      version.id,
-      storagePrefix,
-      manifestSamples.length,
-    );
+    const updatedVersion =
+      await this.datasetService.updateVersionAfterHitlImport(
+        datasetId,
+        version.id,
+        storagePrefix,
+        manifestSamples.length,
+      );
 
     // Audit log
-    await this.auditLogService.logVersionPublished(userId, version.id, datasetId, {
-      source: "hitl",
-      documentCount: manifestSamples.length,
-      skippedCount: skipped.length,
-    });
+    await this.auditLogService.logVersionPublished(
+      userId,
+      version.id,
+      datasetId,
+      {
+        source: "hitl",
+        documentCount: manifestSamples.length,
+        skippedCount: skipped.length,
+      },
+    );
 
     this.logger.log(
       `HITL dataset version created: ${manifestSamples.length} samples, ${skipped.length} skipped`,
@@ -309,8 +315,7 @@ export class HitlDatasetService {
       ?.filter((s) => s.status === ReviewStatus.approved)
       .sort(
         (a, b) =>
-          (b.completed_at?.getTime() ?? 0) -
-          (a.completed_at?.getTime() ?? 0),
+          (b.completed_at?.getTime() ?? 0) - (a.completed_at?.getTime() ?? 0),
       )[0];
 
     if (!approvedSession) {

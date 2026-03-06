@@ -19,11 +19,11 @@ import {
 import Ajv from "ajv";
 import * as crypto from "crypto";
 import * as path from "path";
-import { PrismaService } from "@/database/prisma.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
+import { PrismaService } from "@/database/prisma.service";
 import {
   CreateDatasetDto,
   CreateVersionDto,
@@ -105,10 +105,17 @@ export class DatasetService {
 
       return this.mapToResponseDto({ ...dataset, storagePath });
     } catch (error) {
-      if (error instanceof ConflictException || error instanceof BadRequestException || error instanceof NotFoundException) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
         throw error;
       }
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
         throw new ConflictException(
           `A dataset with the name "${createDto.name}" already exists. Please choose a different name.`,
         );
@@ -117,7 +124,8 @@ export class DatasetService {
         `Failed to create dataset: ${createDto.name}`,
         error.stack,
       );
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       throw new BadRequestException(
         `Failed to create dataset: ${errorMessage}`,
       );
@@ -278,8 +286,7 @@ export class DatasetService {
     const existingVersionCount = await this.prisma.datasetVersion.count({
       where: { datasetId },
     });
-    const versionLabel =
-      createDto.version || `v${existingVersionCount + 1}`;
+    const versionLabel = createDto.version || `v${existingVersionCount + 1}`;
 
     this.logger.log(
       `Creating version ${versionLabel} for dataset ${datasetId}`,
@@ -412,9 +419,7 @@ export class DatasetService {
     }
 
     if (version.frozen) {
-      throw new BadRequestException(
-        "Cannot update a frozen dataset version",
-      );
+      throw new BadRequestException("Cannot update a frozen dataset version");
     }
 
     const updated = await this.prisma.datasetVersion.update({
@@ -505,7 +510,9 @@ export class DatasetService {
             ? finalFilename.slice(0, -ext.length)
             : finalFilename;
           let counter = 2;
-          while (usedFilenames[dirKey].has(`${nameWithoutExt}_${counter}${ext}`)) {
+          while (
+            usedFilenames[dirKey].has(`${nameWithoutExt}_${counter}${ext}`)
+          ) {
             counter++;
           }
           finalFilename = `${nameWithoutExt}_${counter}${ext}`;
@@ -552,7 +559,10 @@ export class DatasetService {
 
       // Update manifest with new file references
       const existingSampleIds = new Set(manifest.samples.map((s) => s.id));
-      const filesBySample = this.groupFilesBySampleId(uploadedFiles, existingSampleIds);
+      const filesBySample = this.groupFilesBySampleId(
+        uploadedFiles,
+        existingSampleIds,
+      );
 
       for (const [sampleId, sampleFiles] of Object.entries(filesBySample)) {
         let sample = manifest.samples.find((s) => s.id === sampleId);
@@ -631,16 +641,18 @@ export class DatasetService {
         err.stack,
       );
 
-      if (err.message.includes("NoSuchBucket") || err.message.includes("bucket does not exist")) {
+      if (
+        // biome-ignore lint/security/noSecrets: not a secret, bucket error check
+        err.message.includes("NoSuchBucket") ||
+        err.message.includes("bucket does not exist")
+      ) {
         throw new BadRequestException(
           "Object storage bucket is not configured. Please ensure MinIO is initialized with the required buckets.",
         );
       }
 
       if (err.message.includes("Failed to write blob")) {
-        throw new BadRequestException(
-          `File upload failed: ${err.message}`,
-        );
+        throw new BadRequestException(`File upload failed: ${err.message}`);
       }
 
       throw error;
@@ -705,9 +717,7 @@ export class DatasetService {
       };
 
       // Find the sample
-      const sampleIndex = manifest.samples.findIndex(
-        (s) => s.id === sampleId,
-      );
+      const sampleIndex = manifest.samples.findIndex((s) => s.id === sampleId);
 
       if (sampleIndex === -1) {
         throw new NotFoundException(
@@ -772,9 +782,7 @@ export class DatasetService {
         }
       }
 
-      this.logger.log(
-        `Sample ${sampleId} deleted from version ${versionId}`,
-      );
+      this.logger.log(`Sample ${sampleId} deleted from version ${versionId}`);
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -794,13 +802,8 @@ export class DatasetService {
    * Delete a dataset version.
    * Blocked if any benchmark definitions reference this version.
    */
-  async deleteVersion(
-    datasetId: string,
-    versionId: string,
-  ): Promise<void> {
-    this.logger.log(
-      `Deleting version ${versionId} for dataset ${datasetId}`,
-    );
+  async deleteVersion(datasetId: string, versionId: string): Promise<void> {
+    this.logger.log(`Deleting version ${versionId} for dataset ${datasetId}`);
 
     const version = await this.prisma.datasetVersion.findFirst({
       where: { id: versionId, datasetId },
@@ -894,7 +897,8 @@ export class DatasetService {
     try {
       // Load manifest from object storage
       const manifestKey = `${version.storagePrefix}/dataset-manifest.json`;
-      const manifest = await this.loadAndValidateManifestFromStorage(manifestKey);
+      const manifest =
+        await this.loadAndValidateManifestFromStorage(manifestKey);
 
       const total = manifest.samples.length;
       const paginatedSamples = manifest.samples.slice(skip, skip + validLimit);
@@ -954,15 +958,14 @@ export class DatasetService {
     }
 
     if (!version.storagePrefix) {
-      throw new BadRequestException(
-        "Version has no files uploaded yet",
-      );
+      throw new BadRequestException("Version has no files uploaded yet");
     }
 
     try {
       // Load manifest from object storage
       const manifestKey = `${version.storagePrefix}/dataset-manifest.json`;
-      const manifest = await this.loadAndValidateManifestFromStorage(manifestKey);
+      const manifest =
+        await this.loadAndValidateManifestFromStorage(manifestKey);
 
       const sample = manifest.samples.find((s) => s.id === sampleId);
       if (!sample) {
@@ -1095,7 +1098,9 @@ export class DatasetService {
   /**
    * Load and validate a manifest file from object storage
    */
-  private async loadAndValidateManifestFromStorage(manifestKey: string): Promise<{
+  private async loadAndValidateManifestFromStorage(
+    manifestKey: string,
+  ): Promise<{
     schemaVersion: string;
     samples: Array<{
       id: string;
@@ -1189,7 +1194,10 @@ export class DatasetService {
 
       return manifest;
     } catch (error) {
-      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
         throw error;
       }
       if (error instanceof SyntaxError) {
@@ -1442,7 +1450,8 @@ export class DatasetService {
 
     try {
       const manifestKey = `${version.storagePrefix}/dataset-manifest.json`;
-      const manifest = await this.loadAndValidateManifestFromStorage(manifestKey);
+      const manifest =
+        await this.loadAndValidateManifestFromStorage(manifestKey);
 
       const allSamples = manifest.samples;
       const totalSamples = allSamples.length;
@@ -1501,7 +1510,7 @@ export class DatasetService {
           try {
             const buffer = await this.blobStorage.read(blobKey);
             fileContent = buffer.toString("utf-8");
-          } catch (error) {
+          } catch {
             issues.push({
               category: "corruption",
               severity: "error",
@@ -1591,7 +1600,7 @@ export class DatasetService {
                   message: `Invalid image file header for type ${input.mimeType}`,
                 });
               }
-            } catch (error) {
+            } catch {
               issues.push({
                 category: "corruption",
                 severity: "error",

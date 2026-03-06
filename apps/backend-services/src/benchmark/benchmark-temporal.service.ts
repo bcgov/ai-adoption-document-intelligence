@@ -10,7 +10,12 @@
 
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { Client, Connection, ScheduleClient, type ScheduleDescription } from "@temporalio/client";
+import {
+  Client,
+  Connection,
+  ScheduleClient,
+  type ScheduleDescription,
+} from "@temporalio/client";
 import { WORKFLOW_TYPES } from "../temporal/workflow-types";
 import type { ScheduleInfoDto } from "./dto";
 

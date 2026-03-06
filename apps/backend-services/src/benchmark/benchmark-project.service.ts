@@ -7,7 +7,12 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 2.4, 6.2, 11.2
  */
 
-import { ConflictException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 import {
   CreateProjectDto,
@@ -22,16 +27,17 @@ export class BenchmarkProjectService {
   private readonly logger = new Logger(BenchmarkProjectService.name);
   private readonly prisma;
 
-  constructor(
-    private readonly prismaService: PrismaService,
-  ) {
+  constructor(private readonly prismaService: PrismaService) {
     this.prisma = this.prismaService.prisma;
   }
 
   /**
    * Create a benchmark project
    */
-  async createProject(dto: CreateProjectDto, userId: string): Promise<ProjectDetailsDto> {
+  async createProject(
+    dto: CreateProjectDto,
+    userId: string,
+  ): Promise<ProjectDetailsDto> {
     this.logger.log(`Creating benchmark project: ${dto.name}`);
 
     try {

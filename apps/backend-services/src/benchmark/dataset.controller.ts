@@ -24,7 +24,6 @@ import {
   UploadedFiles,
   UseInterceptors,
 } from "@nestjs/common";
-import type { Response } from "express";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import {
   ApiBadRequestResponse,
@@ -39,6 +38,7 @@ import {
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
+import type { Response } from "express";
 import { Request } from "express";
 import {
   getIdentityGroupIds,
@@ -52,12 +52,12 @@ import {
 import { DatasetService } from "./dataset.service";
 import {
   CreateDatasetDto,
+  CreateSplitDto,
   CreateVersionDto,
   DatasetResponseDto,
   GroundTruthResponseDto,
   PaginatedDatasetResponseDto,
   SampleListResponseDto,
-  CreateSplitDto,
   UpdateVersionDto,
   UploadResponseDto,
   ValidateDatasetRequestDto,
@@ -74,7 +74,10 @@ export class DatasetController {
     private readonly databaseService: DatabaseService,
   ) {}
 
-  private async assertDatasetGroupAccess(datasetId: string, req: Request): Promise<void> {
+  private async assertDatasetGroupAccess(
+    datasetId: string,
+    req: Request,
+  ): Promise<void> {
     const dataset = await this.datasetService.getDatasetById(datasetId);
     await identityCanAccessGroup(
       req.resolvedIdentity,
@@ -105,8 +108,7 @@ export class DatasetController {
     @Body() createDto: CreateDatasetDto,
     @Req() req: Request,
   ): Promise<DatasetResponseDto> {
-    const userId =
-      req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
+    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
     await identityCanAccessGroup(
       req.resolvedIdentity,
@@ -168,7 +170,13 @@ export class DatasetController {
     );
 
     if (groupIds.length === 0) {
-      return { data: [], total: 0, page: pageNum, limit: limitNum, totalPages: 0 };
+      return {
+        data: [],
+        total: 0,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: 0,
+      };
     }
 
     return this.datasetService.listDatasets(pageNum, limitNum, groupIds);
@@ -264,8 +272,7 @@ export class DatasetController {
   ): Promise<UploadResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
 
-    const userId =
-      req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
+    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
     if (!files || files.length === 0) {
       throw new BadRequestException("No files provided for upload");
@@ -280,7 +287,12 @@ export class DatasetController {
       }
     }
 
-    return this.datasetService.uploadFilesToVersion(id, versionId, files, userId);
+    return this.datasetService.uploadFilesToVersion(
+      id,
+      versionId,
+      files,
+      userId,
+    );
   }
 
   @Post(":id/versions")
@@ -312,8 +324,7 @@ export class DatasetController {
   ): Promise<VersionResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
 
-    const userId =
-      req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
+    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
     return this.datasetService.createVersion(id, createDto, userId);
   }
@@ -748,7 +759,13 @@ export class DatasetController {
     @Param("id") id: string,
     @Param("versionId") versionId: string,
     @Req() req: Request,
-  ): Promise<{ id: string; datasetId: string; version: string; name: string | null; frozen: boolean }> {
+  ): Promise<{
+    id: string;
+    datasetId: string;
+    version: string;
+    name: string | null;
+    frozen: boolean;
+  }> {
     await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.freezeVersion(id, versionId);
   }

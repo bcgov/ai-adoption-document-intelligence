@@ -17,11 +17,11 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import { DatabaseService } from "../database/database.service";
 import { ExportFormat } from "../labeling/dto/export.dto";
 import { LabelingService } from "../labeling/labeling.service";
@@ -303,9 +303,7 @@ export class TrainingService {
       });
 
       // Clear container contents so each training run starts clean
-      await this.azureStorage.clearContainerContents(
-        job.container_name,
-      );
+      await this.azureStorage.clearContainerContents(job.container_name);
 
       // Upload to blob storage
       const uploadResult = await this.azureStorage.uploadFiles(

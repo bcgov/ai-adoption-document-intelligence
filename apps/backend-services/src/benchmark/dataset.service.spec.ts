@@ -11,7 +11,10 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { BLOB_STORAGE, BlobStorageInterface } from "@/blob-storage/blob-storage.interface";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "@/blob-storage/blob-storage.interface";
 import { PrismaService } from "@/database/prisma.service";
 import { DatasetService } from "./dataset.service";
 
@@ -139,14 +142,20 @@ describe("DatasetService", () => {
     });
 
     it("throws ConflictException when name already exists", async () => {
-      const error = new Error("Unique constraint failed") as Error & { code: string };
+      const error = new Error("Unique constraint failed") as Error & {
+        code: string;
+      };
       error.code = "P2002";
-      Object.setPrototypeOf(error, (await import("@generated/client")).Prisma.PrismaClientKnownRequestError.prototype);
+      Object.setPrototypeOf(
+        error,
+        (await import("@generated/client")).Prisma.PrismaClientKnownRequestError
+          .prototype,
+      );
       mockPrismaClient.dataset.create.mockRejectedValue(error);
 
-      await expect(
-        service.createDataset(createDto, "user-1"),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.createDataset(createDto, "user-1")).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
@@ -223,7 +232,9 @@ describe("DatasetService", () => {
         ...mockDataset,
         versions: [],
       });
-      mockPrismaClient.datasetVersion.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.datasetVersion.deleteMany.mockResolvedValue({
+        count: 0,
+      });
       mockPrismaClient.dataset.delete.mockResolvedValue(mockDataset);
 
       await service.deleteDataset("dataset-1");
@@ -231,7 +242,9 @@ describe("DatasetService", () => {
       expect(prisma.dataset.delete).toHaveBeenCalledWith({
         where: { id: "dataset-1" },
       });
-      expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith("datasets/dataset-1");
+      expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
+        "datasets/dataset-1",
+      );
     });
 
     it("throws NotFoundException when dataset does not exist", async () => {
@@ -409,11 +422,15 @@ describe("DatasetService", () => {
 
       // Verify files were uploaded to blob storage
       expect(blobStorage.write).toHaveBeenCalledWith(
-        expect.stringContaining("datasets/dataset-1/version-1/inputs/sample1.pdf"),
+        expect.stringContaining(
+          "datasets/dataset-1/version-1/inputs/sample1.pdf",
+        ),
         expect.any(Buffer),
       );
       expect(blobStorage.write).toHaveBeenCalledWith(
-        expect.stringContaining("datasets/dataset-1/version-1/ground-truth/sample1.json"),
+        expect.stringContaining(
+          "datasets/dataset-1/version-1/ground-truth/sample1.json",
+        ),
         expect.any(Buffer),
       );
 
@@ -440,7 +457,12 @@ describe("DatasetService", () => {
       mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.uploadFilesToVersion("dataset-1", "nonexistent", mockFiles, "user-1"),
+        service.uploadFilesToVersion(
+          "dataset-1",
+          "nonexistent",
+          mockFiles,
+          "user-1",
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -452,7 +474,12 @@ describe("DatasetService", () => {
       });
 
       await expect(
-        service.uploadFilesToVersion("dataset-1", "version-1", mockFiles, "user-1"),
+        service.uploadFilesToVersion(
+          "dataset-1",
+          "version-1",
+          mockFiles,
+          "user-1",
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -477,12 +504,18 @@ describe("DatasetService", () => {
         samples: [
           {
             id: "sample-1",
-            inputs: [{ path: "inputs/sample-1.pdf", mimeType: "application/pdf" }],
-            groundTruth: [{ path: "ground-truth/sample-1.json", format: "json" }],
+            inputs: [
+              { path: "inputs/sample-1.pdf", mimeType: "application/pdf" },
+            ],
+            groundTruth: [
+              { path: "ground-truth/sample-1.json", format: "json" },
+            ],
           },
           {
             id: "sample-2",
-            inputs: [{ path: "inputs/sample-2.pdf", mimeType: "application/pdf" }],
+            inputs: [
+              { path: "inputs/sample-2.pdf", mimeType: "application/pdf" },
+            ],
             groundTruth: [],
           },
         ],
@@ -615,7 +648,9 @@ describe("DatasetService", () => {
         storagePrefix: "datasets/dataset-1/version-1",
         benchmarkDefinitions: [],
       });
-      mockPrismaClient.datasetVersion.deleteMany.mockResolvedValue({ count: 1 });
+      mockPrismaClient.datasetVersion.deleteMany.mockResolvedValue({
+        count: 1,
+      });
 
       await service.deleteVersion("dataset-1", "version-1");
 

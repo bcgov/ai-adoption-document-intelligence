@@ -10,10 +10,7 @@ jest.mock("@/auth/identity.helpers", () => ({
   getIdentityGroupIds: jest.fn().mockResolvedValue(["test-group"]),
 }));
 
-import {
-  ConflictException,
-  NotFoundException,
-} from "@nestjs/common";
+import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
 import { DatabaseService } from "@/database/database.service";
@@ -34,13 +31,13 @@ describe("BenchmarkProjectController", () => {
 
   const mockDatabaseService = {
     isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    getUsersGroups: jest.fn().mockResolvedValue([{ group_id: 'test-group' }]),
+    getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "test-group" }]),
     isUserInGroup: jest.fn().mockResolvedValue(true),
   };
 
   const mockReq = {
-    user: { sub: 'user-1' },
-    resolvedIdentity: { userId: 'user-1' },
+    user: { sub: "user-1" },
+    resolvedIdentity: { userId: "user-1" },
   } as unknown as Request;
 
   beforeEach(async () => {
@@ -113,9 +110,9 @@ describe("BenchmarkProjectController", () => {
         ),
       );
 
-      await expect(controller.createProject(createDto, mockReq)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        controller.createProject(createDto, mockReq),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -223,9 +220,9 @@ describe("BenchmarkProjectController", () => {
         ),
       );
 
-      await expect(controller.getProjectById(projectId, mockReq)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        controller.getProjectById(projectId, mockReq),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -251,9 +248,9 @@ describe("BenchmarkProjectController", () => {
         new NotFoundException("Project not found"),
       );
 
-      await expect(controller.deleteProject("non-existent", mockReq)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        controller.deleteProject("non-existent", mockReq),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it("returns 409 when project has active runs", async () => {
@@ -265,9 +262,9 @@ describe("BenchmarkProjectController", () => {
         new ConflictException("Cannot delete project: it has active runs"),
       );
 
-      await expect(controller.deleteProject("project-123", mockReq)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        controller.deleteProject("project-123", mockReq),
+      ).rejects.toThrow(ConflictException);
     });
   });
 });

@@ -1,13 +1,13 @@
 import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
   CallHandler,
+  ExecutionContext,
+  Injectable,
   Logger,
-} from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { tap, catchError } from 'rxjs/operators';
-import { Request, Response } from 'express';
+  NestInterceptor,
+} from "@nestjs/common";
+import { Request, Response } from "express";
+import { Observable } from "rxjs";
+import { catchError, tap } from "rxjs/operators";
 
 /**
  * HTTP request/response logger registered as a global interceptor in main.ts.
@@ -25,10 +25,10 @@ import { Request, Response } from 'express';
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
-  private readonly logger = new Logger('HTTP');
+  private readonly logger = new Logger("HTTP");
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    if (context.getType() !== 'http') {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    if (context.getType() !== "http") {
       return next.handle();
     }
 
@@ -53,25 +53,31 @@ export class LoggingInterceptor implements NestInterceptor {
     if (body && Object.keys(body).length > 0) {
       // Truncate large bodies to avoid log bloat
       const bodyStr = JSON.stringify(body);
-      const truncatedBody = bodyStr.length > 500 ? bodyStr.substring(0, 500) + '...' : bodyStr;
+      const truncatedBody =
+        bodyStr.length > 500 ? bodyStr.substring(0, 500) + "..." : bodyStr;
       this.logger.debug(`  Body: ${truncatedBody}`);
     }
 
     return next.handle().pipe(
       tap((data) => {
         const duration = Date.now() - startTime;
-        this.logger.log(`← ${method} ${url} ${response.statusCode} (${duration}ms)`);
+        this.logger.log(
+          `← ${method} ${url} ${response.statusCode} (${duration}ms)`,
+        );
 
         // Log response data for debugging (truncated)
         if (data) {
           const dataStr = JSON.stringify(data);
-          const truncatedData = dataStr.length > 500 ? dataStr.substring(0, 500) + '...' : dataStr;
+          const truncatedData =
+            dataStr.length > 500 ? dataStr.substring(0, 500) + "..." : dataStr;
           this.logger.debug(`  Response: ${truncatedData}`);
         }
       }),
       catchError((error) => {
         const duration = Date.now() - startTime;
-        this.logger.error(`✗ ${method} ${url} ${error.status || 500} (${duration}ms)`);
+        this.logger.error(
+          `✗ ${method} ${url} ${error.status || 500} (${duration}ms)`,
+        );
         this.logger.error(`  Error: ${error.message}`);
 
         if (error.stack) {

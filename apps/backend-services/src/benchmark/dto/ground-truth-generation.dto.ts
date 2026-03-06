@@ -1,9 +1,11 @@
+import { GroundTruthJobStatus } from "@generated/client";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsNotEmpty, IsString } from "class-validator";
-import { GroundTruthJobStatus } from "@generated/client";
 
 export class StartGroundTruthGenerationDto {
-  @ApiProperty({ description: "ID of the workflow configuration to use for OCR processing" })
+  @ApiProperty({
+    description: "ID of the workflow configuration to use for OCR processing",
+  })
   @IsString()
   @IsNotEmpty()
   workflowConfigId!: string;

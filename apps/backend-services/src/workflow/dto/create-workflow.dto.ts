@@ -20,7 +20,6 @@ export class CreateWorkflowDto {
   description?: string;
 
   @ApiProperty({
-    // biome-ignore lint/security/noSecrets: not a secret
     description: "Graph workflow configuration (GraphWorkflowConfig JSON).",
   })
   @IsObject()

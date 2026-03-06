@@ -125,13 +125,15 @@ describe("BenchmarkProjectService", () => {
         groupId: "test-group",
       };
 
-      const prismaError = new Error("Unique constraint failed") as Error & { code: string };
+      const prismaError = new Error("Unique constraint failed") as Error & {
+        code: string;
+      };
       prismaError.code = "P2002";
       mockPrismaClient.benchmarkProject.create.mockRejectedValue(prismaError);
 
-      await expect(service.createProject(createDto, "user@example.com")).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.createProject(createDto, "user@example.com"),
+      ).rejects.toThrow(ConflictException);
     });
 
     it("handles database error", async () => {
@@ -143,9 +145,9 @@ describe("BenchmarkProjectService", () => {
       const dbError = new Error("Database connection failed");
       mockPrismaClient.benchmarkProject.create.mockRejectedValue(dbError);
 
-      await expect(service.createProject(createDto, "user@example.com")).rejects.toThrow(
-        "Database connection failed",
-      );
+      await expect(
+        service.createProject(createDto, "user@example.com"),
+      ).rejects.toThrow("Database connection failed");
     });
   });
 

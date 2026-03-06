@@ -542,9 +542,7 @@ describe("AzureController", () => {
       const query = { name: "c1", group_id: "g1" };
       const result = await controller.getClassifierDocuments(req, query);
       expect(result).toEqual(["labelA/doc1", "labelB/doc2"]);
-      expect(storageService.list).toHaveBeenCalledWith(
-        "classifier/g1/c1/",
-      );
+      expect(storageService.list).toHaveBeenCalledWith("classifier/g1/c1/");
     });
     it("should throw ForbiddenException if user not in group", async () => {
       databaseService.isUserInGroup.mockResolvedValue(false);

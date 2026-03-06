@@ -125,10 +125,7 @@ export class MinioBlobStorageService implements BlobStorageInterface {
         name: string;
         $metadata?: { httpStatusCode?: number };
       };
-      if (
-        err.name === "NoSuchKey" ||
-        err.$metadata?.httpStatusCode === 404
-      ) {
+      if (err.name === "NoSuchKey" || err.$metadata?.httpStatusCode === 404) {
         throw new Error(
           `Blob not found: "${key}" does not exist in bucket "${this.bucket}"`,
         );
@@ -157,10 +154,7 @@ export class MinioBlobStorageService implements BlobStorageInterface {
         name: string;
         $metadata?: { httpStatusCode?: number };
       };
-      if (
-        err.name === "NotFound" ||
-        err.$metadata?.httpStatusCode === 404
-      ) {
+      if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) {
         return false;
       }
       this.logger.error(`Failed to check blob existence: ${key}`, err.stack);
@@ -222,9 +216,7 @@ export class MinioBlobStorageService implements BlobStorageInterface {
           : undefined;
       } while (continuationToken);
 
-      this.logger.debug(
-        `Listed ${keys.length} blobs with prefix "${prefix}"`,
-      );
+      this.logger.debug(`Listed ${keys.length} blobs with prefix "${prefix}"`);
       return keys;
     } catch (error: unknown) {
       const err = error as Error;
@@ -249,8 +241,6 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       await this.delete(key);
     }
 
-    this.logger.debug(
-      `Deleted ${keys.length} blobs with prefix "${prefix}"`,
-    );
+    this.logger.debug(`Deleted ${keys.length} blobs with prefix "${prefix}"`);
   }
 }

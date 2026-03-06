@@ -308,7 +308,7 @@ describe("HitlDatasetService", () => {
         checkbox_no: {
           type: "selectionMark",
           content: null,
-          confidence: 0.90,
+          confidence: 0.9,
           valueSelectionMark: "unselected",
         },
       };
@@ -361,19 +361,25 @@ describe("HitlDatasetService", () => {
     });
 
     it("should filter by search term", async () => {
-      const result = await service.listEligibleDocuments({
-        search: "invoice-001",
-      }, ["test-group"]);
+      const result = await service.listEligibleDocuments(
+        {
+          search: "invoice-001",
+        },
+        ["test-group"],
+      );
 
       expect(result.documents).toHaveLength(1);
       expect(result.documents[0].originalFilename).toBe("invoice-001.pdf");
     });
 
     it("should paginate results", async () => {
-      const result = await service.listEligibleDocuments({
-        page: 1,
-        limit: 1,
-      }, ["test-group"]);
+      const result = await service.listEligibleDocuments(
+        {
+          page: 1,
+          limit: 1,
+        },
+        ["test-group"],
+      );
 
       expect(result.documents).toHaveLength(1);
       expect(result.total).toBe(2);
@@ -495,9 +501,7 @@ describe("HitlDatasetService", () => {
       );
       expect(manifestCall).toBeDefined();
       const manifest = JSON.parse(manifestCall![1].toString());
-      const sampleIds = manifest.samples.map(
-        (s: { id: string }) => s.id,
-      );
+      const sampleIds = manifest.samples.map((s: { id: string }) => s.id);
       expect(sampleIds).toContain("invoice-001");
       expect(sampleIds).toContain("invoice-001_2");
     });

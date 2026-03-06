@@ -66,7 +66,9 @@ export class BenchmarkProjectController {
     description: "Project created successfully",
     type: ProjectDetailsDto,
   })
-  @ApiConflictResponse({ description: "A project with this name already exists" })
+  @ApiConflictResponse({
+    description: "A project with this name already exists",
+  })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async createProject(
     @Body() createProjectDto: CreateProjectDto,
@@ -76,8 +78,7 @@ export class BenchmarkProjectController {
       `POST /api/benchmark/projects - name: ${createProjectDto.name}`,
     );
 
-    const userId =
-      req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
+    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
     await identityCanAccessGroup(
       req.resolvedIdentity,

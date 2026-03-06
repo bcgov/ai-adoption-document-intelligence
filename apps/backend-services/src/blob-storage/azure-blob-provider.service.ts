@@ -6,10 +6,7 @@
  * Keys map to blob names within a configured container.
  */
 
-import {
-  BlobServiceClient,
-  ContainerClient,
-} from "@azure/storage-blob";
+import { BlobServiceClient, ContainerClient } from "@azure/storage-blob";
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
@@ -75,9 +72,7 @@ export class AzureBlobProviderService
     }
     try {
       await this.containerClient.createIfNotExists();
-      this.logger.log(
-        `Ensured container exists: ${this.containerName}`,
-      );
+      this.logger.log(`Ensured container exists: ${this.containerName}`);
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(
@@ -181,9 +176,7 @@ export class AzureBlobProviderService
         keys.push(blob.name);
       }
 
-      this.logger.debug(
-        `Listed ${keys.length} blobs with prefix "${prefix}"`,
-      );
+      this.logger.debug(`Listed ${keys.length} blobs with prefix "${prefix}"`);
       return keys;
     } catch (error: unknown) {
       const err = error as Error;
@@ -209,8 +202,6 @@ export class AzureBlobProviderService
       deleted += 1;
     }
 
-    this.logger.debug(
-      `Deleted ${deleted} blobs with prefix "${prefix}"`,
-    );
+    this.logger.debug(`Deleted ${deleted} blobs with prefix "${prefix}"`);
   }
 }

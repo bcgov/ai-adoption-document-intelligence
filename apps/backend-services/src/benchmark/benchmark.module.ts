@@ -53,9 +53,7 @@ import { HitlDatasetService } from "./hitl-dataset.service";
   ],
 })
 export class BenchmarkModule implements OnModuleInit {
-  constructor(
-    private readonly evaluatorRegistry: EvaluatorRegistryService,
-  ) {}
+  constructor(private readonly evaluatorRegistry: EvaluatorRegistryService) {}
 
   onModuleInit() {
     this.evaluatorRegistry.registerType("schema-aware");

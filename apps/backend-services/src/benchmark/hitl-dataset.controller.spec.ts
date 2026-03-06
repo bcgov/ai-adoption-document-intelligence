@@ -27,12 +27,14 @@ describe("HitlDatasetController", () => {
 
   const mockDatabaseService = {
     isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    getUsersGroups: jest.fn().mockResolvedValue([{ group_id: 'test-group' }]),
+    getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "test-group" }]),
     isUserInGroup: jest.fn().mockResolvedValue(true),
   };
 
   const mockDatasetService = {
-    getDatasetById: jest.fn().mockResolvedValue({ id: "dataset-1", groupId: "test-group" }),
+    getDatasetById: jest
+      .fn()
+      .mockResolvedValue({ id: "dataset-1", groupId: "test-group" }),
   };
 
   beforeEach(async () => {
@@ -70,31 +72,45 @@ describe("HitlDatasetController", () => {
     it("should return eligible documents", async () => {
       const result = await controller.listEligibleDocuments({}, mockReq);
       expect(result.documents).toEqual([]);
-      expect(mockService.listEligibleDocuments).toHaveBeenCalledWith({}, ["test-group"]);
+      expect(mockService.listEligibleDocuments).toHaveBeenCalledWith({}, [
+        "test-group",
+      ]);
     });
 
     it("should pass filter parameters", async () => {
-      await controller.listEligibleDocuments({
-        page: 2,
-        limit: 10,
-        search: "invoice",
-      }, mockReq);
+      await controller.listEligibleDocuments(
+        {
+          page: 2,
+          limit: 10,
+          search: "invoice",
+        },
+        mockReq,
+      );
 
-      expect(mockService.listEligibleDocuments).toHaveBeenCalledWith({
-        page: 2,
-        limit: 10,
-        search: "invoice",
-      }, ["test-group"]);
+      expect(mockService.listEligibleDocuments).toHaveBeenCalledWith(
+        {
+          page: 2,
+          limit: 10,
+          search: "invoice",
+        },
+        ["test-group"],
+      );
     });
 
     it("should scope to specific group_id when provided", async () => {
-      await controller.listEligibleDocuments({
-        group_id: "specific-group",
-      }, mockReq);
+      await controller.listEligibleDocuments(
+        {
+          group_id: "specific-group",
+        },
+        mockReq,
+      );
 
-      expect(mockService.listEligibleDocuments).toHaveBeenCalledWith({
-        group_id: "specific-group",
-      }, ["specific-group"]);
+      expect(mockService.listEligibleDocuments).toHaveBeenCalledWith(
+        {
+          group_id: "specific-group",
+        },
+        ["specific-group"],
+      );
     });
   });
 

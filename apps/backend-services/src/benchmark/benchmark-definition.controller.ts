@@ -7,6 +7,7 @@
  * See feature-docs/003-benchmarking-system/REQUIREMENTS.md Section 11.2
  */
 
+import { AuditAction } from "@generated/client";
 import {
   Body,
   Controller,
@@ -39,9 +40,9 @@ import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
+import { AuditLogService } from "./audit-log.service";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
-import { AuditLogService } from "./audit-log.service";
 import {
   BaselinePromotionHistoryDto,
   CreateDefinitionDto,
@@ -51,7 +52,6 @@ import {
   ScheduleInfoDto,
   UpdateDefinitionDto,
 } from "./dto";
-import { AuditAction } from "@generated/client";
 
 @ApiTags("Benchmark - Definitions")
 @Controller("api/benchmark/projects/:projectId/definitions")
@@ -65,8 +65,12 @@ export class BenchmarkDefinitionController {
     private readonly databaseService: DatabaseService,
   ) {}
 
-  private async assertProjectGroupAccess(projectId: string, req: Request): Promise<void> {
-    const project = await this.benchmarkProjectService.getProjectById(projectId);
+  private async assertProjectGroupAccess(
+    projectId: string,
+    req: Request,
+  ): Promise<void> {
+    const project =
+      await this.benchmarkProjectService.getProjectById(projectId);
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.groupId,
@@ -85,7 +89,9 @@ export class BenchmarkDefinitionController {
     description: "Definition created successfully",
     type: DefinitionDetailsDto,
   })
-  @ApiBadRequestResponse({ description: "Invalid referenced entity or evaluator type" })
+  @ApiBadRequestResponse({
+    description: "Invalid referenced entity or evaluator type",
+  })
   @ApiNotFoundResponse({ description: "Project not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async createDefinition(
@@ -200,7 +206,9 @@ export class BenchmarkDefinitionController {
     description: "Schedule configured, returns updated definition",
     type: DefinitionDetailsDto,
   })
-  @ApiBadRequestResponse({ description: "Cron expression required when enabling" })
+  @ApiBadRequestResponse({
+    description: "Cron expression required when enabling",
+  })
   @ApiNotFoundResponse({ description: "Definition not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async configureSchedule(

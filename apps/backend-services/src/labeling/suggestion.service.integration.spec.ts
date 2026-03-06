@@ -1,3 +1,4 @@
+/* biome-ignore-all lint/suspicious/noConsole: test output for debugging */
 import * as fs from "fs";
 import * as path from "path";
 import { FieldType } from "../generated/client";
