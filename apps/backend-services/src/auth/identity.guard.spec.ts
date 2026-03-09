@@ -1,12 +1,16 @@
 import { GroupRole } from "@generated/client";
 import { ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
+import { DatabaseService } from "../database/database.service";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
 import { IdentityGuard } from "./identity.guard";
 
 describe("IdentityGuard", () => {
   let guard: IdentityGuard;
   let reflector: Reflector;
+  let databaseService: jest.Mocked<
+    Pick<DatabaseService, "isUserSystemAdmin" | "getUsersGroups">
+  >;
 
   /**
    * Builds a minimal mock ExecutionContext backed by the given request object.
@@ -36,36 +40,43 @@ describe("IdentityGuard", () => {
     }) as unknown as Reflector;
 
   beforeEach(() => {
+    databaseService = {
+      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+      getUsersGroups: jest.fn().mockResolvedValue([]),
+    };
     reflector = {
       getAllAndOverride: jest.fn().mockImplementation((key: string) => {
         if (key === "isPublic") return true;
         return undefined; // No @Identity by default
       }),
     } as unknown as Reflector;
-    guard = new IdentityGuard(reflector);
+    guard = new IdentityGuard(
+      reflector,
+      databaseService as unknown as DatabaseService,
+    );
   });
 
   // ---------------------------------------------------------------------------
-  // Scenario 1: JWT authentication
+  // Scenario 1: JWT authentication (no @Identity — userId only, no DB queries)
   // ---------------------------------------------------------------------------
 
-  it("should set resolvedIdentity with userId only for a JWT-authenticated request", () => {
+  it("should set resolvedIdentity with userId only for a JWT-authenticated request", async () => {
     const request: Record<string, unknown> = {
       user: { sub: "jwt-user-id", email: "jwt@example.com", roles: ["user"] },
     };
 
-    const result = guard.canActivate(createContext(request));
+    const result = await guard.canActivate(createContext(request));
 
     expect(result).toBe(true);
     expect(request.resolvedIdentity).toEqual({ userId: "jwt-user-id" });
   });
 
-  it("should not include groupRoles in resolvedIdentity for a JWT request", () => {
+  it("should not include groupRoles in resolvedIdentity for a JWT request when @Identity is absent", async () => {
     const request: Record<string, unknown> = {
       user: { sub: "jwt-user-id" },
     };
 
-    guard.canActivate(createContext(request));
+    await guard.canActivate(createContext(request));
 
     expect(
       (request.resolvedIdentity as { groupRoles?: unknown }).groupRoles,
@@ -76,14 +87,17 @@ describe("IdentityGuard", () => {
   // Scenario 2: API key authentication
   // ---------------------------------------------------------------------------
 
-  it("should set resolvedIdentity with groupRoles and isSystemAdmin for an API-key-authenticated request when @Identity is present", () => {
-    const identityGuard = new IdentityGuard(createReflectorWithIdentity());
+  it("should set resolvedIdentity with groupRoles and isSystemAdmin for an API-key-authenticated request when @Identity is present", async () => {
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity(),
+      databaseService as unknown as DatabaseService,
+    );
     const request: Record<string, unknown> = {
       // No request.user — API key auth does not set a user object
       apiKeyGroupId: "group-abc",
     };
 
-    const result = identityGuard.canActivate(createContext(request));
+    const result = await identityGuard.canActivate(createContext(request));
 
     expect(result).toBe(true);
     expect(request.resolvedIdentity).toEqual({
@@ -92,27 +106,30 @@ describe("IdentityGuard", () => {
     });
   });
 
-  it("should not include userId in resolvedIdentity for API key authentication", () => {
+  it("should not include userId in resolvedIdentity for API key authentication", async () => {
     const request: Record<string, unknown> = {
       apiKeyGroupId: "specific-group-id",
     };
 
-    guard.canActivate(createContext(request));
+    await guard.canActivate(createContext(request));
 
     expect(
       (request.resolvedIdentity as { userId?: string }).userId,
     ).toBeUndefined();
   });
 
-  it("should prefer API key path over JWT path when apiKeyGroupId is set and @Identity is present", () => {
-    const identityGuard = new IdentityGuard(createReflectorWithIdentity());
+  it("should prefer API key path over JWT path when apiKeyGroupId is set and @Identity is present", async () => {
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity(),
+      databaseService as unknown as DatabaseService,
+    );
     // Edge case: both present (should not happen in practice, but guard should be deterministic)
     const request: Record<string, unknown> = {
       user: { sub: "some-user" },
       apiKeyGroupId: "group-id",
     };
 
-    identityGuard.canActivate(createContext(request));
+    await identityGuard.canActivate(createContext(request));
 
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
@@ -124,22 +141,28 @@ describe("IdentityGuard", () => {
   // US-003: API key enrichment controlled by @Identity presence
   // ---------------------------------------------------------------------------
 
-  it("should set isSystemAdmin to false when @Identity is present and request uses an API key", () => {
-    const identityGuard = new IdentityGuard(createReflectorWithIdentity());
+  it("should set isSystemAdmin to false when @Identity is present and request uses an API key", async () => {
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity(),
+      databaseService as unknown as DatabaseService,
+    );
     const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
 
-    identityGuard.canActivate(createContext(request));
+    await identityGuard.canActivate(createContext(request));
 
     expect(
       (request.resolvedIdentity as { isSystemAdmin?: boolean }).isSystemAdmin,
     ).toBe(false);
   });
 
-  it("should set groupRoles with the scoped group as MEMBER when @Identity is present and request uses an API key", () => {
-    const identityGuard = new IdentityGuard(createReflectorWithIdentity());
+  it("should set groupRoles with the scoped group as MEMBER when @Identity is present and request uses an API key", async () => {
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity(),
+      databaseService as unknown as DatabaseService,
+    );
     const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
 
-    identityGuard.canActivate(createContext(request));
+    await identityGuard.canActivate(createContext(request));
 
     expect(
       (request.resolvedIdentity as { groupRoles?: Record<string, GroupRole> })
@@ -147,11 +170,11 @@ describe("IdentityGuard", () => {
     ).toEqual({ "group-123": GroupRole.MEMBER });
   });
 
-  it("should not set isSystemAdmin or groupRoles when @Identity is absent and request uses an API key", () => {
+  it("should not set isSystemAdmin or groupRoles when @Identity is absent and request uses an API key", async () => {
     // Default guard has no @Identity in reflector mock
     const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
 
-    guard.canActivate(createContext(request));
+    await guard.canActivate(createContext(request));
 
     const identity = request.resolvedIdentity as {
       isSystemAdmin?: boolean;
@@ -165,21 +188,21 @@ describe("IdentityGuard", () => {
   // Scenario 3: No authenticated user (public route or unauthenticated)
   // ---------------------------------------------------------------------------
 
-  it("should return true and skip identity resolution when request.user is absent", () => {
+  it("should return true and skip identity resolution when request.user is absent", async () => {
     const request: Record<string, unknown> = {};
 
-    const result = guard.canActivate(createContext(request));
+    const result = await guard.canActivate(createContext(request));
 
     expect(result).toBe(true);
     expect(request.resolvedIdentity).toBeUndefined();
   });
 
-  it("should return true and skip identity resolution when request.user has no sub", () => {
+  it("should return true and skip identity resolution when request.user has no sub", async () => {
     const request: Record<string, unknown> = {
       user: { email: "nosub@example.com" },
     };
 
-    const result = guard.canActivate(createContext(request));
+    const result = await guard.canActivate(createContext(request));
 
     expect(result).toBe(true);
     expect(request.resolvedIdentity).toBeUndefined();
@@ -189,7 +212,7 @@ describe("IdentityGuard", () => {
   // Composability with existing auth guards
   // ---------------------------------------------------------------------------
 
-  it("should always return true and never throw", () => {
+  it("should always return true and never throw", async () => {
     const requests = [
       {},
       { user: { sub: "user-1" } },
@@ -197,17 +220,13 @@ describe("IdentityGuard", () => {
     ];
 
     for (const request of requests) {
-      expect(() =>
+      await expect(
         guard.canActivate(createContext(request as Record<string, unknown>)),
-      ).not.toThrow();
-      const result = guard.canActivate(
-        createContext(request as Record<string, unknown>),
-      );
-      expect(result).toBe(true);
+      ).resolves.toBe(true);
     }
   });
 
-  it("should not modify request.user when setting resolvedIdentity", () => {
+  it("should not modify request.user when setting resolvedIdentity", async () => {
     const originalUser = {
       sub: "user-id",
       email: "user@example.com",
@@ -215,8 +234,163 @@ describe("IdentityGuard", () => {
     };
     const request: Record<string, unknown> = { user: { ...originalUser } };
 
-    guard.canActivate(createContext(request));
+    await guard.canActivate(createContext(request));
 
     expect(request.user).toEqual(originalUser);
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-004: JWT path enrichment when @Identity is present
+  // ---------------------------------------------------------------------------
+
+  it("should set isSystemAdmin from the database when @Identity is present and user is a system admin", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(true);
+    databaseService.getUsersGroups.mockResolvedValue([]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity(),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "admin-user-id" },
+    };
+
+    await identityGuard.canActivate(createContext(request));
+
+    expect(
+      (request.resolvedIdentity as { isSystemAdmin?: boolean }).isSystemAdmin,
+    ).toBe(true);
+  });
+
+  it("should set isSystemAdmin to false from the database when @Identity is present and user is not a system admin", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity(),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "regular-user-id" },
+    };
+
+    await identityGuard.canActivate(createContext(request));
+
+    expect(
+      (request.resolvedIdentity as { isSystemAdmin?: boolean }).isSystemAdmin,
+    ).toBe(false);
+  });
+
+  it("should set groupRoles from the database when @Identity is present and user belongs to groups", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([
+      {
+        user_id: "user-1",
+        group_id: "g1",
+        role: GroupRole.MEMBER,
+        created_at: new Date(),
+      },
+      {
+        user_id: "user-1",
+        group_id: "g2",
+        role: GroupRole.ADMIN,
+        created_at: new Date(),
+      },
+    ]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity(),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1" },
+    };
+
+    await identityGuard.canActivate(createContext(request));
+
+    expect(
+      (request.resolvedIdentity as { groupRoles?: Record<string, GroupRole> })
+        .groupRoles,
+    ).toEqual({ g1: GroupRole.MEMBER, g2: GroupRole.ADMIN });
+  });
+
+  it("should set groupRoles to an empty record when @Identity is present and user has no groups", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity(),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-no-groups" },
+    };
+
+    await identityGuard.canActivate(createContext(request));
+
+    expect(
+      (request.resolvedIdentity as { groupRoles?: Record<string, GroupRole> })
+        .groupRoles,
+    ).toEqual({});
+  });
+
+  it("should also set userId on resolvedIdentity when @Identity is present and request is JWT", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity(),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "jwt-user-id" },
+    };
+
+    await identityGuard.canActivate(createContext(request));
+
+    expect((request.resolvedIdentity as { userId?: string }).userId).toBe(
+      "jwt-user-id",
+    );
+  });
+
+  it("should invoke isUserSystemAdmin and getUsersGroups in parallel via Promise.all when @Identity is present", async () => {
+    const callOrder: string[] = [];
+
+    databaseService.isUserSystemAdmin.mockImplementation(async () => {
+      callOrder.push("isUserSystemAdmin");
+      return false;
+    });
+    databaseService.getUsersGroups.mockImplementation(async () => {
+      callOrder.push("getUsersGroups");
+      return [];
+    });
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity(),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-id" },
+    };
+
+    await identityGuard.canActivate(createContext(request));
+
+    expect(databaseService.isUserSystemAdmin).toHaveBeenCalledWith("user-id");
+    expect(databaseService.getUsersGroups).toHaveBeenCalledWith("user-id");
+    expect(callOrder).toEqual(
+      expect.arrayContaining(["isUserSystemAdmin", "getUsersGroups"]),
+    );
+  });
+
+  it("should not call isUserSystemAdmin or getUsersGroups when @Identity is absent and request is JWT", async () => {
+    // Default guard has no @Identity in reflector mock
+    const request: Record<string, unknown> = {
+      user: { sub: "jwt-user-id" },
+    };
+
+    await guard.canActivate(createContext(request));
+
+    expect(databaseService.isUserSystemAdmin).not.toHaveBeenCalled();
+    expect(databaseService.getUsersGroups).not.toHaveBeenCalled();
   });
 });

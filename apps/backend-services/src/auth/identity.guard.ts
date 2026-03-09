@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
+import { DatabaseService } from "../database/database.service";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
 
 /**
@@ -18,8 +19,12 @@ import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
  * consumption by downstream service-layer authorization helpers.
  *
  * Populates `resolvedIdentity` on the request:
- * - **JWT path**: `resolvedIdentity.userId` is extracted from `request.user.sub`.
- *   Group membership must be looked up by the service layer.
+ * - **JWT path**: When the {@link Identity} decorator is present on the handler,
+ *   `resolvedIdentity.userId` is set from `request.user.sub`,
+ *   `resolvedIdentity.isSystemAdmin` is populated via `isUserSystemAdmin(userId)`,
+ *   and `resolvedIdentity.groupRoles` is populated via `getUsersGroups(userId)`,
+ *   both executed in parallel. When the decorator is absent, only
+ *   `resolvedIdentity.userId` is set with no DB queries.
  * - **API key path**: When the {@link Identity} decorator is present on the handler,
  *   `resolvedIdentity.isSystemAdmin` is set to `false` and `resolvedIdentity.groupRoles`
  *   is populated using `request.apiKeyGroupId` (set by `ApiKeyAuthGuard`) as the key
@@ -30,21 +35,25 @@ import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
  */
 @Injectable()
 export class IdentityGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(
+    private reflector: Reflector,
+    private databaseService: DatabaseService,
+  ) {}
+
   /**
    * Resolves and attaches the requestor's identity to the request context.
    *
    * @param context - The NestJS execution context for the current request.
    * @returns Always `true`; this guard never blocks requests.
    */
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
 
-    if (request.apiKeyGroupId) {
-      const identityOptions = this.reflector.getAllAndOverride<
-        IdentityOptions | undefined
-      >(IDENTITY_KEY, [context.getHandler(), context.getClass()]);
+    const identityOptions = this.reflector.getAllAndOverride<
+      IdentityOptions | undefined
+    >(IDENTITY_KEY, [context.getHandler(), context.getClass()]);
 
+    if (request.apiKeyGroupId) {
       if (identityOptions !== undefined) {
         // @Identity is present: enrich with isSystemAdmin and groupRoles.
         // No database queries required; the key is group-scoped.
@@ -57,9 +66,29 @@ export class IdentityGuard implements CanActivate {
         request.resolvedIdentity = {};
       }
     } else if (request.user?.sub) {
-      // JWT authentication path: resolve userId from the Passport-validated
-      // user object. Group membership is determined by the service layer.
-      request.resolvedIdentity = { userId: request.user.sub };
+      const userId = request.user.sub;
+
+      if (identityOptions !== undefined) {
+        // @Identity is present: run parallel DB queries to enrich identity.
+        const [isSystemAdmin, userGroups] = await Promise.all([
+          this.databaseService.isUserSystemAdmin(userId),
+          this.databaseService.getUsersGroups(userId),
+        ]);
+
+        const groupRoles: Record<string, GroupRole> = {};
+        for (const ug of userGroups) {
+          groupRoles[ug.group_id] = ug.role;
+        }
+
+        request.resolvedIdentity = {
+          userId,
+          isSystemAdmin,
+          groupRoles,
+        };
+      } else {
+        // @Identity is absent: set userId only; no DB queries.
+        request.resolvedIdentity = { userId };
+      }
     }
     // else: public route or unauthenticated request
     // Must explicitly be marked as public though, otherwise throw an auth error
