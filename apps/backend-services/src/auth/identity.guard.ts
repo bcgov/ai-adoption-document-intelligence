@@ -1,5 +1,6 @@
 import { GroupRole } from "@generated/client";
 import {
+  BadRequestException,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
@@ -108,6 +109,43 @@ export class IdentityGuard implements CanActivate {
       !request.resolvedIdentity.isSystemAdmin
     ) {
       throw new ForbiddenException("System admin access required");
+    }
+
+    // Enforce groupIdFrom membership check.
+    // System admins bypass this check; non-admins must be a member of the resolved group.
+    if (identityOptions?.groupIdFrom && request.resolvedIdentity) {
+      const { param, query, body } = identityOptions.groupIdFrom;
+
+      if (param || query || body) {
+        if (!request.resolvedIdentity.isSystemAdmin) {
+          let groupId: string | undefined;
+
+          if (param) {
+            const paramsMap = request.params as Record<
+              string,
+              string | undefined
+            >;
+            groupId = paramsMap[param];
+          } else if (query) {
+            const queryVal = request.query[query];
+            groupId = typeof queryVal === "string" ? queryVal : undefined;
+          } else if (body) {
+            const bodyMap = request.body as Record<string, unknown>;
+            const bodyVal = bodyMap[body];
+            groupId = typeof bodyVal === "string" ? bodyVal : undefined;
+          }
+
+          if (!groupId) {
+            throw new BadRequestException("Missing required group identifier");
+          }
+
+          if (!request.resolvedIdentity.groupRoles?.[groupId]) {
+            throw new ForbiddenException(
+              "User is not a member of the specified group",
+            );
+          }
+        }
+      }
     }
 
     // else: public route or unauthenticated request

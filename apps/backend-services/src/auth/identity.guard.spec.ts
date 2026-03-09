@@ -1,5 +1,9 @@
 import { GroupRole } from "@generated/client";
-import { ExecutionContext, ForbiddenException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ExecutionContext,
+  ForbiddenException,
+} from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { DatabaseService } from "../database/database.service";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
@@ -463,6 +467,163 @@ describe("IdentityGuard", () => {
     const request: Record<string, unknown> = {
       user: { sub: "admin-user-id" },
       params: { groupId: "some-group" },
+    };
+
+    const result = await identityGuard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-006: groupIdFrom membership enforcement
+  // ---------------------------------------------------------------------------
+
+  it("should pass when group ID is extracted from route param and caller is a member", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([
+      {
+        user_id: "user-1",
+        group_id: "group-abc",
+        role: GroupRole.MEMBER,
+        created_at: new Date(),
+      },
+    ]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ groupIdFrom: { param: "groupId" } }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1" },
+      params: { groupId: "group-abc" },
+    };
+
+    const result = await identityGuard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
+  });
+
+  it("should pass when group ID is extracted from query param and caller is a member", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([
+      {
+        user_id: "user-1",
+        group_id: "group-xyz",
+        role: GroupRole.MEMBER,
+        created_at: new Date(),
+      },
+    ]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ groupIdFrom: { query: "group_id" } }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1" },
+      query: { group_id: "group-xyz" },
+    };
+
+    const result = await identityGuard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
+  });
+
+  it("should pass when group ID is extracted from request body and caller is a member", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([
+      {
+        user_id: "user-1",
+        group_id: "group-def",
+        role: GroupRole.MEMBER,
+        created_at: new Date(),
+      },
+    ]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ groupIdFrom: { body: "group_id" } }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1" },
+      body: { group_id: "group-def" },
+    };
+
+    const result = await identityGuard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
+  });
+
+  it("should throw BadRequestException when groupIdFrom param is specified but absent from request", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ groupIdFrom: { param: "groupId" } }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1" },
+      params: {},
+    };
+
+    await expect(
+      identityGuard.canActivate(createContext(request)),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it("should throw ForbiddenException when caller is not a member of the extracted group", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([
+      {
+        user_id: "user-1",
+        group_id: "other-group",
+        role: GroupRole.MEMBER,
+        created_at: new Date(),
+      },
+    ]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ groupIdFrom: { param: "groupId" } }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1" },
+      params: { groupId: "target-group" },
+    };
+
+    await expect(
+      identityGuard.canActivate(createContext(request)),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it("should pass for a system admin regardless of group membership when groupIdFrom is specified", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(true);
+    databaseService.getUsersGroups.mockResolvedValue([]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ groupIdFrom: { param: "groupId" } }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "admin-user" },
+      params: { groupId: "any-group" },
+    };
+
+    const result = await identityGuard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
+  });
+
+  it("should skip the membership check when groupIdFrom has no param, query, or body set", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ groupIdFrom: {} }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1" },
     };
 
     const result = await identityGuard.canActivate(createContext(request));
