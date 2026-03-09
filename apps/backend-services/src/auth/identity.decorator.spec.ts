@@ -3,6 +3,8 @@ import { GroupRole } from "@generated/client";
 import { Reflector } from "@nestjs/core";
 import { IDENTITY_KEY, Identity, IdentityOptions } from "./identity.decorator";
 
+const SWAGGER_API_SECURITY_KEY = "swagger/apiSecurity";
+
 describe("Identity decorator", () => {
   let reflector: Reflector;
 
@@ -112,5 +114,57 @@ describe("Identity decorator", () => {
     );
 
     expect(metadata).toEqual(options);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Swagger security metadata (US-009)
+  // ---------------------------------------------------------------------------
+
+  it("should apply @ApiBearerAuth('keycloak-sso') by default when no allowApiKey option is set", () => {
+    const handler = createHandler({});
+    const security: Record<string, string[]>[] = Reflect.getMetadata(
+      SWAGGER_API_SECURITY_KEY,
+      handler,
+    );
+    expect(security).toBeDefined();
+    expect(security).toEqual(expect.arrayContaining([{ "keycloak-sso": [] }]));
+  });
+
+  it("should apply both Bearer auth and api-key security schemes when allowApiKey is true", () => {
+    const handler = createHandler({ allowApiKey: true });
+    const security: Record<string, string[]>[] = Reflect.getMetadata(
+      SWAGGER_API_SECURITY_KEY,
+      handler,
+    );
+    expect(security).toBeDefined();
+    expect(security).toEqual(
+      expect.arrayContaining([{ "keycloak-sso": [] }, { "api-key": [] }]),
+    );
+  });
+
+  it("should apply only Bearer auth and not api-key security when allowApiKey is false", () => {
+    const handler = createHandler({ allowApiKey: false });
+    const security: Record<string, string[]>[] = Reflect.getMetadata(
+      SWAGGER_API_SECURITY_KEY,
+      handler,
+    );
+    expect(security).toBeDefined();
+    expect(security).toEqual(expect.arrayContaining([{ "keycloak-sso": [] }]));
+    const hasApiKey = security.some(
+      (scheme) => "api-key" in scheme,
+    );
+    expect(hasApiKey).toBe(false);
+  });
+
+  it("should not apply api-key security scheme when allowApiKey is not set", () => {
+    const handler = createHandler({});
+    const security: Record<string, string[]>[] = Reflect.getMetadata(
+      SWAGGER_API_SECURITY_KEY,
+      handler,
+    );
+    const hasApiKey = (security ?? []).some(
+      (scheme) => "api-key" in scheme,
+    );
+    expect(hasApiKey).toBe(false);
   });
 });

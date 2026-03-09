@@ -5,22 +5,22 @@
 **So that** the generated API documentation accurately reflects authentication requirements and I no longer need to apply `@ApiKeyAuth()` or `@KeycloakSSOAuth()` separately.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: `@ApiBearerAuth()` is applied by default
+- [x] **Scenario 1**: `@ApiBearerAuth()` is applied by default
     - **Given** `@Identity({})` (no `allowApiKey`) is applied to a handler
     - **When** the Swagger document is generated
     - **Then** the endpoint is listed under the Bearer auth security scheme
 
-- [ ] **Scenario 2**: Both `@ApiBearerAuth()` and `@ApiSecurity('api-key')` are applied when `allowApiKey: true`
+- [x] **Scenario 2**: Both `@ApiBearerAuth()` and `@ApiSecurity('api-key')` are applied when `allowApiKey: true`
     - **Given** `@Identity({ allowApiKey: true })` is applied
     - **When** the Swagger document is generated
     - **Then** the endpoint is listed under both the Bearer auth and API key security schemes
 
-- [ ] **Scenario 3**: Only `@ApiBearerAuth()` is applied when `allowApiKey: false`
+- [x] **Scenario 3**: Only `@ApiBearerAuth()` is applied when `allowApiKey: false`
     - **Given** `@Identity({ allowApiKey: false })` is applied
     - **When** the Swagger document is generated
     - **Then** only the Bearer auth security scheme is present for the endpoint (not the API key scheme)
 
-- [ ] **Scenario 4**: Swagger metadata is applied via decorator composition (not runtime logic)
+- [x] **Scenario 4**: Swagger metadata is applied via decorator composition (not runtime logic)
     - **Given** the `@Identity` implementation
     - **When** the decorator is defined
     - **Then** the Swagger metadata is composed using NestJS `applyDecorators` with `ApiBearerAuth` / `ApiSecurity`

@@ -1,5 +1,6 @@
 import { GroupRole } from "@generated/client";
-import { SetMetadata } from "@nestjs/common";
+import { applyDecorators, SetMetadata } from "@nestjs/common";
+import { ApiBearerAuth, ApiSecurity } from "@nestjs/swagger";
 
 /** Metadata key used to store {@link IdentityOptions} on a route handler. */
 export const IDENTITY_KEY = "identity";
@@ -65,5 +66,15 @@ export interface IdentityOptions {
  * @param options - Authorization requirements for this handler.
  * @returns A NestJS method decorator.
  */
-export const Identity = (options: IdentityOptions) =>
-  SetMetadata(IDENTITY_KEY, options);
+export const Identity = (options: IdentityOptions) => {
+  const decorators: (MethodDecorator | ClassDecorator | PropertyDecorator)[] = [
+    SetMetadata(IDENTITY_KEY, options),
+    ApiBearerAuth("keycloak-sso"),
+  ];
+
+  if (options.allowApiKey) {
+    decorators.push(ApiSecurity("api-key"));
+  }
+
+  return applyDecorators(...decorators);
+};
