@@ -5,27 +5,27 @@
 **So that** endpoints requiring ADMIN-level access within a group are not accessible to MEMBER-level callers.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Caller with exact minimum role is allowed
+- [x] **Scenario 1**: Caller with exact minimum role is allowed
     - **Given** `@Identity({ groupIdFrom: { param: 'groupId' }, minimumRole: GroupRole.ADMIN })`
     - **When** a caller with role `ADMIN` in the resolved group makes the request
     - **Then** the guard passes
 
-- [ ] **Scenario 2**: Caller with a higher role than minimum is allowed
+- [x] **Scenario 2**: Caller with a higher role than minimum is allowed
     - **Given** `@Identity({ ..., minimumRole: GroupRole.MEMBER })` (lowest role)
     - **When** a caller with role `ADMIN` makes the request
     - **Then** the guard passes (ADMIN satisfies MEMBER minimum)
 
-- [ ] **Scenario 3**: Caller with insufficient role is rejected
+- [x] **Scenario 3**: Caller with insufficient role is rejected
     - **Given** `@Identity({ ..., minimumRole: GroupRole.ADMIN })`
     - **When** a caller with role `MEMBER` in the resolved group makes the request
     - **Then** the guard throws `ForbiddenException` (403)
 
-- [ ] **Scenario 4**: `minimumRole` is ignored when `groupIdFrom` is absent
+- [x] **Scenario 4**: `minimumRole` is ignored when `groupIdFrom` is absent
     - **Given** `@Identity({ minimumRole: GroupRole.ADMIN })` with no `groupIdFrom`
     - **When** the guard processes the request
     - **Then** the `minimumRole` check is skipped entirely and the request proceeds
 
-- [ ] **Scenario 5**: System admin bypasses minimum role check
+- [x] **Scenario 5**: System admin bypasses minimum role check
     - **Given** `@Identity({ groupIdFrom: { param: 'groupId' }, minimumRole: GroupRole.ADMIN })` and the caller is a system admin
     - **When** the request arrives
     - **Then** the guard passes regardless of the user's role in the group

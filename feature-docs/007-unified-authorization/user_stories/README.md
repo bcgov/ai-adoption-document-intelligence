@@ -24,7 +24,7 @@ Add the authorization enforcement checks inside the guard.
 
 - [ ] [US-005: Enforce `requireSystemAdmin` in `IdentityGuard`](US-005-enforce-require-system-admin.md)
 - [ ] [US-006: Extract `group_id` and Enforce Group Membership via `groupIdFrom`](US-006-enforce-group-membership.md)
-- [ ] [US-007: Enforce `minimumRole` Within a Group in `IdentityGuard`](US-007-enforce-minimum-role.md)
+- [x] [US-007: Enforce `minimumRole` Within a Group in `IdentityGuard`](US-007-enforce-minimum-role.md)
 - [ ] [US-008: Enforce `allowApiKey` in `IdentityGuard`](US-008-enforce-allow-api-key.md)
 
 ---

@@ -630,4 +630,130 @@ describe("IdentityGuard", () => {
 
     expect(result).toBe(true);
   });
+
+  // ---------------------------------------------------------------------------
+  // US-007: minimumRole enforcement within a group
+  // ---------------------------------------------------------------------------
+
+  it("should pass when the caller holds exactly the minimum required role (ADMIN with ADMIN requirement)", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([
+      {
+        user_id: "user-1",
+        group_id: "group-abc",
+        role: GroupRole.ADMIN,
+        created_at: new Date(),
+      },
+    ]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({
+        groupIdFrom: { param: "groupId" },
+        minimumRole: GroupRole.ADMIN,
+      }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1" },
+      params: { groupId: "group-abc" },
+    };
+
+    const result = await identityGuard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
+  });
+
+  it("should pass when the caller holds a higher role than the minimum (ADMIN satisfies MEMBER minimum)", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([
+      {
+        user_id: "user-1",
+        group_id: "group-abc",
+        role: GroupRole.ADMIN,
+        created_at: new Date(),
+      },
+    ]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({
+        groupIdFrom: { param: "groupId" },
+        minimumRole: GroupRole.MEMBER,
+      }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1" },
+      params: { groupId: "group-abc" },
+    };
+
+    const result = await identityGuard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
+  });
+
+  it("should throw ForbiddenException when caller's role is below the minimum required role (MEMBER with ADMIN requirement)", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([
+      {
+        user_id: "user-1",
+        group_id: "group-abc",
+        role: GroupRole.MEMBER,
+        created_at: new Date(),
+      },
+    ]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({
+        groupIdFrom: { param: "groupId" },
+        minimumRole: GroupRole.ADMIN,
+      }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1" },
+      params: { groupId: "group-abc" },
+    };
+
+    await expect(
+      identityGuard.canActivate(createContext(request)),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it("should skip the minimumRole check when groupIdFrom is absent", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ minimumRole: GroupRole.ADMIN }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1" },
+    };
+
+    const result = await identityGuard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
+  });
+
+  it("should pass for a system admin regardless of minimumRole when groupIdFrom is specified", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(true);
+    databaseService.getUsersGroups.mockResolvedValue([]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({
+        groupIdFrom: { param: "groupId" },
+        minimumRole: GroupRole.ADMIN,
+      }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "admin-user" },
+      params: { groupId: "any-group" },
+    };
+
+    const result = await identityGuard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
+  });
 });

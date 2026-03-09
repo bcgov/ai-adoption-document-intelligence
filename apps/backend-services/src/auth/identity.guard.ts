@@ -13,6 +13,15 @@ import { DatabaseService } from "../database/database.service";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
 
 /**
+ * Numeric ordering of {@link GroupRole} values used for minimum-role comparisons.
+ * Higher numbers represent greater privilege.
+ */
+const ROLE_ORDER: Record<GroupRole, number> = {
+  [GroupRole.MEMBER]: 0,
+  [GroupRole.ADMIN]: 1,
+};
+
+/**
  * Identity resolution guard.
  *
  * Runs after `JwtAuthGuard` and `ApiKeyAuthGuard` have validated the request.
@@ -143,6 +152,17 @@ export class IdentityGuard implements CanActivate {
             throw new ForbiddenException(
               "User is not a member of the specified group",
             );
+          }
+
+          // Enforce minimumRole if specified. The role is guaranteed to exist
+          // at this point because the membership check above has just passed.
+          if (identityOptions.minimumRole !== undefined) {
+            const userRole = request.resolvedIdentity.groupRoles[groupId];
+            if (ROLE_ORDER[userRole] < ROLE_ORDER[identityOptions.minimumRole]) {
+              throw new ForbiddenException(
+                "Insufficient role within the group",
+              );
+            }
           }
         }
       }
