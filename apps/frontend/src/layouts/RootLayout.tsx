@@ -89,12 +89,6 @@ export function RootLayout() {
         description: "Manage groups",
         icon: IconUsers,
       },
-      {
-        path: "/settings",
-        label: "Settings",
-        description: "API key management",
-        icon: IconSettings,
-      },
     ],
     [],
   );
@@ -267,6 +261,54 @@ export function RootLayout() {
                   data-testid="benchmarking-nav-collapsed"
                 >
                   <IconChartBar size={18} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+
+            {navbarOpened ? (
+              <NavLink
+                label="Settings"
+                description="API key management"
+                leftSection={<IconSettings size={18} />}
+                active={
+                  !isBenchmarkingRoute &&
+                  location.pathname.startsWith("/settings")
+                }
+                variant={
+                  !isBenchmarkingRoute &&
+                  location.pathname.startsWith("/settings")
+                    ? "light"
+                    : "subtle"
+                }
+                color={
+                  !isBenchmarkingRoute &&
+                  location.pathname.startsWith("/settings")
+                    ? "blue"
+                    : "gray"
+                }
+                onClick={() => navigate("/settings")}
+              />
+            ) : (
+              <Tooltip label="Settings" position="right">
+                <ActionIcon
+                  variant={
+                    !isBenchmarkingRoute &&
+                    location.pathname.startsWith("/settings")
+                      ? "light"
+                      : "subtle"
+                  }
+                  color={
+                    !isBenchmarkingRoute &&
+                    location.pathname.startsWith("/settings")
+                      ? "blue"
+                      : "gray"
+                  }
+                  size="lg"
+                  radius="md"
+                  onClick={() => navigate("/settings")}
+                  aria-label="Settings"
+                >
+                  <IconSettings size={18} />
                 </ActionIcon>
               </Tooltip>
             )}

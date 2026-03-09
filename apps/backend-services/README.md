@@ -188,7 +188,7 @@ The backend services provide a modular, scalable API for:
 ## Prerequisites
 
 - **Node.js** 24+ and npm 10+
-- **PostgreSQL** 14+
+- **Docker** and **Docker Compose** (for PostgreSQL, MinIO, and Temporal)
 - **Temporal Server** (local or cloud)
 - **Azure Subscription** (for Document Intelligence and Blob Storage)
 - **Keycloak** (optional, for SSO authentication)
@@ -230,7 +230,7 @@ AZURE_STORAGE_TRAINING_CONTAINER=training-data
 BLOB_STORAGE_PROVIDER=minio
 
 # MinIO Configuration (when BLOB_STORAGE_PROVIDER=minio)
-MINIO_ENDPOINT=http://localhost:9000
+MINIO_ENDPOINT=http://localhost:19000
 MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=minioadmin
 MINIO_DOCUMENT_BUCKET=document-blobs
@@ -267,7 +267,55 @@ API_KEY_FAILED_WINDOW_MS=60000      # Tracking window in milliseconds (default: 
 API_KEY_SWEEP_INTERVAL_MS=60000     # Cleanup interval for stale records in milliseconds (default: 60 000)
 ```
 
-### 3. Database Setup
+### 3. Local Services (Docker Compose)
+
+The project includes a `docker-compose.yml` for local development services (PostgreSQL and MinIO).
+
+#### Prerequisites
+
+- **Docker** and **Docker Compose** installed and running
+- Ports `5432` (PostgreSQL), `19000` (MinIO API), and `19001` (MinIO Console) available
+
+#### Starting Services
+
+```bash
+# From apps/backend-services/
+docker compose up -d
+```
+
+This starts:
+- **PostgreSQL** on port `5432`
+- **MinIO** (S3-compatible blob storage) on port `19000` (API) and `19001` (web console)
+- **minio-init** sidecar that auto-creates the `document-blobs` and `benchmark-outputs` buckets
+
+#### MinIO Access
+
+- **Web Console**: http://localhost:19001 — login with `minioadmin` / `minioadmin`
+- **API Endpoint**: http://localhost:19000
+
+#### Verifying MinIO
+
+```bash
+# Check container health
+docker ps | grep ai-doc-intelligence-minio
+
+# Check bucket initialization logs
+docker compose logs minio-init
+```
+
+If `minio-init` failed (e.g., MinIO wasn't healthy in time), re-run it:
+
+```bash
+docker compose up minio-init
+```
+
+#### Troubleshooting MinIO
+
+- **Port conflict**: The compose file maps MinIO's internal ports 9000/9001 to host ports 19000/19001. If those are taken, adjust the port mappings in `docker-compose.yml`.
+- **Buckets missing**: Check `docker compose logs minio-init` — the init container depends on MinIO's healthcheck and will retry until ready.
+- **Connection refused from app**: Ensure your `.env` has `MINIO_ENDPOINT=http://localhost:19000` (not port 9000).
+
+### 4. Database Setup
 
 This project uses Prisma with a shared schema located at `apps/shared/prisma/schema.prisma`.
 
@@ -287,7 +335,7 @@ npm run db:studio
 
 **Important:** Migrations are stored in `apps/shared/prisma/migrations/` and are shared between `backend-services` and `temporal` apps.
 
-### 4. Start Temporal Server
+### 5. Start Temporal Server
 
 ```bash
 # Using Docker Compose (recommended for local development)
@@ -298,7 +346,7 @@ docker-compose up -d
 temporal server status
 ```
 
-### 5. Run the Service
+### 6. Run the Service
 
 ```bash
 # Development mode (with hot reload)

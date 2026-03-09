@@ -338,7 +338,7 @@ export function CreateDatasetFromHitlDialog({
             )}
 
             <Group justify="flex-end">
-              <Button variant="subtle" onClick={handleBack}>
+              <Button variant="subtle" onClick={isAddingVersion ? handleClose : handleBack}>
                 {isAddingVersion ? "Cancel" : "Back"}
               </Button>
               <Button

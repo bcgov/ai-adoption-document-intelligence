@@ -14,8 +14,10 @@ This platform is under active development with core capabilities implemented:
 - Custom model training
 - Document classification (Azure Document Intelligence classifier training and automated document type classification)
 - Human-in-the-loop review queue
+- Benchmarking system for workflow evaluation (datasets, ground truth, scheduled runs, baseline comparison)
+- Suggestion system for custom classifier template training
 - Multi-mode authentication (Keycloak SSO + API keys)
-- Blob storage abstraction (local/Azure)
+- Unified blob storage (MinIO for local dev, Azure Blob Storage for cloud)
 
 🚧 **In Development:**
 - Advanced workflow visual editor (read-only visualization currently available)
@@ -29,12 +31,12 @@ The platform is built as a microservices architecture with five main components:
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Frontend (React)                        │
-│  Document Upload │ Workflow Builder │ Labeling │ HITL Review    │
+│  Document Upload │ Workflow Builder │ Labeling │ HITL │ Benchmarking  │
 └────────────┬────────────────────────────────────────────────────┘
              │ REST API
 ┌────────────▼────────────────────────────────────────────────────┐
 │                    Backend Services (NestJS)                    │
-│  Document │ Upload │ Workflow │ Training │ HITL │ Auth │ OCR    │
+│  Document │ Upload │ Workflow │ Training │ HITL │ Benchmark │ Auth  │
 └─────┬──────────────┬───────────────┬───────────────────────┬────┘
       │              │               │                       │
       │   ┌──────────▼───────┐       │                       │
@@ -67,6 +69,7 @@ The platform is built as a microservices architecture with five main components:
    - Custom model training
    - Document classifier training and classification
    - HITL review queue and session management
+   - Benchmarking system (datasets, runs, evaluators, baseline comparison)
    - Authentication (Keycloak SSO + API keys)
 
 2. **[Frontend](apps/frontend/)** - React SPA
@@ -236,18 +239,22 @@ cd ai-adoption-document-intelligence
 npm run install:all
 ```
 
-### 2. Database Setup
+### 2. Database & Storage Setup
 
 ```bash
-# Start PostgreSQL with Podman Compose
+# Start PostgreSQL and MinIO with Podman Compose
 cd apps/backend-services
 podman-compose up -d
+# This starts:
+#   PostgreSQL on localhost:5432
+#   MinIO API on localhost:19000
+#   MinIO Console on localhost:19001 (user: minioadmin / minioadmin)
 
 # Copy environment configuration
 cp .env.sample .env
 
 # Edit .env with your database connection string
-# DATABASE_URL=postgresql://user:password@localhost:5432/docintell
+# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_doc_intelligence?schema=public
 
 # Generate Prisma client
 npm run db:generate
@@ -272,24 +279,33 @@ NODE_ENV=development
 FRONTEND_URL=http://localhost:3000
 
 # Database
-DATABASE_URL=postgresql://user:password@localhost:5432/docintell
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_doc_intelligence?schema=public
 
-# Azure Document Intelligence (OCR)
-AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<your-resource>.cognitiveservices.azure.com/
+# Azure Document Intelligence (OCR — endpoint without /documentintelligence suffix)
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<your-resource>.cognitiveservices.azure.com
 AZURE_DOCUMENT_INTELLIGENCE_API_KEY=<your-api-key>
 AZURE_DOC_INTELLIGENCE_MODELS=prebuilt-layout,prebuilt-document,prebuilt-invoice
 
-# Storage (Local Development)
-LOCAL_BLOB_STORAGE_PATH=./data/blobs
+# Blob Storage — MinIO for local dev, Azure for production
+BLOB_STORAGE_PROVIDER=minio
+MINIO_ENDPOINT=http://localhost:19000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_DOCUMENT_BUCKET=document-blobs
 
-# Azure Blob Storage (Production - Optional)
+# Azure Blob Storage (production — required when BLOB_STORAGE_PROVIDER=azure)
 # AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;...
-# AZURE_STORAGE_CONTAINER=documents
+# AZURE_STORAGE_ACCOUNT_NAME=<account-name>
+# AZURE_STORAGE_ACCOUNT_KEY=<account-key>
 
 # Temporal
 TEMPORAL_ADDRESS=localhost:7233
 TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=ocr-processing
+
+# Benchmarking
+BENCHMARK_TASK_QUEUE=benchmark-processing
+ENABLE_BENCHMARK_QUEUE=true
 
 # Keycloak SSO (Optional)
 # SSO_AUTH_SERVER_URL=https://keycloak.example.com/auth/realms/standard/protocol/openid-connect
@@ -324,7 +340,17 @@ TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=ocr-processing
 
 # Database (same as backend)
-DATABASE_URL=postgresql://user:password@localhost:5432/docintell
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_doc_intelligence?schema=public
+
+# Azure Document Intelligence (OCR)
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<your-resource>.cognitiveservices.azure.com
+AZURE_DOCUMENT_INTELLIGENCE_API_KEY=<your-api-key>
+
+# Blob Storage (must match backend-services config)
+BLOB_STORAGE_PROVIDER=minio
+MINIO_ENDPOINT=http://localhost:19000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
 ```
 
 ### 4. Start Temporal Server
@@ -472,6 +498,7 @@ ai-adoption-document-intelligence/
 │   │   ├── src/
 │   │   │   ├── api-key/          # API key authentication
 │   │   │   ├── auth/             # Keycloak SSO authentication
+│   │   │   ├── benchmark/        # Benchmarking system
 │   │   │   ├── blob-storage/     # Storage abstraction
 │   │   │   ├── database/         # Prisma database service
 │   │   │   ├── document/         # Document management
@@ -494,7 +521,8 @@ ai-adoption-document-intelligence/
 │   │   │   ├── components/      # Reusable components
 │   │   │   ├── data/            # API services & hooks
 │   │   │   ├── features/
-│   │   │   │   └── annotation/  # Labeling & HITL
+│   │   │   │   ├── annotation/  # Labeling & HITL
+│   │   │   │   └── benchmarking/ # Benchmarking UI
 │   │   │   ├── pages/           # Main pages
 │   │   │   ├── shared/          # Utilities & types
 │   │   │   └── App.tsx          # App shell
@@ -536,8 +564,11 @@ ai-adoption-document-intelligence/
 │
 ├── docs/                         # Generated documentation site
 ├── docs-md/                      # Technical documentation
+│   ├── BLOB_STORAGE.md          # Storage architecture
 │   ├── HITL_ARCHITECTURE.md     # HITL system design
 │   ├── TEMPLATE_TRAINING.md     # Training guide
+│   ├── ground-truth-generation.md # Benchmark ground truth
+│   ├── hitl-dataset-creation.md # HITL dataset creation
 │   └── graph-workflows/         # Workflow engine docs
 │       ├── DAG_WORKFLOW_ENGINE.md
 │       ├── ADDING_GRAPH_NODES_AND_ACTIVITIES.md
@@ -564,6 +595,7 @@ The API includes endpoints for:
 - **Training** (`/api/training`) - Model training jobs and validation
 - **HITL** (`/api/hitl`) - Review queue, sessions, corrections, analytics
 - **Azure Classifier** (`/api/azure/classifier`) - Classifier lifecycle management (create, train, classify)
+- **Benchmarking** (`/api/benchmark`) - Projects, datasets, definitions, runs, evaluators, ground truth
 - **API Keys** (`/api/api-key`) - API key generation and management
 - **Models** (`/api/models`) - Available OCR models
 
@@ -716,6 +748,21 @@ Validate and correct OCR results through human review.
 
 See [docs-md/HITL_ARCHITECTURE.md](docs-md/HITL_ARCHITECTURE.md) for architecture details.
 
+## Benchmarking
+
+Evaluate and track document intelligence workflow performance over time.
+
+**Core Capabilities:**
+- **Datasets & Ground Truth** - Create benchmark datasets from HITL-reviewed documents with versioned ground truth
+- **Pluggable Evaluators** - Registry of evaluators (schema-aware and black-box) for comparing extraction results against ground truth
+- **Benchmark Runs** - Execute evaluations across dataset samples, orchestrated as Temporal workflows with per-sample child workflows
+- **Scheduled Runs** - Cron-based scheduling via Temporal for automated regression detection
+- **Statistical Aggregation** - Mean, median, stdDev, percentiles (p5/p25/p75/p95), per-field error breakdown, and worst-sample identification
+- **Baseline Comparison** - Pin a run as baseline, compare subsequent runs with absolute/relative thresholds, automatic regression flagging
+- **Audit Logging** - Track benchmark lifecycle events (dataset created, run started/completed, baseline promoted)
+
+See [docs/benchmarking-guide.html](docs/benchmarking-guide.html) and [docs/benchmarking-technical.html](docs/benchmarking-technical.html) for detailed documentation.
+
 ## Deployment
 
 ### Docker
@@ -776,14 +823,23 @@ FRONTEND_URL=https://app.example.com
 # Database
 DATABASE_URL=postgresql://user:pass@host:5432/db
 
-# Azure
+# Azure Document Intelligence (endpoint without /documentintelligence suffix)
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://...
 AZURE_DOCUMENT_INTELLIGENCE_API_KEY=...
+
+# Blob Storage (azure for production)
+BLOB_STORAGE_PROVIDER=azure
 AZURE_STORAGE_CONNECTION_STRING=DefaultEndpoints...
+AZURE_STORAGE_ACCOUNT_NAME=...
+AZURE_STORAGE_ACCOUNT_KEY=...
 
 # Temporal
 TEMPORAL_ADDRESS=temporal:7233
 TEMPORAL_NAMESPACE=default
+
+# Benchmarking
+BENCHMARK_TASK_QUEUE=benchmark-processing
+ENABLE_BENCHMARK_QUEUE=true
 
 # Authentication
 SSO_AUTH_SERVER_URL=https://keycloak.example.com/auth/realms/standard/protocol/openid-connect
@@ -805,6 +861,9 @@ Note: All OAuth/OIDC configuration is handled by the backend. The frontend has n
 
 - **[HITL Architecture](docs-md/HITL_ARCHITECTURE.md)** - Human-in-the-loop system design
 - **[Template Training](docs-md/TEMPLATE_TRAINING.md)** - Custom model training guide
+- **[Blob Storage](docs-md/BLOB_STORAGE.md)** - Storage architecture (MinIO/Azure)
+- **[Benchmarking Guide](docs/benchmarking-guide.html)** - Benchmarking system usage
+- **[Benchmarking Technical](docs/benchmarking-technical.html)** - Benchmarking architecture and internals
 
 ### Workflow Documentation
 

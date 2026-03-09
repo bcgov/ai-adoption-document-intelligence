@@ -51,17 +51,85 @@ Set `BLOB_STORAGE_PROVIDER` in your environment:
 
 Default: `minio`
 
-## Bucket / Container Strategy
+## Container / Bucket Structure
 
-A single bucket (MinIO) or container (Azure) named `document-blobs` is used for all primary storage. Objects are organized via key prefixes:
+### Primary container: `document-blobs`
 
-| Prefix Pattern                              | Usage                                |
-|---------------------------------------------|--------------------------------------|
-| `documents/{documentId}/original`           | Uploaded document files              |
-| `documents/{documentId}/ocr-result.json`    | OCR results                          |
-| `labeling/{projectId}/{documentId}/...`     | Labeling OCR data                    |
-| `classifier/{groupId}/{classifierName}/...` | Classifier training documents        |
-| `benchmarking/...`                          | Benchmark artifacts                  |
+A single bucket (MinIO) or container (Azure) holds most platform data, organized by key prefix:
+
+```
+document-blobs/
+├── documents/{documentId}/
+│   └── original.{ext}                        # Uploaded document (pdf, jpg, etc.)
+│
+├── labeling-documents/{documentId}/
+│   └── original.{ext}                        # Documents uploaded via labeling workflow
+│
+├── classifier/{groupId}/{classifierName}/{label}/
+│   └── {filename}                             # Classifier training documents (staged here
+│                                              #   before being copied to Azure for training)
+│
+└── datasets/{datasetId}/{datasetVersionId}/
+    ├── dataset-manifest.json                  # Version manifest (schema, sample list)
+    ├── inputs/
+    │   └── {sampleId}.{ext}                   # Input documents (pdf, jpg, etc.)
+    └── ground-truth/
+        └── {sampleId}.json                    # Ground truth annotations
+```
+
+### Benchmark outputs container: `benchmark-outputs`
+
+Created by the MinIO init script alongside `document-blobs`. Used for benchmark run artifacts.
+
+### Training containers: `training-{projectId}` (Azure only)
+
+Dynamically created per training job via `AzureStorageService`. Azure Document Intelligence requires SAS URLs pointing to Azure containers, so these are always on Azure regardless of `BLOB_STORAGE_PROVIDER`.
+
+```
+training-{projectId}/
+├── fields.json                                # Field schema definition
+├── {filename}                                 # Original document file
+├── {filename}.ocr.json                        # OCR results
+└── {filename}.labels.json                     # Label annotations
+```
+
+Container lifecycle: created fresh per training run, cleared before re-use, can be deleted after completion.
+
+### Classification container: `classification` (Azure only)
+
+Hardcoded in `ClassifierService`. Used for Azure Document Intelligence classifier training — always Azure. Files are first uploaded to `document-blobs` under the `classifier/` prefix, then copied here (with the `classifier/` prefix stripped) when training is triggered.
+
+```
+classification/
+└── {groupId}/{classifierName}/{label}/
+    └── {filename}                             # Training document (copied from document-blobs)
+```
+
+### Summary table
+
+| Container / Bucket          | Provider           | Created By                  | Lifecycle        |
+|-----------------------------|--------------------|-----------------------------|------------------|
+| `document-blobs`            | MinIO or Azure     | init-minio.sh / app startup | Permanent        |
+| `benchmark-outputs`         | MinIO or Azure     | init-minio.sh / app startup | Permanent        |
+| `training-{projectId}`      | Azure only         | TrainingService              | Per training job |
+| `classification`            | Azure only         | ClassifierService            | Permanent        |
+
+### Key patterns by feature
+
+| Feature                  | Container            | Key Pattern                                                     | Operations       |
+|--------------------------|----------------------|-----------------------------------------------------------------|------------------|
+| Document upload          | `document-blobs`     | `documents/{documentId}/original.{ext}`                         | W, R, D          |
+| Labeling documents       | `document-blobs`     | `labeling-documents/{documentId}/original.{ext}`                | W, R             |
+| Classifier staging       | `document-blobs`     | `classifier/{groupId}/{classifierName}/{label}/{filename}`      | W, R, LIST, DEL prefix |
+| Benchmark datasets       | `document-blobs`     | `datasets/{datasetId}/{versionId}/dataset-manifest.json`        | W, R             |
+| Dataset inputs           | `document-blobs`     | `datasets/{datasetId}/{versionId}/inputs/{sampleId}.{ext}`      | W, R, D          |
+| Dataset ground truth     | `document-blobs`     | `datasets/{datasetId}/{versionId}/ground-truth/{sampleId}.json` | W, R, D          |
+| HITL-derived datasets    | `document-blobs`     | `datasets/{datasetId}/{versionId}/...` (same as above)          | W, R             |
+| Dataset cleanup          | `document-blobs`     | `datasets/{datasetId}/` (deleteByPrefix)                        | DEL prefix       |
+| DI model training        | `training-{projId}`  | `fields.json`, `{name}`, `{name}.ocr.json`, `{name}.labels.json` | W, R, DEL      |
+| DI classifier training   | `classification`     | `{groupId}/{classifierName}/{label}/{filename}`                 | W, R, DEL prefix |
+
+*Operations: W = write, R = read, D = delete, DEL prefix = deleteByPrefix, LIST = list*
 
 ## Environment Variables
 
@@ -192,10 +260,17 @@ The client reads the same `BLOB_STORAGE_PROVIDER` environment variable and suppo
 
 ## Local Development
 
-MinIO is started automatically via Docker Compose (`apps/backend-services/docker-compose.yml`). The `init-minio.sh` script creates the required buckets:
+MinIO is started via Docker Compose (`apps/backend-services/docker-compose.yml`). The `minio-init` sidecar runs `scripts/init-minio.sh` which creates the required buckets:
 
-- `benchmark-datasets` — for benchmarking DVC data
-- `mlflow-artifacts` — for MLflow experiment artifacts
-- `document-blobs` — for all document storage
+- `document-blobs` — primary storage for documents, labeling files, and datasets
+- `benchmark-outputs` — benchmark run artifacts
 
-Access the MinIO console at `http://localhost:9001` (default credentials in docker-compose).
+```bash
+# From apps/backend-services/
+docker compose up -d
+```
+
+- **MinIO API**: http://localhost:19000
+- **MinIO Console**: http://localhost:19001 (login: `minioadmin` / `minioadmin`)
+
+Note: Training (`training-{projectId}`) and classification (`classification`) containers are Azure-only and not created in MinIO.
