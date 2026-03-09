@@ -5,22 +5,22 @@
 **So that** existing endpoints without the decorator are not impacted by the new enrichment logic and incur no performance overhead.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Guard passes without DB queries when no decorator is present
+- [x] **Scenario 1**: Guard passes without DB queries when no decorator is present
     - **Given** a controller handler with no `@Identity` decorator
     - **When** any authenticated request arrives
     - **Then** the guard resolves the identity as before and returns `true` without any DB calls
 
-- [ ] **Scenario 2**: `resolvedIdentity.isSystemAdmin` remains `undefined` without decorator
+- [x] **Scenario 2**: `resolvedIdentity.isSystemAdmin` remains `undefined` without decorator
     - **Given** no `@Identity` on the handler
     - **When** the guard runs
     - **Then** `resolvedIdentity.isSystemAdmin` is `undefined`
 
-- [ ] **Scenario 3**: `resolvedIdentity.groupRoles` remains `undefined` without decorator
+- [x] **Scenario 3**: `resolvedIdentity.groupRoles` remains `undefined` without decorator
     - **Given** no `@Identity` on the handler
     - **When** the guard runs
     - **Then** `resolvedIdentity.groupRoles` is `undefined`
 
-- [ ] **Scenario 4**: No enforcement checks run when decorator is absent
+- [x] **Scenario 4**: No enforcement checks run when decorator is absent
     - **Given** no `@Identity` on the handler
     - **When** the guard runs
     - **Then** none of the `requireSystemAdmin`, `groupIdFrom`, `minimumRole`, or `allowApiKey` checks are evaluated
