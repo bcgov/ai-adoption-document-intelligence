@@ -93,7 +93,7 @@ describe("IdentityGuard", () => {
 
   it("should set resolvedIdentity with groupRoles and isSystemAdmin for an API-key-authenticated request when @Identity is present", async () => {
     const identityGuard = new IdentityGuard(
-      createReflectorWithIdentity(),
+      createReflectorWithIdentity({ allowApiKey: true }),
       databaseService as unknown as DatabaseService,
     );
     const request: Record<string, unknown> = {
@@ -124,7 +124,7 @@ describe("IdentityGuard", () => {
 
   it("should prefer API key path over JWT path when apiKeyGroupId is set and @Identity is present", async () => {
     const identityGuard = new IdentityGuard(
-      createReflectorWithIdentity(),
+      createReflectorWithIdentity({ allowApiKey: true }),
       databaseService as unknown as DatabaseService,
     );
     // Edge case: both present (should not happen in practice, but guard should be deterministic)
@@ -147,7 +147,7 @@ describe("IdentityGuard", () => {
 
   it("should set isSystemAdmin to false when @Identity is present and request uses an API key", async () => {
     const identityGuard = new IdentityGuard(
-      createReflectorWithIdentity(),
+      createReflectorWithIdentity({ allowApiKey: true }),
       databaseService as unknown as DatabaseService,
     );
     const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
@@ -161,7 +161,7 @@ describe("IdentityGuard", () => {
 
   it("should set groupRoles with the scoped group as MEMBER when @Identity is present and request uses an API key", async () => {
     const identityGuard = new IdentityGuard(
-      createReflectorWithIdentity(),
+      createReflectorWithIdentity({ allowApiKey: true }),
       databaseService as unknown as DatabaseService,
     );
     const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
@@ -441,7 +441,7 @@ describe("IdentityGuard", () => {
 
   it("should throw ForbiddenException when requireSystemAdmin is true and request is authenticated via API key", async () => {
     const identityGuard = new IdentityGuard(
-      createReflectorWithIdentity({ requireSystemAdmin: true }),
+      createReflectorWithIdentity({ requireSystemAdmin: true, allowApiKey: true }),
       databaseService as unknown as DatabaseService,
     );
     const request: Record<string, unknown> = {
@@ -755,5 +755,105 @@ describe("IdentityGuard", () => {
     const result = await identityGuard.canActivate(createContext(request));
 
     expect(result).toBe(true);
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-008: allowApiKey enforcement
+  // ---------------------------------------------------------------------------
+
+  it("should throw ForbiddenException when an API key request arrives and allowApiKey is false (default)", async () => {
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({}),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      apiKeyGroupId: "group-abc",
+    };
+
+    await expect(
+      identityGuard.canActivate(createContext(request)),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it("should throw ForbiddenException when an API key request arrives and allowApiKey is explicitly false", async () => {
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ allowApiKey: false }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      apiKeyGroupId: "group-abc",
+    };
+
+    await expect(
+      identityGuard.canActivate(createContext(request)),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it("should allow an API key request when allowApiKey is true", async () => {
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ allowApiKey: true }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      apiKeyGroupId: "group-abc",
+    };
+
+    const result = await identityGuard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
+    expect(request.resolvedIdentity).toEqual({
+      isSystemAdmin: false,
+      groupRoles: { "group-abc": GroupRole.MEMBER },
+    });
+  });
+
+  it("should not reject a JWT request due to allowApiKey being false", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ allowApiKey: false }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "jwt-user-id" },
+    };
+
+    const result = await identityGuard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
+  });
+
+  it("should throw ForbiddenException before enrichment when allowApiKey is false (group membership not evaluated)", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([
+      {
+        user_id: "user-1",
+        group_id: "group-abc",
+        role: GroupRole.MEMBER,
+        created_at: new Date(),
+      },
+    ]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({
+        allowApiKey: false,
+        groupIdFrom: { param: "groupId" },
+      }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      apiKeyGroupId: "group-abc",
+      params: { groupId: "group-abc" },
+    };
+
+    // Should throw before reaching groupIdFrom check
+    await expect(
+      identityGuard.canActivate(createContext(request)),
+    ).rejects.toThrow(ForbiddenException);
+
+    // Enrichment queries should not be called (API key path skips DB)
+    expect(databaseService.isUserSystemAdmin).not.toHaveBeenCalled();
+    expect(databaseService.getUsersGroups).not.toHaveBeenCalled();
   });
 });

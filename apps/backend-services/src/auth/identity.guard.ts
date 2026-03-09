@@ -45,6 +45,8 @@ const ROLE_ORDER: Record<GroupRole, number> = {
  * Returns `true` when the request is allowed to proceed, or throws:
  * - {@link ForbiddenException} when `requireSystemAdmin: true` is set and the
  *   authenticated identity is not a system admin.
+ * - {@link ForbiddenException} when an API-key-authenticated request arrives at
+ *   an endpoint where `allowApiKey` is not `true`.
  * - {@link UnauthorizedException} when the endpoint is not public and the request
  *   carries no authenticated identity.
  */
@@ -63,6 +65,8 @@ export class IdentityGuard implements CanActivate {
    * @returns `true` when the request is permitted to proceed.
    * @throws {ForbiddenException} When `requireSystemAdmin: true` is set and the
    *   authenticated identity is not a system admin (including API-key requests).
+   * @throws {ForbiddenException} When an API-key-authenticated request reaches an
+   *   endpoint that does not set `allowApiKey: true`.
    * @throws {UnauthorizedException} When the endpoint is not public and no
    *   authenticated identity was found.
    */
@@ -75,7 +79,13 @@ export class IdentityGuard implements CanActivate {
 
     if (request.apiKeyGroupId) {
       if (identityOptions !== undefined) {
-        // @Identity is present: enrich with isSystemAdmin and groupRoles.
+        // Reject API key requests unless the endpoint explicitly opts in.
+        if (!identityOptions.allowApiKey) {
+          throw new ForbiddenException(
+            "API key authentication is not allowed for this endpoint",
+          );
+        }
+        // @Identity is present and allowApiKey is true: enrich with isSystemAdmin and groupRoles.
         // No database queries required; the key is group-scoped.
         request.resolvedIdentity = {
           isSystemAdmin: false,
