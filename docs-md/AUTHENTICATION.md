@@ -744,7 +744,7 @@ export class AuthModule {}
 1. `ThrottlerGuard` → Enforces per-IP rate limits (global default or per-route override)
 2. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
 3. `ApiKeyAuthGuard` → Checks per-IP failed-attempt limit (configurable, default 20/min) → Validates API key (if applicable) → Sets `request.user` and `request.apiKeyGroupId`
-4. `IdentityGuard` → Resolves requestor identity → Sets `request.resolvedIdentity` (`{ userId }` for JWT; `{ isSystemAdmin: false, groupRoles }` for API key when `@Identity` is present)
+4. `IdentityGuard` → Resolves requestor identity → Sets `request.resolvedIdentity` (`{ userId }` for JWT; `{ isSystemAdmin: false, groupRoles }` for API key when `@Identity` is present) → Throws `ForbiddenException` (403) when `@Identity({ requireSystemAdmin: true })` is set and the authenticated identity is not a system admin (API keys always fail this check)
 5. `RolesGuard` → Checks `@Roles()` decorator → Validates `request.user.roles`
 6. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
 
@@ -1514,6 +1514,8 @@ The guard chain runs globally in this order: `JwtAuthGuard` → `ApiKeyAuthGuard
 | `@Roles(...)` | Requires specific roles | `RolesGuard` checks `request.user.roles` for at least one match. Applies to both JWT and API key users |
 
 > **Identity resolution**: `IdentityGuard` runs after every authenticated request. For JWT users it sets `{ userId }`. For API key users it sets `{ isSystemAdmin: false, groupRoles: { [groupId]: GroupRole.MEMBER } }` when the handler has `@Identity`, otherwise sets `{}`. This is consumed by service-layer group authorization helpers.
+>
+> **System-admin enforcement**: After enrichment, if `@Identity({ requireSystemAdmin: true })` is present on the handler, the guard throws `ForbiddenException` (403) for any identity where `isSystemAdmin` is not `true`. Because API keys unconditionally set `isSystemAdmin = false`, they always fail this check. A confirmed system admin bypasses all subsequent group-membership checks.
 
 ### Valid Decorator Combinations
 

@@ -2,6 +2,7 @@ import { GroupRole } from "@generated/client";
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -31,7 +32,11 @@ import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
  *   with a default role of `GroupRole.MEMBER`. When the decorator is absent, a base
  *   identity object is set without enrichment. No database queries are made.
  *
- * Always returns `true`; this guard never blocks requests on its own.
+ * Returns `true` when the request is allowed to proceed, or throws:
+ * - {@link ForbiddenException} when `requireSystemAdmin: true` is set and the
+ *   authenticated identity is not a system admin.
+ * - {@link UnauthorizedException} when the endpoint is not public and the request
+ *   carries no authenticated identity.
  */
 @Injectable()
 export class IdentityGuard implements CanActivate {
@@ -41,10 +46,15 @@ export class IdentityGuard implements CanActivate {
   ) {}
 
   /**
-   * Resolves and attaches the requestor's identity to the request context.
+   * Resolves and attaches the requestor's identity to the request context,
+   * then enforces any declarative requirements expressed via {@link IdentityOptions}.
    *
    * @param context - The NestJS execution context for the current request.
-   * @returns Always `true`; this guard never blocks requests.
+   * @returns `true` when the request is permitted to proceed.
+   * @throws {ForbiddenException} When `requireSystemAdmin: true` is set and the
+   *   authenticated identity is not a system admin (including API-key requests).
+   * @throws {UnauthorizedException} When the endpoint is not public and no
+   *   authenticated identity was found.
    */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -90,6 +100,16 @@ export class IdentityGuard implements CanActivate {
         request.resolvedIdentity = { userId };
       }
     }
+    // Enforce requireSystemAdmin immediately after enrichment.
+    // API keys always have isSystemAdmin = false, so they always fail this check.
+    if (
+      identityOptions?.requireSystemAdmin &&
+      request.resolvedIdentity &&
+      !request.resolvedIdentity.isSystemAdmin
+    ) {
+      throw new ForbiddenException("System admin access required");
+    }
+
     // else: public route or unauthenticated request
     // Must explicitly be marked as public though, otherwise throw an auth error
     const isPublic = this.reflector.getAllAndOverride<boolean>("isPublic", [

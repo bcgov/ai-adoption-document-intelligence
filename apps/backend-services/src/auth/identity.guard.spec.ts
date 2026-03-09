@@ -1,5 +1,5 @@
 import { GroupRole } from "@generated/client";
-import { ExecutionContext } from "@nestjs/common";
+import { ExecutionContext, ForbiddenException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { DatabaseService } from "../database/database.service";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
@@ -392,5 +392,81 @@ describe("IdentityGuard", () => {
 
     expect(databaseService.isUserSystemAdmin).not.toHaveBeenCalled();
     expect(databaseService.getUsersGroups).not.toHaveBeenCalled();
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-005: requireSystemAdmin enforcement
+  // ---------------------------------------------------------------------------
+
+  it("should allow access when requireSystemAdmin is true and JWT user is a system admin", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(true);
+    databaseService.getUsersGroups.mockResolvedValue([]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ requireSystemAdmin: true }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "admin-user-id" },
+    };
+
+    const result = await identityGuard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
+    expect(
+      (request.resolvedIdentity as { isSystemAdmin?: boolean }).isSystemAdmin,
+    ).toBe(true);
+  });
+
+  it("should throw ForbiddenException when requireSystemAdmin is true and JWT user is not a system admin", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(false);
+    databaseService.getUsersGroups.mockResolvedValue([]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ requireSystemAdmin: true }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "regular-user-id" },
+    };
+
+    await expect(
+      identityGuard.canActivate(createContext(request)),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it("should throw ForbiddenException when requireSystemAdmin is true and request is authenticated via API key", async () => {
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({ requireSystemAdmin: true }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      apiKeyGroupId: "group-abc",
+    };
+
+    await expect(
+      identityGuard.canActivate(createContext(request)),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it("should allow a system admin through even when groupIdFrom is also specified", async () => {
+    databaseService.isUserSystemAdmin.mockResolvedValue(true);
+    databaseService.getUsersGroups.mockResolvedValue([]);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({
+        requireSystemAdmin: true,
+        groupIdFrom: { param: "groupId" },
+      }),
+      databaseService as unknown as DatabaseService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "admin-user-id" },
+      params: { groupId: "some-group" },
+    };
+
+    const result = await identityGuard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
   });
 });
