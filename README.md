@@ -761,7 +761,7 @@ Evaluate and track document intelligence workflow performance over time.
 - **Baseline Comparison** - Pin a run as baseline, compare subsequent runs with absolute/relative thresholds, automatic regression flagging
 - **Audit Logging** - Track benchmark lifecycle events (dataset created, run started/completed, baseline promoted)
 
-See [docs/benchmarking-guide.html](docs/benchmarking-guide.html) and [docs/benchmarking-technical.html](docs/benchmarking-technical.html) for detailed documentation.
+See [https://bcgov.github.io/ai-adoption-document-intelligence/benchmarking-guide.html](https://bcgov.github.io/ai-adoption-document-intelligence/benchmarking-guide.html) and [https://bcgov.github.io/ai-adoption-document-intelligence/benchmarking-technical.html](https://bcgov.github.io/ai-adoption-document-intelligence/benchmarking-technical.html) for detailed documentation.
 
 ## Deployment
 
@@ -862,8 +862,8 @@ Note: All OAuth/OIDC configuration is handled by the backend. The frontend has n
 - **[HITL Architecture](docs-md/HITL_ARCHITECTURE.md)** - Human-in-the-loop system design
 - **[Template Training](docs-md/TEMPLATE_TRAINING.md)** - Custom model training guide
 - **[Blob Storage](docs-md/BLOB_STORAGE.md)** - Storage architecture (MinIO/Azure)
-- **[Benchmarking Guide](docs/benchmarking-guide.html)** - Benchmarking system usage
-- **[Benchmarking Technical](docs/benchmarking-technical.html)** - Benchmarking architecture and internals
+- **[Benchmarking Guide](https://bcgov.github.io/ai-adoption-document-intelligence/benchmarking-guide.html)** - Benchmarking system usage
+- **[Benchmarking Technical](https://bcgov.github.io/ai-adoption-document-intelligence/benchmarking-technical.html)** - Benchmarking architecture and internals
 
 ### Workflow Documentation
 
