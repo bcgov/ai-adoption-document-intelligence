@@ -122,7 +122,9 @@ describe("expression-evaluator", () => {
         left: { ref: "ctx.text" },
         right: { literal: "Invoice" },
       };
-      expect(evaluateCondition(expr, { text: "This is an Invoice document" })).toBe(true);
+      expect(
+        evaluateCondition(expr, { text: "This is an Invoice document" }),
+      ).toBe(true);
     });
 
     it("contains is case-sensitive", () => {
@@ -131,7 +133,9 @@ describe("expression-evaluator", () => {
         left: { ref: "ctx.text" },
         right: { literal: "invoice" },
       };
-      expect(evaluateCondition(expr, { text: "This is an Invoice document" })).toBe(false);
+      expect(
+        evaluateCondition(expr, { text: "This is an Invoice document" }),
+      ).toBe(false);
     });
 
     it("contains returns false for non-string types", () => {
@@ -164,7 +168,11 @@ describe("expression-evaluator", () => {
         operator: "and",
         operands: [
           { operator: "equals", left: { ref: "ctx.a" }, right: { literal: 1 } },
-          { operator: "equals", left: { ref: "ctx.b" }, right: { literal: 99 } },
+          {
+            operator: "equals",
+            left: { ref: "ctx.b" },
+            right: { literal: 99 },
+          },
         ],
       };
       expect(evaluateCondition(expr, { a: 1, b: 2 })).toBe(false);
@@ -176,8 +184,16 @@ describe("expression-evaluator", () => {
       const expr: LogicalExpression = {
         operator: "and",
         operands: [
-          { operator: "equals", left: { ref: "ctx.a" }, right: { literal: false } },
-          { operator: "equals", left: { ref: "ctx.nonExistent.deep" }, right: { literal: "x" } },
+          {
+            operator: "equals",
+            left: { ref: "ctx.a" },
+            right: { literal: false },
+          },
+          {
+            operator: "equals",
+            left: { ref: "ctx.nonExistent.deep" },
+            right: { literal: "x" },
+          },
         ],
       };
       expect(evaluateCondition(expr, { a: false })).toBe(false);
@@ -192,7 +208,11 @@ describe("expression-evaluator", () => {
       const expr: LogicalExpression = {
         operator: "or",
         operands: [
-          { operator: "equals", left: { ref: "ctx.a" }, right: { literal: 99 } },
+          {
+            operator: "equals",
+            left: { ref: "ctx.a" },
+            right: { literal: 99 },
+          },
           { operator: "equals", left: { ref: "ctx.b" }, right: { literal: 2 } },
         ],
       };
@@ -203,8 +223,16 @@ describe("expression-evaluator", () => {
       const expr: LogicalExpression = {
         operator: "or",
         operands: [
-          { operator: "equals", left: { ref: "ctx.a" }, right: { literal: 99 } },
-          { operator: "equals", left: { ref: "ctx.b" }, right: { literal: 99 } },
+          {
+            operator: "equals",
+            left: { ref: "ctx.a" },
+            right: { literal: 99 },
+          },
+          {
+            operator: "equals",
+            left: { ref: "ctx.b" },
+            right: { literal: 99 },
+          },
         ],
       };
       expect(evaluateCondition(expr, { a: 1, b: 2 })).toBe(false);
@@ -215,7 +243,11 @@ describe("expression-evaluator", () => {
         operator: "or",
         operands: [
           { operator: "equals", left: { ref: "ctx.a" }, right: { literal: 1 } },
-          { operator: "equals", left: { ref: "ctx.nonExistent.deep" }, right: { literal: "x" } },
+          {
+            operator: "equals",
+            left: { ref: "ctx.nonExistent.deep" },
+            right: { literal: "x" },
+          },
         ],
       };
       expect(evaluateCondition(expr, { a: 1 })).toBe(true);
@@ -234,7 +266,11 @@ describe("expression-evaluator", () => {
     it("negates a true expression to false", () => {
       const expr: NotExpression = {
         operator: "not",
-        operand: { operator: "equals", left: { ref: "ctx.a" }, right: { literal: 1 } },
+        operand: {
+          operator: "equals",
+          left: { ref: "ctx.a" },
+          right: { literal: 1 },
+        },
       };
       expect(evaluateCondition(expr, { a: 1 })).toBe(false);
     });
@@ -242,7 +278,11 @@ describe("expression-evaluator", () => {
     it("negates a false expression to true", () => {
       const expr: NotExpression = {
         operator: "not",
-        operand: { operator: "equals", left: { ref: "ctx.a" }, right: { literal: 99 } },
+        operand: {
+          operator: "equals",
+          left: { ref: "ctx.a" },
+          right: { literal: 99 },
+        },
       };
       expect(evaluateCondition(expr, { a: 1 })).toBe(true);
     });
@@ -380,16 +420,19 @@ describe("expression-evaluator", () => {
   // -----------------------------------------------------------------------
   describe("context variable resolution", () => {
     it("resolves simple ctx key", () => {
-      expect(resolveValueRef({ ref: "ctx.documentId" }, { documentId: "doc-123" })).toBe(
-        "doc-123",
-      );
+      expect(
+        resolveValueRef({ ref: "ctx.documentId" }, { documentId: "doc-123" }),
+      ).toBe("doc-123");
     });
 
     it("resolves nested ctx key", () => {
       expect(
-        resolveValueRef({ ref: "ctx.currentSegment.blobKey" }, {
-          currentSegment: { blobKey: "blob-456" },
-        }),
+        resolveValueRef(
+          { ref: "ctx.currentSegment.blobKey" },
+          {
+            currentSegment: { blobKey: "blob-456" },
+          },
+        ),
       ).toBe("blob-456");
     });
 
@@ -413,17 +456,23 @@ describe("expression-evaluator", () => {
 
     it("resolves doc namespace alias", () => {
       expect(
-        resolveValueRef({ ref: "doc.fileName" }, {
-          documentMetadata: { fileName: "test.pdf" },
-        }),
+        resolveValueRef(
+          { ref: "doc.fileName" },
+          {
+            documentMetadata: { fileName: "test.pdf" },
+          },
+        ),
       ).toBe("test.pdf");
     });
 
     it("resolves segment namespace alias", () => {
       expect(
-        resolveValueRef({ ref: "segment.blobKey" }, {
-          currentSegment: { blobKey: "seg-001" },
-        }),
+        resolveValueRef(
+          { ref: "segment.blobKey" },
+          {
+            currentSegment: { blobKey: "seg-001" },
+          },
+        ),
       ).toBe("seg-001");
     });
   });

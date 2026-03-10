@@ -1,21 +1,15 @@
 import { Module } from "@nestjs/common";
 import { AzureController } from "@/azure/azure.controller";
 import { AzureService } from "@/azure/azure.service";
-import { BlobService } from "@/azure/blob.service";
 import { ClassifierService } from "@/azure/classifier.service";
 import { ClassifierPollerService } from "@/azure/classifier-poller.service";
+import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
 import { DatabaseModule } from "@/database/database.module";
-import { StorageModule } from "@/storage/storage.module";
 
 @Module({
-  providers: [
-    AzureService,
-    BlobService,
-    ClassifierService,
-    ClassifierPollerService,
-  ],
+  providers: [AzureService, ClassifierService, ClassifierPollerService],
   exports: [AzureService],
-  imports: [DatabaseModule, StorageModule],
+  imports: [DatabaseModule, BlobStorageModule],
   controllers: [AzureController],
 })
 export class AzureModule {}

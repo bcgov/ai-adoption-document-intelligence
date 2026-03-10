@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   NotFoundException,
   Param,
   Post,
@@ -32,7 +33,10 @@ import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "../blob-storage/blob-storage.interface";
 import { DatabaseService } from "../database/database.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
@@ -52,6 +56,7 @@ import {
   UploadLabelingResponseDto,
 } from "./dto/labeling-responses.dto";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
+import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { LabelingService } from "./labeling.service";
 
 @ApiTags("labeling")
@@ -59,7 +64,8 @@ import { LabelingService } from "./labeling.service";
 export class LabelingController {
   constructor(
     private readonly labelingService: LabelingService,
-    private readonly blobStorage: LocalBlobStorageService,
+    @Inject(BLOB_STORAGE)
+    private readonly blobStorage: BlobStorageInterface,
     private readonly databaseService: DatabaseService,
   ) {}
 
@@ -589,6 +595,25 @@ export class LabelingController {
       this.databaseService,
     );
     return this.labelingService.getDocumentOcr(projectId, documentId);
+  }
+
+  @Post("projects/:id/documents/:docId/suggestions")
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary:
+      "Generate label suggestions mapped to existing words/selection marks",
+  })
+  @ApiParam({ name: "id", description: "Project ID" })
+  @ApiParam({ name: "docId", description: "Document ID" })
+  async generateDocumentSuggestions(
+    @Param("id") projectId: string,
+    @Param("docId") documentId: string,
+  ): Promise<LabelSuggestionDto[]> {
+    return this.labelingService.generateDocumentSuggestions(
+      projectId,
+      documentId,
+    );
   }
 
   // ========== EXPORT ENDPOINTS ==========

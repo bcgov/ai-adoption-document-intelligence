@@ -3,6 +3,7 @@ import {
   FieldDefinition,
   FieldType,
   LabelingStatus,
+  Prisma,
 } from "@generated/client";
 import {
   ConflictException,
@@ -16,7 +17,7 @@ import {
 } from "@/database/database.service";
 import { LabelingUploadDto } from "@/labeling/dto/labeling-upload.dto";
 import { LabelingOcrService } from "@/labeling/labeling-ocr.service";
-import { Page } from "@/ocr/azure-types";
+import { AnalysisResponse, Page } from "@/ocr/azure-types";
 import { DatabaseService } from "../database/database.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
@@ -26,6 +27,8 @@ import {
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
+import { LabelSuggestionDto } from "./dto/suggestion.dto";
+import { SuggestionService } from "./suggestion.service";
 
 @Injectable()
 export class LabelingService {
@@ -34,6 +37,7 @@ export class LabelingService {
   constructor(
     private readonly db: DatabaseService,
     private readonly labelingOcrService: LabelingOcrService,
+    private readonly suggestionService: SuggestionService,
   ) {}
 
   // ========== PROJECT OPERATIONS ==========
@@ -64,7 +68,9 @@ export class LabelingService {
 
   async updateProject(id: string, dto: UpdateProjectDto) {
     this.logger.debug(`Updating project: ${id}`);
-    const project = await this.db.updateLabelingProject(id, dto);
+    const project = await this.db.updateLabelingProject(id, {
+      ...dto,
+    });
     if (!project) {
       throw new NotFoundException(`Project with id ${id} not found`);
     }
@@ -289,6 +295,40 @@ export class LabelingService {
     }
 
     return labeledDoc.labeling_document.ocr_result;
+  }
+
+  async generateDocumentSuggestions(
+    projectId: string,
+    documentId: string,
+  ): Promise<LabelSuggestionDto[]> {
+    this.logger.debug(
+      `Generating suggestions for document ${documentId} in project: ${projectId}`,
+    );
+
+    const labeledDoc = await this.db.findLabeledDocument(projectId, documentId);
+    if (!labeledDoc) {
+      throw new NotFoundException(
+        `Document ${documentId} not found in project ${projectId}`,
+      );
+    }
+    if (!labeledDoc.labeling_document?.ocr_result) {
+      throw new NotFoundException(
+        `OCR result not found for labeling document ${documentId}`,
+      );
+    }
+
+    const project = await this.db.findLabelingProject(projectId);
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+
+    const ocrResult = labeledDoc.labeling_document
+      .ocr_result as unknown as AnalysisResponse;
+    return this.suggestionService.generateSuggestions(
+      ocrResult,
+      project.field_schema,
+      null,
+    );
   }
 
   // ========== EXPORT ==========

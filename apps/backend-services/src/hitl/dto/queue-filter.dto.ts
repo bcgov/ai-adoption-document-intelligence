@@ -5,7 +5,6 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUUID,
   Max,
   Min,
 } from "class-validator";
@@ -69,7 +68,7 @@ export class QueueFilterDto {
     description: "Scope results to a specific group ID",
   })
   @IsOptional()
-  @IsUUID()
+  @IsString()
   group_id?: string;
 }
 
@@ -93,6 +92,6 @@ export class AnalyticsFilterDto {
     description: "Scope results to a specific group ID",
   })
   @IsOptional()
-  @IsUUID()
+  @IsString()
   group_id?: string;
 }

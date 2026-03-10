@@ -3,20 +3,24 @@
  * Fetches LabelingProject field_schema, applies generic rules, optionally calls Azure OpenAI for low-confidence fields.
  */
 
-import { getPrismaClient } from './database-client';
 import type {
-  OCRResult,
+  EnrichmentChange,
   EnrichmentResult,
   EnrichmentSummary,
-  EnrichmentChange,
-} from '../types';
-import { buildFieldMap, applyRules, mergeKeyValuePairs } from './enrichment-rules';
-import type { FieldDef } from './enrichment-rules';
+  OCRResult,
+} from "../types";
+import { getPrismaClient } from "./database-client";
 import {
   callAzureOpenAI,
-  llmChangesToEnrichmentChanges,
   type LowConfidenceField,
-} from './enrichment-llm';
+  llmChangesToEnrichmentChanges,
+} from "./enrichment-llm";
+import type { FieldDef } from "./enrichment-rules";
+import {
+  applyRules,
+  buildFieldMap,
+  mergeKeyValuePairs,
+} from "./enrichment-rules";
 
 export interface EnrichResultsParams {
   documentId: string;
@@ -30,41 +34,53 @@ export async function enrichResults(
   params: EnrichResultsParams,
 ): Promise<EnrichmentResult> {
   const { documentId, ocrResult, documentType } = params;
-  const activityName = 'enrichResults';
+  const activityName = "enrichResults";
   const confidenceThreshold = params.confidenceThreshold ?? 0.85;
   const enableLlm = params.enableLlmEnrichment === true;
 
-  console.log(JSON.stringify({
-    activity: activityName,
-    event: 'start',
-    documentId,
-    fileName: ocrResult.fileName,
-    documentType,
-    enableLlmEnrichment: enableLlm,
-    confidenceThreshold,
-    timestamp: new Date().toISOString(),
-  }));
+  console.log(
+    JSON.stringify({
+      activity: activityName,
+      event: "start",
+      documentId,
+      fileName: ocrResult.fileName,
+      documentType,
+      enableLlmEnrichment: enableLlm,
+      confidenceThreshold,
+      timestamp: new Date().toISOString(),
+    }),
+  );
 
   try {
     const prisma = getPrismaClient();
     const project = await prisma.labelingProject.findUnique({
       where: { id: documentType },
-      include: { field_schema: { orderBy: { display_order: 'asc' } } },
+      include: { field_schema: { orderBy: { display_order: "asc" } } },
     });
 
-    if (!project || !project.field_schema || project.field_schema.length === 0) {
-      console.log(JSON.stringify({
-        activity: activityName,
-        event: 'skip',
-        reason: 'project_not_found_or_empty_schema',
-        documentType,
-        timestamp: new Date().toISOString(),
-      }));
+    if (
+      !project ||
+      !project.field_schema ||
+      project.field_schema.length === 0
+    ) {
+      console.log(
+        JSON.stringify({
+          activity: activityName,
+          event: "skip",
+          reason: "project_not_found_or_empty_schema",
+          documentType,
+          timestamp: new Date().toISOString(),
+        }),
+      );
       return { ocrResult, summary: null };
     }
 
     const fieldDefs: FieldDef[] = project.field_schema.map(
-      (f: { field_key: string; field_type: string; field_format: string | null }) => ({
+      (f: {
+        field_key: string;
+        field_type: string;
+        field_format: string | null;
+      }) => ({
         field_key: f.field_key,
         field_type: f.field_type,
         field_format: f.field_format,
@@ -72,14 +88,15 @@ export async function enrichResults(
     );
     const fieldMap = buildFieldMap(fieldDefs);
 
-    const { ocrResult: ruleResult, changes: ruleChanges, rulesApplied } = applyRules(
-      ocrResult,
-      fieldMap,
-    );
+    const {
+      ocrResult: ruleResult,
+      changes: ruleChanges,
+      rulesApplied,
+    } = applyRules(ocrResult, fieldMap);
     const allChanges: EnrichmentChange[] = [...ruleChanges];
 
     let finalResult: OCRResult = ruleResult;
-    let llmSummary = '';
+    let llmSummary = "";
     let llmModel: string | undefined;
     const llmChanges: EnrichmentChange[] = [];
 
@@ -105,12 +122,14 @@ export async function enrichResults(
                 endpoint,
                 apiKey,
                 apiVersion: process.env.AZURE_OPENAI_API_VERSION,
-                redactPii: process.env.ENRICHMENT_REDACT_PII === 'true',
+                redactPii: process.env.ENRICHMENT_REDACT_PII === "true",
               },
             );
             llmSummary = llmResponse.summary;
             llmModel = deployment;
-            llmChanges.push(...llmChangesToEnrichmentChanges(llmResponse.changes));
+            llmChanges.push(
+              ...llmChangesToEnrichmentChanges(llmResponse.changes),
+            );
 
             const overlay = Object.entries(llmResponse.correctedValues).map(
               ([key, value]) => ({
@@ -119,7 +138,10 @@ export async function enrichResults(
                 confidence: 0.95,
               }),
             );
-            const merged = mergeKeyValuePairs(ruleResult.keyValuePairs, overlay);
+            const merged = mergeKeyValuePairs(
+              ruleResult.keyValuePairs,
+              overlay,
+            );
             finalResult = { ...ruleResult, keyValuePairs: merged };
             if (
               ruleResult.documents &&
@@ -130,9 +152,11 @@ export async function enrichResults(
                 ...ruleResult.documents[0],
                 fields: { ...ruleResult.documents[0].fields },
               };
-              for (const [k, v] of Object.entries(llmResponse.correctedValues)) {
+              for (const [k, v] of Object.entries(
+                llmResponse.correctedValues,
+              )) {
                 const existing = doc.fields[k];
-                if (existing && typeof existing === 'object') {
+                if (existing && typeof existing === "object") {
                   (doc.fields as Record<string, unknown>)[k] = {
                     ...(existing as object),
                     content: v,
@@ -143,11 +167,11 @@ export async function enrichResults(
             }
           } catch (llmError) {
             const msg =
-              llmError instanceof Error ? llmError.message : 'Unknown error';
+              llmError instanceof Error ? llmError.message : "Unknown error";
             console.error(
               JSON.stringify({
                 activity: activityName,
-                event: 'llm_error',
+                event: "llm_error",
                 documentId,
                 error: msg,
                 timestamp: new Date().toISOString(),
@@ -164,8 +188,8 @@ export async function enrichResults(
             summary:
               llmSummary ||
               (allChanges.length > 0
-                ? `Applied ${rulesApplied.join(', ')} to ${allChanges.length} field(s).`
-                : ''),
+                ? `Applied ${rulesApplied.join(", ")} to ${allChanges.length} field(s).`
+                : ""),
             changes: [...allChanges, ...llmChanges],
             rulesApplied,
             llmEnriched: llmChanges.length > 0,
@@ -174,25 +198,27 @@ export async function enrichResults(
           }
         : null;
 
-    console.log(JSON.stringify({
-      activity: activityName,
-      event: 'complete',
-      documentId,
-      rulesApplied,
-      ruleChangeCount: ruleChanges.length,
-      llmChangeCount: llmChanges.length,
-      hasSummary: !!summary,
-      timestamp: new Date().toISOString(),
-    }));
+    console.log(
+      JSON.stringify({
+        activity: activityName,
+        event: "complete",
+        documentId,
+        rulesApplied,
+        ruleChangeCount: ruleChanges.length,
+        llmChangeCount: llmChanges.length,
+        hasSummary: !!summary,
+        timestamp: new Date().toISOString(),
+      }),
+    );
 
     return { ocrResult: finalResult, summary };
   } catch (error) {
     const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error';
+      error instanceof Error ? error.message : "Unknown error";
     console.error(
       JSON.stringify({
         activity: activityName,
-        event: 'error',
+        event: "error",
         documentId,
         error: errorMessage,
         stack: error instanceof Error ? error.stack : undefined,
@@ -210,15 +236,15 @@ function collectLowConfidenceFields(
 ): LowConfidenceField[] {
   const out: LowConfidenceField[] = [];
   for (const pair of ocrResult.keyValuePairs) {
-    const key = (pair.key?.content ?? '').trim();
-    const value = (pair.value?.content ?? '').trim();
+    const key = (pair.key?.content ?? "").trim();
+    const value = (pair.value?.content ?? "").trim();
     const conf = pair.confidence ?? 0;
     const normalizedConf = conf > 1 ? conf / 100 : conf;
     if (key && normalizedConf < threshold) {
       out.push({
         fieldKey: key,
         value,
-        expectedType: fieldMap[key]?.type ?? 'string',
+        expectedType: fieldMap[key]?.type ?? "string",
         confidence: normalizedConf,
       });
     }
@@ -229,14 +255,14 @@ function collectLowConfidenceFields(
       { content?: string; confidence?: number }
     >;
     for (const [key, data] of Object.entries(fields)) {
-      const content = data?.content ?? '';
+      const content = data?.content ?? "";
       const conf = (data?.confidence ?? 0) as number;
       const normalizedConf = conf > 1 ? conf / 100 : conf;
       if (normalizedConf < threshold) {
         out.push({
           fieldKey: key,
-          value: typeof content === 'string' ? content : String(content),
-          expectedType: fieldMap[key]?.type ?? 'string',
+          value: typeof content === "string" ? content : String(content),
+          expectedType: fieldMap[key]?.type ?? "string",
           confidence: normalizedConf,
         });
       }

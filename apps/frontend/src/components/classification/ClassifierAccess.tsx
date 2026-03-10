@@ -65,7 +65,7 @@ const ClassifierAccess = ({ model }: ClassifierAccessProps) => {
   }
 
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
+    let timeout: ReturnType<typeof setTimeout>;
     let cancelled = false;
     async function poll() {
       if (!polling || !operationLocation) return;

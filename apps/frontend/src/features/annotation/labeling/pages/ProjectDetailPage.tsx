@@ -31,6 +31,7 @@ import {
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FC, useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   type UploadQueueItem,
   useUploadQueue,
@@ -49,6 +50,7 @@ interface LabelingUploadPayload {
   file_type: "pdf" | "image" | "scan";
   original_filename?: string;
   metadata?: Record<string, unknown>;
+  group_id: string;
 }
 
 import { MAX_FILE_SIZE, SUPPORTED_FILE_TYPES } from "@/shared/constants";
@@ -76,17 +78,17 @@ const formatStatusBadge = (status: UploadQueueItem["status"]) => {
   }
 };
 
-interface ProjectDetailPageProps {
-  projectId: string;
-  onBack: () => void;
-  onOpenDocument: (documentId: string) => void;
-}
+export const ProjectDetailPage: FC = () => {
+  const navigate = useNavigate();
+  const { projectId } = useParams<{ projectId: string }>();
 
-export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
-  projectId,
-  onBack,
-  onOpenDocument,
-}) => {
+  if (!projectId) {
+    return (
+      <Center h="70vh">
+        <Text c="red">Project ID is required</Text>
+      </Center>
+    );
+  }
   const { project, isLoading: isProjectLoading } = useProject(projectId);
   const queryClient = useQueryClient();
   const {
@@ -169,6 +171,7 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
           size: file.size,
           lastModified: file.lastModified,
         },
+        group_id: project!.group_id,
       };
 
       const response = await apiService.post<{
@@ -236,7 +239,7 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
           <Button
             variant="subtle"
             leftSection={<IconArrowLeft size={16} />}
-            onClick={onBack}
+            onClick={() => navigate("/labeling")}
           >
             Back
           </Button>
@@ -317,7 +320,9 @@ export const ProjectDetailPage: FC<ProjectDetailPageProps> = ({
                               size="xs"
                               variant="light"
                               onClick={() =>
-                                onOpenDocument(doc.labeling_document_id)
+                                navigate(
+                                  `/labeling/${projectId}/document/${doc.labeling_document_id}`,
+                                )
                               }
                               disabled={!isReady}
                               title={

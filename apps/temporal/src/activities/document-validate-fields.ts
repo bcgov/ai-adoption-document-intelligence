@@ -1,6 +1,6 @@
 export interface ValidationRule {
   name: string;
-  type: 'field-match' | 'arithmetic' | 'array-match';
+  type: "field-match" | "arithmetic" | "array-match";
 
   // For field-match type
   primaryField?: string;
@@ -8,7 +8,7 @@ export interface ValidationRule {
 
   // For arithmetic type (e.g., net = gross - deductions)
   expression?: {
-    operation: 'sum' | 'difference' | 'product';
+    operation: "sum" | "difference" | "product";
     fields: string[];
     equals: string;
   };
@@ -16,15 +16,15 @@ export interface ValidationRule {
   // For array-match type (e.g., find Page 1 amounts in Page 3 deposits)
   primaryFields?: string[];
   attachmentFields?: string[];
-  matchType?: 'any' | 'all';
+  matchType?: "any" | "all";
 
   // Common options
-  operator?: 'equals' | 'approximately';
+  operator?: "equals" | "approximately";
   tolerance?: {
-    amount?: number;      // Absolute tolerance (e.g., 0.05 for ±$0.05)
-    percentage?: number;  // Percentage tolerance (e.g., 1 for ±1%)
+    amount?: number; // Absolute tolerance (e.g., 0.05 for ±$0.05)
+    percentage?: number; // Percentage tolerance (e.g., 1 for ±1%)
   };
-  fieldType?: 'text' | 'number' | 'currency';
+  fieldType?: "text" | "number" | "currency";
 }
 
 export interface DocumentValidateFieldsInput {
@@ -38,7 +38,7 @@ export interface ValidationResultEntry {
   primaryValue?: string | number;
   attachmentValues: (string | number)[];
   matched: boolean;
-  matchType?: 'exact' | 'within-tolerance' | 'partial';
+  matchType?: "exact" | "within-tolerance" | "partial";
   tolerance?: number;
   reason?: string;
   details?: {
@@ -77,19 +77,25 @@ interface KeyValuePair {
 export async function validateDocumentFields(
   input: DocumentValidateFieldsInput,
 ): Promise<DocumentValidateFieldsOutput> {
-  const rules = input.rules && input.rules.length > 0 ? input.rules : DEFAULT_RULES;
-  const normalizedSegments = normalizeProcessedSegments(input.processedSegments);
-  const primary = enrichPrimaryWithSegmentPages(normalizedSegments[0], normalizedSegments);
+  const rules =
+    input.rules && input.rules.length > 0 ? input.rules : DEFAULT_RULES;
+  const normalizedSegments = normalizeProcessedSegments(
+    input.processedSegments,
+  );
+  const primary = enrichPrimaryWithSegmentPages(
+    normalizedSegments[0],
+    normalizedSegments,
+  );
   const attachments = normalizedSegments.slice(1);
 
   const entries: ValidationResultEntry[] = rules.map((rule) => {
     // Route to appropriate validator based on rule type
     switch (rule.type) {
-      case 'field-match':
+      case "field-match":
         return validateFieldMatch(rule, primary, attachments);
-      case 'arithmetic':
+      case "arithmetic":
         return validateArithmetic(rule, primary);
-      case 'array-match':
+      case "array-match":
         return validateArrayMatch(rule, primary, attachments);
       default:
         return {
@@ -151,24 +157,24 @@ function parseCurrency(value: unknown): number | undefined {
   }
 
   let str: string;
-  if (typeof value === 'number') {
+  if (typeof value === "number") {
     return value;
   }
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     str = value;
   } else {
     str = String(value);
   }
 
   // Remove currency symbols, commas, whitespace, and leading plus sign
-  let cleaned = str.replace(/[$,\s]/g, '').trim();
+  let cleaned = str.replace(/[$,\s]/g, "").trim();
   let isNegative = false;
-  if (cleaned.startsWith('(') && cleaned.endsWith(')')) {
+  if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
     isNegative = true;
     cleaned = cleaned.slice(1, -1);
   }
-  cleaned = cleaned.replace(/^\+/, '');
-  cleaned = cleaned.replace(/[^0-9.-]/g, '');
+  cleaned = cleaned.replace(/^\+/, "");
+  cleaned = cleaned.replace(/[^0-9.-]/g, "");
   const num = Number(cleaned);
 
   if (!Number.isFinite(num)) {
@@ -203,12 +209,15 @@ function matchesWithTolerance(
   return { matched: false, delta };
 }
 
-function normalizeValue(value: unknown, fieldType?: string): string | number | undefined {
+function normalizeValue(
+  value: unknown,
+  fieldType?: string,
+): string | number | undefined {
   if (value === null || value === undefined) {
     return undefined;
   }
 
-  if (fieldType === 'currency' || fieldType === 'number') {
+  if (fieldType === "currency" || fieldType === "number") {
     const num = parseCurrency(value);
     return num;
   }
@@ -249,9 +258,11 @@ function normalizeProcessedSegments(
   });
 }
 
-function unwrapCombinedSegment(segment: Record<string, unknown>): Record<string, unknown> {
+function unwrapCombinedSegment(
+  segment: Record<string, unknown>,
+): Record<string, unknown> {
   const combinedSegment = segment.combinedSegment;
-  if (combinedSegment && typeof combinedSegment === 'object') {
+  if (combinedSegment && typeof combinedSegment === "object") {
     return combinedSegment as Record<string, unknown>;
   }
   return segment;
@@ -259,12 +270,16 @@ function unwrapCombinedSegment(segment: Record<string, unknown>): Record<string,
 
 function getSegmentIndex(segment: Record<string, unknown>): number | undefined {
   const value = segment.segmentIndex;
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
-function extractKeyValueFields(segment: Record<string, unknown>): Record<string, unknown> {
+function extractKeyValueFields(
+  segment: Record<string, unknown>,
+): Record<string, unknown> {
   const ocrResult = segment.ocrResult;
-  if (!ocrResult || typeof ocrResult !== 'object') {
+  if (!ocrResult || typeof ocrResult !== "object") {
     return {};
   }
 
@@ -277,8 +292,8 @@ function extractKeyValueFields(segment: Record<string, unknown>): Record<string,
   const checkboxKeyFlags: Record<string, boolean> = {};
 
   for (const pair of keyValuePairs as KeyValuePair[]) {
-    const rawKey = pair.key?.content ?? '';
-    const rawValue = pair.value?.content ?? '';
+    const rawKey = pair.key?.content ?? "";
+    const rawValue = pair.value?.content ?? "";
     const trimmedKey = rawKey.trim();
     const trimmedValue = rawValue.trim();
     const isCheckboxKey = /^o\s+/i.test(trimmedKey);
@@ -293,10 +308,7 @@ function extractKeyValueFields(segment: Record<string, unknown>): Record<string,
     }
 
     const normalizedValue = normalizeKeyValue(rawValue);
-    const hasExisting = Object.prototype.hasOwnProperty.call(
-      extracted,
-      normalizedKey,
-    );
+    const hasExisting = Object.prototype.hasOwnProperty.call(extracted, normalizedKey);
     const existingIsCheckbox = checkboxKeyFlags[normalizedKey] ?? false;
 
     if (!hasExisting) {
@@ -325,19 +337,22 @@ function extractKeyValueFields(segment: Record<string, unknown>): Record<string,
 }
 
 function normalizeKey(label: string): string {
-  let cleaned = label.replace(/^[^a-zA-Z0-9]+/, '');
-  cleaned = cleaned.replace(/^[oO]\s+(?=[a-zA-Z])/, '');
-  cleaned = cleaned.replace(/\([^)]*\)/g, ' ');
-  cleaned = cleaned.replace(/[:;]+/g, ' ');
-  cleaned = cleaned.replace(/(?:^|\s)[+-]?\d[\d,.\s]*$/g, ' ');
-  cleaned = cleaned.replace(/[^a-zA-Z0-9]+/g, ' ').trim().toLowerCase();
+  let cleaned = label.replace(/^[^a-zA-Z0-9]+/, "");
+  cleaned = cleaned.replace(/^[oO]\s+(?=[a-zA-Z])/, "");
+  cleaned = cleaned.replace(/\([^)]*\)/g, " ");
+  cleaned = cleaned.replace(/[:;]+/g, " ");
+  cleaned = cleaned.replace(/(?:^|\s)[+-]?\d[\d,.\s]*$/g, " ");
+  cleaned = cleaned
+    .replace(/[^a-zA-Z0-9]+/g, " ")
+    .trim()
+    .toLowerCase();
 
   if (!cleaned) {
-    return '';
+    return "";
   }
 
   const parts = cleaned.split(/\s+/);
-  return parts[0] + parts.slice(1).map(capitalize).join('');
+  return parts[0] + parts.slice(1).map(capitalize).join("");
 }
 
 function capitalize(value: string): string {
@@ -345,18 +360,18 @@ function capitalize(value: string): string {
 }
 
 function normalizeKeyValue(value: string): string | string[] {
-  const cleaned = value.replace(/\[\d+]/g, '').trim();
-  const lines = cleaned.split('\n').map((line) => line.trim()).filter(Boolean);
+  const cleaned = value.replace(/\[\d+]/g, "").trim();
+  const lines = cleaned
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
   if (lines.length <= 1) {
-    return lines[0] ?? '';
+    return lines[0] ?? "";
   }
   return lines;
 }
 
-function mergeFieldValues(
-  existing: unknown,
-  incoming: unknown,
-): unknown {
+function mergeFieldValues(existing: unknown, incoming: unknown): unknown {
   if (existing === undefined) {
     return incoming;
   }
@@ -372,7 +387,7 @@ function mergeFieldValues(
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function enrichPrimaryWithSegmentPages(
@@ -418,8 +433,8 @@ function validateFieldMatch(
     };
   }
 
-  const operator = rule.operator ?? 'equals';
-  const fieldType = rule.fieldType ?? 'text';
+  const operator = rule.operator ?? "equals";
+  const fieldType = rule.fieldType ?? "text";
 
   const primaryValue = normalizeValue(
     resolveField(primary, rule.primaryField),
@@ -453,13 +468,17 @@ function validateFieldMatch(
 
   // Numeric comparison with tolerance
   if (
-    operator === 'approximately' &&
-    typeof primaryValue === 'number' &&
-    attachmentValues.every((v) => typeof v === 'number')
+    operator === "approximately" &&
+    typeof primaryValue === "number" &&
+    attachmentValues.every((v) => typeof v === "number")
   ) {
     const numericAttachments = attachmentValues as number[];
     const allMatch = numericAttachments.every((attachValue) => {
-      const result = matchesWithTolerance(primaryValue, attachValue, rule.tolerance);
+      const result = matchesWithTolerance(
+        primaryValue,
+        attachValue,
+        rule.tolerance,
+      );
       return result.matched;
     });
 
@@ -473,7 +492,7 @@ function validateFieldMatch(
       primaryValue,
       attachmentValues: numericAttachments,
       matched: allMatch,
-      matchType: allMatch ? 'within-tolerance' : 'exact',
+      matchType: allMatch ? "within-tolerance" : "exact",
       tolerance: rule.tolerance?.amount ?? rule.tolerance?.percentage,
       reason: allMatch ? undefined : "attachment mismatch",
       details: {
@@ -484,10 +503,10 @@ function validateFieldMatch(
   }
 
   // String comparison
-  if (typeof primaryValue === 'string') {
+  if (typeof primaryValue === "string") {
     const matched = attachmentValues.every(
       (value) =>
-        typeof value === 'string' &&
+        typeof value === "string" &&
         value.toLowerCase() === primaryValue.toLowerCase(),
     );
 
@@ -496,7 +515,7 @@ function validateFieldMatch(
       primaryValue,
       attachmentValues,
       matched,
-      matchType: 'exact',
+      matchType: "exact",
       reason: matched ? undefined : "attachment mismatch",
     };
   }
@@ -508,7 +527,7 @@ function validateFieldMatch(
     primaryValue,
     attachmentValues,
     matched,
-    matchType: 'exact',
+    matchType: "exact",
     reason: matched ? undefined : "attachment mismatch",
   };
 }
@@ -527,15 +546,18 @@ function validateArithmetic(
   }
 
   const { operation, fields, equals: equalsField } = rule.expression;
-  const operator = rule.operator ?? 'equals';
-  const fieldType = rule.fieldType ?? 'number';
+  const operator = rule.operator ?? "equals";
+  const fieldType = rule.fieldType ?? "number";
 
   // Resolve all field values
   const fieldValues = fields.map((fieldPath) =>
     normalizeValue(resolveField(primary, fieldPath), fieldType),
   );
 
-  const equalsValue = normalizeValue(resolveField(primary, equalsField), fieldType);
+  const equalsValue = normalizeValue(
+    resolveField(primary, equalsField),
+    fieldType,
+  );
 
   // Check if all values are present
   if (fieldValues.some((v) => v === undefined) || equalsValue === undefined) {
@@ -549,8 +571,8 @@ function validateArithmetic(
 
   // All values must be numeric for arithmetic
   if (
-    !fieldValues.every((v) => typeof v === 'number') ||
-    typeof equalsValue !== 'number'
+    !fieldValues.every((v) => typeof v === "number") ||
+    typeof equalsValue !== "number"
   ) {
     return {
       rule: rule.name,
@@ -566,15 +588,15 @@ function validateArithmetic(
   // Calculate result based on operation
   let calculated: number;
   switch (operation) {
-    case 'sum':
+    case "sum":
       calculated = numericFields.reduce((acc, val) => acc + val, 0);
       break;
-    case 'difference':
+    case "difference":
       calculated = numericFields.reduce((acc, val, i) =>
         i === 0 ? val : acc - val,
       );
       break;
-    case 'product':
+    case "product":
       calculated = numericFields.reduce((acc, val) => acc * val, 1);
       break;
     default:
@@ -587,14 +609,18 @@ function validateArithmetic(
   }
 
   // Compare with tolerance if operator is 'approximately'
-  if (operator === 'approximately') {
-    const result = matchesWithTolerance(calculated, numericEquals, rule.tolerance);
+  if (operator === "approximately") {
+    const result = matchesWithTolerance(
+      calculated,
+      numericEquals,
+      rule.tolerance,
+    );
     return {
       rule: rule.name,
       primaryValue: numericEquals,
       attachmentValues: [calculated],
       matched: result.matched,
-      matchType: result.matched ? 'within-tolerance' : 'exact',
+      matchType: result.matched ? "within-tolerance" : "exact",
       tolerance: rule.tolerance?.amount ?? rule.tolerance?.percentage,
       reason: result.matched
         ? undefined
@@ -613,7 +639,7 @@ function validateArithmetic(
     primaryValue: numericEquals,
     attachmentValues: [calculated],
     matched,
-    matchType: 'exact',
+    matchType: "exact",
     reason: matched
       ? undefined
       : `arithmetic result ${calculated} does not match expected ${numericEquals}`,
@@ -634,9 +660,9 @@ function validateArrayMatch(
     };
   }
 
-  const operator = rule.operator ?? 'equals';
-  const fieldType = rule.fieldType ?? 'text';
-  const matchType = rule.matchType ?? 'all';
+  const operator = rule.operator ?? "equals";
+  const fieldType = rule.fieldType ?? "text";
+  const matchType = rule.matchType ?? "all";
 
   // Collect all primary values (handle both scalar and array fields)
   const primaryValues: (string | number)[] = [];
@@ -706,9 +732,9 @@ function validateArrayMatch(
 
     for (const attachmentValue of attachmentValues) {
       if (
-        operator === 'approximately' &&
-        typeof primaryValue === 'number' &&
-        typeof attachmentValue === 'number'
+        operator === "approximately" &&
+        typeof primaryValue === "number" &&
+        typeof attachmentValue === "number"
       ) {
         const result = matchesWithTolerance(
           primaryValue,
@@ -720,8 +746,8 @@ function validateArrayMatch(
           break;
         }
       } else if (
-        typeof primaryValue === 'string' &&
-        typeof attachmentValue === 'string'
+        typeof primaryValue === "string" &&
+        typeof attachmentValue === "string"
       ) {
         if (primaryValue.toLowerCase() === attachmentValue.toLowerCase()) {
           foundMatch = true;
@@ -739,7 +765,7 @@ function validateArrayMatch(
   }
 
   const matched =
-    matchType === 'all'
+    matchType === "all"
       ? matchedCount === primaryValues.length
       : matchedCount > 0;
 
@@ -748,7 +774,7 @@ function validateArrayMatch(
     primaryValue: primaryValues[0],
     attachmentValues,
     matched,
-    matchType: matched ? 'partial' : 'exact',
+    matchType: matched ? "partial" : "exact",
     tolerance: rule.tolerance?.amount ?? rule.tolerance?.percentage,
     reason: matched
       ? undefined

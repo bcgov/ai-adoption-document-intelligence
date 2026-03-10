@@ -4,7 +4,7 @@
  * Read/write operations for workflow context with namespace resolution.
  */
 
-import type { GraphWorkflowConfig } from '../graph-workflow-types';
+import type { GraphWorkflowConfig } from "../graph-workflow-types";
 
 /**
  * Initialize runtime context by merging initialCtx over config ctx defaults
@@ -44,18 +44,18 @@ export function resolvePortBinding(
 ): unknown {
   // Handle namespaces
   let resolvedKey = ctxKey;
-  if (ctxKey.startsWith('doc.')) {
+  if (ctxKey.startsWith("doc.")) {
     resolvedKey = `documentMetadata.${ctxKey.slice(4)}`;
-  } else if (ctxKey.startsWith('segment.')) {
+  } else if (ctxKey.startsWith("segment.")) {
     resolvedKey = `currentSegment.${ctxKey.slice(8)}`;
   }
 
   // Traverse path using dot notation
-  const keys = resolvedKey.split('.');
+  const keys = resolvedKey.split(".");
   let value: unknown = ctx;
 
   for (const key of keys) {
-    if (value == null || typeof value !== 'object') {
+    if (value == null || typeof value !== "object") {
       return undefined;
     }
     value = (value as Record<string, unknown>)[key];
@@ -74,19 +74,19 @@ export function writeToCtx(
 ): void {
   // Handle namespaces
   let resolvedKey = ctxKey;
-  if (ctxKey.startsWith('doc.')) {
+  if (ctxKey.startsWith("doc.")) {
     resolvedKey = `documentMetadata.${ctxKey.slice(4)}`;
-  } else if (ctxKey.startsWith('segment.')) {
+  } else if (ctxKey.startsWith("segment.")) {
     resolvedKey = `currentSegment.${ctxKey.slice(8)}`;
   }
 
-  const keys = resolvedKey.split('.');
+  const keys = resolvedKey.split(".");
   let current = ctx;
 
   // Navigate to parent of target key
   for (let i = 0; i < keys.length - 1; i++) {
     const key = keys[i];
-    if (!(key in current) || typeof current[key] !== 'object') {
+    if (!(key in current) || typeof current[key] !== "object") {
       current[key] = {};
     }
     current = current[key] as Record<string, unknown>;

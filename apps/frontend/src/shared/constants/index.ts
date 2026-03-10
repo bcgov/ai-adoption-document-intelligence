@@ -16,3 +16,7 @@ export const SUPPORTED_FILE_TYPES = [
 // HITL Review Queue Configuration
 export const HITL_MAX_CONFIDENCE =
   parseFloat(import.meta.env.VITE_HITL_MAX_CONFIDENCE) || 0.9;
+
+// Temporal UI Configuration
+export const TEMPORAL_UI_URL =
+  import.meta.env.VITE_TEMPORAL_UI_URL || "http://localhost:8088";

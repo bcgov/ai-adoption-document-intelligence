@@ -1,5 +1,5 @@
-import { getPrismaClient } from './database-client';
-import type { OCRResult } from '../types';
+import type { OCRResult } from "../types";
+import { getPrismaClient } from "./database-client";
 
 /**
  * Activity: Calculate OCR confidence and prepare for human review if needed
@@ -10,18 +10,20 @@ export async function checkOcrConfidence(params: {
   ocrResult: OCRResult;
   threshold?: number;
 }): Promise<{ averageConfidence: number; requiresReview: boolean }> {
-  const activityName = 'checkOcrConfidence';
+  const activityName = "checkOcrConfidence";
   const { documentId, ocrResult, threshold = 0.95 } = params;
   const confidenceThreshold = threshold;
 
-  console.log(JSON.stringify({
-    activity: activityName,
-    event: 'start',
-    documentId,
-    fileName: ocrResult.fileName,
-    confidenceThreshold,
-    timestamp: new Date().toISOString()
-  }));
+  console.log(
+    JSON.stringify({
+      activity: activityName,
+      event: "start",
+      documentId,
+      fileName: ocrResult.fileName,
+      confidenceThreshold,
+      timestamp: new Date().toISOString(),
+    }),
+  );
 
   try {
     // Calculate average confidence from words
@@ -49,20 +51,23 @@ export async function checkOcrConfidence(params: {
     const averageConfidence = wordCount > 0 ? totalConfidence / wordCount : 1.0;
 
     // Normalize to 0-1 range if it appears to be in 0-100 range
-    const normalizedConfidence = averageConfidence > 1 ? averageConfidence / 100 : averageConfidence;
+    const normalizedConfidence =
+      averageConfidence > 1 ? averageConfidence / 100 : averageConfidence;
 
     const requiresReview = normalizedConfidence < confidenceThreshold;
 
-    console.log(JSON.stringify({
-      activity: activityName,
-      event: 'complete',
-      documentId,
-      fileName: ocrResult.fileName,
-      averageConfidence: normalizedConfidence,
-      requiresReview,
-      wordCount,
-      timestamp: new Date().toISOString()
-    }));
+    console.log(
+      JSON.stringify({
+        activity: activityName,
+        event: "complete",
+        documentId,
+        fileName: ocrResult.fileName,
+        averageConfidence: normalizedConfidence,
+        requiresReview,
+        wordCount,
+        timestamp: new Date().toISOString(),
+      }),
+    );
 
     // Update document status if review is required
     // Note: We keep status as 'ongoing_ocr' since the workflow is still in progress
@@ -72,38 +77,43 @@ export async function checkOcrConfidence(params: {
       await prisma.document.update({
         where: { id: documentId },
         data: {
-          status: 'ongoing_ocr',
+          status: "ongoing_ocr",
         },
       });
 
-      console.log(JSON.stringify({
-        activity: activityName,
-        event: 'status_updated',
-        documentId,
-        status: 'ongoing_ocr',
-        requiresReview: true,
-        timestamp: new Date().toISOString()
-      }));
+      console.log(
+        JSON.stringify({
+          activity: activityName,
+          event: "status_updated",
+          documentId,
+          status: "ongoing_ocr",
+          requiresReview: true,
+          timestamp: new Date().toISOString(),
+        }),
+      );
     }
 
     return {
       averageConfidence: normalizedConfidence,
-      requiresReview
+      requiresReview,
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(JSON.stringify({
-      activity: activityName,
-      event: 'error',
-      documentId,
-      error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-      timestamp: new Date().toISOString()
-    }));
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error(
+      JSON.stringify({
+        activity: activityName,
+        event: "error",
+        documentId,
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString(),
+      }),
+    );
     // Default to requiring review if we can't calculate confidence
     return {
       averageConfidence: 0,
-      requiresReview: true
+      requiresReview: true,
     };
   }
 }

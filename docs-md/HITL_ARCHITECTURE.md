@@ -327,6 +327,7 @@ WHERE id = :id
 **[ReviewWorkspacePage.tsx](../apps/frontend/src/features/hitl/components/ReviewWorkspacePage.tsx)**
 - Main review interface for active session
 - Side-by-side view: document image + extracted fields
+- Fields panel search/filter for quick field lookup during review
 - Field editing with original/corrected value tracking
 - Actions: Approve, Escalate (with reason), Skip
 - Supports read-only mode for viewing completed sessions

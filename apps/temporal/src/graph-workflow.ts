@@ -8,26 +8,27 @@
  */
 
 import {
+  ApplicationFailure,
   defineQuery,
   defineSignal,
-  setHandler,
-  ApplicationFailure,
-  workflowInfo,
   proxyActivities,
-} from '@temporalio/workflow';
-import type {
-  GraphWorkflowInput,
-  GraphWorkflowResult,
-  GraphWorkflowStatus,
-  GraphWorkflowProgress,
-  NodeStatus,
-  CancelSignal,
-} from './graph-workflow-types';
-import { validateGraphConfigForExecution } from './graph-schema-validator';
-import { runGraphExecution } from './graph-engine';
+  setHandler,
+  workflowInfo,
+} from "@temporalio/workflow";
+import { runGraphExecution } from "./graph-engine";
+import { validateGraphConfigForExecution } from "./graph-schema-validator";
+import {
+  type CancelSignal,
+  GRAPH_RUNNER_VERSION,
+  type GraphWorkflowInput,
+  type GraphWorkflowProgress,
+  type GraphWorkflowResult,
+  type GraphWorkflowStatus,
+  type NodeStatus,
+} from "./graph-workflow-types";
 
 type PreExecutionActivities = {
-  'document.updateStatus': (params: {
+  "document.updateStatus": (params: {
     documentId: string;
     status: string;
     apimRequestId?: string;
@@ -35,15 +36,14 @@ type PreExecutionActivities = {
 };
 
 // Workflow type constant
-export const GRAPH_WORKFLOW_TYPE = 'graphWorkflow';
-const GRAPH_RUNNER_VERSION = '1.0.0';
+export const GRAPH_WORKFLOW_TYPE = "graphWorkflow";
 
 // Query definitions
-export const getStatus = defineQuery<GraphWorkflowStatus>('getStatus');
-export const getProgress = defineQuery<GraphWorkflowProgress>('getProgress');
+export const getStatus = defineQuery<GraphWorkflowStatus>("getStatus");
+export const getProgress = defineQuery<GraphWorkflowProgress>("getProgress");
 
 // Signal definitions
-export const cancelSignal = defineSignal<[CancelSignal]>('cancel');
+export const cancelSignal = defineSignal<[CancelSignal]>("cancel");
 
 /**
  * Main graph workflow function
@@ -54,13 +54,13 @@ export async function graphWorkflow(
   input: GraphWorkflowInput,
 ): Promise<GraphWorkflowResult> {
   // State variables for queries and signals
-  let currentNodes: string[] = [];
+  const currentNodes: string[] = [];
   const completedNodeIds = new Set<string>();
   const nodeStatuses = new Map<string, NodeStatus>();
-  let overallStatus: 'running' | 'completed' | 'failed' | 'cancelled' =
-    'running';
+  let overallStatus: "running" | "completed" | "failed" | "cancelled" =
+    "running";
   let cancelled = false;
-  let cancelMode: 'graceful' | 'immediate' = 'graceful';
+  let cancelMode: "graceful" | "immediate" = "graceful";
   let ctx: Record<string, unknown> = {};
   let workflowError: string | undefined = undefined;
   const lastError: {
@@ -79,7 +79,7 @@ export async function graphWorkflow(
       Object.entries(ctx).map(([key, value]) => {
         const valueStr = JSON.stringify(value);
         if (valueStr.length > 1000) {
-          return [key, '<redacted: large value>'];
+          return [key, "<redacted: large value>"];
         }
         return [key, value];
       }),
@@ -127,9 +127,9 @@ export async function graphWorkflow(
     if (!validation.valid) {
       const errorMessages = validation.errors
         .map((e) => `${e.path}: ${e.message}`)
-        .join('; ');
+        .join("; ");
       throw ApplicationFailure.create({
-        type: 'GRAPH_VALIDATION_ERROR',
+        type: "GRAPH_VALIDATION_ERROR",
         message: `Graph validation failed: ${errorMessages}`,
         nonRetryable: true,
         details: validation.errors,
@@ -140,17 +140,17 @@ export async function graphWorkflow(
     // This ensures status is set before workflow processing begins
     if (
       input.initialCtx.documentId &&
-      typeof input.initialCtx.documentId === 'string'
+      typeof input.initialCtx.documentId === "string"
     ) {
       const activityProxy = proxyActivities<PreExecutionActivities>({
-        startToCloseTimeout: '30s',
+        startToCloseTimeout: "30s",
         retry: { maximumAttempts: 5 },
       });
-      const updateStatusActivity = activityProxy['document.updateStatus'];
+      const updateStatusActivity = activityProxy["document.updateStatus"];
 
       await updateStatusActivity({
         documentId: input.initialCtx.documentId,
-        status: 'ongoing_ocr',
+        status: "ongoing_ocr",
       });
 
       console.log(
@@ -160,7 +160,7 @@ export async function graphWorkflow(
 
     // Step 3: Run graph execution
     for (const nodeId of Object.keys(input.graph.nodes)) {
-      nodeStatuses.set(nodeId, { status: 'pending' });
+      nodeStatuses.set(nodeId, { status: "pending" });
     }
 
     const result = await runGraphExecution(input, {
@@ -172,8 +172,8 @@ export async function graphWorkflow(
       ctx,
       selectedEdges: new Map(),
       mapBranchResults: new Map(),
-    configHash: input.configHash,
-    runnerVersion: input.runnerVersion,
+      configHash: input.configHash,
+      runnerVersion: input.runnerVersion,
       lastError,
     });
 
@@ -183,7 +183,7 @@ export async function graphWorkflow(
 
     return result;
   } catch (error) {
-    overallStatus = 'failed';
+    overallStatus = "failed";
     if (error instanceof Error) {
       workflowError = error.message;
     }
@@ -205,7 +205,7 @@ function enforceRunnerVersion(inputVersion: string): void {
     inputMajor !== currentMajor
   ) {
     throw ApplicationFailure.create({
-      type: 'RUNNER_VERSION_MISMATCH',
+      type: "RUNNER_VERSION_MISMATCH",
       message: `Graph runner version mismatch: input=${inputVersion}, current=${GRAPH_RUNNER_VERSION}`,
       nonRetryable: true,
     });

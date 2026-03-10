@@ -1,12 +1,15 @@
 import { DocumentIntelligenceClient } from "@azure-rest/ai-document-intelligence";
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import "multer";
 import * as path from "path";
 import { AzureService } from "@/azure/azure.service";
-import { BlobService } from "@/azure/blob.service";
 import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
+import { AzureStorageService } from "@/blob-storage/azure-storage.service";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "@/blob-storage/blob-storage.interface";
 import { DatabaseService } from "@/database/database.service";
-import { Operation, StorageService } from "@/storage/storage.service";
 
 interface DocType {
   azureBlobSource: {
@@ -24,8 +27,9 @@ export class ClassifierService {
   constructor(
     private databaseService: DatabaseService,
     private azureService: AzureService,
-    private blobService: BlobService,
-    private storageService: StorageService,
+    private azureStorage: AzureStorageService,
+    @Inject(BLOB_STORAGE)
+    private blobStorage: BlobStorageInterface,
   ) {
     this.client = azureService.getClient();
   }
@@ -39,7 +43,7 @@ export class ClassifierService {
     // Each file in a training folder needs accompanying layout json.
     // The file must be named just like its corresponding image + .ocr.json
     // e.g. If image is file.jpg, layout json must be file.jpg.ocr.json.
-    const containerClient = this.blobService.getContainerClient(
+    const containerClient = this.azureStorage.getContainerClient(
       this.classifierContainer,
     );
 
@@ -48,7 +52,7 @@ export class ClassifierService {
       filePaths.map(async (filePath) => {
         // Analyze each file
         if (!filePath.match(/\.(jpg|jpeg|png|bmp|tif|tiff)$/i)) return; // Only process images
-        const url = this.blobService.getBlobSasUrl(
+        const url = this.azureStorage.getBlobSasUrl(
           this.classifierContainer,
           filePath,
         );
@@ -159,41 +163,28 @@ export class ClassifierService {
    * @returns A list of objects specifying the original path and new blob path.
    */
   async uploadDocumentsForTraining(groupId: string, classifierName: string) {
-    await this.blobService.ensureContainerExists(this.classifierContainer);
+    await this.azureStorage.ensureContainerExists(this.classifierContainer);
 
-    const relativeStoragePath = this.storageService.getStoragePath(
-      groupId,
-      Operation.CLASSIFICATION,
-      classifierName,
-    );
-
-    const storageRoot = this.storageService["storagePath"];
-    // Recursively get all files (with relative paths)
-    const allFiles = await this.storageService.getAllFileNamesAndPaths(
-      relativeStoragePath,
-      true,
-    );
+    // List all files from primary blob storage under the classifier prefix
+    const primaryPrefix = `classifier/${groupId}/${classifierName}/`;
+    const allKeys = await this.blobStorage.list(primaryPrefix);
 
     const uploadResults = await Promise.all(
-      allFiles.map(async (fileObj) => {
-        // fileObj.path is the absolute path, fileObj.name is the file name
-        // We want the relative path from relativeStoragePath to preserve folder structure
-        const relativePath = path.relative(storageRoot, fileObj.path);
-        const blobName = path.posix.join(
-          groupId,
-          classifierName,
-          ...relativePath.split(path.sep).slice(3),
-        );
-        // slice(3) removes groupId/classification/classifierName from the relative path
-        const fileBuffer = await this.storageService.readFile(fileObj.path);
+      allKeys.map(async (key) => {
+        // Read file data from primary blob storage
+        const fileBuffer = await this.blobStorage.read(key);
 
-        await this.blobService.uploadFile(
+        // Azure training blob name strips the "classifier/" prefix
+        // e.g. "classifier/gid/name/label/file.jpg" -> "gid/name/label/file.jpg"
+        const blobName = key.replace(/^classifier\//, "");
+
+        await this.azureStorage.uploadFile(
           this.classifierContainer,
           blobName,
           fileBuffer,
         );
         return {
-          originalPath: fileObj.path,
+          originalPath: key,
           blobPath: blobName,
         };
       }),
@@ -218,7 +209,7 @@ export class ClassifierService {
   ) {
     // Get a list of folder paths in the groupId/classifierName folder in blob storage
     const prefix = path.posix.join(groupId, classifierName) + "/";
-    const containerClient = this.blobService.getContainerClient(
+    const containerClient = this.azureStorage.getContainerClient(
       this.classifierContainer,
     );
     const folderPaths: string[] = [];
@@ -276,7 +267,7 @@ export class ClassifierService {
         "Classifier entry not found. Cannot proceed with training.",
       );
     }
-    const containerUrl = await this.blobService.generateSasUrl(
+    const containerUrl = await this.azureStorage.generateSasUrl(
       this.classifierContainer,
     );
 
@@ -303,7 +294,7 @@ export class ClassifierService {
       const docIntelligenceEndpoint = this.azureService.getEndpoint();
       operationLocation = operationLocation.replace(
         /https:\/\/[^/]+/,
-        docIntelligenceEndpoint,
+        docIntelligenceEndpoint.replace(/\/$/, ""),
       );
 
       // Update classifier record
@@ -342,7 +333,7 @@ export class ClassifierService {
       classiferName,
     );
     // Read file and encode to base64
-    const fileData = await this.storageService.readFile(filePath);
+    const fileData = await this.blobStorage.read(filePath);
     const base64String = Buffer.from(fileData).toString("base64");
 
     const response = await this.client

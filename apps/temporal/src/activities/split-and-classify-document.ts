@@ -1,5 +1,5 @@
-import type { OCRResult } from '../types';
-import { splitDocument, type DocumentSegment } from './split-document';
+import type { OCRResult } from "../types";
+import { type DocumentSegment, splitDocument } from "./split-document";
 
 export interface KeywordPattern {
   pattern: string; // Regex pattern to match keyword text (capture group optional)
@@ -50,13 +50,13 @@ export async function splitAndClassifyDocument(
   // Validate input
   if (!ocrResult.extractedText) {
     throw new Error(
-      'OCR result extractedText is empty - cannot perform keyword-based splitting',
+      "OCR result extractedText is empty - cannot perform keyword-based splitting",
     );
   }
 
   if (keywordPatterns.length === 0) {
     throw new Error(
-      'No keyword patterns provided - cannot perform keyword-based splitting',
+      "No keyword patterns provided - cannot perform keyword-based splitting",
     );
   }
 
@@ -66,7 +66,7 @@ export async function splitAndClassifyDocument(
   // Step 2: Determine page ranges for each segment
   const totalPages = ocrResult.pages?.length ?? 0;
   if (totalPages === 0) {
-    throw new Error('OCR result contains no pages');
+    throw new Error("OCR result contains no pages");
   }
 
   const pageRanges = buildPageRanges(markers, totalPages);
@@ -74,7 +74,7 @@ export async function splitAndClassifyDocument(
   // Step 3: Split PDF using existing logic
   const segments = await splitDocument({
     blobKey,
-    strategy: 'custom-ranges',
+    strategy: "custom-ranges",
     customRanges: pageRanges.map((r) => ({ start: r.start, end: r.end })),
     documentId,
   });
@@ -85,9 +85,9 @@ export async function splitAndClassifyDocument(
       const range = pageRanges[index];
       return {
         ...segment,
-        segmentType: range?.type || 'unknown',
+        segmentType: range?.type || "unknown",
         keywordMatch: range?.matchedText,
-        confidence: range?.type && range.type !== 'unknown' ? 0.9 : 0.2,
+        confidence: range?.type && range.type !== "unknown" ? 0.9 : 0.2,
       };
     },
   );
@@ -114,7 +114,7 @@ function extractKeywordMarkers(
   const markers: KeywordMarker[] = [];
   const compiledPatterns = patterns.map((pattern) => {
     try {
-      return { ...pattern, regex: new RegExp(pattern.pattern, 'i') };
+      return { ...pattern, regex: new RegExp(pattern.pattern, "i") };
     } catch (error) {
       throw new Error(
         `Invalid regex pattern "${pattern.pattern}": ${(error as Error).message}`,
@@ -128,8 +128,8 @@ function extractKeywordMarkers(
     return pageMarkers;
   }
 
-  const text = ocrResult.extractedText ?? '';
-  const lines = text.split('\n');
+  const text = ocrResult.extractedText ?? "";
+  const lines = text.split("\n");
 
   for (const line of lines) {
     for (const pattern of compiledPatterns) {
@@ -215,7 +215,7 @@ function buildPageRanges(
 ): Array<{ start: number; end: number; type: string; matchedText?: string }> {
   if (markers.length === 0) {
     // Fallback: treat entire document as one segment
-    return [{ start: 1, end: totalPages, type: 'unknown' }];
+    return [{ start: 1, end: totalPages, type: "unknown" }];
   }
 
   const ranges: Array<{
@@ -252,9 +252,7 @@ function buildPageRanges(
 
   // Validate we have at least one range
   if (ranges.length === 0) {
-    throw new Error(
-      'No valid page ranges could be built from keyword markers',
-    );
+    throw new Error("No valid page ranges could be built from keyword markers");
   }
 
   return ranges;

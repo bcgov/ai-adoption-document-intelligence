@@ -1,5 +1,5 @@
 import { Badge, Button, Card, Group, Stack, Text, Title } from "@mantine/core";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../auth/useAuth";
 
 export const Login = () => {
   const { isAuthenticated, user, login, logout } = useAuth();

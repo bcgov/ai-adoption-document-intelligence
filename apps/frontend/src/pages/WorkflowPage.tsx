@@ -161,15 +161,11 @@ export function WorkflowPage() {
     const validStepIds = [
       "updateStatus",
       "prepareFileData",
-      // biome-ignore lint/security/noSecrets: These are workflow step identifiers, not secrets
       "submitToAzureOCR",
-      // biome-ignore lint/security/noSecrets: These are workflow step identifiers, not secrets
       "updateApimRequestId",
-      // biome-ignore lint/security/noSecrets: These are workflow step identifiers, not secrets
       "waitBeforePoll",
       "pollOCRResults",
       "extractOCRResults",
-      // biome-ignore lint/security/noSecrets: These are workflow step identifiers, not secrets
       "postOcrCleanup",
       "enrichResults",
       "checkOcrConfidence",
@@ -193,7 +189,8 @@ export function WorkflowPage() {
       await createWorkflowMutation.mutateAsync({
         name: workflowName,
         description: workflowDescription || undefined,
-        config: workflowStepsConfig,
+        config:
+          workflowStepsConfig as unknown as import("../types/workflow").GraphWorkflowConfig,
       });
 
       notifications.show({
@@ -323,7 +320,6 @@ export function WorkflowPage() {
                     checked={config.steps.submitToAzureOCR?.enabled ?? true}
                     onChange={(e) =>
                       handleStepToggle(
-                        // biome-ignore lint/security/noSecrets: This is a workflow step identifier, not a secret
                         "submitToAzureOCR",
                         e.currentTarget.checked,
                       )
@@ -337,7 +333,6 @@ export function WorkflowPage() {
                     checked={config.steps.updateApimRequestId?.enabled ?? true}
                     onChange={(e) =>
                       handleStepToggle(
-                        // biome-ignore lint/security/noSecrets: This is a workflow step identifier, not a secret
                         "updateApimRequestId",
                         e.currentTarget.checked,
                       )
@@ -353,7 +348,6 @@ export function WorkflowPage() {
                         checked={config.steps.waitBeforePoll?.enabled ?? true}
                         onChange={(e) =>
                           handleStepToggle(
-                            // biome-ignore lint/security/noSecrets: This is a workflow step identifier, not a secret
                             "waitBeforePoll",
                             e.currentTarget.checked,
                           )
@@ -365,7 +359,6 @@ export function WorkflowPage() {
                           value={waitBeforePollTime}
                           onChange={(value) =>
                             updateStepParameter(
-                              // biome-ignore lint/security/noSecrets: This is a workflow step identifier, not a secret
                               "waitBeforePoll",
                               "waitTime",
                               Number(value) || 0,
@@ -415,7 +408,6 @@ export function WorkflowPage() {
                             onChange={(value) =>
                               updateStepParameter(
                                 "pollOCRResults",
-                                // biome-ignore lint/security/noSecrets: This is a workflow step parameter identifier, not a secret
                                 "waitBeforeFirstPoll",
                                 Number(value) || 0,
                               )
@@ -463,7 +455,6 @@ export function WorkflowPage() {
                     checked={config.steps.postOcrCleanup?.enabled ?? true}
                     onChange={(e) =>
                       handleStepToggle(
-                        // biome-ignore lint/security/noSecrets: This is a workflow step identifier, not a secret
                         "postOcrCleanup",
                         e.currentTarget.checked,
                       )

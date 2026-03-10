@@ -1,11 +1,11 @@
-import type { OCRResult, KeyValuePair } from '../types';
-import type { DocumentSegment } from './split-document';
+import type { KeyValuePair, OCRResult } from "../types";
+import type { DocumentSegment } from "./split-document";
 
 export interface ClassificationRule {
   name: string;
   patterns: {
     field: string;
-    operator: 'contains' | 'matches' | 'startsWith';
+    operator: "contains" | "matches" | "startsWith";
     value: string;
   }[];
   resultType: string;
@@ -14,7 +14,7 @@ export interface ClassificationRule {
 export interface ClassifyDocumentInput {
   ocrResult: OCRResult;
   segment: DocumentSegment;
-  classifierType: 'rule-based';
+  classifierType: "rule-based";
   rules?: ClassificationRule[];
 }
 
@@ -31,11 +31,12 @@ const DEFAULT_RULES: ClassificationRule[] = [];
 export async function classifyDocument(
   input: ClassifyDocumentInput,
 ): Promise<ClassifyDocumentOutput> {
-  if (input.classifierType !== 'rule-based') {
+  if (input.classifierType !== "rule-based") {
     throw new Error(`Unsupported classifierType: ${input.classifierType}`);
   }
 
-  const rules = input.rules && input.rules.length > 0 ? input.rules : DEFAULT_RULES;
+  const rules =
+    input.rules && input.rules.length > 0 ? input.rules : DEFAULT_RULES;
   const context = buildContext(input.ocrResult);
 
   for (const rule of rules) {
@@ -52,38 +53,41 @@ export async function classifyDocument(
   }
 
   return {
-    segmentType: 'unknown',
+    segmentType: "unknown",
     confidence: 0.2,
   };
 }
 
 function buildContext(ocrResult: OCRResult): Record<string, string[]> {
   return {
-    text: [ocrResult.extractedText ?? ''],
-    title: [firstNonEmptyLine(ocrResult.extractedText ?? '')],
-    paragraph: ocrResult.paragraphs.map((p) => p.content ?? ''),
-    section: ocrResult.sections.map((s) => s.content ?? ''),
-    'keyValuePair.key': extractKeyValueStrings(ocrResult.keyValuePairs, 'key'),
-    'keyValuePair.value': extractKeyValueStrings(ocrResult.keyValuePairs, 'value'),
+    text: [ocrResult.extractedText ?? ""],
+    title: [firstNonEmptyLine(ocrResult.extractedText ?? "")],
+    paragraph: ocrResult.paragraphs.map((p) => p.content ?? ""),
+    section: ocrResult.sections.map((s) => s.content ?? ""),
+    "keyValuePair.key": extractKeyValueStrings(ocrResult.keyValuePairs, "key"),
+    "keyValuePair.value": extractKeyValueStrings(
+      ocrResult.keyValuePairs,
+      "value",
+    ),
   };
 }
 
 function extractKeyValueStrings(
   pairs: KeyValuePair[],
-  field: 'key' | 'value',
+  field: "key" | "value",
 ): string[] {
   return pairs
     .map((pair) => {
-      if (field === 'key') {
-        return pair.key?.content ?? '';
+      if (field === "key") {
+        return pair.key?.content ?? "";
       }
-      return pair.value?.content ?? '';
+      return pair.value?.content ?? "";
     })
     .filter((value) => value.length > 0);
 }
 
 function matchesPattern(
-  pattern: ClassificationRule['patterns'][number],
+  pattern: ClassificationRule["patterns"][number],
   context: Record<string, string[]>,
 ): boolean {
   const values = context[pattern.field] ?? [];
@@ -92,16 +96,16 @@ function matchesPattern(
   }
 
   switch (pattern.operator) {
-    case 'contains':
+    case "contains":
       return values.some((value) =>
         value.toLowerCase().includes(pattern.value.toLowerCase()),
       );
-    case 'startsWith':
+    case "startsWith":
       return values.some((value) =>
         value.toLowerCase().startsWith(pattern.value.toLowerCase()),
       );
-    case 'matches': {
-      const regex = new RegExp(pattern.value, 'i');
+    case "matches": {
+      const regex = new RegExp(pattern.value, "i");
       return values.some((value) => regex.test(value));
     }
     default:
@@ -112,8 +116,8 @@ function matchesPattern(
 function firstNonEmptyLine(text: string): string {
   return (
     text
-      .split('\n')
+      .split("\n")
       .map((line) => line.trim())
-      .find((line) => line.length > 0) ?? ''
+      .find((line) => line.length > 0) ?? ""
   );
 }

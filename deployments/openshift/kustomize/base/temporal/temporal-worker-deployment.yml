@@ -55,8 +55,6 @@ spec:
                 secretKeyRef:
                   name: temporal-worker-secrets
                   key: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
-            - name: LOCAL_BLOB_STORAGE_PATH
-              value: "/app/data/blobs"
           volumeMounts:
             - name: storage
               mountPath: /app/data/blobs

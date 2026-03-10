@@ -78,6 +78,8 @@ for page in "$PAGES_DIR"/*.html; do
         header="${header//\{\{NAV_DIAGRAMS\}\}/}"
         header="${header//\{\{NAV_INTEGRATIONS\}\}/}"
         header="${header//\{\{NAV_AUTHENTICATION\}\}/}"
+        header="${header//\{\{NAV_BENCHMARKINGGUIDE\}\}/}"
+        header="${header//\{\{NAV_BENCHMARKINGTECHNICAL\}\}/}"
 
         # Replace date variables in footer
         footer="${footer//\{\{YEAR\}\}/$CURRENT_YEAR}"

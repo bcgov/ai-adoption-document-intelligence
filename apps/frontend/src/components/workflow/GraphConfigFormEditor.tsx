@@ -596,7 +596,7 @@ function ActivityNodeForm({ node, onChange }: ActivityNodeFormProps) {
               max={1}
               step={0.05}
               decimalScale={2}
-              clearable
+              __clearable
             />
             <Switch
               label="Enable LLM enrichment"

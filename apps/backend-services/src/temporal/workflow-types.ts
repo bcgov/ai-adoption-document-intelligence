@@ -5,4 +5,5 @@
 
 export const WORKFLOW_TYPES = {
   GRAPH_WORKFLOW: "graphWorkflow",
+  BENCHMARK_RUN_WORKFLOW: "benchmarkRunWorkflow",
 } as const;

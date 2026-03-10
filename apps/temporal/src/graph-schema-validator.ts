@@ -10,18 +10,18 @@
  * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5.2 step 1
  */
 
+import { isRegisteredActivityType } from "./activity-types";
 import type {
-  GraphWorkflowConfig,
-  GraphValidationError,
-  ConditionExpression,
-  SwitchNode,
-  MapNode,
-  JoinNode,
   ActivityNode,
+  ConditionExpression,
+  GraphValidationError,
+  GraphWorkflowConfig,
+  JoinNode,
+  MapNode,
   PollUntilNode,
+  SwitchNode,
   ValueRef,
 } from "./graph-workflow-types";
-import { isRegisteredActivityType } from "./activity-types";
 
 const SUPPORTED_SCHEMA_VERSIONS = ["1.0"];
 
@@ -57,9 +57,7 @@ const ALL_VALID_OPERATORS = [
  * @param registry The runtime activity registry (actual functions available)
  * @returns Validation result with errors
  */
-export function validateGraphConfigForExecution(
-  config: GraphWorkflowConfig,
-): {
+export function validateGraphConfigForExecution(config: GraphWorkflowConfig): {
   valid: boolean;
   errors: GraphValidationError[];
 } {
@@ -231,7 +229,9 @@ function validateErrorPolicies(
   config: GraphWorkflowConfig,
   errors: GraphValidationError[],
 ): void {
-  const edgesById = new Map((config.edges || []).map((edge) => [edge.id, edge]));
+  const edgesById = new Map(
+    (config.edges || []).map((edge) => [edge.id, edge]),
+  );
 
   for (const [nodeId, node] of Object.entries(config.nodes)) {
     if (node.errorPolicy?.onError !== "fallback") {
@@ -439,7 +439,9 @@ function validateExpressions(
   config: GraphWorkflowConfig,
   errors: GraphValidationError[],
 ): void {
-  const declaredCtxKeys = config.ctx ? new Set(Object.keys(config.ctx)) : new Set<string>();
+  const declaredCtxKeys = config.ctx
+    ? new Set(Object.keys(config.ctx))
+    : new Set<string>();
 
   for (const [nodeId, node] of Object.entries(config.nodes)) {
     if (node.type === "switch") {
@@ -654,7 +656,12 @@ function validateReachability(
       const mapNode = node as MapNode;
       if (visited.has(node.id)) {
         if (mapNode.bodyEntryNodeId in config.nodes) {
-          markBodyNodesReachable(mapNode.bodyEntryNodeId, adjacency, visited, config);
+          markBodyNodesReachable(
+            mapNode.bodyEntryNodeId,
+            adjacency,
+            visited,
+            config,
+          );
         }
       }
     }
@@ -692,8 +699,16 @@ function markBodyNodesReachable(
     const node = config.nodes[current];
     if (node && node.type === "map") {
       const mapNode = node as MapNode;
-      if (mapNode.bodyEntryNodeId in config.nodes && !visited.has(mapNode.bodyEntryNodeId)) {
-        markBodyNodesReachable(mapNode.bodyEntryNodeId, adjacency, visited, config);
+      if (
+        mapNode.bodyEntryNodeId in config.nodes &&
+        !visited.has(mapNode.bodyEntryNodeId)
+      ) {
+        markBodyNodesReachable(
+          mapNode.bodyEntryNodeId,
+          adjacency,
+          visited,
+          config,
+        );
       }
     }
   }

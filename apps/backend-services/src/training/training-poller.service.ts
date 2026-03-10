@@ -46,7 +46,7 @@ export class TrainingPollerService {
     private readonly configService: ConfigService,
   ) {
     const endpoint = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_TRAIN_ENDPOINT",
+      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
     );
     const apiKey = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",

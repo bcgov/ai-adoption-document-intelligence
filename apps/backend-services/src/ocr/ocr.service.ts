@@ -1,12 +1,16 @@
 import { DocumentStatus } from "@generated/client";
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { LocalBlobStorageService } from "@/blob-storage/local-blob-storage.service";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "@/blob-storage/blob-storage.interface";
 import { DatabaseService } from "@/database/database.service";
 import {
   AnalysisResponse,
@@ -30,7 +34,8 @@ export class OcrService {
     _configService: ConfigService,
     private databaseService: DatabaseService,
     private temporalClientService: TemporalClientService,
-    private blobStorage: LocalBlobStorageService,
+    @Inject(BLOB_STORAGE)
+    private blobStorage: BlobStorageInterface,
   ) {}
 
   /**
@@ -39,7 +44,10 @@ export class OcrService {
    * @param steps Optional workflow steps configuration
    * @returns New status of document and workflow ID.
    */
-  async requestOcr(documentId: string): Promise<OcrRequestResponse> {
+  async requestOcr(
+    documentId: string,
+    ctxOverrides?: Record<string, unknown>,
+  ): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
     // Find filepath of document
     const document = await this.databaseService.findDocument(documentId);
@@ -93,6 +101,7 @@ export class OcrService {
         fileType,
         contentType,
         modelId,
+        ...ctxOverrides, // Allows callers to inject or override workflow context values (e.g., confidenceThreshold: 0 to skip human review)
       };
 
       // Start Temporal graph workflow

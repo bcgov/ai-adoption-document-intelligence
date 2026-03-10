@@ -1086,13 +1086,21 @@ describe("DatabaseService", () => {
       expect(mockPrisma.document.findMany).toHaveBeenCalledWith({
         where: {
           status: DocumentStatus.completed_ocr,
+          groundTruthJob: { is: null },
         },
         orderBy: { created_at: "desc" },
         take: 50,
         skip: 0,
         include: {
           ocr_result: true,
-          review_sessions: expect.any(Object),
+          review_sessions: {
+            where: {
+              status: { in: ["approved", "escalated", "skipped"] },
+            },
+            orderBy: { completed_at: "desc" },
+            take: 1,
+            include: { corrections: true },
+          },
         },
       });
     });

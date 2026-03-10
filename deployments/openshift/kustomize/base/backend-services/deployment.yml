@@ -103,8 +103,6 @@ spec:
         # Crunchy Postgres uses self-signed certs; disable TLS cert verification
         - name: PGSSLREJECTUNAUTHORIZED
           value: "false"
-        - name: LOCAL_BLOB_STORAGE_PATH
-          value: "/app/data/blobs"
         - name: SSO_AUTH_SERVER_URL
           valueFrom:
             configMapKeyRef:
