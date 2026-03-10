@@ -106,6 +106,33 @@ All creation DTOs include a required `group_id` (or `groupId`) field. A missing 
 | `403 Forbidden` | Requestor identity is absent, or identity does not belong to the specified group |
 | `404 Not Found` | The fetched resource has `group_id = null` (orphaned record) — returned to all non-system-admin callers |
 
+## Logging and audit
+
+Group and membership-request operations are logged (structured application logs) and recorded in the audit store for traceability and security.
+
+**Application logging (AppLoggerService):** The group service logs at `info` level for:
+
+- Group lifecycle: create, update, soft-delete
+- Membership requests: created, cancelled, approved, denied
+- Membership: user added to group, member removed, user left group
+
+**Audit events (AuditService):** The following event types are written to the `audit_event` table with `resource_type`, `resource_id`, `actor_id`, `group_id`, and optional `request_id` / `payload`:
+
+| Event type | Resource type | When |
+|------------|----------------|------|
+| `group_created` | group | System admin creates a group |
+| `group_updated` | group | System admin updates a group |
+| `group_deleted` | group | System admin soft-deletes a group |
+| `membership_request_created` | group_membership_request | User requests membership |
+| `membership_request_cancelled` | group_membership_request | User cancels own pending request |
+| `membership_request_approved` | group_membership_request | Admin approves request (and user is added to group) |
+| `membership_request_denied` | group_membership_request | Admin denies request |
+| `member_added` | user_group | User added to group (via approval or direct assign) |
+| `member_removed` | user_group | Admin removes a member |
+| `user_left_group` | user_group | User leaves a group |
+
+See the platform logging and audit documentation for log format, retention, and how to query audit events.
+
 ## Related
 
 - [Authentication](./AUTHENTICATION.md) — describes how `resolvedIdentity` is set on the request

@@ -5,9 +5,10 @@
   "main": "dist/worker.js",
   "scripts": {
     "build": "npm run db:generate && tsc",
+    "build:logging": "cd ../../packages/logging && npm run build",
     "start": "node dist/worker.js",
     "start:worker": "node dist/worker.js",
-    "dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only src/worker.ts",
+    "dev": "npm run build:logging && ts-node-dev -r tsconfig-paths/register --respawn --transpile-only src/worker.ts",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist",
     "db:generate": "node ../shared/scripts/generate-prisma.js",
