@@ -106,15 +106,9 @@ All creation DTOs include a required `group_id` (or `groupId`) field. A missing 
 | `403 Forbidden` | Requestor identity is absent, or identity does not belong to the specified group |
 | `404 Not Found` | The fetched resource has `group_id = null` (orphaned record) — returned to all non-system-admin callers |
 
-## Logging and audit
+## Auditing
 
-Group and membership-request operations are logged (structured application logs) and recorded in the audit store for traceability and security.
-
-**Application logging (AppLoggerService):** The group service logs at `info` level for:
-
-- Group lifecycle: create, update, soft-delete
-- Membership requests: created, cancelled, approved, denied
-- Membership: user added to group, member removed, user left group
+Group and membership-request operations are recorded in the audit store for traceability and security.
 
 **Audit events (AuditService):** The following event types are written to the `audit_event` table with `resource_type`, `resource_id`, `actor_id`, `group_id`, and optional `request_id` / `payload`:
 
