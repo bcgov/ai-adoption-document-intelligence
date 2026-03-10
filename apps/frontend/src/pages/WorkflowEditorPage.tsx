@@ -18,6 +18,7 @@ import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import CodeMirror from "@uiw/react-codemirror";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { GraphConfigFormEditor } from "../components/workflow/GraphConfigFormEditor";
 import { GraphVisualization } from "../components/workflow/GraphVisualization";
 import {
@@ -35,9 +36,6 @@ interface GraphValidationError {
 
 interface WorkflowEditorPageProps {
   mode: "create" | "edit";
-  workflowId?: string;
-  onBack?: () => void;
-  onSave?: () => void;
 }
 
 const DEFAULT_GRAPH_CONFIG: GraphWorkflowConfig = {
@@ -242,12 +240,9 @@ function formatJson(value: string): string | null {
   }
 }
 
-export function WorkflowEditorPage({
-  mode,
-  workflowId,
-  onBack,
-  onSave,
-}: WorkflowEditorPageProps) {
+export function WorkflowEditorPage({ mode }: WorkflowEditorPageProps) {
+  const navigate = useNavigate();
+  const { workflowId } = useParams();
   const createWorkflowMutation = useCreateWorkflow();
   const updateWorkflowMutation = useUpdateWorkflow();
   const { data, isLoading, error } = useWorkflow(workflowId ?? "");
@@ -471,7 +466,7 @@ export function WorkflowEditorPage({
         description: workflowDescription.trim(),
         json: JSON.stringify(configToSave, null, 2),
       };
-      onSave?.();
+      navigate("/workflows");
     } catch (saveError) {
       notifications.show({
         title: "Save failed",
@@ -509,11 +504,9 @@ export function WorkflowEditorPage({
           {mode === "create" ? "Create workflow" : "Edit workflow"}
         </Title>
         <Group>
-          {onBack ? (
-            <Button variant="subtle" onClick={onBack}>
-              Back
-            </Button>
-          ) : null}
+          <Button variant="subtle" onClick={() => navigate("/workflows")}>
+            Back
+          </Button>
           <Button variant="light" onClick={handleValidate}>
             Validate
           </Button>

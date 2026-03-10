@@ -2,8 +2,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
+import { AzureStorageService } from "@/blob-storage/azure-storage.service";
 import { DatabaseService } from "@/database/database.service";
-import { BlobService } from "./blob.service";
 import { ClassifierService } from "./classifier.service";
 
 @Injectable()
@@ -14,7 +14,7 @@ export class ClassifierPollerService {
     private readonly db: DatabaseService,
     private readonly azureService: AzureService,
     private readonly databaseService: DatabaseService,
-    private readonly blobService: BlobService,
+    private readonly azureStorage: AzureStorageService,
     private readonly classifierService: ClassifierService,
   ) {}
 
@@ -62,7 +62,7 @@ export class ClassifierPollerService {
           `Classifier ${classifierName} (group ${groupId}) training succeeded.`,
         );
         // Need to remove the files from blob storage to avoid costs
-        await this.blobService.deleteFilesWithPrefix(
+        await this.azureStorage.deleteFilesWithPrefix(
           `${groupId}/${classifierName}`,
           this.classifierService.classifierContainer,
         );

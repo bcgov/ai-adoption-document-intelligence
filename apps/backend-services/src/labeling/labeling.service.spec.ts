@@ -22,11 +22,13 @@ import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingService } from "./labeling.service";
 import { LabelingOcrService } from "./labeling-ocr.service";
+import { SuggestionService } from "./suggestion.service";
 
 describe("LabelingService", () => {
   let service: LabelingService;
   let mockDbService: jest.Mocked<DatabaseService>;
   let mockOcrService: jest.Mocked<LabelingOcrService>;
+  let mockSuggestionService: jest.Mocked<SuggestionService>;
 
   const mockProject: LabelingProjectData = {
     id: "project-1",
@@ -129,6 +131,10 @@ describe("LabelingService", () => {
       processOcrForLabelingDocument: jest.fn(),
     };
 
+    const mockSuggestions = {
+      generateSuggestions: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LabelingService,
@@ -140,12 +146,17 @@ describe("LabelingService", () => {
           provide: LabelingOcrService,
           useValue: mockOcr,
         },
+        {
+          provide: SuggestionService,
+          useValue: mockSuggestions,
+        },
       ],
     }).compile();
 
     service = module.get<LabelingService>(LabelingService);
     mockDbService = module.get(DatabaseService);
     mockOcrService = module.get(LabelingOcrService);
+    mockSuggestionService = module.get(SuggestionService);
   });
 
   // ========== PROJECT OPERATIONS ==========
@@ -706,6 +717,62 @@ describe("LabelingService", () => {
     });
   });
 
+  describe("generateDocumentSuggestions", () => {
+    it("should generate suggestions for a document", async () => {
+      const suggestions = [
+        {
+          field_key: "name",
+          label_name: "name",
+          value: "John Smith",
+          page_number: 1,
+          element_ids: ["p1-w1", "p1-w2"],
+          bounding_box: { polygon: [1, 1, 2, 1, 2, 2, 1, 2] },
+          source_type: "keyValuePair",
+          confidence: 0.99,
+        },
+      ];
+
+      mockDbService.findLabeledDocument.mockResolvedValueOnce(
+        mockLabeledDocument,
+      );
+      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
+      mockSuggestionService.generateSuggestions.mockReturnValueOnce(
+        suggestions as never,
+      );
+
+      const result = await service.generateDocumentSuggestions(
+        "project-1",
+        "labeled-doc-1",
+      );
+
+      expect(mockSuggestionService.generateSuggestions).toHaveBeenCalled();
+      expect(result).toEqual(suggestions);
+    });
+
+    it("should throw NotFoundException when document not found", async () => {
+      mockDbService.findLabeledDocument.mockResolvedValueOnce(null);
+
+      await expect(
+        service.generateDocumentSuggestions("project-1", "missing-doc"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw NotFoundException when OCR result not found", async () => {
+      const noOcrDoc = {
+        ...mockLabeledDocument,
+        labeling_document: {
+          ...mockLabelingDocument,
+          ocr_result: null,
+        },
+      } as unknown as LabeledDocumentData;
+      mockDbService.findLabeledDocument.mockResolvedValueOnce(noOcrDoc);
+
+      await expect(
+        service.generateDocumentSuggestions("project-1", "labeled-doc-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   // ========== EXPORT ==========
 
   describe("exportProject", () => {
@@ -818,7 +885,7 @@ describe("LabelingService", () => {
             id: "field-2",
             field_key: "invoice_date",
             field_type: PrismaFieldType.date,
-            field_format: "dmy",
+            field_format: "ymd",
             display_order: 1,
             project_id: "project-1",
           },
@@ -846,7 +913,7 @@ describe("LabelingService", () => {
       expect((result as any).fieldsJson.fields[1]).toEqual({
         fieldKey: "invoice_date",
         fieldType: "date",
-        fieldFormat: "dmy",
+        fieldFormat: "ymd",
       });
     });
 

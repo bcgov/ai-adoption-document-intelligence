@@ -72,6 +72,8 @@ export class ReviewDbService {
 
     const where: Prisma.DocumentWhereInput = {
       status: filters.status ?? DocumentStatus.completed_ocr,
+      // Exclude documents belonging to ground truth generation jobs
+      groundTruthJob: { is: null },
     };
 
     if (filters.groupIds) {

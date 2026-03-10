@@ -112,7 +112,7 @@ This is a microservices monorepo containing:
 
 2. **Backend Services Configuration**
    ```bash
-   cp apps/backend-services/.env.example apps/backend-services/.env
+   cp apps/backend-services/.env.sample apps/backend-services/.env
    # Configure:
    # - DATABASE_URL (PostgreSQL)
    # - AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT/KEY
@@ -123,7 +123,7 @@ This is a microservices monorepo containing:
 
 3. **Temporal Configuration**
    ```bash
-   cp apps/temporal/.env.example apps/temporal/.env
+   cp apps/temporal/.env.sample apps/temporal/.env
    # Configure:
    # - TEMPORAL_ADDRESS
    # - DATABASE_URL

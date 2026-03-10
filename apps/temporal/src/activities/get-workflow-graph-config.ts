@@ -1,5 +1,5 @@
-import { getPrismaClient } from './database-client';
-import type { GraphWorkflowConfig } from '../graph-workflow-types';
+import type { GraphWorkflowConfig } from "../graph-workflow-types";
+import { getPrismaClient } from "./database-client";
 
 /**
  * Activity: Load a graph workflow config by ID or name

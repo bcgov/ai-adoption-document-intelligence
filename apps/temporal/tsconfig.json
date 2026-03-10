@@ -24,13 +24,6 @@
       "@generated/*": ["src/generated/*"]
     }
   },
-  "include": [
-    "**/*.ts"
-, "../shared/prisma.config.ts"  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.js"
-  ]
+  "include": ["**/*.ts", "../shared/prisma.config.ts"],
+  "exclude": ["node_modules", "dist", "**/*.js"]
 }
-

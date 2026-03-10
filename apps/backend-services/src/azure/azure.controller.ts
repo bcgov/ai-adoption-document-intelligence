@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   Get,
   HttpCode,
+  Inject,
   InternalServerErrorException,
   Logger,
   NotFoundException,
@@ -57,9 +58,12 @@ import {
   DeleteClassifierDocumentsResponseDto,
   UploadClassifierDocumentsResponseDto,
 } from "@/azure/dto/classifier-responses.dto";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "@/blob-storage/blob-storage.interface";
 import { DatabaseService } from "@/database/database.service";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
-import { Operation, StorageService } from "@/storage/storage.service";
 
 @ApiTags("Azure")
 @Controller("api/azure")
@@ -68,7 +72,8 @@ export class AzureController {
 
   constructor(
     private readonly classifierService: ClassifierService,
-    private readonly storageService: StorageService,
+    @Inject(BLOB_STORAGE)
+    private readonly blobStorage: BlobStorageInterface,
     private readonly databaseService: DatabaseService,
     private readonly azureService: AzureService,
   ) {}
@@ -254,12 +259,13 @@ export class AzureController {
       throw new NotFoundException("No existing record of classifier model.");
     }
 
-    const path = this.storageService.getStoragePath(
-      group_id,
-      Operation.CLASSIFICATION,
-      `${name}/${label}`,
-    );
-    const uploadResults = await this.storageService.saveFilesBulk(files, path);
+    const keyPrefix = `classifier/${group_id}/${name}/${label}/`;
+    const uploadResults: string[] = [];
+    for (const file of files) {
+      const key = `${keyPrefix}${file.originalname}`;
+      await this.blobStorage.write(key, file.buffer);
+      uploadResults.push(key);
+    }
 
     return {
       message: "Received files and data.",
@@ -297,13 +303,9 @@ export class AzureController {
       throw new NotFoundException("No existing record of classifier model.");
     }
 
-    const path = this.storageService.getStoragePath(
-      group_id,
-      Operation.CLASSIFICATION,
-      name,
-    );
-    const documents = await this.storageService.listBlobsInFolder(path);
-    return documents;
+    const prefix = `classifier/${group_id}/${name}/`;
+    const documents = await this.blobStorage.list(prefix);
+    return documents.map((doc) => doc.slice(prefix.length));
   }
 
   @Delete("classifier/documents")
@@ -338,20 +340,12 @@ export class AzureController {
     try {
       // If there is a folder, only delete that folder
       if (folder != null) {
-        const path = this.storageService.getStoragePath(
-          group_id,
-          Operation.CLASSIFICATION,
-          `${name}/${folder}`,
-        );
-        await this.storageService.deleteFolderRecursive(path);
+        const prefix = `classifier/${group_id}/${name}/${folder}/`;
+        await this.blobStorage.deleteByPrefix(prefix);
       } else {
         // Delete all document folders for this classifier.
-        const path = this.storageService.getStoragePath(
-          group_id,
-          Operation.CLASSIFICATION,
-          name,
-        );
-        await this.storageService.deleteFolderRecursive(path);
+        const prefix = `classifier/${group_id}/${name}/`;
+        await this.blobStorage.deleteByPrefix(prefix);
       }
       // No return value: 204 No Content
     } catch {

@@ -14,9 +14,11 @@ import {
 import { useElementSize } from "@mantine/hooks";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { FC, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { DocumentViewer } from "../../core/document-viewer/DocumentViewer";
+import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
 import { CorrectionAction } from "../../core/types/annotation";
 import type { BoundingBox } from "../../core/types/canvas";
 import { CanvasTool } from "../../core/types/canvas";
@@ -24,12 +26,6 @@ import { ConfidenceIndicator } from "../components/ConfidenceIndicator";
 import { CorrectionHistory } from "../components/CorrectionHistory";
 import { ReviewToolbar } from "../components/ReviewToolbar";
 import { useReviewSession } from "../hooks/useReviewSession";
-
-interface ReviewWorkspacePageProps {
-  sessionId: string;
-  onBack: () => void;
-  readOnly?: boolean;
-}
 
 interface OcrField {
   valueString?: string;
@@ -120,11 +116,24 @@ const EnrichmentSummaryPanel: FC<{
   </Accordion>
 );
 
-export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
-  sessionId,
-  onBack,
-  readOnly = false,
-}) => {
+export const ReviewWorkspacePage: FC = () => {
+  const { sessionId } = useParams<{ sessionId: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const readOnly = false;
+
+  const navigateToQueue = () => {
+    const benchmarkMatch = location.pathname.match(
+      /^\/benchmarking\/datasets\/([^/]+)\/versions\/([^/]+)\/review/,
+    );
+    if (benchmarkMatch) {
+      navigate(
+        `/benchmarking/datasets/${benchmarkMatch[1]}/versions/${benchmarkMatch[2]}/review`,
+      );
+    } else {
+      navigate("/review");
+    }
+  };
   const {
     session,
     corrections,
@@ -158,6 +167,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
   const [escalationOpen, setEscalationOpen] = useState(false);
   const [escalationReason, setEscalationReason] = useState("");
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
+  const [fieldFilter, setFieldFilter] = useState("");
   const isPdf = session?.document?.storage_path?.endsWith(".pdf");
 
   useEffect(() => {
@@ -241,6 +251,12 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
     [fields],
   );
 
+  const filteredSortedFields = useMemo(() => {
+    if (!fieldFilter) return sortedFields;
+    const lower = fieldFilter.toLowerCase();
+    return sortedFields.filter((f) => f.fieldKey.toLowerCase().includes(lower));
+  }, [sortedFields, fieldFilter]);
+
   const boxes = useMemo(() => {
     const result = sortedFields
       .filter((field) => field.boundingBox)
@@ -282,7 +298,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
       await submitCorrectionsAsync(payload);
     }
     await approveSessionAsync();
-    onBack();
+    navigateToQueue();
   };
 
   const handleEscalate = async () => {
@@ -320,7 +336,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
           <Button
             variant="subtle"
             leftSection={<IconArrowLeft size={16} />}
-            onClick={onBack}
+            onClick={navigateToQueue}
           >
             Back
           </Button>
@@ -435,6 +451,32 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
             }
           }}
         >
+          {session?.document?.ocr_result?.enrichment_summary != null && (
+            <EnrichmentSummaryPanel
+              summary={
+                session.document.ocr_result
+                  .enrichment_summary as EnrichmentSummary
+              }
+              mb="sm"
+            />
+          )}
+          <Text
+            size="sm"
+            fw={600}
+            mb="sm"
+            onClick={() => setActiveFieldKey(null)}
+            style={{ cursor: "pointer" }}
+          >
+            Fields
+          </Text>
+
+          <FieldFilterInput
+            value={fieldFilter}
+            onChange={setFieldFilter}
+            totalCount={sortedFields.length}
+            filteredCount={filteredSortedFields.length}
+          />
+
           <ScrollArea
             type="auto"
             style={{ flex: 1, minHeight: 0 }}
@@ -454,25 +496,7 @@ export const ReviewWorkspacePage: FC<ReviewWorkspacePageProps> = ({
             }}
           >
             <Stack gap="md">
-              {session?.document?.ocr_result?.enrichment_summary && (
-                <EnrichmentSummaryPanel
-                  summary={
-                    session.document.ocr_result
-                      .enrichment_summary as EnrichmentSummary
-                  }
-                  mb="sm"
-                />
-              )}
-              <Text
-                size="sm"
-                fw={600}
-                mb="sm"
-                onClick={() => setActiveFieldKey(null)}
-                style={{ cursor: "pointer" }}
-              >
-                Fields
-              </Text>
-              {sortedFields.map((field) => {
+              {filteredSortedFields.map((field) => {
                 const correction = correctionMap[field.fieldKey];
                 const isCorrected =
                   correction?.action === CorrectionAction.CORRECTED;

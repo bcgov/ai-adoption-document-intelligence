@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import { BlobStorageInterface } from "../blob-storage/blob-storage.interface";
 import { DatabaseService } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { DocumentController } from "./document.controller";
@@ -8,7 +8,7 @@ describe("DocumentController", () => {
   let controller: DocumentController;
   let databaseService: jest.Mocked<DatabaseService>;
   let temporalClientService: jest.Mocked<TemporalClientService>;
-  let blobStorage: jest.Mocked<LocalBlobStorageService>;
+  let blobStorage: jest.Mocked<BlobStorageInterface>;
 
   const mockGroupId = "group-1";
   const createMockReq = (userId = "user-1") => ({
@@ -35,6 +35,8 @@ describe("DocumentController", () => {
       write: jest.fn(),
       exists: jest.fn(),
       delete: jest.fn(),
+      list: jest.fn(),
+      deleteByPrefix: jest.fn(),
     } as any;
     controller = new DocumentController(
       databaseService,

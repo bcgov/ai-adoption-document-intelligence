@@ -4,7 +4,7 @@ This document describes how group membership is enforced when creating or access
 
 ## Overview
 
-When a user or API key creates or accesses a top-level or sub-resource (`Document`, `Workflow`, `LabelingProject`, `LabelingDocument`, `FieldDefinition`, `DocumentLabel`, `TrainingJob`, `TrainedModel`, or `ReviewSession`), the system verifies that the requestor belongs to the resource's group before allowing the operation to proceed. This prevents resources from being created, read, updated, or deleted by users not authorized to access the group.
+When a user or API key creates or accesses a top-level or sub-resource (`Document`, `Workflow`, `LabelingProject`, `LabelingDocument`, `FieldDefinition`, `DocumentLabel`, `TrainingJob`, `TrainedModel`, `ReviewSession`, `Dataset`, `BenchmarkProject`, or their child resources), the system verifies that the requestor belongs to the resource's group before allowing the operation to proceed. This prevents resources from being created, read, updated, or deleted by users not authorized to access the group.
 
 ## Enforcement Location
 
@@ -25,6 +25,9 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 | ApiKey | `POST /api/api-key` | `ApiKeyController.generateApiKey` |
 | ApiKey | `POST /api/api-key/regenerate` | `ApiKeyController.regenerateApiKey` |
 | ApiKey | `DELETE /api/api-key` | `ApiKeyController.deleteApiKey` |
+| BenchmarkProject | `POST /api/benchmark/projects` | `BenchmarkProjectController.createProject` |
+| Dataset | `POST /api/benchmark/datasets` | `DatasetController.createDataset` |
+| Dataset (HITL) | `POST /api/benchmark/datasets/from-hitl` | `HitlDatasetController.createDatasetFromHitl` |
 
 ### Resource Read / Update / Delete (group derived from fetched resource)
 
@@ -66,6 +69,21 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 | ReviewSession | `POST /api/hitl/sessions/:id/submit` | `HitlController.approveSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/escalate` | `HitlController.escalateSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/skip` | `HitlController.skipSession` |
+| BenchmarkProject | `GET /api/benchmark/projects` | `BenchmarkProjectController.listProjects` |
+| BenchmarkProject | `GET /api/benchmark/projects/:id` | `BenchmarkProjectController.getProjectById` |
+| BenchmarkProject | `DELETE /api/benchmark/projects/:id` | `BenchmarkProjectController.deleteProject` |
+| Dataset | `GET /api/benchmark/datasets` | `DatasetController.listDatasets` |
+| Dataset | `GET /api/benchmark/datasets/:id` | `DatasetController.getDatasetById` |
+| Dataset | `DELETE /api/benchmark/datasets/:id` | `DatasetController.deleteDataset` |
+| Dataset (versions) | `POST/GET/PATCH/DELETE /api/benchmark/datasets/:id/versions/**` | `DatasetController.*` |
+| Dataset (samples) | `GET/DELETE /api/benchmark/datasets/:id/versions/:vid/samples/**` | `DatasetController.*` |
+| Dataset (splits) | `POST/GET/PATCH /api/benchmark/datasets/:id/versions/:vid/splits/**` | `DatasetController.*` |
+| Dataset (freeze) | `POST /api/benchmark/datasets/:id/versions/:vid/freeze` | `DatasetController.freezeVersion` |
+| Dataset (ground truth) | `POST/GET /api/benchmark/datasets/:id/versions/:vid/ground-truth-generation/**` | `GroundTruthGenerationController.*` |
+| Dataset (HITL) | `GET /api/benchmark/datasets/from-hitl/eligible-documents` | `HitlDatasetController.listEligibleDocuments` |
+| Dataset (HITL) | `POST /api/benchmark/datasets/:id/versions/from-hitl` | `HitlDatasetController.addVersionFromHitl` |
+| BenchmarkDefinition | `POST/GET/PUT/DELETE /api/benchmark/projects/:pid/definitions/**` | `BenchmarkDefinitionController.*` |
+| BenchmarkRun | `POST/GET/DELETE /api/benchmark/projects/:pid/runs/**` | `BenchmarkRunController.*` |
 
 For read/update/delete endpoints, the resource is fetched first to obtain its `group_id`, and then `identityCanAccessGroup` is called with that value before the operation continues.
 
@@ -76,6 +94,10 @@ For `FieldDefinition`, `GET /projects/:id/documents`, and `POST /projects/:id/ex
 For `TrainingJob` and `TrainedModel` endpoints accessed via project route (e.g. `GET /api/training/projects/:projectId/jobs`), the parent `LabelingProject` is fetched and its `group_id` is checked. For job-level endpoints (e.g. `GET /api/training/jobs/:jobId`), the job is fetched first to get its `project_id`, then the parent `LabelingProject` is fetched to obtain the `group_id`.
 
 For `ReviewSession` endpoints, the parent `Document` is fetched (either directly from the request body for creation, or via the session record for existing sessions) and its `group_id` is used for the check.
+
+For `BenchmarkDefinition` and `BenchmarkRun` endpoints (accessed via `/api/benchmark/projects/:projectId/...`), the parent `BenchmarkProject` is fetched and its `group_id` is checked. Child models (`DatasetVersion`, `Split`, `BenchmarkDefinition`, `BenchmarkRun`, `DatasetGroundTruthJob`) do not have their own `group_id` — they inherit access through their parent `Dataset` or `BenchmarkProject`.
+
+For `Dataset` sub-resource endpoints (versions, splits, samples, ground truth, freeze), the parent `Dataset` is fetched and its `group_id` is checked before proceeding.
 
 ## Authorization Logic
 
@@ -97,6 +119,9 @@ All creation DTOs include a required `group_id` (or `groupId`) field. A missing 
 | `CreateProjectDto` | `group_id` |
 | `LabelingUploadDto` | `group_id` |
 | `GenerateApiKeyRequestDto` | `groupId` |
+| `CreateProjectDto` (benchmark) | `groupId` |
+| `CreateDatasetDto` | `groupId` |
+| `CreateDatasetFromHitlDto` | `groupId` |
 
 ## Error Responses
 

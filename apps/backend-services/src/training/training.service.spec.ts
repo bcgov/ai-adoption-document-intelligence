@@ -7,15 +7,15 @@ import {
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import * as fs from "fs";
-import { BlobStorageService } from "../blob-storage/blob-storage.service";
+import { AzureStorageService } from "../blob-storage/azure-storage.service";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "../blob-storage/blob-storage.interface";
 import { DatabaseService } from "../database/database.service";
 import { ExportFormat } from "../labeling/dto/export.dto";
 import { LabelingService } from "../labeling/labeling.service";
 import { TrainingService } from "./training.service";
-
-// Mock fs module
-jest.mock("fs");
 
 // Mock Azure Document Intelligence
 jest.mock("@azure-rest/ai-document-intelligence", () => ({
@@ -33,7 +33,8 @@ import DocumentIntelligence, {
 describe("TrainingService", () => {
   let service: TrainingService;
   let mockDbService: jest.Mocked<DatabaseService>;
-  let mockBlobStorage: jest.Mocked<BlobStorageService>;
+  let mockBlobStorage: jest.Mocked<AzureStorageService>;
+  let mockPrimaryBlobStorage: jest.Mocked<BlobStorageInterface>;
   let mockLabelingService: jest.Mocked<LabelingService>;
   let _mockConfigService: jest.Mocked<ConfigService>;
   let mockAdminClient: any;
@@ -154,6 +155,15 @@ describe("TrainingService", () => {
       clearContainerContents: jest.fn(),
     };
 
+    const mockPrimaryBlob = {
+      write: jest.fn(),
+      read: jest.fn().mockResolvedValue(Buffer.from("test")),
+      exists: jest.fn().mockResolvedValue(true),
+      delete: jest.fn(),
+      list: jest.fn().mockResolvedValue([]),
+      deleteByPrefix: jest.fn(),
+    };
+
     const mockLabeling = {
       exportProject: jest.fn(),
     };
@@ -177,7 +187,7 @@ describe("TrainingService", () => {
     const mockConfig = {
       get: jest.fn((key: string, defaultValue?: any) => {
         const config: Record<string, any> = {
-          AZURE_DOCUMENT_INTELLIGENCE_TRAIN_ENDPOINT: "https://test.api.com",
+          AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
           AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
           TRAINING_MIN_DOCUMENTS: 5,
           TRAINING_SAS_EXPIRY_DAYS: 7,
@@ -194,8 +204,12 @@ describe("TrainingService", () => {
           useValue: mockDb,
         },
         {
-          provide: BlobStorageService,
+          provide: AzureStorageService,
           useValue: mockBlob,
+        },
+        {
+          provide: BLOB_STORAGE,
+          useValue: mockPrimaryBlob,
         },
         {
           provide: LabelingService,
@@ -210,13 +224,10 @@ describe("TrainingService", () => {
 
     service = module.get<TrainingService>(TrainingService);
     mockDbService = module.get(DatabaseService);
-    mockBlobStorage = module.get(BlobStorageService);
+    mockBlobStorage = module.get(AzureStorageService);
+    mockPrimaryBlobStorage = module.get(BLOB_STORAGE);
     mockLabelingService = module.get(LabelingService);
     _mockConfigService = module.get(ConfigService);
-
-    // Mock fs functions
-    (fs.existsSync as jest.Mock).mockReturnValue(true);
-    (fs.readFileSync as jest.Mock).mockReturnValue(Buffer.from("test"));
   });
 
   describe("constructor", () => {
@@ -240,7 +251,8 @@ describe("TrainingService", () => {
         providers: [
           TrainingService,
           { provide: DatabaseService, useValue: { prisma: mockPrisma } },
-          { provide: BlobStorageService, useValue: mockBlobStorage },
+          { provide: AzureStorageService, useValue: mockBlobStorage },
+          { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
           { provide: LabelingService, useValue: mockLabelingService },
           { provide: ConfigService, useValue: mockConfigNoCredentials },
         ],
@@ -374,7 +386,7 @@ describe("TrainingService", () => {
         labelsFiles: [],
       };
 
-      (fs.existsSync as jest.Mock).mockReturnValue(false);
+      mockPrimaryBlobStorage.exists.mockResolvedValue(false);
 
       mockLabelingService.exportProject.mockResolvedValueOnce(
         exportResult as any,
@@ -615,7 +627,8 @@ describe("TrainingService", () => {
         providers: [
           TrainingService,
           { provide: DatabaseService, useValue: { prisma: mockPrisma } },
-          { provide: BlobStorageService, useValue: mockBlobStorage },
+          { provide: AzureStorageService, useValue: mockBlobStorage },
+          { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
           { provide: LabelingService, useValue: mockLabelingService },
           { provide: ConfigService, useValue: mockConfigNoCredentials },
         ],

@@ -1,7 +1,7 @@
 import { validateGraphConfigForExecution } from "./graph-schema-validator";
 import type {
-  GraphWorkflowConfig,
   ActivityNode,
+  GraphWorkflowConfig,
   SwitchNode,
 } from "./graph-workflow-types";
 
@@ -50,8 +50,18 @@ describe("graph-schema-validator (temporal)", () => {
         entryNodeId: "a",
         ctx: { documentId: { type: "string" } },
         nodes: {
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
-          b: { id: "b", type: "activity", label: "B", activityType: "file.prepare" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
+          b: {
+            id: "b",
+            type: "activity",
+            label: "B",
+            activityType: "file.prepare",
+          } as ActivityNode,
         },
         edges: [{ id: "e1", source: "a", target: "b", type: "normal" }],
       };
@@ -79,8 +89,18 @@ describe("graph-schema-validator (temporal)", () => {
         entryNodeId: "a",
         ctx: {},
         nodes: {
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
-          b: { id: "b", type: "activity", label: "B", activityType: "file.prepare" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
+          b: {
+            id: "b",
+            type: "activity",
+            label: "B",
+            activityType: "file.prepare",
+          } as ActivityNode,
         },
         edges: [
           { id: "e1", source: "a", target: "b", type: "normal" },
@@ -91,7 +111,9 @@ describe("graph-schema-validator (temporal)", () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ message: expect.stringContaining("Cycle") }),
+          expect.objectContaining({
+            message: expect.stringContaining("Cycle"),
+          }),
         ]),
       );
     });
@@ -112,8 +134,18 @@ describe("graph-schema-validator (temporal)", () => {
         entryNodeId: "a",
         ctx: {},
         nodes: {
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
-          b: { id: "b", type: "activity", label: "B", activityType: "unknown.activity" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
+          b: {
+            id: "b",
+            type: "activity",
+            label: "B",
+            activityType: "unknown.activity",
+          } as ActivityNode,
         },
         edges: [{ id: "e1", source: "a", target: "b", type: "normal" }],
       };
@@ -203,7 +235,12 @@ describe("graph-schema-validator (temporal)", () => {
             label: "Switch",
             cases: [],
           } as SwitchNode,
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
         },
         edges: [{ id: "e1", source: "sw", target: "a", type: "normal" }],
       };
@@ -243,7 +280,12 @@ describe("graph-schema-validator (temporal)", () => {
             ],
             defaultEdge: "e1",
           } as SwitchNode,
-          a: { id: "a", type: "activity", label: "A", activityType: "document.updateStatus" } as ActivityNode,
+          a: {
+            id: "a",
+            type: "activity",
+            label: "A",
+            activityType: "document.updateStatus",
+          } as ActivityNode,
         },
         edges: [{ id: "e1", source: "sw", target: "a", type: "conditional" }],
       };
@@ -271,7 +313,9 @@ describe("graph-schema-validator (temporal)", () => {
         label: "Step B",
         activityType: "file.prepare",
       } as ActivityNode;
-      config.edges = [{ id: "e1", source: "start", target: "b", type: "normal" }];
+      config.edges = [
+        { id: "e1", source: "start", target: "b", type: "normal" },
+      ];
       config.nodeGroups = {
         group1: {
           label: "Group 1",
@@ -308,7 +352,9 @@ describe("graph-schema-validator (temporal)", () => {
       };
       const result = validateGraphConfigForExecution(config);
       expect(result.valid).toBe(false);
-      const error = result.errors.find((e) => e.message.includes("nonExistent"));
+      const error = result.errors.find((e) =>
+        e.message.includes("nonExistent"),
+      );
       expect(error).toBeDefined();
     });
 
@@ -333,7 +379,8 @@ describe("graph-schema-validator (temporal)", () => {
       const result = validateGraphConfigForExecution(config);
       expect(result.valid).toBe(true); // warnings don't fail validation
       const warning = result.errors.find(
-        (e) => e.severity === "warning" && e.message.includes("multiple groups"),
+        (e) =>
+          e.severity === "warning" && e.message.includes("multiple groups"),
       );
       expect(warning).toBeDefined();
     });

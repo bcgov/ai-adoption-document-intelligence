@@ -12,7 +12,7 @@ The backend services provide a modular, scalable API for:
 - Azure Document Intelligence custom model training
 - Human-in-the-loop (HITL) review queue and correction tracking
 - Multi-mode authentication (Keycloak SSO + API keys)
-- Blob storage abstraction (local filesystem and Azure Blob Storage)
+- Blob storage abstraction (MinIO/S3 or Azure Blob Storage, switchable via environment variable)
 
 ## Architecture
 
@@ -20,7 +20,7 @@ The backend services provide a modular, scalable API for:
 - **Database**: PostgreSQL with Prisma ORM
 - **Workflow Engine**: Temporal.io for durable, distributed workflows
 - **OCR**: Azure Document Intelligence (formerly Form Recognizer)
-- **Storage**: Pluggable blob storage (local filesystem or Azure Blob Storage)
+- **Storage**: Pluggable blob storage (MinIO/S3 or Azure Blob Storage, selected via `BLOB_STORAGE_PROVIDER` env var)
 - **Authentication**: Keycloak OIDC/SSO + API Key authentication
 - **API Documentation**: Swagger/OpenAPI at `/api`
 
@@ -169,10 +169,12 @@ The backend services provide a modular, scalable API for:
 
 #### `blob-storage/` - Storage Abstraction
 - Pluggable storage interface (`BlobStorageInterface`)
-- Local filesystem implementation (`LocalBlobStorageService`)
-- Azure Blob Storage implementation (`BlobStorageService`)
-- Operations: write, read, exists, delete
-- SAS URL generation for Azure
+- MinIO/S3 implementation (`MinioBlobStorageService`)
+- Azure Blob Storage implementation (`AzureBlobProviderService`)
+- Azure storage — always Azure, for DI model training (`AzureStorageService`)
+- Dynamic module with runtime provider selection via `BLOB_STORAGE_PROVIDER`
+- Operations: write, read, exists, delete, list, deleteByPrefix
+- See [docs-md/BLOB_STORAGE.md](../../docs-md/BLOB_STORAGE.md) for full architecture docs
 
 #### `database/` - Database Service
 - Prisma client wrapper
@@ -186,7 +188,7 @@ The backend services provide a modular, scalable API for:
 ## Prerequisites
 
 - **Node.js** 24+ and npm 10+
-- **PostgreSQL** 14+
+- **Docker** and **Docker Compose** (for PostgreSQL, MinIO, and Temporal)
 - **Temporal Server** (local or cloud)
 - **Azure Subscription** (for Document Intelligence and Blob Storage)
 - **Keycloak** (optional, for SSO authentication)
@@ -217,15 +219,21 @@ AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<your-resource>.cognitiveservices.a
 AZURE_DOCUMENT_INTELLIGENCE_API_KEY=<your-api-key>
 AZURE_DOC_INTELLIGENCE_MODELS=prebuilt-layout,prebuilt-document,prebuilt-invoice
 
-# Azure Blob Storage (Optional - for production storage)
+# Azure Blob Storage (for primary storage when BLOB_STORAGE_PROVIDER=azure, and always for training)
 AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=...
 AZURE_STORAGE_ACCOUNT_NAME=<your-account-name>
 AZURE_STORAGE_ACCOUNT_KEY=<your-account-key>
 AZURE_STORAGE_CONTAINER=documents
 AZURE_STORAGE_TRAINING_CONTAINER=training-data
 
-# Local Blob Storage (Development fallback)
-LOCAL_BLOB_STORAGE_PATH=./data/blobs
+# Blob Storage Provider Selection (minio or azure, default: minio)
+BLOB_STORAGE_PROVIDER=minio
+
+# MinIO Configuration (when BLOB_STORAGE_PROVIDER=minio)
+MINIO_ENDPOINT=http://localhost:19000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_DOCUMENT_BUCKET=document-blobs
 
 # Temporal Workflow Engine
 TEMPORAL_ADDRESS=localhost:7233
@@ -259,7 +267,55 @@ API_KEY_FAILED_WINDOW_MS=60000      # Tracking window in milliseconds (default: 
 API_KEY_SWEEP_INTERVAL_MS=60000     # Cleanup interval for stale records in milliseconds (default: 60 000)
 ```
 
-### 3. Database Setup
+### 3. Local Services (Docker Compose)
+
+The project includes a `docker-compose.yml` for local development services (PostgreSQL and MinIO).
+
+#### Prerequisites
+
+- **Docker** and **Docker Compose** installed and running
+- Ports `5432` (PostgreSQL), `19000` (MinIO API), and `19001` (MinIO Console) available
+
+#### Starting Services
+
+```bash
+# From apps/backend-services/
+docker compose up -d
+```
+
+This starts:
+- **PostgreSQL** on port `5432`
+- **MinIO** (S3-compatible blob storage) on port `19000` (API) and `19001` (web console)
+- **minio-init** sidecar that auto-creates the `document-blobs` and `benchmark-outputs` buckets
+
+#### MinIO Access
+
+- **Web Console**: http://localhost:19001 — login with `minioadmin` / `minioadmin`
+- **API Endpoint**: http://localhost:19000
+
+#### Verifying MinIO
+
+```bash
+# Check container health
+docker ps | grep ai-doc-intelligence-minio
+
+# Check bucket initialization logs
+docker compose logs minio-init
+```
+
+If `minio-init` failed (e.g., MinIO wasn't healthy in time), re-run it:
+
+```bash
+docker compose up minio-init
+```
+
+#### Troubleshooting MinIO
+
+- **Port conflict**: The compose file maps MinIO's internal ports 9000/9001 to host ports 19000/19001. If those are taken, adjust the port mappings in `docker-compose.yml`.
+- **Buckets missing**: Check `docker compose logs minio-init` — the init container depends on MinIO's healthcheck and will retry until ready.
+- **Connection refused from app**: Ensure your `.env` has `MINIO_ENDPOINT=http://localhost:19000` (not port 9000).
+
+### 4. Database Setup
 
 This project uses Prisma with a shared schema located at `apps/shared/prisma/schema.prisma`.
 
@@ -279,7 +335,7 @@ npm run db:studio
 
 **Important:** Migrations are stored in `apps/shared/prisma/migrations/` and are shared between `backend-services` and `temporal` apps.
 
-### 4. Start Temporal Server
+### 5. Start Temporal Server
 
 ```bash
 # Using Docker Compose (recommended for local development)
@@ -290,7 +346,7 @@ docker-compose up -d
 temporal server status
 ```
 
-### 5. Run the Service
+### 6. Run the Service
 
 ```bash
 # Development mode (with hot reload)
@@ -417,8 +473,11 @@ apps/backend-services/
 │   │   └── guards/           # JWT guard
 │   │
 │   ├── blob-storage/         # Storage abstraction
-│   │   ├── blob-storage.service.ts        # Azure Blob implementation
-│   │   └── local-blob-storage.service.ts  # Local filesystem
+│   │   ├── blob-storage.interface.ts      # Interface & injection token
+│   │   ├── blob-storage.module.ts         # Dynamic provider module
+│   │   ├── minio-blob-storage.service.ts  # MinIO/S3 implementation
+│   │   ├── azure-blob-provider.service.ts # Azure Blob provider (BlobStorageInterface)
+│   │   └── azure-storage.service.ts       # Azure storage (containers, SAS)
 │   │
 │   ├── database/             # Prisma database module
 │   │   └── database.service.ts

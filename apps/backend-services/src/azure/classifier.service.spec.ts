@@ -1,9 +1,12 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { AzureService } from "../azure/azure.service";
-import { BlobService } from "../azure/blob.service";
 import { ClassifierStatus } from "../azure/dto/classifier-constants.dto";
+import { AzureStorageService } from "../blob-storage/azure-storage.service";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "../blob-storage/blob-storage.interface";
 import { DatabaseService } from "../database/database.service";
-import { StorageService } from "../storage/storage.service";
 import { ClassifierService } from "./classifier.service";
 
 const mockDatabaseService = {
@@ -25,34 +28,37 @@ const mockBlobService = {
   ensureContainerExists: jest.fn(),
   uploadFile: jest.fn(),
   generateSasUrl: jest.fn().mockReturnValue("https://mockbloburl"),
+  deleteFilesWithPrefix: jest.fn(),
 };
-const mockStorageService = {
-  getStoragePath: jest.fn(),
-  getAllFileNamesAndPaths: jest.fn(),
-  readFile: jest.fn(),
-  storagePath: "/mock/storage",
+const mockBlobStorage = {
+  write: jest.fn(),
+  read: jest.fn(),
+  exists: jest.fn(),
+  delete: jest.fn(),
+  list: jest.fn(),
+  deleteByPrefix: jest.fn(),
 };
 
 describe("ClassifierService", () => {
   let service: ClassifierService;
   let module: TestingModule;
-  let storageService: StorageService;
+  let blobStorage: BlobStorageInterface;
   let databaseService: DatabaseService;
   let azureService: AzureService;
-  let blobService: BlobService;
+  let azureStorage: AzureStorageService;
 
   beforeEach(async () => {
-    storageService = mockStorageService as any;
+    blobStorage = mockBlobStorage as any;
     databaseService = mockDatabaseService as any;
     azureService = mockAzureService as any;
-    blobService = mockBlobService as any;
+    azureStorage = mockBlobService as any;
     module = await Test.createTestingModule({
       providers: [
         ClassifierService,
         { provide: DatabaseService, useValue: databaseService },
         { provide: AzureService, useValue: azureService },
-        { provide: BlobService, useValue: blobService },
-        { provide: StorageService, useValue: storageService },
+        { provide: AzureStorageService, useValue: azureStorage },
+        { provide: BLOB_STORAGE, useValue: blobStorage },
       ],
     }).compile();
     service = module.get<ClassifierService>(ClassifierService);
@@ -85,7 +91,7 @@ describe("ClassifierService", () => {
       (databaseService.getClassifierModel as jest.Mock).mockResolvedValue({
         description: "desc",
       });
-      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+      (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         listBlobsByHierarchy: jest.fn().mockReturnValue([]),
       });
       (databaseService.updateClassifierModel as jest.Mock).mockResolvedValue({
@@ -106,7 +112,7 @@ describe("ClassifierService", () => {
       (databaseService.getClassifierModel as jest.Mock).mockResolvedValue({
         description: "desc",
       });
-      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+      (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         listBlobsByHierarchy: jest.fn().mockReturnValue([]),
       });
       await expect(
@@ -118,10 +124,10 @@ describe("ClassifierService", () => {
   describe("createLayoutJson", () => {
     it("should skip non-image files", async () => {
       const mockGetBlobSasUrl = jest.fn();
-      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+      (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         getBlockBlobClient: jest.fn(),
       });
-      blobService.getBlobSasUrl = mockGetBlobSasUrl;
+      azureStorage.getBlobSasUrl = mockGetBlobSasUrl;
       (service as any).client = { path: jest.fn() };
       await expect(
         service.createLayoutJson(["file.txt"]),
@@ -136,10 +142,10 @@ describe("ClassifierService", () => {
       const mockGetBlockBlobClient = jest.fn().mockReturnValue({
         upload: jest.fn().mockResolvedValue(undefined),
       });
-      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+      (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         getBlockBlobClient: mockGetBlockBlobClient,
       });
-      blobService.getBlobSasUrl = mockGetBlobSasUrl;
+      azureStorage.getBlobSasUrl = mockGetBlobSasUrl;
 
       const pollCallback = jest.fn(async (opLoc, onSuccess, onError) => {
         await onSuccess({ result: "layout" });
@@ -175,10 +181,10 @@ describe("ClassifierService", () => {
       const mockGetBlockBlobClient = jest.fn().mockReturnValue({
         upload: jest.fn().mockResolvedValue(undefined),
       });
-      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+      (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         getBlockBlobClient: mockGetBlockBlobClient,
       });
-      blobService.getBlobSasUrl = mockGetBlobSasUrl;
+      azureStorage.getBlobSasUrl = mockGetBlobSasUrl;
 
       // Mock fetch for fallback
       global.fetch = jest.fn().mockResolvedValue({
@@ -218,10 +224,10 @@ describe("ClassifierService", () => {
       const mockGetBlobSasUrl = jest
         .fn()
         .mockReturnValue("https://mockbloburl/file.jpg");
-      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+      (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         getBlockBlobClient: jest.fn(),
       });
-      blobService.getBlobSasUrl = mockGetBlobSasUrl;
+      azureStorage.getBlobSasUrl = mockGetBlobSasUrl;
 
       global.fetch = jest.fn().mockResolvedValue({ ok: false }) as any;
       (service as any).client = {
@@ -249,10 +255,10 @@ describe("ClassifierService", () => {
       const mockGetBlobSasUrl = jest
         .fn()
         .mockReturnValue("https://mockbloburl/file.jpg");
-      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+      (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         getBlockBlobClient: jest.fn(),
       });
-      blobService.getBlobSasUrl = mockGetBlobSasUrl;
+      azureStorage.getBlobSasUrl = mockGetBlobSasUrl;
 
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
@@ -294,10 +300,10 @@ describe("ClassifierService", () => {
       const mockGetBlobSasUrl = jest
         .fn()
         .mockReturnValue("https://mockbloburl/file.jpg");
-      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+      (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         getBlockBlobClient: jest.fn(),
       });
-      blobService.getBlobSasUrl = mockGetBlobSasUrl;
+      azureStorage.getBlobSasUrl = mockGetBlobSasUrl;
 
       (service as any).client = {
         path: () => ({
@@ -327,10 +333,10 @@ describe("ClassifierService", () => {
       const mockGetBlobSasUrl = jest
         .fn()
         .mockReturnValue("https://mockbloburl/file.jpg");
-      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+      (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         getBlockBlobClient: jest.fn(),
       });
-      blobService.getBlobSasUrl = mockGetBlobSasUrl;
+      azureStorage.getBlobSasUrl = mockGetBlobSasUrl;
 
       (service as any).client = {
         path: () => ({
@@ -356,19 +362,14 @@ describe("ClassifierService", () => {
 
   describe("uploadDocumentsForTraining", () => {
     it("should upload all files and return results", async () => {
-      (blobService.ensureContainerExists as jest.Mock).mockResolvedValue(
+      (azureStorage.ensureContainerExists as jest.Mock).mockResolvedValue(
         undefined,
       );
-      (storageService.getStoragePath as jest.Mock).mockReturnValue(
-        "/mock/path",
-      );
-      (storageService.getAllFileNamesAndPaths as jest.Mock).mockResolvedValue([
-        { path: "/mock/path/file1.pdf", name: "file1.pdf" },
+      (blobStorage.list as jest.Mock).mockResolvedValue([
+        "classifier/gid/cid/label/file1.pdf",
       ]);
-      (storageService.readFile as jest.Mock).mockResolvedValue(
-        Buffer.from("test"),
-      );
-      (blobService.uploadFile as jest.Mock).mockResolvedValue(undefined);
+      (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
+      (azureStorage.uploadFile as jest.Mock).mockResolvedValue(undefined);
       const result = await service.uploadDocumentsForTraining("gid", "cid");
       expect(result[0].originalPath).toContain("file1.pdf");
       expect(result[0].blobPath).toContain("gid");
@@ -387,7 +388,7 @@ describe("ClassifierService", () => {
           for (const item of mockList) yield item;
         },
       };
-      (blobService.getContainerClient as jest.Mock).mockReturnValue({
+      (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         listBlobsByHierarchy: () => asyncIterable,
       });
       const config = await service.generateTrainingConfig(
@@ -412,9 +413,7 @@ describe("ClassifierService", () => {
           }),
         }),
       };
-      (storageService.readFile as jest.Mock).mockResolvedValue(
-        Buffer.from("test"),
-      );
+      (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
       const result = await service.requestClassification("file", "cid", "gid");
       expect(result.status).toBe("202");
       expect(result.content).toBe("loc");
@@ -428,9 +427,7 @@ describe("ClassifierService", () => {
           }),
         }),
       };
-      (storageService.readFile as jest.Mock).mockResolvedValue(
-        Buffer.from("test"),
-      );
+      (blobStorage.read as jest.Mock).mockResolvedValue(Buffer.from("test"));
       const result = await service.requestClassification("file", "cid", "gid");
       expect(result.status).toBe("400");
       expect(result.error).toBe("fail");

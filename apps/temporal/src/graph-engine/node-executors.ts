@@ -4,35 +4,35 @@
  * Execution handlers for all node types and branch subgraph execution.
  */
 
+import type { Duration, RetryPolicy } from "@temporalio/common";
 import {
-  proxyActivities,
   ApplicationFailure,
-  sleep,
   condition,
   defineSignal,
-  setHandler,
   executeChild,
+  proxyActivities,
+  setHandler,
+  sleep,
   workflowInfo,
-} from '@temporalio/workflow';
-import type { Duration, RetryPolicy } from '@temporalio/common';
+} from "@temporalio/workflow";
+import { isRegisteredActivityType } from "../activity-types";
+import { evaluateCondition } from "../expression-evaluator";
 import type {
-  GraphNode,
   ActivityNode,
-  SwitchNode,
-  MapNode,
-  JoinNode,
-  PollUntilNode,
-  HumanGateNode,
   ChildWorkflowNode,
+  GraphNode,
   GraphWorkflowConfig,
-} from '../graph-workflow-types';
-import { isRegisteredActivityType } from '../activity-types';
-import { evaluateCondition } from '../expression-evaluator';
-import type { ExecutionState } from './execution-state';
-import { resolvePortBinding, writeToCtx } from './context-utils';
-import { computeReadySetForSubgraph } from './graph-algorithms';
-import { handleNodeError, throwPollTimeout } from './error-handling';
-import { executeWithConcurrencyLimit, parseDurationToMs } from './runner-utils';
+  HumanGateNode,
+  JoinNode,
+  MapNode,
+  PollUntilNode,
+  SwitchNode,
+} from "../graph-workflow-types";
+import { resolvePortBinding, writeToCtx } from "./context-utils";
+import { handleNodeError, throwPollTimeout } from "./error-handling";
+import type { ExecutionState } from "./execution-state";
+import { computeReadySetForSubgraph } from "./graph-algorithms";
+import { executeWithConcurrencyLimit, parseDurationToMs } from "./runner-utils";
 
 /**
  * Execute a node based on its type
@@ -43,37 +43,37 @@ export async function executeNode(
   state: ExecutionState,
 ): Promise<void> {
   switch (node.type) {
-    case 'activity':
+    case "activity":
       await executeActivityNode(node, state);
       break;
 
-    case 'switch':
+    case "switch":
       // Switch nodes don't "execute" - routing is handled by main loop
       break;
 
-    case 'map':
+    case "map":
       await executeMapNode(node as MapNode, config, state);
       break;
 
-    case 'join':
+    case "join":
       await executeJoinNode(node as JoinNode, state);
       break;
 
-    case 'pollUntil':
+    case "pollUntil":
       await executePollUntilNode(node as PollUntilNode, state);
       break;
 
-    case 'humanGate':
+    case "humanGate":
       await executeHumanGateNode(node as HumanGateNode, state);
       break;
 
-    case 'childWorkflow':
+    case "childWorkflow":
       await executeChildWorkflowNode(node as ChildWorkflowNode, state);
       break;
 
     default:
       throw ApplicationFailure.create({
-        type: 'GRAPH_EXECUTION_ERROR',
+        type: "GRAPH_EXECUTION_ERROR",
         message: `Unknown node type: ${(node as GraphNode).type}`,
         nonRetryable: true,
       });
@@ -96,7 +96,7 @@ async function executeActivityNode(
   // Step 1: Check activity type is registered
   if (!isRegisteredActivityType(node.activityType)) {
     throw ApplicationFailure.create({
-      type: 'ACTIVITY_NOT_FOUND',
+      type: "ACTIVITY_NOT_FOUND",
       message: `Activity type not found: ${node.activityType}`,
       nonRetryable: true,
     });
@@ -118,7 +118,7 @@ async function executeActivityNode(
 
   // Step 4: Create activity proxy with timeout and retry configuration
   // Use defaults if not specified in node config
-  const timeout = (node.timeout?.startToClose ?? '2m') as Duration;
+  const timeout = (node.timeout?.startToClose ?? "2m") as Duration;
   const retry = (node.retry ?? { maximumAttempts: 3 }) as RetryPolicy;
 
   const activityProxy = proxyActivities({
@@ -167,7 +167,7 @@ export function executeSwitchNode(
   // Validator ensures defaultEdge exists
   if (!node.defaultEdge) {
     throw ApplicationFailure.create({
-      type: 'GRAPH_EXECUTION_ERROR',
+      type: "GRAPH_EXECUTION_ERROR",
       message: `Switch node ${node.id} missing defaultEdge`,
       nonRetryable: true,
     });
@@ -196,7 +196,7 @@ async function executeMapNode(
 
   if (!Array.isArray(collection)) {
     throw ApplicationFailure.create({
-      type: 'GRAPH_EXECUTION_ERROR',
+      type: "GRAPH_EXECUTION_ERROR",
       message: `Collection at ${node.collectionCtxKey} is not an array`,
       nonRetryable: true,
     });
@@ -248,7 +248,7 @@ async function executeJoinNode(
 
   if (!results) {
     throw ApplicationFailure.create({
-      type: 'GRAPH_EXECUTION_ERROR',
+      type: "GRAPH_EXECUTION_ERROR",
       message: `No results found for map node ${node.sourceMapNodeId}`,
       nonRetryable: true,
     });
@@ -257,9 +257,9 @@ async function executeJoinNode(
   // Step 2: Apply strategy
   // Note: For "all" strategy, we already collected all results in executeMapNode
   // For "any" strategy, we would have used Promise.race (not implemented yet)
-  if (node.strategy === 'any') {
+  if (node.strategy === "any") {
     throw ApplicationFailure.create({
-      type: 'GRAPH_EXECUTION_ERROR',
+      type: "GRAPH_EXECUTION_ERROR",
       message: 'Join strategy "any" not yet implemented',
       nonRetryable: true,
     });
@@ -283,7 +283,7 @@ async function executePollUntilNode(
 ): Promise<void> {
   if (!isRegisteredActivityType(node.activityType)) {
     throw ApplicationFailure.create({
-      type: 'ACTIVITY_NOT_FOUND',
+      type: "ACTIVITY_NOT_FOUND",
       message: `Activity type not found: ${node.activityType}`,
       nonRetryable: true,
     });
@@ -293,7 +293,7 @@ async function executePollUntilNode(
   const timeoutMs = node.timeout ? parseDurationToMs(node.timeout) : undefined;
   const startTimeMs = Date.now();
 
-  const timeout = '2m' as Duration;
+  const timeout = "2m" as Duration;
   const retry = { maximumAttempts: 3 } as RetryPolicy;
 
   const activityProxy = proxyActivities({
@@ -311,7 +311,7 @@ async function executePollUntilNode(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     if (timeoutMs !== undefined && Date.now() - startTimeMs >= timeoutMs) {
-      throwPollTimeout(node.id, attempt, 'timeout');
+      throwPollTimeout(node.id, attempt, "timeout");
     }
 
     const inputs: Record<string, unknown> = {};
@@ -326,7 +326,10 @@ async function executePollUntilNode(
       ...node.parameters,
     };
 
-    const result = (await activityFn(activityParams)) as Record<string, unknown>;
+    const result = (await activityFn(activityParams)) as Record<
+      string,
+      unknown
+    >;
 
     if (node.outputs) {
       for (const binding of node.outputs) {
@@ -344,13 +347,13 @@ async function executePollUntilNode(
     }
 
     if (timeoutMs !== undefined && Date.now() - startTimeMs >= timeoutMs) {
-      throwPollTimeout(node.id, attempt, 'timeout');
+      throwPollTimeout(node.id, attempt, "timeout");
     }
 
     await sleep(node.interval as Duration);
   }
 
-  throwPollTimeout(node.id, maxAttempts, 'maxAttempts');
+  throwPollTimeout(node.id, maxAttempts, "maxAttempts");
 }
 
 /**
@@ -380,14 +383,14 @@ async function executeHumanGateNode(
   );
 
   if (!received) {
-    if (node.onTimeout === 'continue') {
+    if (node.onTimeout === "continue") {
       return;
     }
 
-    if (node.onTimeout === 'fallback') {
+    if (node.onTimeout === "fallback") {
       if (!node.fallbackEdgeId) {
         throw ApplicationFailure.create({
-          type: 'GRAPH_EXECUTION_ERROR',
+          type: "GRAPH_EXECUTION_ERROR",
           message: `HumanGate node ${node.id} missing fallbackEdgeId`,
           nonRetryable: true,
         });
@@ -397,7 +400,7 @@ async function executeHumanGateNode(
     }
 
     throw ApplicationFailure.create({
-      type: 'HUMAN_GATE_TIMEOUT',
+      type: "HUMAN_GATE_TIMEOUT",
       message: `HumanGate node ${node.id} timed out waiting for signal ${node.signal.name}`,
       nonRetryable: true,
     });
@@ -413,9 +416,9 @@ async function executeHumanGateNode(
     writeToCtx(`${node.id}Payload`, payloadValue, state.ctx);
   }
 
-  if (payloadValue['approved'] === false) {
+  if (payloadValue["approved"] === false) {
     throw ApplicationFailure.create({
-      type: 'HUMAN_GATE_REJECTED',
+      type: "HUMAN_GATE_REJECTED",
       message: `HumanGate node ${node.id} rejected by signal ${node.signal.name}`,
       nonRetryable: true,
     });
@@ -434,13 +437,13 @@ async function executeChildWorkflowNode(
   state: ExecutionState,
 ): Promise<void> {
   const activityProxy = proxyActivities({
-    startToCloseTimeout: '30s' as Duration,
+    startToCloseTimeout: "30s" as Duration,
     retry: { maximumAttempts: 3 } as RetryPolicy,
   });
 
   let childGraph: GraphWorkflowConfig;
 
-  if (node.workflowRef.type === 'inline') {
+  if (node.workflowRef.type === "inline") {
     childGraph = node.workflowRef.graph;
   } else {
     const result = (await (
@@ -456,14 +459,11 @@ async function executeChildWorkflowNode(
   const initialCtx: Record<string, unknown> = {};
   if (node.inputMappings) {
     for (const mapping of node.inputMappings) {
-      initialCtx[mapping.port] = resolvePortBinding(
-        mapping.ctxKey,
-        state.ctx,
-      );
+      initialCtx[mapping.port] = resolvePortBinding(mapping.ctxKey, state.ctx);
     }
   }
 
-  const childResult = await executeChild('graphWorkflow', {
+  const childResult = await executeChild("graphWorkflow", {
     args: [
       {
         graph: childGraph,
@@ -546,7 +546,7 @@ export async function executeBranchSubgraph(
   // Execute subgraph nodes until exitNodeId is completed
   while (true) {
     // Check for cancellation
-    if (branchState.cancelled() && branchState.cancelMode() === 'immediate') {
+    if (branchState.cancelled() && branchState.cancelMode() === "immediate") {
       break;
     }
 
@@ -565,7 +565,7 @@ export async function executeBranchSubgraph(
       }
       // Exit node not completed but no nodes ready - this is an error
       throw ApplicationFailure.create({
-        type: 'GRAPH_EXECUTION_ERROR',
+        type: "GRAPH_EXECUTION_ERROR",
         message: `Branch execution stalled before completing exit node ${exitNodeId}`,
         nonRetryable: true,
       });
@@ -582,7 +582,7 @@ export async function executeBranchSubgraph(
         const node = config.nodes[nodeId];
         if (!node) {
           throw ApplicationFailure.create({
-            type: 'GRAPH_EXECUTION_ERROR',
+            type: "GRAPH_EXECUTION_ERROR",
             message: `Node not found: ${nodeId}`,
             nonRetryable: true,
           });
@@ -590,13 +590,13 @@ export async function executeBranchSubgraph(
 
         // Mark node as running
         branchState.nodeStatuses.set(nodeId, {
-          status: 'running',
+          status: "running",
           startedAt: new Date().toISOString(),
         });
 
         try {
           // Handle switch nodes specially
-          if (node.type === 'switch') {
+          if (node.type === "switch") {
             const selectedEdgeId = executeSwitchNode(
               node as SwitchNode,
               branchState.ctx,
@@ -609,7 +609,7 @@ export async function executeBranchSubgraph(
           // Mark node as completed
           branchState.completedNodeIds.add(nodeId);
           branchState.nodeStatuses.set(nodeId, {
-            status: 'completed',
+            status: "completed",
             completedAt: new Date().toISOString(),
           });
         } catch (error) {

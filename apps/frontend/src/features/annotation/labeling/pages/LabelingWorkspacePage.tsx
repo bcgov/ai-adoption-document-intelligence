@@ -10,9 +10,15 @@ import {
 } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconArrowLeft, IconDeviceFloppy } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconDeviceFloppy,
+  IconRefresh,
+  IconRestore,
+} from "@tabler/icons-react";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   colorForFieldKeyWithAlpha,
   colorForFieldKeyWithBorder,
@@ -20,18 +26,14 @@ import {
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import { useCanvasZoom } from "../../core/canvas/hooks/useCanvasZoom";
 import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
+import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
 import { FieldPanel } from "../../core/field-panel/FieldPanel";
 import { useFieldSchema } from "../hooks/useFieldSchema";
 import { type LabelDto, useLabels } from "../hooks/useLabels";
 import { useProjectDocument } from "../hooks/useProjects";
+import { useSuggestions } from "../hooks/useSuggestions";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-
-interface LabelingWorkspacePageProps {
-  projectId: string;
-  documentId: string;
-  onBack: () => void;
-}
 
 interface LabelState {
   field_key: string;
@@ -87,12 +89,33 @@ interface AzureOcrResult {
   analyzeResult?: AnalyzeResult;
 }
 
-export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
-  projectId,
-  documentId,
-  onBack,
-}) => {
+export const LabelingWorkspacePage: FC = () => {
+  const navigate = useNavigate();
+  const { projectId, documentId } = useParams<{
+    projectId: string;
+    documentId: string;
+  }>();
+
+  if (!projectId || !documentId) {
+    return (
+      <Stack align="center" justify="center" mih="70vh">
+        <Text size="sm" c="dimmed">
+          Invalid URL parameters.
+        </Text>
+      </Stack>
+    );
+  }
   const { schema } = useFieldSchema(projectId);
+  const [fieldFilter, setFieldFilter] = useState("");
+  const filteredSchema = useMemo(() => {
+    if (!fieldFilter) return schema;
+    const lower = fieldFilter.toLowerCase();
+    return schema.filter(
+      (f) =>
+        f.fieldKey.toLowerCase().includes(lower) ||
+        f.fieldType.toLowerCase().includes(lower),
+    );
+  }, [schema, fieldFilter]);
   const { document: projectDocument, isLoading } = useProjectDocument(
     projectId,
     documentId,
@@ -103,12 +126,17 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     saveLabelsAsync,
     isSaving,
   } = useLabels(projectId, documentId);
+  const { loadSuggestionsAsync, isLoadingSuggestions } = useSuggestions(
+    projectId,
+    documentId,
+  );
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [labelState, setLabelState] = useState<Record<string, LabelState>>({});
   const [wordAssignments, setWordAssignments] = useState<
     Record<string, string>
   >({});
   const [assignmentsHydrated, setAssignmentsHydrated] = useState(false);
+  const [autoSuggestionApplied, setAutoSuggestionApplied] = useState(false);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number }>(
     { width: 1000, height: 1400 },
@@ -218,6 +246,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
   useEffect(() => {
     setAssignmentsHydrated(false);
     setWordAssignments({});
+    setAutoSuggestionApplied(false);
   }, [documentId]);
 
   useEffect(() => {
@@ -354,6 +383,92 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
     setWordAssignments(nextAssignments);
     setAssignmentsHydrated(true);
   }, [labels, ocrWords, assignmentsHydrated]);
+
+  const applySuggestionsToAssignments = (
+    suggestions: Array<{ field_key: string; element_ids: string[] }>,
+  ) => {
+    const elementSet = new Set(ocrWords.map((element) => element.id));
+    const nextAssignments: Record<string, string> = {};
+
+    for (const suggestion of suggestions) {
+      for (const elementId of suggestion.element_ids) {
+        if (!elementSet.has(elementId)) {
+          continue;
+        }
+        if (nextAssignments[elementId]) {
+          continue;
+        }
+        nextAssignments[elementId] = suggestion.field_key;
+      }
+    }
+    setWordAssignments(nextAssignments);
+  };
+
+  const handleLoadSuggestions = async () => {
+    try {
+      const suggestions = await loadSuggestionsAsync();
+      applySuggestionsToAssignments(suggestions);
+      notifications.show({
+        title: "Suggestions loaded",
+        message: `Applied ${suggestions.length} field suggestions.`,
+        color: "blue",
+      });
+    } catch (error) {
+      notifications.show({
+        title: "Failed to load suggestions",
+        message:
+          error instanceof Error
+            ? error.message
+            : "An error occurred while loading suggestions.",
+        color: "red",
+      });
+    }
+  };
+
+  const handleResetAssignments = () => {
+    setWordAssignments({});
+    setLabelState({});
+    setActiveFieldKey(null);
+    notifications.show({
+      title: "Assignments reset",
+      message: "All current assignments were cleared.",
+      color: "gray",
+    });
+  };
+
+  useEffect(() => {
+    if (
+      autoSuggestionApplied ||
+      isLoadingSuggestions ||
+      isLabelsLoading ||
+      labels.length > 0 ||
+      Object.keys(wordAssignments).length > 0 ||
+      ocrWords.length === 0
+    ) {
+      return;
+    }
+
+    const run = async () => {
+      try {
+        const suggestions = await loadSuggestionsAsync();
+        applySuggestionsToAssignments(suggestions);
+      } catch (error) {
+        void error;
+      } finally {
+        setAutoSuggestionApplied(true);
+      }
+    };
+
+    void run();
+  }, [
+    autoSuggestionApplied,
+    isLoadingSuggestions,
+    isLabelsLoading,
+    labels,
+    wordAssignments,
+    ocrWords,
+    loadSuggestionsAsync,
+  ]);
 
   const wordBoxes = useMemo(() => {
     return ocrWords.map((element) => {
@@ -600,7 +715,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           <Button
             variant="subtle"
             leftSection={<IconArrowLeft size={16} />}
-            onClick={onBack}
+            onClick={() => navigate(`/labeling/${projectId}`)}
           >
             Back
           </Button>
@@ -612,6 +727,22 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
           </Stack>
         </Group>
         <Group>
+          <Button
+            variant="default"
+            leftSection={<IconRefresh size={16} />}
+            onClick={() => void handleLoadSuggestions()}
+            loading={isLoadingSuggestions}
+          >
+            Load suggestions
+          </Button>
+          <Button
+            variant="default"
+            leftSection={<IconRestore size={16} />}
+            onClick={handleResetAssignments}
+            disabled={Object.keys(wordAssignments).length === 0}
+          >
+            Reset
+          </Button>
           <Button
             leftSection={<IconDeviceFloppy size={16} />}
             onClick={handleSave}
@@ -807,7 +938,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
                               ? "#228be6"
                               : "#adb5bd",
                         }}
-                        onClick={(event) => {
+                        onClick={() => {
                           handleWordSelect(element.id);
                         }}
                         title={
@@ -870,6 +1001,13 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
             Fields
           </Text>
 
+          <FieldFilterInput
+            value={fieldFilter}
+            onChange={setFieldFilter}
+            totalCount={schema.length}
+            filteredCount={filteredSchema.length}
+          />
+
           <ScrollArea
             type="auto"
             style={{ flex: 1, minHeight: 0 }}
@@ -890,7 +1028,7 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
             }}
           >
             <FieldPanel
-              fields={schema}
+              fields={filteredSchema}
               values={labelValues}
               activeFieldKey={activeFieldKey}
               onSelectField={(fieldKey) => {
@@ -898,6 +1036,11 @@ export const LabelingWorkspacePage: FC<LabelingWorkspacePageProps> = ({
               }}
               onValueChange={handleValueChange}
               readOnly={true}
+              emptyMessage={
+                fieldFilter
+                  ? "No fields match your search."
+                  : "Add fields to this project before labeling documents."
+              }
             />
           </ScrollArea>
         </Paper>

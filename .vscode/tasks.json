@@ -1,0 +1,154 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "temporal: docker up",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "-d"],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/temporal"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "temporal: dev",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/temporal"
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "backend-services: docker up",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "-d"],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/backend-services"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "wait: temporal ready",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "until [ \"$(docker inspect -f \"{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}\" temporal 2>/dev/null)\" = \"healthy\" ]; do echo \"waiting for temporal to become healthy...\"; sleep 2; done; echo \"temporal is healthy\""
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "wait: backend postgres ready",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "until [ \"$(docker inspect -f \"{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}\" ai-doc-intelligence-postgres 2>/dev/null)\" = \"healthy\" ]; do echo \"waiting for backend postgres to become healthy...\"; sleep 2; done; echo \"backend postgres is healthy\""
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "wait: minio ready",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "until [ \"$(docker inspect -f \"{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}\" ai-doc-intelligence-minio 2>/dev/null)\" = \"healthy\" ]; do echo \"waiting for minio to become healthy...\"; sleep 2; done; echo \"minio is healthy\""
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Dev: prerequisites",
+      "dependsOn": [
+        "temporal: docker up",
+        "wait: temporal ready",
+        "backend-services: docker up",
+        "wait: backend postgres ready",
+        "wait: minio ready"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Dev: runtime",
+      "dependsOn": [
+        "temporal: dev",
+        "root: frontend dev",
+        "root: backend dev"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
+      "label": "root: frontend dev",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev:frontend"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "root: backend dev",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev:backend"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Dev: all",
+      "dependsOn": [
+        "Dev: prerequisites",
+        "Dev: runtime"
+      ],
+      "dependsOrder": "sequence",
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

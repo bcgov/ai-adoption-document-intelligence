@@ -6,25 +6,33 @@
  */
 
 export const REGISTERED_ACTIVITY_TYPES = [
-  'document.updateStatus',
-  'file.prepare',
-  'azureOcr.submit',
-  'azureOcr.poll',
-  'azureOcr.extract',
-  'ocr.cleanup',
-  'ocr.checkConfidence',
-  'ocr.storeResults',
-  'ocr.enrich',
-  'document.storeRejection',
-  'getWorkflowGraphConfig',
-  'document.split',
-  'document.classify',
-  'document.splitAndClassify',
-  'document.validateFields',
-  'segment.combineResult',
+  "document.updateStatus",
+  "file.prepare",
+  "azureOcr.submit",
+  "azureOcr.poll",
+  "azureOcr.extract",
+  "ocr.cleanup",
+  "ocr.checkConfidence",
+  "ocr.storeResults",
+  "ocr.enrich",
+  "document.storeRejection",
+  "getWorkflowGraphConfig",
+  "document.split",
+  "document.classify",
+  "document.splitAndClassify",
+  "document.validateFields",
+  "segment.combineResult",
+  "benchmark.evaluate",
+  "benchmark.aggregate",
+  "benchmark.cleanup",
+  "benchmark.updateRunStatus",
+  "benchmark.compareAgainstBaseline",
+  "benchmark.writePrediction",
+  "benchmark.materializeDataset",
+  "benchmark.loadDatasetManifest",
 ] as const;
 
-export type RegisteredActivityType = typeof REGISTERED_ACTIVITY_TYPES[number];
+export type RegisteredActivityType = (typeof REGISTERED_ACTIVITY_TYPES)[number];
 
 export function isRegisteredActivityType(type: string): boolean {
   return (REGISTERED_ACTIVITY_TYPES as readonly string[]).includes(type);

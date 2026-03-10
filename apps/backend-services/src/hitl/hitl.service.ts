@@ -7,7 +7,9 @@ import {
   ReviewStatus,
 } from "@generated/client";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { ModuleRef } from "@nestjs/core";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
+import { GroundTruthGenerationService } from "../benchmark/ground-truth-generation.service";
 import { DatabaseService } from "../database/database.service";
 import { AnalyticsService } from "./analytics.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
@@ -40,6 +42,7 @@ export class HitlService {
   constructor(
     private readonly db: DatabaseService,
     private readonly analyticsService: AnalyticsService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   async getQueue(filters: QueueFilterDto, groupIds?: string[]) {
@@ -262,6 +265,34 @@ export class HitlService {
       status: ReviewStatus.approved,
       completed_at: new Date(),
     });
+
+    if (!updated) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    // Post-approval hook: complete ground truth job if this document is part of GT generation.
+    // ModuleRef.get() lazily resolves GroundTruthGenerationService at runtime to avoid a circular
+    // module dependency between HitlModule and BenchmarkModule. The call is one-directional
+    // (HITL notifies Benchmark) and non-critical (approval succeeds even if the service is unavailable).
+    try {
+      const gtService = this.moduleRef.get(GroundTruthGenerationService, {
+        strict: false,
+      });
+      if (gtService) {
+        const job = await gtService.getJobByDocumentId(session.document_id);
+        if (job) {
+          await gtService.completeJob(job.id, sessionId);
+          this.logger.log(
+            `Ground truth generated for job ${job.id} via session ${sessionId}`,
+          );
+        }
+      }
+    } catch (error) {
+      // Non-critical: log but don't fail the approval
+      this.logger.warn(
+        `Ground truth post-approval hook error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     return {
       id: updated.id,

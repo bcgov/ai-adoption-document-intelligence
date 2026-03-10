@@ -8,6 +8,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   Logger,
   NotFoundException,
   Param,
@@ -39,7 +40,10 @@ import {
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "../blob-storage/blob-storage.interface";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
@@ -54,7 +58,8 @@ export class DocumentController {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly temporalClientService: TemporalClientService,
-    private readonly blobStorage: LocalBlobStorageService,
+    @Inject(BLOB_STORAGE)
+    private readonly blobStorage: BlobStorageInterface,
   ) {}
 
   @Get("/:documentId")

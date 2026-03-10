@@ -1,6 +1,7 @@
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Group } from "@/auth/AuthContext";
 import { ProjectListPage } from "./ProjectListPage";
@@ -35,15 +36,17 @@ const activeGroup: Group = { id: "group-1", name: "Group One" };
 /**
  * Renders ProjectListPage inside required providers.
  */
-const renderPage = (onSelectProject?: (id: string) => void) => {
+const renderPage = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MantineProvider>
-        <ProjectListPage onSelectProject={onSelectProject} />
-      </MantineProvider>
+      <MemoryRouter>
+        <MantineProvider>
+          <ProjectListPage />
+        </MantineProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 };

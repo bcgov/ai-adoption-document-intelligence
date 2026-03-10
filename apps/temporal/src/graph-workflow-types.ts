@@ -277,7 +277,12 @@ export interface GraphValidationError {
 // Status / Query Types
 // ---------------------------------------------------------------------------
 
-export type NodeStatusValue = "pending" | "running" | "completed" | "failed" | "skipped";
+export type NodeStatusValue =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "skipped";
 
 export interface NodeStatus {
   status: NodeStatusValue;
@@ -310,3 +315,9 @@ export interface GraphWorkflowProgress {
 export interface CancelSignal {
   mode: "graceful" | "immediate";
 }
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+export const GRAPH_RUNNER_VERSION = "1.0.0";

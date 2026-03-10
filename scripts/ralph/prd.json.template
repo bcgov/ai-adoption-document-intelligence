@@ -1,0 +1,17 @@
+{
+  "branchName": "ralph/user-stories",
+  "requirementsDoc": "feature-docs/example/REQUIREMENTS.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Example story",
+      "acceptanceCriteria": [
+        "Implementation complete per story requirements"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "file": "user_stories/US-001-example.md"
+    }
+  ]
+}

@@ -57,7 +57,10 @@ export function evaluateCondition(
     // List membership operators
     case "in":
     case "not-in":
-      return evaluateListMembership(expression as ListMembershipExpression, ctx);
+      return evaluateListMembership(
+        expression as ListMembershipExpression,
+        ctx,
+      );
 
     default: {
       const exhaustiveCheck: never = expression;
