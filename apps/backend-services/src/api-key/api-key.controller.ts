@@ -32,7 +32,7 @@ import {
 } from "@/api-key/dto/api-key-info.dto";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { DatabaseService } from "@/database/database.service";
-import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 import { ApiKeyService } from "./api-key.service";
 
 @ApiTags("API Keys")
@@ -44,7 +44,7 @@ export class ApiKeyController {
   ) {}
 
   @Get()
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({ summary: "Get API key information for a group" })
   @ApiQuery({
     name: "groupId",
@@ -74,7 +74,7 @@ export class ApiKeyController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({ summary: "Generate a new API key for a group" })
   @ApiBody({ type: GenerateApiKeyRequestDto })
   @ApiCreatedResponse({
@@ -107,7 +107,7 @@ export class ApiKeyController {
 
   @Delete()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({ summary: "Delete the API key by its ID" })
   @ApiQuery({
     name: "id",
@@ -133,7 +133,7 @@ export class ApiKeyController {
   }
 
   @Post("regenerate")
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({ summary: "Regenerate the API key by its ID" })
   @ApiBody({ type: ApiKeyByIdRequestDto })
   @ApiOkResponse({

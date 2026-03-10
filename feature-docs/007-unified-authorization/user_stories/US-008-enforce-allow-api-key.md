@@ -6,7 +6,7 @@
 
 ## Acceptance Criteria
 - [x] **Scenario 1**: API key request is rejected when `allowApiKey` is `false` (default)
-    - **Given** `@Identity({})` (allowApiKey defaults to false) on the handler
+    - **Given** `@Identity()` (allowApiKey defaults to false) on the handler
     - **When** a request authenticated with an API key arrives
     - **Then** the guard throws `ForbiddenException` (403)
 

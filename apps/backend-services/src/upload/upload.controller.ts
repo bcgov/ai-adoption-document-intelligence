@@ -17,16 +17,13 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
 import { UploadDocumentResponseDto } from "./dto/upload-document-response.dto";
-// TODO: Use the storage service for saving files
+
 @ApiTags("Upload")
 @Controller("api/upload")
 export class UploadController {
@@ -40,8 +37,7 @@ export class UploadController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true, minimumRole: "MEMBER", groupIdFrom: { body: "group_id" } })
   @ApiOperation({ summary: "Upload a new document and start OCR processing" })
   @ApiCreatedResponse({
     description:

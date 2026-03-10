@@ -27,10 +27,7 @@ import {
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
 import { DatabaseService } from "@/database/database.service";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 import { DatasetService } from "./dataset.service";
 import {
   AddVersionFromHitlDto,
@@ -49,8 +46,7 @@ export class HitlDatasetController {
   ) {}
 
   @Get("from-hitl/eligible-documents")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "List HITL-verified documents eligible for dataset creation",
   })
@@ -92,8 +88,7 @@ export class HitlDatasetController {
 
   @Post("from-hitl")
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Create a new dataset from HITL-verified documents",
   })
@@ -122,8 +117,7 @@ export class HitlDatasetController {
 
   @Post(":id/versions/from-hitl")
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary:
       "Add a new version to an existing dataset from HITL-verified documents",

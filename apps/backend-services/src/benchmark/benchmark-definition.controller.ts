@@ -36,10 +36,7 @@ import {
 import { Request } from "express";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { DatabaseService } from "@/database/database.service";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 import { AuditLogService } from "./audit-log.service";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
@@ -80,8 +77,7 @@ export class BenchmarkDefinitionController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Create a benchmark definition" })
   @ApiParam({ name: "projectId", description: "Benchmark project ID" })
   @ApiBody({ type: CreateDefinitionDto })
@@ -110,8 +106,7 @@ export class BenchmarkDefinitionController {
   }
 
   @Get()
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "List all definitions for a project" })
   @ApiParam({ name: "projectId", description: "Benchmark project ID" })
   @ApiOkResponse({
@@ -130,8 +125,7 @@ export class BenchmarkDefinitionController {
   }
 
   @Get(":definitionId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get definition details by ID" })
   @ApiParam({ name: "projectId", description: "Benchmark project ID" })
   @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
@@ -157,8 +151,7 @@ export class BenchmarkDefinitionController {
   }
 
   @Put(":definitionId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Update a benchmark definition",
     description:
@@ -192,8 +185,7 @@ export class BenchmarkDefinitionController {
   }
 
   @Post(":definitionId/schedule")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Configure schedule for a benchmark definition",
     description:
@@ -229,8 +221,7 @@ export class BenchmarkDefinitionController {
   }
 
   @Get(":definitionId/schedule")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get schedule information for a definition" })
   @ApiParam({ name: "projectId", description: "Benchmark project ID" })
   @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
@@ -256,8 +247,7 @@ export class BenchmarkDefinitionController {
   }
 
   @Get(":definitionId/baseline-history")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get baseline promotion history for a definition" })
   @ApiParam({ name: "projectId", description: "Benchmark project ID" })
   @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
@@ -306,8 +296,7 @@ export class BenchmarkDefinitionController {
 
   @Delete(":definitionId")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Delete a benchmark definition",
     description:

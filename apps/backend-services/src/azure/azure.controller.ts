@@ -63,7 +63,7 @@ import {
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
 import { DatabaseService } from "@/database/database.service";
-import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 
 @ApiTags("Azure")
 @Controller("api/azure")
@@ -79,7 +79,7 @@ export class AzureController {
   ) {}
 
   @Get("classifier")
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Get classifiers for user groups",
     description:
@@ -114,7 +114,7 @@ export class AzureController {
   }
 
   @Post("classifier")
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Create a new classifier",
     description: "Creates a new classifier for a group.",
@@ -158,7 +158,7 @@ export class AzureController {
   }
 
   @Patch("classifier")
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Update a classifier",
     description: "Updates an existing classifier's properties.",
@@ -209,7 +209,7 @@ export class AzureController {
   }
 
   @Post("classifier/documents")
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Upload training documents",
     description: "Upload training documents for a classifier.",
@@ -275,7 +275,7 @@ export class AzureController {
   }
 
   @Get("classifier/documents")
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Get training documents",
     description: "Get the list of training documents for a classifier.",
@@ -309,7 +309,7 @@ export class AzureController {
   }
 
   @Delete("classifier/documents")
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Delete training documents",
     description: "Delete training documents for a classifier.",
@@ -357,7 +357,7 @@ export class AzureController {
   }
 
   @Post("classifier/train")
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Request classifier training",
     description: "Request training for a classifier.",
@@ -431,7 +431,7 @@ export class AzureController {
   }
 
   @Post("classifier/classify")
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Request document classification",
     description: "Request classification for a document using a classifier.",
@@ -496,7 +496,7 @@ export class AzureController {
   }
 
   @Get("classifier/classify")
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Get classification result",
     description: "Get the result of a classification operation.",
@@ -525,7 +525,7 @@ export class AzureController {
   }
 
   @Get("classifier/train")
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Get training result",
     description: "Get the result of a classifier training operation.",

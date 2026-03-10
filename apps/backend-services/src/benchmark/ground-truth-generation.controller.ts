@@ -10,10 +10,7 @@ import {
 import { Request } from "express";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { DatabaseService } from "@/database/database.service";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 import { DatasetService } from "./dataset.service";
 import {
   GroundTruthJobsListResponseDto,
@@ -48,8 +45,7 @@ export class GroundTruthGenerationController {
   }
 
   @Post()
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Start ground truth generation via OCR workflow + HITL",
     description:
@@ -79,8 +75,7 @@ export class GroundTruthGenerationController {
   }
 
   @Get("jobs")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "List ground truth generation jobs",
     description:
@@ -111,8 +106,7 @@ export class GroundTruthGenerationController {
   }
 
   @Get("review/queue")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Get dataset-scoped HITL review queue",
     description:
@@ -153,8 +147,7 @@ export class GroundTruthGenerationController {
   }
 
   @Get("review/stats")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Get ground truth review queue statistics",
   })

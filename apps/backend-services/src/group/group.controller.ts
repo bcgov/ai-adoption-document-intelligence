@@ -22,7 +22,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
-import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 import { User } from "../auth/types";
 import { CreateGroupDto } from "./dto/create-group.dto";
 import { GroupMemberDto } from "./dto/group-member.dto";
@@ -54,7 +54,7 @@ export class GroupController {
   @ApiResponse({ status: 403, description: "Caller is not a system admin." })
   @ApiResponse({ status: 404, description: "Group not found." })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @KeycloakSSOAuth()
+  @Identity()
   @Delete(":groupId")
   async deleteGroup(
     @Req() req: Request,
@@ -74,7 +74,7 @@ export class GroupController {
    */
   @ApiOperation({ summary: "Get all existing groups" })
   @ApiResponse({ status: 200, description: "List of groups." })
-  @KeycloakSSOAuth()
+  @Identity()
   @Get()
   async getAllGroups(): Promise<
     Array<{ id: string; name: string; description?: string }>
@@ -98,7 +98,7 @@ export class GroupController {
     description: "Caller does not have permission to view this user's groups.",
   })
   @ApiParam({ name: "userId", description: "User ID", type: String })
-  @KeycloakSSOAuth()
+  @Identity()
   @Get("/user/:userId")
   async getUserGroups(
     @Req() req: Request,
@@ -121,7 +121,7 @@ export class GroupController {
     description: "Membership requested successfully.",
   })
   @ApiResponse({ status: 404, description: "Group not found." })
-  @KeycloakSSOAuth()
+  @Identity()
   @Post("/request")
   async requestMembership(
     @Req() req: Request & { user?: User },
@@ -147,7 +147,7 @@ export class GroupController {
   })
   @ApiResponse({ status: 400, description: "Invalid status query parameter." })
   @ApiResponse({ status: 401, description: "Unauthorized." })
-  @KeycloakSSOAuth()
+  @Identity()
   @Get("requests/mine")
   async getMyRequests(
     @Req() req: Request,
@@ -195,7 +195,7 @@ export class GroupController {
     description: "Membership request ID",
     type: String,
   })
-  @KeycloakSSOAuth()
+  @Identity()
   @Patch("requests/:requestId/cancel")
   async cancelMembershipRequest(
     @Req() req: Request & { user?: User },
@@ -234,7 +234,7 @@ export class GroupController {
     description: "Membership request ID",
     type: String,
   })
-  @KeycloakSSOAuth()
+  @Identity()
   @Patch("requests/:requestId/approve")
   async approveMembershipRequest(
     @Req() req: Request,
@@ -274,7 +274,7 @@ export class GroupController {
     description: "Membership request ID",
     type: String,
   })
-  @KeycloakSSOAuth()
+  @Identity()
   @Patch("requests/:requestId/deny")
   async denyMembershipRequest(
     @Req() req: Request,
@@ -313,7 +313,7 @@ export class GroupController {
     description: "A group with the given name already exists.",
   })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @KeycloakSSOAuth()
+  @Identity()
   @Patch(":groupId")
   async updateGroup(
     @Req() req: Request,
@@ -348,7 +348,7 @@ export class GroupController {
     status: 409,
     description: "A group with the given name already exists.",
   })
-  @KeycloakSSOAuth()
+  @Identity()
   @HttpCode(HttpStatus.CREATED)
   @Post()
   async createGroup(
@@ -388,7 +388,7 @@ export class GroupController {
       },
     },
   })
-  @KeycloakSSOAuth()
+  @Identity()
   @Post(":groupId/members/:userId")
   async addGroupMember(
     @Req() req: Request,
@@ -436,7 +436,7 @@ export class GroupController {
   })
   @ApiResponse({ status: 404, description: "Group not found." })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @KeycloakSSOAuth()
+  @Identity()
   @Get(":groupId/requests")
   async getGroupRequests(
     @Req() req: Request,
@@ -485,7 +485,7 @@ export class GroupController {
   })
   @ApiResponse({ status: 404, description: "Group not found." })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @KeycloakSSOAuth()
+  @Identity()
   @Get(":groupId/members")
   async getGroupMembers(
     @Req() req: Request,
@@ -517,7 +517,7 @@ export class GroupController {
   })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
   @ApiParam({ name: "userId", description: "User ID to remove", type: String })
-  @KeycloakSSOAuth()
+  @Identity()
   @Delete(":groupId/members/:userId")
   async removeGroupMember(
     @Req() req: Request,
@@ -546,7 +546,7 @@ export class GroupController {
     description: "Caller is not a member of the group.",
   })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @KeycloakSSOAuth()
+  @Identity()
   @Delete(":groupId/leave")
   async leaveGroup(
     @Req() req: Request,

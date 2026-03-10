@@ -6,7 +6,7 @@
 
 ## Acceptance Criteria
 - [x] **Scenario 1**: `@ApiBearerAuth()` is applied by default
-    - **Given** `@Identity({})` (no `allowApiKey`) is applied to a handler
+    - **Given** `@Identity()` (no `allowApiKey`) is applied to a handler
     - **When** the Swagger document is generated
     - **Then** the endpoint is listed under the Bearer auth security scheme
 

@@ -18,10 +18,7 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 import { DatabaseService } from "../database/database.service";
 import { LabelingService } from "../labeling/labeling.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
@@ -46,8 +43,7 @@ export class TrainingController {
    * Validate if a project is ready for training
    */
   @Get("projects/:projectId/validate")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Validate project training data" })
   @ApiParam({ name: "projectId", description: "Labeling project ID" })
   @ApiOkResponse({
@@ -74,8 +70,7 @@ export class TrainingController {
    * Start training process for a project
    */
   @Post("projects/:projectId/train")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Start model training for a project" })
   @ApiParam({ name: "projectId", description: "Labeling project ID" })
   @ApiCreatedResponse({
@@ -104,8 +99,7 @@ export class TrainingController {
    * Get all training jobs for a project
    */
   @Get("projects/:projectId/jobs")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get all training jobs for a project" })
   @ApiParam({ name: "projectId", description: "Labeling project ID" })
   @ApiOkResponse({
@@ -131,8 +125,7 @@ export class TrainingController {
    * Get specific training job status
    */
   @Get("jobs/:jobId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get training job status" })
   @ApiParam({ name: "jobId", description: "Training job ID" })
   @ApiOkResponse({
@@ -156,8 +149,7 @@ export class TrainingController {
    * Get all trained models for a project
    */
   @Get("projects/:projectId/models")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get trained models for a project" })
   @ApiParam({ name: "projectId", description: "Labeling project ID" })
   @ApiOkResponse({
@@ -183,8 +175,7 @@ export class TrainingController {
    * Cancel a training job
    */
   @Delete("jobs/:jobId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Cancel a training job" })
   @ApiParam({ name: "jobId", description: "Training job ID" })
   @ApiOkResponse({

@@ -21,7 +21,7 @@
     - **Then** the exact options object passed to the decorator is returned
 
 - [x] **Scenario 4**: Decorator can be applied with no options (all defaults)
-    - **Given** `@Identity({})` is applied
+    - **Given** `@Identity()` is applied
     - **When** the metadata is read
     - **Then** all options resolve to their defaults (`requireSystemAdmin: false`, `allowApiKey: false`, no `groupIdFrom`, no `minimumRole`)
 

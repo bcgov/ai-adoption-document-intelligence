@@ -5,27 +5,27 @@
 **So that** the authorization model is clean and developers are not confused by obsolete constructs.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: `RolesGuard` class is deleted
+- [x] **Scenario 1**: `RolesGuard` class is deleted
     - **Given** `RolesGuard` exists as dead code (reads JWT roles that are no longer used)
     - **When** the cleanup is applied
     - **Then** the `RolesGuard` file and class no longer exist in the codebase
 
-- [ ] **Scenario 2**: `@Roles` decorator is deleted
+- [x] **Scenario 2**: `@Roles` decorator is deleted
     - **Given** `@Roles` decorator exists and is unused
     - **When** the cleanup is applied
     - **Then** the `@Roles` decorator file and export no longer exist in the codebase
 
-- [ ] **Scenario 3**: `@ApiKeyAuth()` decorator is deleted
+- [x] **Scenario 3**: `@ApiKeyAuth()` decorator is deleted
     - **Given** all usages of `@ApiKeyAuth()` have been replaced with `@Identity(...)`
     - **When** the cleanup is applied
     - **Then** the `@ApiKeyAuth()` decorator no longer exists in the codebase
 
-- [ ] **Scenario 4**: `@KeycloakSSOAuth()` decorator is deleted
+- [x] **Scenario 4**: `@KeycloakSSOAuth()` decorator is deleted
     - **Given** all usages of `@KeycloakSSOAuth()` have been replaced with `@Identity(...)`
     - **When** the cleanup is applied
     - **Then** the `@KeycloakSSOAuth()` decorator no longer exists in the codebase
 
-- [ ] **Scenario 5**: Codebase compiles successfully after deletions
+- [x] **Scenario 5**: Codebase compiles successfully after deletions
     - **Given** all deletions are complete
     - **When** `tsc --noEmit` is run
     - **Then** there are no compilation errors related to the removed items

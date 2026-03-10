@@ -35,10 +35,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import {
   BLOB_STORAGE,
@@ -64,8 +61,7 @@ export class DocumentController {
 
   @Get("/:documentId")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get a document by ID" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
@@ -98,8 +94,7 @@ export class DocumentController {
 
   @Patch("/:documentId")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Update a document" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiBody({ type: UpdateDocumentDto })
@@ -145,8 +140,7 @@ export class DocumentController {
 
   @Delete("/:documentId")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Delete a document" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiNoContentResponse({ description: "Document deleted successfully" })
@@ -187,8 +181,7 @@ export class DocumentController {
   // and align workflow query status contract. See: ./get-all-documents-fixes.md
   @Get()
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get all documents" })
   @ApiQuery({
     name: "group_id",
@@ -319,8 +312,7 @@ export class DocumentController {
 
   @Get("/:documentId/ocr")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get OCR result for a document by ID" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
@@ -407,7 +399,7 @@ export class DocumentController {
 
   @Get("/:documentId/download")
   @HttpCode(HttpStatus.OK)
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({ summary: "Download a document file by ID" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
@@ -479,7 +471,7 @@ export class DocumentController {
 
   @Post("/:documentId/approve")
   @HttpCode(HttpStatus.OK)
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Approve or reject a document",
     description:

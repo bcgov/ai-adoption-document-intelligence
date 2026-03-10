@@ -45,10 +45,7 @@ import {
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
 import { DatabaseService } from "@/database/database.service";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 import { DatasetService } from "./dataset.service";
 import {
   CreateDatasetDto,
@@ -88,8 +85,7 @@ export class DatasetController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Create a new dataset" })
   @ApiBody({
     type: CreateDatasetDto,
@@ -120,8 +116,7 @@ export class DatasetController {
   }
 
   @Get()
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "List datasets with pagination" })
   @ApiQuery({
     name: "page",
@@ -183,8 +178,7 @@ export class DatasetController {
   }
 
   @Get(":id")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get dataset details by ID" })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiOkResponse({
@@ -213,8 +207,7 @@ export class DatasetController {
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Delete a dataset by ID" })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiOkResponse({
@@ -234,8 +227,7 @@ export class DatasetController {
 
   @Post(":id/versions/:versionId/upload")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @UseInterceptors(
     FilesInterceptor("files", 100, {
       limits: {
@@ -297,8 +289,7 @@ export class DatasetController {
 
   @Post(":id/versions")
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Create a new dataset version" })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiBody({
@@ -330,8 +321,7 @@ export class DatasetController {
   }
 
   @Get(":id/versions")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "List versions for a dataset" })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiOkResponse({
@@ -351,8 +341,7 @@ export class DatasetController {
   }
 
   @Get(":id/versions/:versionId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get version details by ID" })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
@@ -374,8 +363,7 @@ export class DatasetController {
   }
 
   @Patch(":id/versions/:versionId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Update a dataset version",
     description:
@@ -413,8 +401,7 @@ export class DatasetController {
 
   @Delete(":id/versions/:versionId")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Delete a dataset version",
     description:
@@ -443,8 +430,7 @@ export class DatasetController {
 
   @Delete(":id/versions/:versionId/samples/:sampleId")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Delete a sample from a draft dataset version",
     description:
@@ -473,8 +459,7 @@ export class DatasetController {
   }
 
   @Get(":id/versions/:versionId/samples")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "List samples from a dataset version" })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
@@ -517,8 +502,7 @@ export class DatasetController {
   }
 
   @Get(":id/versions/:versionId/samples/:sampleId/ground-truth")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Get ground truth JSON content for a sample",
     description:
@@ -548,8 +532,7 @@ export class DatasetController {
   }
 
   @Get(":id/versions/:versionId/files/download")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Download a raw file from a dataset version",
     description:
@@ -582,8 +565,7 @@ export class DatasetController {
   }
 
   @Post(":id/versions/:versionId/validate")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Validate a dataset version for quality issues",
     description:
@@ -624,8 +606,7 @@ export class DatasetController {
 
   @Post(":id/versions/:versionId/splits")
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Create a split for a dataset version",
     description:
@@ -653,8 +634,7 @@ export class DatasetController {
   }
 
   @Get(":id/versions/:versionId/splits")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "List splits for a dataset version",
     description:
@@ -679,8 +659,7 @@ export class DatasetController {
   }
 
   @Get(":id/versions/:versionId/splits/:splitId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Get a single split with full details",
     description:
@@ -706,8 +685,7 @@ export class DatasetController {
   }
 
   @Patch(":id/versions/:versionId/splits/:splitId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Update a split",
     description:
@@ -740,8 +718,7 @@ export class DatasetController {
   }
 
   @Post(":id/versions/:versionId/freeze")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Freeze a dataset version",
     description:
@@ -771,8 +748,7 @@ export class DatasetController {
   }
 
   @Post(":id/versions/:versionId/splits/:splitId/freeze")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Freeze a split",
     description:

@@ -24,10 +24,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 import { DatabaseService } from "../database/database.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import {
@@ -53,8 +50,7 @@ export class HitlController {
   ) {}
 
   @Get("queue")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get review queue with filters" })
   @ApiOkResponse({
     description: "Paginated list of documents requiring human review",
@@ -79,8 +75,7 @@ export class HitlController {
   }
 
   @Get("queue/stats")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get queue statistics" })
   @ApiQuery({
     name: "reviewStatus",
@@ -123,8 +118,7 @@ export class HitlController {
   }
 
   @Post("sessions")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Start a review session" })
   @ApiCreatedResponse({
     description: "Review session created with document and OCR data",
@@ -148,8 +142,7 @@ export class HitlController {
   }
 
   @Get("sessions/:id")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get review session details" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
@@ -172,8 +165,7 @@ export class HitlController {
   }
 
   @Post("sessions/:id/corrections")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Submit corrections for a session" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiCreatedResponse({
@@ -200,8 +192,7 @@ export class HitlController {
   }
 
   @Get("sessions/:id/corrections")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get correction history for a session" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
@@ -224,8 +215,7 @@ export class HitlController {
   }
 
   @Post("sessions/:id/submit")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Approve and complete a review session" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
@@ -248,8 +238,7 @@ export class HitlController {
   }
 
   @Post("sessions/:id/escalate")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Escalate a document for expert review" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
@@ -276,8 +265,7 @@ export class HitlController {
   }
 
   @Post("sessions/:id/skip")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Skip a review session" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
@@ -300,8 +288,7 @@ export class HitlController {
   }
 
   @Get("analytics")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get HITL analytics" })
   @ApiOkResponse({
     description:

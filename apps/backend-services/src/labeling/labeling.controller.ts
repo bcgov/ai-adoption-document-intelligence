@@ -29,10 +29,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -72,8 +69,7 @@ export class LabelingController {
   // ========== PROJECT ENDPOINTS ==========
 
   @Get("projects")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get all labeling projects" })
   @ApiOkResponse({
     description: "List of labeling projects with their field schemas",
@@ -103,8 +99,7 @@ export class LabelingController {
   }
 
   @Post("projects")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Create a new labeling project" })
   @ApiCreatedResponse({
     description: "Newly created labeling project",
@@ -122,8 +117,7 @@ export class LabelingController {
   }
 
   @Get("projects/:id")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get project details with field schema" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiOkResponse({
@@ -143,8 +137,7 @@ export class LabelingController {
   }
 
   @Put("projects/:id")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Update project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiOkResponse({
@@ -168,8 +161,7 @@ export class LabelingController {
   }
 
   @Delete("projects/:id")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Delete project and all associated data" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiOkResponse({
@@ -191,8 +183,7 @@ export class LabelingController {
   // ========== FIELD SCHEMA ENDPOINTS ==========
 
   @Get("projects/:id/fields")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get field schema for project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiOkResponse({
@@ -212,8 +203,7 @@ export class LabelingController {
   }
 
   @Post("projects/:id/fields")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Add a field to the project schema" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiCreatedResponse({
@@ -237,8 +227,7 @@ export class LabelingController {
   }
 
   @Put("projects/:id/fields/:fieldId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Update a field definition" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "fieldId", description: "Field ID" })
@@ -264,8 +253,7 @@ export class LabelingController {
   }
 
   @Delete("projects/:id/fields/:fieldId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Delete a field from schema" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "fieldId", description: "Field ID" })
@@ -292,8 +280,7 @@ export class LabelingController {
   // ========== DOCUMENT ENDPOINTS ==========
 
   @Get("projects/:id/documents")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get all documents in project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiOkResponse({
@@ -316,8 +303,7 @@ export class LabelingController {
   }
 
   @Post("projects/:id/documents")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Add a document to project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiCreatedResponse({
@@ -349,8 +335,7 @@ export class LabelingController {
 
   @Post("projects/:id/upload")
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Upload a document into a labeling project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiCreatedResponse({
@@ -371,8 +356,7 @@ export class LabelingController {
   }
 
   @Get("projects/:id/documents/:docId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get document with labels" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
@@ -402,8 +386,7 @@ export class LabelingController {
 
   @Get("projects/:id/documents/:docId/download")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Download a labeling document file" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Labeling Document ID" })
@@ -444,8 +427,7 @@ export class LabelingController {
   }
 
   @Delete("projects/:id/documents/:docId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Remove document from project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
@@ -478,8 +460,7 @@ export class LabelingController {
   // ========== LABEL ENDPOINTS ==========
 
   @Get("projects/:id/documents/:docId/labels")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get labels for document" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
@@ -507,8 +488,7 @@ export class LabelingController {
   }
 
   @Post("projects/:id/documents/:docId/labels")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Save labels for document" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
@@ -537,8 +517,7 @@ export class LabelingController {
   }
 
   @Delete("projects/:id/documents/:docId/labels/:labelId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Delete a specific label" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
@@ -570,8 +549,7 @@ export class LabelingController {
   // ========== OCR ENDPOINTS ==========
 
   @Get("projects/:id/documents/:docId/ocr")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get OCR data for document" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
@@ -598,8 +576,7 @@ export class LabelingController {
   }
 
   @Post("projects/:id/documents/:docId/suggestions")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary:
       "Generate label suggestions mapped to existing words/selection marks",
@@ -619,8 +596,7 @@ export class LabelingController {
   // ========== EXPORT ENDPOINTS ==========
 
   @Post("projects/:id/export")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Export labeled data for training" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiOkResponse({

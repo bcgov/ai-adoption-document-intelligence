@@ -39,10 +39,7 @@ import {
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
 import { DatabaseService } from "@/database/database.service";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { CreateProjectDto, ProjectDetailsDto, ProjectSummaryDto } from "./dto";
 
@@ -58,8 +55,7 @@ export class BenchmarkProjectController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Create a benchmark project" })
   @ApiBody({ type: CreateProjectDto })
   @ApiCreatedResponse({
@@ -90,8 +86,7 @@ export class BenchmarkProjectController {
   }
 
   @Get()
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "List benchmark projects" })
   @ApiQuery({
     name: "groupId",
@@ -131,8 +126,7 @@ export class BenchmarkProjectController {
   }
 
   @Get(":id")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get project details by ID" })
   @ApiParam({ name: "id", description: "Project ID (UUID)" })
   @ApiOkResponse({
@@ -160,8 +154,7 @@ export class BenchmarkProjectController {
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Delete a benchmark project" })
   @ApiParam({ name: "id", description: "Project ID (UUID)" })
   @ApiNoContentResponse({ description: "Project deleted successfully" })
