@@ -7,11 +7,13 @@ import {
   ReviewStatus,
 } from "@generated/client";
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { AuditService } from "@/audit/audit.service";
+import { ModuleRef } from "@nestjs/core";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
+import { GroundTruthGenerationService } from "../benchmark/ground-truth-generation.service";
 import { DatabaseService } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { getRequestContext } from "../logging/request-context";
+import { AuditService } from "@/audit/audit.service";
 import { AnalyticsService } from "./analytics.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
@@ -43,6 +45,7 @@ export class HitlService {
     private readonly analyticsService: AnalyticsService,
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   async getQueue(filters: QueueFilterDto, groupIds?: string[]) {
@@ -316,6 +319,34 @@ export class HitlService {
       request_id: requestContext?.requestId ?? undefined,
       payload: { document_id: session.document_id },
     });
+
+    if (!updated) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    // Post-approval hook: complete ground truth job if this document is part of GT generation.
+    // ModuleRef.get() lazily resolves GroundTruthGenerationService at runtime to avoid a circular
+    // module dependency between HitlModule and BenchmarkModule. The call is one-directional
+    // (HITL notifies Benchmark) and non-critical (approval succeeds even if the service is unavailable).
+    try {
+      const gtService = this.moduleRef.get(GroundTruthGenerationService, {
+        strict: false,
+      });
+      if (gtService) {
+        const job = await gtService.getJobByDocumentId(session.document_id);
+        if (job) {
+          await gtService.completeJob(job.id, sessionId);
+          this.logger.log(
+            `Ground truth generated for job ${job.id} via session ${sessionId}`,
+          );
+        }
+      }
+    } catch (error) {
+      // Non-critical: log but don't fail the approval
+      this.logger.warn(
+        `Ground truth post-approval hook error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     return {
       id: updated.id,

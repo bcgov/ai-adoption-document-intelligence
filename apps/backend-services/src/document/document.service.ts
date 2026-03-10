@@ -1,7 +1,10 @@
 import { DocumentStatus, Prisma } from "@generated/client";
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "../blob-storage/blob-storage.interface";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 
@@ -25,7 +28,8 @@ export interface UploadedDocument {
 export class DocumentService {
   constructor(
     private databaseService: DatabaseService,
-    private readonly blobStorage: LocalBlobStorageService,
+    @Inject(BLOB_STORAGE)
+    private readonly blobStorage: BlobStorageInterface,
     private readonly logger: AppLoggerService,
   ) {}
 

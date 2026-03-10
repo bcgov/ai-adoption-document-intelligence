@@ -32,6 +32,7 @@ model Document {
   model_id              String          @default("prebuilt-layout")
   ocr_result            OcrResult?
   review_sessions       ReviewSession[]
+  groundTruthJob        DatasetGroundTruthJob?
   group_id              String
   group                 Group           @relation(fields: [group_id], references: [id])
 
@@ -132,6 +133,7 @@ model Workflow {
   version     Int      @default(1)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
+  benchmarkDefinitions BenchmarkDefinition[]
   group_id    String
   group       Group    @relation(fields: [group_id], references: [id])
 
@@ -292,6 +294,8 @@ model Group {
   labeling_projects   LabelingProject[]
   labeling_documents  LabelingDocument[]
   api_keys            ApiKey[]
+  datasets            Dataset[]
+  benchmark_projects  BenchmarkProject[]
 
   @@map("group")
 }
@@ -445,6 +449,208 @@ enum DocumentStatus {
   ongoing_ocr
   completed_ocr
   failed
+}
+
+// ========== BENCHMARKING MODELS ==========
+
+model Dataset {
+  id              String            @id @default(uuid())
+  name            String
+  description     String?
+  metadata        Json              @default("{}")
+  storagePath     String            @default("")
+  createdBy       String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  group_id        String
+  group           Group             @relation(fields: [group_id], references: [id])
+  versions        DatasetVersion[]
+
+  @@unique([name, group_id])
+  @@index([group_id])
+  @@map("datasets")
+}
+
+model DatasetVersion {
+  id                  String                 @id @default(uuid())
+  datasetId           String
+  dataset             Dataset                @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  version             String
+  name                String?
+  storagePrefix       String?
+  manifestPath        String
+  documentCount       Int
+  groundTruthSchema   Json?
+  frozen              Boolean                @default(false)
+  createdAt           DateTime               @default(now())
+  splits              Split[]
+  benchmarkDefinitions BenchmarkDefinition[]
+  groundTruthJobs     DatasetGroundTruthJob[]
+
+  @@index([datasetId])
+  @@map("dataset_versions")
+}
+
+model Split {
+  id                    String                 @id @default(uuid())
+  datasetVersionId      String
+  datasetVersion        DatasetVersion         @relation(fields: [datasetVersionId], references: [id], onDelete: Cascade)
+  name                  String
+  type                  SplitType
+  sampleIds             Json
+  stratificationRules   Json?
+  frozen                Boolean                @default(false)
+  createdAt             DateTime               @default(now())
+  benchmarkDefinitions  BenchmarkDefinition[]
+
+  @@index([datasetVersionId])
+  @@map("splits")
+}
+
+model BenchmarkProject {
+  id                   String                 @id @default(uuid())
+  name                 String
+  description          String?
+  createdBy            String
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  group_id             String
+  group                Group                  @relation(fields: [group_id], references: [id])
+  benchmarkDefinitions BenchmarkDefinition[]
+  benchmarkRuns        BenchmarkRun[]
+
+  @@unique([name, group_id])
+  @@index([group_id])
+  @@map("benchmark_projects")
+}
+
+model BenchmarkDefinition {
+  id                  String             @id @default(uuid())
+  projectId           String
+  project             BenchmarkProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name                String
+  datasetVersionId    String
+  datasetVersion      DatasetVersion     @relation(fields: [datasetVersionId], references: [id])
+  splitId             String?
+  split               Split?             @relation(fields: [splitId], references: [id])
+  workflowId          String
+  workflow            Workflow           @relation(fields: [workflowId], references: [id])
+  workflowConfigHash  String
+  evaluatorType       String
+  evaluatorConfig     Json
+  runtimeSettings     Json
+  immutable           Boolean            @default(false)
+  revision            Int                @default(1)
+  scheduleEnabled     Boolean            @default(false)
+  scheduleCron        String?
+  scheduleId          String?            @unique
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  benchmarkRuns       BenchmarkRun[]
+
+  @@index([projectId])
+  @@index([datasetVersionId])
+  @@index([splitId])
+  @@index([workflowId])
+  @@map("benchmark_definitions")
+}
+
+model BenchmarkRun {
+  id                   String                @id @default(uuid())
+  definitionId         String
+  definition           BenchmarkDefinition   @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  projectId            String
+  project              BenchmarkProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status               BenchmarkRunStatus    @default(pending)
+  temporalWorkflowId   String
+  workerImageDigest    String?
+  workerGitSha         String
+  startedAt            DateTime?
+  completedAt          DateTime?
+  metrics              Json                  @default("{}")
+  params               Json                  @default("{}")
+  tags                 Json                  @default("{}")
+  error                String?
+  isBaseline           Boolean               @default(false)
+  baselineThresholds   Json?
+  baselineComparison   Json?
+  createdAt            DateTime              @default(now())
+
+  @@index([definitionId])
+  @@index([projectId])
+  @@map("benchmark_runs")
+}
+
+model BenchmarkAuditLog {
+  id          String       @id @default(uuid())
+  timestamp   DateTime     @default(now())
+  userId      String
+  action      AuditAction
+  entityType  String
+  entityId    String
+  metadata    Json?
+
+  @@index([timestamp])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@map("benchmark_audit_logs")
+}
+
+// ========== BENCHMARKING ENUMS ==========
+
+
+enum SplitType {
+  train
+  val
+  test
+  golden
+}
+
+enum BenchmarkRunStatus {
+  pending
+  running
+  completed
+  failed
+  cancelled
+}
+
+enum AuditAction {
+  dataset_created
+  version_published
+  run_started
+  run_completed
+  baseline_promoted
+}
+
+// ========== GROUND TRUTH GENERATION ==========
+
+enum GroundTruthJobStatus {
+  pending
+  processing
+  awaiting_review
+  completed
+  failed
+}
+
+model DatasetGroundTruthJob {
+  id                 String                @id @default(uuid())
+  datasetVersionId   String
+  datasetVersion     DatasetVersion        @relation(fields: [datasetVersionId], references: [id], onDelete: Cascade)
+  sampleId           String
+  documentId         String?               @unique
+  document           Document?             @relation(fields: [documentId], references: [id])
+  workflowConfigId   String
+  temporalWorkflowId String?
+  status             GroundTruthJobStatus  @default(pending)
+  groundTruthPath    String?
+  error              String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([datasetVersionId])
+  @@index([documentId])
+  @@index([status])
+  @@map("dataset_ground_truth_jobs")
 }
 
 enum GroupMembershipRequestStatus {

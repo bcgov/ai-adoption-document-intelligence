@@ -2,10 +2,10 @@
  * Azure OpenAI integration for LLM-based OCR enrichment.
  * Builds prompts and parses structured responses (corrected values + summary of changes).
  */
-import axios from 'axios';
-import type { EnrichmentChange } from '../types';
+import axios from "axios";
+import type { EnrichmentChange } from "../types";
 
-const DEFAULT_API_VERSION = '2024-12-01-preview';
+const DEFAULT_API_VERSION = "2024-12-01-preview";
 
 /**
  * Strip all backslash characters from a string. Used for message content sent to
@@ -13,7 +13,7 @@ const DEFAULT_API_VERSION = '2024-12-01-preview';
  * that strict parsers (jiter / Pydantic v2) reject as "Invalid escape".
  */
 export function stripBackslashes(s: string): string {
-  return s.replace(/\\/g, '');
+  return s.replace(/\\/g, "");
 }
 
 /**
@@ -23,12 +23,12 @@ export function stripBackslashes(s: string): string {
  */
 function stripNewlinesAndControl(s: string): string {
   return s
-    .replace(/\r\n/g, ' ')
-    .replace(/\n/g, ' ')
-    .replace(/\r/g, ' ')
-    .replace(/\t/g, ' ')
-    .replace(/\f/g, ' ')
-    .replace(/\b/g, ' ');
+    .replace(/\r\n/g, " ")
+    .replace(/\n/g, " ")
+    .replace(/\r/g, " ")
+    .replace(/\t/g, " ")
+    .replace(/\f/g, " ")
+    .replace(/\b/g, " ");
 }
 
 /**
@@ -39,10 +39,10 @@ function stripNewlinesAndControl(s: string): string {
  */
 export function redactPiiInText(s: string): string {
   return s
-    .replace(/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{3}\b/g, '[SIN]')
-    .replace(/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g, '[PHONE]')
-    .replace(/\(\d{3}\)\s*\d{3}[-.\s]?\d{4}\b/g, '[PHONE]')
-    .replace(/\$\s*[\d,]+\.?\d*/g, '[AMOUNT]');
+    .replace(/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{3}\b/g, "[SIN]")
+    .replace(/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g, "[PHONE]")
+    .replace(/\(\d{3}\)\s*\d{3}[-.\s]?\d{4}\b/g, "[PHONE]")
+    .replace(/\$\s*[\d,]+\.?\d*/g, "[AMOUNT]");
 }
 
 export interface LowConfidenceField {
@@ -60,7 +60,12 @@ export interface LlmEnrichmentRequest {
 export interface LlmEnrichmentResponse {
   correctedValues: Record<string, string>;
   summary: string;
-  changes: Array<{ fieldKey: string; originalValue: string; correctedValue: string; reason: string }>;
+  changes: Array<{
+    fieldKey: string;
+    originalValue: string;
+    correctedValue: string;
+    reason: string;
+  }>;
 }
 
 /**
@@ -78,7 +83,9 @@ You must respond with valid JSON only. Do not include markdown code fences or an
  * the embedded fieldsJson (from JSON.stringify) keeps valid \" escapes and the
  * outer payload serialization cannot produce invalid escape sequences.
  */
-export function buildEnrichmentUserMessage(request: LlmEnrichmentRequest): string {
+export function buildEnrichmentUserMessage(
+  request: LlmEnrichmentRequest,
+): string {
   const safeExtractedText = stripBackslashes(request.extractedText);
   const fieldsJson = JSON.stringify(
     request.fields.map((f) => ({
@@ -88,7 +95,7 @@ export function buildEnrichmentUserMessage(request: LlmEnrichmentRequest): strin
       confidence: f.confidence,
     })),
     null,
-    2
+    2,
   );
   return `Below is the full text extracted from the document (for context), followed by a list of fields that need improvement.
 
@@ -114,7 +121,9 @@ Respond with a single JSON object with this exact structure (no other text):
  * Parse the LLM response content into LlmEnrichmentResponse.
  * Handles optional markdown code fences and trims whitespace.
  */
-export function parseEnrichmentResponse(content: string): LlmEnrichmentResponse {
+export function parseEnrichmentResponse(
+  content: string,
+): LlmEnrichmentResponse {
   let raw = content.trim();
   const fence = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/;
   const match = raw.match(fence);
@@ -122,17 +131,22 @@ export function parseEnrichmentResponse(content: string): LlmEnrichmentResponse 
   const parsed = JSON.parse(raw) as {
     correctedValues?: Record<string, string>;
     summary?: string;
-    changes?: Array<{ fieldKey: string; originalValue: string; correctedValue: string; reason: string }>;
+    changes?: Array<{
+      fieldKey: string;
+      originalValue: string;
+      correctedValue: string;
+      reason: string;
+    }>;
   };
   return {
     correctedValues: parsed.correctedValues ?? {},
-    summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+    summary: typeof parsed.summary === "string" ? parsed.summary : "",
     changes: Array.isArray(parsed.changes)
       ? parsed.changes.map((c) => ({
-          fieldKey: String(c.fieldKey ?? ''),
-          originalValue: String(c.originalValue ?? ''),
-          correctedValue: String(c.correctedValue ?? ''),
-          reason: String(c.reason ?? ''),
+          fieldKey: String(c.fieldKey ?? ""),
+          originalValue: String(c.originalValue ?? ""),
+          correctedValue: String(c.correctedValue ?? ""),
+          reason: String(c.reason ?? ""),
         }))
       : [],
   };
@@ -150,16 +164,20 @@ export async function callAzureOpenAI(
     apiVersion?: string;
     /** When true, redact PII in extracted text to avoid triggering Azure PII redaction (503) */
     redactPii?: boolean;
-  }
+  },
 ): Promise<LlmEnrichmentResponse> {
-  const { endpoint, apiKey, apiVersion = DEFAULT_API_VERSION, redactPii = false } = options;
-  const base = endpoint.replace(/\/$/, '');
+  const {
+    endpoint,
+    apiKey,
+    apiVersion = DEFAULT_API_VERSION,
+    redactPii = false,
+  } = options;
+  const base = endpoint.replace(/\/$/, "");
   const url = `${base}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${apiVersion}`;
 
-  const requestToUse =
-    redactPii
-      ? { ...request, extractedText: redactPiiInText(request.extractedText) }
-      : request;
+  const requestToUse = redactPii
+    ? { ...request, extractedText: redactPiiInText(request.extractedText) }
+    : request;
 
   const systemMessage = buildEnrichmentSystemMessage();
   const userMessage = buildEnrichmentUserMessage(requestToUse);
@@ -170,45 +188,43 @@ export async function callAzureOpenAI(
 
   const payload = {
     messages: [
-      { role: 'system' as const, content: safeSystemMessage },
-      { role: 'user' as const, content: safeUserMessage },
+      { role: "system" as const, content: safeSystemMessage },
+      { role: "user" as const, content: safeUserMessage },
     ],
-    response_format: { type: 'json_object' as const },
+    response_format: { type: "json_object" as const },
     max_completion_tokens: 4096,
   };
 
   const bodyString = JSON.stringify(payload);
 
-  let response: { data: { choices?: Array<{ message?: { content?: string } }> } };
+  let response: {
+    data: { choices?: Array<{ message?: { content?: string } }> };
+  };
   try {
     // Send the pre-serialized JSON string (not the object) so we control exactly what is sent
-    response = await axios.post(
-      url,
-      bodyString,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'api-key': apiKey,
-        },
-        timeout: 60000,
-      }
-    );
+    response = await axios.post(url, bodyString, {
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": apiKey,
+      },
+      timeout: 60000,
+    });
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       const status = err.response.status;
       const body = err.response.data;
       const detail =
-        typeof body === 'object' ? JSON.stringify(body) : String(body ?? '');
+        typeof body === "object" ? JSON.stringify(body) : String(body ?? "");
       throw new Error(
-        `Request failed with status code ${status}. Response: ${detail}`
+        `Request failed with status code ${status}. Response: ${detail}`,
       );
     }
     throw err;
   }
 
   const content = response.data?.choices?.[0]?.message?.content;
-  if (typeof content !== 'string') {
-    throw new Error('Azure OpenAI response missing choices[0].message.content');
+  if (typeof content !== "string") {
+    throw new Error("Azure OpenAI response missing choices[0].message.content");
   }
   return parseEnrichmentResponse(content);
 }
@@ -217,13 +233,13 @@ export async function callAzureOpenAI(
  * Convert LLM response changes to EnrichmentChange[] with source 'llm'.
  */
 export function llmChangesToEnrichmentChanges(
-  changes: LlmEnrichmentResponse['changes']
+  changes: LlmEnrichmentResponse["changes"],
 ): EnrichmentChange[] {
   return changes.map((c) => ({
     fieldKey: c.fieldKey,
     originalValue: c.originalValue,
     correctedValue: c.correctedValue,
     reason: c.reason,
-    source: 'llm' as const,
+    source: "llm" as const,
   }));
 }

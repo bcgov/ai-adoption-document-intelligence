@@ -2,14 +2,17 @@ import { DocumentStatus } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "../blob-storage/blob-storage.interface";
 import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "./document.service";
 
 describe("DocumentService", () => {
   let service: DocumentService;
   let databaseService: DatabaseService;
-  let blobStorage: LocalBlobStorageService;
+  let blobStorage: BlobStorageInterface;
 
   beforeEach(async () => {
     databaseService = {
@@ -23,13 +26,15 @@ describe("DocumentService", () => {
       read: jest.fn(),
       exists: jest.fn(),
       delete: jest.fn(),
+      list: jest.fn(),
+      deleteByPrefix: jest.fn(),
     } as any;
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DocumentService,
         { provide: AppLoggerService, useValue: mockAppLogger },
         { provide: DatabaseService, useValue: databaseService },
-        { provide: LocalBlobStorageService, useValue: blobStorage },
+        { provide: BLOB_STORAGE, useValue: blobStorage },
       ],
     }).compile();
     service = module.get<DocumentService>(DocumentService);

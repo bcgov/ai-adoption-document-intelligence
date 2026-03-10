@@ -59,7 +59,7 @@ export interface AuthUser {
 /**
  * API exposed by the `AuthProvider`. Any component can consume these helpers via `useAuth`.
  */
-interface AuthContextType {
+export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isSystemAdmin: boolean;
@@ -69,7 +69,9 @@ interface AuthContextType {
   refreshToken: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(
+  undefined,
+);
 
 interface AuthProviderProps {
   children: ReactNode;

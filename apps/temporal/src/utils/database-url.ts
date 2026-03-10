@@ -6,13 +6,13 @@
  * self-signed certs used by Crunchy Postgres in-cluster.
  */
 export function getDatabaseConnectionString(url: string | undefined): string {
-  if (!url) return url ?? '';
+  if (!url) return url ?? "";
   const sslMode = process.env.PGSSLMODE;
   if (!sslMode) return url;
   try {
     const parsed = new URL(url);
-    parsed.searchParams.set('sslmode', sslMode);
-    parsed.searchParams.set('uselibpqcompat', 'true');
+    parsed.searchParams.set("sslmode", sslMode);
+    parsed.searchParams.set("uselibpqcompat", "true");
     return parsed.toString();
   } catch {
     return url;
@@ -33,7 +33,7 @@ export function getPrismaPgOptions(url: string | undefined): PrismaPgOptions {
   const connectionString = getDatabaseConnectionString(url);
   const rejectUnauthorized = process.env.PGSSLREJECTUNAUTHORIZED;
   const ssl =
-    rejectUnauthorized === 'false'
+    rejectUnauthorized === "false"
       ? { rejectUnauthorized: false as const }
       : undefined;
   return { connectionString, ...(ssl && { ssl }) };

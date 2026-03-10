@@ -39,6 +39,15 @@ class ApiService {
             config.headers["X-CSRF-Token"] = csrfToken;
           }
         }
+
+        // Add x-api-key header for test/development mode
+        // This allows the backend's ApiKeyAuthGuard to authenticate requests
+        // when NODE_ENV=test on the backend
+        const testApiKey = import.meta.env.VITE_TEST_API_KEY;
+        if (testApiKey && config.headers) {
+          config.headers["x-api-key"] = testApiKey;
+        }
+
         return config;
       },
       (error) => Promise.reject(error),
@@ -95,6 +104,7 @@ class ApiService {
     method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
     endpoint: string,
     data?: unknown,
+    _config?: Record<string, unknown>,
   ): Promise<ApiResponse<T>> {
     try {
       let headers = undefined;
@@ -136,12 +146,19 @@ class ApiService {
     }
   }
 
-  async get<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>("GET", endpoint);
+  async get<T>(
+    endpoint: string,
+    config?: Record<string, unknown>,
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>("GET", endpoint, undefined, config);
   }
 
-  async post<T>(endpoint: string, data: unknown): Promise<ApiResponse<T>> {
-    return this.request<T>("POST", endpoint, data);
+  async post<T>(
+    endpoint: string,
+    data: unknown,
+    config?: Record<string, unknown>,
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>("POST", endpoint, data, config);
   }
 
   async put<T>(endpoint: string, data: unknown): Promise<ApiResponse<T>> {
@@ -154,6 +171,15 @@ class ApiService {
 
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     return this.request<T>("DELETE", endpoint);
+  }
+
+  async getBlob(endpoint: string): Promise<Blob> {
+    const response = await this.axiosInstance({
+      method: "GET",
+      url: endpoint,
+      responseType: "blob",
+    });
+    return response.data as Blob;
   }
 }
 

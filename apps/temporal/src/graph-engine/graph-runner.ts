@@ -9,12 +9,12 @@
 import type {
   GraphWorkflowInput,
   GraphWorkflowResult,
-} from '../graph-workflow-types';
-import type { ExecutionState } from './execution-state';
-import { initializeContext } from './context-utils';
-import { computeTopologicalOrder, computeReadySet } from './graph-algorithms';
-import { executeNode, executeSwitchNode } from './node-executors';
-import { handleNodeError } from './error-handling';
+} from "../graph-workflow-types";
+import { initializeContext } from "./context-utils";
+import { handleNodeError } from "./error-handling";
+import type { ExecutionState } from "./execution-state";
+import { computeReadySet, computeTopologicalOrder } from "./graph-algorithms";
+import { executeNode, executeSwitchNode } from "./node-executors";
 
 /**
  * Main graph execution function
@@ -42,11 +42,11 @@ export async function runGraphExecution(
   // Loop until no more nodes are ready
   while (true) {
     // Check for immediate cancellation
-    if (state.cancelled() && state.cancelMode() === 'immediate') {
+    if (state.cancelled() && state.cancelMode() === "immediate") {
       return {
         ctx: state.ctx,
         completedNodes: Array.from(state.completedNodeIds),
-        status: 'cancelled',
+        status: "cancelled",
       };
     }
 
@@ -73,13 +73,13 @@ export async function runGraphExecution(
 
         // Mark node as running
         state.nodeStatuses.set(nodeId, {
-          status: 'running',
+          status: "running",
           startedAt: new Date().toISOString(),
         });
 
         try {
           // Handle switch nodes specially - they determine routing
-          if (node.type === 'switch') {
+          if (node.type === "switch") {
             const selectedEdgeId = executeSwitchNode(node, state.ctx);
             state.selectedEdges.set(nodeId, selectedEdgeId);
           } else {
@@ -89,7 +89,7 @@ export async function runGraphExecution(
           // Mark node as completed
           state.completedNodeIds.add(nodeId);
           state.nodeStatuses.set(nodeId, {
-            status: 'completed',
+            status: "completed",
             completedAt: new Date().toISOString(),
           });
         } catch (error) {
@@ -99,11 +99,11 @@ export async function runGraphExecution(
     );
 
     // Check for graceful cancellation
-    if (state.cancelled() && state.cancelMode() === 'graceful') {
+    if (state.cancelled() && state.cancelMode() === "graceful") {
       return {
         ctx: state.ctx,
         completedNodes: Array.from(state.completedNodeIds),
-        status: 'cancelled',
+        status: "cancelled",
       };
     }
   }
@@ -112,6 +112,6 @@ export async function runGraphExecution(
   return {
     ctx: state.ctx,
     completedNodes: Array.from(state.completedNodeIds),
-    status: 'completed',
+    status: "completed",
   };
 }

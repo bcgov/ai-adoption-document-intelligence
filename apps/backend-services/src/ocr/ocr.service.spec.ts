@@ -4,7 +4,10 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "../blob-storage/blob-storage.interface";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { OcrService } from "./ocr.service";
@@ -30,7 +33,7 @@ describe("OcrService", () => {
   let service: OcrService;
   let databaseService: DatabaseService;
   let temporalClientService: TemporalClientService;
-  let blobStorage: LocalBlobStorageService;
+  let blobStorage: BlobStorageInterface;
   let moduleRef: TestingModule;
 
   beforeEach(async () => {
@@ -74,12 +77,14 @@ describe("OcrService", () => {
           },
         },
         {
-          provide: LocalBlobStorageService,
+          provide: BLOB_STORAGE,
           useValue: {
             read: jest.fn().mockResolvedValue(Buffer.from("test")),
             write: jest.fn().mockResolvedValue(undefined),
             exists: jest.fn().mockResolvedValue(true),
             delete: jest.fn().mockResolvedValue(undefined),
+            list: jest.fn().mockResolvedValue([]),
+            deleteByPrefix: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -94,9 +99,7 @@ describe("OcrService", () => {
     temporalClientService = moduleRef.get<TemporalClientService>(
       TemporalClientService,
     );
-    blobStorage = moduleRef.get<LocalBlobStorageService>(
-      LocalBlobStorageService,
-    );
+    blobStorage = moduleRef.get<BlobStorageInterface>(BLOB_STORAGE);
   });
 
   describe("OcrService constructor", () => {

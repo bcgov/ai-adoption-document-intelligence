@@ -82,7 +82,7 @@ describe("TrainingPollerService", () => {
     const mockConfig = {
       get: jest.fn((key: string, defaultValue?: any) => {
         const config: Record<string, any> = {
-          AZURE_DOCUMENT_INTELLIGENCE_TRAIN_ENDPOINT: "https://test.api.com",
+          AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
           AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
           TRAINING_POLL_INTERVAL_SECONDS: 10,
           TRAINING_MAX_POLL_ATTEMPTS: 60,

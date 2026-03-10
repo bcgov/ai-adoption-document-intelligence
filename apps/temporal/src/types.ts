@@ -14,7 +14,7 @@ export interface EnrichmentChange {
   originalValue: string;
   correctedValue: string;
   reason: string;
-  source: 'rule' | 'llm';
+  source: "rule" | "llm";
 }
 
 export interface EnrichmentSummary {
@@ -39,7 +39,7 @@ export interface HttpResponse {
 }
 
 export interface OCRResponse {
-  status: 'running' | 'succeeded' | 'failed';
+  status: "running" | "succeeded" | "failed";
   analyzeResult?: AnalyzeResult;
   createdDateTime?: string;
   lastUpdatedDateTime?: string;
@@ -128,7 +128,7 @@ export interface Table {
 }
 
 export interface TableCell {
-  kind?: 'content' | 'rowHeader' | 'columnHeader' | 'stubHead' | 'description';
+  kind?: "content" | "rowHeader" | "columnHeader" | "stubHead" | "description";
   rowIndex: number;
   columnIndex: number;
   rowSpan?: number;
@@ -187,7 +187,7 @@ export interface OCRResult {
 // Activity Results
 export interface PreparedFileData {
   fileName: string;
-  fileType: 'pdf' | 'image';
+  fileType: "pdf" | "image";
   contentType: string;
   blobKey: string;
   modelId: string; // Azure Document Intelligence model ID
@@ -200,6 +200,6 @@ export interface SubmissionResult {
 }
 
 export interface PollResult {
-  status: 'running' | 'succeeded' | 'failed';
+  status: "running" | "succeeded" | "failed";
   response?: OCRResponse;
 }

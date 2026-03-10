@@ -21,22 +21,29 @@ const EXPECTED_ACTIVITY_TYPES = [
   "document.splitAndClassify",
   "document.validateFields",
   "segment.combineResult",
+  "benchmark.evaluate",
+  "benchmark.aggregate",
+  "benchmark.cleanup",
+  "benchmark.updateRunStatus",
+  "benchmark.compareAgainstBaseline",
+  "benchmark.writePrediction",
+  "benchmark.materializeDataset",
+  "benchmark.loadDatasetManifest",
 ];
 
 describe("activity-registry", () => {
   describe("getActivityEntry", () => {
-    it.each(EXPECTED_ACTIVITY_TYPES)(
-      "resolves registered activity type: %s",
-      (activityType) => {
-        const entry = getActivityEntry(activityType);
-        expect(entry).toBeDefined();
-        expect(entry!.activityType).toBe(activityType);
-        expect(typeof entry!.activityFn).toBe("function");
-        expect(typeof entry!.defaultTimeout).toBe("string");
-        expect(entry!.defaultRetry).toBeDefined();
-        expect(typeof entry!.description).toBe("string");
-      },
-    );
+    it.each(
+      EXPECTED_ACTIVITY_TYPES,
+    )("resolves registered activity type: %s", (activityType) => {
+      const entry = getActivityEntry(activityType);
+      expect(entry).toBeDefined();
+      expect(entry!.activityType).toBe(activityType);
+      expect(typeof entry!.activityFn).toBe("function");
+      expect(typeof entry!.defaultTimeout).toBe("string");
+      expect(entry!.defaultRetry).toBeDefined();
+      expect(typeof entry!.description).toBe("string");
+    });
 
     it("returns undefined for unknown activity type", () => {
       const entry = getActivityEntry("nonexistent.activity");
@@ -74,33 +81,15 @@ describe("activity-registry", () => {
   });
 
   describe("activity function references", () => {
-    const allActivities = [
-      "document.updateStatus",
-      "file.prepare",
-      "azureOcr.submit",
-      "azureOcr.poll",
-      "azureOcr.extract",
-      "ocr.cleanup",
-      "ocr.checkConfidence",
-      "ocr.storeResults",
-      "document.storeRejection",
-      "getWorkflowGraphConfig",
-      "ocr.enrich",
-      "document.split",
-      "document.classify",
-      "document.splitAndClassify",
-      "document.validateFields",
-      "segment.combineResult",
-    ];
+    const allActivities = EXPECTED_ACTIVITY_TYPES;
 
-    it.each(allActivities)(
-      "maps %s to a valid activity function",
-      (activityType) => {
-        const entry = getActivityEntry(activityType);
-        expect(entry).toBeDefined();
-        expect(typeof entry!.activityFn).toBe("function");
-      },
-    );
+    it.each(
+      allActivities,
+    )("maps %s to a valid activity function", (activityType) => {
+      const entry = getActivityEntry(activityType);
+      expect(entry).toBeDefined();
+      expect(typeof entry!.activityFn).toBe("function");
+    });
   });
 
   describe("registry entry metadata", () => {

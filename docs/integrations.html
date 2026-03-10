@@ -709,6 +709,10 @@
                         Integrations
                         <small>Getting data in and out</small>
                     </a>
+                    <a href="benchmarking-guide.html">
+                        Benchmarking
+                        <small>Evaluate workflows &amp; detect regressions</small>
+                    </a>
                 </div>
             </div>
             <div class="nav-dropdown">
@@ -718,6 +722,10 @@
                         Authentication
                         <small>OAuth 2.0, PKCE, RBAC &amp; API keys</small>
                     </a>
+                    <a href="benchmarking-technical.html">
+                        Benchmarking Architecture
+                        <small>Data model, services &amp; infrastructure</small>
+                    </a>
                 </div>
             </div>
             <a href="api-reference.html" class="">API Reference</a>
@@ -725,8 +733,6 @@
         </nav>
     </header>
     <main>
-<!-- TITLE: Integrations Guide -->
-<!-- NAV: integrations -->
 
 <h1>Integrations Guide</h1>
 
@@ -742,7 +748,6 @@
     </div>
 </div>
 
-<!-- ====================================================================== -->
 <h2>Authentication</h2>
 
 <p>The platform supports two authentication methods. Use <strong>API Keys</strong> for service-to-service integrations and automated pipelines, or <strong>Bearer Tokens</strong> for user-facing applications that go through the Keycloak SSO login flow.</p>
@@ -789,7 +794,6 @@
     </details>
 </div>
 
-<!-- ====================================================================== -->
 <h2>Sending Documents In</h2>
 
 <p>Documents are submitted via the upload endpoint as base64-encoded payloads. On upload, the platform stores the file, creates a document record, and automatically starts a processing workflow via Temporal.</p>
@@ -953,7 +957,6 @@ curl -X POST /api/upload \
     </details>
 </div>
 
-<!-- ====================================================================== -->
 <h2>Retrieving Processed Data</h2>
 
 <p>The platform processes documents asynchronously. After uploading, poll the document status until processing completes, then retrieve the extracted data.</p>
@@ -1068,7 +1071,6 @@ curl -X POST /api/upload \
     </details>
 </div>
 
-<!-- ====================================================================== -->
 <h2>Human-in-the-Loop Review</h2>
 
 <p>When workflows include confidence-based routing, documents that fall below confidence thresholds are routed to a human review queue. The HITL API enables building custom review interfaces or integrating review into existing tools.</p>
@@ -1147,7 +1149,6 @@ curl -X POST /api/hitl/sessions/&lt;session-id&gt;/submit \
     </details>
 </div>
 
-<!-- ====================================================================== -->
 <h2>End-to-End Example</h2>
 
 <p>A complete integration walkthrough: authenticate, upload a document, wait for processing, and retrieve the results.</p>

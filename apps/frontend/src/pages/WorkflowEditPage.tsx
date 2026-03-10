@@ -268,7 +268,8 @@ export function WorkflowEditPage({
         dto: {
           name: workflowName,
           description: workflowDescription || undefined,
-          config: workflowStepsConfig,
+          config:
+            workflowStepsConfig as unknown as import("../types/workflow").GraphWorkflowConfig,
         },
       });
 

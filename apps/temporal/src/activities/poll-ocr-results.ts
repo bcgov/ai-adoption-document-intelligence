@@ -1,10 +1,8 @@
-import { Context } from '@temporalio/activity';
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
-} from '@azure-rest/ai-document-intelligence';
-import { createActivityLogger } from '../logger';
-import type { OCRResponse, PollResult } from '../types';
+} from "@azure-rest/ai-document-intelligence";
+import type { OCRResponse, PollResult } from "../types";
 
 /**
  * Activity: Poll Azure Document Intelligence for OCR results
@@ -13,78 +11,102 @@ import type { OCRResponse, PollResult } from '../types';
 export async function pollOCRResults(params: {
   apimRequestId: string;
   modelId: string;
-  requestId?: string;
 }): Promise<PollResult> {
-  const activityName = 'pollOCRResults';
-  const { apimRequestId, modelId, requestId } = params;
-  const workflowExecutionId = Context.current().info.workflowExecution?.workflowId;
-  const log = createActivityLogger(activityName, {
-    workflowExecutionId,
-    requestId,
-    apimRequestId,
-    modelId,
-  });
-
-  log.info('Poll OCR start', { event: 'start', useMock: process.env.MOCK_AZURE_OCR === 'true' });
-
+  const activityName = "pollOCRResults";
+  const { apimRequestId, modelId } = params;
   const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
-  const useMock = process.env.MOCK_AZURE_OCR === 'true';
+  const useMock = process.env.MOCK_AZURE_OCR === "true";
+
+  console.log(
+    JSON.stringify({
+      activity: activityName,
+      event: "start",
+      apimRequestId,
+      modelId,
+      useMock,
+      timestamp: new Date().toISOString(),
+    }),
+  );
 
   // Mock mode for testing
   if (useMock) {
     const mockResponse: OCRResponse = {
-      status: 'succeeded',
+      status: "succeeded",
       createdDateTime: new Date().toISOString(),
       lastUpdatedDateTime: new Date().toISOString(),
       analyzeResult: {
-        apiVersion: '2024-11-30',
-        modelId: modelId || 'prebuilt-layout',
-        content: 'Mock OCR content for testing\nLine 2\nLine 3',
-        pages: [{
-          pageNumber: 1,
-          width: 8.5,
-          height: 11,
-          unit: 'inch',
-          words: [],
-          lines: [],
-          spans: [{ offset: 0, length: 50 }]
-        }],
+        apiVersion: "2024-11-30",
+        modelId: modelId || "prebuilt-layout",
+        content: "Mock OCR content for testing\nLine 2\nLine 3",
+        pages: [
+          {
+            pageNumber: 1,
+            width: 8.5,
+            height: 11,
+            unit: "inch",
+            words: [],
+            lines: [],
+            spans: [{ offset: 0, length: 50 }],
+          },
+        ],
         paragraphs: [],
         tables: [],
         keyValuePairs: [],
         sections: [],
-        figures: []
-      }
+        figures: [],
+      },
     };
 
-    log.info('Poll OCR complete (mock)', { event: 'complete_mock', status: 'succeeded' });
+    console.log(
+      JSON.stringify({
+        activity: activityName,
+        event: "complete_mock",
+        apimRequestId,
+        status: "succeeded",
+        timestamp: new Date().toISOString(),
+      }),
+    );
 
     return {
-      status: 'succeeded',
-      response: mockResponse
+      status: "succeeded",
+      response: mockResponse,
     };
   }
 
   if (!endpoint || !apiKey) {
-    log.error('Azure Document Intelligence credentials not configured', {
-      event: 'error',
-      error: 'missing_credentials',
-    });
+    console.error(
+      JSON.stringify({
+        activity: activityName,
+        event: "error",
+        apimRequestId,
+        modelId,
+        error: "missing_credentials",
+        message: "Azure Document Intelligence credentials not configured",
+        timestamp: new Date().toISOString(),
+      }),
+    );
     throw new Error(
-      'Azure Document Intelligence credentials not configured. Set AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_API_KEY environment variables.'
+      "Azure Document Intelligence credentials not configured. Set AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_API_KEY environment variables.",
     );
   }
 
-  if (!apimRequestId || typeof apimRequestId !== 'string') {
-    log.error('APIM Request ID not available for polling', {
-      event: 'error',
-      error: 'invalid_apim_request_id',
-    });
-    throw new Error('APIM Request ID not available for polling');
+  if (!apimRequestId || typeof apimRequestId !== "string") {
+    console.error(
+      JSON.stringify({
+        activity: activityName,
+        event: "error",
+        apimRequestId,
+        modelId,
+        error: "invalid_apim_request_id",
+        message: "APIM Request ID not available for polling",
+        timestamp: new Date().toISOString(),
+      }),
+    );
+    throw new Error("APIM Request ID not available for polling");
   }
 
-  const normalizedModelId = modelId || 'prebuilt-layout';
+  const normalizedModelId = modelId || "prebuilt-layout";
 
   try {
     const client: DocumentIntelligenceClient = DocumentIntelligence(
@@ -92,50 +114,80 @@ export async function pollOCRResults(params: {
       { key: apiKey },
       {
         credentials: {
-          apiKeyHeaderName: 'api-key',
+          apiKeyHeaderName: "api-key",
         },
-      }
+      },
     );
 
     // Poll for results
     const response = await client
-      .path('/documentModels/{modelId}/analyzeResults/{resultId}', normalizedModelId, apimRequestId)
+      .path(
+        "/documentModels/{modelId}/analyzeResults/{resultId}",
+        normalizedModelId,
+        apimRequestId,
+      )
       .get();
 
     if (isUnexpected(response)) {
-      log.error('Azure API error polling OCR', {
-        event: 'error',
-        error: 'azure_api_error',
-        status: response.status,
-      });
-      throw new Error(
-        `Failed to poll OCR results. Status: ${response.status}`
+      console.error(
+        JSON.stringify({
+          activity: activityName,
+          event: "error",
+          apimRequestId,
+          error: "azure_api_error",
+          status: response.status,
+          body: response.body,
+          timestamp: new Date().toISOString(),
+        }),
       );
+      throw new Error(`Failed to poll OCR results. Status: ${response.status}`);
     }
 
     const responseBody = response.body as OCRResponse;
 
     if (!responseBody) {
-      log.error('Empty response from Azure OCR polling endpoint', {
-        event: 'error',
-        error: 'empty_response_body',
-      });
-      throw new Error('Empty response from Azure OCR polling endpoint');
+      console.error(
+        JSON.stringify({
+          activity: activityName,
+          event: "error",
+          apimRequestId,
+          error: "empty_response_body",
+          message: "Empty response from Azure OCR polling endpoint",
+          timestamp: new Date().toISOString(),
+        }),
+      );
+      throw new Error("Empty response from Azure OCR polling endpoint");
     }
 
-    const status = responseBody.status || 'unknown';
-    log.info('Poll OCR complete', { event: 'complete', status });
+    const status = responseBody.status || "unknown";
+    console.log(
+      JSON.stringify({
+        activity: activityName,
+        event: "complete",
+        apimRequestId,
+        status,
+        timestamp: new Date().toISOString(),
+      }),
+    );
 
     return {
-      status: status as 'running' | 'succeeded' | 'failed',
-      response: responseBody
+      status: status as "running" | "succeeded" | "failed",
+      response: responseBody,
     };
   } catch (error) {
-    log.error('Poll OCR failed', {
-      event: 'error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-    });
+    const errorDetails: Record<string, unknown> = {
+      activity: activityName,
+      event: "error",
+      apimRequestId,
+      error: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString(),
+    };
+
+    if (error instanceof Error && error.stack) {
+      errorDetails.stack = error.stack;
+    }
+
+    console.error(JSON.stringify(errorDetails));
     throw error;
   }
 }

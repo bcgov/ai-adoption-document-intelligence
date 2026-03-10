@@ -11,13 +11,16 @@ import {
 } from "@generated/client";
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import * as fs from "fs";
-import * as path from "path";
-import { BlobStorageService } from "../blob-storage/blob-storage.service";
+import { AzureStorageService } from "../blob-storage/azure-storage.service";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "../blob-storage/blob-storage.interface";
 import { DatabaseService } from "../database/database.service";
 import { ExportFormat } from "../labeling/dto/export.dto";
 import { LabelingService } from "../labeling/labeling.service";
@@ -53,13 +56,15 @@ export class TrainingService {
 
   constructor(
     private readonly db: DatabaseService,
-    private readonly blobStorage: BlobStorageService,
+    private readonly azureStorage: AzureStorageService,
     private readonly labelingService: LabelingService,
     private readonly configService: ConfigService,
     private readonly logger: AppLoggerService,
+    @Inject(BLOB_STORAGE)
+    private readonly blobStorage: BlobStorageInterface,
   ) {
     const endpoint = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_TRAIN_ENDPOINT",
+      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
     );
     const apiKey = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
@@ -182,17 +187,15 @@ export class TrainingService {
       const filename = doc.labeling_document.original_filename;
 
       // Add document image
-      const filePath = path.join(
-        process.cwd(),
-        doc.labeling_document.file_path,
-      );
-      if (fs.existsSync(filePath)) {
+      const blobKey = doc.labeling_document.file_path;
+      const fileExists = await this.blobStorage.exists(blobKey);
+      if (fileExists) {
         files.push({
           name: filename,
-          content: fs.readFileSync(filePath),
+          content: await this.blobStorage.read(blobKey),
         });
       } else {
-        this.logger.warn(`File not found: ${filePath}`);
+        this.logger.warn(`File not found in blob storage: ${blobKey}`);
       }
 
       // Add OCR JSON
@@ -300,10 +303,10 @@ export class TrainingService {
       });
 
       // Clear container contents so each training run starts clean
-      await this.blobStorage.clearContainerContents(job.container_name);
+      await this.azureStorage.clearContainerContents(job.container_name);
 
       // Upload to blob storage
-      const uploadResult = await this.blobStorage.uploadFiles(
+      const uploadResult = await this.azureStorage.uploadFiles(
         job.container_name,
         files,
       );
@@ -315,7 +318,7 @@ export class TrainingService {
       }
 
       // Generate SAS URL
-      const sasUrl = await this.blobStorage.generateSasUrl(
+      const sasUrl = await this.azureStorage.generateSasUrl(
         job.container_name,
         this.sasExpiryDays,
       );

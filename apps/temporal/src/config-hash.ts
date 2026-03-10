@@ -1,22 +1,22 @@
-import { createHash } from 'crypto';
+import { createHash } from "crypto";
 import type {
-  GraphWorkflowConfig,
-  GraphNode,
   ActivityNode,
-  PollUntilNode,
   ChildWorkflowNode,
+  GraphNode,
+  GraphWorkflowConfig,
+  PollUntilNode,
   SwitchNode,
-} from './graph-workflow-types';
+} from "./graph-workflow-types";
 
 const DEFAULT_ACTIVITY_RETRY = { maximumAttempts: 3 };
-const DEFAULT_ACTIVITY_TIMEOUT = { startToClose: '2m' };
+const DEFAULT_ACTIVITY_TIMEOUT = { startToClose: "2m" };
 const DEFAULT_POLL_MAX_ATTEMPTS = 100;
 
 export function computeConfigHash(config: GraphWorkflowConfig): string {
   const normalized = applyDefaults(config);
   const sorted = sortKeys(normalized);
   const payload = JSON.stringify(sorted);
-  return createHash('sha256').update(payload).digest('hex');
+  return createHash("sha256").update(payload).digest("hex");
 }
 
 function applyDefaults(config: GraphWorkflowConfig): GraphWorkflowConfig {
@@ -46,7 +46,7 @@ function applyNodeDefaults(node: GraphNode): GraphNode {
   };
 
   switch (node.type) {
-    case 'activity': {
+    case "activity": {
       const activityNode = node as ActivityNode;
       return {
         ...base,
@@ -55,7 +55,7 @@ function applyNodeDefaults(node: GraphNode): GraphNode {
         timeout: activityNode.timeout ?? DEFAULT_ACTIVITY_TIMEOUT,
       } as ActivityNode;
     }
-    case 'pollUntil': {
+    case "pollUntil": {
       const pollNode = node as PollUntilNode;
       return {
         ...base,
@@ -63,7 +63,7 @@ function applyNodeDefaults(node: GraphNode): GraphNode {
         maxAttempts: pollNode.maxAttempts ?? DEFAULT_POLL_MAX_ATTEMPTS,
       } as PollUntilNode;
     }
-    case 'childWorkflow': {
+    case "childWorkflow": {
       const childNode = node as ChildWorkflowNode;
       return {
         ...base,
@@ -71,7 +71,7 @@ function applyNodeDefaults(node: GraphNode): GraphNode {
         outputMappings: childNode.outputMappings ?? [],
       } as ChildWorkflowNode;
     }
-    case 'switch': {
+    case "switch": {
       const switchNode = node as SwitchNode;
       return {
         ...base,
@@ -88,7 +88,7 @@ function sortKeys(value: unknown): unknown {
     return value.map((item) => sortKeys(item));
   }
 
-  if (!value || typeof value !== 'object') {
+  if (!value || typeof value !== "object") {
     return value;
   }
 

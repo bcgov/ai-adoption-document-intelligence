@@ -5,7 +5,10 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { of } from "rxjs";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
-import { LocalBlobStorageService } from "../blob-storage/local-blob-storage.service";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "../blob-storage/blob-storage.interface";
 import { DatabaseService } from "../database/database.service";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingOcrService } from "./labeling-ocr.service";
@@ -14,7 +17,7 @@ describe("LabelingOcrService", () => {
   let service: LabelingOcrService;
   let mockDbService: jest.Mocked<DatabaseService>;
   let mockHttpService: jest.Mocked<HttpService>;
-  let mockBlobStorage: jest.Mocked<LocalBlobStorageService>;
+  let mockBlobStorage: jest.Mocked<BlobStorageInterface>;
   let _mockConfigService: jest.Mocked<ConfigService>;
 
   const mockLabelingDocument = {
@@ -52,6 +55,8 @@ describe("LabelingOcrService", () => {
       read: jest.fn().mockResolvedValue(Buffer.from("test")),
       exists: jest.fn().mockResolvedValue(true),
       delete: jest.fn().mockResolvedValue(undefined),
+      list: jest.fn().mockResolvedValue([]),
+      deleteByPrefix: jest.fn().mockResolvedValue(undefined),
     };
 
     const mockConfig = {
@@ -81,7 +86,7 @@ describe("LabelingOcrService", () => {
           useValue: mockConfig,
         },
         {
-          provide: LocalBlobStorageService,
+          provide: BLOB_STORAGE,
           useValue: mockBlob,
         },
       ],
@@ -90,7 +95,7 @@ describe("LabelingOcrService", () => {
     service = module.get<LabelingOcrService>(LabelingOcrService);
     mockDbService = module.get(DatabaseService);
     mockHttpService = module.get(HttpService);
-    mockBlobStorage = module.get(LocalBlobStorageService);
+    mockBlobStorage = module.get(BLOB_STORAGE);
     _mockConfigService = module.get(ConfigService);
   });
 

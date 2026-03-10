@@ -1,8 +1,8 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import { DatabaseService } from "../database/database.service";
 import { AzureService } from "./azure.service";
-import { BlobService } from "./blob.service";
 import { ClassifierService } from "./classifier.service";
 import { ClassifierPollerService } from "./classifier-poller.service";
 import { ClassifierStatus } from "./dto/classifier-constants.dto";
@@ -41,14 +41,12 @@ describe("ClassifierPollerService", () => {
         { provide: AppLoggerService, useValue: mockLogger },
         { provide: DatabaseService, useValue: mockDatabaseService },
         { provide: AzureService, useValue: mockAzureService },
-        { provide: BlobService, useValue: mockBlobService },
+        { provide: AzureStorageService, useValue: mockBlobService },
         { provide: ClassifierService, useValue: mockClassifierService },
       ],
     }).compile();
 
     service = module.get<ClassifierPollerService>(ClassifierPollerService);
-    // @ts-ignore
-    service.logger = mockLogger;
     jest.clearAllMocks();
   });
 

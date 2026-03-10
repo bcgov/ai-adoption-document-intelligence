@@ -7,6 +7,7 @@ import { AuditModule } from "@/audit/audit.module";
 import { AzureModule } from "@/azure/azure.module";
 import { ApiKeyModule } from "./api-key/api-key.module";
 import { AuthModule } from "./auth/auth.module";
+import { BenchmarkModule } from "./benchmark/benchmark.module";
 import { BlobStorageModule } from "./blob-storage/blob-storage.module";
 import { DatabaseModule } from "./database/database.module";
 import { DocumentModule } from "./document/document.module";
@@ -46,6 +47,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     AuthModule,
     ApiKeyModule,
     AuditModule,
+    BenchmarkModule,
     DatabaseModule,
     DocumentModule,
     QueueModule,

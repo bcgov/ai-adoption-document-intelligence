@@ -4,9 +4,9 @@
  * DAG structural operations: topological sort and ready-set computation.
  */
 
-import { ApplicationFailure } from '@temporalio/workflow';
-import type { GraphWorkflowConfig } from '../graph-workflow-types';
-import type { ExecutionState } from './execution-state';
+import { ApplicationFailure } from "@temporalio/workflow";
+import type { GraphWorkflowConfig } from "../graph-workflow-types";
+import type { ExecutionState } from "./execution-state";
 
 /**
  * Compute stable topological order using Kahn's algorithm with alphabetical tiebreaker
@@ -24,7 +24,7 @@ export function computeTopologicalOrder(config: GraphWorkflowConfig): string[] {
 
   // Build graph (only count normal edges for topological sort)
   for (const edge of config.edges) {
-    if (edge.type === 'normal') {
+    if (edge.type === "normal") {
       const currentDegree = inDegree.get(edge.target) ?? 0;
       inDegree.set(edge.target, currentDegree + 1);
 
@@ -69,8 +69,8 @@ export function computeTopologicalOrder(config: GraphWorkflowConfig): string[] {
   // Check for cycles
   if (result.length !== nodes.length) {
     throw ApplicationFailure.create({
-      type: 'GRAPH_EXECUTION_ERROR',
-      message: 'Cycle detected in graph',
+      type: "GRAPH_EXECUTION_ERROR",
+      message: "Cycle detected in graph",
       nonRetryable: true,
     });
   }
@@ -132,7 +132,7 @@ export function computeReadySet(
       const hasRelevantEdges = edges.some((edge) => {
         if (selectedEdgeFromSource === undefined) {
           // No explicit edge selection - normal edges are implicitly selected
-          return edge.type === 'normal';
+          return edge.type === "normal";
         } else {
           // Explicit edge selection - only the selected edge is relevant
           return selectedEdgeFromSource === edge.id;
@@ -146,15 +146,17 @@ export function computeReadySet(
 
       if (!isSourceCompleted) {
         // Source has relevant edges but hasn't completed - check if it's reachable
-        const incomingEdges = config.edges.filter((e) => e.target === sourceNodeId);
+        const incomingEdges = config.edges.filter(
+          (e) => e.target === sourceNodeId,
+        );
         const isReachable =
           incomingEdges.length === 0 || // Entry node - always reachable
           incomingEdges.some((e) => {
-            if (e.type === 'normal') {
+            if (e.type === "normal") {
               // Has normal incoming edge - check if source of that edge completed
               return state.completedNodeIds.has(e.source);
             }
-            if (e.type === 'conditional' || e.type === 'error') {
+            if (e.type === "conditional" || e.type === "error") {
               // Incoming conditional was selected
               return state.selectedEdges.get(e.source) === e.id;
             }
@@ -233,7 +235,7 @@ export function computeReadySetForSubgraph(
       const hasRelevantEdges = edges.some((edge) => {
         if (selectedEdgeFromSource === undefined) {
           // No explicit edge selection - normal edges are implicitly selected
-          return edge.type === 'normal';
+          return edge.type === "normal";
         } else {
           // Explicit edge selection - only the selected edge is relevant
           return selectedEdgeFromSource === edge.id;
@@ -247,15 +249,17 @@ export function computeReadySetForSubgraph(
 
       if (!isSourceCompleted) {
         // Source has relevant edges but hasn't completed - check if it's reachable
-        const incomingEdges = config.edges.filter((e) => e.target === sourceNodeId);
+        const incomingEdges = config.edges.filter(
+          (e) => e.target === sourceNodeId,
+        );
         const isReachable =
           incomingEdges.length === 0 || // Entry node - always reachable
           incomingEdges.some((e) => {
-            if (e.type === 'normal') {
+            if (e.type === "normal") {
               // Has normal incoming edge - check if source of that edge completed
               return state.completedNodeIds.has(e.source);
             }
-            if (e.type === 'conditional' || e.type === 'error') {
+            if (e.type === "conditional" || e.type === "error") {
               // Incoming conditional was selected
               return state.selectedEdges.get(e.source) === e.id;
             }
@@ -283,4 +287,3 @@ export function computeReadySetForSubgraph(
 
   return readyNodes;
 }
-
