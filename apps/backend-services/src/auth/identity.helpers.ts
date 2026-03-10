@@ -30,7 +30,14 @@ export async function getIdentityGroupIds(
     return [];
   }
 
+  // Fast path: isSystemAdmin was pre-populated by IdentityGuard (via @Identity decorator).
+  // Admin users can see all records across all groups.
+  if (identity.isSystemAdmin === true) {
+    return undefined;
+  }
+
   if (identity.groupRoles !== undefined) {
+    // API key path: groupRoles encodes the single scoped group.
     return Object.keys(identity.groupRoles);
   }
 
@@ -84,21 +91,14 @@ export async function identityCanAccessGroup(
     throw new ForbiddenException("User does not belong to requested group.");
   }
 
-  if (identity.groupRoles !== undefined) {
-    if (!(groupId in identity.groupRoles)) {
-      throw new ForbiddenException("User does not belong to requested group.");
-    }
+  // Fast path: isSystemAdmin was pre-populated by IdentityGuard (via @Identity decorator).
+  if (identity.isSystemAdmin === true) {
     return;
   }
 
-  if (identity.userId !== undefined) {
-    const isUserSystemAdmin = await db.isUserSystemAdmin(identity.userId);
-    if (isUserSystemAdmin) {
-      return;
-    }
-    // TODO: Check role permissions here once the roles & claims system is implemented
-    const isMember = await db.isUserInGroup(identity.userId, groupId);
-    if (!isMember) {
+  if (identity.groupRoles !== undefined) {
+    // API key path: groupRoles encodes the single scoped group.
+    if (!(groupId in identity.groupRoles)) {
       throw new ForbiddenException("User does not belong to requested group.");
     }
     return;

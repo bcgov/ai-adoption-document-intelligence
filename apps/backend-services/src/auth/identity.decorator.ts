@@ -66,13 +66,13 @@ export interface IdentityOptions {
  * @param options - Authorization requirements for this handler.
  * @returns A NestJS method decorator.
  */
-export const Identity = (options: IdentityOptions) => {
+export const Identity = (options?: IdentityOptions) => {
   const decorators: (MethodDecorator | ClassDecorator | PropertyDecorator)[] = [
     SetMetadata(IDENTITY_KEY, options),
     ApiBearerAuth("keycloak-sso"),
   ];
 
-  if (options.allowApiKey) {
+  if (options?.allowApiKey) {
     decorators.push(ApiSecurity("api-key"));
   }
 

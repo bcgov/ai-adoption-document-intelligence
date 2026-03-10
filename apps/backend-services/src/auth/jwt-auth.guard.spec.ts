@@ -1,6 +1,6 @@
 import { ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { API_KEY_AUTH_KEY } from "@/decorators/custom-auth-decorators";
+import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 
 // We need to mock AuthGuard before importing JwtAuthGuard
@@ -69,7 +69,7 @@ describe("JwtAuthGuard", () => {
       });
       guard.canActivate(context);
 
-      // Only IS_PUBLIC_KEY should be checked, not API_KEY_AUTH_KEY
+      // Only IS_PUBLIC_KEY should be checked, not IDENTITY_KEY
       expect(mockReflector.getAllAndOverride).toHaveBeenCalledTimes(1);
       expect(mockReflector.getAllAndOverride).toHaveBeenCalledWith(
         IS_PUBLIC_KEY,
@@ -78,12 +78,12 @@ describe("JwtAuthGuard", () => {
     });
   });
 
-  describe("@ApiKeyAuth() routes", () => {
-    it("should skip JWT validation when API key header is present on @ApiKeyAuth() route", () => {
+  describe("@Identity({ allowApiKey: true }) routes", () => {
+    it("should skip JWT validation when API key header is present on @Identity({ allowApiKey: true }) route", () => {
       mockReflector.getAllAndOverride.mockImplementation((key: string) => {
         if (key === IS_PUBLIC_KEY) return false;
-        if (key === API_KEY_AUTH_KEY) return true;
-        return false;
+        if (key === IDENTITY_KEY) return { allowApiKey: true } as IdentityOptions;
+        return undefined;
       });
 
       const context = createMockExecutionContext({
@@ -95,11 +95,11 @@ describe("JwtAuthGuard", () => {
       expect(mockSuperCanActivate).not.toHaveBeenCalled();
     });
 
-    it("should delegate to Passport JWT when @ApiKeyAuth() is set but no API key header present", () => {
+    it("should delegate to Passport JWT when @Identity({ allowApiKey: true }) is set but no API key header present", () => {
       mockReflector.getAllAndOverride.mockImplementation((key: string) => {
         if (key === IS_PUBLIC_KEY) return false;
-        if (key === API_KEY_AUTH_KEY) return true;
-        return false;
+        if (key === IDENTITY_KEY) return { allowApiKey: true } as IdentityOptions;
+        return undefined;
       });
 
       const context = createMockExecutionContext({});
@@ -108,11 +108,11 @@ describe("JwtAuthGuard", () => {
       expect(mockSuperCanActivate).toHaveBeenCalledWith(context);
     });
 
-    it("should delegate to Passport JWT when API key header present but @ApiKeyAuth() is not set", () => {
+    it("should delegate to Passport JWT when API key header present but @Identity allowApiKey is not set", () => {
       mockReflector.getAllAndOverride.mockImplementation((key: string) => {
         if (key === IS_PUBLIC_KEY) return false;
-        if (key === API_KEY_AUTH_KEY) return false;
-        return false;
+        if (key === IDENTITY_KEY) return undefined;
+        return undefined;
       });
 
       const context = createMockExecutionContext({
@@ -168,10 +168,10 @@ describe("JwtAuthGuard", () => {
       );
     });
 
-    it("should check both handler and class for API_KEY_AUTH_KEY", () => {
+    it("should check both handler and class for IDENTITY_KEY", () => {
       mockReflector.getAllAndOverride.mockImplementation((key: string) => {
         if (key === IS_PUBLIC_KEY) return false;
-        return false;
+        return undefined;
       });
 
       const handler = jest.fn();
@@ -187,7 +187,7 @@ describe("JwtAuthGuard", () => {
       guard.canActivate(context);
 
       expect(mockReflector.getAllAndOverride).toHaveBeenCalledWith(
-        API_KEY_AUTH_KEY,
+        IDENTITY_KEY,
         [handler, klass],
       );
     });
