@@ -1,5 +1,9 @@
 # US-012: Delete `identityCanAccessGroup` and `getIdentityGroupIds` Helper Functions
 
+## Developer Note
+I opted not to carry out this user story. These functions still have a use in other areas.
+I recommend not deleting these, so they can still be used in areas where the group ID is not known on incoming requests.
+
 **As a** backend developer,
 **I want** the `identityCanAccessGroup` and `getIdentityGroupIds` helper functions to be deleted,
 **So that** authorization cannot be accidentally omitted at the endpoint level and all group access checks are centralized in `IdentityGuard`.
