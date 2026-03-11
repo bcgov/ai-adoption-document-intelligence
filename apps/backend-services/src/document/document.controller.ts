@@ -82,7 +82,7 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       document.group_id,
     );
@@ -117,7 +117,7 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       document.group_id,
     );
@@ -156,7 +156,7 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       document.group_id,
     );
@@ -202,13 +202,13 @@ export class DocumentController {
     let groupIds: string[] | undefined;
 
     if (groupId !== undefined) {
-      await identityCanAccessGroup(
+      identityCanAccessGroup(
         req.resolvedIdentity,
         groupId,
       );
       groupIds = [groupId];
     } else {
-      groupIds = await getIdentityGroupIds(
+      groupIds = getIdentityGroupIds(
         req.resolvedIdentity,
       );
     }
@@ -331,7 +331,7 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      await identityCanAccessGroup(
+      identityCanAccessGroup(
         req.resolvedIdentity,
         document.group_id,
       );
@@ -416,7 +416,7 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      await identityCanAccessGroup(
+      identityCanAccessGroup(
         req.resolvedIdentity,
         document.group_id,
       );
@@ -515,7 +515,7 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      await identityCanAccessGroup(
+      identityCanAccessGroup(
         req.resolvedIdentity,
         document.group_id,
       );
