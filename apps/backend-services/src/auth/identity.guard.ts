@@ -55,7 +55,7 @@ export class IdentityGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private databaseService: DatabaseService,
-  ) {}
+  ) { }
 
   /**
    * Resolves and attaches the requestor's identity to the request context,
@@ -92,33 +92,45 @@ export class IdentityGuard implements CanActivate {
           groupRoles: { [request.apiKeyGroupId]: GroupRole.MEMBER },
         };
       } else {
-        // @Identity is absent: set base identity without enrichment.
-        request.resolvedIdentity = {};
+        // Api-key was not explicity allowed. It it denied by default.
+        throw new ForbiddenException(
+          "API key authentication is not allowed for this endpoint",
+        );
       }
     } else if (request.user?.sub) {
       const userId = request.user.sub;
 
-      if (identityOptions !== undefined) {
-        // @Identity is present: run parallel DB queries to enrich identity.
-        const [isSystemAdmin, userGroups] = await Promise.all([
-          this.databaseService.isUserSystemAdmin(userId),
-          this.databaseService.getUsersGroups(userId),
-        ]);
+      // @Identity is present: run parallel DB queries to enrich identity.
+      const [isSystemAdmin, userGroups] = await Promise.all([
+        this.databaseService.isUserSystemAdmin(userId),
+        this.databaseService.getUsersGroups(userId),
+      ]);
 
-        const groupRoles: Record<string, GroupRole> = {};
-        for (const ug of userGroups) {
-          groupRoles[ug.group_id] = ug.role;
-        }
-
-        request.resolvedIdentity = {
-          userId,
-          isSystemAdmin,
-          groupRoles,
-        };
-      } else {
-        // @Identity is absent: set userId only; no DB queries.
-        request.resolvedIdentity = { userId };
+      const groupRoles: Record<string, GroupRole> = {};
+      for (const ug of userGroups) {
+        groupRoles[ug.group_id] = ug.role;
       }
+
+      request.resolvedIdentity = {
+        userId,
+        isSystemAdmin,
+        groupRoles,
+      };
+
+    } else {
+      // else: public route or unauthenticated request
+      // Must explicitly be marked as public though, otherwise throw an auth error
+      const isPublic = this.reflector.getAllAndOverride<boolean>("isPublic", [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+
+      if (!isPublic && !request.resolvedIdentity) {
+        throw new UnauthorizedException(
+          "Unauthenticated request to non-public endpoint",
+        );
+      }
+      return true;
     }
     // Enforce requireSystemAdmin immediately after enrichment.
     // API keys always have isSystemAdmin = false, so they always fail this check.
@@ -178,18 +190,6 @@ export class IdentityGuard implements CanActivate {
       }
     }
 
-    // else: public route or unauthenticated request
-    // Must explicitly be marked as public though, otherwise throw an auth error
-    const isPublic = this.reflector.getAllAndOverride<boolean>("isPublic", [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    if (!isPublic && !request.resolvedIdentity) {
-      throw new UnauthorizedException(
-        "Unauthenticated request to non-public endpoint",
-      );
-    }
 
     return true;
   }
