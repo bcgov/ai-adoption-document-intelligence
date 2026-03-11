@@ -26,7 +26,6 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
 import { Identity } from "@/auth/identity.decorator";
 import { DatasetService } from "./dataset.service";
 import {
@@ -42,7 +41,6 @@ export class HitlDatasetController {
   constructor(
     private readonly hitlDatasetService: HitlDatasetService,
     private readonly datasetService: DatasetService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   @Get("from-hitl/eligible-documents")
@@ -69,13 +67,11 @@ export class HitlDatasetController {
       await identityCanAccessGroup(
         req.resolvedIdentity,
         filters.group_id,
-        this.databaseService,
       );
       groupIds = [filters.group_id];
     } else {
       groupIds = await getIdentityGroupIds(
         req.resolvedIdentity,
-        this.databaseService,
       );
     }
 
@@ -109,7 +105,6 @@ export class HitlDatasetController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       dto.groupId,
-      this.databaseService,
     );
 
     return this.hitlDatasetService.createDatasetFromHitl(dto, userId);
@@ -143,7 +138,6 @@ export class HitlDatasetController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       dataset.groupId,
-      this.databaseService,
     );
 
     return this.hitlDatasetService.addVersionFromHitl(datasetId, dto, userId);

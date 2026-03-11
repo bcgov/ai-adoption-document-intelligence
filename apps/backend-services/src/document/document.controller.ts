@@ -85,7 +85,6 @@ export class DocumentController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       document.group_id,
-      this.databaseService,
     );
 
     this.logger.debug("=== DocumentController.getDocument completed ===");
@@ -121,7 +120,6 @@ export class DocumentController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       document.group_id,
-      this.databaseService,
     );
 
     const updated = await this.databaseService.updateDocument(documentId, {
@@ -161,7 +159,6 @@ export class DocumentController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       document.group_id,
-      this.databaseService,
     );
 
     await this.databaseService.deleteDocument(documentId);
@@ -208,13 +205,11 @@ export class DocumentController {
       await identityCanAccessGroup(
         req.resolvedIdentity,
         groupId,
-        this.databaseService,
       );
       groupIds = [groupId];
     } else {
       groupIds = await getIdentityGroupIds(
         req.resolvedIdentity,
-        this.databaseService,
       );
     }
 
@@ -339,7 +334,6 @@ export class DocumentController {
       await identityCanAccessGroup(
         req.resolvedIdentity,
         document.group_id,
-        this.databaseService,
       );
 
       this.logger.debug(`Document status: ${document.status}`);
@@ -425,7 +419,6 @@ export class DocumentController {
       await identityCanAccessGroup(
         req.resolvedIdentity,
         document.group_id,
-        this.databaseService,
       );
 
       // Read file from blob storage using the blob key
@@ -525,7 +518,6 @@ export class DocumentController {
       await identityCanAccessGroup(
         req.resolvedIdentity,
         document.group_id,
-        this.databaseService,
       );
 
       // Get workflow execution ID from document

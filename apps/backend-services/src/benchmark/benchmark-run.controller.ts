@@ -35,7 +35,6 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
 import { Identity } from "@/auth/identity.decorator";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
@@ -57,7 +56,6 @@ export class BenchmarkRunController {
   constructor(
     private readonly benchmarkRunService: BenchmarkRunService,
     private readonly benchmarkProjectService: BenchmarkProjectService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   private async assertProjectGroupAccess(
@@ -69,7 +67,6 @@ export class BenchmarkRunController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.groupId,
-      this.databaseService,
     );
   }
 

@@ -9,7 +9,6 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
 import { Identity } from "@/auth/identity.decorator";
 import { DatasetService } from "./dataset.service";
 import {
@@ -29,7 +28,6 @@ export class GroundTruthGenerationController {
   constructor(
     private readonly groundTruthGenerationService: GroundTruthGenerationService,
     private readonly datasetService: DatasetService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   private async assertDatasetGroupAccess(
@@ -40,7 +38,6 @@ export class GroundTruthGenerationController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       dataset.groupId,
-      this.databaseService,
     );
   }
 

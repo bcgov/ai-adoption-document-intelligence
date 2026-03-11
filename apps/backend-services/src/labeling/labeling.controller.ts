@@ -87,13 +87,11 @@ export class LabelingController {
       await identityCanAccessGroup(
         req.resolvedIdentity,
         groupId,
-        this.databaseService,
       );
       return this.labelingService.getProjects([groupId]);
     }
     const groupIds = await getIdentityGroupIds(
       req.resolvedIdentity,
-      this.databaseService,
     );
     return this.labelingService.getProjects(groupIds);
   }
@@ -111,7 +109,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       dto.group_id,
-      this.databaseService,
     );
     return this.labelingService.createProject(dto, userId);
   }
@@ -131,7 +128,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     return project;
   }
@@ -155,7 +151,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     return this.labelingService.updateProject(id, dto);
   }
@@ -175,7 +170,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     return this.labelingService.deleteProject(id);
   }
@@ -197,7 +191,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     return this.labelingService.getFieldSchema(id);
   }
@@ -221,7 +214,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     return this.labelingService.addField(projectId, dto);
   }
@@ -247,7 +239,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     return this.labelingService.updateField(projectId, fieldId, dto);
   }
@@ -272,7 +263,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     return this.labelingService.deleteField(projectId, fieldId);
   }
@@ -297,7 +287,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     return this.labelingService.getProjectDocuments(projectId);
   }
@@ -328,7 +317,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       labelingDoc.group_id,
-      this.databaseService,
     );
     return this.labelingService.addDocumentToProject(projectId, dto);
   }
@@ -350,7 +338,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       dto.group_id,
-      this.databaseService,
     );
     return this.labelingService.uploadLabelingDocument(projectId, dto);
   }
@@ -379,7 +366,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     return labeledDoc;
   }
@@ -406,7 +392,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     const labelingDocument = labeledDoc.labeling_document;
     const fileBuffer = await this.blobStorage.read(labelingDocument.file_path);
@@ -449,7 +434,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     return this.labelingService.removeDocumentFromProject(
       projectId,
@@ -482,7 +466,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     return this.labelingService.getDocumentLabels(projectId, documentId);
   }
@@ -511,7 +494,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     return this.labelingService.saveDocumentLabels(projectId, documentId, dto);
   }
@@ -541,7 +523,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     return this.labelingService.deleteLabel(projectId, documentId, labelId);
   }
@@ -570,7 +551,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     return this.labelingService.getDocumentOcr(projectId, documentId);
   }
@@ -620,7 +600,6 @@ export class LabelingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     return this.labelingService.exportProject(projectId, options);
   }

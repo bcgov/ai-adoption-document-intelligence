@@ -101,7 +101,7 @@ For `Dataset` sub-resource endpoints (versions, splits, samples, ground truth, f
 
 ## Authorization Logic
 
-The `identityCanAccessGroup(identity, groupId, db)` helper performs the following checks:
+The `identityCanAccessGroup(identity, groupId)` helper performs the following checks:
 
 1. If `groupId` is `null` (orphaned record with no group assignment), throws `404 Not Found`. This prevents leaking the existence of orphaned records to any caller, regardless of identity.
 2. If `identity` is `undefined`, throws `403 Forbidden`.

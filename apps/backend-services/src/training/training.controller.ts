@@ -19,7 +19,6 @@ import {
 import { Request } from "express";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Identity } from "@/auth/identity.decorator";
-import { DatabaseService } from "../database/database.service";
 import { LabelingService } from "../labeling/labeling.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainedModelDto } from "./dto/trained-model.dto";
@@ -36,7 +35,6 @@ export class TrainingController {
   constructor(
     private readonly trainingService: TrainingService,
     private readonly labelingService: LabelingService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   /**
@@ -61,7 +59,6 @@ export class TrainingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     return this.trainingService.validateTrainingData(projectId);
   }
@@ -88,7 +85,6 @@ export class TrainingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     const userId =
       req.user?.sub || (req.user as { id?: string })?.id || "unknown";
@@ -116,7 +112,6 @@ export class TrainingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     return this.trainingService.getTrainingJobs(projectId);
   }
@@ -140,7 +135,6 @@ export class TrainingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     return job;
   }
@@ -166,7 +160,6 @@ export class TrainingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     return this.trainingService.getTrainedModels(projectId);
   }
@@ -190,7 +183,6 @@ export class TrainingController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
-      this.databaseService,
     );
     await this.trainingService.cancelTrainingJob(jobId);
     return { success: true, message: "Training job cancelled" };

@@ -68,7 +68,6 @@ export class WorkflowController {
       await identityCanAccessGroup(
         req.resolvedIdentity,
         groupId,
-        this.databaseService,
       );
       const workflows = await this.workflowService.getGroupWorkflows([groupId]);
       return { workflows };
@@ -76,7 +75,6 @@ export class WorkflowController {
 
     const groupIds = await getIdentityGroupIds(
       req.resolvedIdentity,
-      this.databaseService,
     );
 
     if (groupIds.length === 0) {
@@ -109,7 +107,6 @@ export class WorkflowController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       workflow.groupId,
-      this.databaseService,
     );
 
     return { workflow };
@@ -141,7 +138,6 @@ export class WorkflowController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       dto.groupId,
-      this.databaseService,
     );
 
     const workflow = await this.workflowService.createWorkflow(userId, dto);
@@ -179,7 +175,6 @@ export class WorkflowController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       existing.groupId,
-      this.databaseService,
     );
 
     const workflow = await this.workflowService.updateWorkflow(id, userId, dto);
@@ -206,7 +201,6 @@ export class WorkflowController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       existing.groupId,
-      this.databaseService,
     );
 
     await this.workflowService.deleteWorkflow(id, userId);

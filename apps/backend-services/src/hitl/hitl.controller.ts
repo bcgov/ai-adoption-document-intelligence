@@ -62,13 +62,11 @@ export class HitlController {
       await identityCanAccessGroup(
         req.resolvedIdentity,
         filters.group_id,
-        this.databaseService,
       );
       groupIds = [filters.group_id];
     } else {
       groupIds = await getIdentityGroupIds(
         req.resolvedIdentity,
-        this.databaseService,
       );
     }
     return this.hitlService.getQueue(filters, groupIds);
@@ -105,13 +103,11 @@ export class HitlController {
       await identityCanAccessGroup(
         req?.resolvedIdentity,
         group_id,
-        this.databaseService,
       );
       groupIds = [group_id];
     } else {
       groupIds = await getIdentityGroupIds(
         req?.resolvedIdentity,
-        this.databaseService,
       );
     }
     return this.hitlService.getQueueStats(reviewStatus, groupIds);
@@ -134,7 +130,6 @@ export class HitlController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       document.group_id,
-      this.databaseService,
     );
     const reviewerId =
       req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
@@ -159,7 +154,6 @@ export class HitlController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       session.document.group_id,
-      this.databaseService,
     );
     return this.hitlService.getSession(id);
   }
@@ -186,7 +180,6 @@ export class HitlController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       session.document.group_id,
-      this.databaseService,
     );
     return this.hitlService.submitCorrections(sessionId, dto);
   }
@@ -209,7 +202,6 @@ export class HitlController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       session.document.group_id,
-      this.databaseService,
     );
     return this.hitlService.getCorrections(sessionId);
   }
@@ -232,7 +224,6 @@ export class HitlController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       session.document.group_id,
-      this.databaseService,
     );
     return this.hitlService.approveSession(sessionId);
   }
@@ -259,7 +250,6 @@ export class HitlController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       session.document.group_id,
-      this.databaseService,
     );
     return this.hitlService.escalateSession(sessionId, dto);
   }
@@ -282,7 +272,6 @@ export class HitlController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       session.document.group_id,
-      this.databaseService,
     );
     return this.hitlService.skipSession(sessionId);
   }
@@ -304,13 +293,11 @@ export class HitlController {
       await identityCanAccessGroup(
         req.resolvedIdentity,
         filters.group_id,
-        this.databaseService,
       );
       groupIds = [filters.group_id];
     } else {
       groupIds = await getIdentityGroupIds(
         req.resolvedIdentity,
-        this.databaseService,
       );
     }
     return this.hitlService.getAnalytics(filters, groupIds);

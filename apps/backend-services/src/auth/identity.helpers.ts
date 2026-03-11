@@ -19,12 +19,10 @@ import { ResolvedIdentity } from "./types";
  *
  * @param identity - The resolved identity from `request.resolvedIdentity`, or
  *   `undefined` for unauthenticated requests.
- * @param db - The database service used to check admin role and group membership.
  * @returns An array of accessible group IDs, or `undefined` for unrestricted access.
  */
 export async function getIdentityGroupIds(
   identity: ResolvedIdentity | undefined,
-  db: DatabaseService,
 ): Promise<string[] | undefined> {
   if (!identity) {
     return [];
@@ -39,18 +37,6 @@ export async function getIdentityGroupIds(
   if (identity.groupRoles !== undefined) {
     // API key path: groupRoles encodes the single scoped group.
     return Object.keys(identity.groupRoles);
-  }
-
-  if (identity.userId !== undefined) {
-    const isAdmin = await db.isUserSystemAdmin(identity.userId);
-    if (isAdmin) {
-      // What undefined means:
-      // - Caller should not apply any group filter (e.g. `where: { group_id: { in: ... } }`)
-      // - Admin users can see all records across all groups
-      return undefined;
-    }
-    const userGroups = await db.getUsersGroups(identity.userId);
-    return userGroups.map((ug) => ug.group_id);
   }
 
   return [];
@@ -72,8 +58,6 @@ export async function getIdentityGroupIds(
  *   `undefined` for unauthenticated requests.
  * @param groupId - The group ID to validate access against, or `null` for
  *   orphaned records with no group assignment.
- * @param db - The database service used to check user group membership on the
- *   JWT path.
  * @throws {NotFoundException} When the resource has no group (`groupId` is null),
  *   preventing leakage of orphaned record existence.
  * @throws {ForbiddenException} When the identity is not authorised to access the group.
@@ -81,7 +65,6 @@ export async function getIdentityGroupIds(
 export async function identityCanAccessGroup(
   identity: ResolvedIdentity | undefined,
   groupId: string | null,
-  db: DatabaseService,
 ): Promise<void> {
   if (groupId === null) {
     throw new NotFoundException("Resource not found.");

@@ -50,7 +50,6 @@ export class BenchmarkProjectController {
 
   constructor(
     private readonly benchmarkProjectService: BenchmarkProjectService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   @Post()
@@ -79,7 +78,6 @@ export class BenchmarkProjectController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       createProjectDto.groupId,
-      this.databaseService,
     );
 
     return this.benchmarkProjectService.createProject(createProjectDto, userId);
@@ -108,14 +106,12 @@ export class BenchmarkProjectController {
       await identityCanAccessGroup(
         req.resolvedIdentity,
         groupId,
-        this.databaseService,
       );
       return this.benchmarkProjectService.listProjects([groupId]);
     }
 
     const groupIds = await getIdentityGroupIds(
       req.resolvedIdentity,
-      this.databaseService,
     );
 
     if (groupIds.length === 0) {
@@ -146,7 +142,6 @@ export class BenchmarkProjectController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.groupId,
-      this.databaseService,
     );
 
     return project;
@@ -172,7 +167,6 @@ export class BenchmarkProjectController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       project.groupId,
-      this.databaseService,
     );
 
     return this.benchmarkProjectService.deleteProject(id);

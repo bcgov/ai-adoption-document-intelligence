@@ -18,6 +18,7 @@ import {
   ApiBody,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
@@ -377,17 +378,7 @@ export class GroupController {
   })
   @ApiResponse({ status: 400, description: "Invalid input." })
   @ApiParam({ name: "userId", description: "User ID", type: String })
-  @ApiBody({
-    schema: {
-      properties: {
-        groupIds: {
-          type: "array",
-          items: { type: "string" },
-          description: "Array of group IDs",
-        },
-      },
-    },
-  })
+  @ApiParam({ name: "groupId", description: "Group ID", type: String })
   @Identity()
   @Post(":groupId/members/:userId")
   async addGroupMember(
@@ -436,6 +427,12 @@ export class GroupController {
   })
   @ApiResponse({ status: 404, description: "Group not found." })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
+  @ApiQuery({
+    name: "status",
+    required: false,
+    description:
+      "Optional status to filter membership requests (PENDING, APPROVED, DENIED).",
+  })
   @Identity()
   @Get(":groupId/requests")
   async getGroupRequests(

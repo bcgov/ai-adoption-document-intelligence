@@ -18,7 +18,6 @@ import {
 import { Request } from "express";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Identity } from "@/auth/identity.decorator";
-import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
@@ -32,7 +31,6 @@ export class UploadController {
   constructor(
     private readonly documentService: DocumentService,
     private readonly queueService: QueueService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   @Post()
@@ -74,7 +72,6 @@ export class UploadController {
       await identityCanAccessGroup(
         req.resolvedIdentity,
         uploadDto.group_id,
-        this.databaseService,
       );
 
       // Use original_filename from DTO or default to title

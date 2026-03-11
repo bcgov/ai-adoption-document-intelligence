@@ -44,7 +44,6 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
 import { Identity } from "@/auth/identity.decorator";
 import { DatasetService } from "./dataset.service";
 import {
@@ -68,7 +67,6 @@ import {
 export class DatasetController {
   constructor(
     private readonly datasetService: DatasetService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   private async assertDatasetGroupAccess(
@@ -79,7 +77,6 @@ export class DatasetController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       dataset.groupId,
-      this.databaseService,
     );
   }
 
@@ -109,7 +106,6 @@ export class DatasetController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       createDto.groupId,
-      this.databaseService,
     );
 
     return this.datasetService.createDataset(createDto, userId);
@@ -154,14 +150,12 @@ export class DatasetController {
       await identityCanAccessGroup(
         req!.resolvedIdentity,
         groupId,
-        this.databaseService,
       );
       return this.datasetService.listDatasets(pageNum, limitNum, [groupId]);
     }
 
     const groupIds = await getIdentityGroupIds(
       req!.resolvedIdentity,
-      this.databaseService,
     );
 
     if (groupIds.length === 0) {
@@ -199,7 +193,6 @@ export class DatasetController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       dataset.groupId,
-      this.databaseService,
     );
 
     return dataset;

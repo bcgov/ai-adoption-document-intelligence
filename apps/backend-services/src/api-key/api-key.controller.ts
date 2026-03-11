@@ -31,7 +31,6 @@ import {
   GeneratedApiKeyWrapperDto,
 } from "@/api-key/dto/api-key-info.dto";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
 import { Identity } from "@/auth/identity.decorator";
 import { ApiKeyService } from "./api-key.service";
 
@@ -40,7 +39,6 @@ import { ApiKeyService } from "./api-key.service";
 export class ApiKeyController {
   constructor(
     private readonly apiKeyService: ApiKeyService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   @Get()
@@ -66,7 +64,6 @@ export class ApiKeyController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       groupId,
-      this.databaseService,
     );
     const apiKey = await this.apiKeyService.getApiKey(groupId);
     return { apiKey };
@@ -96,7 +93,6 @@ export class ApiKeyController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       body.groupId,
-      this.databaseService,
     );
     const apiKey = await this.apiKeyService.generateApiKey(
       userId,
@@ -127,7 +123,6 @@ export class ApiKeyController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       groupId,
-      this.databaseService,
     );
     await this.apiKeyService.deleteApiKey(id);
   }
@@ -156,7 +151,6 @@ export class ApiKeyController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       groupId,
-      this.databaseService,
     );
     const apiKey = await this.apiKeyService.regenerateApiKey(userId, body.id);
     return { apiKey };

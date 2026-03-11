@@ -396,7 +396,7 @@ X-API-Key: your-api-key-here</code></pre>
 
 <div class="grid grid-2">
     <div class="card" style="border-left-color: #2E8540;">
-        <h4 style="margin-top: 0;"><code>getIdentityGroupIds(identity, db)</code></h4>
+        <h4 style="margin-top: 0;"><code>getIdentityGroupIds(identity)</code></h4>
         <p>Returns the list of group IDs the identity can access, or <code>undefined</code> for system-admins (unrestricted access). Used by list/query endpoints to filter results to the requestor's groups.</p>
         <ul style="margin-bottom: 0;">
             <li><strong>API key</strong> &rarr; <code>[identity.groupId]</code></li>
@@ -405,7 +405,7 @@ X-API-Key: your-api-key-here</code></pre>
         </ul>
     </div>
     <div class="card" style="border-left-color: #8b5cf6;">
-        <h4 style="margin-top: 0;"><code>identityCanAccessGroup(identity, groupId, db)</code></h4>
+        <h4 style="margin-top: 0;"><code>identityCanAccessGroup(identity, groupId)</code></h4>
         <p>Asserts that the identity can access a specific group. Throws HTTP exceptions on failure. Used by single-resource endpoints (get, update, delete) after fetching the resource's <code>group_id</code>.</p>
         <ul style="margin-bottom: 0;">
             <li><code>groupId === null</code> &rarr; <code>404 Not Found</code> (orphaned record)</li>

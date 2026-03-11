@@ -100,13 +100,11 @@ export class AzureController {
       await identityCanAccessGroup(
         req.resolvedIdentity,
         groupId,
-        this.databaseService,
       );
       return this.databaseService.getClassifierModelsForGroups([groupId]);
     }
     const groupIds = await getIdentityGroupIds(
       req.resolvedIdentity,
-      this.databaseService,
     );
     const classifiers =
       await this.databaseService.getClassifierModelsForGroups(groupIds);
@@ -132,7 +130,6 @@ export class AzureController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
-      this.databaseService,
     );
 
     // Does this classifier already exist?
@@ -177,7 +174,6 @@ export class AzureController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
-      this.databaseService,
     );
 
     // Check if classifier exists
@@ -248,7 +244,6 @@ export class AzureController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
-      this.databaseService,
     );
 
     const existingModelData = await this.databaseService.getClassifierModel(
@@ -292,7 +287,6 @@ export class AzureController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
-      this.databaseService,
     );
 
     const existingModelData = await this.databaseService.getClassifierModel(
@@ -327,7 +321,6 @@ export class AzureController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
-      this.databaseService,
     );
 
     const existingModelData = await this.databaseService.getClassifierModel(
@@ -379,7 +372,6 @@ export class AzureController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
-      this.databaseService,
     );
 
     // Respond immediately and run the heavy work in the background
@@ -467,7 +459,6 @@ export class AzureController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
-      this.databaseService,
     );
     // Is there a classifier trained for this group?
     const classifier = await this.databaseService.getClassifierModel(
@@ -548,7 +539,6 @@ export class AzureController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
-      this.databaseService,
     );
     const classifier = await this.databaseService.getClassifierModel(
       name,

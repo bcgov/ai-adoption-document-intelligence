@@ -1482,13 +1482,13 @@ The `IdentityGuard` (global guard, position 4) runs after authentication and att
 
 Two shared helpers in `identity.helpers.ts` are used by controllers to enforce group access:
 
-**`getIdentityGroupIds(identity, db)`** — Returns the list of group IDs the identity can access, or `undefined` for system-admins (unrestricted access). Used by list/query endpoints to filter results.
+**`getIdentityGroupIds(identity)`** — Returns the list of group IDs the identity can access, or `undefined` for system-admins (unrestricted access). Used by list/query endpoints to filter results.
 
 - **API key** → `[identity.groupId]`
 - **JWT system-admin** → `undefined` (no group filter — sees all records)
 - **JWT regular user** → user's group IDs from `UserGroup` table
 
-**`identityCanAccessGroup(identity, groupId, db)`** — Asserts that the identity can access a specific group. Throws HTTP exceptions on failure. Used by single-resource endpoints after fetching the resource's `group_id`.
+**`identityCanAccessGroup(identity, groupId)`** — Asserts that the identity can access a specific group. Throws HTTP exceptions on failure. Used by single-resource endpoints after fetching the resource's `group_id`.
 
 - `groupId === null` → `404 Not Found` (orphaned record)
 - No identity → `403 Forbidden`
