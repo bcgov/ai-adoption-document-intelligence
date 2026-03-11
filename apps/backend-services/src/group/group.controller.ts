@@ -1,4 +1,4 @@
-import { $Enums } from "@generated/client";
+import { $Enums, GroupRole } from "@generated/client";
 import {
   Body,
   Controller,
@@ -10,12 +10,10 @@ import {
   Param,
   Patch,
   Post,
-  Put,
   Query,
   Req,
 } from "@nestjs/common";
 import {
-  ApiBody,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -55,16 +53,13 @@ export class GroupController {
   @ApiResponse({ status: 403, description: "Caller is not a system admin." })
   @ApiResponse({ status: 404, description: "Group not found." })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @Identity()
+  @Identity({ requireSystemAdmin: true })
   @Delete(":groupId")
   async deleteGroup(
     @Req() req: Request,
     @Param("groupId") groupId: string,
   ): Promise<{ success: boolean }> {
     const callerId = req.resolvedIdentity?.userId;
-    if (!callerId) {
-      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-    }
     await this.groupService.deleteGroup(groupId, callerId);
     return { success: true };
   }
@@ -99,16 +94,13 @@ export class GroupController {
     description: "Caller does not have permission to view this user's groups.",
   })
   @ApiParam({ name: "userId", description: "User ID", type: String })
-  @Identity()
+  @Identity({ requireSystemAdmin: true })
   @Get("/user/:userId")
   async getUserGroups(
     @Req() req: Request,
     @Param("userId") userId: string,
   ): Promise<UserGroupDto[]> {
     const callerId = req.resolvedIdentity?.userId;
-    if (!callerId) {
-      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-    }
     return await this.groupService.getUserGroups(callerId, userId);
   }
 
@@ -129,9 +121,6 @@ export class GroupController {
     @Body() body: RequestMembershipDto,
   ): Promise<{ success: boolean }> {
     const userId = req.user?.sub;
-    if (!userId) {
-      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-    }
     await this.groupService.requestMembership(userId, body.groupId);
     return { success: true };
   }
@@ -155,10 +144,6 @@ export class GroupController {
     @Query("status") status?: string,
   ): Promise<MyMembershipRequestDto[]> {
     const userId = req.resolvedIdentity?.userId;
-    if (!userId) {
-      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-    }
-
     const validStatuses = Object.values($Enums.GroupMembershipRequestStatus);
     let parsedStatus: $Enums.GroupMembershipRequestStatus | undefined;
     if (status !== undefined) {
@@ -204,9 +189,6 @@ export class GroupController {
     @Body() body: MembershipRequestActionDto,
   ): Promise<{ success: boolean }> {
     const userId = req.user?.sub;
-    if (!userId) {
-      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-    }
     await this.groupService.cancelMembershipRequest(
       userId,
       requestId,
@@ -242,12 +224,9 @@ export class GroupController {
     @Param("requestId") requestId: string,
     @Body() body: MembershipRequestActionDto,
   ): Promise<{ success: boolean }> {
-    const adminId = req.resolvedIdentity?.userId;
-    if (!adminId) {
-      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-    }
+    const identity = req.resolvedIdentity;
     await this.groupService.approveMembershipRequest(
-      adminId,
+      identity,
       requestId,
       body.reason,
     );
@@ -282,12 +261,9 @@ export class GroupController {
     @Param("requestId") requestId: string,
     @Body() body: MembershipRequestActionDto,
   ): Promise<{ success: boolean }> {
-    const adminId = req.resolvedIdentity?.userId;
-    if (!adminId) {
-      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-    }
+    const identity = req.resolvedIdentity;
     await this.groupService.denyMembershipRequest(
-      adminId,
+      identity,
       requestId,
       body.reason,
     );
@@ -314,7 +290,7 @@ export class GroupController {
     description: "A group with the given name already exists.",
   })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @Identity()
+  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
   @Patch(":groupId")
   async updateGroup(
     @Req() req: Request,
@@ -322,9 +298,6 @@ export class GroupController {
     @Body() body: UpdateGroupDto,
   ): Promise<{ id: string; name: string; description: string | null }> {
     const callerId = req.resolvedIdentity?.userId;
-    if (!callerId) {
-      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-    }
     return await this.groupService.updateGroup(
       callerId,
       groupId,
@@ -349,7 +322,7 @@ export class GroupController {
     status: 409,
     description: "A group with the given name already exists.",
   })
-  @Identity()
+  @Identity({ requireSystemAdmin: true })
   @HttpCode(HttpStatus.CREATED)
   @Post()
   async createGroup(
@@ -357,9 +330,6 @@ export class GroupController {
     @Body() body: CreateGroupDto,
   ): Promise<{ id: string; name: string; description: string | null }> {
     const callerId = req.resolvedIdentity?.userId;
-    if (!callerId) {
-      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-    }
     return await this.groupService.createGroup(
       callerId,
       body.name,
@@ -379,10 +349,9 @@ export class GroupController {
   @ApiResponse({ status: 400, description: "Invalid input." })
   @ApiParam({ name: "userId", description: "User ID", type: String })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @Identity()
+  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
   @Post(":groupId/members/:userId")
   async addGroupMember(
-    @Req() req: Request,
     @Param("groupId") groupId: string,
     @Param("userId") userId: string,
   ) {
@@ -393,16 +362,8 @@ export class GroupController {
       throw new HttpException("User ID is required", HttpStatus.BAD_REQUEST);
     }
 
-    try {
-      const callerId = req.resolvedIdentity?.userId;
-      if (!callerId) {
-        throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-      }
-      await this.groupService.assignUserToGroup(callerId, userId, groupId);
-      return { success: true };
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    await this.groupService.assignUserToGroup(userId, groupId);
+    return { success: true };
   }
 
   /**
@@ -433,7 +394,7 @@ export class GroupController {
     description:
       "Optional status to filter membership requests (PENDING, APPROVED, DENIED).",
   })
-  @Identity()
+  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
   @Get(":groupId/requests")
   async getGroupRequests(
     @Req() req: Request,
@@ -441,9 +402,6 @@ export class GroupController {
     @Query("status") status?: string,
   ): Promise<GroupMembershipRequestDto[]> {
     const callerId = req.resolvedIdentity?.userId;
-    if (!callerId) {
-      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-    }
 
     const validStatuses = Object.values($Enums.GroupMembershipRequestStatus);
     let parsedStatus: $Enums.GroupMembershipRequestStatus | undefined;
@@ -482,17 +440,15 @@ export class GroupController {
   })
   @ApiResponse({ status: 404, description: "Group not found." })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @Identity()
+  @Identity({
+    groupIdFrom: { param: "groupId" },
+    minimumRole: GroupRole.MEMBER,
+  })
   @Get(":groupId/members")
   async getGroupMembers(
-    @Req() req: Request,
     @Param("groupId") groupId: string,
   ): Promise<GroupMemberDto[]> {
-    const userId = req.resolvedIdentity?.userId;
-    if (!userId) {
-      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-    }
-    return await this.groupService.getGroupMembers(userId, groupId);
+    return await this.groupService.getGroupMembers(groupId);
   }
 
   /**
@@ -514,18 +470,13 @@ export class GroupController {
   })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
   @ApiParam({ name: "userId", description: "User ID to remove", type: String })
-  @Identity()
+  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
   @Delete(":groupId/members/:userId")
   async removeGroupMember(
-    @Req() req: Request,
     @Param("groupId") groupId: string,
     @Param("userId") userId: string,
   ): Promise<{ success: boolean }> {
-    const callerId = req.resolvedIdentity?.userId;
-    if (!callerId) {
-      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-    }
-    await this.groupService.removeGroupMember(callerId, groupId, userId);
+    await this.groupService.removeGroupMember(groupId, userId);
     return { success: true };
   }
 
@@ -543,16 +494,16 @@ export class GroupController {
     description: "Caller is not a member of the group.",
   })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @Identity()
+  @Identity({
+    groupIdFrom: { param: "groupId" },
+    minimumRole: GroupRole.MEMBER,
+  })
   @Delete(":groupId/leave")
   async leaveGroup(
     @Req() req: Request,
     @Param("groupId") groupId: string,
   ): Promise<{ success: boolean }> {
     const userId = req.resolvedIdentity?.userId;
-    if (!userId) {
-      throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);
-    }
     await this.groupService.leaveGroup(userId, groupId);
     return { success: true };
   }
