@@ -1,6 +1,6 @@
 import axios from "axios";
-import type { OCRResponse, OCRResult } from "../types";
 import { createActivityLogger } from "../logger";
+import type { OCRResponse, OCRResult } from "../types";
 
 /**
  * Normalize endpoint URL by removing trailing slash

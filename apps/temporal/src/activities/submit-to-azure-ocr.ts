@@ -5,8 +5,8 @@ import DocumentIntelligence, {
 import * as fs from "fs";
 import * as path from "path";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
-import type { PreparedFileData, SubmissionResult } from "../types";
 import { createActivityLogger } from "../logger";
+import type { PreparedFileData, SubmissionResult } from "../types";
 
 /**
  * Normalize endpoint URL by removing trailing slash.

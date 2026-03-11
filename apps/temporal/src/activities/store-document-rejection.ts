@@ -1,5 +1,5 @@
-import { getPrismaClient } from "./database-client";
 import { createActivityLogger } from "../logger";
+import { getPrismaClient } from "./database-client";
 
 /**
  * Activity: Store document rejection data

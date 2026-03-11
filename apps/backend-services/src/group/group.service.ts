@@ -471,7 +471,10 @@ export class GroupService {
       actor_id: callerId,
       group_id: group.id,
       request_id: requestContext?.requestId,
-      payload: { name: group.name, description: group.description ?? undefined },
+      payload: {
+        name: group.name,
+        description: group.description ?? undefined,
+      },
     });
     this.logger.log("Group created", {
       groupId: group.id,
@@ -535,7 +538,10 @@ export class GroupService {
       actor_id: callerId,
       group_id: groupId,
       request_id: requestContext?.requestId,
-      payload: { name: updated.name, description: updated.description ?? undefined },
+      payload: {
+        name: updated.name,
+        description: updated.description ?? undefined,
+      },
     });
     this.logger.log("Group updated", {
       groupId,

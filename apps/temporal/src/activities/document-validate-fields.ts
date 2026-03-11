@@ -308,7 +308,7 @@ function extractKeyValueFields(
     }
 
     const normalizedValue = normalizeKeyValue(rawValue);
-    const hasExisting = Object.prototype.hasOwnProperty.call(extracted, normalizedKey);
+    const hasExisting = Object.hasOwn(extracted, normalizedKey);
     const existingIsCheckbox = checkboxKeyFlags[normalizedKey] ?? false;
 
     if (!hasExisting) {

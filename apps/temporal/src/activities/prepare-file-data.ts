@@ -1,8 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
-import type { PreparedFileData } from "../types";
 import { createActivityLogger } from "../logger";
+import type { PreparedFileData } from "../types";
 
 export interface PrepareFileDataInput {
   documentId: string;

@@ -132,7 +132,9 @@ export class AzureStorageService {
 
         this.logger.error(
           `Failed to ensure container exists: ${containerName}`,
-          { stack: err.stack },
+          {
+            stack: err.stack,
+          },
         );
         throw error;
       }
@@ -278,7 +280,9 @@ export class AzureStorageService {
       const err = error as Error;
       this.logger.error(
         `Failed to generate SAS URL for container: ${containerName}`,
-        { stack: err.stack },
+        {
+          stack: err.stack,
+        },
       );
       throw error;
     }
@@ -387,10 +391,9 @@ export class AzureStorageService {
       return blobs;
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(
-        `Failed to list blobs in container: ${containerName}`,
-        { stack: err.stack },
-      );
+      this.logger.error(`Failed to list blobs in container: ${containerName}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -407,10 +410,9 @@ export class AzureStorageService {
       this.logger.log(`Deleted container: ${containerName}`);
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(
-        `Failed to delete container: ${containerName}`,
-        { stack: err.stack },
-      );
+      this.logger.error(`Failed to delete container: ${containerName}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -434,10 +436,9 @@ export class AzureStorageService {
       return true;
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(
-        `Failed to delete container: ${containerName}`,
-        { stack: err.stack },
-      );
+      this.logger.error(`Failed to delete container: ${containerName}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -467,7 +468,9 @@ export class AzureStorageService {
       const err = error as Error;
       this.logger.error(
         `Failed to clear container contents: ${containerName}`,
-        { stack: err.stack },
+        {
+          stack: err.stack,
+        },
       );
       throw error;
     }

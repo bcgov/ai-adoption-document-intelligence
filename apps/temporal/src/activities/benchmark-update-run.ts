@@ -7,8 +7,8 @@
  */
 
 import type { Prisma } from "../generated";
-import { getPrismaClient } from "./database-client";
 import { createActivityLogger } from "../logger";
+import { getPrismaClient } from "./database-client";
 
 export interface BenchmarkUpdateRunStatusInput {
   /** Benchmark run ID */

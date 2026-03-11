@@ -1,7 +1,7 @@
 import { Global, Module, type NestModule } from "@nestjs/common";
 import { APP_INTERCEPTOR } from "@nestjs/core";
-import { AppLoggerService } from "./app-logger.service";
 import { LoggingInterceptor } from "../logger/logging.interceptor";
+import { AppLoggerService } from "./app-logger.service";
 import { LoggingMiddleware } from "./logging.middleware";
 import { RequestLoggingInterceptor } from "./request-logging.interceptor";
 

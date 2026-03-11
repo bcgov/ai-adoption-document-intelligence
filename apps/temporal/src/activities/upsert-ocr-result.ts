@@ -1,7 +1,7 @@
 import { Prisma } from "@generated/client";
+import { createActivityLogger } from "../logger";
 import type { EnrichmentSummary, OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
-import { createActivityLogger } from "../logger";
 
 /**
  * Activity: Upsert OCR result in database

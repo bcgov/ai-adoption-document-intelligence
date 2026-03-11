@@ -4,12 +4,12 @@
  * Activities use createActivityLogger to attach activity name and workflowExecutionId.
  */
 
-import { Context } from "@temporalio/activity";
 import {
   createLogger,
   type LogContext,
   type Logger as SharedLogger,
 } from "@ai-di/shared-logging";
+import { Context } from "@temporalio/activity";
 
 const SERVICE_NAME = "temporal-worker";
 

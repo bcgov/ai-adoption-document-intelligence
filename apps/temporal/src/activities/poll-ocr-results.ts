@@ -2,8 +2,8 @@ import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
-import type { OCRResponse, PollResult } from "../types";
 import { createActivityLogger } from "../logger";
+import type { OCRResponse, PollResult } from "../types";
 
 /**
  * Activity: Poll Azure Document Intelligence for OCR results

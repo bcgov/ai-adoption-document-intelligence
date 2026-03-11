@@ -1,6 +1,6 @@
+import { createActivityLogger } from "../logger";
 import type { OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
-import { createActivityLogger } from "../logger";
 
 /**
  * Activity: Calculate OCR confidence and prepare for human review if needed

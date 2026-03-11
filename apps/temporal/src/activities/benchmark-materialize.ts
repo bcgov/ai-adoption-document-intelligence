@@ -2,8 +2,8 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import type { DatasetManifest } from "../benchmark-types";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
-import { getPrismaClient } from "./database-client";
 import { createActivityLogger } from "../logger";
+import { getPrismaClient } from "./database-client";
 
 interface MaterializeDatasetParams {
   datasetVersionId: string;

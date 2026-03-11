@@ -4,11 +4,11 @@
  * one format, LOG_LEVEL respected, no separate SDK format on stdout.
  */
 
-import type { LogLevel as TemporalLogLevel } from "@temporalio/common";
-import { DefaultLogger, Runtime } from "@temporalio/worker";
-import type { LogEntry } from "@temporalio/worker";
-import { getLogLevel } from "@ai-di/shared-logging";
 import type { LogContext } from "@ai-di/shared-logging";
+import { getLogLevel } from "@ai-di/shared-logging";
+import type { LogLevel as TemporalLogLevel } from "@temporalio/common";
+import type { LogEntry } from "@temporalio/worker";
+import { DefaultLogger, Runtime } from "@temporalio/worker";
 import { workerLogger } from "./logger";
 
 const SHARED_TO_TEMPORAL_LEVEL: Record<string, TemporalLogLevel> = {

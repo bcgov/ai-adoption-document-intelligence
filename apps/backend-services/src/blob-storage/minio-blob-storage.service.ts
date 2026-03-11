@@ -225,10 +225,9 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       return keys;
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(
-        `Failed to list blobs with prefix "${prefix}"`,
-        { stack: err.stack },
-      );
+      this.logger.error(`Failed to list blobs with prefix "${prefix}"`, {
+        stack: err.stack,
+      });
       throw new Error(
         `Failed to list blobs with prefix "${prefix}": ${err.message}`,
       );

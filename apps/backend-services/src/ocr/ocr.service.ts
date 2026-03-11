@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AuditService } from "@/audit/audit.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -13,7 +14,6 @@ import {
 import { DatabaseService } from "@/database/database.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { getRequestContext } from "@/logging/request-context";
-import { AuditService } from "@/audit/audit.service";
 import {
   AnalysisResponse,
   AnalysisResult,

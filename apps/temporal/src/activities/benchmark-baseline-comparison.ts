@@ -7,13 +7,13 @@
  */
 
 import type { Prisma } from "../generated";
+import { createActivityLogger } from "../logger";
 import {
   type BaselineComparison,
   computeMetricComparisons,
   type MetricThreshold,
 } from "./benchmark-comparison-utils";
 import { getPrismaClient } from "./database-client";
-import { createActivityLogger } from "../logger";
 
 export type {
   BaselineComparison,

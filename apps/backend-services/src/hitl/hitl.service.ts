@@ -8,12 +8,12 @@ import {
 } from "@generated/client";
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
+import { AuditService } from "@/audit/audit.service";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { GroundTruthGenerationService } from "../benchmark/ground-truth-generation.service";
 import { DatabaseService } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { getRequestContext } from "../logging/request-context";
-import { AuditService } from "@/audit/audit.service";
 import { AnalyticsService } from "./analytics.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";

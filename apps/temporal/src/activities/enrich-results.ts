@@ -3,6 +3,7 @@
  * Fetches LabelingProject field_schema, applies generic rules, optionally calls Azure OpenAI for low-confidence fields.
  */
 
+import { createActivityLogger } from "../logger";
 import type {
   EnrichmentChange,
   EnrichmentResult,
@@ -21,7 +22,6 @@ import {
   buildFieldMap,
   mergeKeyValuePairs,
 } from "./enrichment-rules";
-import { createActivityLogger } from "../logger";
 
 export interface EnrichResultsParams {
   documentId: string;

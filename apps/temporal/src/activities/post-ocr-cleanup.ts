@@ -1,5 +1,5 @@
-import type { OCRResult } from "../types";
 import { createActivityLogger } from "../logger";
+import type { OCRResult } from "../types";
 
 /**
  * Activity: Post-OCR processing cleanup

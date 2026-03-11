@@ -98,27 +98,29 @@ export class LoggingInterceptor implements NestInterceptor {
           });
         }
       }),
-      catchError((error: { message?: string; stack?: string; status?: number }) => {
-        const durationMs = Date.now() - startTime;
-        const statusCode = error.status ?? 500;
-        this.logger.error("HTTP request failed", {
-          ...this.baseContext(),
-          method,
-          path: path ?? url,
-          statusCode,
-          durationMs,
-          error: error.message ?? String(error),
-        });
-        if (error.stack) {
-          this.logger.debug("HTTP request error stack", {
+      catchError(
+        (error: { message?: string; stack?: string; status?: number }) => {
+          const durationMs = Date.now() - startTime;
+          const statusCode = error.status ?? 500;
+          this.logger.error("HTTP request failed", {
             ...this.baseContext(),
             method,
             path: path ?? url,
-            stack: error.stack,
+            statusCode,
+            durationMs,
+            error: error.message ?? String(error),
           });
-        }
-        throw error;
-      }),
+          if (error.stack) {
+            this.logger.debug("HTTP request error stack", {
+              ...this.baseContext(),
+              method,
+              path: path ?? url,
+              stack: error.stack,
+            });
+          }
+          throw error;
+        },
+      ),
     );
   }
 }
