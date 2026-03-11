@@ -11,5 +11,7 @@ resources:
   - temporal-worker-configmap.yml
   - temporal-worker-secrets.yml
   - temporal-worker-deployment.yml
+  - pvc-logs.yml
+  - logrotate-configmap.yml
 commonLabels:
   app.kubernetes.io/part-of: temporal

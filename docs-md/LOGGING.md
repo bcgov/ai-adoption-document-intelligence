@@ -21,3 +21,18 @@ The package has a small Jest test suite in `packages/logging/src/logger.test.ts`
 ## Audit table (document access)
 
 The backend records **who accessed documents and when** in the `audit_events` table. For each successful access to document metadata (GET document by ID), document file (GET download), or OCR result (GET OCR), an event with `event_type` `document_accessed` is written with `actor_id`, `document_id`, `group_id`, `request_id`, and `payload.action` (`metadata`, `download`, or `ocr`). See `docs/AUDIT.md` and `feature-docs/007-logging-system/REQUIREMENTS-AUDIT.md` for the full audit schema and event types.
+
+## OpenShift: log persistence and rotation
+
+On OpenShift, stdout is still collected by the platform (e.g. Loki). To keep a durable copy for debugging after crashes, deployments use:
+
+- **Tee:** The main process stdout/stderr is piped through `tee -a /var/log/app/<service>.log`, so logs go to both the container runtime (and thus Loki) and a file on a persistent volume.
+- **PVC:** A dedicated logs PVC (`backend-services-logs`, `temporal-worker-logs`) is mounted at `/var/log/app`. Logs survive pod restarts.
+- **Logrotate sidecar:** A `logrotate` container runs hourly, rotating the log file when it reaches 50M and keeping 5 rotated files. It uses `copytruncate` so the app does not need to be restarted.
+
+To inspect persisted logs:
+
+- Backend: `oc exec -it deployment/backend-services -c backend-services -- tail -n 200 /var/log/app/backend.log`
+- Temporal worker: `oc exec -it deployment/temporal-worker -c temporal-worker -- tail -n 200 /var/log/app/worker.log`
+
+Config is in `deployments/openshift/kustomize/base/`: PVCs (`pvc-logs.yml`), ConfigMaps (`logrotate-configmap.yml`), and the deployment specs (volume mounts, tee command, logrotate sidecar).
