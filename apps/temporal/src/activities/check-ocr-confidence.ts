@@ -1,5 +1,6 @@
 import type { OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
+import { createActivityLogger } from "../logger";
 
 /**
  * Activity: Calculate OCR confidence and prepare for human review if needed
@@ -14,17 +15,13 @@ export async function checkOcrConfidence(params: {
   const activityName = "checkOcrConfidence";
   const { documentId, ocrResult, threshold = 0.95 } = params;
   const confidenceThreshold = threshold;
+  const log = createActivityLogger(activityName, { documentId });
 
-  console.log(
-    JSON.stringify({
-      activity: activityName,
-      event: "start",
-      documentId,
-      fileName: ocrResult.fileName,
-      confidenceThreshold,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  log.info("Check OCR confidence start", {
+    event: "start",
+    fileName: ocrResult.fileName,
+    confidenceThreshold,
+  });
 
   try {
     // Calculate average confidence from words
@@ -57,18 +54,13 @@ export async function checkOcrConfidence(params: {
 
     const requiresReview = normalizedConfidence < confidenceThreshold;
 
-    console.log(
-      JSON.stringify({
-        activity: activityName,
-        event: "complete",
-        documentId,
-        fileName: ocrResult.fileName,
-        averageConfidence: normalizedConfidence,
-        requiresReview,
-        wordCount,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.info("Check OCR confidence complete", {
+      event: "complete",
+      fileName: ocrResult.fileName,
+      averageConfidence: normalizedConfidence,
+      requiresReview,
+      wordCount,
+    });
 
     // Update document status if review is required
     // Note: We keep status as 'ongoing_ocr' since the workflow is still in progress
@@ -82,16 +74,11 @@ export async function checkOcrConfidence(params: {
         },
       });
 
-      console.log(
-        JSON.stringify({
-          activity: activityName,
-          event: "status_updated",
-          documentId,
-          status: "ongoing_ocr",
-          requiresReview: true,
-          timestamp: new Date().toISOString(),
-        }),
-      );
+      log.info("Check OCR confidence status updated", {
+        event: "status_updated",
+        status: "ongoing_ocr",
+        requiresReview: true,
+      });
     }
 
     return {
@@ -101,16 +88,11 @@ export async function checkOcrConfidence(params: {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    console.error(
-      JSON.stringify({
-        activity: activityName,
-        event: "error",
-        documentId,
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    log.error("Check OCR confidence error", {
+      event: "error",
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     // Default to requiring review if we can't calculate confidence
     return {
       averageConfidence: 0,

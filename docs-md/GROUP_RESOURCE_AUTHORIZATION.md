@@ -6,6 +6,30 @@ This document describes how group membership is enforced when creating or access
 
 When a user or API key creates or accesses a top-level or sub-resource (`Document`, `Workflow`, `LabelingProject`, `LabelingDocument`, `FieldDefinition`, `DocumentLabel`, `TrainingJob`, `TrainedModel`, `ReviewSession`, `Dataset`, `BenchmarkProject`, or their child resources), the system verifies that the requestor belongs to the resource's group before allowing the operation to proceed. This prevents resources from being created, read, updated, or deleted by users not authorized to access the group.
 
+## How to add a group
+
+The message **"No groups are available. Contact an administrator"** appears when there are no groups in the database. Groups are created inside the app (database), not in the identity provider.
+
+**Option 1 — System administrator (UI)**  
+A user with **system-admin** rights can create groups:
+
+1. Log in as a user whose `user.is_system_admin` is `true` in the database.
+2. Go to **Groups** (`/groups`). System admins can open this page even when they have no group memberships.
+3. Click **Create group**, enter name and optional description, and save.
+
+Other users can then request membership from the Request group membership page; a group admin or system admin can approve.
+
+**Option 2 — Database seed (first group)**  
+To create the default group and optionally add yourself as system admin and group member:
+
+1. From `apps/backend-services`, run: `npm run db:seed`.
+2. Optionally set `SEED_USER_SUB` (and `SEED_USER_EMAIL`) in `.env` to your SSO user ID (Keycloak `sub` claim). The seed will create/update that user with `is_system_admin: true` and add them to the default group "Default".
+
+After seeding, log in with that user (or any user added to the default group) to access the app; other users can request membership to "Default".
+
+**Option 3 — API**  
+A system admin can create a group with `POST /api/groups` and body `{ "name": "Group Name", "description": "Optional" }`.
+
 ## Enforcement Location
 
 Group membership checks are performed in the **controller layer** before delegating to the service. This keeps authorization concerns at the HTTP boundary while keeping service methods reusable without identity coupling.

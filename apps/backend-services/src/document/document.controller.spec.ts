@@ -24,6 +24,7 @@ describe("DocumentController", () => {
   });
 
   beforeEach(async () => {
+    mockAuditService.recordEvent.mockClear();
     databaseService = {
       findAllDocuments: jest.fn(),
       findDocument: jest.fn(),
@@ -215,6 +216,16 @@ describe("DocumentController", () => {
       databaseService.findDocument.mockResolvedValue(mockDocument as any);
       databaseService.findOcrResult.mockResolvedValue(mockOcrResult as any);
       const result = await controller.getOcrResult("1", mockReq as any);
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith({
+        event_type: "document_accessed",
+        resource_type: "document",
+        resource_id: "1",
+        actor_id: "user-1",
+        document_id: "1",
+        group_id: mockGroupId,
+        request_id: undefined,
+        payload: { action: "ocr" },
+      });
       expect(result).toEqual({
         document_id: "1",
         status: "completed_ocr",
@@ -235,6 +246,7 @@ describe("DocumentController", () => {
       await expect(
         controller.getOcrResult("1", mockReq as any),
       ).rejects.toThrow(NotFoundException);
+      expect(mockAuditService.recordEvent).not.toHaveBeenCalled();
     });
 
     it("should throw ForbiddenException if user is not a group member", async () => {
@@ -320,6 +332,16 @@ describe("DocumentController", () => {
         send: jest.fn(),
       };
       await controller.downloadDocument("1", res, mockReq as any);
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith({
+        event_type: "document_accessed",
+        resource_type: "document",
+        resource_id: "1",
+        actor_id: "user-1",
+        document_id: "1",
+        group_id: mockGroupId,
+        request_id: undefined,
+        payload: { action: "download" },
+      });
       expect(res.setHeader).toHaveBeenCalledWith(
         "Content-Type",
         "application/pdf",
@@ -444,6 +466,16 @@ describe("DocumentController", () => {
       const result = await controller.getDocument("1", mockReq as any);
       expect(result).toEqual(mockDocument);
       expect(databaseService.findDocument).toHaveBeenCalledWith("1");
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith({
+        event_type: "document_accessed",
+        resource_type: "document",
+        resource_id: "1",
+        actor_id: "user-1",
+        document_id: "1",
+        group_id: mockGroupId,
+        request_id: undefined,
+        payload: { action: "metadata" },
+      });
     });
 
     it("should throw NotFoundException if document not found", async () => {
@@ -451,6 +483,7 @@ describe("DocumentController", () => {
       await expect(controller.getDocument("1", mockReq as any)).rejects.toThrow(
         NotFoundException,
       );
+      expect(mockAuditService.recordEvent).not.toHaveBeenCalled();
     });
 
     it("should throw ForbiddenException if user is not a group member", async () => {

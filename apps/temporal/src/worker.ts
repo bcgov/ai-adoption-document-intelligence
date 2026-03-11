@@ -6,6 +6,7 @@
 
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { getActivityRegistry } from "./activity-registry";
+import { workerLogger } from "./logger";
 
 // Workflows are automatically discovered via workflowsPath in Worker.create()
 
@@ -23,18 +24,14 @@ async function run() {
     process.env.BENCHMARK_TASK_QUEUE || "benchmark-processing";
   const enableBenchmarkQueue = process.env.ENABLE_BENCHMARK_QUEUE !== "false"; // enabled by default
 
-  console.log(
-    JSON.stringify({
-      component: "worker",
-      event: "initializing",
-      address,
-      namespace,
-      taskQueue,
-      benchmarkTaskQueue,
-      enableBenchmarkQueue,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  workerLogger.info("Worker initializing", {
+    event: "initializing",
+    address,
+    namespace,
+    taskQueue,
+    benchmarkTaskQueue,
+    enableBenchmarkQueue,
+  });
 
   // Create connection to Temporal server
   const connection = await NativeConnection.connect({
@@ -65,14 +62,7 @@ async function run() {
   });
   workers.push(ocrWorker);
 
-  console.log(
-    JSON.stringify({
-      component: "worker",
-      event: "ready",
-      taskQueue,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  workerLogger.info("Worker ready", { event: "ready", taskQueue });
 
   // Create separate worker for benchmark processing if enabled
   if (enableBenchmarkQueue && benchmarkTaskQueue !== taskQueue) {
@@ -85,37 +75,23 @@ async function run() {
     });
     workers.push(benchmarkWorker);
 
-    console.log(
-      JSON.stringify({
-        component: "worker",
-        event: "benchmark_worker_ready",
-        taskQueue: benchmarkTaskQueue,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    workerLogger.info("Benchmark worker ready", {
+      event: "benchmark_worker_ready",
+      taskQueue: benchmarkTaskQueue,
+    });
   }
 
   // Run all workers in parallel
   await Promise.all(workers.map((worker) => worker.run()));
 
-  console.log(
-    JSON.stringify({
-      component: "worker",
-      event: "stopped",
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  workerLogger.info("Worker stopped", { event: "stopped" });
 }
 
 run().catch((err) => {
-  console.error(
-    JSON.stringify({
-      component: "worker",
-      event: "fatal_error",
-      error: err instanceof Error ? err.message : "Unknown error",
-      stack: err instanceof Error ? err.stack : undefined,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  workerLogger.error("Worker fatal error", {
+    event: "fatal_error",
+    error: err instanceof Error ? err.message : "Unknown error",
+    stack: err instanceof Error ? err.stack : undefined,
+  });
   process.exit(1);
 });

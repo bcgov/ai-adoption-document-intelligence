@@ -1,6 +1,6 @@
 # Logging System
 
-This document describes the unified logging system used across the AI-DI platform (backend-services and temporal-worker). For full requirements, see [feature-docs/002-logging-system/REQUIREMENTS.md](../feature-docs/002-logging-system/REQUIREMENTS.md).
+This document describes the unified logging system used across the AI-DI platform (backend-services and temporal-worker). For full requirements, see [feature-docs/007-logging-system/REQUIREMENTS.md](../feature-docs/007-logging-system/REQUIREMENTS.md).
 
 ## What Is Logged
 

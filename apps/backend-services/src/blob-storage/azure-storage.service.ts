@@ -132,7 +132,7 @@ export class AzureStorageService {
 
         this.logger.error(
           `Failed to ensure container exists: ${containerName}`,
-          err.stack,
+          { stack: err.stack },
         );
         throw error;
       }
@@ -278,7 +278,7 @@ export class AzureStorageService {
       const err = error as Error;
       this.logger.error(
         `Failed to generate SAS URL for container: ${containerName}`,
-        err.stack,
+        { stack: err.stack },
       );
       throw error;
     }
@@ -389,7 +389,7 @@ export class AzureStorageService {
       const err = error as Error;
       this.logger.error(
         `Failed to list blobs in container: ${containerName}`,
-        err.stack,
+        { stack: err.stack },
       );
       throw error;
     }
@@ -409,7 +409,7 @@ export class AzureStorageService {
       const err = error as Error;
       this.logger.error(
         `Failed to delete container: ${containerName}`,
-        err.stack,
+        { stack: err.stack },
       );
       throw error;
     }
@@ -436,7 +436,7 @@ export class AzureStorageService {
       const err = error as Error;
       this.logger.error(
         `Failed to delete container: ${containerName}`,
-        err.stack,
+        { stack: err.stack },
       );
       throw error;
     }
@@ -467,7 +467,7 @@ export class AzureStorageService {
       const err = error as Error;
       this.logger.error(
         `Failed to clear container contents: ${containerName}`,
-        err.stack,
+        { stack: err.stack },
       );
       throw error;
     }

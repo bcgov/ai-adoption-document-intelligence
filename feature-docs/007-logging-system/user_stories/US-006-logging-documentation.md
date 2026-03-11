@@ -46,4 +46,4 @@
 - [ ] Low (Nice to Have)
 
 ## Technical Notes / Assumptions
-- Keep the doc concise; link to REQUIREMENTS.md or feature-docs/002-logging-system for full requirements. No document-specific or workload-specific examples required; keep examples generic (e.g. documentId, workflowExecutionId).
+- Keep the doc concise; link to REQUIREMENTS.md or feature-docs/007-logging-system for full requirements. No document-specific or workload-specific examples required; keep examples generic (e.g. documentId, workflowExecutionId).

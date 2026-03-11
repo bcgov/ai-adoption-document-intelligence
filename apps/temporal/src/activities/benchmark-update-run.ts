@@ -8,6 +8,7 @@
 
 import type { Prisma } from "../generated";
 import { getPrismaClient } from "./database-client";
+import { createActivityLogger } from "../logger";
 
 export interface BenchmarkUpdateRunStatusInput {
   /** Benchmark run ID */
@@ -38,7 +39,7 @@ export async function benchmarkUpdateRunStatus(
   input: BenchmarkUpdateRunStatusInput,
 ): Promise<void> {
   const { runId, status, metrics, error, completedAt } = input;
-
+  const log = createActivityLogger("benchmarkUpdateRunStatus", { runId });
   const prisma = getPrismaClient();
 
   const updateData: Prisma.BenchmarkRunUpdateInput = {
@@ -67,15 +68,10 @@ export async function benchmarkUpdateRunStatus(
     data: updateData,
   });
 
-  console.log(
-    JSON.stringify({
-      activity: "benchmarkUpdateRunStatus",
-      event: "status_updated",
-      runId,
-      status,
-      hasMetrics: !!metrics,
-      hasError: !!error,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  log.info("Benchmark run status updated", {
+    event: "status_updated",
+    status,
+    hasMetrics: !!metrics,
+    hasError: !!error,
+  });
 }

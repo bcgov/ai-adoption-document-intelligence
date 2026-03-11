@@ -1,4 +1,4 @@
-# 002 — Logging System
+# 007 — Logging System
 
 Requirements for the unified logging system (what is logged, where it is stored, shared format and logger). Logs are stdout only; no audit store. LOG_LEVEL default is `info`.
 

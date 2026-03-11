@@ -94,6 +94,19 @@ export class DocumentController {
       this.databaseService,
     );
 
+    const requestContext = getRequestContext();
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "document",
+      resource_id: documentId,
+      actor_id:
+        req.resolvedIdentity?.userId ?? requestContext?.userId ?? undefined,
+      document_id: documentId,
+      group_id: document.group_id ?? undefined,
+      request_id: requestContext?.requestId ?? undefined,
+      payload: { action: "metadata" },
+    });
+
     this.logger.debug("=== DocumentController.getDocument completed ===");
     return document;
   }
@@ -352,6 +365,19 @@ export class DocumentController {
         this.databaseService,
       );
 
+      const requestContext = getRequestContext();
+      await this.auditService.recordEvent({
+        event_type: "document_accessed",
+        resource_type: "document",
+        resource_id: documentId,
+        actor_id:
+          req.resolvedIdentity?.userId ?? requestContext?.userId ?? undefined,
+        document_id: documentId,
+        group_id: document.group_id ?? undefined,
+        request_id: requestContext?.requestId ?? undefined,
+        payload: { action: "ocr" },
+      });
+
       this.logger.debug(`Document status: ${document.status}`);
       this.logger.debug(`Document created: ${document.created_at}`);
       if (document.apim_request_id) {
@@ -437,6 +463,19 @@ export class DocumentController {
         document.group_id,
         this.databaseService,
       );
+
+      const requestContext = getRequestContext();
+      await this.auditService.recordEvent({
+        event_type: "document_accessed",
+        resource_type: "document",
+        resource_id: documentId,
+        actor_id:
+          req.resolvedIdentity?.userId ?? requestContext?.userId ?? undefined,
+        document_id: documentId,
+        group_id: document.group_id ?? undefined,
+        request_id: requestContext?.requestId ?? undefined,
+        payload: { action: "download" },
+      });
 
       // Read file from blob storage using the blob key
       const fileBuffer = await this.blobStorage.read(document.file_path);

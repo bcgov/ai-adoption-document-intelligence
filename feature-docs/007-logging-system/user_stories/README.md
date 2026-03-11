@@ -2,7 +2,7 @@
 
 Requirements document: [../REQUIREMENTS.md](../REQUIREMENTS.md).
 
-User story files are in `feature-docs/002-logging-system/user_stories/`. Implement in the order below; check off when done.
+User story files are in `feature-docs/007-logging-system/user_stories/`. Implement in the order below; check off when done.
 
 ## Foundation (US-001 to US-002) — HIGH priority
 

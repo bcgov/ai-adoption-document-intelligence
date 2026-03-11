@@ -1,6 +1,6 @@
 # Audit Table
 
-This document describes the durable audit table used to record **workflow runs** and **HITL (Human-in-the-Loop) events**. Requirements: [feature-docs/002-logging-system/REQUIREMENTS-AUDIT.md](../feature-docs/002-logging-system/REQUIREMENTS-AUDIT.md).
+This document describes the durable audit table used to record **workflow runs** and **HITL (Human-in-the-Loop) events**. Requirements: [feature-docs/007-logging-system/REQUIREMENTS-AUDIT.md](../feature-docs/007-logging-system/REQUIREMENTS-AUDIT.md).
 
 ## Purpose
 
@@ -48,12 +48,21 @@ This document describes the durable audit table used to record **workflow runs**
 | `review_session_skipped`       | Session status → skipped | review_session | session.id | document_id             |
 | `human_approval_signal_sent`   | Backend sends humanApproval signal to Temporal | workflow_run | workflow_execution_id | approved, reviewer     |
 
+### Document access
+
+| event_type        | When | resource_type | resource_id | Payload / notes        |
+|-------------------|------|---------------|-------------|------------------------|
+| `document_accessed` | After successful access to document metadata, file download, or OCR result | document | document.id | action: "metadata", "download", or "ocr" |
+
+- **actor_id**: User or API key identity when available; **document_id**, **group_id**, **request_id** from document and request context.
+- Recorded in **DocumentController** for: getDocument (metadata), downloadDocument (download), getOcrResult (ocr).
+
 ## Implementation
 
 - **Backend:** `AuditService` (in `apps/backend-services/src/audit/`) provides `recordEvent(events)`. It is called from:
   - **OcrService:** after starting a graph workflow and updating the document.
   - **HitlService:** after creating a session, submitting corrections, approving, escalating, or skipping a session.
-  - **DocumentController:** after successfully sending the human approval signal to a workflow.
+  - **DocumentController:** after successfully sending the human approval signal to a workflow; and after authorized access to a document (get metadata, download file, get OCR result) with event_type `document_accessed` and payload.action `metadata`, `download`, or `ocr`.
 - **Migration:** `apps/shared/prisma/migrations/20250224120000_add_audit_events/`.
 - **Failure behavior:** If an audit insert fails, the service logs a warning and continues; the main operation is not failed.
 

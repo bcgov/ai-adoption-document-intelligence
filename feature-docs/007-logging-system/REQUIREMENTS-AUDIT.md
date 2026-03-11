@@ -2,7 +2,7 @@
 
 ## 1. Title and Overview
 
-Add a durable audit table that records **workflow runs** and **HITL (Human-in-the-Loop) events** for traceability and compliance. This extends the logging-system feature (002) with a database-backed audit trail for a defined subset of events, while application logs remain stdout-only per REQUIREMENTS.md.
+Add a durable audit table that records **workflow runs** and **HITL (Human-in-the-Loop) events** for traceability and compliance. This extends the logging-system feature (007) with a database-backed audit trail for a defined subset of events, while application logs remain stdout-only per REQUIREMENTS.md.
 
 The system is generic: event types and resource types are string-based so that additional event kinds can be added later without changing the audit infrastructure.
 
@@ -62,6 +62,16 @@ The system is generic: event types and resource types are string-based so that a
 - **actor_id**: reviewer_id (or request context userId) for session events; reviewer for signal.
 - **document_id**, **workflow_execution_id**, **group_id** from session.document when available.
 
+### Document access
+
+| event_type        | When | resource_type | resource_id | Typical payload |
+|-------------------|------|---------------|-------------|-----------------|
+| document_accessed | After a user or API key successfully accesses a document (metadata, file download, or OCR result) | document | document.id | action: "metadata" \| "download" \| "ocr" |
+
+- **actor_id**: userId from request identity or request context when available.
+- **document_id**, **group_id**, **request_id** set from the document and request context.
+- Recorded for: GET document by ID (metadata), GET document download, GET document OCR result.
+
 ---
 
 ## 4. Schema
@@ -92,6 +102,7 @@ The system is generic: event types and resource types are string-based so that a
   - **Workflow run started:** In `OcrService` (or equivalent), after successful `startGraphWorkflow` and `updateDocument`, call `AuditService.recordEvent` with event_type `workflow_run_started`, resource_id = workflowExecutionId, document_id, group_id, request_id, payload (workflow_config_id, request_id).
   - **HITL:** In `HitlService`, after each of: `createReviewSession`, submitCorrections, approveSession, escalateSession, skipSession, call `AuditService.recordEvent` with the corresponding event_type and resource/session/document/group/actor/request_id. For escalate include reason in payload.
   - **Human approval signal:** In the code path that calls `TemporalClientService.sendHumanApproval`, after a successful send, call `AuditService.recordEvent` with event_type `human_approval_signal_sent`, resource_id = workflowId, payload = { approved, reviewer }.
+  - **Document access:** In `DocumentController`, after access is authorized and before returning data, call `AuditService.recordEvent` with event_type `document_accessed`, resource_type `document`, resource_id = documentId, and payload.action one of `metadata`, `download`, or `ocr` for getDocument, downloadDocument, and getOcrResult respectively. Include actor_id (from request identity or context), document_id, group_id, request_id.
 - **Database:** Shared Prisma schema; migration run via existing backend migration flow.
 - **Documentation:** Update `docs/LOGGING.md` (or add `docs/AUDIT.md`) to describe the audit table, event types, and that failures are non-fatal.
 
