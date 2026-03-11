@@ -1,3 +1,4 @@
+import { ApiProperty } from "@nestjs/swagger";
 import { IsBoolean, IsOptional, IsString, Matches } from "class-validator";
 
 /**
@@ -5,9 +6,11 @@ import { IsBoolean, IsOptional, IsString, Matches } from "class-validator";
  * See US-035: Scheduled & Nightly Runs
  */
 export class ScheduleConfigDto {
+  @ApiProperty()
   @IsBoolean()
   enabled: boolean;
 
+  @ApiProperty()
   @IsOptional()
   @IsString()
   @Matches(

@@ -66,7 +66,7 @@ export class BenchmarkDefinitionController {
   ): Promise<void> {
     const project =
       await this.benchmarkProjectService.getProjectById(projectId);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.groupId,
     );
