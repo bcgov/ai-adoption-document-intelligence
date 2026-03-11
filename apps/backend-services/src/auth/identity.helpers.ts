@@ -1,6 +1,8 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "@/database/database.service";
 import { ResolvedIdentity } from "./types";
+import { ROLE_ORDER } from "./identity.guard";
+import { GroupRole } from "@/generated";
 
 /**
  * Resolves the set of group IDs the resolved identity has access to, or
@@ -58,6 +60,7 @@ export function getIdentityGroupIds(
  *   `undefined` for unauthenticated requests.
  * @param groupId - The group ID to validate access against, or `null` for
  *   orphaned records with no group assignment.
+ * @param minimumRole - The minimum required role within the group (default: "MEMBER").
  * @throws {NotFoundException} When the resource has no group (`groupId` is null),
  *   preventing leakage of orphaned record existence.
  * @throws {ForbiddenException} When the identity is not authorised to access the group.
@@ -65,6 +68,7 @@ export function getIdentityGroupIds(
 export function identityCanAccessGroup(
   identity: ResolvedIdentity | undefined,
   groupId: string | null,
+  minimumRole: GroupRole = GroupRole.MEMBER,
 ): void {
   if (groupId === null) {
     throw new NotFoundException("Resource not found.");
@@ -83,6 +87,13 @@ export function identityCanAccessGroup(
     // API key path: groupRoles encodes the single scoped group.
     if (!(groupId in identity.groupRoles)) {
       throw new ForbiddenException("User does not belong to requested group.");
+    }
+    // Is their role for the group sufficient?
+    const role = identity.groupRoles[groupId];
+    if (ROLE_ORDER[role] < ROLE_ORDER[minimumRole]) {
+      throw new ForbiddenException(
+        "Insufficient role within the group",
+      );
     }
     return;
   }

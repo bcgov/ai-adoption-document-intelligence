@@ -33,6 +33,7 @@ import {
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Identity } from "@/auth/identity.decorator";
 import { ApiKeyService } from "./api-key.service";
+import { GroupRole } from "@/generated";
 
 @ApiTags("API Keys")
 @Controller("api/api-key")
@@ -42,7 +43,7 @@ export class ApiKeyController {
   ) {}
 
   @Get()
-  @Identity()
+  @Identity({ groupIdFrom: { query: "groupId" }, minimumRole: GroupRole.ADMIN })
   @ApiOperation({ summary: "Get API key information for a group" })
   @ApiQuery({
     name: "groupId",
@@ -64,6 +65,7 @@ export class ApiKeyController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       groupId,
+      GroupRole.ADMIN
     );
     const apiKey = await this.apiKeyService.getApiKey(groupId);
     return { apiKey };
@@ -71,7 +73,7 @@ export class ApiKeyController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity()
+  @Identity({ groupIdFrom: { body: "groupId" }, minimumRole: GroupRole.ADMIN})
   @ApiOperation({ summary: "Generate a new API key for a group" })
   @ApiBody({ type: GenerateApiKeyRequestDto })
   @ApiCreatedResponse({
@@ -90,9 +92,10 @@ export class ApiKeyController {
         "User ID is required to generate an API key",
       );
     }
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       body.groupId,
+      GroupRole.ADMIN
     );
     const apiKey = await this.apiKeyService.generateApiKey(
       userId,
@@ -120,9 +123,10 @@ export class ApiKeyController {
       throw new BadRequestException("id query parameter is required");
     }
     const groupId = await this.apiKeyService.getApiKeyGroupId(id);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       groupId,
+      GroupRole.ADMIN
     );
     await this.apiKeyService.deleteApiKey(id);
   }
@@ -148,9 +152,10 @@ export class ApiKeyController {
       );
     }
     const groupId = await this.apiKeyService.getApiKeyGroupId(body.id);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       groupId,
+      GroupRole.ADMIN
     );
     const apiKey = await this.apiKeyService.regenerateApiKey(userId, body.id);
     return { apiKey };
