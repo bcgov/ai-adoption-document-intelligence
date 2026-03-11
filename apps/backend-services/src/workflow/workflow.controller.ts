@@ -29,7 +29,6 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
 import { Identity } from "@/auth/identity.decorator";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
 import {
@@ -43,7 +42,6 @@ import { WorkflowInfo, WorkflowService } from "./workflow.service";
 export class WorkflowController {
   constructor(
     private readonly workflowService: WorkflowService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   @Get()
