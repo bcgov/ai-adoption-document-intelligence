@@ -64,6 +64,7 @@ import {
 } from "@/blob-storage/blob-storage.interface";
 import { DatabaseService } from "@/database/database.service";
 import { Identity } from "@/auth/identity.decorator";
+import { GroupRole } from "@/generated/edge";
 
 @ApiTags("Azure")
 @Controller("api/azure")
@@ -79,7 +80,7 @@ export class AzureController {
   ) {}
 
   @Get("classifier")
-  @Identity({minimumRole: "MEMBER"})
+  @Identity({minimumRole: GroupRole.MEMBER})
   @ApiOperation({
     summary: "Get classifiers for user groups",
     description:
@@ -112,7 +113,7 @@ export class AzureController {
   }
 
   @Post("classifier")
-  @Identity({minimumRole: "MEMBER", groupIdFrom: {body: "group_id"}})
+  @Identity({minimumRole: GroupRole.MEMBER, groupIdFrom: {body: "group_id"}})
   @ApiOperation({
     summary: "Create a new classifier",
     description: "Creates a new classifier for a group.",
@@ -155,7 +156,7 @@ export class AzureController {
   }
 
   @Patch("classifier")
-  @Identity({minimumRole: "MEMBER", groupIdFrom: {body: "group_id"}})
+  @Identity({minimumRole: GroupRole.MEMBER, groupIdFrom: {body: "group_id"}})
   @ApiOperation({
     summary: "Update a classifier",
     description: "Updates an existing classifier's properties.",
@@ -205,7 +206,7 @@ export class AzureController {
   }
 
   @Post("classifier/documents")
-  @Identity({minimumRole: "MEMBER", groupIdFrom: {query: "group_id"}})
+  @Identity({minimumRole: GroupRole.MEMBER, groupIdFrom: {query: "group_id"}})
   @ApiOperation({
     summary: "Upload training documents",
     description: "Upload training documents for a classifier.",
@@ -271,7 +272,7 @@ export class AzureController {
   }
 
   @Get("classifier/documents")
-  @Identity({minimumRole: "MEMBER", groupIdFrom: {query: "group_id"}})
+  @Identity({minimumRole: GroupRole.MEMBER, groupIdFrom: {query: "group_id"}})
   @ApiOperation({
     summary: "Get training documents",
     description: "Get the list of training documents for a classifier.",
@@ -304,7 +305,7 @@ export class AzureController {
   }
 
   @Delete("classifier/documents")
-  @Identity({ minimumRole: "MEMBER", groupIdFrom: {query: "group_id"}})
+  @Identity({ minimumRole: GroupRole.MEMBER, groupIdFrom: {query: "group_id"}})
   @ApiOperation({
     summary: "Delete training documents",
     description: "Delete training documents for a classifier.",
@@ -351,7 +352,7 @@ export class AzureController {
   }
 
   @Post("classifier/train")
-  @Identity({ minimumRole: "MEMBER", groupIdFrom: {body: "group_id"}})
+  @Identity({ minimumRole: GroupRole.MEMBER, groupIdFrom: {body: "group_id"}})
   @ApiOperation({
     summary: "Request classifier training",
     description: "Request training for a classifier.",
@@ -424,7 +425,7 @@ export class AzureController {
   }
 
   @Post("classifier/classify")
-  @Identity({ minimumRole: "MEMBER", groupIdFrom: {query: "group_id"}})
+  @Identity({ minimumRole: GroupRole.MEMBER, groupIdFrom: {query: "group_id"}})
   @ApiOperation({
     summary: "Request document classification",
     description: "Request classification for a document using a classifier.",
@@ -519,7 +520,7 @@ export class AzureController {
   }
 
   @Get("classifier/train")
-  @Identity({ minimumRole: "MEMBER", groupIdFrom: {query: "group_id"}})
+  @Identity({ minimumRole: GroupRole.MEMBER, groupIdFrom: {query: "group_id"}})
   @ApiOperation({
     summary: "Get training result",
     description: "Get the result of a classifier training operation.",
