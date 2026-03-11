@@ -79,7 +79,7 @@ export class AzureController {
   ) {}
 
   @Get("classifier")
-  @Identity()
+  @Identity({minimumRole: "MEMBER"})
   @ApiOperation({
     summary: "Get classifiers for user groups",
     description:
@@ -97,13 +97,13 @@ export class AzureController {
   })
   async getClassifiers(@Request() req, @Query("group_id") groupId?: string) {
     if (groupId) {
-      await identityCanAccessGroup(
+      identityCanAccessGroup(
         req.resolvedIdentity,
         groupId,
       );
       return this.databaseService.getClassifierModelsForGroups([groupId]);
     }
-    const groupIds = await getIdentityGroupIds(
+    const groupIds = getIdentityGroupIds(
       req.resolvedIdentity,
     );
     const classifiers =
@@ -112,7 +112,7 @@ export class AzureController {
   }
 
   @Post("classifier")
-  @Identity()
+  @Identity({minimumRole: "MEMBER", groupIdFrom: {body: "group_id"}})
   @ApiOperation({
     summary: "Create a new classifier",
     description: "Creates a new classifier for a group.",
@@ -127,7 +127,7 @@ export class AzureController {
   })
   async createClassifier(@Request() req, @Body() body: ClassifierCreationDto) {
     const { name, description, source, group_id } = body;
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
     );
@@ -155,7 +155,7 @@ export class AzureController {
   }
 
   @Patch("classifier")
-  @Identity()
+  @Identity({minimumRole: "MEMBER", groupIdFrom: {body: "group_id"}})
   @ApiOperation({
     summary: "Update a classifier",
     description: "Updates an existing classifier's properties.",
@@ -171,7 +171,7 @@ export class AzureController {
   async updateClassifier(@Request() req, @Body() body: UpdateClassifierDto) {
     const { name, group_id, description, source } = body;
 
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
     );
@@ -205,13 +205,14 @@ export class AzureController {
   }
 
   @Post("classifier/documents")
-  @Identity()
+  @Identity({minimumRole: "MEMBER", groupIdFrom: {query: "group_id"}})
   @ApiOperation({
     summary: "Upload training documents",
     description: "Upload training documents for a classifier.",
   })
   @UseInterceptors(FilesInterceptor("files"))
   @ApiConsumes("multipart/form-data")
+  @ApiQuery({ name: "group_id", required: true, description: "Group ID" })
   @ApiBody({
     schema: {
       type: "object",
@@ -225,9 +226,8 @@ export class AzureController {
         },
         name: { type: "string" },
         label: { type: "string" },
-        group_id: { type: "string" },
       },
-      required: ["files", "name", "label", "group_id"],
+      required: ["files", "name", "label"],
     },
     description: "Upload training documents for a classifier",
   })
@@ -239,9 +239,10 @@ export class AzureController {
     @Request() req,
     @UploadedFiles() files: Array<Express.Multer.File>,
     @Body() body: UploadClassifierDocumentsDto,
+    @Query("group_id") group_id: string,
   ): Promise<UploadClassifierDocumentsResponseDto> {
-    const { name, label, group_id } = body;
-    await identityCanAccessGroup(
+    const { name, label } = body;
+    identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
     );
@@ -270,7 +271,7 @@ export class AzureController {
   }
 
   @Get("classifier/documents")
-  @Identity()
+  @Identity({minimumRole: "MEMBER", groupIdFrom: {query: "group_id"}})
   @ApiOperation({
     summary: "Get training documents",
     description: "Get the list of training documents for a classifier.",
@@ -284,7 +285,7 @@ export class AzureController {
     @Query() query: GetClassifierDocumentsQueryDto,
   ): Promise<string[]> {
     const { name, group_id } = query;
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
     );
@@ -303,7 +304,7 @@ export class AzureController {
   }
 
   @Delete("classifier/documents")
-  @Identity()
+  @Identity({ minimumRole: "MEMBER", groupIdFrom: {query: "group_id"}})
   @ApiOperation({
     summary: "Delete training documents",
     description: "Delete training documents for a classifier.",
@@ -318,7 +319,7 @@ export class AzureController {
     @Query() query: DeleteClassifierDocumentsDto,
   ): Promise<void> {
     const { name, group_id, folder } = query;
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
     );
@@ -350,7 +351,7 @@ export class AzureController {
   }
 
   @Post("classifier/train")
-  @Identity()
+  @Identity({ minimumRole: "MEMBER", groupIdFrom: {body: "group_id"}})
   @ApiOperation({
     summary: "Request classifier training",
     description: "Request training for a classifier.",
@@ -369,7 +370,7 @@ export class AzureController {
   ): Promise<ClassifierModelResponseDto> {
     const { name, group_id } = body;
     const userId = req.user.sub;
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
     );
@@ -423,13 +424,14 @@ export class AzureController {
   }
 
   @Post("classifier/classify")
-  @Identity()
+  @Identity({ minimumRole: "MEMBER", groupIdFrom: {query: "group_id"}})
   @ApiOperation({
     summary: "Request document classification",
     description: "Request classification for a document using a classifier.",
   })
   @UseInterceptors(FileInterceptor("file"))
   @ApiConsumes("multipart/form-data")
+  @ApiQuery({ name: "group_id", required: true, description: "Group ID" })
   @ApiBody({
     schema: {
       type: "object",
@@ -439,9 +441,8 @@ export class AzureController {
           format: "binary",
         },
         name: { type: "string" },
-        group_id: { type: "string" },
       },
-      required: ["file", "name", "group_id"],
+      required: ["file", "name"],
     },
     description: "Request classification for a document",
   })
@@ -453,10 +454,11 @@ export class AzureController {
     @Request() req,
     @Body() body: RequestClassificationDto,
     @UploadedFile() file: Express.Multer.File,
+    @Query("group_id") group_id: string,
   ): Promise<ClassifierResponseDto> {
-    const { name, group_id } = body;
+    const { name } = body;
     const userId = req.user.sub;
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
     );
@@ -487,6 +489,7 @@ export class AzureController {
   }
 
   @Get("classifier/classify")
+  // No identity check, as caller is providing only the operation location url, which we do not store.
   @Identity()
   @ApiOperation({
     summary: "Get classification result",
@@ -516,7 +519,7 @@ export class AzureController {
   }
 
   @Get("classifier/train")
-  @Identity()
+  @Identity({ minimumRole: "MEMBER", groupIdFrom: {query: "group_id"}})
   @ApiOperation({
     summary: "Get training result",
     description: "Get the result of a classifier training operation.",
@@ -536,7 +539,7 @@ export class AzureController {
       );
     }
     const userId = req.user.sub;
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       group_id,
     );

@@ -131,9 +131,8 @@ export function useClassifier() {
       }
       formData.append("label", label);
       formData.append("name", name);
-      formData.append("group_id", group_id);
       const response = await apiService.post<UploadClassifierDocumentsResponse>(
-        `/azure/classifier/documents`,
+        `/azure/classifier/documents?group_id=${encodeURIComponent(group_id)}`,
         formData,
       );
       if (response.success && response.data) return response.data;
@@ -184,9 +183,8 @@ export function useClassifier() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("name", name);
-      formData.append("group_id", group_id);
       const response = await apiService.post<ClassificationRequestResponse>(
-        `/azure/classifier/classify`,
+        `/azure/classifier/classify?group_id=${encodeURIComponent(group_id)}`,
         formData,
       );
       if (response.success && response.data) return response.data;

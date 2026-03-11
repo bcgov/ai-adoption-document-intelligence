@@ -108,5 +108,20 @@ describe("AzureService", () => {
       expect(onSuccess).not.toHaveBeenCalled();
       // onFailure is not called if status never becomes failed, only logs
     });
+
+    it("should throw if operationLocation is not a valid URL", async () => {
+      await expect(
+        service.pollOperationUntilResolved("not-a-url", jest.fn()),
+      ).rejects.toThrow("Invalid operationLocation URL: not-a-url");
+    });
+
+    it("should throw if operationLocation origin does not match the configured endpoint", async () => {
+      const url = "https://attacker.com/operation";
+      await expect(
+        service.pollOperationUntilResolved(url, jest.fn()),
+      ).rejects.toThrow(
+        `operationLocation origin "https://attacker.com" does not match expected Azure endpoint origin "https://test.com"`,
+      );
+    });
   });
 });

@@ -21,9 +21,9 @@ import { ResolvedIdentity } from "./types";
  *   `undefined` for unauthenticated requests.
  * @returns An array of accessible group IDs, or `undefined` for unrestricted access.
  */
-export async function getIdentityGroupIds(
+export function getIdentityGroupIds(
   identity: ResolvedIdentity | undefined,
-): Promise<string[] | undefined> {
+): string[] | undefined {
   if (!identity) {
     return [];
   }
@@ -62,10 +62,10 @@ export async function getIdentityGroupIds(
  *   preventing leakage of orphaned record existence.
  * @throws {ForbiddenException} When the identity is not authorised to access the group.
  */
-export async function identityCanAccessGroup(
+export function identityCanAccessGroup(
   identity: ResolvedIdentity | undefined,
   groupId: string | null,
-): Promise<void> {
+): void {
   if (groupId === null) {
     throw new NotFoundException("Resource not found.");
   }
