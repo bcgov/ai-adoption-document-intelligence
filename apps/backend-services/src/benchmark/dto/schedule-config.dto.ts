@@ -6,11 +6,11 @@ import { IsBoolean, IsOptional, IsString, Matches } from "class-validator";
  * See US-035: Scheduled & Nightly Runs
  */
 export class ScheduleConfigDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Whether scheduling is enabled' })
   @IsBoolean()
   enabled: boolean;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Cron expression for the schedule (e.g., \'0 2 * * *\' for 2 AM daily)' })
   @IsOptional()
   @IsString()
   @Matches(

@@ -74,7 +74,7 @@ export class BenchmarkProjectController {
 
     const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       createProjectDto.groupId,
     );
@@ -102,14 +102,14 @@ export class BenchmarkProjectController {
     this.logger.log("GET /api/benchmark/projects");
 
     if (groupId) {
-      await identityCanAccessGroup(
+      identityCanAccessGroup(
         req.resolvedIdentity,
         groupId,
       );
       return this.benchmarkProjectService.listProjects([groupId]);
     }
 
-    const groupIds = await getIdentityGroupIds(
+    const groupIds = getIdentityGroupIds(
       req.resolvedIdentity,
     );
 
@@ -138,7 +138,7 @@ export class BenchmarkProjectController {
 
     const project = await this.benchmarkProjectService.getProjectById(id);
 
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.groupId,
     );
@@ -163,7 +163,7 @@ export class BenchmarkProjectController {
 
     const project = await this.benchmarkProjectService.getProjectById(id);
 
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.groupId,
     );

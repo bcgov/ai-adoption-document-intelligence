@@ -30,8 +30,11 @@ import { Identity } from "@/auth/identity.decorator";
 import { DatasetService } from "./dataset.service";
 import {
   AddVersionFromHitlDto,
+  AddVersionFromHitlResponseDto,
   CreateDatasetFromHitlDto,
+  CreateDatasetFromHitlResponseDto,
   EligibleDocumentsFilterDto,
+  EligibleDocumentsResponseDto,
 } from "./dto";
 import { HitlDatasetService } from "./hitl-dataset.service";
 
@@ -56,7 +59,7 @@ export class HitlDatasetController {
     type: String,
     description: "Filter by filename",
   })
-  @ApiOkResponse({ description: "Paginated list of eligible documents" })
+  @ApiOkResponse({ description: "Paginated list of eligible documents", type: EligibleDocumentsResponseDto })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async listEligibleDocuments(
     @Query() filters: EligibleDocumentsFilterDto,
@@ -64,13 +67,13 @@ export class HitlDatasetController {
   ) {
     let groupIds: string[];
     if (filters.group_id) {
-      await identityCanAccessGroup(
+      identityCanAccessGroup(
         req.resolvedIdentity,
         filters.group_id,
       );
       groupIds = [filters.group_id];
     } else {
-      groupIds = await getIdentityGroupIds(
+      groupIds = getIdentityGroupIds(
         req.resolvedIdentity,
       );
     }
@@ -91,6 +94,7 @@ export class HitlDatasetController {
   @ApiBody({ type: CreateDatasetFromHitlDto })
   @ApiCreatedResponse({
     description: "Dataset and version created from verified documents",
+    type: CreateDatasetFromHitlResponseDto,
   })
   @ApiBadRequestResponse({
     description: "Invalid request or no documents could be processed",
@@ -102,7 +106,7 @@ export class HitlDatasetController {
   ) {
     const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       dto.groupId,
     );
@@ -121,6 +125,7 @@ export class HitlDatasetController {
   @ApiBody({ type: AddVersionFromHitlDto })
   @ApiCreatedResponse({
     description: "New version created from verified documents",
+    type: AddVersionFromHitlResponseDto,
   })
   @ApiNotFoundResponse({ description: "Dataset not found" })
   @ApiBadRequestResponse({
@@ -135,7 +140,7 @@ export class HitlDatasetController {
     const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
     const dataset = await this.datasetService.getDatasetById(datasetId);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       dataset.groupId,
     );

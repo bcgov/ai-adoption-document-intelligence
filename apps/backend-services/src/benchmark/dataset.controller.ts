@@ -40,20 +40,24 @@ import {
 } from "@nestjs/swagger";
 import type { Response } from "express";
 import { Request } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { Identity } from "@/auth/identity.decorator";
 import { DatasetService } from "./dataset.service";
 import {
   CreateDatasetDto,
   CreateSplitDto,
   CreateVersionDto,
   DatasetResponseDto,
+  FreezeSplitResponseDto,
   GroundTruthResponseDto,
   PaginatedDatasetResponseDto,
   SampleListResponseDto,
+  SplitDetailResponseDto,
+  SplitListResponseDto,
+  SplitResponseDto,
   UpdateVersionDto,
   UploadResponseDto,
   ValidateDatasetRequestDto,
@@ -65,19 +69,14 @@ import {
 @ApiTags("Benchmark - Datasets")
 @Controller("api/benchmark/datasets")
 export class DatasetController {
-  constructor(
-    private readonly datasetService: DatasetService,
-  ) {}
+  constructor(private readonly datasetService: DatasetService) {}
 
   private async assertDatasetGroupAccess(
     datasetId: string,
     req: Request,
   ): Promise<void> {
     const dataset = await this.datasetService.getDatasetById(datasetId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      dataset.groupId,
-    );
+    await identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
   }
 
   @Post()
@@ -103,10 +102,7 @@ export class DatasetController {
   ): Promise<DatasetResponseDto> {
     const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      createDto.groupId,
-    );
+    await identityCanAccessGroup(req.resolvedIdentity, createDto.groupId);
 
     return this.datasetService.createDataset(createDto, userId);
   }
@@ -147,16 +143,11 @@ export class DatasetController {
     const limitNum = limit ? parseInt(limit, 10) : 20;
 
     if (groupId) {
-      await identityCanAccessGroup(
-        req!.resolvedIdentity,
-        groupId,
-      );
+      await identityCanAccessGroup(req!.resolvedIdentity, groupId);
       return this.datasetService.listDatasets(pageNum, limitNum, [groupId]);
     }
 
-    const groupIds = await getIdentityGroupIds(
-      req!.resolvedIdentity,
-    );
+    const groupIds = await getIdentityGroupIds(req!.resolvedIdentity);
 
     if (groupIds.length === 0) {
       return {
@@ -190,10 +181,7 @@ export class DatasetController {
   ): Promise<DatasetResponseDto> {
     const dataset = await this.datasetService.getDatasetById(id);
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      dataset.groupId,
-    );
+    await identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
 
     return dataset;
   }
@@ -609,9 +597,11 @@ export class DatasetController {
   @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
   @ApiBody({
     description: "Split creation request with name, type, and sampleIds",
+    type: CreateSplitDto,
   })
   @ApiCreatedResponse({
     description: "Split created successfully",
+    type: SplitResponseDto,
   })
   @ApiNotFoundResponse({
     description: "Dataset version not found",
@@ -621,7 +611,7 @@ export class DatasetController {
     @Param("versionId") versionId: string,
     @Body() createDto: CreateSplitDto,
     @Req() req: Request,
-  ): Promise<unknown> {
+  ): Promise<SplitResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.createSplit(id, versionId, createDto);
   }
@@ -637,6 +627,7 @@ export class DatasetController {
   @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
   @ApiOkResponse({
     description: "List of splits for this dataset version",
+    type: SplitListResponseDto,
   })
   @ApiNotFoundResponse({
     description: "Dataset version not found",
@@ -645,7 +636,7 @@ export class DatasetController {
     @Param("id") id: string,
     @Param("versionId") versionId: string,
     @Req() req: Request,
-  ): Promise<unknown> {
+  ): Promise<SplitListResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
     const splits = await this.datasetService.listSplits(id, versionId);
     return { splits };
@@ -663,6 +654,7 @@ export class DatasetController {
   @ApiParam({ name: "splitId", description: "Split ID (UUID)" })
   @ApiOkResponse({
     description: "Split details",
+    type: SplitDetailResponseDto,
   })
   @ApiNotFoundResponse({
     description: "Split not found",
@@ -672,7 +664,7 @@ export class DatasetController {
     @Param("versionId") versionId: string,
     @Param("splitId") splitId: string,
     @Req() req: Request,
-  ): Promise<unknown> {
+  ): Promise<SplitDetailResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.getSplit(id, versionId, splitId);
   }
@@ -689,9 +681,21 @@ export class DatasetController {
   @ApiParam({ name: "splitId", description: "Split ID (UUID)" })
   @ApiBody({
     description: "Update request with new sampleIds",
+    schema: {
+      type: "object",
+      properties: {
+        sampleIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Array of sample IDs to include in the split",
+        },
+      },
+      required: ["sampleIds"],
+    },
   })
   @ApiOkResponse({
     description: "Split updated successfully",
+    type: SplitResponseDto,
   })
   @ApiNotFoundResponse({
     description: "Split not found",
@@ -705,7 +709,7 @@ export class DatasetController {
     @Param("splitId") splitId: string,
     @Body() updateDto: { sampleIds: string[] },
     @Req() req: Request,
-  ): Promise<unknown> {
+  ): Promise<SplitResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.updateSplit(id, versionId, splitId, updateDto);
   }
@@ -752,6 +756,7 @@ export class DatasetController {
   @ApiParam({ name: "splitId", description: "Split ID (UUID)" })
   @ApiOkResponse({
     description: "Split frozen successfully",
+    type: FreezeSplitResponseDto,
   })
   @ApiNotFoundResponse({
     description: "Split not found",
@@ -761,7 +766,7 @@ export class DatasetController {
     @Param("versionId") versionId: string,
     @Param("splitId") splitId: string,
     @Req() req: Request,
-  ): Promise<unknown> {
+  ): Promise<FreezeSplitResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.freezeSplit(id, versionId, splitId);
   }
