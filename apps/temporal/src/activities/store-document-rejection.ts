@@ -13,9 +13,12 @@ export async function storeDocumentRejection(params: {
   requestId?: string;
 }): Promise<void> {
   const activityName = "storeDocumentRejection";
-  const { documentId, reason, reviewer, annotations } = params;
+  const { documentId, reason, reviewer, annotations, requestId } = params;
   const startTime = Date.now();
-  const log = createActivityLogger(activityName, { documentId });
+  const log = createActivityLogger(activityName, {
+    documentId,
+    ...(requestId && { requestId }),
+  });
 
   log.info("Store document rejection start", {
     event: "start",

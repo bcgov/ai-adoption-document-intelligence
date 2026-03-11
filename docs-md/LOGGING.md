@@ -8,8 +8,8 @@ The `@ai-di/shared-logging` package provides structured NDJSON logging used by `
 
 ## Usage
 
-- **Backend:** `AppLoggerService` wraps `createLogger("backend-services")` (see `apps/backend-services`).
-- **Temporal worker:** `createLogger("temporal-worker")` and `createActivityLogger(activityName, context)` (see `apps/temporal/src/logger.ts`).
+- **Backend:** `AppLoggerService` wraps `createLogger("backend-services")` (see `apps/backend-services`). Request-scoped `requestId` and `userId` are merged into every log via middleware and request context. In development, `LoggingInterceptor` (registered in `LoggingModule`) logs each HTTP request/response as NDJSON (method, path, statusCode, durationMs, and at debug level query, params, body).
+- **Temporal worker:** `createLogger("temporal-worker")` and `createActivityLogger(activityName, context)` (see `apps/temporal/src/logger.ts`). Activities that receive `requestId` in workflow input should pass it in `context` so logs can be traced by requestId across backend and worker.
 
 ## Testing
 

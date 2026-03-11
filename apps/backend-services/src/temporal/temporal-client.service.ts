@@ -164,10 +164,15 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
 
       this.logger.log("Temporal client connected successfully");
     } catch (error) {
-      this.logger.error(
-        `Failed to connect to Temporal: ${error.message}`,
-        error.stack,
-      );
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.logger.error(`Failed to connect to Temporal: ${err.message}`, {
+        error: err.message,
+      });
+      if (err.stack) {
+        this.logger.debug("Temporal connection error stack", {
+          stack: err.stack,
+        });
+      }
       throw error;
     }
   }

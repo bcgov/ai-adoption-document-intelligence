@@ -13,8 +13,11 @@ export async function updateDocumentStatus(params: {
 }): Promise<void> {
   const activityName = "updateDocumentStatus";
   const startTime = Date.now();
-  const { documentId, status, apimRequestId } = params;
-  const log = createActivityLogger(activityName, { documentId });
+  const { documentId, status, apimRequestId, requestId } = params;
+  const log = createActivityLogger(activityName, {
+    documentId,
+    ...(requestId && { requestId }),
+  });
 
   log.info("Update document status start", {
     event: "start",

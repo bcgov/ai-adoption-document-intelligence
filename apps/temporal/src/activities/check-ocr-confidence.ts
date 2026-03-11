@@ -13,9 +13,12 @@ export async function checkOcrConfidence(params: {
   requestId?: string;
 }): Promise<{ averageConfidence: number; requiresReview: boolean }> {
   const activityName = "checkOcrConfidence";
-  const { documentId, ocrResult, threshold = 0.95 } = params;
+  const { documentId, ocrResult, threshold = 0.95, requestId } = params;
   const confidenceThreshold = threshold;
-  const log = createActivityLogger(activityName, { documentId });
+  const log = createActivityLogger(activityName, {
+    documentId,
+    ...(requestId && { requestId }),
+  });
 
   log.info("Check OCR confidence start", {
     event: "start",

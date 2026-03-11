@@ -44,6 +44,7 @@ export async function prepareFileData(
   const blobKey = input.blobKey;
   const log = createActivityLogger(activityName, {
     documentId: input.documentId,
+    ...(input.requestId && { requestId: input.requestId }),
   });
 
   log.info("Prepare file data start", {

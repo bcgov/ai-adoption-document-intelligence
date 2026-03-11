@@ -28,13 +28,13 @@ User story files are in `feature-docs/007-logging-system/user_stories/`. Impleme
 ## Suggested Implementation Order (by dependency)
 
 ### Phase 1 — Schema and shared module
-- [ ] **US-001** — Log format schema and types (shared types used by US-002)
-- [ ] **US-002** — Shared logging module (used by US-003, US-004)
+- [x] **US-001** — Log format schema and types (shared types used by US-002)
+- [x] **US-002** — Shared logging module (used by US-003, US-004)
 
 ### Phase 2 — Backend and worker
-- [ ] **US-003** — Backend shared logger and requestId
-- [ ] **US-004** — Temporal worker shared logger
-- [ ] **US-005** — Correlation IDs (requestId in workflow input; depends on US-003 and US-004)
+- [x] **US-003** — Backend shared logger and requestId
+- [x] **US-004** — Temporal worker shared logger
+- [x] **US-005** — Correlation IDs (requestId in workflow input; depends on US-003 and US-004)
 
 ### Phase 3 — Documentation
-- [ ] **US-006** — Logging documentation (can be done in parallel or after Phase 2)
+- [x] **US-006** — Logging documentation (can be done in parallel or after Phase 2)

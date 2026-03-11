@@ -1,8 +1,11 @@
 import { Global, Module, type NestModule } from "@nestjs/common";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 import { AppLoggerService } from "./app-logger.service";
+import { LoggingInterceptor } from "../logger/logging.interceptor";
 import { LoggingMiddleware } from "./logging.middleware";
 import { RequestLoggingInterceptor } from "./request-logging.interceptor";
+
+const isDev = process.env.NODE_ENV !== "production";
 
 @Global()
 @Module({
@@ -13,6 +16,9 @@ import { RequestLoggingInterceptor } from "./request-logging.interceptor";
       provide: APP_INTERCEPTOR,
       useClass: RequestLoggingInterceptor,
     },
+    ...(isDev
+      ? [{ provide: APP_INTERCEPTOR, useClass: LoggingInterceptor }]
+      : []),
   ],
   exports: [AppLoggerService],
 })
