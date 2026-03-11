@@ -7,6 +7,7 @@
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { getActivityRegistry } from "./activity-registry";
 import { workerLogger } from "./logger";
+import { installTemporalRuntimeLogger } from "./temporal-runtime-logger";
 
 // Workflows are automatically discovered via workflowsPath in Worker.create()
 
@@ -14,6 +15,9 @@ async function run() {
   // Load environment variables
   const dotenv = await import("dotenv");
   dotenv.config();
+
+  // Route all Temporal SDK logs (TS + native) through shared NDJSON logger (007-logging-system)
+  installTemporalRuntimeLogger();
 
   const address = process.env.TEMPORAL_ADDRESS || "localhost:7233";
   const namespace = process.env.TEMPORAL_NAMESPACE || "default";
