@@ -59,13 +59,13 @@ export class HitlController {
   async getQueue(@Query() filters: QueueFilterDto, @Req() req: Request) {
     let groupIds: string[];
     if (filters.group_id) {
-      await identityCanAccessGroup(
+      identityCanAccessGroup(
         req.resolvedIdentity,
         filters.group_id,
       );
       groupIds = [filters.group_id];
     } else {
-      groupIds = await getIdentityGroupIds(
+      groupIds = getIdentityGroupIds(
         req.resolvedIdentity,
       );
     }
@@ -100,13 +100,13 @@ export class HitlController {
   ) {
     let groupIds: string[];
     if (group_id) {
-      await identityCanAccessGroup(
+      identityCanAccessGroup(
         req?.resolvedIdentity,
         group_id,
       );
       groupIds = [group_id];
     } else {
-      groupIds = await getIdentityGroupIds(
+      groupIds = getIdentityGroupIds(
         req?.resolvedIdentity,
       );
     }
@@ -127,7 +127,7 @@ export class HitlController {
     if (!document) {
       throw new NotFoundException(`Document ${dto.documentId} not found`);
     }
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       document.group_id,
     );
@@ -151,7 +151,7 @@ export class HitlController {
     if (!session) {
       throw new NotFoundException(`Review session ${id} not found`);
     }
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       session.document.group_id,
     );
@@ -177,7 +177,7 @@ export class HitlController {
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       session.document.group_id,
     );
@@ -199,7 +199,7 @@ export class HitlController {
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       session.document.group_id,
     );
@@ -221,7 +221,7 @@ export class HitlController {
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       session.document.group_id,
     );
@@ -247,7 +247,7 @@ export class HitlController {
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       session.document.group_id,
     );
@@ -269,7 +269,7 @@ export class HitlController {
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       session.document.group_id,
     );
@@ -290,13 +290,13 @@ export class HitlController {
   ) {
     let groupIds: string[];
     if (filters.group_id) {
-      await identityCanAccessGroup(
+      identityCanAccessGroup(
         req.resolvedIdentity,
         filters.group_id,
       );
       groupIds = [filters.group_id];
     } else {
-      groupIds = await getIdentityGroupIds(
+      groupIds = getIdentityGroupIds(
         req.resolvedIdentity,
       );
     }
