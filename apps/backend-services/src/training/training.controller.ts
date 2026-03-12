@@ -56,7 +56,7 @@ export class TrainingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );
@@ -82,7 +82,7 @@ export class TrainingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );
@@ -109,7 +109,7 @@ export class TrainingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );
@@ -132,7 +132,7 @@ export class TrainingController {
   async getJobStatus(@Param("jobId") jobId: string, @Req() req: Request) {
     const job = await this.trainingService.getTrainingJob(jobId);
     const project = await this.labelingService.getProject(job.projectId);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );
@@ -157,7 +157,7 @@ export class TrainingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );
@@ -180,7 +180,7 @@ export class TrainingController {
   async cancelJob(@Param("jobId") jobId: string, @Req() req: Request) {
     const job = await this.trainingService.getTrainingJob(jobId);
     const project = await this.labelingService.getProject(job.projectId);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );

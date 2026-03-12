@@ -63,7 +63,7 @@ export class WorkflowController {
     @Req() req: Request,
   ): Promise<{ workflows: WorkflowInfo[] }> {
     if (groupId) {
-      await identityCanAccessGroup(
+      identityCanAccessGroup(
         req.resolvedIdentity,
         groupId,
       );
@@ -102,7 +102,7 @@ export class WorkflowController {
 
     const workflow = await this.workflowService.getWorkflow(id, userId);
 
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       workflow.groupId,
     );
@@ -133,7 +133,7 @@ export class WorkflowController {
     const user = req.user;
     const userId = user?.sub as string;
 
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       dto.groupId,
     );
@@ -170,7 +170,7 @@ export class WorkflowController {
 
     const existing = await this.workflowService.getWorkflow(id, userId);
 
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       existing.groupId,
     );
@@ -196,7 +196,7 @@ export class WorkflowController {
 
     const existing = await this.workflowService.getWorkflow(id, userId);
 
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       existing.groupId,
     );
