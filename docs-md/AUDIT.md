@@ -59,7 +59,7 @@ This document describes the durable audit table used to record **workflow runs**
 
 ## Implementation
 
-- **Backend:** `AuditService` (in `apps/backend-services/src/audit/`) provides `recordEvent(events)`. It is called from:
+- **Backend:** `AuditService` (in `apps/backend-services/src/audit/`) provides `recordEvent(events)`. When `request_id` or `actor_id` are omitted in the input, they are filled from the current request context (AsyncLocalStorage) when available, so callers do not need to pass them explicitly. It is called from:
   - **OcrService:** after starting a graph workflow and updating the document.
   - **HitlService:** after creating a session, submitting corrections, approving, escalating, or skipping a session.
   - **DocumentController:** after successfully sending the human approval signal to a workflow; and after authorized access to a document (get metadata, download file, get OCR result) with event_type `document_accessed` and payload.action `metadata`, `download`, or `ocr`.

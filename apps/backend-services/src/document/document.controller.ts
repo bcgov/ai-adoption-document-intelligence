@@ -46,7 +46,6 @@ import {
 } from "../blob-storage/blob-storage.interface";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
-import { getRequestContext } from "../logging/request-context";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
@@ -94,16 +93,13 @@ export class DocumentController {
       this.databaseService,
     );
 
-    const requestContext = getRequestContext();
     await this.auditService.recordEvent({
       event_type: "document_accessed",
       resource_type: "document",
       resource_id: documentId,
-      actor_id:
-        req.resolvedIdentity?.userId ?? requestContext?.userId ?? undefined,
+      actor_id: req.resolvedIdentity?.userId,
       document_id: documentId,
       group_id: document.group_id ?? undefined,
-      request_id: requestContext?.requestId ?? undefined,
       payload: { action: "metadata" },
     });
 
@@ -365,16 +361,13 @@ export class DocumentController {
         this.databaseService,
       );
 
-      const requestContext = getRequestContext();
       await this.auditService.recordEvent({
         event_type: "document_accessed",
         resource_type: "document",
         resource_id: documentId,
-        actor_id:
-          req.resolvedIdentity?.userId ?? requestContext?.userId ?? undefined,
+        actor_id: req.resolvedIdentity?.userId,
         document_id: documentId,
         group_id: document.group_id ?? undefined,
-        request_id: requestContext?.requestId ?? undefined,
         payload: { action: "ocr" },
       });
 
@@ -464,16 +457,13 @@ export class DocumentController {
         this.databaseService,
       );
 
-      const requestContext = getRequestContext();
       await this.auditService.recordEvent({
         event_type: "document_accessed",
         resource_type: "document",
         resource_id: documentId,
-        actor_id:
-          req.resolvedIdentity?.userId ?? requestContext?.userId ?? undefined,
+        actor_id: req.resolvedIdentity?.userId,
         document_id: documentId,
         group_id: document.group_id ?? undefined,
-        request_id: requestContext?.requestId ?? undefined,
         payload: { action: "download" },
       });
 
@@ -595,16 +585,14 @@ export class DocumentController {
         annotations: body.annotations,
       });
 
-      const requestContext = getRequestContext();
       await this.auditService.recordEvent({
         event_type: "human_approval_signal_sent",
         resource_type: "workflow_run",
         resource_id: workflowId,
-        actor_id: body.reviewer ?? requestContext?.userId ?? undefined,
+        actor_id: body.reviewer,
         document_id: documentId,
         workflow_execution_id: workflowId,
         group_id: document.group_id,
-        request_id: requestContext?.requestId ?? undefined,
         payload: {
           approved: body.approved,
           reviewer: body.reviewer ?? undefined,

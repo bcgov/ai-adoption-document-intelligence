@@ -9,7 +9,6 @@ import {
 import { AuditService } from "../audit/audit.service";
 import { DatabaseService } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
-import { getRequestContext } from "../logging/request-context";
 import { GroupMemberDto } from "./dto/group-member.dto";
 import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { MyMembershipRequestDto } from "./dto/my-membership-request.dto";
@@ -45,14 +44,12 @@ export class GroupService {
       where: { id: groupId },
       data: { deleted_at: new Date(), deleted_by: callerId },
     });
-    const requestContext = getRequestContext();
     await this.auditService.recordEvent({
       event_type: "group_deleted",
       resource_type: "group",
       resource_id: groupId,
       actor_id: callerId,
       group_id: groupId,
-      request_id: requestContext?.requestId,
       payload: { group_name: group.name },
     });
     this.logger.log("Group soft-deleted", {
@@ -191,14 +188,12 @@ export class GroupService {
           updated_by: userId,
         },
       });
-    const requestContext = getRequestContext();
     await this.auditService.recordEvent({
       event_type: "membership_request_created",
       resource_type: "group_membership_request",
       resource_id: created.id,
       actor_id: userId,
       group_id: groupId,
-      request_id: requestContext?.requestId,
       payload: { user_id: userId, group_id: groupId },
     });
     this.logger.log("Membership request created", {
@@ -235,14 +230,12 @@ export class GroupService {
         reason,
       ),
     });
-    const requestContext = getRequestContext();
     await this.auditService.recordEvent({
       event_type: "membership_request_cancelled",
       resource_type: "group_membership_request",
       resource_id: requestId,
       actor_id: userId,
       group_id: request.group_id,
-      request_id: requestContext?.requestId,
       payload: { reason },
     });
     this.logger.log("Membership request cancelled", {
@@ -292,14 +285,12 @@ export class GroupService {
         ),
       }),
     ]);
-    const requestContext = getRequestContext();
     await this.auditService.recordEvent({
       event_type: "membership_request_approved",
       resource_type: "group_membership_request",
       resource_id: requestId,
       actor_id: adminId,
       group_id: request.group_id,
-      request_id: requestContext?.requestId,
       payload: {
         user_id: request.user_id,
         reason,
@@ -311,7 +302,6 @@ export class GroupService {
       resource_id: `${request.user_id}:${request.group_id}`,
       actor_id: adminId,
       group_id: request.group_id,
-      request_id: requestContext?.requestId,
       payload: { user_id: request.user_id, membership_request_id: requestId },
     });
     this.logger.log("Membership request approved, user added to group", {
@@ -346,14 +336,12 @@ export class GroupService {
         reason,
       ),
     });
-    const requestContext = getRequestContext();
     await this.auditService.recordEvent({
       event_type: "membership_request_denied",
       resource_type: "group_membership_request",
       resource_id: requestId,
       actor_id: adminId,
       group_id: request.group_id,
-      request_id: requestContext?.requestId,
       payload: { user_id: request.user_id, reason },
     });
     this.logger.log("Membership request denied", {
@@ -463,14 +451,12 @@ export class GroupService {
       data: { name, ...(description !== undefined ? { description } : {}) },
       select: { id: true, name: true, description: true },
     });
-    const requestContext = getRequestContext();
     await this.auditService.recordEvent({
       event_type: "group_created",
       resource_type: "group",
       resource_id: group.id,
       actor_id: callerId,
       group_id: group.id,
-      request_id: requestContext?.requestId,
       payload: {
         name: group.name,
         description: group.description ?? undefined,
@@ -530,14 +516,12 @@ export class GroupService {
       },
       select: { id: true, name: true, description: true },
     });
-    const requestContext = getRequestContext();
     await this.auditService.recordEvent({
       event_type: "group_updated",
       resource_type: "group",
       resource_id: groupId,
       actor_id: callerId,
       group_id: groupId,
-      request_id: requestContext?.requestId,
       payload: {
         name: updated.name,
         description: updated.description ?? undefined,
@@ -592,14 +576,12 @@ export class GroupService {
         group_id: groupId,
       },
     });
-    const requestContext = getRequestContext();
     await this.auditService.recordEvent({
       event_type: "member_added",
       resource_type: "user_group",
       resource_id: `${userId}:${groupId}`,
       actor_id: callerId,
       group_id: groupId,
-      request_id: requestContext?.requestId,
       payload: { user_id: userId },
     });
     this.logger.log("User added to group", {
@@ -674,14 +656,12 @@ export class GroupService {
     await this.databaseService.prisma.userGroup.delete({
       where: { user_id_group_id: { user_id: userId, group_id: groupId } },
     });
-    const requestContext = getRequestContext();
     await this.auditService.recordEvent({
       event_type: "user_left_group",
       resource_type: "user_group",
       resource_id: `${userId}:${groupId}`,
       actor_id: userId,
       group_id: groupId,
-      request_id: requestContext?.requestId,
     });
     this.logger.log("User left group", { userId, groupId });
   }
@@ -826,14 +806,12 @@ export class GroupService {
     await this.databaseService.prisma.userGroup.delete({
       where: { user_id_group_id: { user_id: userId, group_id: groupId } },
     });
-    const requestContext = getRequestContext();
     await this.auditService.recordEvent({
       event_type: "member_removed",
       resource_type: "user_group",
       resource_id: `${userId}:${groupId}`,
       actor_id: callerId,
       group_id: groupId,
-      request_id: requestContext?.requestId,
       payload: { removed_user_id: userId },
     });
     this.logger.log("Member removed from group", {

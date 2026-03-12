@@ -13,7 +13,6 @@ import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { GroundTruthGenerationService } from "../benchmark/ground-truth-generation.service";
 import { DatabaseService } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
-import { getRequestContext } from "../logging/request-context";
 import { AnalyticsService } from "./analytics.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
@@ -180,7 +179,6 @@ export class HitlService {
       reviewerId,
     );
 
-    const requestContext = getRequestContext();
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
@@ -193,7 +191,6 @@ export class HitlService {
       document_id: session.document_id,
       workflow_execution_id: doc.workflow_execution_id ?? undefined,
       group_id: doc.group_id ?? undefined,
-      request_id: requestContext?.requestId ?? undefined,
       payload: { document_id: session.document_id },
     });
 
@@ -266,7 +263,6 @@ export class HitlService {
       ),
     );
 
-    const requestContext = getRequestContext();
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
@@ -275,11 +271,9 @@ export class HitlService {
       event_type: "review_corrections_submitted",
       resource_type: "review_session",
       resource_id: sessionId,
-      actor_id: requestContext?.userId ?? undefined,
       document_id: session.document_id,
       workflow_execution_id: doc.workflow_execution_id ?? undefined,
       group_id: doc.group_id ?? undefined,
-      request_id: requestContext?.requestId ?? undefined,
       payload: { correction_count: savedCorrections.length },
     });
 
@@ -303,7 +297,6 @@ export class HitlService {
       completed_at: new Date(),
     });
 
-    const requestContext = getRequestContext();
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
@@ -312,11 +305,9 @@ export class HitlService {
       event_type: "review_session_approved",
       resource_type: "review_session",
       resource_id: sessionId,
-      actor_id: requestContext?.userId ?? undefined,
       document_id: session.document_id,
       workflow_execution_id: doc.workflow_execution_id ?? undefined,
       group_id: doc.group_id ?? undefined,
-      request_id: requestContext?.requestId ?? undefined,
       payload: { document_id: session.document_id },
     });
 
@@ -376,7 +367,6 @@ export class HitlService {
       completed_at: new Date(),
     });
 
-    const requestContext = getRequestContext();
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
@@ -385,11 +375,9 @@ export class HitlService {
       event_type: "review_session_escalated",
       resource_type: "review_session",
       resource_id: sessionId,
-      actor_id: requestContext?.userId ?? undefined,
       document_id: session.document_id,
       workflow_execution_id: doc.workflow_execution_id ?? undefined,
       group_id: doc.group_id ?? undefined,
-      request_id: requestContext?.requestId ?? undefined,
       payload: { document_id: session.document_id, reason: dto.reason },
     });
 
@@ -414,7 +402,6 @@ export class HitlService {
       completed_at: new Date(),
     });
 
-    const requestContext = getRequestContext();
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
@@ -423,11 +410,9 @@ export class HitlService {
       event_type: "review_session_skipped",
       resource_type: "review_session",
       resource_id: sessionId,
-      actor_id: requestContext?.userId ?? undefined,
       document_id: session.document_id,
       workflow_execution_id: doc.workflow_execution_id ?? undefined,
       group_id: doc.group_id ?? undefined,
-      request_id: requestContext?.requestId ?? undefined,
       payload: { document_id: session.document_id },
     });
 

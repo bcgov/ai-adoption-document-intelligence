@@ -33,7 +33,7 @@ export class RequestLoggingInterceptor implements NestInterceptor {
         "userId" in request.resolvedIdentity
           ? request.resolvedIdentity.userId
           : undefined;
-      if (userId) (store as { userId?: string }).userId = userId;
+      if (userId) store.userId = userId;
     }
 
     return next.handle().pipe(

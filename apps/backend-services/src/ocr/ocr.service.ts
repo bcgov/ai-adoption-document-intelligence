@@ -13,7 +13,6 @@ import {
 } from "@/blob-storage/blob-storage.interface";
 import { DatabaseService } from "@/database/database.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import { getRequestContext } from "@/logging/request-context";
 import {
   AnalysisResponse,
   AnalysisResult,
@@ -124,7 +123,6 @@ export class OcrService {
         },
       );
 
-      const requestContext = getRequestContext();
       await this.auditService.recordEvent({
         event_type: "workflow_run_started",
         resource_type: "workflow_run",
@@ -132,11 +130,8 @@ export class OcrService {
         document_id: documentId,
         workflow_execution_id: workflowExecutionId,
         group_id: document.group_id,
-        request_id: requestContext?.requestId ?? undefined,
-        actor_id: requestContext?.userId ?? undefined,
         payload: {
           workflow_config_id: workflowConfigId ?? undefined,
-          request_id: requestContext?.requestId ?? undefined,
         },
       });
 
