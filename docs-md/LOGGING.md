@@ -8,7 +8,7 @@ The `@ai-di/shared-logging` package provides structured NDJSON logging used by `
 
 ## Usage
 
-- **Backend:** `AppLoggerService` wraps `createLogger("backend-services")` (see `apps/backend-services`). Request-scoped `requestId` and `userId` are merged into every log via middleware and request context. In development, `LoggingInterceptor` (registered in `LoggingModule`) logs each HTTP request/response as NDJSON (method, path, statusCode, durationMs, and at debug level query, params, body).
+- **Backend:** `AppLoggerService` wraps `createLogger("backend-services")` (see `apps/backend-services`). Request-scoped `requestId` and `userId` are merged into every log via middleware and request context. The `requestId` is always generated server-side (a new UUID per request); any client-supplied `x-request-id` header is ignored so logs and audit cannot be confused by reused IDs. In development, `LoggingInterceptor` (registered in `LoggingModule`) logs each HTTP request/response as NDJSON (method, path, statusCode, durationMs, and at debug level query, params, body).
 - **Temporal worker:** `createLogger("temporal-worker")` and `createActivityLogger(activityName, context)` (see `apps/temporal/src/logger.ts`). Activities that receive `requestId` in workflow input should pass it in `context` so logs can be traced by requestId across backend and worker. **SDK internal logs** (e.g. "Activity failed", "Workflow failed") are routed through the same shared logger via a custom Runtime logger and native log forwarding (`apps/temporal/src/temporal-runtime-logger.ts`), so all worker process output is NDJSON and respects `LOG_LEVEL`.
 
 ## Testing

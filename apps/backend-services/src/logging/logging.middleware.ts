@@ -12,8 +12,7 @@ export class LoggingMiddleware implements NestMiddleware {
   constructor(readonly _logger: AppLoggerService) {}
 
   use(req: Request, res: Response, next: NextFunction): void {
-    const requestId =
-      (req.headers[REQUEST_ID_HEADER] as string) || randomUUID();
+    const requestId = randomUUID();
     req.headers[REQUEST_ID_HEADER] = requestId;
 
     const store = { requestId };
