@@ -94,14 +94,14 @@ export class GroupController {
     description: "Caller does not have permission to view this user's groups.",
   })
   @ApiParam({ name: "userId", description: "User ID", type: String })
-  @Identity({ requireSystemAdmin: true })
+  @Identity()
   @Get("/user/:userId")
   async getUserGroups(
     @Req() req: Request,
     @Param("userId") userId: string,
   ): Promise<UserGroupDto[]> {
-    const callerId = req.resolvedIdentity?.userId;
-    return await this.groupService.getUserGroups(callerId, userId);
+    const identity = req.resolvedIdentity;    
+    return await this.groupService.getUserGroups(identity, userId);
   }
 
   /**

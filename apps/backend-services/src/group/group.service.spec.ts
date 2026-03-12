@@ -153,7 +153,7 @@ describe("getUserGroups", () => {
       },
     };
     const service = new GroupService({ prisma: mockPrisma } as any);
-    const result = await service.getUserGroups("user1", "user1");
+    const result = await service.getUserGroups({ userId: "user1" }, "user1");
     expect(result).toEqual([
       { id: "g1", name: "Group 1", role: "ADMIN" },
       { id: "g2", name: "Group 2", role: "MEMBER" },
@@ -175,7 +175,7 @@ describe("getUserGroups", () => {
       },
     };
     const service = new GroupService({ prisma: mockPrisma } as any);
-    const result = await service.getUserGroups("user1", "user1");
+    const result = await service.getUserGroups({ userId: "user1" }, "user1");
     expect(result).toEqual([
       { id: "g1", name: "Active Group", role: "MEMBER" },
     ]);
@@ -202,7 +202,7 @@ describe("getUserGroups", () => {
       prisma: mockPrisma,
       isUserSystemAdmin: jest.fn().mockResolvedValue(true),
     } as any);
-    const result = await service.getUserGroups("admin1", "user1");
+    const result = await service.getUserGroups({ userId: "admin1", isSystemAdmin: true }, "user1");
     expect(result).toEqual([{ id: "g1", name: "Group 1", role: "MEMBER" }]);
   });
 
@@ -226,7 +226,7 @@ describe("getUserGroups", () => {
       prisma: mockPrisma,
       isUserSystemAdmin: jest.fn().mockResolvedValue(false),
     } as any);
-    const result = await service.getUserGroups("admin1", "user1");
+    const result = await service.getUserGroups({ userId: "admin1" }, "user1");
     expect(result).toEqual([{ id: "g1", name: "Group 1", role: "MEMBER" }]);
   });
 
@@ -243,7 +243,7 @@ describe("getUserGroups", () => {
       prisma: mockPrisma,
       isUserSystemAdmin: jest.fn().mockResolvedValue(false),
     } as any);
-    await expect(service.getUserGroups("caller1", "user1")).rejects.toThrow(
+    await expect(service.getUserGroups({ userId: "caller1" }, "user1")).rejects.toThrow(
       "You do not have permission to view another user's group memberships",
     );
   });

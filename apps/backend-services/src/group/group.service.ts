@@ -59,22 +59,20 @@ export class GroupService {
    * @param userId - The ID of the user whose groups are being retrieved.
    */
   async getUserGroups(
-    callerId: string,
+    identity: ResolvedIdentity,
     userId: string,
   ): Promise<UserGroupDto[]> {
-    if (callerId === userId) {
+    if (identity.userId === userId) {
       return this.fetchUserGroups(userId);
     }
 
-    const isSystemAdmin =
-      await this.databaseService.isUserSystemAdmin(callerId);
-    if (isSystemAdmin) {
+    if (identity.isSystemAdmin) {
       return this.fetchUserGroups(userId);
     }
 
     const callerAdminMemberships =
       await this.databaseService.prisma.userGroup.findMany({
-        where: { user_id: callerId, role: GroupRole.ADMIN },
+        where: { user_id: identity.userId, role: GroupRole.ADMIN },
       });
 
     if (callerAdminMemberships.length === 0) {

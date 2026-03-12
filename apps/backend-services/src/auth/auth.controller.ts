@@ -285,13 +285,12 @@ export class AuthController {
     const user = req.user as User;
     const now = Math.floor(Date.now() / 1000);
     const exp = (user.exp as number) || now;
-    const userId = req.resolvedIdentity?.userId ?? "";
 
-    const isAdmin = await this.databaseService.isUserSystemAdmin(userId);
-    const groups = await this.groupService.getUserGroups(userId, userId);
+    const isAdmin = req.resolvedIdentity?.isSystemAdmin || false;
+    const groups = await this.groupService.getUserGroups(req.resolvedIdentity, req.resolvedIdentity?.userId);
 
     return {
-      sub: userId,
+      sub: req.resolvedIdentity?.userId,
       name: (user.name as string) || (user.display_name as string),
       preferred_username:
         (user.preferred_username as string) || (user.idir_username as string),
