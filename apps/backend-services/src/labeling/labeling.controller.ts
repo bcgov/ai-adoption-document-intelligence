@@ -84,20 +84,20 @@ export class LabelingController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getProjects(@Req() req: Request, @Query("group_id") groupId?: string) {
     if (groupId) {
-      await identityCanAccessGroup(
+      identityCanAccessGroup(
         req.resolvedIdentity,
         groupId,
       );
       return this.labelingService.getProjects([groupId]);
     }
-    const groupIds = await getIdentityGroupIds(
+    const groupIds = getIdentityGroupIds(
       req.resolvedIdentity,
     );
     return this.labelingService.getProjects(groupIds);
   }
 
   @Post("projects")
-  @Identity({ allowApiKey: true })
+  @Identity({ allowApiKey: true, groupIdFrom: { body: "group_id" } })
   @ApiOperation({ summary: "Create a new labeling project" })
   @ApiCreatedResponse({
     description: "Newly created labeling project",
@@ -106,7 +106,7 @@ export class LabelingController {
   async createProject(@Body() dto: CreateProjectDto, @Req() req: Request) {
     const userId =
       req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       dto.group_id,
     );
@@ -125,7 +125,7 @@ export class LabelingController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getProject(@Param("id") id: string, @Req() req: Request) {
     const project = await this.labelingService.getProject(id);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );
@@ -148,7 +148,7 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(id);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );
@@ -167,7 +167,7 @@ export class LabelingController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async deleteProject(@Param("id") id: string, @Req() req: Request) {
     const project = await this.labelingService.getProject(id);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );
@@ -188,7 +188,7 @@ export class LabelingController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getFieldSchema(@Param("id") id: string, @Req() req: Request) {
     const project = await this.labelingService.getProject(id);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );
@@ -211,7 +211,7 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );
@@ -236,7 +236,7 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );
@@ -260,7 +260,7 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );
@@ -284,7 +284,7 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );
@@ -314,7 +314,7 @@ export class LabelingController {
         `Labeling document with id ${dto.labelingDocumentId} not found`,
       );
     }
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labelingDoc.group_id,
     );
@@ -323,7 +323,7 @@ export class LabelingController {
 
   @Post("projects/:id/upload")
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ allowApiKey: true })
+  @Identity({ allowApiKey: true, groupIdFrom: { body: "group_id" } })
   @ApiOperation({ summary: "Upload a document into a labeling project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiCreatedResponse({
@@ -335,7 +335,7 @@ export class LabelingController {
     @Body() dto: LabelingUploadDto,
     @Req() req: Request,
   ) {
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       dto.group_id,
     );
@@ -363,7 +363,7 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
@@ -389,7 +389,7 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
@@ -431,7 +431,7 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
@@ -463,7 +463,7 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
@@ -491,7 +491,7 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
@@ -520,7 +520,7 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
@@ -548,7 +548,7 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
@@ -563,13 +563,21 @@ export class LabelingController {
   })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
+  @ApiOkResponse({
+    description: "Generated label suggestions for the document",
+    type: [LabelSuggestionDto],
+  })
+  @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async generateDocumentSuggestions(
+    @Req() req: Request,
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
   ): Promise<LabelSuggestionDto[]> {
     return this.labelingService.generateDocumentSuggestions(
       projectId,
       documentId,
+      req.resolvedIdentity,
     );
   }
 
@@ -597,7 +605,7 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       project.group_id,
     );

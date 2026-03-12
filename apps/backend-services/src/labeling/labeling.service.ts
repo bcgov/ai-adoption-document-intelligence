@@ -29,6 +29,8 @@ import {
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { SuggestionService } from "./suggestion.service";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { ResolvedIdentity } from "@/auth/types";
 
 @Injectable()
 export class LabelingService {
@@ -300,6 +302,7 @@ export class LabelingService {
   async generateDocumentSuggestions(
     projectId: string,
     documentId: string,
+    identity: ResolvedIdentity,
   ): Promise<LabelSuggestionDto[]> {
     this.logger.debug(
       `Generating suggestions for document ${documentId} in project: ${projectId}`,
@@ -311,6 +314,7 @@ export class LabelingService {
         `Document ${documentId} not found in project ${projectId}`,
       );
     }
+
     if (!labeledDoc.labeling_document?.ocr_result) {
       throw new NotFoundException(
         `OCR result not found for labeling document ${documentId}`,
@@ -321,6 +325,8 @@ export class LabelingService {
     if (!project) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
+
+    identityCanAccessGroup(identity, project.group_id);
 
     const ocrResult = labeledDoc.labeling_document
       .ocr_result as unknown as AnalysisResponse;

@@ -115,8 +115,8 @@ describe("LabelingController", () => {
   describe("getProjects", () => {
     it("returns projects for the user's groups (JWT)", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.getProjects.mockResolvedValue([mockProject as any]);
       const result = await controller.getProjects(req, undefined);
       expect(result).toEqual([mockProject]);
@@ -145,8 +145,8 @@ describe("LabelingController", () => {
 
     it("returns only group projects when group_id is provided and user is a member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.getProjects.mockResolvedValue([mockProject as any]);
       const result = await controller.getProjects(req, "group-1");
       expect(result).toEqual([mockProject]);
@@ -174,8 +174,8 @@ describe("LabelingController", () => {
     it("creates project for a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.createProject.mockResolvedValue(mockProject as any);
       const result = await controller.createProject(dto, req);
       expect(result).toEqual(mockProject);
@@ -209,8 +209,8 @@ describe("LabelingController", () => {
   describe("getProject", () => {
     it("returns project for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
       const result = await controller.getProject("project-1", req);
       expect(result).toEqual(mockProject);
@@ -244,8 +244,8 @@ describe("LabelingController", () => {
 
     it("updates project for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
       labelingService.updateProject.mockResolvedValue(mockProject as any);
       const result = await controller.updateProject("project-1", dto, req);
@@ -283,8 +283,8 @@ describe("LabelingController", () => {
   describe("deleteProject", () => {
     it("deletes project for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
       labelingService.deleteProject.mockResolvedValue({
         success: true,
@@ -331,8 +331,8 @@ describe("LabelingController", () => {
     it("uploads document for a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.uploadLabelingDocument.mockResolvedValue(
         mockLabelingDocResult as any,
       );
@@ -377,8 +377,8 @@ describe("LabelingController", () => {
 
     it("adds document to project for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.addDocumentToProject.mockResolvedValue(
         mockLabeledDocument as any,
       );
@@ -432,8 +432,8 @@ describe("LabelingController", () => {
   describe("getProjectDocument", () => {
     it("returns labeled document for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.getProjectDocument.mockResolvedValue(
         mockLabeledDocument as any,
       );
@@ -478,8 +478,8 @@ describe("LabelingController", () => {
   describe("removeDocumentFromProject", () => {
     it("removes document for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.getProjectDocument.mockResolvedValue(
         mockLabeledDocument as any,
       );
@@ -530,8 +530,8 @@ describe("LabelingController", () => {
   describe("getDocumentLabels", () => {
     it("returns labels for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.getProjectDocument.mockResolvedValue(
         mockLabeledDocument as any,
       );
@@ -581,8 +581,8 @@ describe("LabelingController", () => {
 
     it("saves labels for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.getProjectDocument.mockResolvedValue(
         mockLabeledDocument as any,
       );
@@ -634,8 +634,8 @@ describe("LabelingController", () => {
   describe("deleteLabel", () => {
     it("deletes label for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.getProjectDocument.mockResolvedValue(
         mockLabeledDocument as any,
       );
@@ -688,8 +688,8 @@ describe("LabelingController", () => {
   describe("getDocumentOcr", () => {
     it("returns OCR data for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       const mockOcrResult = { analyzeResult: { content: "test" } };
       labelingService.getProjectDocument.mockResolvedValue(
         mockLabeledDocument as any,
@@ -738,8 +738,8 @@ describe("LabelingController", () => {
   describe("getProjectDocuments", () => {
     it("returns documents for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
       labelingService.getProjectDocuments.mockResolvedValue([]);
       const result = await controller.getProjectDocuments("project-1", req);
@@ -776,8 +776,8 @@ describe("LabelingController", () => {
   describe("getFieldSchema", () => {
     it("returns field schema for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
       labelingService.getFieldSchema.mockResolvedValue([]);
       const result = await controller.getFieldSchema("project-1", req);
@@ -818,8 +818,8 @@ describe("LabelingController", () => {
 
     it("adds field for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       const mockField = { id: "field-1", ...dto };
       labelingService.getProject.mockResolvedValue(mockProject as any);
       labelingService.addField.mockResolvedValue(mockField as any);
@@ -857,8 +857,8 @@ describe("LabelingController", () => {
 
     it("updates field for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       const mockField = { id: "field-1", name: "updated_field" };
       labelingService.getProject.mockResolvedValue(mockProject as any);
       labelingService.updateField.mockResolvedValue(mockField as any);
@@ -903,8 +903,8 @@ describe("LabelingController", () => {
   describe("deleteField", () => {
     it("deletes field for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
       labelingService.deleteField.mockResolvedValue({
         success: true,
@@ -947,8 +947,8 @@ describe("LabelingController", () => {
 
     it("exports project for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: { userId: "user-1", groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       const mockExport = { project: {}, documents: [] };
       labelingService.getProject.mockResolvedValue(mockProject as any);
       labelingService.exportProject.mockResolvedValue(mockExport as any);
