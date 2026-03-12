@@ -25,7 +25,7 @@ export class OcrController {
   @ApiOperation({
     summary: "Get a list of available OCR models (prebuilt + trained)",
   })
-  @Identity()
+  @Identity({ allowApiKey: true })
   @ApiOkResponse({ schema: { default: { models: ["string"] } } })
   async getModels(): Promise<{ models: string[] }> {
     const prisma = this.db["prisma"];
