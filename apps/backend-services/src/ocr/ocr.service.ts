@@ -1,57 +1,53 @@
-import { DatabaseService } from "@/database/database.service";
-import { DocumentStatus } from "@/generated/enums";
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { DocumentStatus } from "@generated/client";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { readFile } from "fs/promises";
-import { AnalysisResponse, AnalysisResult } from "@/ocr/azureTypes";
-import { join } from "path";
-import { HttpService } from "@nestjs/axios";
-import { lastValueFrom } from "rxjs";
+import {
+  BLOB_STORAGE,
+  BlobStorageInterface,
+} from "@/blob-storage/blob-storage.interface";
+import { DatabaseService } from "@/database/database.service";
+import {
+  AnalysisResponse,
+  AnalysisResult,
+  KeyValuePair,
+} from "@/ocr/azure-types";
+import { TemporalClientService } from "@/temporal/temporal-client.service";
 
 export interface OcrRequestResponse {
   status: DocumentStatus;
+  workflowId?: string;
   apimRequestId?: string;
-  error?: Error;
+  error?: string; // Error message as string for serialization
 }
 
 @Injectable()
 export class OcrService {
   private readonly logger = new Logger(OcrService.name);
-  private readonly azureModelId: string;
-  private readonly storagePath: string;
-  private readonly azureEndpoint: string;
-  private readonly azureApiKey: string;
 
   constructor(
-    private configService: ConfigService,
+    _configService: ConfigService,
     private databaseService: DatabaseService,
-    private httpService: HttpService,
-  ) {
-    this.azureEndpoint = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
-    );
-    this.azureApiKey = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
-    );
-    this.azureModelId = "prebuilt-layout";
-
-    if (!this.azureEndpoint || !this.azureApiKey) {
-      const azureConfigMessage =
-        "Azure Document Intelligence credentials not configured.";
-      this.logger.warn(azureConfigMessage);
-      throw Error(azureConfigMessage);
-    }
-    this.storagePath =
-      this.configService.get<string>("STORAGE_PATH") ||
-      join(process.cwd(), "storage", "documents");
-  }
+    private temporalClientService: TemporalClientService,
+    @Inject(BLOB_STORAGE)
+    private blobStorage: BlobStorageInterface,
+  ) {}
 
   /**
-   * Sends a document to Azure for OCR processing.
+   * Sends a document to Azure for OCR processing via Temporal workflow.
    * @param documentId ID from documents table
-   * @returns New status of document and request ID from Azure.
+   * @param steps Optional workflow steps configuration
+   * @returns New status of document and workflow ID.
    */
-  async requestOcr(documentId: string): Promise<OcrRequestResponse> {
+  async requestOcr(
+    documentId: string,
+    ctxOverrides?: Record<string, unknown>,
+  ): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
     // Find filepath of document
     const document = await this.databaseService.findDocument(documentId);
@@ -61,43 +57,82 @@ export class OcrService {
       );
     }
     try {
-      // Read file from filesystem
-      // TODO: Where is this actually meant to come from? Suggest separating to file service.
-      const filePath = `${this.storagePath}/${document.file_path}`;
-      const fileBuffer = await readFile(filePath);
+      // Read file from blob storage using the blob key stored in file_path
+      const fileBuffer = await this.blobStorage.read(document.file_path);
       if (fileBuffer == null) throw Error("File not found.");
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);
 
-      // Send file to Azure for OCR
-      const azureResponse = await lastValueFrom(
-        this.httpService.post(
-          `${this.azureEndpoint}/documentModels/${this.azureModelId}:analyze?api-version=2024-11-30&features=keyValuePairs`,
-          {
-            base64Source: fileBuffer.toString("base64"),
-          },
-          {
-            headers: {
-              "api-key": this.azureApiKey,
-            },
-          },
-        ),
-      );
+      // Get model_id from document
+      const modelId = document.model_id;
+      this.logger.debug(`Document model_id: ${modelId}`);
 
-      if (azureResponse.status != 202) {
-        throw Error("Error sending document to Azure");
+      // Determine file type and content type
+      const fileType = document.file_type === "pdf" ? "pdf" : "image";
+      let contentType = "application/pdf";
+      if (fileType === "image") {
+        const lowerFileName = document.original_filename.toLowerCase();
+        if (lowerFileName.endsWith(".png")) {
+          contentType = "image/png";
+        } else if (lowerFileName.match(/\.(jpg|jpeg)$/i)) {
+          contentType = "image/jpeg";
+        } else {
+          contentType = "image/jpeg";
+        }
       }
+
+      // Get workflow_config_id from document if available
+      // This references the Workflow table and contains the workflow configuration
+      // Fallback to legacy workflow_id for backward compatibility during migration
+      const workflowConfigId = document.workflow_config_id || undefined;
+      if (workflowConfigId) {
+        this.logger.log(
+          `Document ${documentId} has workflow configuration ID: ${workflowConfigId}`,
+        );
+      } else {
+        throw new BadRequestException(
+          `Document ${documentId} missing workflow configuration ID`,
+        );
+      }
+
+      const initialCtx: Record<string, unknown> = {
+        documentId,
+        blobKey: document.file_path,
+        fileName: document.original_filename,
+        fileType,
+        contentType,
+        modelId,
+        ...ctxOverrides, // Allows callers to inject or override workflow context values (e.g., confidenceThreshold: 0 to skip human review)
+      };
+
+      // Start Temporal graph workflow
+      const workflowExecutionId =
+        await this.temporalClientService.startGraphWorkflow(
+          documentId,
+          workflowConfigId,
+          initialCtx,
+        );
+
+      // Update document with workflow configuration ID and Temporal workflow execution ID
+      // Note: Status is set automatically by workflow pre-execution hook
       const updateResult = await this.databaseService.updateDocument(
         documentId,
         {
-          apim_request_id: azureResponse.headers["apim-request-id"], // docPoller.headers["apim-request-id"],
-          status: DocumentStatus.ongoing_ocr,
+          workflow_config_id: workflowConfigId || undefined,
+          workflow_execution_id: workflowExecutionId,
         },
       );
 
-      // Return the apim request ID
+      this.logger.log(
+        `Started OCR workflow for document ${documentId}, Temporal execution ID: ${workflowExecutionId}${workflowConfigId ? `, using workflow config: ${workflowConfigId}` : ", using default workflow"}`,
+      );
+
+      // Return the workflow execution ID
+      // Status is set by workflow pre-execution hook
       return {
-        apimRequestId: updateResult.apim_request_id,
-        status: updateResult.status,
+        apimRequestId:
+          updateResult.workflow_execution_id || workflowExecutionId,
+        workflowId: workflowExecutionId,
+        status: DocumentStatus.ongoing_ocr,
       };
     } catch (error) {
       this.logger.error(`Error processing document: ${error.message}`);
@@ -109,63 +144,13 @@ export class OcrService {
         });
       }
 
+      // Ensure error is a string for the response
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         status: DocumentStatus.failed,
-        error: error.message,
+        error: errorMessage,
       };
     }
-  }
-
-  /**
-   * Retrieves the results of an Azure OCR request.
-   * @param documentId ID from documents table
-   * @returns The AnalysisResult of OCR processing.
-   */
-  async retrieveOcrResults(documentId: string): Promise<AnalysisResult> {
-    // Get apim ID of document
-    const document = await this.databaseService.findDocument(documentId);
-    if (document == null) {
-      throw new NotFoundException(
-        `Entry for document with ID ${documentId} not found.`,
-      );
-    }
-
-    const apim = document.apim_request_id;
-
-    // Potentially was never sent or failed to send
-    if (
-      document.status == DocumentStatus.pre_ocr ||
-      document.status == DocumentStatus.failed ||
-      apim == null
-    ) {
-      throw Error(`Document ID ${documentId} has not yet been sent for OCR.`);
-    }
-
-    // Get OCR results from Azure
-    const azureResponse = await lastValueFrom(
-      this.httpService.get(
-        `${this.azureEndpoint}/documentModels/${this.azureModelId}/analyzeResults/${apim}?api-version=2024-11-30`,
-        {
-          headers: {
-            "api-key": this.azureApiKey,
-          },
-        },
-      ),
-    );
-
-    if (azureResponse.status != 200) {
-      throw Error(
-        `Failed to retrieve OCR results for document ID ${documentId}`,
-      );
-    }
-
-    const analysisResponse: AnalysisResponse = azureResponse.data;
-    const anaysisResult = analysisResponse.analyzeResult;
-    // Update OCR results table
-    this.databaseService.upsertOcrResult({
-      documentId,
-      analysisResponse,
-    });
-    return anaysisResult;
   }
 }

@@ -19,10 +19,10 @@
       "**/*.spec.ts",
       "**/*.test.ts",
       "**/*.map",
-      "**/.tsbuildinfo"
+      "**/.tsbuildinfo",
+      "src/generated/**"
     ],
     "usePolling": true,
     "interval": 1000
   }
 }
-

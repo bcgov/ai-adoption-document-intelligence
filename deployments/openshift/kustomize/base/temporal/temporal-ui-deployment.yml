@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-ui
+  labels:
+    app: temporal-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal-ui
+  template:
+    metadata:
+      labels:
+        app: temporal-ui
+    spec:
+      volumes:
+        - name: ui-config
+          emptyDir: {}
+      initContainers:
+        # Image has no /app/config; write minimal docker.yaml into mount (no copy, no chmod).
+        - name: config-init
+          image: temporalio/ui:2.25.0
+          imagePullPolicy: Always
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: "temporal:7233"
+            - name: TEMPORAL_CORS_ORIGINS
+              value: "*"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              mkdir -p /app/config-out
+              # Quote values so YAML is valid (e.g. * must be "*, or parser treats it as alias).
+              cat <<EOF > /app/config-out/docker.yaml
+              temporalGrpcAddress: "${TEMPORAL_ADDRESS}"
+              port: 8080
+              cors:
+                allowOrigins: ["${TEMPORAL_CORS_ORIGINS}"]
+              EOF
+          volumeMounts:
+            - name: ui-config
+              mountPath: /app/config-out
+      containers:
+        - name: temporal-ui
+          image: temporalio/ui:2.25.0
+          imagePullPolicy: Always
+          workingDir: /home/ui-server
+          # Bypass default entrypoint; run with --env docker so server reads ./config/docker.yaml (our init-created config).
+          command: ["/bin/sh", "-c", "exec /home/ui-server/ui-server --env docker start"]
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          volumeMounts:
+            - name: ui-config
+              mountPath: /home/ui-server/config
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: "temporal:7233"
+            - name: TEMPORAL_CORS_ORIGINS
+              value: "*"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5

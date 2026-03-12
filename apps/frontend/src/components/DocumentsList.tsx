@@ -1,19 +1,19 @@
-import React from 'react';
-import { useDocuments } from '../data/hooks/useDocuments';
-import { formatDate, formatFileSize } from '../shared/utils';
-import type { Document } from '../shared/types';
 import {
-  Title,
-  Text,
-  Card,
-  Badge,
   Alert,
-  Loader,
+  Badge,
+  Card,
+  Center,
   Grid,
-  Stack,
   Group,
-  Center
-} from '@mantine/core';
+  Loader,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
+import React from "react";
+import { useDocuments } from "../data/hooks/useDocuments";
+import type { Document } from "../shared/types";
+import { formatDate, formatFileSize } from "../shared/utils";
 
 export const DocumentsList: React.FC = () => {
   const { data: documents, isLoading, error } = useDocuments();
@@ -23,7 +23,9 @@ export const DocumentsList: React.FC = () => {
       <Center h={200}>
         <Stack align="center" gap="md">
           <Loader size="lg" />
-          <Text size="lg" c="dimmed">Loading documents...</Text>
+          <Text size="lg" c="dimmed">
+            Loading documents...
+          </Text>
         </Stack>
       </Center>
     );
@@ -31,7 +33,12 @@ export const DocumentsList: React.FC = () => {
 
   if (error) {
     return (
-      <Alert variant="light" color="red" title="Error Loading Documents" icon="❌">
+      <Alert
+        variant="light"
+        color="red"
+        title="Error Loading Documents"
+        icon="❌"
+      >
         {error.message}
       </Alert>
     );
@@ -41,9 +48,15 @@ export const DocumentsList: React.FC = () => {
     return (
       <Center h={200}>
         <Stack align="center" gap="sm">
-          <Text size="lg" c="dimmed">📄</Text>
-          <Text size="lg" c="dimmed">No documents found.</Text>
-          <Text size="sm" c="dimmed">Upload some documents to get started.</Text>
+          <Text size="lg" c="dimmed">
+            📄
+          </Text>
+          <Text size="lg" c="dimmed">
+            No documents found.
+          </Text>
+          <Text size="sm" c="dimmed">
+            Upload some documents to get started.
+          </Text>
         </Stack>
       </Center>
     );
@@ -51,22 +64,22 @@ export const DocumentsList: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'processed':
-        return 'green';
-      case 'processing':
-        return 'yellow';
-      case 'failed':
-        return 'red';
+      case "processed":
+        return "green";
+      case "processing":
+        return "yellow";
+      case "failed":
+        return "red";
       default:
-        return 'gray';
+        return "gray";
     }
   };
 
   const getFileTypeColor = (fileType: string) => {
-    if (fileType.includes('pdf')) return 'red';
-    if (fileType.includes('image')) return 'blue';
-    if (fileType.includes('text')) return 'green';
-    return 'gray';
+    if (fileType.includes("pdf")) return "red";
+    if (fileType.includes("image")) return "blue";
+    if (fileType.includes("text")) return "green";
+    return "gray";
   };
 
   return (
@@ -74,7 +87,7 @@ export const DocumentsList: React.FC = () => {
       <Group justify="space-between" align="center">
         <Title order={2}>Documents</Title>
         <Badge size="lg" variant="light" color="blue">
-          {documents.length} {documents.length === 1 ? 'document' : 'documents'}
+          {documents.length} {documents.length === 1 ? "document" : "documents"}
         </Badge>
       </Group>
 
@@ -98,14 +111,18 @@ export const DocumentsList: React.FC = () => {
 
                 <Stack gap="xs">
                   <Group justify="space-between">
-                    <Text size="sm" fw={500}>Filename:</Text>
-                    <Text size="sm" lineClamp={1} style={{ maxWidth: '60%' }}>
+                    <Text size="sm" fw={500}>
+                      Filename:
+                    </Text>
+                    <Text size="sm" lineClamp={1} style={{ maxWidth: "60%" }}>
                       {document.original_filename}
                     </Text>
                   </Group>
 
                   <Group justify="space-between">
-                    <Text size="sm" fw={500}>Type:</Text>
+                    <Text size="sm" fw={500}>
+                      Type:
+                    </Text>
                     <Badge
                       color={getFileTypeColor(document.file_type)}
                       variant="dot"
@@ -116,18 +133,26 @@ export const DocumentsList: React.FC = () => {
                   </Group>
 
                   <Group justify="space-between">
-                    <Text size="sm" fw={500}>Size:</Text>
+                    <Text size="sm" fw={500}>
+                      Size:
+                    </Text>
                     <Text size="sm">{formatFileSize(document.file_size)}</Text>
                   </Group>
 
                   <Group justify="space-between">
-                    <Text size="sm" fw={500}>Created:</Text>
-                    <Text size="sm">{formatDate(new Date(document.created_at))}</Text>
+                    <Text size="sm" fw={500}>
+                      Created:
+                    </Text>
+                    <Text size="sm">
+                      {formatDate(new Date(document.created_at))}
+                    </Text>
                   </Group>
 
                   {document.source && (
                     <Group justify="space-between">
-                      <Text size="sm" fw={500}>Source:</Text>
+                      <Text size="sm" fw={500}>
+                        Source:
+                      </Text>
                       <Text size="sm">{document.source}</Text>
                     </Group>
                   )}

@@ -1,4 +1,17 @@
 node_modules
+.DS_Store
 
 # SpecStory
 .specstory/
+/.claude/settings.loca.json
+
+# Playwright
+test-results/
+playwright-report/
+.playwright-mcp/
+playwright/.cache/
+feature-docs/*/playwright/screenshots/
+
+# Backend logs
+apps/backend-services/backend.log
+.claude/settings.local.json

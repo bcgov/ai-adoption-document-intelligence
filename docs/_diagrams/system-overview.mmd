@@ -1,0 +1,80 @@
+flowchart TD
+    Users(["👤 Human Users (Browser)"]):::external
+    APIConsumers(["🔌 API Consumers"]):::external
+    ImageSvc["🖼️ Image Service\nPython / OpenCV · standalone"]:::standalone
+
+    subgraph Platform ["Document Intelligence Platform"]
+        direction TB
+
+        subgraph FE ["🖥️ Frontend — React 19 SPA"]
+            direction TB
+            DocUpload["📄 Document Upload"]
+            WorkflowEditor["⚙️ Workflow Editor (JSON + ReactFlow)"]
+            LabelingWS["🏷️ Labeling Workspace (Canvas / Konva)"]
+            HITLReview["👁️ HITL Review — Queue + Workspace"]
+            TrainingDash["📊 Training Dashboard"]
+            SettingsPage["🔧 Settings / API Keys"]
+        end
+
+        subgraph BE ["🔧 Backend — NestJS :3002"]
+            direction LR
+            UploadMod["Upload"]:::domain ~~~ DocMod["Document"]:::domain ~~~ WorkflowMod["Workflow"]:::domain ~~~ LabelingMod["Labeling"]:::domain ~~~ HITLMod["HITL"]:::domain ~~~ TrainingMod["Training"]:::domain
+            AuthMod["Auth\nJWT + API Key"]:::infra ~~~ AzureMod["Azure"]:::infra ~~~ OcrMod["OCR"]:::infra ~~~ DbMod["DB / Prisma"]:::infra ~~~ BlobMod["Blob Storage"]:::infra ~~~ TemporalClient["Temporal Client"]:::infra
+        end
+
+        subgraph TG ["⏱️ Temporal"]
+            direction LR
+            subgraph TS ["Server :7233 / UI :8080"]
+                TemporalSrv["Workflow History · Task Dispatch\nSignal & Query | Queue: ocr-processing"]
+            end
+            subgraph TW ["Worker — apps/temporal"]
+                direction TB
+                GraphWF["graphWorkflow() — DAG Runner"]
+                ActivityReg["Activity Registry (15 activities)"]
+                NodeInterp["Node Interpreters\nswitch · map · join · childWF · pollUntil · humanGate"]
+                ExprEval["Expression Evaluator"]
+            end
+        end
+    end
+
+    subgraph ExtSvc ["☁️ External Cloud Services"]
+        direction TB
+        Keycloak["🔐 Keycloak — OIDC / SSO"]:::external
+        AzureDI["🔍 Azure Document Intelligence (OCR)"]:::external
+        AzureBlob["📦 Azure Blob Storage (Production)"]:::external
+    end
+
+    PG[("🗄️ PostgreSQL — Prisma ORM")]:::datastore
+    LocalBlob[("💾 Blob Storage — local fs / Azure")]:::datastore
+
+    FE ~~~ APIConsumers
+    BE ~~~ ExtSvc
+
+    Users -->|HTTPS| FE
+    APIConsumers -->|"HTTPS + x-api-key"| BE
+    FE -->|"HTTP REST (Axios)"| BE
+
+    AuthMod -.->|"JWKS / JWT"| Keycloak
+    AzureMod -->|"REST API"| AzureDI
+    AzureMod -->|"Azure SDK"| AzureBlob
+
+    DbMod --> PG
+    BlobMod --> LocalBlob
+    TemporalClient ==>|"gRPC :7233"| TemporalSrv
+    TemporalSrv ==>|"task dispatch"| TW
+
+    GraphWF --> ActivityReg & NodeInterp & ExprEval
+
+    ActivityReg -->|"Prisma"| PG
+    ActivityReg -->|"fs / Azure SDK"| LocalBlob
+    ActivityReg -->|"REST API"| AzureDI
+
+    classDef external fill:#f9f0ff,stroke:#7c3aed,stroke-width:2px
+    classDef datastore fill:#ecfdf5,stroke:#059669,stroke-width:2px
+    classDef standalone fill:#fef3c7,stroke:#d97706,stroke-width:1px,stroke-dasharray:5 5
+    classDef domain fill:#eff6ff,stroke:#2563eb,stroke-width:1px
+    classDef infra fill:#f0fdf4,stroke:#16a34a,stroke-width:1px
+
+    class Users,APIConsumers,Keycloak,AzureDI,AzureBlob external
+    class PG,LocalBlob datastore
+    class ImageSvc standalone

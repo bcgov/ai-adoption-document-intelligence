@@ -1,0 +1,707 @@
+<!-- TITLE: Authentication Architecture -->
+<!-- NAV: authentication -->
+
+<h1>Authentication &amp; Authorization Architecture</h1>
+
+<p>This page documents the authentication and authorization system used by the Document Intelligence Platform. The implementation follows the <strong>OAuth 2.0 Authorization Code Flow with PKCE</strong>, using <strong>Keycloak</strong> as the identity provider and a confidential NestJS backend as the OAuth client.</p>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Dual Authentication</strong><br>
+        The platform supports two authentication methods: <strong>Bearer Tokens</strong> (Keycloak SSO) for user-facing applications and <strong>API Keys</strong> for machine-to-machine integrations. Both are enforced globally via NestJS guards.
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2>Architecture Overview</h2>
+
+<p>The authentication system is split across the backend (NestJS) and frontend (React SPA), with Keycloak handling identity management.</p>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: var(--bc-blue);">
+        <h3 style="margin-top: 0;">Backend (Confidential Client)</h3>
+        <ul style="margin-bottom: 0;">
+            <li>Holds the <code>client_secret</code> — never exposed to the browser</li>
+            <li>Uses <code>openid-client</code> (v6.x) for OIDC discovery, code exchange, and token refresh</li>
+            <li>Uses <code>passport-jwt</code> for cookie-first JWT validation (Bearer header fallback)</li>
+            <li>PKCE state stored in HttpOnly cookie (2-minute TTL)</li>
+            <li>Tokens set as <strong>HttpOnly, Secure, SameSite=Lax</strong> cookies — never exposed to JavaScript</li>
+            <li>CSRF protection via double-submit cookie pattern (<code>CsrfGuard</code>)</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: var(--bc-gold);">
+        <h3 style="margin-top: 0;">Frontend (Stateless SPA)</h3>
+        <ul style="margin-bottom: 0;">
+            <li>No OIDC client library — relies entirely on the backend</li>
+            <li>Cookie-based authentication — tokens managed by the browser automatically</li>
+            <li>User profile loaded from <code>GET /api/auth/me</code> endpoint on mount</li>
+            <li>Axios 401 interceptor with single-flight cookie refresh</li>
+            <li>CSRF token read from non-HttpOnly cookie and sent as <code>X-CSRF-Token</code> header</li>
+        </ul>
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2>Authentication Flow Diagram</h2>
+
+<p>The following sequence diagram shows the complete authentication lifecycle — from login through to token refresh and logout.</p>
+
+<div style="background: var(--white); border-radius: 12px; box-shadow: var(--shadow-lg); overflow: hidden; margin-bottom: 2rem;">
+    <div style="background: var(--bc-blue); padding: 0.75rem 1rem; display: flex; align-items: center; justify-content: space-between;">
+        <span style="color: var(--white); font-weight: 600;">Authentication Flow — OAuth 2.0 + PKCE Sequence</span>
+        <a href="assets/authentication-flow.svg" download style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--white); padding: 0.4rem 0.75rem; border-radius: 4px; text-decoration: none; font-size: 0.85rem;">↓ Download SVG</a>
+    </div>
+    <div style="overflow: auto; background: #fafafa; padding: 1rem;">
+        <img src="assets/authentication-flow.svg" alt="Authentication Flow Sequence Diagram" style="max-width: none; display: block;">
+    </div>
+</div>
+
+<p>View this diagram in full in the <a href="diagrams.html#authentication-flow">interactive diagram viewer</a>.</p>
+
+<!-- ====================================================================== -->
+<h2>OAuth 2.0 Login Flow</h2>
+
+<p>The login process uses the <strong>Authorization Code Flow with PKCE</strong> and a confidential client. The backend orchestrates all interactions with Keycloak — the browser never sees the client secret, authorization code exchange, or PKCE verifier.</p>
+
+<h3>Step-by-Step</h3>
+
+<table>
+    <thead>
+        <tr><th>Step</th><th>Actor</th><th>Action</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>1</strong></td>
+            <td>User</td>
+            <td>Clicks "Login" — browser navigates to <code>GET /api/auth/login</code></td>
+        </tr>
+        <tr>
+            <td><strong>2</strong></td>
+            <td>Backend</td>
+            <td>Generates PKCE pair (<code>code_verifier</code> + <code>code_challenge</code>), random <code>state</code>, and <code>nonce</code> via <code>openid-client</code></td>
+        </tr>
+        <tr>
+            <td><strong>3</strong></td>
+            <td>Backend</td>
+            <td>Stores PKCE state (<code>code_verifier</code>, <code>state</code>, <code>nonce</code>) in an HttpOnly cookie (2-minute TTL, path <code>/api/auth/callback</code>)</td>
+        </tr>
+        <tr>
+            <td><strong>4</strong></td>
+            <td>Backend</td>
+            <td>Redirects browser to Keycloak authorization endpoint with <code>code_challenge</code>, <code>state</code>, <code>nonce</code>, and <code>scope=openid profile email</code></td>
+        </tr>
+        <tr>
+            <td><strong>5</strong></td>
+            <td>User</td>
+            <td>Authenticates at Keycloak (e.g., IDIR credentials)</td>
+        </tr>
+        <tr>
+            <td><strong>6</strong></td>
+            <td>Keycloak</td>
+            <td>Redirects to <code>GET /api/auth/callback?code=...&state=...</code></td>
+        </tr>
+        <tr>
+            <td><strong>7</strong></td>
+            <td>Backend</td>
+            <td>Validates <code>state</code>, retrieves <code>code_verifier</code> and <code>nonce</code> from PKCE cookie</td>
+        </tr>
+        <tr>
+            <td><strong>8</strong></td>
+            <td>Backend</td>
+            <td>Exchanges authorization code for tokens via <code>openid-client.authorizationCodeGrant()</code> — includes <code>code_verifier</code> and <code>client_secret</code></td>
+        </tr>
+        <tr>
+            <td><strong>9</strong></td>
+            <td>Backend</td>
+            <td>The <code>openid-client</code> library validates the ID token (signature via JWKS, nonce, issuer, audience)</td>
+        </tr>
+        <tr>
+            <td><strong>10</strong></td>
+            <td>Backend</td>
+            <td>Sets HttpOnly cookies: <code>access_token</code> (path <code>/</code>), <code>refresh_token</code> (path <code>/api/auth/refresh</code>, 30d), <code>id_token</code> (path <code>/api/auth</code>), and a non-HttpOnly <code>csrf_token</code> cookie</td>
+        </tr>
+        <tr>
+            <td><strong>11</strong></td>
+            <td>Backend</td>
+            <td>Clears the PKCE cookie and redirects browser to <code>FRONTEND_URL</code> (clean URL, no query parameters)</td>
+        </tr>
+        <tr>
+            <td><strong>12</strong></td>
+            <td>SPA</td>
+            <td>On mount, calls <code>GET /api/auth/me</code> (with credentials) to load user profile and session info</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Cookie-Based Token Transport.</strong> Tokens are never exposed to JavaScript. The browser automatically attaches HttpOnly cookies to same-origin API requests. The SPA loads its user profile from the <code>/api/auth/me</code> endpoint after mount.
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2>Token Refresh Strategy</h2>
+
+<p>The platform uses a three-layer approach to keep sessions alive without requiring the user to re-authenticate.</p>
+
+<div class="grid grid-3">
+    <div class="card" style="border-left-color: #22c55e;">
+        <h3 style="margin-top: 0;">1. Proactive Timer</h3>
+        <p>A <code>setTimeout</code> is scheduled at <strong>75% of the access token's lifetime</strong> (minimum 10 seconds). When it fires, the SPA calls <code>POST /api/auth/refresh</code>. Cookies are refreshed automatically by the server response, and the timer is rescheduled.</p>
+    </div>
+    <div class="card" style="border-left-color: #f59e0b;">
+        <h3 style="margin-top: 0;">2. Tab Visibility Listener</h3>
+        <p>When the user returns to the tab (via a <code>visibilitychange</code> event), the SPA checks if the access token has less than <strong>60 seconds</strong> remaining. If so, it triggers an immediate refresh to avoid making API calls with an about-to-expire token.</p>
+    </div>
+    <div class="card" style="border-left-color: #ef4444;">
+        <h3 style="margin-top: 0;">3. Axios 401 Interceptor</h3>
+        <p>If a request returns <strong>401 Unauthorized</strong>, the interceptor attempts a single-flight refresh via <code>POST /api/auth/refresh</code> (cookies sent automatically), retries the original request, and only logs the user out if refresh fails.</p>
+    </div>
+</div>
+
+<h3>Refresh Endpoint</h3>
+
+<pre><code>POST /api/auth/refresh
+Cookie: refresh_token=eyJhbGciOi...
+X-CSRF-Token: abc123...</code></pre>
+
+<p>The backend reads the <code>refresh_token</code> from the HttpOnly cookie, exchanges it with Keycloak via <code>openid-client.refreshTokenGrant()</code>, and sets updated auth cookies in the response. Returns <code>{ "expires_in": 300 }</code> in the body.</p>
+
+<!-- ====================================================================== -->
+<h2>Token Validation</h2>
+
+<p>All API requests (except routes marked <code>@Public()</code>) are validated by a global <strong>Passport JWT guard</strong>. The JWT strategy extracts tokens from HttpOnly cookies first, with a Bearer header fallback for API clients.</p>
+
+<h3>Guard Execution Order</h3>
+
+<p>Six guards are registered globally via NestJS <code>APP_GUARD</code>. They execute in this order on every request:</p>
+
+<table>
+    <thead>
+        <tr><th>Order</th><th>Guard</th><th>Responsibility</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>1</strong></td>
+            <td><code>ThrottlerGuard</code></td>
+            <td>Enforces per-IP rate limits. Defaults: 100 requests/minute globally, 5–10 requests/minute on auth endpoints. All limits are env-configurable via <code>auth.config.ts</code>. Returns 429 when exceeded.</td>
+        </tr>
+        <tr>
+            <td><strong>2</strong></td>
+            <td><code>JwtAuthGuard</code></td>
+            <td>Extends Passport <code>AuthGuard('jwt')</code>. Skips <code>@Public()</code> routes. Defers to API key guard if <code>@ApiKeyAuth()</code> and <code>x-api-key</code> header present. Otherwise validates token via <code>KeycloakJwtStrategy</code> (cookie-first, Bearer fallback).</td>
+        </tr>
+        <tr>
+            <td><strong>3</strong></td>
+            <td><code>ApiKeyAuthGuard</code></td>
+            <td>Validates <code>X-API-Key</code> header on <code>@ApiKeyAuth()</code>-decorated routes. Skips if user already authenticated via JWT. Tracks failed validation attempts per IP — after the configured limit (default: 20 failures/minute), blocks with <code>429 Too Many Requests</code> before reaching the expensive bcrypt comparison. All thresholds are env-configurable.</td>
+        </tr>
+        <tr>
+            <td><strong>4</strong></td>
+            <td><code>IdentityGuard</code></td>
+            <td>Resolves the requestor's identity and attaches a normalised <code>ResolvedIdentity</code> object to <code>request.resolvedIdentity</code>. For JWT-authenticated requests, sets <code>userId</code> from <code>request.user.sub</code>. For API-key-authenticated requests, sets <code>groupId</code> from <code>request.apiKeyGroupId</code>. Always returns <code>true</code> — this guard never blocks requests on its own.</td>
+        </tr>
+        <tr>
+            <td><strong>5</strong></td>
+            <td><code>RolesGuard</code></td>
+            <td>Checks <code>@Roles()</code> decorator metadata against <code>request.user.roles</code>. Requires at least one matching role.</td>
+        </tr>
+        <tr>
+            <td><strong>6</strong></td>
+            <td><code>CsrfGuard</code></td>
+            <td>Validates CSRF double-submit token on state-changing requests (POST, PUT, DELETE, PATCH) when the user is authenticated via cookies. Skips Bearer and API-key authenticated requests.</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Keycloak JWT Strategy</h3>
+
+<p>The <code>KeycloakJwtStrategy</code> (Passport strategy) handles token validation:</p>
+
+<ul>
+    <li><strong>Key Provider:</strong> <code>passport-jwt</code> with <code>secretOrKeyProvider</code> using <code>jwks-rsa</code> — automatically fetches and caches Keycloak's RS256 public keys from the JWKS endpoint</li>
+    <li><strong>Token Extraction:</strong> Cookie-first (<code>req.cookies.access_token</code>), with <code>Authorization: Bearer {token}</code> header as fallback for API clients</li>
+    <li><strong>Validation:</strong> RS256 signature, issuer, audience, expiration</li>
+    <li><strong>Role Normalization:</strong> Collects roles from three Keycloak JWT locations:
+        <ul>
+            <li><code>payload.roles[]</code> — top-level claim</li>
+            <li><code>payload.realm_access.roles[]</code> — realm-level roles</li>
+            <li><code>payload.resource_access.&lt;client_id&gt;.roles[]</code> — client-specific roles</li>
+        </ul>
+    </li>
+</ul>
+
+<!-- ====================================================================== -->
+<h2>Decorator Composition Rules</h2>
+
+<p>The guard chain runs globally in this order: <code>JwtAuthGuard</code> &rarr; <code>ApiKeyAuthGuard</code> &rarr; <code>IdentityGuard</code> &rarr; <code>RolesGuard</code> &rarr; <code>CsrfGuard</code>. Decorators control which guards activate. Follow these rules when protecting endpoints.</p>
+
+<h3>Available Decorators</h3>
+
+<table>
+    <thead>
+        <tr><th>Decorator</th><th>Purpose</th><th>Runtime Effect</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>@Public()</code></td>
+            <td>Unauthenticated access</td>
+            <td><code>JwtAuthGuard</code> returns <code>true</code> immediately &mdash; all downstream guards become no-ops</td>
+        </tr>
+        <tr>
+            <td><code>@ApiKeyAuth()</code></td>
+            <td>Allow API key authentication</td>
+            <td>Sets metadata read by <code>JwtAuthGuard</code> (skip JWT when API key header present) and <code>ApiKeyAuthGuard</code> (validate the key)</td>
+        </tr>
+        <tr>
+            <td><code>@KeycloakSSOAuth()</code></td>
+            <td>Swagger documentation only</td>
+            <td>Adds <code>ApiBearerAuth</code> and <code>ApiUnauthorizedResponse</code> to OpenAPI spec. <strong>No runtime effect</strong> &mdash; JWT is enforced globally</td>
+        </tr>
+        <tr>
+            <td><code>@Roles(...)</code></td>
+            <td>Require specific roles</td>
+            <td><code>RolesGuard</code> checks <code>request.user.roles</code> for at least one match. Works with both JWT and API key users</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Valid Combinations</h3>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h4 style="margin-top: 0;">Standard JWT-protected (most common)</h4>
+        <pre><code>@KeycloakSSOAuth()
+@Get("documents")
+listDocuments() {}</code></pre>
+        <p style="margin-bottom: 0;">Requires valid JWT. API keys ignored. <code>@KeycloakSSOAuth()</code> is Swagger-only; enforcement comes from the global <code>JwtAuthGuard</code>.</p>
+    </div>
+    <div class="card" style="border-left-color: var(--bc-blue);">
+        <h4 style="margin-top: 0;">Dual auth &mdash; JWT or API key</h4>
+        <pre><code>@ApiKeyAuth()
+@KeycloakSSOAuth()
+@Post("upload")
+uploadDocument() {}</code></pre>
+        <p style="margin-bottom: 0;">Accepts <strong>either</strong> JWT <strong>or</strong> <code>X-API-Key</code>. If neither &rarr; <code>401</code>. CSRF automatically exempted for API key and Bearer requests.</p>
+    </div>
+    <div class="card" style="border-left-color: var(--bc-gold);">
+        <h4 style="margin-top: 0;">JWT with role enforcement</h4>
+        <pre><code>@Roles("admin")
+@KeycloakSSOAuth()
+@Delete("documents/:id")
+deleteDocument() {}</code></pre>
+        <p style="margin-bottom: 0;">Requires valid JWT <strong>and</strong> the <code>admin</code> role. Users without the role get <code>403</code>. API keys not accepted.</p>
+    </div>
+    <div class="card" style="border-left-color: #4C2C92;">
+        <h4 style="margin-top: 0;">Dual auth with role enforcement</h4>
+        <pre><code>@ApiKeyAuth()
+@Roles("admin")
+@KeycloakSSOAuth()
+@Post("admin/users")
+createUser() {}</code></pre>
+        <p style="margin-bottom: 0;">JWT or API key, <strong>plus</strong> <code>admin</code> role required. API key roles inherited from creating user.</p>
+    </div>
+</div>
+
+<h3>Invalid / Dangerous Combinations</h3>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+        <ul style="margin-bottom: 0;">
+            <li><code>@Public()</code> + <code>@Roles(...)</code> &mdash; Roles guard throws <code>403</code> because <code>@Public()</code> skips auth, leaving <code>request.user</code> undefined</li>
+            <li><code>@ApiKeyAuth()</code> without <code>@KeycloakSSOAuth()</code> &mdash; Works at runtime but Swagger won't show the bearer auth option (misleading docs)</li>
+            <li><code>@Public()</code> + <code>@ApiKeyAuth()</code> &mdash; <code>@Public()</code> short-circuits the guard chain; the API key decorator has no effect</li>
+        </ul>
+    </div>
+</div>
+
+<h3>Decision Flowchart</h3>
+<ol>
+    <li>Is this an auth flow endpoint (login, callback, refresh, logout)? &rarr; <code>@Public()</code></li>
+    <li>Does this endpoint need machine-to-machine access? &rarr; Add <code>@ApiKeyAuth()</code> + <code>@KeycloakSSOAuth()</code></li>
+    <li>Only browser/JWT access? &rarr; <code>@KeycloakSSOAuth()</code></li>
+    <li>Does this endpoint require specific roles? &rarr; Add <code>@Roles('role1', 'role2')</code></li>
+</ol>
+
+<!-- ====================================================================== -->
+<h2>API Key Authentication</h2>
+
+<p>For machine-to-machine (M2M) integrations, routes decorated with <code>@ApiKeyAuth()</code> accept an API key via the <code>X-API-Key</code> header as an alternative to Bearer tokens.</p>
+
+<pre><code>GET /api/documents
+X-API-Key: your-api-key-here</code></pre>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h3 style="margin-top: 0;">How It Works</h3>
+        <ul style="margin-bottom: 0;">
+            <li>API keys are generated and managed through the platform Settings page</li>
+            <li>Each group can have <strong>one active key</strong> at a time — keys are scoped to the group, not individual users</li>
+            <li>Keys are validated by the <code>ApiKeyAuthGuard</code> via <code>ApiKeyService</code></li>
+            <li>On validation, <code>request.apiKeyGroupId</code> is set to the key's owning group ID, and <code>request.user</code> is populated with <strong>roles inherited from the creating user's JWT at key creation time</strong></li>
+            <li>The <code>IdentityGuard</code> then sets <code>request.resolvedIdentity = { groupId }</code> for downstream authorization</li>
+            <li>Regenerating a key captures the requesting user's current Keycloak roles</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #8b5cf6;">
+        <h3 style="margin-top: 0;">When to Use</h3>
+        <ul style="margin-bottom: 0;">
+            <li>Automated pipelines and CI/CD</li>
+            <li>Service-to-service integrations</li>
+            <li>Scripts and CLI tools</li>
+            <li>Any headless (non-browser) consumer</li>
+        </ul>
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2>Group-Scoped Authorization</h2>
+
+<p>All primary resources (documents, workflows, OCR results, HITL sessions, etc.) are scoped to a <strong>group</strong> via a <code>group_id</code> foreign key. The <code>IdentityGuard</code> resolves the requestor's identity, and service-layer helpers enforce group-level access control.</p>
+
+<h3>Identity Resolution</h3>
+
+<p>The <code>IdentityGuard</code> runs after authentication and attaches a <code>ResolvedIdentity</code> to <code>request.resolvedIdentity</code>. Exactly one of <code>userId</code> or <code>groupId</code> is set:</p>
+
+<table>
+    <thead>
+        <tr><th>Auth Method</th><th>Identity Field</th><th>Group Resolution</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>JWT (Keycloak SSO)</td>
+            <td><code>resolvedIdentity.userId</code></td>
+            <td>Service layer queries <code>UserGroup</code> table for the user's group memberships</td>
+        </tr>
+        <tr>
+            <td>API Key</td>
+            <td><code>resolvedIdentity.groupId</code></td>
+            <td>Key is group-scoped — <code>groupId</code> is the only group the key can access</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Authorization Helpers</h3>
+
+<p>Two shared helpers in <code>identity.helpers.ts</code> are used by controllers to enforce group access:</p>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h4 style="margin-top: 0;"><code>getIdentityGroupIds(identity, db)</code></h4>
+        <p>Returns the list of group IDs the identity can access, or <code>undefined</code> for system-admins (unrestricted access). Used by list/query endpoints to filter results to the requestor's groups.</p>
+        <ul style="margin-bottom: 0;">
+            <li><strong>API key</strong> &rarr; <code>[identity.groupId]</code></li>
+            <li><strong>JWT system-admin</strong> &rarr; <code>undefined</code> (no filter)</li>
+            <li><strong>JWT regular user</strong> &rarr; user's group IDs from the database</li>
+        </ul>
+    </div>
+    <div class="card" style="border-left-color: #8b5cf6;">
+        <h4 style="margin-top: 0;"><code>identityCanAccessGroup(identity, groupId, db)</code></h4>
+        <p>Asserts that the identity can access a specific group. Throws HTTP exceptions on failure. Used by single-resource endpoints (get, update, delete) after fetching the resource's <code>group_id</code>.</p>
+        <ul style="margin-bottom: 0;">
+            <li><code>groupId === null</code> &rarr; <code>404 Not Found</code> (orphaned record)</li>
+            <li>No identity &rarr; <code>403 Forbidden</code></li>
+            <li>API key group mismatch &rarr; <code>403 Forbidden</code></li>
+            <li>JWT user not in group &rarr; <code>403 Forbidden</code></li>
+            <li>JWT system-admin &rarr; always allowed</li>
+        </ul>
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2>Authorization (RBAC)</h2>
+
+<p>Role-Based Access Control is enforced via the <code>@Roles()</code> decorator and the global <code>RolesGuard</code>.</p>
+
+<h3>How Roles Are Applied</h3>
+
+<pre><code>// Controller example
+@Controller('admin')
+export class AdminController {
+  @Get('users')
+  @Roles('admin', 'user-manager')  // Requires at least one
+  async listUsers() { ... }
+}</code></pre>
+
+<ul>
+    <li>Roles in the decorator use <strong>OR</strong> logic — the user needs at least one of the listed roles</li>
+    <li>If no <code>@Roles()</code> decorator is present, any authenticated user can access the route</li>
+    <li>Roles are sourced from the validated JWT (Keycloak realm and client roles, normalized by <code>KeycloakJwtStrategy</code>)</li>
+</ul>
+
+<!-- ====================================================================== -->
+<h2>Backend Module Structure</h2>
+
+<p>The auth system is contained within <code>apps/backend-services/src/auth/</code> with the following file structure:</p>
+
+<table>
+    <thead>
+        <tr><th>File</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+        <tr><td><code>auth.module.ts</code></td><td>Module definition — registers global guards, imports PassportModule</td></tr>
+        <tr><td><code>auth.controller.ts</code></td><td>HTTP endpoints: <code>/login</code>, <code>/callback</code>, <code>/me</code>, <code>/refresh</code>, <code>/logout</code></td></tr>
+        <tr><td><code>auth.service.ts</code></td><td>OAuth orchestrator — OIDC discovery, PKCE, code exchange, token refresh via <code>openid-client</code></td></tr>
+        <tr><td><code>cookie-auth.utils.ts</code></td><td>Centralized cookie configuration — <code>setAuthCookies()</code>, <code>clearAuthCookies()</code>, CSRF token generation</td></tr>
+        <tr><td><code>csrf.guard.ts</code></td><td>Global CSRF guard — double-submit cookie validation for state-changing requests</td></tr>
+        <tr><td><code>keycloak-jwt.strategy.ts</code></td><td>Passport JWT strategy — cookie-first extraction, JWKS validation, role normalization</td></tr>
+        <tr><td><code>jwt-auth.guard.ts</code></td><td>Global JWT guard — extends <code>AuthGuard('jwt')</code>, handles <code>@Public()</code> and <code>@ApiKeyAuth()</code> bypass</td></tr>
+        <tr><td><code>api-key-auth.guard.ts</code></td><td>API key validation guard</td></tr>
+        <tr><td><code>identity.guard.ts</code></td><td>Identity resolution guard — attaches <code>ResolvedIdentity</code> to <code>request.resolvedIdentity</code></td></tr>
+        <tr><td><code>identity.helpers.ts</code></td><td>Authorization helpers — <code>getIdentityGroupIds()</code> and <code>identityCanAccessGroup()</code> for group-scoped access control</td></tr>
+        <tr><td><code>roles.guard.ts</code></td><td>RBAC enforcement based on <code>@Roles()</code> decorator</td></tr>
+        <tr><td><code>public.decorator.ts</code></td><td><code>@Public()</code> — marks routes as unauthenticated</td></tr>
+        <tr><td><code>roles.decorator.ts</code></td><td><code>@Roles(...)</code> — declares required roles</td></tr>
+        <tr><td><code>types.ts</code></td><td><code>User</code> and <code>ResolvedIdentity</code> interfaces, plus Express <code>Request</code> augmentation for <code>apiKeyGroupId</code> and <code>resolvedIdentity</code></td></tr>
+        <tr><td><code>dto/*.ts</code></td><td>Validated DTOs for all auth endpoints (class-validator)</td></tr>
+    </tbody>
+</table>
+
+<!-- ====================================================================== -->
+<h2>Frontend Auth Architecture</h2>
+
+<p>The React SPA uses a single <code>AuthContext</code> provider that encapsulates all authentication logic. No OIDC client library is used — the frontend relies entirely on the backend for OAuth interactions.</p>
+
+<h3>AuthProvider Responsibilities</h3>
+
+<table>
+    <thead>
+        <tr><th>Feature</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+        <tr><td>Authentication</td><td>Cookie-based — HttpOnly cookies are sent automatically by the browser on all same-origin requests</td></tr>
+        <tr><td>Session Check</td><td>On mount, calls <code>GET /api/auth/me</code> with credentials — loads user profile if authenticated, shows login if not</td></tr>
+        <tr><td>OAuth Redirect Handling</td><td>After login callback, the backend redirects to a clean <code>FRONTEND_URL</code> — SPA mounts and calls <code>/me</code></td></tr>
+        <tr><td>Profile Data</td><td>Loaded from <code>/api/auth/me</code> response: <code>sub</code>, <code>name</code>, <code>email</code>, <code>preferred_username</code>, <code>roles</code></td></tr>
+        <tr><td>Token Refresh</td><td>Calls <code>POST /api/auth/refresh</code> — cookies are refreshed by the server response</td></tr>
+        <tr><td>CSRF Protection</td><td>Reads non-HttpOnly <code>csrf_token</code> cookie and sends it as <code>X-CSRF-Token</code> header on POST/PUT/DELETE requests</td></tr>
+    </tbody>
+</table>
+
+<h3>API Service (Axios)</h3>
+
+<p>The <code>apiService</code> wraps Axios with authentication-aware interceptors:</p>
+
+<ul>
+    <li><strong>Request interceptor:</strong> Reads the <code>csrf_token</code> cookie and attaches it as the <code>X-CSRF-Token</code> header on POST, PUT, and DELETE requests. All requests include <code>withCredentials: true</code> so cookies are sent automatically.</li>
+    <li><strong>Response interceptor:</strong> On 401, triggers a single-flight refresh via <code>POST /api/auth/refresh</code> (cookies sent automatically), retries the original request, logs out if refresh fails</li>
+</ul>
+
+<!-- ====================================================================== -->
+<h2>Security Mechanisms</h2>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h3 style="margin-top: 0;">PKCE (Proof Key for Code Exchange)</h3>
+        <p>The backend generates a <code>code_verifier</code> (random string) and sends its SHA-256 hash (<code>code_challenge</code>) to Keycloak. On callback, the original <code>code_verifier</code> is sent with the code exchange — Keycloak verifies the hash matches, preventing authorization code interception attacks.</p>
+    </div>
+    <div class="card" style="border-left-color: #8b5cf6;">
+        <h3 style="margin-top: 0;">Nonce Validation</h3>
+        <p>A random nonce is included in the authorization request and embedded in the ID token by Keycloak. The <code>openid-client</code> library validates that the ID token nonce matches the expected value, ensuring the token was issued for this specific request.</p>
+    </div>
+    <div class="card" style="border-left-color: #f59e0b;">
+        <h3 style="margin-top: 0;">JWKS Signature Verification</h3>
+        <p>All access tokens (from cookies or Bearer headers) are verified using Keycloak's RS256 public keys fetched from the JWKS endpoint via <code>openid-client</code>.</p>
+    </div>
+    <div class="card" style="border-left-color: #ef4444;">
+        <h3 style="margin-top: 0;">HttpOnly Cookie Storage</h3>
+        <p>Tokens are stored in <strong>HttpOnly, Secure, SameSite=Lax</strong> cookies. JavaScript cannot access them, eliminating XSS-based token theft. The <code>refresh_token</code> cookie is scoped to <code>/api/auth/refresh</code> to minimize exposure.</p>
+    </div>
+    <div class="card" style="border-left-color: #0ea5e9;">
+        <h3 style="margin-top: 0;">CSRF Double-Submit Cookie</h3>
+        <p>A random CSRF token is set as a non-HttpOnly cookie and must be echoed in the <code>X-CSRF-Token</code> header on state-changing requests. The global <code>CsrfGuard</code> validates this for all cookie-authenticated POST/PUT/DELETE/PATCH requests.</p>
+    </div>
+    <div class="card" style="border-left-color: #22c55e;">
+        <h3 style="margin-top: 0;">Rate Limiting</h3>
+        <p>All endpoints are protected by <code>@nestjs/throttler</code> with env-configurable limits (defaults: <strong>100 requests per minute per IP</strong> globally, <code>/api/auth/refresh</code> at <strong>5/min</strong>, <code>/api/auth/login</code>, <code>/api/auth/callback</code>, <code>/api/auth/logout</code> at <strong>10/min</strong>, API key failed-attempt throttling at <strong>20 failures/min/IP</strong>). All values can be overridden via environment variables — see <code>auth.config.ts</code> for the full list. Exceeding limits returns <code>429 Too Many Requests</code>.</p>
+    </div>
+    <div class="card" style="border-left-color: #a855f7;">
+        <h3 style="margin-top: 0;">Security Headers (Helmet)</h3>
+        <p>The <code>helmet</code> middleware sets HTTP security headers on all backend responses: <code>Strict-Transport-Security</code> (HSTS, 1 year), <code>X-Frame-Options: DENY</code> (clickjacking prevention), <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code>, <code>Content-Security-Policy</code>, and removes <code>X-Powered-By</code>. The frontend nginx config also sets equivalent security headers.</p>
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2>Configuration</h2>
+
+<p>The following environment variables configure the authentication system:</p>
+
+<table>
+    <thead>
+        <tr><th>Variable</th><th>Required</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+        <tr><td><code>SSO_AUTH_SERVER_URL</code></td><td>Yes</td><td>Keycloak base URL (e.g., <code>https://sso.example.com/auth</code>) or full OIDC endpoint (<code>https://sso.example.com/realms/my-realm/protocol/openid-connect</code>)</td></tr>
+        <tr><td><code>SSO_REALM</code></td><td>Yes</td><td>Keycloak realm name (e.g., <code>my-realm</code>). Used with the base URL format to construct the issuer: <code>{SSO_AUTH_SERVER_URL}/realms/{SSO_REALM}</code></td></tr>
+        <tr><td><code>SSO_CLIENT_ID</code></td><td>Yes</td><td>OAuth client ID registered in Keycloak</td></tr>
+        <tr><td><code>SSO_CLIENT_SECRET</code></td><td>Yes</td><td>Confidential client secret (server-side only)</td></tr>
+        <tr><td><code>SSO_REDIRECT_URI</code></td><td>Yes</td><td>Callback URL (e.g., <code>https://your-host/api/auth/callback</code>)</td></tr>
+        <tr><td><code>FRONTEND_URL</code></td><td>Yes</td><td>SPA base URL for post-auth redirect</td></tr>
+        <tr><td><code>SSO_POST_LOGOUT_REDIRECT_URI</code></td><td>No</td><td>URL to redirect to after Keycloak logout</td></tr>
+        <tr><td><code>NODE_ENV</code></td><td>No</td><td>Controls cookie <code>Secure</code> flag — when <code>development</code> or <code>test</code>, cookies are not marked Secure (allows HTTP in local dev)</td></tr>
+    </tbody>
+</table>
+
+<!-- ====================================================================== -->
+<h2>API Endpoints</h2>
+
+<p>Auth flow endpoints are under <code>/api/auth/</code>. The flow endpoints (<code>/login</code>, <code>/callback</code>, <code>/refresh</code>, <code>/logout</code>) are marked <code>@Public()</code> (no bearer token required). The <code>/me</code> endpoint requires a valid JWT.</p>
+
+<table>
+    <thead>
+        <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>GET</code></td>
+            <td><code>/api/auth/login</code></td>
+            <td>Redirects browser to Keycloak with PKCE + state + nonce</td>
+        </tr>
+        <tr>
+            <td><code>GET</code></td>
+            <td><code>/api/auth/callback</code></td>
+            <td>Handles Keycloak redirect, exchanges code for tokens, sets auth cookies, redirects to SPA</td>
+        </tr>
+        <tr>
+            <td><code>GET</code></td>
+            <td><code>/api/auth/me</code></td>
+            <td>Returns authenticated user profile — <code>sub</code>, <code>name</code>, <code>email</code>, <code>roles</code>, <code>expires_in</code> (requires valid access_token cookie or Bearer)</td>
+        </tr>
+        <tr>
+            <td><code>POST</code></td>
+            <td><code>/api/auth/refresh</code></td>
+            <td>Reads <code>refresh_token</code> from HttpOnly cookie, refreshes with Keycloak, sets updated cookies. Returns <code>{ "expires_in": ... }</code></td>
+        </tr>
+        <tr>
+            <td><code>GET</code></td>
+            <td><code>/api/auth/logout</code></td>
+            <td>Reads <code>id_token</code> from cookie, clears all auth cookies, redirects to Keycloak logout endpoint with <code>client_id</code>, <code>id_token_hint</code>, and <code>post_logout_redirect_uri</code></td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- ====================================================================== -->
+<h2>Technology Stack</h2>
+
+<h3>Backend Libraries</h3>
+
+<table>
+    <thead>
+        <tr><th>Library</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+        <tr><td><code>openid-client</code> (v6.x)</td><td>OpenID-certified RP — OIDC discovery, authorization URL construction, code exchange, token refresh, ID token validation</td></tr>
+        <tr><td><code>jwks-rsa</code> (v3.x)</td><td>Fetches and caches Keycloak's RS256 public signing keys from the JWKS endpoint for per-request JWT validation via Passport</td></tr>
+        <tr><td><code>@nestjs/passport</code></td><td>Passport integration for NestJS guards and strategies</td></tr>
+        <tr><td><code>passport-jwt</code></td><td>JWT extraction (cookie-first with Bearer fallback) and validation strategy</td></tr>
+        <tr><td><code>@nestjs/throttler</code></td><td>Global and per-route rate limiting — protects against brute-force, credential stuffing, and DoS attacks</td></tr>
+        <tr><td><code>helmet</code></td><td>HTTP security headers — HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, CSP, removes X-Powered-By</td></tr>
+        <tr><td><code>cookie-parser</code></td><td>Express middleware for parsing cookies from incoming requests</td></tr>
+        <tr><td><code>class-validator</code></td><td>DTO validation for all auth request/response shapes</td></tr>
+    </tbody>
+</table>
+
+<h3>Frontend Libraries</h3>
+
+<table>
+    <thead>
+        <tr><th>Library</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+        <tr><td><code>axios</code></td><td>HTTP client with <code>withCredentials: true</code> for cookie transport and CSRF header injection</td></tr>
+        <tr><td><code>react</code></td><td>AuthContext provider for global authentication state</td></tr>
+    </tbody>
+</table>
+
+<!-- ====================================================================== -->
+<h2>Critique &amp; Improvement Recommendations</h2>
+
+<p>The current implementation is functional and follows industry-standard patterns. The following areas have been identified as opportunities for further hardening, scalability, and operational improvements.</p>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+    <p><strong>Progress.</strong> Items 1, 2, 5, and 6 have been resolved with the cookie-based auth migration, rate limiting implementation, and security headers. The remaining items are improvements for maintainability and operational excellence.</p>
+    </div>
+</div>
+
+<h3>1. <s>In-Memory Session Store Is Not Horizontally Scalable</s> — RESOLVED</h3>
+
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> The <code>AuthSessionStore</code> has been removed. PKCE state is now stored in an HttpOnly cookie (2-minute TTL, scoped to <code>/api/auth/callback</code>). Tokens are set directly as HttpOnly cookies in the callback response. The backend is fully stateless and can be horizontally scaled without sticky sessions.</p>
+</div>
+
+<h3>2. <s>Token Storage in localStorage Is Vulnerable to XSS</s> — RESOLVED</h3>
+
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> Tokens are now stored in <strong>HttpOnly, Secure, SameSite=Lax</strong> cookies. JavaScript cannot access tokens at all. CSRF protection is implemented via a double-submit cookie pattern with the global <code>CsrfGuard</code>. The SPA never handles raw tokens — it only interacts with the <code>/api/auth/me</code> endpoint for profile data.</p>
+</div>
+
+<h3>3. No Token Revocation Check on the Backend</h3>
+
+<div class="card" style="border-left-color: #f59e0b;">
+    <p><strong>Issue:</strong> Bearer token validation only checks the JWT signature, issuer, audience, and expiration. If a token is revoked in Keycloak (e.g., user account disabled, admin-initiated session termination), the token remains valid until it naturally expires. This is inherent to stateless JWT validation.</p>
+    <p><strong>Recommendation:</strong> Implement <strong>token introspection</strong> for sensitive operations. Use Keycloak's <code>/protocol/openid-connect/token/introspect</code> endpoint to check if a token is still active. This can be applied selectively (e.g., for admin operations, write operations) to avoid the performance overhead on every request. Alternatively, use short-lived access tokens (e.g., 5 minutes) combined with refresh token rotation to reduce the window of exposure.</p>
+</div>
+
+<h3>4. <s>Duplicate Decorator Definitions</s> — RESOLVED</h3>
+
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> The dead <code>api-key-auth.decorator.ts</code> file in <code>src/auth/</code> has been removed. The canonical <code>@ApiKeyAuth()</code> decorator is defined in <code>src/decorators/custom-auth-decorators.ts</code>, which includes both <code>SetMetadata</code> and Swagger annotations (<code>@ApiSecurity</code>, <code>@ApiUnauthorizedResponse</code>). All guards and controllers import from this single location.</p>
+</div>
+
+<h3>5. <s>No Rate Limiting on Auth Endpoints</s> — RESOLVED</h3>
+
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> Global rate limiting is now enforced via <code>@nestjs/throttler</code>. All limits are env-configurable with sensible defaults: <strong>100 requests per minute per IP</strong> globally, <strong>5 requests/minute</strong> for <code>/api/auth/refresh</code>, and <strong>10 requests/minute</strong> for <code>/api/auth/login</code>, <code>/api/auth/callback</code>, and <code>/api/auth/logout</code>. When limits are exceeded, the server returns HTTP <code>429 Too Many Requests</code> with <code>Retry-After</code> headers. See <code>auth.config.ts</code> for the complete list of environment variables.</p>
+</div>
+
+<h3>6. <s>No Security Headers (Helmet)</s> — RESOLVED</h3>
+
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> The <code>helmet</code> middleware (v8.x) is now registered in <code>main.ts</code> before routes are mounted, setting HTTP security headers on all backend responses: <code>Strict-Transport-Security</code> (HSTS, max-age 1 year with includeSubDomains), <code>X-Frame-Options: DENY</code>, <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code>, and <code>Content-Security-Policy</code> (configured to allow Swagger UI). The <code>X-Powered-By</code> header is removed. The frontend nginx config also sets equivalent security headers.</p>
+</div>
+
+<h3>7. No Structured Logging for Authentication Events</h3>
+
+<div class="card" style="border-left-color: #0ea5e9;">
+    <p><strong>Issue:</strong> Authentication events (successful login, failed refresh, token validation failure, logout) are logged using the default NestJS logger without structured metadata. This makes it difficult to audit authentication activity, detect anomalies, or trace issues in production.</p>
+    <p><strong>Recommendation:</strong> Emit structured JSON log entries for all auth events with consistent fields: <code>event_type</code>, <code>user_sub</code>, <code>client_ip</code>, <code>timestamp</code>, <code>result</code> (success/failure), and <code>reason</code> (for failures). Integrate with a centralized logging system (e.g., ELK, Splunk) for monitoring and alerting.</p>
+</div>
+
+<h3>8. User Type Uses Loose Index Signature</h3>
+
+<div class="card" style="border-left-color: #0ea5e9;">
+    <p><strong>Issue:</strong> The <code>User</code> type in <code>auth/types.ts</code> includes <code>[key: string]: unknown</code>, allowing arbitrary JWT claims to pass through. While pragmatic, this weakens type safety downstream — consumers of <code>request.user</code> may access properties that don't exist without TypeScript catching the error.</p>
+    <p><strong>Recommendation:</strong> Define explicit optional fields for known Keycloak claims (e.g., <code>preferred_username</code>, <code>given_name</code>, <code>family_name</code>, <code>realm_access</code>, <code>resource_access</code>) and remove the index signature. If pass-through of unknown claims is truly needed, consider using a separate <code>rawClaims</code> field.</p>
+</div>
+
+<h3>9. No Automated Auth Integration Tests</h3>
+
+<div class="card" style="border-left-color: #0ea5e9;">
+    <p><strong>Issue:</strong> While unit tests exist for individual components, there are no end-to-end integration tests that exercise the full OAuth flow (login → callback → result → API call → refresh → logout). Auth regressions may only be caught in manual testing or production.</p>
+    <p><strong>Recommendation:</strong> Create integration tests using a Keycloak test container (e.g., <code>testcontainers</code> with the Keycloak Docker image). Test the full flow including: successful login, expired token refresh, revoked token handling, rate limit enforcement, and role-based access denial.</p>
+</div>
+
+<h3>10. <s>No Resource-Level Authorization (IDOR)</s> — RESOLVED</h3>
+
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> Group-scoped access control is now enforced across all primary resource endpoints. The <code>IdentityGuard</code> resolves the requestor's identity (JWT user ID or API key group ID), and controllers use the shared helpers <code>getIdentityGroupIds()</code> and <code>identityCanAccessGroup()</code> from <code>identity.helpers.ts</code> to filter list queries by group membership and validate single-resource access against the resource's <code>group_id</code>. System-admins bypass group filtering. See the <a href="#group-scoped-authorization">Group-Scoped Authorization</a> section for details.</p>
+</div>
+
+<h3>11. <s>No Rate Limiting on API Key Validation Path</s> — RESOLVED</h3>
+
+<div class="card" style="border-left-color: #22c55e;">
+    <p><strong>Resolved:</strong> The <code>ApiKeyAuthGuard</code> now tracks failed API key validation attempts per IP address in-memory. After the configured limit (default: <strong>20 failed attempts</strong>) within the configured window (default: 60 seconds), further attempts from the same IP are blocked with <code>429 Too Many Requests</code> before reaching the expensive database query and bcrypt comparison. The counter resets on successful validation or when the time window expires. Stale records are swept at a configurable interval (default: 60 seconds) to prevent memory leaks. All thresholds are env-configurable — see <code>auth.config.ts</code>.</p>
+</div>

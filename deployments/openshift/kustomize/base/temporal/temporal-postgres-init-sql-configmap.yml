@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: temporal-postgres-init-sql
+data:
+  init.sql: |
+    -- Ensure Temporal DBs are owned by the Temporal user
+    ALTER DATABASE temporal OWNER TO temporal;
+    ALTER DATABASE temporal_visibility OWNER TO temporal;
+
+    -- Crunchy images commonly restrict CREATE on schema public; Temporal expects to create tables.
+    \c temporal
+    GRANT USAGE, CREATE ON SCHEMA public TO temporal;
+    ALTER SCHEMA public OWNER TO temporal;
+
+    \c temporal_visibility
+    GRANT USAGE, CREATE ON SCHEMA public TO temporal;
+    ALTER SCHEMA public OWNER TO temporal;
+

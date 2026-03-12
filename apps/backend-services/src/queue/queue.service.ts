@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { OcrService } from "../ocr/ocr.service";
 
 export interface QueueMessage {
   documentId: string;
@@ -9,65 +9,53 @@ export interface QueueMessage {
   timestamp: Date;
 }
 
+/**
+ * Queue Service for processing OCR documents via Temporal workflows
+ * This service delegates OCR processing to Temporal workflows which handle
+ * all polling, retries, and status management automatically.
+ */
 @Injectable()
 export class QueueService {
   private readonly logger = new Logger(QueueService.name);
-  private readonly rabbitmqUrl: string;
-  private readonly exchangeName: string;
-  private readonly routingKey: string;
 
-  constructor(private configService: ConfigService) {
-    this.rabbitmqUrl =
-      this.configService.get<string>("RABBITMQ_URL") || "amqp://localhost:5672";
-    this.exchangeName =
-      this.configService.get<string>("RABBITMQ_EXCHANGE") || "document_upload";
-    this.routingKey =
-      this.configService.get<string>("RABBITMQ_ROUTING_KEY") ||
-      "document.uploaded";
-    this.logger.log(`RabbitMQ URL: ${this.rabbitmqUrl}`);
+  constructor(private ocrService: OcrService) {}
+
+  /**
+   * Process OCR for a document using Temporal workflow
+   * The workflow handles all polling, retries, and status updates automatically
+   */
+  async processOcrForDocument(message: QueueMessage): Promise<void> {
     this.logger.log(
-      `Exchange: ${this.exchangeName}, Routing Key: ${this.routingKey}`,
+      `Starting OCR processing for document ${message.documentId} via Temporal workflow`,
     );
-  }
 
-  async publishDocumentUploaded(message: QueueMessage): Promise<boolean> {
-    this.logger.debug("=== QueueService.publishDocumentUploaded (STUBBED) ===");
-    this.logger.debug(`Would publish to RabbitMQ:`);
-    this.logger.debug(`  URL: ${this.rabbitmqUrl}`);
-    this.logger.debug(`  Exchange: ${this.exchangeName}`);
-    this.logger.debug(`  Routing Key: ${this.routingKey}`);
-    this.logger.debug(`  Message: ${JSON.stringify(message, null, 2)}`);
+    try {
+      // Request OCR - this will start a Temporal workflow that handles
+      // all the polling, retries, and status updates automatically
+      const ocrRequest = await this.ocrService.requestOcr(message.documentId);
 
-    // Stubbed implementation - logs the message
-    // In real implementation, this would connect to RabbitMQ and publish:
-    // const connection = await amqp.connect(this.rabbitmqUrl);
-    // const channel = await connection.createChannel();
-    // await channel.assertExchange(this.exchangeName, 'topic', { durable: true });
-    // const published = channel.publish(
-    //   this.exchangeName,
-    //   this.routingKey,
-    //   Buffer.from(JSON.stringify(message)),
-    //   { persistent: true }
-    // );
-    // await channel.close();
-    // await connection.close();
-    // return published;
+      if (ocrRequest.error) {
+        this.logger.error(
+          `Failed to start OCR workflow for document ${message.documentId}: ${ocrRequest.error}`,
+        );
+        throw new Error(`OCR workflow failed to start: ${ocrRequest.error}`);
+      }
 
-    this.logger.debug(
-      "=== QueueService.publishDocumentUploaded completed (stubbed) ===",
-    );
-    return true;
-  }
+      this.logger.log(
+        `OCR workflow started for document ${message.documentId}, workflowId: ${ocrRequest.workflowId}`,
+      );
 
-  async connect(): Promise<void> {
-    this.logger.debug("=== QueueService.connect (STUBBED) ===");
-    this.logger.debug(`Would connect to RabbitMQ at: ${this.rabbitmqUrl}`);
-    // Stubbed - in real implementation would establish connection
-  }
-
-  async disconnect(): Promise<void> {
-    this.logger.debug("=== QueueService.disconnect (STUBBED) ===");
-    this.logger.debug("Would disconnect from RabbitMQ");
-    // Stubbed - in real implementation would close connection
+      // The workflow will handle everything asynchronously:
+      // - Submitting to Azure OCR
+      // - Polling for results
+      // - Storing results in database
+      // - Updating document status
+      // No need to wait or poll here - Temporal handles it all
+    } catch (error) {
+      this.logger.error(
+        `Failed to process OCR for document ${message.documentId}: ${error.message}`,
+      );
+      throw error;
+    }
   }
 }

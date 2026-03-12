@@ -1,0 +1,906 @@
+<!-- TITLE: Benchmarking Guide -->
+<!-- NAV: benchmarkingguide -->
+
+<h1>Benchmarking System Guide</h1>
+
+<p>The benchmarking system evaluates your document processing workflows by running them against curated datasets with ground truth, then measuring accuracy, detecting regressions, and comparing results across workflow versions.</p>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Prerequisites</strong><br>
+        The benchmarking system requires <strong>object storage</strong> (<strong>MinIO</strong> for local development or <strong>Azure Blob Storage</strong> for cloud deployments) and <strong>Temporal</strong> (workflow orchestration) to be running. See the <a href="benchmarking-technical.html">Benchmarking Architecture</a> for setup instructions.
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2>Table of Contents</h2>
+
+<ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#core-concepts">Core Concepts</a>
+        <ul>
+            <li><a href="#projects-and-definitions">Projects and Definitions</a></li>
+            <li><a href="#datasets-and-versions">Datasets and Versions</a></li>
+            <li><a href="#splits">Splits</a></li>
+            <li><a href="#evaluators">Evaluators</a></li>
+        </ul>
+    </li>
+    <li><a href="#per-sample-metrics">Understanding Per-Sample Metrics</a>
+        <ul>
+            <li><a href="#schema-aware-metrics">Schema-Aware Evaluator Metrics</a></li>
+            <li><a href="#black-box-metrics">Black-Box Evaluator Metrics</a></li>
+            <li><a href="#pass-fail">Pass / Fail Determination</a></li>
+        </ul>
+    </li>
+    <li><a href="#aggregate-metrics">Understanding Aggregate (Run-Level) Metrics</a>
+        <ul>
+            <li><a href="#summary-counts">Summary Counts</a></li>
+            <li><a href="#statistical-measures">Statistical Measures</a></li>
+            <li><a href="#reading-aggregate-metrics">Reading Aggregate Metrics</a></li>
+        </ul>
+    </li>
+    <li><a href="#workflow-setup">Setting Up a Benchmark</a>
+        <ul>
+            <li><a href="#hitl-datasets">Creating Datasets from Verified Documents</a></li>
+            <li><a href="#gt-generation">Generating Ground Truth via HITL Review</a></li>
+        </ul>
+    </li>
+    <li><a href="#running-benchmarks">Running Benchmarks</a></li>
+    <li><a href="#baseline-management">Baseline Management &amp; Regression Detection</a></li>
+    <li><a href="#drill-down">Drill-Down &amp; Failure Analysis</a></li>
+    <li><a href="#comparing-runs">Comparing Runs</a></li>
+    <li><a href="#sliced-metrics">Sliced Metrics</a></li>
+    <li><a href="#deleting-resources">Deleting Resources</a></li>
+    <li><a href="#scheduling">Scheduled Benchmarks</a></li>
+</ul>
+
+<!-- ====================================================================== -->
+<h2 id="overview">Overview</h2>
+
+<p>The benchmarking system answers one question: <strong>"How well does my workflow perform, and has it gotten worse?"</strong> It is workflow-agnostic — it can evaluate any graph workflow configuration. The system wraps your existing workflow execution with dataset management, automated evaluation, metric tracking, and regression detection.</p>
+
+<div class="grid grid-3">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h3 style="margin-top:0;">Datasets</h3>
+        <p>Upload documents with ground truth, organise them into versioned snapshots that are automatically frozen when benchmarked, and optionally split them into train/test/golden subsets.</p>
+    </div>
+    <div class="card" style="border-left-color: #003366;">
+        <h3 style="margin-top:0;">Evaluation</h3>
+        <p>Pluggable evaluators compare workflow predictions against ground truth and produce per-sample metrics such as precision, recall, and F1.</p>
+    </div>
+    <div class="card" style="border-left-color: #fcba19;">
+        <h3 style="margin-top:0;">Regression Detection</h3>
+        <p>Promote any run to a baseline, define metric thresholds, and automatically detect regressions in subsequent runs.</p>
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2 id="core-concepts">Core Concepts</h2>
+
+<h3 id="projects-and-definitions">Projects and Definitions</h3>
+
+<p>The hierarchy is: <strong>Project → Definition → Run</strong>.</p>
+
+<table>
+    <tr><th>Entity</th><th>Description</th></tr>
+    <tr>
+        <td><strong>Benchmark Project</strong></td>
+        <td>A named container that groups related benchmark definitions and runs. Example: "Invoice Processing Q1".</td>
+    </tr>
+    <tr>
+        <td><strong>Benchmark Definition</strong></td>
+        <td>Pins together a specific dataset version, an optional split, a workflow, an evaluator type and configuration, and runtime settings. Each definition is a repeatable test specification.</td>
+    </tr>
+    <tr>
+        <td><strong>Benchmark Run</strong></td>
+        <td>A single execution of a definition. Produces per-sample evaluation results, aggregated metrics, and an optional baseline comparison.</td>
+    </tr>
+</table>
+
+<h3 id="datasets-and-versions">Datasets and Versions</h3>
+
+<p>A <strong>Dataset</strong> is a named collection of documents. Each dataset has one or more <strong>Dataset Versions</strong>. A version starts as mutable — you can upload files and delete samples freely. When a benchmark run is started against a version, it is automatically <strong>frozen</strong>, preventing any further modifications. This ensures that benchmark results are reproducible. A version consists of:</p>
+
+<ul>
+    <li>A <strong>dataset manifest</strong> (<code>dataset-manifest.json</code>) listing every sample, its input files, ground truth files, and metadata.</li>
+    <li><strong>Input files</strong> — the documents to process (e.g. PDFs, images).</li>
+    <li><strong>Ground truth files</strong> — JSON files containing the expected output for each sample.</li>
+    <li>An optional <strong>ground truth schema</strong> used for validation.</li>
+</ul>
+
+<p>All files are stored in object storage (MinIO or Azure Blob Storage) under a per-version storage prefix.</p>
+
+<details>
+    <summary style="cursor: pointer; color: var(--bc-blue-light); font-weight: 600;">
+        Example dataset manifest
+    </summary>
+    <div style="margin-top: 1rem;">
+<pre>{
+  "schemaVersion": "1.0",
+  "samples": [
+    {
+      "id": "sample-1",
+      "inputs": [
+        { "path": "inputs/invoice-1.pdf", "mimeType": "application/pdf" }
+      ],
+      "groundTruth": [
+        { "path": "ground_truth/invoice-1.json", "format": "json" }
+      ],
+      "metadata": {
+        "docType": "invoice",
+        "language": "en",
+        "source": "vendor-A"
+      }
+    }
+  ],
+  "splits": {
+    "train": ["sample-1", "sample-2"],
+    "test": ["sample-10", "sample-11"]
+  }
+}</pre>
+    </div>
+</details>
+
+<h3 id="splits">Splits</h3>
+
+<p>A <strong>Split</strong> is a named subset of samples within a dataset version. Splits partition samples for different purposes:</p>
+
+<table>
+    <tr><th>Split Type</th><th>Purpose</th></tr>
+    <tr><td><code>train</code></td><td>Samples used for training or tuning (not typically benchmarked).</td></tr>
+    <tr><td><code>val</code></td><td>Validation samples for parameter tuning.</td></tr>
+    <tr><td><code>test</code></td><td>Held-out samples for unbiased evaluation.</td></tr>
+    <tr><td><code>golden</code></td><td>Curated, high-confidence samples for critical regression checks.</td></tr>
+</table>
+
+<p>When a benchmark definition references a split, only the samples in that split are processed during a run. If no split is specified, all samples in the dataset version are used.</p>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+        <strong>Automatic Freezing</strong><br>
+        When a benchmark run starts, the referenced dataset version and split (if any) are automatically <strong>frozen</strong>. Frozen versions cannot have files uploaded or samples deleted, and frozen splits cannot have their sample list modified. This ensures benchmark results remain reproducible. To iterate on your data, create a new dataset version. You can also manually freeze a version or split before running benchmarks via the freeze endpoints.
+    </div>
+</div>
+
+<h3 id="evaluators">Evaluators</h3>
+
+<p>An <strong>Evaluator</strong> is a pluggable component that compares workflow predictions against ground truth and produces per-sample metrics. Two evaluators are built in:</p>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: #2E8540;">
+        <h3 style="margin-top:0;">Schema-Aware</h3>
+        <p>Compares predicted and expected values field-by-field. Supports configurable matching rules (exact, fuzzy, numeric, date, boolean) per field. Produces <strong>precision</strong>, <strong>recall</strong>, and <strong>F1</strong> metrics.</p>
+        <p>Best for structured extraction workflows where you know which fields to expect.</p>
+    </div>
+    <div class="card" style="border-left-color: #003366;">
+        <h3 style="margin-top:0;">Black-Box</h3>
+        <p>Treats outputs as opaque. Performs deep JSON equality or raw byte comparison and produces <strong>exact_match</strong> and <strong>field_overlap</strong> metrics.</p>
+        <p>Best for workflows where you care about exact output reproduction.</p>
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2 id="per-sample-metrics">Understanding Per-Sample Metrics</h2>
+
+<p>Each sample in a benchmark run is evaluated individually. The evaluator compares the workflow's prediction against the ground truth and produces a set of numeric metrics. Which metrics you get depends on the evaluator type.</p>
+
+<h3 id="schema-aware-metrics">Schema-Aware Evaluator Metrics</h3>
+
+<p>The schema-aware evaluator performs <strong>field-level comparison</strong> between the predicted JSON and the ground truth JSON. It categorises each field into one of three outcomes:</p>
+
+<table>
+    <tr><th>Outcome</th><th>Meaning</th></tr>
+    <tr>
+        <td><strong>True Positive (TP)</strong></td>
+        <td>Field exists in ground truth <em>and</em> the prediction matched (per the matching rule).</td>
+    </tr>
+    <tr>
+        <td><strong>False Positive (FP)</strong></td>
+        <td>Field exists in the prediction but <em>not</em> in the ground truth (extra field).</td>
+    </tr>
+    <tr>
+        <td><strong>False Negative (FN)</strong></td>
+        <td>Field exists in the ground truth but is missing or mismatched in the prediction.</td>
+    </tr>
+</table>
+
+<p>From these counts the evaluator calculates:</p>
+
+<table>
+    <tr><th>Metric</th><th>Formula</th><th>Interpretation</th></tr>
+    <tr>
+        <td><strong>Precision</strong></td>
+        <td><code>TP / (TP + FP)</code></td>
+        <td>Of all fields the workflow produced, what fraction were correct? A precision of 1.0 means the workflow never produced a wrong or extra field. <em>Low precision</em> means the workflow is producing junk fields or incorrect values.</td>
+    </tr>
+    <tr>
+        <td><strong>Recall</strong></td>
+        <td><code>TP / (TP + FN)</code></td>
+        <td>Of all fields expected in the ground truth, what fraction did the workflow find correctly? A recall of 1.0 means nothing was missed. <em>Low recall</em> means the workflow is missing fields.</td>
+    </tr>
+    <tr>
+        <td><strong>F1 Score</strong></td>
+        <td><code>2 &times; P &times; R / (P + R)</code></td>
+        <td>The harmonic mean of precision and recall. Balances both concerns into a single number between 0 and 1. An F1 of 1.0 means perfect extraction; 0.0 means total failure.</td>
+    </tr>
+    <tr>
+        <td><strong>Checkbox Accuracy</strong></td>
+        <td><code>matched booleans / total booleans</code></td>
+        <td>For boolean/checkbox fields specifically, the fraction that were correctly predicted.</td>
+    </tr>
+</table>
+
+<p>In addition to these primary metrics, the evaluator also emits the underlying <strong>count metrics</strong> that feed the formulas above:</p>
+
+<table>
+    <tr><th>Metric</th><th>Description</th></tr>
+    <tr><td><code>truePositives</code></td><td>Number of fields correctly matched.</td></tr>
+    <tr><td><code>falsePositives</code></td><td>Number of predicted fields with no corresponding ground truth field (extra fields).</td></tr>
+    <tr><td><code>falseNegatives</code></td><td>Number of ground truth fields missing or mismatched in the prediction.</td></tr>
+    <tr><td><code>totalGroundTruthFields</code></td><td>Total number of fields defined in the ground truth.</td></tr>
+    <tr><td><code>matchedFields</code></td><td>Number of fields that matched (same as truePositives).</td></tr>
+</table>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Why F1 instead of simple accuracy?</strong><br>
+        Simple accuracy (% correct) can be misleading when the number of expected fields varies between samples. F1 combines precision and recall into a single score that penalises both false extractions and missed fields equally, making it a more reliable single-number summary.
+    </div>
+</div>
+
+<details>
+    <summary style="cursor: pointer; color: var(--bc-blue-light); font-weight: 600;">
+        Worked example
+    </summary>
+    <div style="margin-top: 1rem;">
+        <p>Ground truth has 5 fields: <code>invoice_number</code>, <code>date</code>, <code>total</code>, <code>vendor</code>, <code>currency</code>.</p>
+        <p>The workflow predicts 4 fields: <code>invoice_number</code> (correct), <code>date</code> (correct), <code>total</code> (wrong value), <code>tax_id</code> (extra, not in ground truth).</p>
+        <ul>
+            <li><strong>TP = 2</strong> (invoice_number, date)</li>
+            <li><strong>FP = 1</strong> (tax_id is extra)</li>
+            <li><strong>FN = 3</strong> (total mismatched, vendor missing, currency missing)</li>
+        </ul>
+        <ul>
+            <li>Precision = 2 / (2 + 1) = <strong>0.667</strong></li>
+            <li>Recall = 2 / (2 + 3) = <strong>0.400</strong></li>
+            <li>F1 = 2 &times; 0.667 &times; 0.400 / (0.667 + 0.400) = <strong>0.500</strong></li>
+        </ul>
+    </div>
+</details>
+
+<h4>Matching Rules</h4>
+
+<p>The schema-aware evaluator supports configurable matching rules per field. The default rule is <strong>exact</strong> match (string equality). You can override this in the evaluator configuration:</p>
+
+<table>
+    <tr><th>Rule</th><th>Behaviour</th><th>Configuration</th></tr>
+    <tr>
+        <td><code>exact</code></td>
+        <td>String equality after coercing both values to strings.</td>
+        <td>None.</td>
+    </tr>
+    <tr>
+        <td><code>fuzzy</code></td>
+        <td>Levenshtein similarity &ge; threshold. Useful for OCR outputs with minor character-level errors.</td>
+        <td><code>fuzzyThreshold</code> (default: 0.8)</td>
+    </tr>
+    <tr>
+        <td><code>numeric</code></td>
+        <td>Numeric comparison with optional absolute or relative tolerance. Handles comma-separated numbers.</td>
+        <td><code>numericAbsoluteTolerance</code>, <code>numericRelativeTolerance</code></td>
+    </tr>
+    <tr>
+        <td><code>date</code></td>
+        <td>Parses dates and compares normalised YYYY-MM-DD values. Handles different input formats.</td>
+        <td><code>dateFormats</code> (optional hint)</td>
+    </tr>
+    <tr>
+        <td><code>boolean</code></td>
+        <td>Parses boolean-like values (<code>true</code>/<code>yes</code>/<code>1</code>) and compares.</td>
+        <td>None.</td>
+    </tr>
+</table>
+
+<h4>Evaluator Config Reference</h4>
+
+<p>When creating a benchmark definition, you set <code>evaluatorType</code> and <code>evaluatorConfig</code> as <strong>separate fields</strong>. The <code>evaluatorConfig</code> JSON is passed directly to the evaluator. Here is the complete set of available options for the schema-aware evaluator:</p>
+
+<table>
+    <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr>
+        <td><code>passThreshold</code></td>
+        <td>number</td>
+        <td><code>1.0</code></td>
+        <td>Minimum F1 score for a sample to pass. Set to <code>0.9</code> to allow minor mismatches.</td>
+    </tr>
+    <tr>
+        <td><code>defaultRule</code></td>
+        <td>FieldMatchingRule</td>
+        <td><code>{ "rule": "exact" }</code></td>
+        <td>Default matching rule applied to fields not listed in <code>fieldRules</code>.</td>
+    </tr>
+    <tr>
+        <td><code>fieldRules</code></td>
+        <td>Record&lt;string, FieldMatchingRule&gt;</td>
+        <td><code>{}</code></td>
+        <td>Per-field overrides keyed by field name.</td>
+    </tr>
+</table>
+
+<p>Each <code>FieldMatchingRule</code> object supports:</p>
+
+<table>
+    <tr><th>Key</th><th>Type</th><th>Applies to</th><th>Description</th></tr>
+    <tr>
+        <td><code>rule</code></td>
+        <td>string</td>
+        <td>all</td>
+        <td>One of: <code>"exact"</code>, <code>"fuzzy"</code>, <code>"numeric"</code>, <code>"date"</code>, <code>"boolean"</code>.</td>
+    </tr>
+    <tr>
+        <td><code>fuzzyThreshold</code></td>
+        <td>number</td>
+        <td><code>fuzzy</code></td>
+        <td>Minimum Levenshtein similarity (0.0–1.0). Default: <code>0.8</code>.</td>
+    </tr>
+    <tr>
+        <td><code>numericAbsoluteTolerance</code></td>
+        <td>number</td>
+        <td><code>numeric</code></td>
+        <td>Maximum absolute difference allowed (e.g. <code>0.01</code>).</td>
+    </tr>
+    <tr>
+        <td><code>numericRelativeTolerance</code></td>
+        <td>number</td>
+        <td><code>numeric</code></td>
+        <td>Maximum relative difference allowed as fraction (e.g. <code>0.05</code> = 5%).</td>
+    </tr>
+    <tr>
+        <td><code>dateFormats</code></td>
+        <td>string[]</td>
+        <td><code>date</code></td>
+        <td>Optional hint for accepted date formats (e.g. <code>["YYYY-MM-DD", "MM/DD/YYYY"]</code>).</td>
+    </tr>
+</table>
+
+<details>
+    <summary style="cursor: pointer; color: var(--bc-blue-light); font-weight: 600;">
+        Complete example: schema-aware evaluatorConfig
+    </summary>
+    <div style="margin-top: 1rem;">
+        <p>This is the JSON you enter into the <strong>Evaluator Config</strong> field when creating a definition with <code>evaluatorType: "schema-aware"</code>:</p>
+<pre>{
+  "passThreshold": 0.9,
+  "defaultRule": { "rule": "exact" },
+  "fieldRules": {
+    "total_amount": {
+      "rule": "numeric",
+      "numericAbsoluteTolerance": 0.01
+    },
+    "vendor_name": {
+      "rule": "fuzzy",
+      "fuzzyThreshold": 0.85
+    },
+    "invoice_date": {
+      "rule": "date",
+      "dateFormats": ["YYYY-MM-DD", "MM/DD/YYYY"]
+    },
+    "is_taxable": {
+      "rule": "boolean"
+    }
+  }
+}</pre>
+    </div>
+</details>
+
+<details>
+    <summary style="cursor: pointer; color: var(--bc-blue-light); font-weight: 600;">
+        Complete example: black-box evaluatorConfig
+    </summary>
+    <div style="margin-top: 1rem;">
+        <p>The black-box evaluator does not use any configuration options. Pass an empty object:</p>
+<pre>{}</pre>
+    </div>
+</details>
+
+<h3 id="black-box-metrics">Black-Box Evaluator Metrics</h3>
+
+<p>The black-box evaluator treats outputs as opaque. It operates in two modes depending on the content type:</p>
+
+<h4>JSON Mode</h4>
+
+<p>Used when both prediction and ground truth are valid JSON objects. Produces:</p>
+
+<table>
+    <tr><th>Metric</th><th>Interpretation</th></tr>
+    <tr>
+        <td><code>exact_match</code></td>
+        <td><code>1.0</code> if the prediction is identical to ground truth (deep JSON equality); <code>0.0</code> otherwise.</td>
+    </tr>
+    <tr>
+        <td><code>field_overlap</code></td>
+        <td>The fraction of keys (union of prediction and ground truth keys) where both sides have the same value. Ranges from 0.0 to 1.0.</td>
+    </tr>
+    <tr>
+        <td><code>diff_count</code></td>
+        <td>Number of individual differences found (added, deleted, or changed fields/elements).</td>
+    </tr>
+</table>
+
+<p>JSON mode also produces a <strong>diff artifact</strong> — a JSON file listing every difference path, type (<code>added</code>/<code>deleted</code>/<code>changed</code>), and the expected vs. actual values.</p>
+
+<h4>Raw Mode</h4>
+
+<p>Used when content is not JSON (e.g. plain text, raw bytes). Produces:</p>
+
+<table>
+    <tr><th>Metric</th><th>Interpretation</th></tr>
+    <tr>
+        <td><code>exact_match</code></td>
+        <td><code>1.0</code> if the raw content matches byte-for-byte; <code>0.0</code> otherwise.</td>
+    </tr>
+    <tr>
+        <td><code>byte_length_prediction</code></td>
+        <td>Byte length of the prediction content.</td>
+    </tr>
+    <tr>
+        <td><code>byte_length_groundtruth</code></td>
+        <td>Byte length of the ground truth content.</td>
+    </tr>
+</table>
+
+<h3 id="pass-fail">Pass / Fail Determination</h3>
+
+<p>Each sample is marked <strong>pass</strong> or <strong>fail</strong> based on evaluator-specific rules:</p>
+
+<ul>
+    <li><strong>Schema-aware:</strong> A sample passes when its F1 score &ge; <code>passThreshold</code> (default: 1.0, i.e., every field must match).</li>
+    <li><strong>Black-box:</strong> A sample passes only on exact match.</li>
+</ul>
+
+<!-- ====================================================================== -->
+<h2 id="aggregate-metrics">Understanding Aggregate (Run-Level) Metrics</h2>
+
+<p>After all samples in a run are evaluated, the system aggregates the individual results into run-level statistics. These give you a bird's-eye view of how the workflow performed across the entire dataset.</p>
+
+<h3 id="summary-counts">Summary Counts</h3>
+
+<table>
+    <tr><th>Metric</th><th>Description</th></tr>
+    <tr><td><strong>total_samples</strong></td><td>Total number of samples processed in the run.</td></tr>
+    <tr><td><strong>passing_samples</strong></td><td>Number of samples that passed the evaluator's threshold.</td></tr>
+    <tr><td><strong>failing_samples</strong></td><td>Number of samples that failed (including execution errors).</td></tr>
+    <tr><td><strong>pass_rate</strong></td><td>Fraction of samples that passed: <code>passing_samples / total_samples</code>. Ranges from 0.0 to 1.0.</td></tr>
+</table>
+
+<h3 id="statistical-measures">Statistical Measures</h3>
+
+<p>For each per-sample metric (e.g. <code>f1</code>, <code>precision</code>, <code>recall</code>, <code>exact_match</code>), the system computes the following statistics across all samples:</p>
+
+<table>
+    <tr><th>Statistic</th><th>Key Format</th><th>What It Tells You</th></tr>
+    <tr>
+        <td><strong>Mean</strong></td>
+        <td><code>metric.mean</code></td>
+        <td>The average value. The simplest summary — add up all sample values and divide by the count. Sensitive to outliers: a few very bad samples can pull the mean down.</td>
+    </tr>
+    <tr>
+        <td><strong>Median</strong></td>
+        <td><code>metric.median</code></td>
+        <td>The middle value when samples are sorted. Unlike the mean, the median is robust to outliers. If the median is much higher than the mean, you likely have a small number of very poor samples dragging the average down.</td>
+    </tr>
+    <tr>
+        <td><strong>Standard Deviation</strong></td>
+        <td><code>metric.stdDev</code></td>
+        <td>Measures how spread out the values are around the mean. A low standard deviation means results are consistent across samples; a high value means performance varies widely. Calculated as the population standard deviation.</td>
+    </tr>
+    <tr>
+        <td><strong>Min</strong></td>
+        <td><code>metric.min</code></td>
+        <td>The worst score among all samples. Useful for identifying the floor of performance.</td>
+    </tr>
+    <tr>
+        <td><strong>Max</strong></td>
+        <td><code>metric.max</code></td>
+        <td>The best score among all samples.</td>
+    </tr>
+    <tr>
+        <td><strong>5th Percentile (P5)</strong></td>
+        <td><code>metric.p5</code></td>
+        <td>The value below which 5% of samples fall. Represents the "worst-case tail" — useful for SLAs where you need to know "at minimum 95% of documents score above X".</td>
+    </tr>
+    <tr>
+        <td><strong>25th Percentile (P25 / Q1)</strong></td>
+        <td><code>metric.p25</code></td>
+        <td>The lower quartile. 25% of samples score below this value. Together with P75, defines the interquartile range (IQR).</td>
+    </tr>
+    <tr>
+        <td><strong>75th Percentile (P75 / Q3)</strong></td>
+        <td><code>metric.p75</code></td>
+        <td>The upper quartile. 75% of samples score below this value. The IQR (P75 minus P25) shows where the "middle 50%" of your data sits.</td>
+    </tr>
+    <tr>
+        <td><strong>95th Percentile (P95)</strong></td>
+        <td><code>metric.p95</code></td>
+        <td>The value below which 95% of samples fall. Almost all samples score at or below this level — useful for identifying if the top end is consistent.</td>
+    </tr>
+</table>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>How percentiles are calculated</strong><br>
+        The system uses <strong>linear interpolation</strong>. For example, the P25 of 100 sorted values is the value at position 24.75 — computed as 75% of value at index 24 plus 25% of value at index 25. This is the same method used by most statistics software.
+    </div>
+</div>
+
+<h3 id="reading-aggregate-metrics">Reading Aggregate Metrics</h3>
+
+<p>Here is a practical guide to interpreting a run's aggregate metrics:</p>
+
+<div class="card" style="border-left-color: #2E8540;">
+    <h3 style="margin-top:0;">Healthy Run</h3>
+    <ul>
+        <li><code>pass_rate</code> &ge; 0.95</li>
+        <li><code>f1.mean</code> and <code>f1.median</code> are close together and both high (e.g. 0.92+)</li>
+        <li><code>f1.stdDev</code> is low (e.g. &lt; 0.10)</li>
+        <li><code>f1.p5</code> is still acceptable (e.g. &ge; 0.75) — even your worst samples are reasonable</li>
+    </ul>
+</div>
+
+<div class="card" style="border-left-color: #ef4444;">
+    <h3 style="margin-top:0;">Warning Signs</h3>
+    <ul>
+        <li><strong>Mean &lt;&lt; Median</strong> — A few catastrophic failures are dragging the average down. Use the drill-down to find the worst samples.</li>
+        <li><strong>High stdDev</strong> — Performance is inconsistent; some document types or qualities may be problematic.</li>
+        <li><strong>Low P5, high P95</strong> — Wide spread indicates a subset of documents the workflow struggles with. Investigate using sliced metrics by metadata dimension.</li>
+        <li><strong>pass_rate dropping between runs</strong> — A regression may have been introduced. Compare against the baseline.</li>
+    </ul>
+</div>
+
+<!-- ====================================================================== -->
+<h2 id="workflow-setup">Setting Up a Benchmark</h2>
+
+<p>The end-to-end process to benchmark a workflow:</p>
+
+<h3>Step 1: Create a Dataset</h3>
+
+<ol>
+    <li>Navigate to <strong>Benchmarking &gt; Datasets</strong> and click <strong>"Create Dataset"</strong>. Enter a name, optional description, and optional metadata key-value pairs.</li>
+    <li>On the <strong>Dataset Detail</strong> page, click <strong>"New Version"</strong> to create a version (optionally give it a name such as "Q4 invoices").</li>
+    <li>A file upload dialog opens automatically — drag and drop or select input documents and their corresponding ground truth files.</li>
+    <li>Review uploaded samples in the <strong>Sample Preview</strong> tab.</li>
+    <li>Optionally validate the dataset using the version's <strong>three-dot menu &gt; "Validate"</strong>, which opens a validation report.</li>
+    <li>Optionally freeze the version via <strong>three-dot menu &gt; "Freeze Version"</strong>. Note: versions are also automatically frozen when a benchmark run starts against them.</li>
+</ol>
+
+<h3 id="hitl-datasets">Alternative: Create a Dataset from Verified Documents</h3>
+
+<p>If your documents have already been processed through the OCR pipeline and verified via the Human-In-The-Loop (HITL) review interface, you can create a benchmark dataset directly from them — no separate ground truth files required. The corrected OCR data from approved review sessions becomes the ground truth.</p>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Eligibility</strong><br>
+        A document is eligible when it has completed OCR processing and has at least one approved HITL review session. If a document has multiple approved sessions, the most recent one is used.
+    </div>
+</div>
+
+<ol>
+    <li>Click <strong>"From Verified Documents"</strong> on the Dataset List page (to create a new dataset) or on a Dataset Detail page (to add a version to an existing dataset).</li>
+    <li>Enter a dataset name and description (when creating a new dataset).</li>
+    <li>Select eligible documents from the table. You can search by filename and paginate through the list. The table shows each document's filename, file type, approval date, reviewer, field count, and correction count.</li>
+    <li>Confirm and submit. The system will:
+        <ul>
+            <li>Copy the original document files into the dataset's <code>inputs/</code> directory.</li>
+            <li>Build ground truth by applying the reviewer's corrections to the OCR results, producing flat key-value JSON files in the <code>ground-truth/</code> directory.</li>
+            <li>Generate a <code>dataset-manifest.json</code> with provenance metadata (source document ID, review session, reviewer) for each sample.</li>
+        </ul>
+    </li>
+</ol>
+
+<p>The resulting dataset is identical in format to one created via file upload and can be used with any evaluator.</p>
+
+<details>
+    <summary style="cursor: pointer; color: var(--bc-blue-light); font-weight: 600;">
+        How ground truth is constructed from HITL corrections
+    </summary>
+    <div style="margin-top: 1rem;">
+        <table>
+            <tr><th>Reviewer Action</th><th>Effect on Ground Truth</th></tr>
+            <tr><td><strong>Confirmed</strong></td><td>Original OCR value is kept as-is (verified correct).</td></tr>
+            <tr><td><strong>Corrected</strong></td><td>Field value is replaced with the reviewer's corrected value.</td></tr>
+            <tr><td><strong>Deleted</strong></td><td>Field is removed from the ground truth.</td></tr>
+            <tr><td><strong>Flagged</strong></td><td>Field is kept as-is (flagged but still included).</td></tr>
+        </table>
+        <p style="margin-top: 0.5rem;">The output uses the same flat key-value format as uploaded ground truth — for example, <code>{"vendor_name": "Acme Corp", "total_amount": 1250.75, "invoice_date": "2026-01-15"}</code>. Field values are resolved using the same extraction logic as the benchmark workflow (selection marks, numbers, dates, strings).</p>
+    </div>
+</details>
+
+<h3 id="gt-generation">Alternative: Generate Ground Truth via HITL Review</h3>
+
+<p>If you have documents but <strong>no ground truth</strong>, you can generate it by running the documents through an OCR workflow and reviewing the results in a dedicated, dataset-scoped HITL queue. This is the third pathway for creating dataset ground truth.</p>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>When to use this</strong><br>
+        Use this pathway when you have raw documents (PDFs, images) but no pre-existing ground truth. The system runs OCR, then lets a reviewer correct the results — the corrected output becomes ground truth. This is useful for bootstrapping a benchmark dataset from scratch.
+    </div>
+</div>
+
+<ol>
+    <li>Upload documents <strong>without ground truth files</strong> to a dataset version (input files only).</li>
+    <li>Navigate to the dataset detail page and select the version. Click the <strong>"Ground Truth"</strong> tab.</li>
+    <li>Select a <strong>workflow template</strong> from the dropdown (e.g., your standard OCR workflow) and click <strong>"Start Generation"</strong>.</li>
+    <li>The system creates a ground truth generation job for each sample that lacks ground truth. Each job:
+        <ul>
+            <li>Creates a Document record and copies the input file to document storage.</li>
+            <li>Starts the selected OCR workflow with the model ID from the workflow configuration.</li>
+            <li>The workflow runs to completion (the confidence gate is bypassed so the workflow does not pause for human review during processing).</li>
+        </ul>
+    </li>
+    <li>Monitor progress on the <strong>Ground Truth</strong> tab — a progress bar and job table show the status of each sample (Pending &rarr; Processing &rarr; Awaiting Review).</li>
+    <li>Once jobs reach <strong>"Awaiting Review"</strong>, click <strong>"Open Review Queue"</strong> to open the dataset-scoped HITL review queue.</li>
+    <li>Review each document using the same HITL review interface used in production — view OCR results, make corrections, and approve.</li>
+    <li>On approval, the system automatically extracts ground truth from the OCR results plus your corrections and writes it to the dataset storage. The dataset manifest is updated with the new ground truth entry.</li>
+</ol>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+        <strong>Separate Queue</strong><br>
+        Documents in the ground truth generation queue are <strong>completely isolated</strong> from the production HITL queue. They will never appear in the production review queue, and production documents will never appear in the dataset review queue.
+    </div>
+</div>
+
+<details>
+    <summary style="cursor: pointer; color: var(--bc-blue-light); font-weight: 600;">
+        How ground truth generation works under the hood
+    </summary>
+    <div style="margin-top: 1rem;">
+        <p>The ground truth generation process creates a <code>DatasetGroundTruthJob</code> record per sample, tracking its lifecycle: <code>pending</code> &rarr; <code>processing</code> &rarr; <code>awaiting_review</code> &rarr; <code>completed</code> (or <code>failed</code>).</p>
+        <p>For each job, a real <code>Document</code> record is created in the database — this allows the existing OCR workflow and HITL review system to process it like any other document. The key difference is:</p>
+        <ul>
+            <li>The workflow runs with <code>confidenceThreshold: 0</code>, so it always skips the human review gate and runs straight through to storing OCR results.</li>
+            <li>The <code>model_id</code> is read from the workflow configuration's <code>ctx.modelId.defaultValue</code>, so it uses whatever model the workflow is configured for.</li>
+            <li>The document is linked to the <code>DatasetGroundTruthJob</code> via a unique foreign key, which causes the production HITL queue to exclude it.</li>
+        </ul>
+        <p>After HITL approval, the same <code>buildGroundTruth()</code> logic used by the "From Verified Documents" pathway is invoked to construct flat key-value ground truth JSON from the OCR fields and reviewer corrections.</p>
+    </div>
+</details>
+
+<h3>Step 2: Create a Project and Definition</h3>
+
+<ol>
+    <li>Navigate to <strong>Benchmarking &gt; Projects</strong> and click <strong>"Create Project"</strong>. Enter a name and optional description.</li>
+    <li>Open the project and click <strong>"Create Definition"</strong>. Fill in the dialog:
+        <ul>
+            <li><strong>Name</strong> — a descriptive name for this test specification.</li>
+            <li><strong>Dataset Version</strong> — select from available versions (grouped by dataset, showing document count).</li>
+            <li><strong>Split</strong> (optional) — choose a split to evaluate a subset of the dataset, or leave as "All samples".</li>
+            <li><strong>Workflow</strong> — select the workflow to benchmark.</li>
+            <li><strong>Evaluator Type</strong> — choose <code>Schema-Aware</code> or <code>Black-Box</code>.</li>
+            <li><strong>Evaluator Config</strong> (optional) — JSON configuration for the evaluator (see <a href="#evaluator-config">Evaluator Config Reference</a>).</li>
+            <li><strong>Max Parallel Documents</strong> — number of samples processed concurrently (default: 10).</li>
+            <li><strong>Per Document Timeout (ms)</strong> — timeout for each sample (default: 300,000 ms / 5 minutes).</li>
+        </ul>
+    </li>
+    <li>Click <strong>"Create"</strong>.</li>
+</ol>
+
+<h3>Step 3: Run the Benchmark</h3>
+
+<ol>
+    <li>On the <strong>Project Detail</strong> page, click a definition row to open the <strong>Definition Details</strong> dialog.</li>
+    <li>Click <strong>"Start Run"</strong>. The system creates a new run and navigates to the <strong>Run Detail</strong> page.</li>
+    <li>Watch real-time progress as the run moves through its phases (see <a href="#running-benchmarks">Running Benchmarks</a> below). You can cancel at any time using the <strong>"Cancel"</strong> button.</li>
+</ol>
+
+<!-- ====================================================================== -->
+<h2 id="running-benchmarks">Running Benchmarks</h2>
+
+<p>When a benchmark run is started, the system automatically progresses through six phases:</p>
+
+<ol>
+    <li><strong>Dataset Preparation</strong> — downloads the dataset version to the worker (cached for subsequent runs).</li>
+    <li><strong>Execution</strong> — runs the configured workflow against each sample, processing them in configurable parallel batches.</li>
+    <li><strong>Evaluation</strong> — compares each sample's predicted output against the ground truth using the configured evaluator.</li>
+    <li><strong>Aggregation</strong> — combines all per-sample results into run-level statistics (see <a href="#aggregate-metrics">Understanding Aggregate Metrics</a>).</li>
+    <li><strong>Baseline Comparison</strong> — if a baseline exists, checks the current run's metrics against the baseline thresholds (see <a href="#baseline-management">Baseline Management</a>).</li>
+    <li><strong>Cleanup</strong> — removes temporary output files while preserving cached datasets for reuse.</li>
+</ol>
+
+<p>You can monitor progress in real time on the <strong>Run Detail</strong> page, which shows the current phase, sample counts, and percent complete. If needed, click <strong>"Cancel"</strong> to stop a running benchmark.</p>
+
+<h3>Run Statuses</h3>
+
+<table>
+    <tr><th>Status</th><th>Meaning</th></tr>
+    <tr><td><code>pending</code></td><td>Run created, not yet started.</td></tr>
+    <tr><td><code>running</code></td><td>Actively processing samples.</td></tr>
+    <tr><td><code>completed</code></td><td>All samples processed and metrics aggregated.</td></tr>
+    <tr><td><code>failed</code></td><td>Encountered an unrecoverable error.</td></tr>
+    <tr><td><code>cancelled</code></td><td>Cancelled by the user.</td></tr>
+</table>
+
+<!-- ====================================================================== -->
+<h2 id="baseline-management">Baseline Management &amp; Regression Detection</h2>
+
+<h3>Promoting a Baseline</h3>
+
+<p>Any completed run can be promoted to baseline. Only one run per definition can be the baseline — promoting a new one automatically demotes the previous one.</p>
+
+<ol>
+    <li>Open a completed run on the <strong>Run Detail</strong> page.</li>
+    <li>Click <strong>"Promote to Baseline"</strong> in the top-right actions.</li>
+    <li>In the <strong>Configure Baseline Thresholds</strong> dialog, set a threshold for each metric:
+        <ul>
+            <li>Choose <strong>Relative (%)</strong> or <strong>Absolute</strong> from the dropdown.</li>
+            <li>Enter the threshold value.</li>
+        </ul>
+    </li>
+    <li>Click <strong>"Promote to Baseline"</strong> to confirm.</li>
+</ol>
+
+<p>After promotion, the run shows a <strong>Baseline</strong> badge and its thresholds appear in the Definition Details dialog. You can update thresholds later using the <strong>"Edit Thresholds"</strong> button on the baseline run.</p>
+
+<h3>Threshold Types</h3>
+
+<table>
+    <tr><th>Type</th><th>Rule</th><th>Example</th></tr>
+    <tr>
+        <td><strong>Absolute</strong></td>
+        <td>Current value must be &ge; threshold value.</td>
+        <td><code>f1.mean &ge; 0.90</code> — F1 must be at least 0.90 regardless of baseline.</td>
+    </tr>
+    <tr>
+        <td><strong>Relative (%)</strong></td>
+        <td>Current value must be &ge; baseline value &times; threshold value.</td>
+        <td><code>pass_rate &ge; baseline &times; 0.95</code> — pass rate can drop by at most 5% from the baseline.</td>
+    </tr>
+</table>
+
+<h3>Automatic Comparison</h3>
+
+<p>Every completed run is automatically compared against the baseline for its definition (if one exists). The comparison produces:</p>
+
+<ul>
+    <li>A <strong>per-metric delta</strong> showing the absolute and percentage change from baseline.</li>
+    <li>A <strong>pass/fail</strong> determination for each threshold.</li>
+    <li>A list of <strong>regressed metrics</strong> — metrics that failed their threshold check.</li>
+    <li>An <strong>overallPassed</strong> flag — <code>true</code> only if no metrics regressed.</li>
+</ul>
+
+<p>If any metric regresses, the run is tagged with <code>regression: "true"</code> for easy filtering.</p>
+
+<!-- ====================================================================== -->
+<h2 id="drill-down">Drill-Down &amp; Failure Analysis</h2>
+
+<p>After a run completes, the <strong>Run Detail</strong> page provides several tools for inspecting results:</p>
+
+<h3>Run Detail Page</h3>
+
+<ul>
+    <li><strong>Baseline Comparison banner</strong> — a green (passed) or orange (regression detected) alert at the top of the page. If no baseline is set, a blue prompt offers to promote the current run.</li>
+    <li><strong>Aggregated Metrics</strong> — an expandable accordion listing every metric name and its aggregated value.</li>
+    <li><strong>Per-Field Error Breakdown</strong> (schema-aware evaluator only) — a table showing each field's error count and error rate. Click a field row to open a drawer with the specific samples where that field had errors, including expected and predicted values.</li>
+    <li><strong>Artifacts</strong> — browse all run artifacts, filtered by type (per-document output, intermediate node output, diff report, evaluation report, error log). Click an artifact row to view its contents.</li>
+</ul>
+
+<h3>Per-Sample Drill-Down</h3>
+
+<p>Click <strong>"View All Samples"</strong> on the Run Detail page to open the full drill-down page with paginated, filterable per-sample results:</p>
+
+<ul>
+    <li><strong>Filter by metadata dimensions</strong> — the filter panel dynamically shows dropdowns for each available metadata dimension (e.g. document type, language). Apply one or more filters to narrow results.</li>
+    <li><strong>Results table</strong> — shows each sample's ID, pass/fail status, metadata values, and key metrics.</li>
+    <li><strong>Sample detail drawer</strong> — click a sample row to open a side panel showing the full metrics, metadata, ground truth (expected) vs prediction (actual) side by side, evaluation details, and diagnostics.</li>
+</ul>
+
+<!-- ====================================================================== -->
+<h2 id="sliced-metrics">Sliced Metrics</h2>
+
+<p>Sliced metrics break down the aggregate statistics by metadata dimensions. For example, if your samples have <code>docType</code> metadata, you can see separate aggregate metrics for invoices, receipts, and contracts.</p>
+
+<p>Slicing is configured via the <code>sliceDimensions</code> option in the aggregation. Each dimension produces a separate set of <code>AggregatedMetrics</code> per unique value.</p>
+
+<p>This is useful for identifying if performance varies by document type, language, source, or any other metadata attribute.</p>
+
+<!-- ====================================================================== -->
+<h2 id="comparing-runs">Comparing Runs</h2>
+
+<p>You can compare metrics across multiple runs side by side:</p>
+
+<ol>
+    <li>On the <strong>Project Detail</strong> page, use the checkboxes in the <strong>Recent Runs</strong> table to select <strong>2 to 5</strong> completed runs.</li>
+    <li>Click the <strong>"Compare"</strong> button that appears above the table.</li>
+    <li>The <strong>Run Comparison</strong> page displays:
+        <ul>
+            <li><strong>Run Information</strong> — status, definition, and start time for each run.</li>
+            <li><strong>Metrics Comparison</strong> — a table with one column per run, plus delta and delta-percentage columns. Values are colour-coded: green for improvements, red for regressions.</li>
+            <li><strong>Parameters Comparison</strong> — highlights parameters that differ across runs with a "Changed" badge.</li>
+            <li><strong>Tags Comparison</strong> — same format as parameters.</li>
+        </ul>
+    </li>
+</ol>
+
+<p>You can export the comparison data as <strong>CSV</strong> or <strong>JSON</strong> using the buttons in the top-right corner.</p>
+
+<!-- ====================================================================== -->
+<h2 id="deleting-resources">Deleting Resources</h2>
+
+<p>The following resources can be deleted through the interface:</p>
+
+<table>
+    <tr><th>Resource</th><th>Where</th><th>Notes</th></tr>
+    <tr>
+        <td><strong>Project</strong></td>
+        <td>Project Detail page &gt; <strong>"Delete Project"</strong></td>
+        <td>Deletes all definitions and runs within the project.</td>
+    </tr>
+    <tr>
+        <td><strong>Definition</strong></td>
+        <td>Project Detail page &gt; definition row &gt; <strong>"Delete"</strong></td>
+        <td>Deletes all associated runs.</td>
+    </tr>
+    <tr>
+        <td><strong>Run</strong></td>
+        <td>Project Detail page &gt; run row &gt; <strong>"Delete"</strong></td>
+        <td>Only available for completed, failed, or cancelled runs.</td>
+    </tr>
+    <tr>
+        <td><strong>Dataset Version</strong></td>
+        <td>Dataset Detail page &gt; version three-dot menu &gt; <strong>"Delete Version"</strong></td>
+        <td>Cannot delete frozen versions.</td>
+    </tr>
+    <tr>
+        <td><strong>Sample</strong></td>
+        <td>Dataset Detail page &gt; Sample Preview tab &gt; per-sample <strong>"Delete"</strong></td>
+        <td>Only available when the version is not frozen.</td>
+    </tr>
+</table>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+        <strong>Deletions are permanent</strong><br>
+        All delete operations require confirmation and cannot be undone. Associated artifacts are also removed.
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2 id="scheduling">Scheduled Benchmarks</h2>
+
+<p>Benchmark definitions support scheduled execution. You can configure a cron schedule so that benchmark runs are triggered automatically — useful for continuous quality monitoring such as nightly regression checks against a golden dataset.</p>
+
+<ol>
+    <li>On the <strong>Project Detail</strong> page, click a definition row to open the <strong>Definition Details</strong> dialog.</li>
+    <li>Scroll to the <strong>Schedule Configuration</strong> card.</li>
+    <li>Toggle <strong>"Enable automatic scheduled runs"</strong> on.</li>
+    <li>Enter a <strong>cron expression</strong> (e.g. <code>0 2 * * *</code> for daily at 2 AM).</li>
+    <li>Click <strong>"Save Schedule"</strong>.</li>
+</ol>
+
+<p>Once active, the schedule status panel displays the <strong>schedule ID</strong>, <strong>cron pattern</strong>, <strong>next run</strong> time, and <strong>last run</strong> time, along with an <strong>Active</strong> or <strong>Paused</strong> badge.</p>
+
+<p>Scheduled runs use the same workflow as manual runs and produce identical metrics and baseline comparisons.</p>

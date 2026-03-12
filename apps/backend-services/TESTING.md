@@ -14,10 +14,6 @@
    NODE_ENV=development
    FRONTEND_URL=http://localhost:5173
    DATABASE_API_URL=http://localhost:3001/api/documents
-   STORAGE_PATH=./storage/documents
-   RABBITMQ_URL=amqp://localhost:5672
-   RABBITMQ_EXCHANGE=document_upload
-   RABBITMQ_ROUTING_KEY=document.uploaded
    ```
 
 ## Starting the Service
@@ -66,11 +62,7 @@ curl -X POST http://localhost:3002/api/upload \
   }'
 ```
 
-### Method 2: Using the Test Script
-
-A test script is provided at `test-upload.sh` (see below).
-
-### Method 3: Using Postman or Insomnia
+### Method 2: Using Postman or Insomnia
 
 1. Create a new POST request to `http://localhost:3002/api/upload`
 2. Set headers: `Content-Type: application/json`
@@ -86,10 +78,6 @@ A test script is provided at `test-upload.sh` (see below).
      }
    }
    ```
-
-### Method 4: Using Node.js Script
-
-See `test-upload.js` for a Node.js test script.
 
 ## Expected Response
 
@@ -125,7 +113,7 @@ See `test-upload.js` for a Node.js test script.
    - Queue message publish logs (stubbed)
    - File storage confirmation
 
-2. **File System**: Check the `storage/documents` directory (or path specified in `STORAGE_PATH`) for the uploaded file.
+2. **File System**: Check the `data/` directory.
 
 3. **Response**: Verify the response contains a document ID and correct metadata.
 
@@ -193,7 +181,6 @@ curl -X POST http://localhost:3002/api/upload \
 
 The service logs all stubbed operations. Check the console output for:
 - `DatabaseService.createDocument (STUBBED)` - Database API call logs
-- `QueueService.publishDocumentUploaded (STUBBED)` - RabbitMQ message logs
 
 These show what would be sent to the real services.
 

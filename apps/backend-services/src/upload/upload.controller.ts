@@ -1,47 +1,58 @@
 import {
-  Controller,
-  Post,
+  BadRequestException,
   Body,
+  Controller,
+  ForbiddenException,
   HttpCode,
   HttpStatus,
   Logger,
-  BadRequestException,
-  Get,
+  Post,
+  Req,
 } from "@nestjs/common";
-import { Public } from "../auth/public.decorator";
+import {
+  ApiBadRequestResponse,
+  ApiCreatedResponse,
+  ApiOperation,
+  ApiTags,
+} from "@nestjs/swagger";
+import { Request } from "express";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import {
+  ApiKeyAuth,
+  KeycloakSSOAuth,
+} from "@/decorators/custom-auth-decorators";
+import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
-
-@Controller("api")
+import { UploadDocumentResponseDto } from "./dto/upload-document-response.dto";
+// TODO: Use the storage service for saving files
+@ApiTags("Upload")
+@Controller("api/upload")
 export class UploadController {
   private readonly logger = new Logger(UploadController.name);
 
   constructor(
     private readonly documentService: DocumentService,
     private readonly queueService: QueueService,
+    private readonly databaseService: DatabaseService,
   ) {}
 
-  @Get("public")
-  @Public()
-  getPublicData(): { message: string } {
-    return { message: "This endpoint is public" };
-  }
-
-  @Post("upload")
+  @Post()
   @HttpCode(HttpStatus.CREATED)
-  async uploadDocument(@Body() uploadDto: UploadDocumentDto): Promise<{
-    success: boolean;
-    document: {
-      id: string;
-      title: string;
-      original_filename: string;
-      file_type: string;
-      file_size: number;
-      status: string;
-      created_at: Date;
-    };
-  }> {
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({ summary: "Upload a new document and start OCR processing" })
+  @ApiCreatedResponse({
+    description:
+      "Document uploaded successfully. Returns document id, title, file info, status, and created_at.",
+    type: UploadDocumentResponseDto,
+  })
+  @ApiBadRequestResponse({ description: "Invalid input or upload failed" })
+  async uploadDocument(
+    @Body() uploadDto: UploadDocumentDto,
+    @Req() req: Request,
+  ): Promise<UploadDocumentResponseDto> {
     this.logger.debug("=== UploadController.uploadDocument ===");
     this.logger.debug(
       `Received upload request: ${JSON.stringify(
@@ -50,6 +61,7 @@ export class UploadController {
           file_type: uploadDto.file_type,
           original_filename: uploadDto.original_filename,
           metadata: uploadDto.metadata,
+          model_id: uploadDto.model_id,
           file_length: uploadDto.file?.length || 0,
         },
         null,
@@ -63,40 +75,51 @@ export class UploadController {
         throw new BadRequestException("File data is required");
       }
 
+      await identityCanAccessGroup(
+        req.resolvedIdentity,
+        uploadDto.group_id,
+        this.databaseService,
+      );
+
       // Use original_filename from DTO or default to title
       const originalFilename =
         uploadDto.original_filename ||
         `${uploadDto.title}.${uploadDto.file_type}`;
 
       // Upload document (saves file and stores metadata)
+      // Use workflow_config_id if provided, fallback to workflow_id for backward compatibility
+      const workflowConfigId =
+        uploadDto.workflow_config_id || uploadDto.workflow_id;
       const uploadedDocument = await this.documentService.uploadDocument(
         uploadDto.title,
         uploadDto.file,
         uploadDto.file_type,
         originalFilename,
+        uploadDto.model_id,
+        uploadDto.group_id,
         uploadDto.metadata,
+        workflowConfigId,
       );
 
       this.logger.debug(
         `Document uploaded successfully: ${uploadedDocument.id}`,
       );
 
-      // Publish message to queue
-      try {
-        await this.queueService.publishDocumentUploaded({
+      // Fire-and-forget OCR processing; log errors but don't block the response
+      void this.queueService
+        .processOcrForDocument({
           documentId: uploadedDocument.id,
           filePath: uploadedDocument.file_path,
           fileType: uploadedDocument.file_type,
           metadata: uploadedDocument.metadata,
           timestamp: new Date(),
+        })
+        .catch((error) => {
+          this.logger.error(
+            `Background OCR processing failed for document ${uploadedDocument.id}: ${error.message}`,
+          );
+          this.logger.error(`Stack: ${error.stack}`);
         });
-        this.logger.debug("Message published to queue");
-      } catch (queueError) {
-        this.logger.error(
-          `Failed to publish message to queue: ${queueError.message}`,
-        );
-        // Don't fail the upload if queue publish fails - log and continue
-      }
 
       this.logger.debug("=== UploadController.uploadDocument completed ===");
 
@@ -116,7 +139,10 @@ export class UploadController {
       this.logger.error(`Error in uploadDocument: ${error.message}`);
       this.logger.error(`Stack: ${error.stack}`);
 
-      if (error instanceof BadRequestException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException
+      ) {
         throw error;
       }
 

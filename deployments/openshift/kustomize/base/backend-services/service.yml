@@ -13,4 +13,9 @@ spec:
   selector:
     app: backend-services
   type: ClusterIP
+  # Sticky sessions so OAuth callback and /api/auth/result hit the same pod (in-memory auth store)
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 300
 

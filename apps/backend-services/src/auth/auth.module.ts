@@ -1,25 +1,50 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
-import { BCGovAuthGuard } from "./bcgov-auth.guard";
-import { RolesGuard } from "./roles.guard";
+import { PassportModule } from "@nestjs/passport";
+import { ApiKeyModule } from "../api-key/api-key.module";
+import { DatabaseModule } from "../database/database.module";
+import { GroupModule } from "../group/group.module";
+import { ApiKeyAuthGuard } from "./api-key-auth.guard";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
-import { AuthSessionStore } from "./auth-session.store";
+import { CsrfGuard } from "./csrf.guard";
+import { IdentityGuard } from "./identity.guard";
+import { JwtAuthGuard } from "./jwt-auth.guard";
+import { KeycloakJwtStrategy } from "./keycloak-jwt.strategy";
+import { RolesGuard } from "./roles.guard";
 
 @Module({
-  imports: [ConfigModule],
+  imports: [
+    ConfigModule,
+    PassportModule.register({ defaultStrategy: "jwt" }),
+    ApiKeyModule,
+    DatabaseModule,
+    GroupModule,
+  ],
   controllers: [AuthController],
   providers: [
     AuthService,
-    AuthSessionStore,
+    KeycloakJwtStrategy,
     {
       provide: APP_GUARD,
-      useClass: BCGovAuthGuard,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ApiKeyAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: IdentityGuard,
     },
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: CsrfGuard,
     },
   ],
   exports: [AuthService],

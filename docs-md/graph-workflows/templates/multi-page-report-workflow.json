@@ -1,0 +1,394 @@
+{
+  "schemaVersion": "1.0",
+  "metadata": {
+    "name": "Multi-Page Report Workflow (Keyword-Based Split)",
+    "description": "Multi-page report: initial OCR, keyword-based split/classify (uses OCR page positions for markers), type-specific child workflows, field validation",
+    "tags": ["multi-page", "classification", "keyword-split"]
+  },
+  "entryNodeId": "prepareFileData",
+  "ctx": {
+    "documentId": { "type": "string" },
+    "blobKey": { "type": "string" },
+    "fileName": { "type": "string" },
+
+    "preparedFileData": { "type": "object", "description": "Prepared file metadata from file.prepare" },
+    "apimRequestId": { "type": "string", "description": "Azure OCR request ID" },
+    "ocrResponse": { "type": "object", "description": "Azure OCR poll response" },
+    "initialOcrResult": { "type": "object", "description": "Full document OCR result before splitting" },
+
+    "segmentsWithTypes": { "type": "array", "description": "Array of segments with embedded segmentType from split-and-classify" },
+    "currentSegment": { "type": "object", "description": "Current segment in map iteration (includes segmentType)" },
+    "segmentOcrResult": { "type": "object", "description": "OCR result from child workflow for current segment" },
+    "combinedSegment": { "type": "object", "description": "Combined segment metadata and OCR result from passthrough node" },
+
+    "monthlyReportModelId": { "type": "string", "defaultValue": "prebuilt-layout", "description": "OCR model for monthly report segments" },
+    "payStubModelId": { "type": "string", "defaultValue": "prebuilt-layout", "description": "OCR model for pay stub segments" },
+    "bankRecordModelId": { "type": "string", "defaultValue": "prebuilt-layout", "description": "OCR model for bank record segments" },
+    "ocrConfidenceThreshold": { "type": "number", "defaultValue": 0.0, "description": "Confidence threshold for OCR segments (0.0 = no review required)" },
+
+    "processedSegments": { "type": "array", "description": "Collected results from all segment processing" },
+    "validationResults": { "type": "object", "description": "Field validation results" }
+  },
+  "nodes": {
+    "prepareFileData": {
+      "id": "prepareFileData",
+      "type": "activity",
+      "label": "Prepare File Data",
+      "activityType": "file.prepare",
+      "inputs": [
+        { "port": "blobKey", "ctxKey": "blobKey" },
+        { "port": "fileName", "ctxKey": "fileName" },
+        { "port": "documentId", "ctxKey": "documentId" }
+      ],
+      "outputs": [{ "port": "preparedData", "ctxKey": "preparedFileData" }],
+      "parameters": {
+        "modelId": "prebuilt-layout"
+      },
+      "timeout": { "startToClose": "1m" }
+    },
+    "submitOcr": {
+      "id": "submitOcr",
+      "type": "activity",
+      "label": "Submit Initial OCR",
+      "activityType": "azureOcr.submit",
+      "inputs": [{ "port": "fileData", "ctxKey": "preparedFileData" }],
+      "outputs": [{ "port": "apimRequestId", "ctxKey": "apimRequestId" }],
+      "timeout": { "startToClose": "2m" }
+    },
+    "updateApimRequestId": {
+      "id": "updateApimRequestId",
+      "type": "activity",
+      "label": "Update APIM Request ID",
+      "activityType": "document.updateStatus",
+      "inputs": [
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "apimRequestId", "ctxKey": "apimRequestId" }
+      ],
+      "parameters": { "status": "ongoing_ocr" },
+      "timeout": { "startToClose": "30s" }
+    },
+    "pollOcrResults": {
+      "id": "pollOcrResults",
+      "type": "pollUntil",
+      "label": "Poll Initial OCR Results",
+      "activityType": "azureOcr.poll",
+      "inputs": [
+        { "port": "apimRequestId", "ctxKey": "apimRequestId" }
+      ],
+      "outputs": [{ "port": "response", "ctxKey": "ocrResponse" }],
+      "condition": {
+        "operator": "not-equals",
+        "left": { "ref": "ctx.ocrResponse.status" },
+        "right": { "literal": "running" }
+      },
+      "interval": "10s",
+      "initialDelay": "5s",
+      "maxAttempts": 20,
+      "timeout": "10m"
+    },
+    "extractResults": {
+      "id": "extractResults",
+      "type": "activity",
+      "label": "Extract Initial OCR Results",
+      "activityType": "azureOcr.extract",
+      "inputs": [
+        { "port": "apimRequestId", "ctxKey": "apimRequestId" },
+        { "port": "ocrResponse", "ctxKey": "ocrResponse" },
+        { "port": "fileName", "ctxKey": "fileName" }
+      ],
+      "outputs": [{ "port": "ocrResult", "ctxKey": "initialOcrResult" }],
+      "timeout": { "startToClose": "1m" }
+    },
+    "splitAndClassify": {
+      "id": "splitAndClassify",
+      "type": "activity",
+      "label": "Split and Classify Document",
+      "activityType": "document.splitAndClassify",
+      "inputs": [
+        { "port": "blobKey", "ctxKey": "blobKey" },
+        { "port": "ocrResult", "ctxKey": "initialOcrResult" },
+        { "port": "documentId", "ctxKey": "documentId" }
+      ],
+      "outputs": [{ "port": "segments", "ctxKey": "segmentsWithTypes" }],
+      "parameters": {
+        "keywordPatterns": [
+          {
+            "pattern": "Page\\s+(\\d+)\\s*[-—]\\s*Monthly Report",
+            "segmentType": "monthly-report"
+          },
+          {
+            "pattern": "Page\\s+(\\d+)\\s*[-—]\\s*Supporting Document #1.*Pay Stub",
+            "segmentType": "pay-stub"
+          },
+          {
+            "pattern": "Page\\s+(\\d+)\\s*[-—]\\s*Supporting Document #2.*Bank",
+            "segmentType": "bank-record"
+          }
+        ]
+      },
+      "timeout": { "startToClose": "5m" }
+    },
+    "processSegments": {
+      "id": "processSegments",
+      "type": "map",
+      "label": "Process Each Segment",
+      "collectionCtxKey": "segmentsWithTypes",
+      "itemCtxKey": "currentSegment",
+      "maxConcurrency": 10,
+      "bodyEntryNodeId": "segmentRouter",
+      "bodyExitNodeId": "passthrough"
+    },
+    "segmentRouter": {
+      "id": "segmentRouter",
+      "type": "switch",
+      "label": "Route by Document Type",
+      "cases": [
+        {
+          "condition": {
+            "operator": "equals",
+            "left": { "ref": "ctx.currentSegment.segmentType" },
+            "right": { "literal": "monthly-report" }
+          },
+          "edgeId": "edge-to-monthly-report"
+        },
+        {
+          "condition": {
+            "operator": "equals",
+            "left": { "ref": "ctx.currentSegment.segmentType" },
+            "right": { "literal": "pay-stub" }
+          },
+          "edgeId": "edge-to-pay-stub"
+        },
+        {
+          "condition": {
+            "operator": "equals",
+            "left": { "ref": "ctx.currentSegment.segmentType" },
+            "right": { "literal": "bank-record" }
+          },
+          "edgeId": "edge-to-bank-record"
+        }
+      ],
+      "defaultEdge": "edge-to-unknown"
+    },
+    "monthlyReportOcr": {
+      "id": "monthlyReportOcr",
+      "type": "childWorkflow",
+      "label": "OCR Monthly Report",
+      "workflowRef": {
+        "type": "library",
+        "workflowId": "standard-ocr-workflow"
+      },
+      "inputMappings": [
+        { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "modelId", "ctxKey": "monthlyReportModelId" },
+        { "port": "confidenceThreshold", "ctxKey": "ocrConfidenceThreshold" }
+      ],
+      "outputMappings": [
+        { "port": "ocrResult", "ctxKey": "segmentOcrResult" }
+      ]
+    },
+    "payStubOcr": {
+      "id": "payStubOcr",
+      "type": "childWorkflow",
+      "label": "OCR Pay Stub",
+      "workflowRef": {
+        "type": "library",
+        "workflowId": "standard-ocr-workflow"
+      },
+      "inputMappings": [
+        { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "modelId", "ctxKey": "payStubModelId" },
+        { "port": "confidenceThreshold", "ctxKey": "ocrConfidenceThreshold" }
+      ],
+      "outputMappings": [
+        { "port": "ocrResult", "ctxKey": "segmentOcrResult" }
+      ]
+    },
+    "bankRecordOcr": {
+      "id": "bankRecordOcr",
+      "type": "childWorkflow",
+      "label": "OCR Bank Record",
+      "workflowRef": {
+        "type": "library",
+        "workflowId": "standard-ocr-workflow"
+      },
+      "inputMappings": [
+        { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "modelId", "ctxKey": "bankRecordModelId" },
+        { "port": "confidenceThreshold", "ctxKey": "ocrConfidenceThreshold" }
+      ],
+      "outputMappings": [
+        { "port": "ocrResult", "ctxKey": "segmentOcrResult" }
+      ]
+    },
+    "unknownDocOcr": {
+      "id": "unknownDocOcr",
+      "type": "childWorkflow",
+      "label": "OCR Unknown Document",
+      "workflowRef": {
+        "type": "library",
+        "workflowId": "standard-ocr-workflow"
+      },
+      "inputMappings": [
+        { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "modelId", "ctxKey": "monthlyReportModelId" },
+        { "port": "confidenceThreshold", "ctxKey": "ocrConfidenceThreshold" }
+      ],
+      "outputMappings": [
+        { "port": "ocrResult", "ctxKey": "segmentOcrResult" }
+      ]
+    },
+    "passthrough": {
+      "id": "passthrough",
+      "type": "activity",
+      "label": "Combine Result (per segment)",
+      "activityType": "segment.combineResult",
+      "inputs": [
+        { "port": "currentSegment", "ctxKey": "currentSegment" },
+        { "port": "segmentOcrResult", "ctxKey": "segmentOcrResult" }
+      ],
+      "outputs": [
+        { "port": "combinedSegment", "ctxKey": "combinedSegment" }
+      ],
+      "timeout": { "startToClose": "10s" }
+    },
+    "collectResults": {
+      "id": "collectResults",
+      "type": "join",
+      "label": "Collect All Results (N→1)",
+      "sourceMapNodeId": "processSegments",
+      "strategy": "all",
+      "resultsCtxKey": "processedSegments"
+    },
+    "validateFields": {
+      "id": "validateFields",
+      "type": "activity",
+      "label": "Validate Fields",
+      "activityType": "document.validateFields",
+      "inputs": [
+        { "port": "processedSegments", "ctxKey": "processedSegments" },
+        { "port": "documentId", "ctxKey": "documentId" }
+      ],
+      "outputs": [{ "port": "validationResults", "ctxKey": "validationResults" }],
+      "parameters": {
+        "rules": [
+          {
+            "name": "pay-stub-arithmetic",
+            "type": "arithmetic",
+            "expression": {
+              "operation": "difference",
+              "fields": ["page2.grossPay", "page2.totalDeductions"],
+              "equals": "page2.netPay"
+            },
+            "operator": "approximately",
+            "tolerance": { "amount": 0.05 },
+            "fieldType": "currency"
+          },
+          {
+            "name": "gross-pay-match",
+            "type": "field-match",
+            "primaryField": "page1.grossPay",
+            "attachmentField": "page2.grossPay",
+            "operator": "approximately",
+            "tolerance": { "amount": 0.05 },
+            "fieldType": "currency"
+          },
+          {
+            "name": "net-pay-match",
+            "type": "field-match",
+            "primaryField": "page1.netPay",
+            "attachmentField": "page2.netPay",
+            "operator": "approximately",
+            "tolerance": { "amount": 0.05 },
+            "fieldType": "currency"
+          },
+          {
+            "name": "deposits-match",
+            "type": "array-match",
+            "primaryFields": ["page1.netPay", "page1.totalOtherIncome"],
+            "attachmentFields": ["page3.amount"],
+            "matchType": "all",
+            "operator": "approximately",
+            "tolerance": { "amount": 0.05 },
+            "fieldType": "currency"
+          }
+        ]
+      },
+      "timeout": { "startToClose": "2m" }
+    },
+    "storeResults": {
+      "id": "storeResults",
+      "type": "activity",
+      "label": "Store Results",
+      "activityType": "ocr.storeResults",
+      "inputs": [
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "ocrResult", "ctxKey": "validationResults" }
+      ],
+      "timeout": { "startToClose": "2m" }
+    }
+  },
+  "edges": [
+    { "id": "e1", "source": "prepareFileData", "target": "submitOcr", "type": "normal" },
+    { "id": "e2", "source": "submitOcr", "target": "updateApimRequestId", "type": "normal" },
+    { "id": "e3", "source": "updateApimRequestId", "target": "pollOcrResults", "type": "normal" },
+    { "id": "e4", "source": "pollOcrResults", "target": "extractResults", "type": "normal" },
+    { "id": "e5", "source": "extractResults", "target": "splitAndClassify", "type": "normal" },
+    { "id": "e6", "source": "splitAndClassify", "target": "processSegments", "type": "normal" },
+
+    { "id": "edge-to-monthly-report", "source": "segmentRouter", "target": "monthlyReportOcr", "type": "conditional" },
+    { "id": "edge-to-pay-stub", "source": "segmentRouter", "target": "payStubOcr", "type": "conditional" },
+    { "id": "edge-to-bank-record", "source": "segmentRouter", "target": "bankRecordOcr", "type": "conditional" },
+    { "id": "edge-to-unknown", "source": "segmentRouter", "target": "unknownDocOcr", "type": "conditional" },
+
+    { "id": "e-mr-converge", "source": "monthlyReportOcr", "target": "passthrough", "type": "normal" },
+    { "id": "e-ps-converge", "source": "payStubOcr", "target": "passthrough", "type": "normal" },
+    { "id": "e-br-converge", "source": "bankRecordOcr", "target": "passthrough", "type": "normal" },
+    { "id": "e-uk-converge", "source": "unknownDocOcr", "target": "passthrough", "type": "normal" },
+
+    { "id": "e7", "source": "processSegments", "target": "collectResults", "type": "normal" },
+    { "id": "e8", "source": "collectResults", "target": "validateFields", "type": "normal" },
+    { "id": "e9", "source": "validateFields", "target": "storeResults", "type": "normal" }
+  ],
+  "nodeGroups": {
+    "initial-ocr": {
+      "label": "Initial OCR",
+      "description": "Run OCR on full document to find keyword markers",
+      "icon": "scan",
+      "color": "#3b82f6",
+      "nodeIds": ["prepareFileData", "submitOcr", "updateApimRequestId", "pollOcrResults", "extractResults"]
+    },
+    "split-classify": {
+      "label": "Split and Classify",
+      "description": "Split document based on keyword markers and classify segments",
+      "icon": "scissors",
+      "color": "#22c55e",
+      "nodeIds": ["splitAndClassify"]
+    },
+    "collect-results": {
+      "label": "Collect All Results",
+      "description": "Collect results from all segment processing (N→1)",
+      "icon": "layers",
+      "color": "#fb923c",
+      "nodeIds": ["collectResults"]
+    },
+    "validate-fields": {
+      "label": "Validate Fields",
+      "description": "Validate fields across segments",
+      "icon": "validate",
+      "color": "#eab308",
+      "nodeIds": ["validateFields"]
+    },
+    "store": {
+      "label": "Store Results",
+      "description": "Save processed results to database",
+      "icon": "save",
+      "color": "#8b5cf6",
+      "nodeIds": ["storeResults"]
+    }
+  }
+}

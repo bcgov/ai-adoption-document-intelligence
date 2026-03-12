@@ -1,26 +1,36 @@
-import { useAuth } from '../auth/AuthContext';
-import { Card, Title, Text, Button, Stack, Group, Badge } from '@mantine/core';
+import { Badge, Button, Card, Group, Stack, Text, Title } from "@mantine/core";
+import { useAuth } from "../auth/useAuth";
 
 export const Login = () => {
   const { isAuthenticated, user, login, logout } = useAuth();
 
   if (isAuthenticated && user) {
     return (
-      <Card shadow="sm" padding="xl" radius="md" withBorder style={{ maxWidth: 500, margin: '0 auto' }}>
+      <Card
+        shadow="sm"
+        padding="xl"
+        radius="md"
+        withBorder
+        style={{ maxWidth: 500, margin: "0 auto" }}
+      >
         <Stack gap="lg" align="center">
           <Group gap="xs">
             <Title order={1}>Welcome,</Title>
-            <Title order={1} c="blue">{String(user?.profile?.name || '')}</Title>
+            <Title order={1} c="blue">
+              {String(user?.profile?.name || "")}
+            </Title>
           </Group>
 
-          <Stack gap="sm" style={{ width: '100%' }}>
+          <Stack gap="sm" style={{ width: "100%" }}>
             <Group justify="space-between">
               <Text fw={500}>Username:</Text>
-              <Badge variant="light" color="blue">{String(user?.profile?.preferred_username || '')}</Badge>
+              <Badge variant="light" color="blue">
+                {String(user?.profile?.preferred_username || "")}
+              </Badge>
             </Group>
             <Group justify="space-between">
               <Text fw={500}>Email:</Text>
-              <Text size="sm">{String(user?.profile?.email || '')}</Text>
+              <Text size="sm">{String(user?.profile?.email || "")}</Text>
             </Group>
           </Stack>
 
@@ -39,9 +49,17 @@ export const Login = () => {
   }
 
   return (
-    <Card shadow="sm" padding="xl" radius="md" withBorder style={{ maxWidth: 500, margin: '0 auto' }}>
+    <Card
+      shadow="sm"
+      padding="xl"
+      radius="md"
+      withBorder
+      style={{ maxWidth: 500, margin: "0 auto" }}
+    >
       <Stack gap="lg" align="center">
-        <Title order={1} ta="center">Please log in to continue</Title>
+        <Title order={1} ta="center">
+          Please log in to continue
+        </Title>
         <Text c="dimmed" ta="center" size="lg">
           Use your IDIR credentials to access the AI OCR application
         </Text>

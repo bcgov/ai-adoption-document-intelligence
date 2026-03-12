@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - postgrescluster.yml
+  - temporal-postgres-init-sql-configmap.yml
+  - temporal-server-deployment.yml
+  - temporal-server-service.yml
+  - temporal-ui-deployment.yml
+  - temporal-ui-service.yml
+  - temporal-ui-route.yml
+  - temporal-worker-configmap.yml
+  - temporal-worker-secrets.yml
+  - temporal-worker-deployment.yml
+commonLabels:
+  app.kubernetes.io/part-of: temporal

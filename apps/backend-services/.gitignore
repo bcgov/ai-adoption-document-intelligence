@@ -41,9 +41,11 @@ lerna-debug.log*
 
 # Storage
 /storage
+/data
 
 # Build info
 *.tsbuildinfo
 
 
 src/generated
+prisma/schema.prisma

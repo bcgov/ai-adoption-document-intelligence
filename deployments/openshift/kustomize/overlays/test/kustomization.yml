@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: fd34fb-test
+resources:
+- ../../base
+patches:
+- path: backend-services-configmap.yml
+  target:
+    kind: ConfigMap
+    name: backend-services-config
+images:
+# Pin digest so cluster pulls the image currently in Artifactory (avoids stale tag cache)
+- name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services
+  newTag: develop-latest1
+  # digest: sha256:282be39343c2f570f21ee76f0a81e8af8f5726d59c0820a86228d39d4fa513b1
+- name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal
+  newTag: develop-latest
+- name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/frontend
+  newTag: develop-latest
+commonLabels:
+  env: dev
+
+

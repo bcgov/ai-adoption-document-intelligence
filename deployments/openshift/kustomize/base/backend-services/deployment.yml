@@ -5,7 +5,7 @@ metadata:
   labels:
     app: backend-services
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: backend-services
@@ -14,9 +14,60 @@ spec:
       labels:
         app: backend-services
     spec:
+      initContainers:
+      - name: migrate-db
+        # Tag is resolved only when a NEW pod is created. After pushing a new image, run: oc rollout restart deployment/backend-services -n <namespace>
+        image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services:main-latest
+        imagePullPolicy: Always
+        workingDir: /app
+        # Use the installed Prisma version from node_modules to avoid npx installing latest
+        # This ensures we use the version specified in package.json (7.0.1) instead of latest
+        # Note: Permissions on public schema are granted via PostgresCluster postInitSQL
+        # Crunchy Postgres on OpenShift requires SSL; use libpq-compat so sslmode=require accepts self-signed certs
+        command:
+          - sh
+          - -c
+          - |
+            u="$DATABASE_URL"
+            if [ -n "$PGSSLMODE" ]; then
+              sep="?"
+              case "$u" in *\?*) sep="&";; esac
+              export DATABASE_URL="${u}${sep}sslmode=${PGSSLMODE}&uselibpqcompat=true"
+            fi
+            node_modules/.bin/prisma migrate deploy --schema=/app/shared/prisma/schema.prisma || npx prisma@7.0.1 migrate deploy --schema=/app/shared/prisma/schema.prisma
+        env:
+        # DATABASE_URL should be provided via a Secret containing the PostgreSQL connection string
+        # Format: postgresql://username:password@postgres-cluster-primary:5432/api
+        # The Secret should be created from the PostgresCluster credentials
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-cluster-pguser-admin
+              key: uri
+        - name: PGSSLMODE
+          value: "require"
+        # Crunchy Postgres uses self-signed certs; disable TLS cert verification
+        - name: PGSSLREJECTUNAUTHORIZED
+          value: "false"
+        # Prisma CLI (migrate) uses Node TLS; allow self-signed for init container only
+        - name: NODE_TLS_REJECT_UNAUTHORIZED
+          value: "0"
+        - name: NODE_ENV
+          value: "production"
+        # Optimize Node.js memory usage for migrations
+        - name: NODE_OPTIONS
+          value: "--max-old-space-size=384"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
       containers:
       - name: backend-services
-        image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services:latest
+        # Tag is resolved only when a NEW pod is created. After pushing a new image, run: oc rollout restart deployment/backend-services -n <namespace>
+        image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services:main-latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3002
@@ -32,31 +83,89 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: FRONTEND_URL
+        - name: BACKEND_URL
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: BACKEND_URL
         - name: DATABASE_API_URL
           valueFrom:
             configMapKeyRef:
               name: backend-services-config
               key: DATABASE_API_URL
-        - name: STORAGE_PATH
-          value: "/app/storage/documents"
-        - name: RABBITMQ_URL
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-cluster-pguser-admin
+              key: uri
+        - name: PGSSLMODE
+          value: "require"
+        # Crunchy Postgres uses self-signed certs; disable TLS cert verification
+        - name: PGSSLREJECTUNAUTHORIZED
+          value: "false"
+        - name: SSO_AUTH_SERVER_URL
           valueFrom:
             configMapKeyRef:
               name: backend-services-config
-              key: RABBITMQ_URL
-        - name: RABBITMQ_EXCHANGE
+              key: SSO_AUTH_SERVER_URL
+        - name: SSO_REALM
           valueFrom:
             configMapKeyRef:
               name: backend-services-config
-              key: RABBITMQ_EXCHANGE
-        - name: RABBITMQ_ROUTING_KEY
+              key: SSO_REALM
+        - name: SSO_CLIENT_ID
           valueFrom:
             configMapKeyRef:
               name: backend-services-config
-              key: RABBITMQ_ROUTING_KEY
+              key: SSO_CLIENT_ID
+        - name: SSO_REDIRECT_URI
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: SSO_REDIRECT_URI
+        - name: SSO_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: backend-services-secrets
+              key: SSO_CLIENT_SECRET
+        - name: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
+        - name: AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID
+        - name: AZURE_DOC_INTELLIGENCE_MODELS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AZURE_DOC_INTELLIGENCE_MODELS
+        - name: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: backend-services-secrets
+              key: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+        - name: TEMPORAL_ADDRESS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: TEMPORAL_ADDRESS
+        - name: TEMPORAL_NAMESPACE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: TEMPORAL_NAMESPACE
+        - name: TEMPORAL_TASK_QUEUE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: TEMPORAL_TASK_QUEUE
         volumeMounts:
         - name: storage
-          mountPath: /app/storage
+          mountPath: /app/data/blobs
         resources:
           requests:
             memory: "256Mi"

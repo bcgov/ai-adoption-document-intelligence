@@ -1,0 +1,109 @@
+graph TB
+    %% ── External Traffic ─────────────────────────────────────────
+    Internet["Internet<br/>(Users + API Consumers)"]
+
+    %% ── OpenShift Cluster ────────────────────────────────────────
+    subgraph Cluster ["OpenShift / Kubernetes Cluster"]
+        direction TB
+
+        %% ── Ingress ──────────────────────────────────────────────
+        Ingress["Ingress / Route<br/>(TLS termination)"]
+
+        %% ── Frontend Pod ─────────────────────────────────────────
+        subgraph FEPod ["Frontend Pod"]
+            direction LR
+            Nginx["Nginx<br/>Serves React SPA<br/>Proxies /api → Backend"]
+        end
+
+        %% ── Backend Pod ──────────────────────────────────────────
+        subgraph BEPod ["Backend Pod"]
+            direction TB
+            InitMigrate["Init Container<br/>prisma migrate deploy"]
+            NestJS["NestJS / Express<br/>:3002<br/>Liveness: /health<br/>Readiness: /health"]
+            InitMigrate -->|"runs before"| NestJS
+        end
+
+        %% ── Worker Pod ───────────────────────────────────────────
+        subgraph WorkerPod ["Temporal Worker Pod"]
+            direction LR
+            Worker["Temporal Worker<br/>graphWorkflow&lpar;&rpar;<br/>15 activities"]
+        end
+
+        %% ── Temporal Server Pod ──────────────────────────────────
+        subgraph TemporalPod ["Temporal Server Pod&lpar;s&rpar;"]
+            direction LR
+            TServer["Temporal Server<br/>:7233 (gRPC)<br/>:8080 (Web UI)"]
+        end
+
+        %% ── Database ─────────────────────────────────────────────
+        subgraph DBCluster ["PostgreSQL &lpar;CrunchyDB Operator&rpar;"]
+            direction LR
+            PGPrimary[("Primary<br/>PostgreSQL")]
+            PGReplica[("Replica<br/>(HA)")]
+            PGPrimary --> PGReplica
+        end
+
+        %% ── Config & Secrets ─────────────────────────────────────
+        subgraph Config ["Configuration"]
+            direction LR
+            ConfigMap["ConfigMaps<br/>• PORT, NODE_ENV<br/>• TEMPORAL_ADDRESS<br/>• TEMPORAL_NAMESPACE<br/>• FRONTEND_URL"]
+            Secrets["Secrets<br/>• DATABASE_URL<br/>• AZURE_DI_ENDPOINT<br/>• AZURE_DI_API_KEY<br/>• AZURE_STORAGE_CONN<br/>• SSO_AUTH_SERVER_URL<br/>• SSO_CLIENT_SECRET"]
+        end
+
+        %% ── Platform Features ────────────────────────────────────
+        subgraph InfraFeatures ["Infrastructure Features"]
+            direction LR
+            HPA["HPA<br/>Backend + Worker<br/>auto-scaling"]
+            NetPol["Network Policies<br/>restrict inter-pod<br/>communication"]
+            Probes["Health Probes<br/>liveness +<br/>readiness"]
+        end
+    end
+
+    %% ── External Azure Services ──────────────────────────────────
+    subgraph Azure ["Azure Cloud Services"]
+        direction LR
+        AzureDI["Azure Document<br/>Intelligence<br/>(OCR API)"]
+        AzureBlob["Azure Blob<br/>Storage<br/>(documents)"]
+    end
+
+    %% ── External Auth ────────────────────────────────────────────
+    Keycloak["Keycloak<br/>OIDC / SSO<br/>Provider"]
+
+    %% ── Traffic Flow ─────────────────────────────────────────────
+    Internet -->|"HTTPS"| Ingress
+    Ingress -->|"/"| FEPod
+    Ingress -->|"/api"| BEPod
+    Nginx -->|"proxy /api"| NestJS
+
+    %% ── Internal Connections ─────────────────────────────────────
+    NestJS -->|"gRPC"| TServer
+    NestJS -->|"Prisma"| PGPrimary
+    TServer -->|"task dispatch"| Worker
+    Worker -->|"Prisma"| PGPrimary
+    TServer -->|"workflow<br/>history"| PGPrimary
+
+    %% ── External Service Connections ─────────────────────────────
+    NestJS -->|"REST API"| AzureDI
+    NestJS -->|"Azure SDK"| AzureBlob
+    Worker -->|"REST API"| AzureDI
+    Worker -->|"filesystem /<br/>Azure SDK"| AzureBlob
+    NestJS -->|"JWKS"| Keycloak
+
+    %% ── Config injection ─────────────────────────────────────────
+    ConfigMap -.->|"env vars"| BEPod
+    ConfigMap -.->|"env vars"| WorkerPod
+    Secrets -.->|"env vars"| BEPod
+    Secrets -.->|"env vars"| WorkerPod
+
+    %% ── Styling ──────────────────────────────────────────────────
+    classDef external fill:#f9f0ff,stroke:#7c3aed,stroke-width:2px
+    classDef pod fill:#eff6ff,stroke:#2563eb,stroke-width:2px
+    classDef db fill:#ecfdf5,stroke:#059669,stroke-width:2px
+    classDef config fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,stroke-dasharray:3
+    classDef infra fill:#fef3c7,stroke:#d97706,stroke-width:1px
+
+    class Internet,AzureDI,AzureBlob,Keycloak external
+    class FEPod,BEPod,WorkerPod,TemporalPod pod
+    class DBCluster,PGPrimary,PGReplica db
+    class ConfigMap,Secrets config
+    class HPA,NetPol,Probes infra

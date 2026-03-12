@@ -1,0 +1,109 @@
+Page 1 — Monthly Report (Financial Assistance Request)
+MONTHLY REPORT — FINANCIAL ASSISTANCE REQUEST (SAMPLE)[1]
+Submit by: 2026-02-05 (for benefit month: January 2026)[1]
+Applicant Information
+•	Full legal name: Jordan Lee Ramirez
+•	Date of birth: 1991-08-14
+•	Mailing address: 412 Fraser St, Victoria, BC V9A 6K2
+•	Phone: (250) 555-0188
+•	Email: jordan.ramirez@example.com
+•	Case / File ID: FA-2601-88421
+•	Social Insurance Number (masked): XXX-XXX-412
+Household
+•	Household size: 2 (Applicant + 1 dependent)
+•	Dependent: Avery Ramirez (2017-04-22)
+Benefit Month Being Reported
+•	Reporting month: 2026-01 (January 2026)
+A) Self-Reported Income (January 2026)
+(Report amounts before deductions unless stated otherwise.)
+Employment Income (Self-Reported)
+•	Employer: Harborview Foods Ltd.
+•	Pay period 1 (2026-01-01 to 2026-01-15)
+o	Gross pay: 1,260.00
+o	Net pay (deposit): 1,003.42
+o	Pay date: 2026-01-18
+•	Pay period 2 (2026-01-16 to 2026-01-31)
+o	Gross pay: 1,344.00
+o	Net pay (deposit): 1,067.19
+o	Pay date: 2026-02-02 (earned in January)
+Other Income (Self-Reported)
+•	Child support received: 250.00 (received 2026-01-10)
+•	GST/HST credit: 0.00
+•	EI / CPP / OAS: 0.00
+•	Self-employment: 0.00
+•	Other: 0.00
+Total Self-Reported Income (January earned)
+•	Total gross employment income: 2,604.00
+•	Total other income: 250.00
+•	Total income (gross + other): 2,854.00
+B) Expenses / Situation Changes (January 2026)
+•	Address change: No
+•	Household members change: No
+•	Started/stopped work: No
+•	Medical expense change: No
+•	Shelter cost change: No
+•	Notes: “Submitting pay stubs and bank deposit record to confirm earned income.”
+C) Declaration
+“I declare the information on this monthly report is true and complete.”
+•	Applicant signature: _______________________
+•	Date: 2026-02-03
+•	Applicant printed name: Jordan Lee Ramirez
+Attachments Included
+1.	Pay Stub — Harborview Foods Ltd. (Pay period 2026-01-01 to 2026-01-15)
+2.	Bank Deposit Record (showing payroll deposits matching net pay)
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Page 2 — Supporting Document #1 (Pay Stub)
+HARBORVIEW FOODS LTD.
+1200 Dockside Rd, Victoria, BC V8V 2N4
+EMPLOYEE EARNINGS STATEMENT / PAY STUB
+•	Employee: Jordan Lee Ramirez
+•	Employee ID: HV-10477
+•	Pay period: 2026-01-01 to 2026-01-15
+Earnings
+•	Regular hours: 84.0 @ 15.00/hr = 1,260.00
+•	Overtime hours: 0.0 @ 22.50/hr = 0.00
+•	Bonuses: 0.00
+Gross pay: 1,260.00
+Deductions
+•	Federal tax: 121.50
+•	Provincial tax: 58.20
+•	CPP: 63.63
+•	EI: 13.25
+Total deductions: 256.58
+Net Pay
+Net pay (direct deposit): 1,003.42
+Year-to-date (YTD)
+•	YTD gross: 1,260.00
+•	YTD deductions: 256.58
+•	YTD net: 1,003.42
+Stub reference: PS-2026-01-18-10477
+
+Page 3 — Supporting Document #2 (Bank Deposit Record)
+PACIFIC COAST CREDIT UNION
+Customer: Jordan Lee Ramirez
+Account: Chequing (masked) XXXXX-8831
+Statement period: 2026-01-01 to 2026-01-31
+Deposits (January 2026)
+Date	Description	Amount
+2026-01-10	E-TRANSFER IN — Child Support	+250.00
+2026-01-18	PAYROLL DEP — Harborview Foods Ltd.	+1,003.42
+
+Notes / Matching Confirmation
+•	The payroll deposit on 2026-01-18 for 1,003.42 matches the net pay amount shown on the attached pay stub for the period 2026-01-01 to 2026-01-15.
+•	Child support deposit on 2026-01-10 for 250.00 matches the “Other Income” amount declared on Page 1.
+Document ID: PCCU-STAT-8831-2026-01 (Sample)

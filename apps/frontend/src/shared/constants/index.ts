@@ -1,14 +1,22 @@
 // Application constants
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
-export const APP_NAME = 'AI OCR Frontend';
+export const APP_NAME = "AI OCR Frontend";
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export const SUPPORTED_FILE_TYPES = [
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/tiff'
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/tiff",
 ] as const;
+
+// HITL Review Queue Configuration
+export const HITL_MAX_CONFIDENCE =
+  parseFloat(import.meta.env.VITE_HITL_MAX_CONFIDENCE) || 0.9;
+
+// Temporal UI Configuration
+export const TEMPORAL_UI_URL =
+  import.meta.env.VITE_TEMPORAL_UI_URL || "http://localhost:8088";

@@ -1,100 +1,141 @@
-import { useState } from 'react'
-import { useAuth } from './auth/AuthContext'
-import './App.css'
-import { HelloWorld, DocumentsList, Login } from './components'
-import '@mantine/core/styles.css'
-import { MantineProvider, Title, Button, Card, Text, Badge, Group, Stack } from '@mantine/core'
+import { Stack, Text, Title } from "@mantine/core";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { MembershipPageGuard, NoGroupGuard } from "./auth/NoGroupGuard";
+import { useAuth } from "./auth/useAuth";
+import "./App.css";
+import { Login } from "./components";
+import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
+import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWorkspacePage";
+import { LabelingWorkspacePage } from "./features/annotation/labeling/pages/LabelingWorkspacePage";
+import { ProjectDetailPage } from "./features/annotation/labeling/pages/ProjectDetailPage";
+import { ProjectListPage } from "./features/annotation/labeling/pages/ProjectListPage";
+import {
+  ProjectDetailPage as BenchmarkProjectDetailPage,
+  ProjectListPage as BenchmarkProjectListPage,
+  DatasetDetailPage,
+  DatasetListPage,
+  DatasetReviewQueuePage,
+  RegressionReportPage,
+  ResultsDrillDownPage,
+  RunComparisonPage,
+  RunDetailPage,
+} from "./features/benchmarking/pages";
+import { RootLayout } from "./layouts/RootLayout";
+import ClassifierPage from "./pages/ClassifierPage";
+import { GroupDetailPage } from "./pages/GroupDetailPage";
+import { GroupsPage } from "./pages/GroupsPage";
+import { QueuePage } from "./pages/QueuePage";
+import { RequestMembershipPage } from "./pages/RequestMembershipPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { UploadPage } from "./pages/UploadPage";
+import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
+import { WorkflowListPage } from "./pages/WorkflowListPage";
 
-function AppContent(): JSX.Element {
-  const [count, setCount] = useState(0)
-  const { isAuthenticated, isLoading, logout } = useAuth()
+const router = createBrowserRouter([
+  {
+    path: "/request-membership",
+    element: (
+      <MembershipPageGuard>
+        <RequestMembershipPage />
+      </MembershipPageGuard>
+    ),
+  },
+  {
+    path: "/",
+    element: (
+      <NoGroupGuard>
+        <RootLayout />
+      </NoGroupGuard>
+    ),
+    children: [
+      { index: true, element: <UploadPage /> },
+      { path: "queue", element: <QueuePage /> },
+      { path: "classify", element: <ClassifierPage /> },
+      { path: "settings", element: <SettingsPage /> },
 
-  // Show loading state while determining authentication status or refreshing tokens
+      // Workflows with nested routes
+      { path: "workflows", element: <WorkflowListPage /> },
+      {
+        path: "workflows/create",
+        element: <WorkflowEditorPage mode="create" />,
+      },
+      {
+        path: "workflows/:workflowId/edit",
+        element: <WorkflowEditorPage mode="edit" />,
+      },
+
+      // Labeling with nested routes
+      { path: "labeling", element: <ProjectListPage /> },
+      { path: "labeling/:projectId", element: <ProjectDetailPage /> },
+      {
+        path: "labeling/:projectId/document/:documentId",
+        element: <LabelingWorkspacePage />,
+      },
+
+      // Review with nested routes
+      { path: "review", element: <ReviewQueuePage /> },
+      { path: "review/:sessionId", element: <ReviewWorkspacePage /> },
+
+      // Groups
+      { path: "groups", element: <GroupsPage /> },
+      { path: "groups/:groupId", element: <GroupDetailPage /> },
+
+      // Benchmarking routes
+      { path: "benchmarking/datasets", element: <DatasetListPage /> },
+      { path: "benchmarking/datasets/:id", element: <DatasetDetailPage /> },
+      {
+        path: "benchmarking/datasets/:id/versions/:versionId/review",
+        element: <DatasetReviewQueuePage />,
+      },
+      {
+        path: "benchmarking/datasets/:id/versions/:versionId/review/:sessionId",
+        element: <ReviewWorkspacePage />,
+      },
+      {
+        path: "benchmarking/projects",
+        element: <BenchmarkProjectListPage />,
+      },
+      {
+        path: "benchmarking/projects/:id",
+        element: <BenchmarkProjectDetailPage />,
+      },
+      {
+        path: "benchmarking/projects/:id/runs/:runId",
+        element: <RunDetailPage />,
+      },
+      {
+        path: "benchmarking/projects/:id/runs/:runId/regression",
+        element: <RegressionReportPage />,
+      },
+      {
+        path: "benchmarking/projects/:projectId/runs/:runId/drill-down",
+        element: <ResultsDrillDownPage />,
+      },
+      {
+        path: "benchmarking/projects/:id/compare",
+        element: <RunComparisonPage />,
+      },
+    ],
+  },
+]);
+
+function App() {
+  const { isAuthenticated, isLoading } = useAuth();
+
   if (isLoading) {
     return (
-      <MantineProvider>
-        <div className="loading-container">
-          <h2>Loading...</h2>
-          <p>Checking authentication status...</p>
-        </div>
-      </MantineProvider>
-    )
+      <Stack align="center" justify="center" mih="100vh">
+        <Title order={3}>Loading…</Title>
+        <Text c="dimmed">Checking authentication status</Text>
+      </Stack>
+    );
   }
 
   if (!isAuthenticated) {
-    return (
-      <MantineProvider>
-        <Login />
-      </MantineProvider>
-    )
+    return <Login />;
   }
 
-  // Token is set synchronously above, so API calls will have auth headers immediately
-
-  return (
-    <MantineProvider>
-      <Stack p="md" gap="lg">
-        <Group justify="space-between" align="center">
-          <Title order={1}>AI OCR Frontend</Title>
-          <Group gap="sm">
-            <Badge size="lg" variant="light" color="blue">
-              Mantine UI
-            </Badge>
-            <Button
-              variant="filled"
-              color="red"
-              size="sm"
-              onClick={() => logout()}
-              leftSection="🚪"
-            >
-              Logout
-            </Button>
-          </Group>
-        </Group>
-
-        <HelloWorld name="Developer" />
-
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-          <Group justify="space-between" mb="xs">
-            <Title order={3}>Interactive Counter</Title>
-            <Badge color="cyan" variant="light">
-              Counter: {count}
-            </Badge>
-          </Group>
-
-          <Text size="sm" c="dimmed" mb="md">
-            Click the button below to increment the counter
-          </Text>
-
-          <Button
-            variant="filled"
-            color="blue"
-            size="md"
-            onClick={() => setCount((count) => count + 1)}
-          >
-            Count is {count}
-          </Button>
-
-          <Text size="sm" c="dimmed" mt="md">
-            Edit <code>src/App.tsx</code> and save to test HMR
-          </Text>
-        </Card>
-
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-          <Title order={4} mb="sm">Built with Modern Tools</Title>
-          <Text size="sm">
-            This application uses Vite, React, TypeScript, and now Mantine UI components for a beautiful and consistent design system.
-          </Text>
-        </Card>
-
-        <DocumentsList />
-      </Stack>
-    </MantineProvider>
-  )
+  return <RouterProvider router={router} />;
 }
 
-function App(): JSX.Element {
-  return <AppContent />
-}
-
-export default App
+export default App;

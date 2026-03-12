@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal
+  labels:
+    app: temporal
+spec:
+  ports:
+    - port: 7233
+      targetPort: 7233
+      protocol: TCP
+      name: grpc
+  selector:
+    app: temporal
+  type: ClusterIP
