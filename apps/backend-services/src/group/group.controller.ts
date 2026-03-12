@@ -100,7 +100,7 @@ export class GroupController {
     @Req() req: Request,
     @Param("userId") userId: string,
   ): Promise<UserGroupDto[]> {
-    const identity = req.resolvedIdentity;    
+    const identity = req.resolvedIdentity;
     return await this.groupService.getUserGroups(identity, userId);
   }
 

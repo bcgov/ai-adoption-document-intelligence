@@ -52,7 +52,10 @@ describe("GroupController", () => {
       jest.spyOn(service, "getUserGroups").mockResolvedValueOnce(mockGroups);
       const req = { resolvedIdentity: { userId: callerId } } as any;
       const result = await controller.getUserGroups(req, userId);
-      expect(service.getUserGroups).toHaveBeenCalledWith({ userId: callerId }, userId);
+      expect(service.getUserGroups).toHaveBeenCalledWith(
+        { userId: callerId },
+        userId,
+      );
       expect(result).toEqual(mockGroups);
     });
 
@@ -92,7 +95,6 @@ describe("GroupController", () => {
       expect(service.requestMembership).toHaveBeenCalledWith(sub, body.groupId);
       expect(result).toEqual({ success: true });
     });
-
   });
 
   describe("cancelMembershipRequest", () => {
@@ -124,7 +126,6 @@ describe("GroupController", () => {
         undefined,
       );
     });
-
   });
 
   describe("approveMembershipRequest", () => {

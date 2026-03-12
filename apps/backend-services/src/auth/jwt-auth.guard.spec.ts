@@ -82,7 +82,8 @@ describe("JwtAuthGuard", () => {
     it("should skip JWT validation when API key header is present on @Identity({ allowApiKey: true }) route", () => {
       mockReflector.getAllAndOverride.mockImplementation((key: string) => {
         if (key === IS_PUBLIC_KEY) return false;
-        if (key === IDENTITY_KEY) return { allowApiKey: true } as IdentityOptions;
+        if (key === IDENTITY_KEY)
+          return { allowApiKey: true } as IdentityOptions;
         return undefined;
       });
 
@@ -98,7 +99,8 @@ describe("JwtAuthGuard", () => {
     it("should delegate to Passport JWT when @Identity({ allowApiKey: true }) is set but no API key header present", () => {
       mockReflector.getAllAndOverride.mockImplementation((key: string) => {
         if (key === IS_PUBLIC_KEY) return false;
-        if (key === IDENTITY_KEY) return { allowApiKey: true } as IdentityOptions;
+        if (key === IDENTITY_KEY)
+          return { allowApiKey: true } as IdentityOptions;
         return undefined;
       });
 

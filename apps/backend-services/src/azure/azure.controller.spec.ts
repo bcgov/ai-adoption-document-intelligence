@@ -1,9 +1,9 @@
+import { GroupRole } from "@generated/client";
 import {
   ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
-import { GroupRole } from "@generated/client";
 import { AzureController } from "./azure.controller";
 import {
   ClassifierSource,
@@ -179,14 +179,24 @@ describe("AzureController", () => {
     it("should throw ForbiddenException if user not in group", async () => {
       const req = createMockReq();
       await expect(
-        controller.uploadClassifierDocuments(req, [], { name: "c1", label: "l1" }, "g1"),
+        controller.uploadClassifierDocuments(
+          req,
+          [],
+          { name: "c1", label: "l1" },
+          "g1",
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
     it("should throw NotFoundException if classifier does not exist", async () => {
       databaseService.getClassifierModel.mockResolvedValue(null);
       const req = createMockReq("user1", ["g1"]);
       await expect(
-        controller.uploadClassifierDocuments(req, [], { name: "c1", label: "l1" }, "g1"),
+        controller.uploadClassifierDocuments(
+          req,
+          [],
+          { name: "c1", label: "l1" },
+          "g1",
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -291,7 +301,12 @@ describe("AzureController", () => {
       const req = createMockReq("user1", ["g1"]);
       const file = mockFile;
       const body = { name: "c1" };
-      const result = await controller.requestClassification(req, body, file, "g1");
+      const result = await controller.requestClassification(
+        req,
+        body,
+        file,
+        "g1",
+      );
       expect(result).toEqual({ result: "ok" });
     });
     it("should throw ForbiddenException if user not in group", async () => {

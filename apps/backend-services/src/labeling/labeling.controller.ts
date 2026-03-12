@@ -25,11 +25,11 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { Identity } from "@/auth/identity.decorator";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -84,15 +84,10 @@ export class LabelingController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getProjects(@Req() req: Request, @Query("group_id") groupId?: string) {
     if (groupId) {
-      identityCanAccessGroup(
-        req.resolvedIdentity,
-        groupId,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, groupId);
       return this.labelingService.getProjects([groupId]);
     }
-    const groupIds = getIdentityGroupIds(
-      req.resolvedIdentity,
-    );
+    const groupIds = getIdentityGroupIds(req.resolvedIdentity);
     return this.labelingService.getProjects(groupIds);
   }
 
@@ -106,10 +101,7 @@ export class LabelingController {
   async createProject(@Body() dto: CreateProjectDto, @Req() req: Request) {
     const userId =
       req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      dto.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, dto.group_id);
     return this.labelingService.createProject(dto, userId);
   }
 
@@ -125,10 +117,7 @@ export class LabelingController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getProject(@Param("id") id: string, @Req() req: Request) {
     const project = await this.labelingService.getProject(id);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return project;
   }
 
@@ -148,10 +137,7 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(id);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.updateProject(id, dto);
   }
 
@@ -167,10 +153,7 @@ export class LabelingController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async deleteProject(@Param("id") id: string, @Req() req: Request) {
     const project = await this.labelingService.getProject(id);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.deleteProject(id);
   }
 
@@ -188,10 +171,7 @@ export class LabelingController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getFieldSchema(@Param("id") id: string, @Req() req: Request) {
     const project = await this.labelingService.getProject(id);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.getFieldSchema(id);
   }
 
@@ -211,10 +191,7 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.addField(projectId, dto);
   }
 
@@ -236,10 +213,7 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.updateField(projectId, fieldId, dto);
   }
 
@@ -260,10 +234,7 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.deleteField(projectId, fieldId);
   }
 
@@ -284,10 +255,7 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.getProjectDocuments(projectId);
   }
 
@@ -314,10 +282,7 @@ export class LabelingController {
         `Labeling document with id ${dto.labelingDocumentId} not found`,
       );
     }
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      labelingDoc.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, labelingDoc.group_id);
     return this.labelingService.addDocumentToProject(projectId, dto);
   }
 
@@ -335,10 +300,7 @@ export class LabelingController {
     @Body() dto: LabelingUploadDto,
     @Req() req: Request,
   ) {
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      dto.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, dto.group_id);
     return this.labelingService.uploadLabelingDocument(projectId, dto);
   }
 
@@ -605,10 +567,7 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.exportProject(projectId, options);
   }
 }

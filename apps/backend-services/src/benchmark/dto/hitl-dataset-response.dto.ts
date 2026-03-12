@@ -11,10 +11,16 @@ export class SkippedDocumentDto {
 }
 
 export class CreateDatasetFromHitlResponseDto {
-  @ApiProperty({ description: "The newly created dataset", type: () => DatasetResponseDto })
+  @ApiProperty({
+    description: "The newly created dataset",
+    type: () => DatasetResponseDto,
+  })
   dataset: DatasetResponseDto;
 
-  @ApiProperty({ description: "The initial version created for the dataset", type: () => VersionResponseDto })
+  @ApiProperty({
+    description: "The initial version created for the dataset",
+    type: () => VersionResponseDto,
+  })
   version: VersionResponseDto;
 
   @ApiProperty({
@@ -26,7 +32,10 @@ export class CreateDatasetFromHitlResponseDto {
 }
 
 export class AddVersionFromHitlResponseDto {
-  @ApiProperty({ description: "The newly created version", type: () => VersionResponseDto })
+  @ApiProperty({
+    description: "The newly created version",
+    type: () => VersionResponseDto,
+  })
   version: VersionResponseDto;
 
   @ApiProperty({

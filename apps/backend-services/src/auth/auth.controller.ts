@@ -22,7 +22,6 @@ import {
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
-import { DatabaseService } from "../database/database.service";
 import { GroupService } from "../group/group.service";
 import {
   THROTTLE_AUTH_LIMIT,
@@ -55,7 +54,6 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly groupService: GroupService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   /**
@@ -287,7 +285,10 @@ export class AuthController {
     const exp = (user.exp as number) || now;
 
     const isAdmin = req.resolvedIdentity?.isSystemAdmin || false;
-    const groups = await this.groupService.getUserGroups(req.resolvedIdentity, req.resolvedIdentity?.userId);
+    const groups = await this.groupService.getUserGroups(
+      req.resolvedIdentity,
+      req.resolvedIdentity?.userId,
+    );
 
     return {
       sub: req.resolvedIdentity?.userId,

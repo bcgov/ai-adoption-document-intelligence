@@ -1,8 +1,8 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "@/database/database.service";
-import { ResolvedIdentity } from "./types";
-import { ROLE_ORDER } from "./identity.guard";
 import { GroupRole } from "@/generated";
+import { ROLE_ORDER } from "./identity.guard";
+import { ResolvedIdentity } from "./types";
 
 /**
  * Resolves the set of group IDs the resolved identity has access to, or
@@ -91,9 +91,7 @@ export function identityCanAccessGroup(
     // Is their role for the group sufficient?
     const role = identity.groupRoles[groupId];
     if (ROLE_ORDER[role] < ROLE_ORDER[minimumRole]) {
-      throw new ForbiddenException(
-        "Insufficient role within the group",
-      );
+      throw new ForbiddenException("Insufficient role within the group");
     }
     return;
   }

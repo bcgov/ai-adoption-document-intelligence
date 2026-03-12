@@ -34,8 +34,8 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Identity } from "@/auth/identity.decorator";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { AuditLogService } from "./audit-log.service";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
@@ -66,10 +66,7 @@ export class BenchmarkDefinitionController {
   ): Promise<void> {
     const project =
       await this.benchmarkProjectService.getProjectById(projectId);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.groupId,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
   }
 
   @Post()

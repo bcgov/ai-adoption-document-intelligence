@@ -22,11 +22,11 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { Identity } from "@/auth/identity.decorator";
 import { DatasetService } from "./dataset.service";
 import {
   AddVersionFromHitlDto,
@@ -59,7 +59,10 @@ export class HitlDatasetController {
     type: String,
     description: "Filter by filename",
   })
-  @ApiOkResponse({ description: "Paginated list of eligible documents", type: EligibleDocumentsResponseDto })
+  @ApiOkResponse({
+    description: "Paginated list of eligible documents",
+    type: EligibleDocumentsResponseDto,
+  })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async listEligibleDocuments(
     @Query() filters: EligibleDocumentsFilterDto,
@@ -67,15 +70,10 @@ export class HitlDatasetController {
   ) {
     let groupIds: string[];
     if (filters.group_id) {
-      identityCanAccessGroup(
-        req.resolvedIdentity,
-        filters.group_id,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
       groupIds = [filters.group_id];
     } else {
-      groupIds = getIdentityGroupIds(
-        req.resolvedIdentity,
-      );
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
 
     if (groupIds.length === 0) {
@@ -106,10 +104,7 @@ export class HitlDatasetController {
   ) {
     const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      dto.groupId,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, dto.groupId);
 
     return this.hitlDatasetService.createDatasetFromHitl(dto, userId);
   }
@@ -140,10 +135,7 @@ export class HitlDatasetController {
     const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
     const dataset = await this.datasetService.getDatasetById(datasetId);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      dataset.groupId,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
 
     return this.hitlDatasetService.addVersionFromHitl(datasetId, dto, userId);
   }

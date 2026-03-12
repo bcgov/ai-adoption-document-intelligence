@@ -202,7 +202,10 @@ describe("getUserGroups", () => {
       prisma: mockPrisma,
       isUserSystemAdmin: jest.fn().mockResolvedValue(true),
     } as any);
-    const result = await service.getUserGroups({ userId: "admin1", isSystemAdmin: true }, "user1");
+    const result = await service.getUserGroups(
+      { userId: "admin1", isSystemAdmin: true },
+      "user1",
+    );
     expect(result).toEqual([{ id: "g1", name: "Group 1", role: "MEMBER" }]);
   });
 
@@ -243,7 +246,9 @@ describe("getUserGroups", () => {
       prisma: mockPrisma,
       isUserSystemAdmin: jest.fn().mockResolvedValue(false),
     } as any);
-    await expect(service.getUserGroups({ userId: "caller1" }, "user1")).rejects.toThrow(
+    await expect(
+      service.getUserGroups({ userId: "caller1" }, "user1"),
+    ).rejects.toThrow(
       "You do not have permission to view another user's group memberships",
     );
   });
@@ -1186,7 +1191,6 @@ describe("updateGroup", () => {
     const service = new GroupService(db as any);
     const result = await service.updateGroup(callerId, groupId, "New Name");
     expect(result).toEqual(mockUpdated);
-    expect(db.isUserSystemAdmin).toHaveBeenCalledWith(callerId);
     expect(db.prisma.group.findUnique).toHaveBeenCalledWith({
       where: { id: groupId, deleted_at: null },
     });
@@ -1223,13 +1227,13 @@ describe("updateGroup", () => {
     });
   });
 
-  it("should throw ForbiddenException if caller is not a system admin", async () => {
-    const db = buildDb({ isSystemAdmin: false });
+  it("should update the group regardless of admin status (authorization handled by guard)", async () => {
+    const mockUpdated = { id: groupId, name: "New Name", description: null };
+    const db = buildDb({ isSystemAdmin: false, updatedGroup: mockUpdated });
     const service = new GroupService(db as any);
-    await expect(
-      service.updateGroup(callerId, groupId, "New Name"),
-    ).rejects.toThrow("Only system admins can update groups");
-    expect(db.prisma.group.findUnique).not.toHaveBeenCalled();
+    const result = await service.updateGroup(callerId, groupId, "New Name");
+    expect(result).toEqual(mockUpdated);
+    expect(db.prisma.group.update).toHaveBeenCalled();
   });
 
   it("should throw NotFoundException if group does not exist", async () => {

@@ -31,11 +31,11 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { Identity } from "@/auth/identity.decorator";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import {
   BLOB_STORAGE,
@@ -82,10 +82,7 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      document.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
     this.logger.debug("=== DocumentController.getDocument completed ===");
     return document;
@@ -117,10 +114,7 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      document.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
     const updated = await this.databaseService.updateDocument(documentId, {
       ...(body.title !== undefined ? { title: body.title } : {}),
@@ -156,10 +150,7 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      document.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
     await this.databaseService.deleteDocument(documentId);
     try {
@@ -202,15 +193,10 @@ export class DocumentController {
     let groupIds: string[] | undefined;
 
     if (groupId !== undefined) {
-      identityCanAccessGroup(
-        req.resolvedIdentity,
-        groupId,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, groupId);
       groupIds = [groupId];
     } else {
-      groupIds = getIdentityGroupIds(
-        req.resolvedIdentity,
-      );
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
 
     try {
@@ -331,10 +317,7 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      identityCanAccessGroup(
-        req.resolvedIdentity,
-        document.group_id,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
       this.logger.debug(`Document status: ${document.status}`);
       this.logger.debug(`Document created: ${document.created_at}`);
@@ -416,10 +399,7 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      identityCanAccessGroup(
-        req.resolvedIdentity,
-        document.group_id,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
       // Read file from blob storage using the blob key
       const fileBuffer = await this.blobStorage.read(document.file_path);
@@ -515,10 +495,7 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      identityCanAccessGroup(
-        req.resolvedIdentity,
-        document.group_id,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
       // Get workflow execution ID from document
       // Use workflow_execution_id (new field) or fallback to workflow_id (legacy)

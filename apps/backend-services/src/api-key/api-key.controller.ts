@@ -30,17 +30,15 @@ import {
   GeneratedApiKeyDto,
   GeneratedApiKeyWrapperDto,
 } from "@/api-key/dto/api-key-info.dto";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Identity } from "@/auth/identity.decorator";
-import { ApiKeyService } from "./api-key.service";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { GroupRole } from "@/generated";
+import { ApiKeyService } from "./api-key.service";
 
 @ApiTags("API Keys")
 @Controller("api/api-key")
 export class ApiKeyController {
-  constructor(
-    private readonly apiKeyService: ApiKeyService,
-  ) {}
+  constructor(private readonly apiKeyService: ApiKeyService) {}
 
   @Get()
   @Identity({ groupIdFrom: { query: "groupId" }, minimumRole: GroupRole.ADMIN })
@@ -65,7 +63,7 @@ export class ApiKeyController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       groupId,
-      GroupRole.ADMIN
+      GroupRole.ADMIN,
     );
     const apiKey = await this.apiKeyService.getApiKey(groupId);
     return { apiKey };
@@ -73,7 +71,7 @@ export class ApiKeyController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ groupIdFrom: { body: "groupId" }, minimumRole: GroupRole.ADMIN})
+  @Identity({ groupIdFrom: { body: "groupId" }, minimumRole: GroupRole.ADMIN })
   @ApiOperation({ summary: "Generate a new API key for a group" })
   @ApiBody({ type: GenerateApiKeyRequestDto })
   @ApiCreatedResponse({
@@ -92,11 +90,7 @@ export class ApiKeyController {
         "User ID is required to generate an API key",
       );
     }
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      body.groupId,
-      GroupRole.ADMIN
-    );
+    identityCanAccessGroup(req.resolvedIdentity, body.groupId, GroupRole.ADMIN);
     const apiKey = await this.apiKeyService.generateApiKey(
       userId,
       body.groupId,
@@ -123,11 +117,7 @@ export class ApiKeyController {
       throw new BadRequestException("id query parameter is required");
     }
     const groupId = await this.apiKeyService.getApiKeyGroupId(id);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      groupId,
-      GroupRole.ADMIN
-    );
+    identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.ADMIN);
     await this.apiKeyService.deleteApiKey(id);
   }
 
@@ -152,11 +142,7 @@ export class ApiKeyController {
       );
     }
     const groupId = await this.apiKeyService.getApiKeyGroupId(body.id);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      groupId,
-      GroupRole.ADMIN
-    );
+    identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.ADMIN);
     const apiKey = await this.apiKeyService.regenerateApiKey(userId, body.id);
     return { apiKey };
   }

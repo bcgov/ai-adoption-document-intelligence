@@ -11,6 +11,8 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { ResolvedIdentity } from "@/auth/types";
 import {
   LabeledDocumentData,
   LabelingProjectData,
@@ -29,8 +31,6 @@ import {
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { SuggestionService } from "./suggestion.service";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { ResolvedIdentity } from "@/auth/types";
 
 @Injectable()
 export class LabelingService {

@@ -1,5 +1,5 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { GroupRole } from "@generated/client";
+import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { BlobStorageInterface } from "../blob-storage/blob-storage.interface";
 import { DatabaseService } from "../database/database.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
@@ -13,7 +13,11 @@ describe("DocumentController", () => {
 
   const mockGroupId = "group-1";
   const createMockReq = (userId = "user-1") => ({
-    resolvedIdentity: { userId },
+    resolvedIdentity: {
+      userId,
+      isSystemAdmin: false,
+      groupRoles: { [mockGroupId]: GroupRole.MEMBER },
+    },
   });
   const createMockApiKeyReq = (groupId = mockGroupId) => ({
     resolvedIdentity: { groupRoles: { [groupId]: GroupRole.MEMBER } },
@@ -26,9 +30,6 @@ describe("DocumentController", () => {
       findOcrResult: jest.fn(),
       updateDocument: jest.fn(),
       deleteDocument: jest.fn(),
-      isUserInGroup: jest.fn().mockResolvedValue(true),
-      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-      getUsersGroups: jest.fn().mockResolvedValue([{ group_id: mockGroupId }]),
     } as any;
     temporalClientService = {} as jest.Mocked<TemporalClientService>;
     blobStorage = {
@@ -149,19 +150,21 @@ describe("DocumentController", () => {
         mockGroupId,
       );
       expect(result).toEqual([{ id: "1" }]);
-      expect(databaseService.isUserInGroup).toHaveBeenCalledWith(
-        "user-1",
-        mockGroupId,
-      );
       expect(databaseService.findAllDocuments).toHaveBeenCalledWith([
         mockGroupId,
       ]);
     });
 
     it("should throw ForbiddenException when group_id is provided and user is not a member", async () => {
-      databaseService.isUserInGroup.mockResolvedValue(false);
+      const notMemberReq = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      };
       await expect(
-        controller.getAllDocuments(mockReqWithIdentity as any, mockGroupId),
+        controller.getAllDocuments(notMemberReq as any, mockGroupId),
       ).rejects.toThrow(ForbiddenException);
       expect(databaseService.findAllDocuments).not.toHaveBeenCalled();
     });
@@ -176,7 +179,6 @@ describe("DocumentController", () => {
         undefined,
       );
       expect(result).toEqual([{ id: "1" }, { id: "2" }]);
-      expect(databaseService.getUsersGroups).toHaveBeenCalledWith("user-1");
       expect(databaseService.findAllDocuments).toHaveBeenCalledWith([
         mockGroupId,
       ]);
@@ -232,13 +234,19 @@ describe("DocumentController", () => {
     });
 
     it("should throw ForbiddenException if user is not a group member", async () => {
+      const notMemberReq = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      };
       databaseService.findDocument.mockResolvedValue({
         id: "1",
         group_id: mockGroupId,
       } as any);
-      databaseService.isUserInGroup.mockResolvedValue(false);
       await expect(
-        controller.getOcrResult("1", mockReq as any),
+        controller.getOcrResult("1", notMemberReq as any),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -386,15 +394,21 @@ describe("DocumentController", () => {
     });
 
     it("should throw ForbiddenException if user is not a group member", async () => {
+      const notMemberReq = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      };
       databaseService.findDocument.mockResolvedValue({
         id: "1",
         file_path: "file.pdf",
         group_id: mockGroupId,
       } as any);
-      databaseService.isUserInGroup.mockResolvedValue(false);
       const res: any = {};
       await expect(
-        controller.downloadDocument("1", res, mockReq as any),
+        controller.downloadDocument("1", res, notMemberReq as any),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -448,11 +462,17 @@ describe("DocumentController", () => {
     });
 
     it("should throw ForbiddenException if user is not a group member", async () => {
+      const notMemberReq = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      };
       databaseService.findDocument.mockResolvedValue(mockDocument as any);
-      databaseService.isUserInGroup.mockResolvedValue(false);
-      await expect(controller.getDocument("1", mockReq as any)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        controller.getDocument("1", notMemberReq as any),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it("should allow API key access when group IDs match", async () => {
@@ -502,10 +522,20 @@ describe("DocumentController", () => {
     });
 
     it("should throw ForbiddenException if user is not a group member", async () => {
+      const notMemberReq = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      };
       databaseService.findDocument.mockResolvedValue(mockDocument as any);
-      databaseService.isUserInGroup.mockResolvedValue(false);
       await expect(
-        controller.updateDocument("1", { title: "New Title" }, mockReq as any),
+        controller.updateDocument(
+          "1",
+          { title: "New Title" },
+          notMemberReq as any,
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -543,10 +573,16 @@ describe("DocumentController", () => {
     });
 
     it("should throw ForbiddenException if user is not a group member", async () => {
+      const notMemberReq = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      };
       databaseService.findDocument.mockResolvedValue(mockDocument as any);
-      databaseService.isUserInGroup.mockResolvedValue(false);
       await expect(
-        controller.deleteDocument("1", mockReq as any),
+        controller.deleteDocument("1", notMemberReq as any),
       ).rejects.toThrow(ForbiddenException);
     });
 

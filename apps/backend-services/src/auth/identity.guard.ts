@@ -55,7 +55,7 @@ export class IdentityGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private databaseService: DatabaseService,
-  ) { }
+  ) {}
 
   /**
    * Resolves and attaches the requestor's identity to the request context,
@@ -116,7 +116,6 @@ export class IdentityGuard implements CanActivate {
         isSystemAdmin,
         groupRoles,
       };
-
     } else {
       // else: public route or unauthenticated request
       // Must explicitly be marked as public though, otherwise throw an auth error
@@ -180,7 +179,9 @@ export class IdentityGuard implements CanActivate {
           // at this point because the membership check above has just passed.
           if (identityOptions.minimumRole !== undefined) {
             const userRole = request.resolvedIdentity.groupRoles[groupId];
-            if (ROLE_ORDER[userRole] < ROLE_ORDER[identityOptions.minimumRole]) {
+            if (
+              ROLE_ORDER[userRole] < ROLE_ORDER[identityOptions.minimumRole]
+            ) {
               throw new ForbiddenException(
                 "Insufficient role within the group",
               );
@@ -189,7 +190,6 @@ export class IdentityGuard implements CanActivate {
         }
       }
     }
-
 
     return true;
   }

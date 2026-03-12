@@ -14,26 +14,26 @@ export interface ValidationIssue {
 }
 
 export class ValidationResponseDto {
-  @ApiProperty({ description: 'Whether the dataset is valid' })
+  @ApiProperty({ description: "Whether the dataset is valid" })
   valid: boolean;
 
-  @ApiProperty({ description: 'Whether a sample was used for validation' })
+  @ApiProperty({ description: "Whether a sample was used for validation" })
   sampled: boolean;
 
-  @ApiPropertyOptional({ description: 'Number of samples validated' })
+  @ApiPropertyOptional({ description: "Number of samples validated" })
   sampleSize?: number;
 
-  @ApiProperty({ description: 'Total number of samples in the dataset' })
+  @ApiProperty({ description: "Total number of samples in the dataset" })
   totalSamples: number;
 
   @ApiProperty({
-    description: 'Count of issues by category',
-    type: 'object',
+    description: "Count of issues by category",
+    type: "object",
     properties: {
-      schemaViolations: { type: 'number' },
-      missingGroundTruth: { type: 'number' },
-      duplicates: { type: 'number' },
-      corruption: { type: 'number' },
+      schemaViolations: { type: "number" },
+      missingGroundTruth: { type: "number" },
+      duplicates: { type: "number" },
+      corruption: { type: "number" },
     },
   })
   issueCount: {
@@ -43,6 +43,6 @@ export class ValidationResponseDto {
     corruption: number;
   };
 
-  @ApiProperty({ description: 'List of validation issues', type: 'array' })
+  @ApiProperty({ description: "List of validation issues", type: "array" })
   issues: ValidationIssue[];
 }

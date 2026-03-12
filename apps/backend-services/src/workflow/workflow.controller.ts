@@ -25,11 +25,11 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { Identity } from "@/auth/identity.decorator";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
 import {
   WorkflowListResponseDto,
@@ -40,9 +40,7 @@ import { WorkflowInfo, WorkflowService } from "./workflow.service";
 @ApiTags("Workflow")
 @Controller("api/workflows")
 export class WorkflowController {
-  constructor(
-    private readonly workflowService: WorkflowService,
-  ) {}
+  constructor(private readonly workflowService: WorkflowService) {}
 
   @Get()
   @Identity({ allowApiKey: true })
@@ -63,17 +61,12 @@ export class WorkflowController {
     @Req() req: Request,
   ): Promise<{ workflows: WorkflowInfo[] }> {
     if (groupId) {
-      identityCanAccessGroup(
-        req.resolvedIdentity,
-        groupId,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, groupId);
       const workflows = await this.workflowService.getGroupWorkflows([groupId]);
       return { workflows };
     }
 
-    const groupIds = await getIdentityGroupIds(
-      req.resolvedIdentity,
-    );
+    const groupIds = await getIdentityGroupIds(req.resolvedIdentity);
 
     if (groupIds.length === 0) {
       return { workflows: [] };
@@ -102,10 +95,7 @@ export class WorkflowController {
 
     const workflow = await this.workflowService.getWorkflow(id, userId);
 
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      workflow.groupId,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, workflow.groupId);
 
     return { workflow };
   }
@@ -133,10 +123,7 @@ export class WorkflowController {
     const user = req.user;
     const userId = user?.sub as string;
 
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      dto.groupId,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, dto.groupId);
 
     const workflow = await this.workflowService.createWorkflow(userId, dto);
     return { workflow };
@@ -170,10 +157,7 @@ export class WorkflowController {
 
     const existing = await this.workflowService.getWorkflow(id, userId);
 
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      existing.groupId,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, existing.groupId);
 
     const workflow = await this.workflowService.updateWorkflow(id, userId, dto);
     return { workflow };
@@ -196,10 +180,7 @@ export class WorkflowController {
 
     const existing = await this.workflowService.getWorkflow(id, userId);
 
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      existing.groupId,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, existing.groupId);
 
     await this.workflowService.deleteWorkflow(id, userId);
   }

@@ -2,8 +2,8 @@ import { ExecutionContext, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { AuthGuard } from "@nestjs/passport";
 import { Request } from "express";
-import { IS_PUBLIC_KEY } from "./public.decorator";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
+import { IS_PUBLIC_KEY } from "./public.decorator";
 
 /**
  * JWT authentication guard that wraps Passport's JWT strategy.

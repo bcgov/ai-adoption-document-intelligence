@@ -34,11 +34,11 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { Identity } from "@/auth/identity.decorator";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { CreateProjectDto, ProjectDetailsDto, ProjectSummaryDto } from "./dto";
 
@@ -74,10 +74,7 @@ export class BenchmarkProjectController {
 
     const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      createProjectDto.groupId,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, createProjectDto.groupId);
 
     return this.benchmarkProjectService.createProject(createProjectDto, userId);
   }
@@ -102,16 +99,11 @@ export class BenchmarkProjectController {
     this.logger.log("GET /api/benchmark/projects");
 
     if (groupId) {
-      identityCanAccessGroup(
-        req.resolvedIdentity,
-        groupId,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, groupId);
       return this.benchmarkProjectService.listProjects([groupId]);
     }
 
-    const groupIds = getIdentityGroupIds(
-      req.resolvedIdentity,
-    );
+    const groupIds = getIdentityGroupIds(req.resolvedIdentity);
 
     if (groupIds.length === 0) {
       return [];
@@ -138,10 +130,7 @@ export class BenchmarkProjectController {
 
     const project = await this.benchmarkProjectService.getProjectById(id);
 
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.groupId,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
 
     return project;
   }
@@ -163,10 +152,7 @@ export class BenchmarkProjectController {
 
     const project = await this.benchmarkProjectService.getProjectById(id);
 
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.groupId,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
 
     return this.benchmarkProjectService.deleteProject(id);
   }

@@ -150,9 +150,7 @@ describe("Identity decorator", () => {
     );
     expect(security).toBeDefined();
     expect(security).toEqual(expect.arrayContaining([{ "keycloak-sso": [] }]));
-    const hasApiKey = security.some(
-      (scheme) => "api-key" in scheme,
-    );
+    const hasApiKey = security.some((scheme) => "api-key" in scheme);
     expect(hasApiKey).toBe(false);
   });
 
@@ -162,9 +160,7 @@ describe("Identity decorator", () => {
       SWAGGER_API_SECURITY_KEY,
       handler,
     );
-    const hasApiKey = (security ?? []).some(
-      (scheme) => "api-key" in scheme,
-    );
+    const hasApiKey = (security ?? []).some((scheme) => "api-key" in scheme);
     expect(hasApiKey).toBe(false);
   });
 });

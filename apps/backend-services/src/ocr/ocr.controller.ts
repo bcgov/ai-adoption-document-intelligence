@@ -1,8 +1,8 @@
 import { Controller, Get } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { DatabaseService } from "@/database/database.service";
 import { Identity } from "@/auth/identity.decorator";
+import { DatabaseService } from "@/database/database.service";
 
 @ApiTags("OCR")
 @Controller("api")

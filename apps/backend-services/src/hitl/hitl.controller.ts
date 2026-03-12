@@ -20,11 +20,11 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { Identity } from "@/auth/identity.decorator";
 import { DatabaseService } from "../database/database.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import {
@@ -59,15 +59,10 @@ export class HitlController {
   async getQueue(@Query() filters: QueueFilterDto, @Req() req: Request) {
     let groupIds: string[];
     if (filters.group_id) {
-      identityCanAccessGroup(
-        req.resolvedIdentity,
-        filters.group_id,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
       groupIds = [filters.group_id];
     } else {
-      groupIds = getIdentityGroupIds(
-        req.resolvedIdentity,
-      );
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
     return this.hitlService.getQueue(filters, groupIds);
   }
@@ -100,15 +95,10 @@ export class HitlController {
   ) {
     let groupIds: string[];
     if (group_id) {
-      identityCanAccessGroup(
-        req?.resolvedIdentity,
-        group_id,
-      );
+      identityCanAccessGroup(req?.resolvedIdentity, group_id);
       groupIds = [group_id];
     } else {
-      groupIds = getIdentityGroupIds(
-        req?.resolvedIdentity,
-      );
+      groupIds = getIdentityGroupIds(req?.resolvedIdentity);
     }
     return this.hitlService.getQueueStats(reviewStatus, groupIds);
   }
@@ -127,10 +117,7 @@ export class HitlController {
     if (!document) {
       throw new NotFoundException(`Document ${dto.documentId} not found`);
     }
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      document.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
     const reviewerId =
       req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
     return this.hitlService.startSession(dto, reviewerId);
@@ -151,10 +138,7 @@ export class HitlController {
     if (!session) {
       throw new NotFoundException(`Review session ${id} not found`);
     }
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      session.document.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.getSession(id);
   }
 
@@ -177,10 +161,7 @@ export class HitlController {
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      session.document.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.submitCorrections(sessionId, dto);
   }
 
@@ -199,10 +180,7 @@ export class HitlController {
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      session.document.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.getCorrections(sessionId);
   }
 
@@ -221,10 +199,7 @@ export class HitlController {
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      session.document.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.approveSession(sessionId);
   }
 
@@ -247,10 +222,7 @@ export class HitlController {
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      session.document.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.escalateSession(sessionId, dto);
   }
 
@@ -269,10 +241,7 @@ export class HitlController {
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      session.document.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.skipSession(sessionId);
   }
 
@@ -290,15 +259,10 @@ export class HitlController {
   ) {
     let groupIds: string[];
     if (filters.group_id) {
-      identityCanAccessGroup(
-        req.resolvedIdentity,
-        filters.group_id,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
       groupIds = [filters.group_id];
     } else {
-      groupIds = getIdentityGroupIds(
-        req.resolvedIdentity,
-      );
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
     return this.hitlService.getAnalytics(filters, groupIds);
   }

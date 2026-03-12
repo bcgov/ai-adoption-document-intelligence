@@ -12,7 +12,7 @@ export class UpdateDefinitionDto {
   /**
    * Definition name
    */
-  @ApiPropertyOptional({ description: 'Definition name' })
+  @ApiPropertyOptional({ description: "Definition name" })
   @IsString()
   @IsOptional()
   name?: string;
@@ -20,7 +20,7 @@ export class UpdateDefinitionDto {
   /**
    * Dataset version ID
    */
-  @ApiPropertyOptional({ description: 'Dataset version ID' })
+  @ApiPropertyOptional({ description: "Dataset version ID" })
   @IsString()
   @IsOptional()
   datasetVersionId?: string;
@@ -28,7 +28,7 @@ export class UpdateDefinitionDto {
   /**
    * Split ID
    */
-  @ApiPropertyOptional({ description: 'Split ID' })
+  @ApiPropertyOptional({ description: "Split ID" })
   @IsString()
   @IsOptional()
   splitId?: string;
@@ -36,7 +36,7 @@ export class UpdateDefinitionDto {
   /**
    * Workflow ID
    */
-  @ApiPropertyOptional({ description: 'Workflow ID' })
+  @ApiPropertyOptional({ description: "Workflow ID" })
   @IsString()
   @IsOptional()
   workflowId?: string;
@@ -44,7 +44,9 @@ export class UpdateDefinitionDto {
   /**
    * Evaluator type (must match a registered evaluator)
    */
-  @ApiPropertyOptional({ description: 'Evaluator type (must match a registered evaluator)' })
+  @ApiPropertyOptional({
+    description: "Evaluator type (must match a registered evaluator)",
+  })
   @IsString()
   @IsOptional()
   evaluatorType?: string;
@@ -52,7 +54,11 @@ export class UpdateDefinitionDto {
   /**
    * Evaluator configuration (JSON object)
    */
-  @ApiPropertyOptional({ description: 'Evaluator configuration (JSON object)', type: 'object', additionalProperties: true })
+  @ApiPropertyOptional({
+    description: "Evaluator configuration (JSON object)",
+    type: "object",
+    additionalProperties: true,
+  })
   @IsObject()
   @IsOptional()
   evaluatorConfig?: Record<string, unknown>;
@@ -60,7 +66,11 @@ export class UpdateDefinitionDto {
   /**
    * Runtime settings (JSON object)
    */
-  @ApiPropertyOptional({ description: 'Runtime settings (JSON object)', type: 'object', additionalProperties: true })
+  @ApiPropertyOptional({
+    description: "Runtime settings (JSON object)",
+    type: "object",
+    additionalProperties: true,
+  })
   @IsObject()
   @IsOptional()
   runtimeSettings?: Record<string, unknown>;

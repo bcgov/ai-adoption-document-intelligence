@@ -5,6 +5,7 @@ import {
 } from "@generated/client";
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { ResolvedIdentity } from "@/auth/types";
 import {
   LabeledDocumentData,
   LabelingProjectData,
@@ -20,7 +21,6 @@ import {
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
-import { ResolvedIdentity } from "@/auth/types";
 import { LabelingService } from "./labeling.service";
 import { LabelingOcrService } from "./labeling-ocr.service";
 import { SuggestionService } from "./suggestion.service";
@@ -757,7 +757,11 @@ describe("LabelingService", () => {
 
       const mockIdentity: ResolvedIdentity = { isSystemAdmin: true };
       await expect(
-        service.generateDocumentSuggestions("project-1", "missing-doc", mockIdentity),
+        service.generateDocumentSuggestions(
+          "project-1",
+          "missing-doc",
+          mockIdentity,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -773,7 +777,11 @@ describe("LabelingService", () => {
 
       const mockIdentity: ResolvedIdentity = { isSystemAdmin: true };
       await expect(
-        service.generateDocumentSuggestions("project-1", "labeled-doc-1", mockIdentity),
+        service.generateDocumentSuggestions(
+          "project-1",
+          "labeled-doc-1",
+          mockIdentity,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });

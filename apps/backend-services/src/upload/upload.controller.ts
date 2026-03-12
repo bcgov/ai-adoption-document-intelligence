@@ -16,8 +16,8 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Identity } from "@/auth/identity.decorator";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
@@ -35,7 +35,11 @@ export class UploadController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ allowApiKey: true, minimumRole: "MEMBER", groupIdFrom: { body: "group_id" } })
+  @Identity({
+    allowApiKey: true,
+    minimumRole: "MEMBER",
+    groupIdFrom: { body: "group_id" },
+  })
   @ApiOperation({ summary: "Upload a new document and start OCR processing" })
   @ApiCreatedResponse({
     description:
@@ -69,10 +73,7 @@ export class UploadController {
         throw new BadRequestException("File data is required");
       }
 
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        uploadDto.group_id,
-      );
+      await identityCanAccessGroup(req.resolvedIdentity, uploadDto.group_id);
 
       // Use original_filename from DTO or default to title
       const originalFilename =

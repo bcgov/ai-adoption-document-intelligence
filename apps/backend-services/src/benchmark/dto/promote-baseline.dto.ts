@@ -28,14 +28,17 @@ export class MetricThreshold {
   /**
    * Metric name
    */
-  @ApiProperty({ description: 'Metric name' })
+  @ApiProperty({ description: "Metric name" })
   @IsString()
   metricName: string;
 
   /**
    * Threshold type (absolute or relative/percentage)
    */
-  @ApiProperty({ description: 'Threshold type (absolute or relative/percentage)', enum: ['absolute', 'relative'] })
+  @ApiProperty({
+    description: "Threshold type (absolute or relative/percentage)",
+    enum: ["absolute", "relative"],
+  })
   @IsIn(["absolute", "relative"])
   type: ThresholdType;
 
@@ -44,7 +47,9 @@ export class MetricThreshold {
    * - For absolute: minimum acceptable value (e.g., 0.90 for 90% minimum)
    * - For relative: minimum acceptable ratio relative to baseline (e.g., 0.95 for 95% of baseline)
    */
-  @ApiProperty({ description: 'Threshold value (absolute min or relative ratio)' })
+  @ApiProperty({
+    description: "Threshold value (absolute min or relative ratio)",
+  })
   @IsNumber()
   value: number;
 }
@@ -56,7 +61,11 @@ export class PromoteBaselineDto {
   /**
    * Per-metric thresholds for regression detection
    */
-  @ApiPropertyOptional({ description: 'Per-metric thresholds for regression detection', type: () => MetricThreshold, isArray: true })
+  @ApiPropertyOptional({
+    description: "Per-metric thresholds for regression detection",
+    type: () => MetricThreshold,
+    isArray: true,
+  })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -136,24 +145,29 @@ export class PromoteBaselineResponseDto {
   /**
    * Run ID that was promoted
    */
-  @ApiProperty({ description: 'Run ID that was promoted to baseline' })
+  @ApiProperty({ description: "Run ID that was promoted to baseline" })
   runId: string;
 
   /**
    * Whether this run is now the baseline
    */
-  @ApiProperty({ description: 'Whether this run is now the baseline' })
+  @ApiProperty({ description: "Whether this run is now the baseline" })
   isBaseline: boolean;
 
   /**
    * Previous baseline run ID (if any)
    */
-  @ApiProperty({ description: 'Previous baseline run ID', nullable: true })
+  @ApiProperty({ description: "Previous baseline run ID", nullable: true })
   previousBaselineId: string | null;
 
   /**
    * Configured thresholds
    */
-  @ApiProperty({ description: 'Configured thresholds', nullable: true, type: () => MetricThreshold, isArray: true })
+  @ApiProperty({
+    description: "Configured thresholds",
+    nullable: true,
+    type: () => MetricThreshold,
+    isArray: true,
+  })
   thresholds: MetricThreshold[] | null;
 }

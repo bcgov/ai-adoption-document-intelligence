@@ -8,8 +8,8 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Identity } from "@/auth/identity.decorator";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { DatasetService } from "./dataset.service";
 import {
   GroundTruthJobsListResponseDto,
@@ -35,10 +35,7 @@ export class GroundTruthGenerationController {
     req: Request,
   ): Promise<void> {
     const dataset = await this.datasetService.getDatasetById(datasetId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      dataset.groupId,
-    );
+    await identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
   }
 
   @Post()

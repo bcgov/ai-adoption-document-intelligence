@@ -11,11 +11,11 @@ import { Test, TestingModule } from "@nestjs/testing";
 import * as request from "supertest";
 import { Identity } from "@/auth/identity.decorator";
 import { ApiKeyService } from "../api-key/api-key.service";
+import { DatabaseService } from "../database/database.service";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
 import { CsrfGuard } from "./csrf.guard";
 import { IdentityGuard } from "./identity.guard";
 import { JwtAuthGuard } from "./jwt-auth.guard";
-import { DatabaseService } from "../database/database.service";
 import { Public } from "./public.decorator";
 
 /**

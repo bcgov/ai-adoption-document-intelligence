@@ -17,8 +17,8 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Identity } from "@/auth/identity.decorator";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { LabelingService } from "../labeling/labeling.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainedModelDto } from "./dto/trained-model.dto";
@@ -56,10 +56,7 @@ export class TrainingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.trainingService.validateTrainingData(projectId);
   }
 
@@ -82,10 +79,7 @@ export class TrainingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     const userId =
       req.user?.sub || (req.user as { id?: string })?.id || "unknown";
     return this.trainingService.startTraining(projectId, dto, userId);
@@ -109,10 +103,7 @@ export class TrainingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.trainingService.getTrainingJobs(projectId);
   }
 
@@ -132,10 +123,7 @@ export class TrainingController {
   async getJobStatus(@Param("jobId") jobId: string, @Req() req: Request) {
     const job = await this.trainingService.getTrainingJob(jobId);
     const project = await this.labelingService.getProject(job.projectId);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return job;
   }
 
@@ -157,10 +145,7 @@ export class TrainingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.trainingService.getTrainedModels(projectId);
   }
 
@@ -180,10 +165,7 @@ export class TrainingController {
   async cancelJob(@Param("jobId") jobId: string, @Req() req: Request) {
     const job = await this.trainingService.getTrainingJob(jobId);
     const project = await this.labelingService.getProject(job.projectId);
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     await this.trainingService.cancelTrainingJob(jobId);
     return { success: true, message: "Training job cancelled" };
   }
