@@ -5,22 +5,22 @@
 **So that** group membership is enforced declaratively by the guard and the manual `identityCanAccessGroup` call is removed from the controller.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: `@Identity` with `groupIdFrom` is applied to creation endpoints
+- [x] **Scenario 1**: `@Identity` with `groupIdFrom` is applied to creation endpoints
     - **Given** endpoints such as `POST /upload` that previously called `identityCanAccessGroup` with a body `group_id`
     - **When** the migration is complete
     - **Then** those endpoints use `@Identity({ groupIdFrom: { body: 'group_id' }, ... })` instead
 
-- [ ] **Scenario 2**: Manual `identityCanAccessGroup` calls are removed from migrated controllers
+- [x] **Scenario 2**: Manual `identityCanAccessGroup` calls are removed from migrated controllers
     - **Given** the guard now enforces membership
     - **When** the controller code is reviewed
     - **Then** no calls to `identityCanAccessGroup` remain in the migrated controllers
 
-- [ ] **Scenario 3**: Non-member is rejected before the controller executes
+- [x] **Scenario 3**: Non-member is rejected before the controller executes
     - **Given** the migrated endpoint with `@Identity({ groupIdFrom: { body: 'group_id' } })`
     - **When** a non-member sends a request
     - **Then** the guard returns 403 and the controller method is never invoked
 
-- [ ] **Scenario 4**: API key from the correct group is allowed (if `allowApiKey: true`)
+- [x] **Scenario 4**: API key from the correct group is allowed (if `allowApiKey: true`)
     - **Given** the endpoint allows API keys
     - **When** a valid API key scoped to the request's `group_id` makes a creation request
     - **Then** the guard passes

@@ -5,22 +5,22 @@
 **So that** system-admin access is enforced declaratively by the guard and no manual admin checks remain in the controllers.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: System-admin endpoints are annotated with `@Identity({ requireSystemAdmin: true })`
+- [x] **Scenario 1**: System-admin endpoints are annotated with `@Identity({ requireSystemAdmin: true })`
     - **Given** endpoints that previously relied on `@KeycloakSSOAuth()` plus a manual admin check
     - **When** the migration is complete
     - **Then** those endpoints use `@Identity({ requireSystemAdmin: true })` instead
 
-- [ ] **Scenario 2**: Manual system-admin checks are removed from migrated controllers
+- [x] **Scenario 2**: Manual system-admin checks are removed from migrated controllers
     - **Given** the guard enforces `requireSystemAdmin`
     - **When** the controller code is reviewed
     - **Then** no manual `is_system_admin` checks remain in the migrated controller methods
 
-- [ ] **Scenario 3**: Non-admin JWT user is rejected before the controller executes
+- [x] **Scenario 3**: Non-admin JWT user is rejected before the controller executes
     - **Given** a system-admin endpoint
     - **When** a non-system-admin JWT user makes the request
     - **Then** the guard returns 403 and the controller is never invoked
 
-- [ ] **Scenario 4**: System admin is granted access
+- [x] **Scenario 4**: System admin is granted access
     - **Given** a system-admin endpoint
     - **When** a system admin makes the request
     - **Then** the request proceeds to the controller

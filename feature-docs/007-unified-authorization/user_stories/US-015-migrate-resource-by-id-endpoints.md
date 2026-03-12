@@ -5,22 +5,22 @@
 **So that** group membership is verified consistently using the enriched identity without a dedicated helper function.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Controller reads `resolvedIdentity.groupRoles` after fetching the resource
+- [x] **Scenario 1**: Controller reads `resolvedIdentity.groupRoles` after fetching the resource
     - **Given** an endpoint that fetches a resource (e.g. a document) to obtain its `group_id`
     - **When** the resource is fetched
     - **Then** the controller checks `resolvedIdentity.groupRoles[resource.group_id]` to determine access, instead of calling `identityCanAccessGroup`
 
-- [ ] **Scenario 2**: Non-member receives 403 when accessing a resource belonging to another group
+- [x] **Scenario 2**: Non-member receives 403 when accessing a resource belonging to another group
     - **Given** the migrated endpoint
     - **When** a user who is not a member of the resource's group makes the request
     - **Then** the controller throws `ForbiddenException` (403)
 
-- [ ] **Scenario 3**: `@Identity` decorator is present for Swagger and guard enrichment
+- [x] **Scenario 3**: `@Identity` decorator is present for Swagger and guard enrichment
     - **Given** the migrated endpoint
     - **When** the endpoint is inspected
     - **Then** it has `@Identity({ allowApiKey: true })` (or similar) to ensure Swagger metadata and identity enrichment are applied
 
-- [ ] **Scenario 4**: System admin can access any resource regardless of group membership
+- [x] **Scenario 4**: System admin can access any resource regardless of group membership
     - **Given** `resolvedIdentity.isSystemAdmin = true`
     - **When** the controller performs the group check
     - **Then** the check passes for any resource group

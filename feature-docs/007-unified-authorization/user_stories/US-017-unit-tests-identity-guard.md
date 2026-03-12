@@ -5,42 +5,42 @@
 **So that** regressions are caught when the guard logic changes and the guard's contract is clearly documented in code.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: No decorator — guard passes without DB queries
+- [x] **Scenario 1**: No decorator — guard passes without DB queries
     - **Given** no `@Identity` metadata is present
     - **When** the guard runs
     - **Then** the test asserts pass-through with zero DB calls
 
-- [ ] **Scenario 2**: API key allowed — guard passes with enriched identity
+- [x] **Scenario 2**: API key allowed — guard passes with enriched identity
     - **Given** `@Identity({ allowApiKey: true, groupIdFrom: { param: 'groupId' } })` and a valid API key scoped to the param group
     - **When** the guard runs
     - **Then** the test asserts the request passes and `groupRoles` is correctly set
 
-- [ ] **Scenario 3**: API key blocked — guard throws 403
+- [x] **Scenario 3**: API key blocked — guard throws 403
     - **Given** `@Identity({ allowApiKey: false })` and an API key request
     - **When** the guard runs
     - **Then** the test asserts `ForbiddenException` is thrown
 
-- [ ] **Scenario 4**: System admin bypass — passes all group checks
+- [x] **Scenario 4**: System admin bypass — passes all group checks
     - **Given** `@Identity({ groupIdFrom: { param: 'groupId' }, minimumRole: GroupRole.ADMIN })` and a system admin JWT
     - **When** the guard runs
     - **Then** the test asserts the request passes regardless of the system admin's membership in the group
 
-- [ ] **Scenario 5**: Member passes — caller is a member of the required group
+- [x] **Scenario 5**: Member passes — caller is a member of the required group
     - **Given** `@Identity({ groupIdFrom: { param: 'groupId' } })` and a JWT user who is a MEMBER of that group
     - **When** the guard runs
     - **Then** the test asserts the request passes
 
-- [ ] **Scenario 6**: Member fails minimumRole ADMIN — caller is MEMBER, endpoint requires ADMIN
+- [x] **Scenario 6**: Member fails minimumRole ADMIN — caller is MEMBER, endpoint requires ADMIN
     - **Given** `@Identity({ groupIdFrom: { param: 'groupId' }, minimumRole: GroupRole.ADMIN })` and a JWT user with MEMBER role
     - **When** the guard runs
     - **Then** the test asserts `ForbiddenException` is thrown
 
-- [ ] **Scenario 7**: Non-member blocked — caller is not in the required group
+- [x] **Scenario 7**: Non-member blocked — caller is not in the required group
     - **Given** `@Identity({ groupIdFrom: { param: 'groupId' } })` and a JWT user not in the group
     - **When** the guard runs
     - **Then** the test asserts `ForbiddenException` is thrown
 
-- [ ] **Scenario 8**: Missing group ID — guard throws 400
+- [x] **Scenario 8**: Missing group ID — guard throws 400
     - **Given** `@Identity({ groupIdFrom: { param: 'groupId' } })` and the route param is absent
     - **When** the guard runs
     - **Then** the test asserts `BadRequestException` is thrown
