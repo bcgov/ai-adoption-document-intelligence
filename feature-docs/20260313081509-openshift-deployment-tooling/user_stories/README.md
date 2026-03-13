@@ -58,7 +58,7 @@ After implementing the user story check it off at the bottom of this file
 
 ### Phase 5 — Database Operations
 - [x] **US-010** (Database backup script — needs a running instance to back up)
-- [ ] **US-011** (Database restore script — needs a backup file + running instance)
+- [x] **US-011** (Database restore script — needs a backup file + running instance)
 
 > Stories are ordered by dependency chain for automated implementation.
 > Each story should be implementable after all stories in previous phases are complete.
