@@ -9,7 +9,6 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
-  Logger,
   NotFoundException,
   Param,
   Patch,
@@ -31,6 +30,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
+import { AuditService } from "@/audit/audit.service";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
@@ -45,6 +45,7 @@ import {
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { DatabaseService, DocumentData } from "../database/database.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
@@ -53,13 +54,13 @@ import { UpdateDocumentDto } from "./dto/update-document.dto";
 @ApiTags("Documents")
 @Controller("api/documents")
 export class DocumentController {
-  private readonly logger = new Logger(DocumentController.name);
-
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly temporalClientService: TemporalClientService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
+    private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Get("/:documentId")
@@ -91,6 +92,16 @@ export class DocumentController {
       document.group_id,
       this.databaseService,
     );
+
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "document",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity?.userId,
+      document_id: documentId,
+      group_id: document.group_id ?? undefined,
+      payload: { action: "metadata" },
+    });
 
     this.logger.debug("=== DocumentController.getDocument completed ===");
     return document;
@@ -350,6 +361,16 @@ export class DocumentController {
         this.databaseService,
       );
 
+      await this.auditService.recordEvent({
+        event_type: "document_accessed",
+        resource_type: "document",
+        resource_id: documentId,
+        actor_id: req.resolvedIdentity?.userId,
+        document_id: documentId,
+        group_id: document.group_id ?? undefined,
+        payload: { action: "ocr" },
+      });
+
       this.logger.debug(`Document status: ${document.status}`);
       this.logger.debug(`Document created: ${document.created_at}`);
       if (document.apim_request_id) {
@@ -435,6 +456,16 @@ export class DocumentController {
         document.group_id,
         this.databaseService,
       );
+
+      await this.auditService.recordEvent({
+        event_type: "document_accessed",
+        resource_type: "document",
+        resource_id: documentId,
+        actor_id: req.resolvedIdentity?.userId,
+        document_id: documentId,
+        group_id: document.group_id ?? undefined,
+        payload: { action: "download" },
+      });
 
       // Read file from blob storage using the blob key
       const fileBuffer = await this.blobStorage.read(document.file_path);
@@ -552,6 +583,20 @@ export class DocumentController {
         comments: body.comments,
         rejectionReason: body.rejectionReason,
         annotations: body.annotations,
+      });
+
+      await this.auditService.recordEvent({
+        event_type: "human_approval_signal_sent",
+        resource_type: "workflow_run",
+        resource_id: workflowId,
+        actor_id: body.reviewer,
+        document_id: documentId,
+        workflow_execution_id: workflowId,
+        group_id: document.group_id,
+        payload: {
+          approved: body.approved,
+          reviewer: body.reviewer ?? undefined,
+        },
       });
 
       this.logger.log(

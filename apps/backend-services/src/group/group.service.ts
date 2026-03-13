@@ -6,7 +6,9 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { AuditService } from "../audit/audit.service";
 import { DatabaseService } from "../database/database.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { GroupMemberDto } from "./dto/group-member.dto";
 import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { MyMembershipRequestDto } from "./dto/my-membership-request.dto";
@@ -14,7 +16,11 @@ import { UserGroupDto } from "./dto/user-group.dto";
 
 @Injectable()
 export class GroupService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
+  ) {}
   /**
    * Soft-deletes an existing group by ID.
    * Sets `deleted_at` to the current timestamp and `deleted_by` to the caller's userId.
@@ -37,6 +43,19 @@ export class GroupService {
     await this.databaseService.prisma.group.update({
       where: { id: groupId },
       data: { deleted_at: new Date(), deleted_by: callerId },
+    });
+    await this.auditService.recordEvent({
+      event_type: "group_deleted",
+      resource_type: "group",
+      resource_id: groupId,
+      actor_id: callerId,
+      group_id: groupId,
+      payload: { group_name: group.name },
+    });
+    this.logger.log("Group soft-deleted", {
+      groupId,
+      groupName: group.name,
+      actorId: callerId,
     });
   }
 
@@ -159,14 +178,28 @@ export class GroupService {
       );
     }
 
-    await this.databaseService.prisma.groupMembershipRequest.create({
-      data: {
-        user_id: userId,
-        group_id: groupId,
-        status: $Enums.GroupMembershipRequestStatus.PENDING,
-        created_by: userId,
-        updated_by: userId,
-      },
+    const created =
+      await this.databaseService.prisma.groupMembershipRequest.create({
+        data: {
+          user_id: userId,
+          group_id: groupId,
+          status: $Enums.GroupMembershipRequestStatus.PENDING,
+          created_by: userId,
+          updated_by: userId,
+        },
+      });
+    await this.auditService.recordEvent({
+      event_type: "membership_request_created",
+      resource_type: "group_membership_request",
+      resource_id: created.id,
+      actor_id: userId,
+      group_id: groupId,
+      payload: { user_id: userId, group_id: groupId },
+    });
+    this.logger.log("Membership request created", {
+      requestId: created.id,
+      userId,
+      groupId,
     });
   }
   /**
@@ -196,6 +229,19 @@ export class GroupService {
         $Enums.GroupMembershipRequestStatus.CANCELLED,
         reason,
       ),
+    });
+    await this.auditService.recordEvent({
+      event_type: "membership_request_cancelled",
+      resource_type: "group_membership_request",
+      resource_id: requestId,
+      actor_id: userId,
+      group_id: request.group_id,
+      payload: { reason },
+    });
+    this.logger.log("Membership request cancelled", {
+      requestId,
+      userId,
+      groupId: request.group_id,
     });
   }
 
@@ -239,6 +285,31 @@ export class GroupService {
         ),
       }),
     ]);
+    await this.auditService.recordEvent({
+      event_type: "membership_request_approved",
+      resource_type: "group_membership_request",
+      resource_id: requestId,
+      actor_id: adminId,
+      group_id: request.group_id,
+      payload: {
+        user_id: request.user_id,
+        reason,
+      },
+    });
+    await this.auditService.recordEvent({
+      event_type: "member_added",
+      resource_type: "user_group",
+      resource_id: `${request.user_id}:${request.group_id}`,
+      actor_id: adminId,
+      group_id: request.group_id,
+      payload: { user_id: request.user_id, membership_request_id: requestId },
+    });
+    this.logger.log("Membership request approved, user added to group", {
+      requestId,
+      adminId,
+      userId: request.user_id,
+      groupId: request.group_id,
+    });
   }
 
   /**
@@ -264,6 +335,20 @@ export class GroupService {
         $Enums.GroupMembershipRequestStatus.DENIED,
         reason,
       ),
+    });
+    await this.auditService.recordEvent({
+      event_type: "membership_request_denied",
+      resource_type: "group_membership_request",
+      resource_id: requestId,
+      actor_id: adminId,
+      group_id: request.group_id,
+      payload: { user_id: request.user_id, reason },
+    });
+    this.logger.log("Membership request denied", {
+      requestId,
+      adminId,
+      userId: request.user_id,
+      groupId: request.group_id,
     });
   }
 
@@ -366,6 +451,22 @@ export class GroupService {
       data: { name, ...(description !== undefined ? { description } : {}) },
       select: { id: true, name: true, description: true },
     });
+    await this.auditService.recordEvent({
+      event_type: "group_created",
+      resource_type: "group",
+      resource_id: group.id,
+      actor_id: callerId,
+      group_id: group.id,
+      payload: {
+        name: group.name,
+        description: group.description ?? undefined,
+      },
+    });
+    this.logger.log("Group created", {
+      groupId: group.id,
+      name: group.name,
+      actorId: callerId,
+    });
     return group;
   }
 
@@ -406,7 +507,7 @@ export class GroupService {
       throw new ConflictException("Group with this name already exists");
     }
 
-    return await this.databaseService.prisma.group.update({
+    const updated = await this.databaseService.prisma.group.update({
       where: { id: groupId },
       data: {
         name,
@@ -415,6 +516,23 @@ export class GroupService {
       },
       select: { id: true, name: true, description: true },
     });
+    await this.auditService.recordEvent({
+      event_type: "group_updated",
+      resource_type: "group",
+      resource_id: groupId,
+      actor_id: callerId,
+      group_id: groupId,
+      payload: {
+        name: updated.name,
+        description: updated.description ?? undefined,
+      },
+    });
+    this.logger.log("Group updated", {
+      groupId,
+      name: updated.name,
+      actorId: callerId,
+    });
+    return updated;
   }
 
   async assignUserToGroup(
@@ -457,6 +575,19 @@ export class GroupService {
         user_id: userId,
         group_id: groupId,
       },
+    });
+    await this.auditService.recordEvent({
+      event_type: "member_added",
+      resource_type: "user_group",
+      resource_id: `${userId}:${groupId}`,
+      actor_id: callerId,
+      group_id: groupId,
+      payload: { user_id: userId },
+    });
+    this.logger.log("User added to group", {
+      userId,
+      groupId,
+      actorId: callerId,
     });
   }
 
@@ -525,6 +656,14 @@ export class GroupService {
     await this.databaseService.prisma.userGroup.delete({
       where: { user_id_group_id: { user_id: userId, group_id: groupId } },
     });
+    await this.auditService.recordEvent({
+      event_type: "user_left_group",
+      resource_type: "user_group",
+      resource_id: `${userId}:${groupId}`,
+      actor_id: userId,
+      group_id: groupId,
+    });
+    this.logger.log("User left group", { userId, groupId });
   }
 
   /**
@@ -666,6 +805,19 @@ export class GroupService {
 
     await this.databaseService.prisma.userGroup.delete({
       where: { user_id_group_id: { user_id: userId, group_id: groupId } },
+    });
+    await this.auditService.recordEvent({
+      event_type: "member_removed",
+      resource_type: "user_group",
+      resource_id: `${userId}:${groupId}`,
+      actor_id: callerId,
+      group_id: groupId,
+      payload: { removed_user_id: userId },
+    });
+    this.logger.log("Member removed from group", {
+      groupId,
+      removedUserId: userId,
+      actorId: callerId,
     });
   }
 }

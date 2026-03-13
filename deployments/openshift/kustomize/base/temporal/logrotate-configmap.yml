@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: temporal-worker-logrotate
+  labels:
+    app: temporal-worker
+data:
+  worker: |
+    /var/log/app/worker.log {
+        copytruncate
+        rotate 5
+        size 50M
+        missingok
+        notifempty
+    }

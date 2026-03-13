@@ -13,7 +13,6 @@ import {
   BadRequestException,
   Inject,
   Injectable,
-  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -25,6 +24,7 @@ import {
 import { DatabaseService } from "../database/database.service";
 import { ExportFormat } from "../labeling/dto/export.dto";
 import { LabelingService } from "../labeling/labeling.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainedModelDto } from "./dto/trained-model.dto";
 import { TrainingJobDto, ValidationResultDto } from "./dto/training-job.dto";
@@ -50,7 +50,6 @@ interface ErrorWithRequest {
 
 @Injectable()
 export class TrainingService {
-  private readonly logger = new Logger(TrainingService.name);
   private adminClient: DocumentIntelligenceClient;
   private readonly minDocuments: number;
   private readonly sasExpiryDays: number;
@@ -60,6 +59,7 @@ export class TrainingService {
     private readonly azureStorage: AzureStorageService,
     private readonly labelingService: LabelingService,
     private readonly configService: ConfigService,
+    private readonly logger: AppLoggerService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
   ) {

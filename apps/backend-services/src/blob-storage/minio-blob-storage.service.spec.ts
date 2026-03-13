@@ -10,6 +10,8 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Readable } from "stream";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { MinioBlobStorageService } from "./minio-blob-storage.service";
 
 const mockConfigService = {
@@ -41,6 +43,7 @@ describe("MinioBlobStorageService", () => {
       providers: [
         MinioBlobStorageService,
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: AppLoggerService, useValue: mockAppLogger },
       ],
     }).compile();
 

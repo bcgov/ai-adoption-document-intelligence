@@ -5,6 +5,9 @@ import {
 } from "@generated/client";
 import { NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DatabaseService } from "../database/database.service";
 import { AnalyticsService } from "./analytics.service";
 import {
@@ -109,6 +112,7 @@ describe("HitlService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         HitlService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: DatabaseService,
           useValue: mockDb,
@@ -116,6 +120,10 @@ describe("HitlService", () => {
         {
           provide: AnalyticsService,
           useValue: mockAnalytics,
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

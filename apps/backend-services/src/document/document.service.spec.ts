@@ -1,5 +1,7 @@
 import { DocumentStatus } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -30,6 +32,7 @@ describe("DocumentService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DocumentService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         { provide: DatabaseService, useValue: databaseService },
         { provide: BLOB_STORAGE, useValue: blobStorage },
       ],

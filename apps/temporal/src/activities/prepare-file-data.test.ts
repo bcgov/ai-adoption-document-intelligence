@@ -1,6 +1,17 @@
 import type { PrepareFileDataInput } from "./prepare-file-data";
 import { prepareFileData } from "./prepare-file-data";
 
+const mockWarn = jest.fn();
+jest.mock("../logger", () => ({
+  createActivityLogger: () => ({
+    info: jest.fn(),
+    warn: mockWarn,
+    error: jest.fn(),
+    debug: jest.fn(),
+    child: jest.fn(),
+  }),
+}));
+
 // Mock the blob storage client for non-absolute blob keys
 const mockRead = jest.fn();
 jest.mock("../blob-storage/blob-storage-client", () => ({
@@ -29,6 +40,7 @@ describe("prepareFileData activity", () => {
   beforeEach(() => {
     mockRead.mockReset();
     readFileMock.mockReset();
+    mockWarn.mockClear();
   });
 
   it("prepares PDF file data with defaults", async () => {
@@ -160,7 +172,6 @@ describe("prepareFileData activity", () => {
   });
 
   it("warns for invalid PDF signature", async () => {
-    const consoleSpy = jest.spyOn(console, "warn").mockImplementation();
     const invalidPdfBuffer = Buffer.from("not a pdf file content");
     mockRead.mockResolvedValue(invalidPdfBuffer);
 
@@ -173,12 +184,14 @@ describe("prepareFileData activity", () => {
     const result = await prepareFileData(input);
 
     expect(result).toBeDefined();
-    expect(consoleSpy).toHaveBeenCalled();
-    const warnCall = consoleSpy.mock.calls.find((call) =>
-      call[0].includes("File does not have valid PDF signature"),
+    expect(mockWarn).toHaveBeenCalledWith(
+      "Prepare file data: invalid PDF signature",
+      expect.objectContaining({
+        event: "warn",
+        fileName: "fake.pdf",
+        warning: "File does not have valid PDF signature",
+        pdfSignature: "not ",
+      }),
     );
-    expect(warnCall).toBeDefined();
-
-    consoleSpy.mockRestore();
   });
 });

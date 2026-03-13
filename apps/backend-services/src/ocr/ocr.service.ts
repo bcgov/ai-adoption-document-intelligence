@@ -3,15 +3,16 @@ import {
   BadRequestException,
   Inject,
   Injectable,
-  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AuditService } from "@/audit/audit.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
 import { DatabaseService } from "@/database/database.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   AnalysisResponse,
   AnalysisResult,
@@ -28,14 +29,14 @@ export interface OcrRequestResponse {
 
 @Injectable()
 export class OcrService {
-  private readonly logger = new Logger(OcrService.name);
-
   constructor(
     _configService: ConfigService,
     private databaseService: DatabaseService,
     private temporalClientService: TemporalClientService,
     @Inject(BLOB_STORAGE)
     private blobStorage: BlobStorageInterface,
+    private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -121,6 +122,18 @@ export class OcrService {
           workflow_execution_id: workflowExecutionId,
         },
       );
+
+      await this.auditService.recordEvent({
+        event_type: "workflow_run_started",
+        resource_type: "workflow_run",
+        resource_id: workflowExecutionId,
+        document_id: documentId,
+        workflow_execution_id: workflowExecutionId,
+        group_id: document.group_id,
+        payload: {
+          workflow_config_id: workflowConfigId ?? undefined,
+        },
+      });
 
       this.logger.log(
         `Started OCR workflow for document ${documentId}, Temporal execution ID: ${workflowExecutionId}${workflowConfigId ? `, using workflow config: ${workflowConfigId}` : ", using default workflow"}`,

@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import { DatabaseService } from "../database/database.service";
 import { AzureService } from "./azure.service";
@@ -37,6 +38,7 @@ describe("ClassifierPollerService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ClassifierPollerService,
+        { provide: AppLoggerService, useValue: mockLogger },
         { provide: DatabaseService, useValue: mockDatabaseService },
         { provide: AzureService, useValue: mockAzureService },
         { provide: AzureStorageService, useValue: mockBlobService },
@@ -45,8 +47,6 @@ describe("ClassifierPollerService", () => {
     }).compile();
 
     service = module.get<ClassifierPollerService>(ClassifierPollerService);
-    // @ts-ignore
-    service.logger = mockLogger;
     jest.clearAllMocks();
   });
 

@@ -1,6 +1,8 @@
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Client, Connection } from "@temporalio/client";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import { WorkflowService } from "../workflow/workflow.service";
 import { TemporalClientService } from "./temporal-client.service";
@@ -99,6 +101,7 @@ describe("TemporalClientService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TemporalClientService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: ConfigService,
           useValue: {
@@ -169,6 +172,7 @@ describe("TemporalClientService", () => {
             provide: WorkflowService,
             useValue: mockWorkflowService,
           },
+          { provide: AppLoggerService, useValue: mockAppLogger },
         ],
       }).compile();
 
@@ -206,6 +210,7 @@ describe("TemporalClientService", () => {
             provide: WorkflowService,
             useValue: mockWorkflowService,
           },
+          { provide: AppLoggerService, useValue: mockAppLogger },
         ],
       }).compile();
 
@@ -229,6 +234,7 @@ describe("TemporalClientService", () => {
       const newService = new TemporalClientService(
         configService,
         mockWorkflowService,
+        mockAppLogger,
       );
       await expect(newService.onModuleDestroy()).resolves.not.toThrow();
     });
@@ -270,6 +276,7 @@ describe("TemporalClientService", () => {
       const newService = new TemporalClientService(
         configService,
         mockWorkflowService,
+        mockAppLogger,
       );
 
       await expect(
@@ -318,6 +325,7 @@ describe("TemporalClientService", () => {
       const newService = new TemporalClientService(
         configService,
         mockWorkflowService,
+        mockAppLogger,
       );
 
       await expect(
@@ -340,6 +348,7 @@ describe("TemporalClientService", () => {
       const newService = new TemporalClientService(
         configService,
         mockWorkflowService,
+        mockAppLogger,
       );
 
       await expect(
@@ -368,6 +377,7 @@ describe("TemporalClientService", () => {
       const newService = new TemporalClientService(
         configService,
         mockWorkflowService,
+        mockAppLogger,
       );
 
       await expect(
@@ -396,6 +406,7 @@ describe("TemporalClientService", () => {
       const newService = new TemporalClientService(
         configService,
         mockWorkflowService,
+        mockAppLogger,
       );
 
       await expect(
@@ -429,6 +440,7 @@ describe("TemporalClientService", () => {
       const newService = new TemporalClientService(
         configService,
         mockWorkflowService,
+        mockAppLogger,
       );
 
       await expect(newService.cancelWorkflow("workflow-123")).rejects.toThrow(

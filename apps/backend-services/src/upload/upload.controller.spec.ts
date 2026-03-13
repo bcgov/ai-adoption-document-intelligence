@@ -1,5 +1,6 @@
 import { DocumentStatus } from "@generated/client";
 import { BadRequestException, ForbiddenException } from "@nestjs/common";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
@@ -27,6 +28,7 @@ describe("UploadController", () => {
       documentService,
       queueService,
       databaseService,
+      mockAppLogger,
     );
   });
 

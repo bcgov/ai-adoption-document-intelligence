@@ -5,7 +5,6 @@ import {
   ForbiddenException,
   HttpCode,
   HttpStatus,
-  Logger,
   Post,
   Req,
 } from "@nestjs/common";
@@ -23,6 +22,7 @@ import {
 } from "@/decorators/custom-auth-decorators";
 import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "../document/document.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { QueueService } from "../queue/queue.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
 import { UploadDocumentResponseDto } from "./dto/upload-document-response.dto";
@@ -30,12 +30,11 @@ import { UploadDocumentResponseDto } from "./dto/upload-document-response.dto";
 @ApiTags("Upload")
 @Controller("api/upload")
 export class UploadController {
-  private readonly logger = new Logger(UploadController.name);
-
   constructor(
     private readonly documentService: DocumentService,
     private readonly queueService: QueueService,
     private readonly databaseService: DatabaseService,
+    private readonly logger: AppLoggerService,
   ) {}
 
   @Post()

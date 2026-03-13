@@ -1,15 +1,17 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { AnalyticsFilterDto } from "./dto/queue-filter.dto";
 
 @Injectable()
 export class AnalyticsService {
-  private readonly logger = new Logger(AnalyticsService.name);
-
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
   async getAnalytics(filters: AnalyticsFilterDto, groupIds?: string[]) {
-    this.logger.debug("Calculating analytics", filters);
+    this.logger.debug("Calculating analytics", { ...filters });
 
     const analyticsData = await this.db.getReviewAnalytics({
       startDate: filters.startDate,

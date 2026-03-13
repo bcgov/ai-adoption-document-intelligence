@@ -3,6 +3,8 @@ import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { of } from "rxjs";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -70,6 +72,7 @@ describe("LabelingOcrService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LabelingOcrService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: DatabaseService,
           useValue: mockDb,

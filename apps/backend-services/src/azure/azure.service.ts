@@ -3,18 +3,20 @@ import DocumentIntelligence, {
   DocumentIntelligenceErrorResponseOutput,
   PagedDocumentIntelligenceOperationDetailsOutput,
 } from "@azure-rest/ai-document-intelligence";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { OcrService } from "@/ocr/ocr.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 
 @Injectable()
 export class AzureService {
-  private readonly logger = new Logger(OcrService.name);
   private readonly client: DocumentIntelligenceClient;
   private readonly endpoint: string;
   private readonly apiKey: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly logger: AppLoggerService,
+  ) {
     this.endpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
     );

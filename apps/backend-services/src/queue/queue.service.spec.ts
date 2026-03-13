@@ -1,5 +1,7 @@
 import { DocumentStatus } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { OcrService } from "../ocr/ocr.service";
 import { QueueMessage, QueueService } from "./queue.service";
 
@@ -12,7 +14,11 @@ describe("QueueService", () => {
       requestOcr: jest.fn(),
     } as any;
     const module: TestingModule = await Test.createTestingModule({
-      providers: [QueueService, { provide: OcrService, useValue: ocrService }],
+      providers: [
+        QueueService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
+        { provide: OcrService, useValue: ocrService },
+      ],
     }).compile();
     service = module.get<QueueService>(QueueService);
   });
