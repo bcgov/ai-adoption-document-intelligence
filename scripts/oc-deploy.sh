@@ -343,6 +343,7 @@ oc create secret generic "${BACKEND_SECRET_NAME}" \
   --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=$(get_config AZURE_DOCUMENT_INTELLIGENCE_API_KEY || true)" \
   --from-literal="AZURE_STORAGE_CONNECTION_STRING=$(get_config AZURE_STORAGE_CONNECTION_STRING || true)" \
   --from-literal="AZURE_STORAGE_ACCOUNT_NAME=$(get_config AZURE_STORAGE_ACCOUNT_NAME || true)" \
+  --from-literal="AZURE_STORAGE_ACCOUNT_KEY=$(get_config AZURE_STORAGE_ACCOUNT_KEY || true)" \
   --dry-run=client -o yaml | \
   oc apply -f - -n "${NAMESPACE}" || {
   log_error "Failed to create backend-services-secrets."
@@ -362,6 +363,7 @@ oc create secret generic "${WORKER_SECRET_NAME}" \
   --from-literal="AZURE_OPENAI_API_KEY=$(get_config AZURE_OPENAI_API_KEY || true)" \
   --from-literal="AZURE_STORAGE_CONNECTION_STRING=$(get_config AZURE_STORAGE_CONNECTION_STRING || true)" \
   --from-literal="AZURE_STORAGE_ACCOUNT_NAME=$(get_config AZURE_STORAGE_ACCOUNT_NAME || true)" \
+  --from-literal="AZURE_STORAGE_ACCOUNT_KEY=$(get_config AZURE_STORAGE_ACCOUNT_KEY || true)" \
   --dry-run=client -o yaml | \
   oc apply -f - -n "${NAMESPACE}" || {
   log_error "Failed to create temporal-worker-secrets."

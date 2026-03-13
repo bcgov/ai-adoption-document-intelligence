@@ -138,11 +138,6 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
-        - name: AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID
-          valueFrom:
-            configMapKeyRef:
-              name: backend-services-config
-              key: AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID
         - name: AZURE_DOC_INTELLIGENCE_MODELS
           valueFrom:
             configMapKeyRef:
