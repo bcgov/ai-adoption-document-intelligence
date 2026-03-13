@@ -24,7 +24,7 @@ The following already exist and must be reused or extended — not replaced:
 - **Kustomize manifests**: `deployments/openshift/kustomize/` with `base/` + `overlays/` (dev/test/prod)
 - **Crunchy Postgres Operator**: Already deployed in the namespace; used for PostgreSQL HA. Continues to be the database runtime — only backup/restore scripts bypass it (using `pg_dump`/`pg_restore` directly)
 - **CI/CD (GitHub Actions)**: `build-apps.yml`, `migrate-db.yml`, `db-backup-manual.yml`, `db-restore.yml` — these remain untouched
-- **Container Registries**: Artifactory at `artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/` (existing CI/CD); GitHub Container Registry (ghcr.io) for instance deployments (BCGov recommended pattern for Silver cluster)
+- **Container Registry**: GitHub Container Registry (ghcr.io) for instance deployments (BCGov recommended pattern for Silver cluster). Note: existing CI/CD uses Artifactory — that remains untouched and is not used by this tooling
 - **Network Policies, Routes, ConfigMaps, Secrets**: Defined in kustomize manifests
 - **Blob storage**: Azure Blob Storage in cloud (`BLOB_STORAGE_PROVIDER=azure`). Content lives in Azure, not in Kubernetes — not part of backup/restore
 
@@ -132,6 +132,7 @@ The following already exist and must be reused or extended — not replaced:
 - Script creates a service account in the target namespace with permissions scoped to the resources the deployment scripts need (deployments, services, routes, configmaps, secrets, PVCs, pods, pods/exec)
 - Token is saved to a local secret file (e.g., `.oc-deploy-token` — gitignored)
 - All other scripts (`oc-deploy.sh`, `oc-teardown.sh`, `oc-backup-db.sh`, etc.) use this stored token instead of the developer's personal login
+- No ghcr.io pull secret needed — the repository is public, so images are publicly accessible
 - One-time setup per developer per namespace
 
 **Invocation example**:
@@ -153,12 +154,11 @@ The following already exist and must be reused or extended — not replaced:
 - GitHub Actions workflow builds and pushes images to `ghcr.io/<org>/<repo>/<service>:<branch-sanitized>` (e.g., `ghcr.io/<org>/ai-adoption-document-intelligence/backend-services:feature-my-thing`)
 - The deploy script (`oc-deploy.sh`) triggers the GitHub Actions build (or references already-built images from the current branch) and then deploys to OpenShift
 - Images are tagged with the sanitized git branch name and commit SHA for traceability
-- OpenShift pulls from ghcr.io using an image pull secret (configured once per namespace)
 - Existing Artifactory-based CI/CD pipelines remain untouched — this is additive
 
-**Image pull secret setup** (one-time per namespace):
-- A GitHub Personal Access Token (PAT) with `read:packages` scope is required
-- The `oc-setup-sa.sh` script (REQ-4) also creates the `ghcr-pull-secret` in the namespace and links it to the deployer service account
+**Authentication**:
+- **Pushing to ghcr.io (GitHub Actions)**: No PAT required. GitHub Actions uses the built-in `GITHUB_TOKEN` (automatically injected per workflow run). The workflow must declare `permissions: packages: write`.
+- **Pulling from ghcr.io (OpenShift)**: No pull secret or PAT required. The repository is public, so ghcr.io packages are publicly accessible — OpenShift can pull images without authentication.
 
 ---
 
@@ -200,7 +200,7 @@ Developer runs: ./scripts/oc-deploy.sh --env dev
 2. Determine instance name from current git branch
 3. Load config: dev.env defaults ← instance override if exists
 4. Trigger GitHub Actions build (or verify images already exist on ghcr.io for current branch/commit)
-5. OpenShift pulls images from ghcr.io via image pull secret
+5. OpenShift pulls images from ghcr.io (public — no pull secret needed)
 6. Generate Kustomize overlay from instance-template (namePrefix, labels, config)
 7. oc apply -k <generated overlay>
 8. Wait for rollout completion
@@ -237,7 +237,7 @@ Developer runs: ./scripts/oc-teardown.sh
 
 - Automated edge case handling (e.g., duplicate branch deployments)
 - Blob storage backup/restore (Azure content persists independently)
-- CI/CD integration (scripts are local-only for now)
+- Fully automated CI/CD-triggered deployments (scripts are initiated locally, but image builds use GitHub Actions)
 - Auto-scaling or resource optimization
 - Monitoring/alerting for dev instances
 - Per-instance SSO client provisioning (instances use the environment profile's SSO config)
@@ -248,6 +248,14 @@ Developer runs: ./scripts/oc-teardown.sh
 
 - Two developers deploying from the same git branch will conflict — coordinate via team communication
 - Code must be pushed to GitHub before deploying (GitHub Actions builds images from the branch)
-- A GitHub PAT with `read:packages` scope is required for OpenShift to pull images from ghcr.io
 - Each instance consumes significant namespace resources (full Temporal + PostgreSQL stack) — practical limit of ~5 concurrent instances
 - Route hostnames depend on cluster's wildcard DNS configuration
+
+### Credentials Reference
+
+| Credential | Used For | Type | How Obtained |
+|---|---|---|---|
+| `GITHUB_TOKEN` | Push images to ghcr.io (CI only) | Auto-injected by GitHub Actions | Automatic — no setup needed |
+| OpenShift SA Token | All `oc` CLI commands from scripts | OC service account token | `oc-setup-sa.sh` (one-time) |
+
+No PATs or image pull secrets are required — the repository and its ghcr.io packages are public.
