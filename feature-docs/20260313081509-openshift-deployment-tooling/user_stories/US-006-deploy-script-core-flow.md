@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 <!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
-- [ ] **Scenario 1**: Successful full stack deployment
+- [x] **Scenario 1**: Successful full stack deployment
     - **Given** the developer has a valid `.oc-deploy-token` and is on a feature branch
     - **When** they run `./scripts/oc-deploy.sh --env dev`
     - **Then** the script deploys frontend, backend, Temporal server + worker + UI, and Crunchy PostgreSQL database as a fully isolated instance
 
-- [ ] **Scenario 2**: Token validation on startup
+- [x] **Scenario 2**: Token validation on startup
     - **Given** the `.oc-deploy-token` file does not exist
     - **When** the developer runs `./scripts/oc-deploy.sh`
     - **Then** the script exits with a clear error message directing them to run `oc-setup-sa.sh` first
 
-- [ ] **Scenario 3**: Image build trigger or verification
+- [x] **Scenario 3**: Image build trigger or verification
     - **Given** the developer runs the deploy script
     - **When** the script starts
     - **Then** it triggers the GitHub Actions build workflow or verifies that images already exist on ghcr.io for the current branch/commit before proceeding
 
-- [ ] **Scenario 4**: Configuration loading
+- [x] **Scenario 4**: Configuration loading
     - **Given** the developer specifies `--env dev`
     - **When** the script loads configuration
     - **Then** it loads `deployments/openshift/config/dev.env` as defaults, then applies any instance-specific overrides from `deployments/openshift/config/<instance-name>.env` if it exists

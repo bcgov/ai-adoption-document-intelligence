@@ -85,6 +85,12 @@ print_config
 
 ## Configuration Variables
 
+### OpenShift Cluster / Routing
+
+| Variable | Description |
+|----------|-------------|
+| `ROUTE_HOST_SUFFIX` | Route hostname suffix for OpenShift routes (e.g., `fd34fb-dev.apps.silver.devops.gov.bc.ca`) |
+
 ### Per-Environment Profile (not per-instance)
 
 These variables differ between `dev` and `prod` profiles:
