@@ -13,7 +13,7 @@
 - [ ] **Scenario 2**: LabelingProjectDbService exposes only the required methods
     - **Given** the new `LabelingProjectDbService`
     - **When** reviewing its public API
-    - **Then** it provides exactly: `createLabelingProject`, `findLabelingProject`, `findAllLabelingProjects`, `updateLabelingProject`, `deleteLabelingProject`, `createFieldDefinition`, `updateFieldDefinition`, `deleteFieldDefinition`, `addDocumentToProject`, `findLabeledDocument`, `findLabeledDocuments`, `removeDocumentFromProject`, `updateLabeledDocumentStatus`, `saveDocumentLabels`, `deleteDocumentLabel`
+    - **Then** it provides exactly: `createLabelingProject`, `findLabelingProject`, `findAllLabelingProjects`, `updateLabelingProject`, `deleteLabelingProject`, `createFieldDefinition`, `updateFieldDefinition`, `deleteFieldDefinition`, `createLabeledDocument`, `findLabeledDocument`, `findAllLabeledDocuments`, `deleteLabeledDocument`, `updateLabeledDocument`, `upsertDocumentLabels`, `deleteDocumentLabel`
 
 - [ ] **Scenario 3**: LabelingProjectDbService is registered as a provider but not exported
     - **Given** `LabelingModule`

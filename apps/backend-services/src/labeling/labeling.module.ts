@@ -6,6 +6,7 @@ import { LabelingController } from "./labeling.controller";
 import { LabelingService } from "./labeling.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { LabelingOcrService } from "./labeling-ocr.service";
+import { LabelingProjectDbService } from "./labeling-project-db.service";
 import { SuggestionService } from "./suggestion.service";
 
 @Module({
@@ -16,6 +17,7 @@ import { SuggestionService } from "./suggestion.service";
     LabelingOcrService,
     SuggestionService,
     LabelingDocumentDbService,
+    LabelingProjectDbService,
   ],
   exports: [LabelingService],
 })

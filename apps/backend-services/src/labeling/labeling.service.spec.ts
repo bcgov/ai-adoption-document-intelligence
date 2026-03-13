@@ -6,13 +6,8 @@ import {
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ResolvedIdentity } from "@/auth/types";
-import {
-  LabeledDocumentData,
-  LabelingProjectData,
-} from "@/database/database.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
-import { DatabaseService } from "../database/database.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
 import { ExportDto, ExportFormat } from "./dto/export.dto";
@@ -26,11 +21,16 @@ import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingService } from "./labeling.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { LabelingOcrService } from "./labeling-ocr.service";
+import { LabelingProjectDbService } from "./labeling-project-db.service";
+import type {
+  LabeledDocumentData,
+  LabelingProjectData,
+} from "./labeling-project-db.types";
 import { SuggestionService } from "./suggestion.service";
 
 describe("LabelingService", () => {
   let service: LabelingService;
-  let mockDbService: jest.Mocked<DatabaseService>;
+  let mockLabelingProjectDbService: jest.Mocked<LabelingProjectDbService>;
   let mockLabelingDocumentDbService: jest.Mocked<LabelingDocumentDbService>;
   let mockOcrService: jest.Mocked<LabelingOcrService>;
   let mockSuggestionService: jest.Mocked<SuggestionService>;
@@ -112,7 +112,7 @@ describe("LabelingService", () => {
   };
 
   beforeEach(async () => {
-    const mockDb = {
+    const mockLabelingProjectDb = {
       findAllLabelingProjects: jest.fn(),
       createLabelingProject: jest.fn(),
       findLabelingProject: jest.fn(),
@@ -121,12 +121,12 @@ describe("LabelingService", () => {
       createFieldDefinition: jest.fn(),
       updateFieldDefinition: jest.fn(),
       deleteFieldDefinition: jest.fn(),
-      findLabeledDocuments: jest.fn(),
-      addDocumentToProject: jest.fn(),
+      findAllLabeledDocuments: jest.fn(),
+      createLabeledDocument: jest.fn(),
       findLabeledDocument: jest.fn(),
-      removeDocumentFromProject: jest.fn(),
-      saveDocumentLabels: jest.fn(),
-      updateLabeledDocumentStatus: jest.fn(),
+      deleteLabeledDocument: jest.fn(),
+      upsertDocumentLabels: jest.fn(),
+      updateLabeledDocument: jest.fn(),
       deleteDocumentLabel: jest.fn(),
     };
 
@@ -148,8 +148,8 @@ describe("LabelingService", () => {
         LabelingService,
         { provide: AppLoggerService, useValue: mockAppLogger },
         {
-          provide: DatabaseService,
-          useValue: mockDb,
+          provide: LabelingProjectDbService,
+          useValue: mockLabelingProjectDb,
         },
         {
           provide: LabelingDocumentDbService,
@@ -167,7 +167,7 @@ describe("LabelingService", () => {
     }).compile();
 
     service = module.get<LabelingService>(LabelingService);
-    mockDbService = module.get(DatabaseService);
+    mockLabelingProjectDbService = module.get(LabelingProjectDbService);
     mockLabelingDocumentDbService = module.get(LabelingDocumentDbService);
     mockOcrService = module.get(LabelingOcrService);
     mockSuggestionService = module.get(SuggestionService);
@@ -178,25 +178,29 @@ describe("LabelingService", () => {
   describe("getProjects", () => {
     it("should return all projects", async () => {
       const projects = [mockProject];
-      mockDbService.findAllLabelingProjects.mockResolvedValueOnce(projects);
+      mockLabelingProjectDbService.findAllLabelingProjects.mockResolvedValueOnce(
+        projects,
+      );
 
       const result = await service.getProjects();
 
-      expect(mockDbService.findAllLabelingProjects).toHaveBeenCalledWith(
-        undefined,
-      );
+      expect(
+        mockLabelingProjectDbService.findAllLabelingProjects,
+      ).toHaveBeenCalledWith(undefined);
       expect(result).toEqual(projects);
     });
 
     it("should return projects for specific groups", async () => {
       const projects = [mockProject];
-      mockDbService.findAllLabelingProjects.mockResolvedValueOnce(projects);
+      mockLabelingProjectDbService.findAllLabelingProjects.mockResolvedValueOnce(
+        projects,
+      );
 
       const result = await service.getProjects(["group-1"]);
 
-      expect(mockDbService.findAllLabelingProjects).toHaveBeenCalledWith([
-        "group-1",
-      ]);
+      expect(
+        mockLabelingProjectDbService.findAllLabelingProjects,
+      ).toHaveBeenCalledWith(["group-1"]);
       expect(result).toEqual(projects);
     });
   });
@@ -209,11 +213,15 @@ describe("LabelingService", () => {
         group_id: "group-1",
       };
 
-      mockDbService.createLabelingProject.mockResolvedValueOnce(mockProject);
+      mockLabelingProjectDbService.createLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
 
       const result = await service.createProject(dto, "user-1");
 
-      expect(mockDbService.createLabelingProject).toHaveBeenCalledWith({
+      expect(
+        mockLabelingProjectDbService.createLabelingProject,
+      ).toHaveBeenCalledWith({
         name: dto.name,
         description: dto.description,
         created_by: "user-1",
@@ -225,18 +233,22 @@ describe("LabelingService", () => {
 
   describe("getProject", () => {
     it("should return a project by id", async () => {
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
 
       const result = await service.getProject("project-1");
 
-      expect(mockDbService.findLabelingProject).toHaveBeenCalledWith(
-        "project-1",
-      );
+      expect(
+        mockLabelingProjectDbService.findLabelingProject,
+      ).toHaveBeenCalledWith("project-1");
       expect(result).toEqual(mockProject);
     });
 
     it("should throw NotFoundException when project not found", async () => {
-      mockDbService.findLabelingProject.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(service.getProject("non-existent")).rejects.toThrow(
         NotFoundException,
@@ -251,19 +263,22 @@ describe("LabelingService", () => {
       };
 
       const updatedProject = { ...mockProject, name: "Updated Project" };
-      mockDbService.updateLabelingProject.mockResolvedValueOnce(updatedProject);
+      mockLabelingProjectDbService.updateLabelingProject.mockResolvedValueOnce(
+        updatedProject,
+      );
 
       const result = await service.updateProject("project-1", dto);
 
-      expect(mockDbService.updateLabelingProject).toHaveBeenCalledWith(
-        "project-1",
-        dto,
-      );
+      expect(
+        mockLabelingProjectDbService.updateLabelingProject,
+      ).toHaveBeenCalledWith("project-1", dto);
       expect(result).toEqual(updatedProject);
     });
 
     it("should throw NotFoundException when project not found", async () => {
-      mockDbService.updateLabelingProject.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.updateLabelingProject.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.updateProject("non-existent", { name: "test" }),
@@ -273,18 +288,22 @@ describe("LabelingService", () => {
 
   describe("deleteProject", () => {
     it("should delete a project", async () => {
-      mockDbService.deleteLabelingProject.mockResolvedValueOnce(true);
+      mockLabelingProjectDbService.deleteLabelingProject.mockResolvedValueOnce(
+        true,
+      );
 
       const result = await service.deleteProject("project-1");
 
-      expect(mockDbService.deleteLabelingProject).toHaveBeenCalledWith(
-        "project-1",
-      );
+      expect(
+        mockLabelingProjectDbService.deleteLabelingProject,
+      ).toHaveBeenCalledWith("project-1");
       expect(result).toEqual({ success: true, id: "project-1" });
     });
 
     it("should throw NotFoundException when project not found", async () => {
-      mockDbService.deleteLabelingProject.mockResolvedValueOnce(false);
+      mockLabelingProjectDbService.deleteLabelingProject.mockResolvedValueOnce(
+        false,
+      );
 
       await expect(service.deleteProject("non-existent")).rejects.toThrow(
         NotFoundException,
@@ -296,18 +315,22 @@ describe("LabelingService", () => {
 
   describe("getFieldSchema", () => {
     it("should return field schema for a project", async () => {
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
 
       const result = await service.getFieldSchema("project-1");
 
-      expect(mockDbService.findLabelingProject).toHaveBeenCalledWith(
-        "project-1",
-      );
+      expect(
+        mockLabelingProjectDbService.findLabelingProject,
+      ).toHaveBeenCalledWith("project-1");
       expect(result).toEqual(mockProject.field_schema);
     });
 
     it("should throw NotFoundException when project not found", async () => {
-      mockDbService.findLabelingProject.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(service.getFieldSchema("non-existent")).rejects.toThrow(
         NotFoundException,
@@ -331,15 +354,21 @@ describe("LabelingService", () => {
         project_id: "project-1",
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
-      mockDbService.createFieldDefinition.mockResolvedValueOnce(newField);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
+      mockLabelingProjectDbService.createFieldDefinition.mockResolvedValueOnce(
+        newField,
+      );
 
       const result = await service.addField("project-1", dto);
 
-      expect(mockDbService.findLabelingProject).toHaveBeenCalledWith(
-        "project-1",
-      );
-      expect(mockDbService.createFieldDefinition).toHaveBeenCalledWith(
+      expect(
+        mockLabelingProjectDbService.findLabelingProject,
+      ).toHaveBeenCalledWith("project-1");
+      expect(
+        mockLabelingProjectDbService.createFieldDefinition,
+      ).toHaveBeenCalledWith(
         "project-1",
         expect.objectContaining({
           field_key: "total_amount",
@@ -350,7 +379,9 @@ describe("LabelingService", () => {
     });
 
     it("should throw NotFoundException when project not found", async () => {
-      mockDbService.findLabelingProject.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.addField("non-existent", {
@@ -366,7 +397,9 @@ describe("LabelingService", () => {
         field_type: FieldType.STRING,
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
 
       await expect(service.addField("project-1", dto)).rejects.toThrow(
         ConflictException,
@@ -385,19 +418,22 @@ describe("LabelingService", () => {
         field_format: "currency",
       };
 
-      mockDbService.updateFieldDefinition.mockResolvedValueOnce(updatedField);
+      mockLabelingProjectDbService.updateFieldDefinition.mockResolvedValueOnce(
+        updatedField,
+      );
 
       const result = await service.updateField("project-1", "field-1", dto);
 
-      expect(mockDbService.updateFieldDefinition).toHaveBeenCalledWith(
-        "field-1",
-        dto,
-      );
+      expect(
+        mockLabelingProjectDbService.updateFieldDefinition,
+      ).toHaveBeenCalledWith("field-1", dto);
       expect(result).toEqual(updatedField);
     });
 
     it("should throw NotFoundException when field not found", async () => {
-      mockDbService.updateFieldDefinition.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.updateFieldDefinition.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.updateField("project-1", "non-existent", {}),
@@ -407,18 +443,22 @@ describe("LabelingService", () => {
 
   describe("deleteField", () => {
     it("should delete a field", async () => {
-      mockDbService.deleteFieldDefinition.mockResolvedValueOnce(true);
+      mockLabelingProjectDbService.deleteFieldDefinition.mockResolvedValueOnce(
+        true,
+      );
 
       const result = await service.deleteField("project-1", "field-1");
 
-      expect(mockDbService.deleteFieldDefinition).toHaveBeenCalledWith(
-        "field-1",
-      );
+      expect(
+        mockLabelingProjectDbService.deleteFieldDefinition,
+      ).toHaveBeenCalledWith("field-1");
       expect(result).toEqual({ success: true, id: "field-1" });
     });
 
     it("should throw NotFoundException when field not found", async () => {
-      mockDbService.deleteFieldDefinition.mockResolvedValueOnce(false);
+      mockLabelingProjectDbService.deleteFieldDefinition.mockResolvedValueOnce(
+        false,
+      );
 
       await expect(
         service.deleteField("project-1", "non-existent"),
@@ -431,22 +471,28 @@ describe("LabelingService", () => {
   describe("getProjectDocuments", () => {
     it("should return documents for a project", async () => {
       const documents = [mockLabeledDocument];
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
+      mockLabelingProjectDbService.findAllLabeledDocuments.mockResolvedValueOnce(
+        documents,
+      );
 
       const result = await service.getProjectDocuments("project-1");
 
-      expect(mockDbService.findLabelingProject).toHaveBeenCalledWith(
-        "project-1",
-      );
-      expect(mockDbService.findLabeledDocuments).toHaveBeenCalledWith(
-        "project-1",
-      );
+      expect(
+        mockLabelingProjectDbService.findLabelingProject,
+      ).toHaveBeenCalledWith("project-1");
+      expect(
+        mockLabelingProjectDbService.findAllLabeledDocuments,
+      ).toHaveBeenCalledWith("project-1");
       expect(result).toEqual(documents);
     });
 
     it("should throw NotFoundException when project not found", async () => {
-      mockDbService.findLabelingProject.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(service.getProjectDocuments("non-existent")).rejects.toThrow(
         NotFoundException,
@@ -460,31 +506,34 @@ describe("LabelingService", () => {
         labelingDocumentId: "labeling-doc-1",
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
       mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
-      mockDbService.addDocumentToProject.mockResolvedValueOnce(
+      mockLabelingProjectDbService.createLabeledDocument.mockResolvedValueOnce(
         mockLabeledDocument,
       );
 
       const result = await service.addDocumentToProject("project-1", dto);
 
-      expect(mockDbService.findLabelingProject).toHaveBeenCalledWith(
-        "project-1",
-      );
+      expect(
+        mockLabelingProjectDbService.findLabelingProject,
+      ).toHaveBeenCalledWith("project-1");
       expect(
         mockLabelingDocumentDbService.findLabelingDocument,
       ).toHaveBeenCalledWith("labeling-doc-1");
-      expect(mockDbService.addDocumentToProject).toHaveBeenCalledWith(
-        "project-1",
-        "labeling-doc-1",
-      );
+      expect(
+        mockLabelingProjectDbService.createLabeledDocument,
+      ).toHaveBeenCalledWith("project-1", "labeling-doc-1");
       expect(result).toEqual(mockLabeledDocument);
     });
 
     it("should throw NotFoundException when project not found", async () => {
-      mockDbService.findLabelingProject.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.addDocumentToProject("non-existent", {
@@ -494,7 +543,9 @@ describe("LabelingService", () => {
     });
 
     it("should throw NotFoundException when labeling document not found", async () => {
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
       mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
         null,
       );
@@ -509,7 +560,7 @@ describe("LabelingService", () => {
 
   describe("getProjectDocument", () => {
     it("should return a specific document from project", async () => {
-      mockDbService.findLabeledDocument.mockResolvedValueOnce(
+      mockLabelingProjectDbService.findLabeledDocument.mockResolvedValueOnce(
         mockLabeledDocument,
       );
 
@@ -518,15 +569,16 @@ describe("LabelingService", () => {
         "labeled-doc-1",
       );
 
-      expect(mockDbService.findLabeledDocument).toHaveBeenCalledWith(
-        "project-1",
-        "labeled-doc-1",
-      );
+      expect(
+        mockLabelingProjectDbService.findLabeledDocument,
+      ).toHaveBeenCalledWith("project-1", "labeled-doc-1");
       expect(result).toEqual(mockLabeledDocument);
     });
 
     it("should throw NotFoundException when document not found", async () => {
-      mockDbService.findLabeledDocument.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.findLabeledDocument.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.getProjectDocument("project-1", "non-existent"),
@@ -536,22 +588,25 @@ describe("LabelingService", () => {
 
   describe("removeDocumentFromProject", () => {
     it("should remove a document from project", async () => {
-      mockDbService.removeDocumentFromProject.mockResolvedValueOnce(true);
+      mockLabelingProjectDbService.deleteLabeledDocument.mockResolvedValueOnce(
+        true,
+      );
 
       const result = await service.removeDocumentFromProject(
         "project-1",
         "labeled-doc-1",
       );
 
-      expect(mockDbService.removeDocumentFromProject).toHaveBeenCalledWith(
-        "project-1",
-        "labeled-doc-1",
-      );
+      expect(
+        mockLabelingProjectDbService.deleteLabeledDocument,
+      ).toHaveBeenCalledWith("project-1", "labeled-doc-1");
       expect(result).toEqual({ success: true, documentId: "labeled-doc-1" });
     });
 
     it("should throw NotFoundException when document not found", async () => {
-      mockDbService.removeDocumentFromProject.mockResolvedValueOnce(false);
+      mockLabelingProjectDbService.deleteLabeledDocument.mockResolvedValueOnce(
+        false,
+      );
 
       await expect(
         service.removeDocumentFromProject("project-1", "non-existent"),
@@ -563,7 +618,7 @@ describe("LabelingService", () => {
 
   describe("getDocumentLabels", () => {
     it("should return labels for a document", async () => {
-      mockDbService.findLabeledDocument.mockResolvedValueOnce(
+      mockLabelingProjectDbService.findLabeledDocument.mockResolvedValueOnce(
         mockLabeledDocument,
       );
 
@@ -572,15 +627,16 @@ describe("LabelingService", () => {
         "labeled-doc-1",
       );
 
-      expect(mockDbService.findLabeledDocument).toHaveBeenCalledWith(
-        "project-1",
-        "labeled-doc-1",
-      );
+      expect(
+        mockLabelingProjectDbService.findLabeledDocument,
+      ).toHaveBeenCalledWith("project-1", "labeled-doc-1");
       expect(result).toEqual(mockLabeledDocument.labels);
     });
 
     it("should throw NotFoundException when document not found", async () => {
-      mockDbService.findLabeledDocument.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.findLabeledDocument.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.getDocumentLabels("project-1", "non-existent"),
@@ -604,11 +660,13 @@ describe("LabelingService", () => {
         ],
       };
 
-      mockDbService.findLabeledDocument
+      mockLabelingProjectDbService.findLabeledDocument
         .mockResolvedValueOnce(mockLabeledDocument)
         .mockResolvedValueOnce(mockLabeledDocument);
-      mockDbService.saveDocumentLabels.mockResolvedValueOnce(undefined);
-      mockDbService.updateLabeledDocumentStatus.mockResolvedValueOnce(
+      mockLabelingProjectDbService.upsertDocumentLabels.mockResolvedValueOnce(
+        undefined,
+      );
+      mockLabelingProjectDbService.updateLabeledDocument.mockResolvedValueOnce(
         undefined,
       );
 
@@ -618,7 +676,9 @@ describe("LabelingService", () => {
         dto,
       );
 
-      expect(mockDbService.saveDocumentLabels).toHaveBeenCalledWith(
+      expect(
+        mockLabelingProjectDbService.upsertDocumentLabels,
+      ).toHaveBeenCalledWith(
         "labeled-doc-1",
         expect.arrayContaining([
           expect.objectContaining({
@@ -627,10 +687,9 @@ describe("LabelingService", () => {
           }),
         ]),
       );
-      expect(mockDbService.updateLabeledDocumentStatus).toHaveBeenCalledWith(
-        "labeled-doc-1",
-        LabelingStatus.labeled,
-      );
+      expect(
+        mockLabelingProjectDbService.updateLabeledDocument,
+      ).toHaveBeenCalledWith("labeled-doc-1", LabelingStatus.labeled);
       expect(result).toEqual(mockLabeledDocument);
     });
 
@@ -639,24 +698,27 @@ describe("LabelingService", () => {
         labels: [],
       };
 
-      mockDbService.findLabeledDocument
+      mockLabelingProjectDbService.findLabeledDocument
         .mockResolvedValueOnce(mockLabeledDocument)
         .mockResolvedValueOnce(mockLabeledDocument);
-      mockDbService.saveDocumentLabels.mockResolvedValueOnce(undefined);
-      mockDbService.updateLabeledDocumentStatus.mockResolvedValueOnce(
+      mockLabelingProjectDbService.upsertDocumentLabels.mockResolvedValueOnce(
+        undefined,
+      );
+      mockLabelingProjectDbService.updateLabeledDocument.mockResolvedValueOnce(
         undefined,
       );
 
       await service.saveDocumentLabels("project-1", "labeled-doc-1", dto);
 
-      expect(mockDbService.updateLabeledDocumentStatus).toHaveBeenCalledWith(
-        "labeled-doc-1",
-        LabelingStatus.in_progress,
-      );
+      expect(
+        mockLabelingProjectDbService.updateLabeledDocument,
+      ).toHaveBeenCalledWith("labeled-doc-1", LabelingStatus.in_progress);
     });
 
     it("should throw NotFoundException when document not found", async () => {
-      mockDbService.findLabeledDocument.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.findLabeledDocument.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.saveDocumentLabels("project-1", "non-existent", {
@@ -668,7 +730,9 @@ describe("LabelingService", () => {
 
   describe("deleteLabel", () => {
     it("should delete a label", async () => {
-      mockDbService.deleteDocumentLabel.mockResolvedValueOnce(true);
+      mockLabelingProjectDbService.deleteDocumentLabel.mockResolvedValueOnce(
+        true,
+      );
 
       const result = await service.deleteLabel(
         "project-1",
@@ -676,12 +740,16 @@ describe("LabelingService", () => {
         "label-1",
       );
 
-      expect(mockDbService.deleteDocumentLabel).toHaveBeenCalledWith("label-1");
+      expect(
+        mockLabelingProjectDbService.deleteDocumentLabel,
+      ).toHaveBeenCalledWith("label-1");
       expect(result).toEqual({ success: true, id: "label-1" });
     });
 
     it("should throw NotFoundException when label not found", async () => {
-      mockDbService.deleteDocumentLabel.mockResolvedValueOnce(false);
+      mockLabelingProjectDbService.deleteDocumentLabel.mockResolvedValueOnce(
+        false,
+      );
 
       await expect(
         service.deleteLabel("project-1", "labeled-doc-1", "non-existent"),
@@ -693,21 +761,22 @@ describe("LabelingService", () => {
 
   describe("getDocumentOcr", () => {
     it("should return OCR result for a document", async () => {
-      mockDbService.findLabeledDocument.mockResolvedValueOnce(
+      mockLabelingProjectDbService.findLabeledDocument.mockResolvedValueOnce(
         mockLabeledDocument,
       );
 
       const result = await service.getDocumentOcr("project-1", "labeled-doc-1");
 
-      expect(mockDbService.findLabeledDocument).toHaveBeenCalledWith(
-        "project-1",
-        "labeled-doc-1",
-      );
+      expect(
+        mockLabelingProjectDbService.findLabeledDocument,
+      ).toHaveBeenCalledWith("project-1", "labeled-doc-1");
       expect(result).toEqual(mockLabelingDocument.ocr_result);
     });
 
     it("should throw NotFoundException when document not found", async () => {
-      mockDbService.findLabeledDocument.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.findLabeledDocument.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.getDocumentOcr("project-1", "non-existent"),
@@ -723,7 +792,7 @@ describe("LabelingService", () => {
         },
       };
 
-      mockDbService.findLabeledDocument.mockResolvedValueOnce(
+      mockLabelingProjectDbService.findLabeledDocument.mockResolvedValueOnce(
         docWithoutOcr as any,
       );
 
@@ -748,10 +817,12 @@ describe("LabelingService", () => {
         },
       ];
 
-      mockDbService.findLabeledDocument.mockResolvedValueOnce(
+      mockLabelingProjectDbService.findLabeledDocument.mockResolvedValueOnce(
         mockLabeledDocument,
       );
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
       mockSuggestionService.generateSuggestions.mockReturnValueOnce(
         suggestions as never,
       );
@@ -768,7 +839,9 @@ describe("LabelingService", () => {
     });
 
     it("should throw NotFoundException when document not found", async () => {
-      mockDbService.findLabeledDocument.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.findLabeledDocument.mockResolvedValueOnce(
+        null,
+      );
 
       const mockIdentity: ResolvedIdentity = { isSystemAdmin: true };
       await expect(
@@ -788,7 +861,9 @@ describe("LabelingService", () => {
           ocr_result: null,
         },
       } as unknown as LabeledDocumentData;
-      mockDbService.findLabeledDocument.mockResolvedValueOnce(noOcrDoc);
+      mockLabelingProjectDbService.findLabeledDocument.mockResolvedValueOnce(
+        noOcrDoc,
+      );
 
       const mockIdentity: ResolvedIdentity = { isSystemAdmin: true };
       await expect(
@@ -809,19 +884,21 @@ describe("LabelingService", () => {
         format: ExportFormat.AZURE,
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
-        mockLabeledDocument,
-      ]);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
+      mockLabelingProjectDbService.findAllLabeledDocuments.mockResolvedValueOnce(
+        [mockLabeledDocument],
+      );
 
       const result = await service.exportProject("project-1", dto);
 
-      expect(mockDbService.findLabelingProject).toHaveBeenCalledWith(
-        "project-1",
-      );
-      expect(mockDbService.findLabeledDocuments).toHaveBeenCalledWith(
-        "project-1",
-      );
+      expect(
+        mockLabelingProjectDbService.findLabelingProject,
+      ).toHaveBeenCalledWith("project-1");
+      expect(
+        mockLabelingProjectDbService.findAllLabeledDocuments,
+      ).toHaveBeenCalledWith("project-1");
       expect(result).toHaveProperty("fieldsJson");
       expect(result).toHaveProperty("labelsFiles");
       expect(result).toHaveProperty("projectName", "Test Project");
@@ -832,10 +909,12 @@ describe("LabelingService", () => {
         format: ExportFormat.JSON,
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
-        mockLabeledDocument,
-      ]);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
+      mockLabelingProjectDbService.findAllLabeledDocuments.mockResolvedValueOnce(
+        [mockLabeledDocument],
+      );
 
       const result = await service.exportProject("project-1", dto);
 
@@ -851,17 +930,21 @@ describe("LabelingService", () => {
         documentIds: ["labeling-doc-1"],
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
-        mockLabeledDocument,
-        {
-          ...mockLabeledDocument,
-          labeling_document: {
-            ...mockLabelingDocument,
-            id: "other-doc",
-          },
-        } as any,
-      ]);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
+      mockLabelingProjectDbService.findAllLabeledDocuments.mockResolvedValueOnce(
+        [
+          mockLabeledDocument,
+          {
+            ...mockLabeledDocument,
+            labeling_document: {
+              ...mockLabelingDocument,
+              id: "other-doc",
+            },
+          } as any,
+        ],
+      );
 
       const result = await service.exportProject("project-1", dto);
 
@@ -880,11 +963,12 @@ describe("LabelingService", () => {
         status: LabelingStatus.labeled,
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
-        labeledDoc,
-        mockLabeledDocument,
-      ]);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
+      mockLabelingProjectDbService.findAllLabeledDocuments.mockResolvedValueOnce(
+        [labeledDoc, mockLabeledDocument],
+      );
 
       const result = await service.exportProject("project-1", dto);
 
@@ -893,7 +977,9 @@ describe("LabelingService", () => {
     });
 
     it("should throw NotFoundException when project not found", async () => {
-      mockDbService.findLabelingProject.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.exportProject("non-existent", {
@@ -924,12 +1010,12 @@ describe("LabelingService", () => {
         format: ExportFormat.AZURE,
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
         projectWithDateField,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
-        mockLabeledDocument,
-      ]);
+      mockLabelingProjectDbService.findAllLabeledDocuments.mockResolvedValueOnce(
+        [mockLabeledDocument],
+      );
 
       const result = await service.exportProject("project-1", dto);
 
@@ -983,12 +1069,12 @@ describe("LabelingService", () => {
         format: ExportFormat.AZURE,
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
         projectWithCheckbox,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
-        docWithCheckbox,
-      ]);
+      mockLabelingProjectDbService.findAllLabeledDocuments.mockResolvedValueOnce(
+        [docWithCheckbox],
+      );
 
       const result = await service.exportProject("project-1", dto);
 
@@ -1008,11 +1094,13 @@ describe("LabelingService", () => {
         group_id: "group-1",
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(mockProject);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        mockProject,
+      );
       mockOcrService.createLabelingDocument.mockResolvedValueOnce(
         mockLabelingDocument as any,
       );
-      mockDbService.addDocumentToProject.mockResolvedValueOnce(
+      mockLabelingProjectDbService.createLabeledDocument.mockResolvedValueOnce(
         mockLabeledDocument,
       );
       mockOcrService.processOcrForLabelingDocument.mockResolvedValueOnce(
@@ -1021,14 +1109,13 @@ describe("LabelingService", () => {
 
       const result = await service.uploadLabelingDocument("project-1", dto);
 
-      expect(mockDbService.findLabelingProject).toHaveBeenCalledWith(
-        "project-1",
-      );
+      expect(
+        mockLabelingProjectDbService.findLabelingProject,
+      ).toHaveBeenCalledWith("project-1");
       expect(mockOcrService.createLabelingDocument).toHaveBeenCalledWith(dto);
-      expect(mockDbService.addDocumentToProject).toHaveBeenCalledWith(
-        "project-1",
-        "labeling-doc-1",
-      );
+      expect(
+        mockLabelingProjectDbService.createLabeledDocument,
+      ).toHaveBeenCalledWith("project-1", "labeling-doc-1");
       expect(mockOcrService.processOcrForLabelingDocument).toHaveBeenCalledWith(
         "labeling-doc-1",
       );
@@ -1039,7 +1126,9 @@ describe("LabelingService", () => {
     });
 
     it("should throw NotFoundException when project not found", async () => {
-      mockDbService.findLabelingProject.mockResolvedValueOnce(null);
+      mockLabelingProjectDbService.findLabelingProject.mockResolvedValueOnce(
+        null,
+      );
 
       await expect(
         service.uploadLabelingDocument("non-existent", {

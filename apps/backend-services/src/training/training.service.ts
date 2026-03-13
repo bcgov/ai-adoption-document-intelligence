@@ -106,12 +106,9 @@ export class TrainingService {
    * Validate that a project is ready for training
    */
   async validateTrainingData(projectId: string): Promise<ValidationResultDto> {
-    const project = await this.db.findLabelingProject(projectId);
-    if (!project) {
-      throw new NotFoundException(`Project with id ${projectId} not found`);
-    }
+    const project = await this.labelingService.getProject(projectId);
 
-    const documents = await this.db.findLabeledDocuments(projectId);
+    const documents = await this.labelingService.getProjectDocuments(projectId);
     const labeledDocuments = documents.filter(
       (d) => d.status === LabelingStatus.labeled,
     );
@@ -178,7 +175,7 @@ export class TrainingService {
     });
 
     // Add document images and their labels/OCR files
-    const documents = await this.db.findLabeledDocuments(projectId);
+    const documents = await this.labelingService.getProjectDocuments(projectId);
     const labeledDocuments = documents.filter(
       (d) => d.status === LabelingStatus.labeled,
     );

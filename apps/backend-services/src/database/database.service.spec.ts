@@ -6,31 +6,11 @@ jest.mock("@generated/client", () => {
     completed_ocr: "completed_ocr",
     failed: "failed",
   };
-  const ProjectStatus = {
-    active: "active",
-    archived: "archived",
-  };
-  const LabelingStatus = {
-    unlabeled: "unlabeled",
-    in_progress: "in_progress",
-    labeled: "labeled",
-    verified: "verified",
-  };
   const ReviewStatus = {
     in_progress: "in_progress",
     approved: "approved",
     escalated: "escalated",
     skipped: "skipped",
-  };
-  const FieldType = {
-    string: "string",
-    number: "number",
-    date: "date",
-    boolean: "boolean",
-  };
-  const TableType = {
-    fixed: "fixed",
-    dynamic: "dynamic",
   };
   const CorrectionAction = {
     corrected: "corrected",
@@ -39,11 +19,7 @@ jest.mock("@generated/client", () => {
   };
   return {
     DocumentStatus,
-    ProjectStatus,
-    LabelingStatus,
     ReviewStatus,
-    FieldType,
-    TableType,
     CorrectionAction,
     PrismaClient: jest.fn().mockImplementation(() => ({
       document: {
@@ -51,41 +27,11 @@ jest.mock("@generated/client", () => {
         findUnique: jest.fn(),
         findMany: jest.fn(),
         update: jest.fn(),
+        delete: jest.fn(),
       },
       ocrResult: {
         findFirst: jest.fn(),
         upsert: jest.fn(),
-      },
-      labelingDocument: {
-        create: jest.fn(),
-        findUnique: jest.fn(),
-        update: jest.fn(),
-      },
-      labelingProject: {
-        create: jest.fn(),
-        findUnique: jest.fn(),
-        findMany: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-      },
-      fieldDefinition: {
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-        aggregate: jest.fn(),
-      },
-      labeledDocument: {
-        create: jest.fn(),
-        findUnique: jest.fn(),
-        findMany: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-      },
-      documentLabel: {
-        create: jest.fn(),
-        findMany: jest.fn(),
-        deleteMany: jest.fn(),
-        delete: jest.fn(),
       },
       reviewSession: {
         create: jest.fn(),
@@ -110,20 +56,15 @@ jest.mock("@generated/client", () => {
 import {
   CorrectionAction,
   DocumentStatus,
-  FieldType,
-  LabelingStatus,
   OcrResult,
-  ProjectStatus,
   ReviewStatus,
 } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { JsonValue } from "@prisma/client/runtime/client";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
 import { DatabaseService } from "./database.service";
-import { LabelingProjectDbService } from "./labeling-project-db.service";
 import { PrismaService } from "./prisma.service";
 import { ReviewDbService } from "./review-db.service";
 
@@ -183,67 +124,6 @@ const analysisResponse: AnalysisResponse = {
   createdDateTime: Date.now().toString(),
 };
 
-const defaultLabelingDocument = {
-  id: "labeling-doc-1",
-  title: "Test Labeling Doc",
-  original_filename: "label-file.pdf",
-  file_path: "/tmp/label-file.pdf",
-  file_type: "pdf",
-  file_size: 456,
-  metadata: {},
-  source: "upload",
-  status: DocumentStatus.completed_ocr,
-  created_at: new Date(),
-  updated_at: new Date(),
-  apim_request_id: "req-123",
-  model_id: "model-1",
-  ocr_result: {},
-};
-
-const defaultLabelingProject = {
-  id: "project-1",
-  name: "Test Project",
-  description: "Test description",
-  status: ProjectStatus.active,
-  created_by: "user-1",
-  created_at: new Date(),
-  updated_at: new Date(),
-  field_schema: [],
-};
-
-const defaultFieldDefinition = {
-  id: "field-1",
-  project_id: "project-1",
-  field_key: "invoice_number",
-  field_type: FieldType.string,
-  field_format: null,
-  display_order: 0,
-  created_at: new Date(),
-  updated_at: new Date(),
-};
-
-const defaultLabeledDocument = {
-  id: "labeled-doc-1",
-  project_id: "project-1",
-  labeling_document_id: "labeling-doc-1",
-  status: LabelingStatus.unlabeled,
-  created_at: new Date(),
-  updated_at: new Date(),
-  labeling_document: defaultLabelingDocument,
-  labels: [],
-};
-
-const defaultDocumentLabel = {
-  id: "label-1",
-  labeled_doc_id: "labeled-doc-1",
-  field_key: "invoice_number",
-  label_name: "Invoice Number",
-  value: "INV-12345",
-  page_number: 1,
-  bounding_box: { x: 0, y: 0, width: 100, height: 20 },
-  created_at: new Date(),
-};
-
 const defaultReviewSession = {
   id: "session-1",
   document_id: "doc-1",
@@ -278,7 +158,6 @@ describe("DatabaseService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PrismaService,
-        LabelingProjectDbService,
         ReviewDbService,
         DatabaseService,
         { provide: AppLoggerService, useValue: mockAppLogger },
@@ -453,492 +332,6 @@ describe("DatabaseService", () => {
       expect(
         service.upsertOcrResult({ documentId: "123", analysisResponse }),
       ).rejects.toThrow("oops");
-    });
-  });
-
-  describe("createLabelingProject", () => {
-    it("should create a labeling project", async () => {
-      mockPrisma.labelingProject.create.mockResolvedValueOnce(
-        defaultLabelingProject,
-      );
-      const result = await service.createLabelingProject({
-        name: "Test Project",
-        description: "Test description",
-        created_by: "user-1",
-        group_id: "group-1",
-      });
-      expect(result).toEqual(defaultLabelingProject);
-      expect(mockPrisma.labelingProject.create).toHaveBeenCalledWith({
-        data: {
-          name: "Test Project",
-          description: "Test description",
-          created_by: "user-1",
-          group_id: "group-1",
-          status: ProjectStatus.active,
-        },
-        include: {
-          field_schema: { orderBy: { display_order: "asc" } },
-        },
-      });
-    });
-  });
-
-  describe("findLabelingProject", () => {
-    it("should return a labeling project by id", async () => {
-      const projectWithDocs = {
-        ...defaultLabelingProject,
-        documents: [defaultLabeledDocument],
-      };
-      mockPrisma.labelingProject.findUnique.mockResolvedValueOnce(
-        projectWithDocs,
-      );
-      const result = await service.findLabelingProject("project-1");
-      expect(result).toEqual(projectWithDocs);
-      expect(mockPrisma.labelingProject.findUnique).toHaveBeenCalledWith({
-        where: { id: "project-1" },
-        include: {
-          field_schema: { orderBy: { display_order: "asc" } },
-          documents: {
-            include: {
-              labeling_document: true,
-              labels: true,
-            },
-          },
-        },
-      });
-    });
-
-    it("should return null if project not found", async () => {
-      mockPrisma.labelingProject.findUnique.mockResolvedValueOnce(null);
-      const result = await service.findLabelingProject("not-found");
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("findAllLabelingProjects", () => {
-    it("should return all labeling projects", async () => {
-      mockPrisma.labelingProject.findMany.mockResolvedValueOnce([
-        defaultLabelingProject,
-      ]);
-      const result = await service.findAllLabelingProjects();
-      expect(result).toEqual([defaultLabelingProject]);
-      expect(mockPrisma.labelingProject.findMany).toHaveBeenCalledWith({
-        where: undefined,
-        orderBy: { updated_at: "desc" },
-        include: {
-          field_schema: { orderBy: { display_order: "asc" } },
-          _count: { select: { documents: true } },
-        },
-      });
-    });
-
-    it("should filter by groupIds when provided", async () => {
-      mockPrisma.labelingProject.findMany.mockResolvedValueOnce([
-        defaultLabelingProject,
-      ]);
-      const result = await service.findAllLabelingProjects(["group-1"]);
-      expect(result).toEqual([defaultLabelingProject]);
-      expect(mockPrisma.labelingProject.findMany).toHaveBeenCalledWith({
-        where: { group_id: { in: ["group-1"] } },
-        orderBy: { updated_at: "desc" },
-        include: {
-          field_schema: { orderBy: { display_order: "asc" } },
-          _count: { select: { documents: true } },
-        },
-      });
-    });
-  });
-
-  describe("updateLabelingProject", () => {
-    it("should update a labeling project", async () => {
-      const updatedProject = {
-        ...defaultLabelingProject,
-        name: "Updated Project",
-      };
-      mockPrisma.labelingProject.update.mockResolvedValueOnce(updatedProject);
-      const result = await service.updateLabelingProject("project-1", {
-        name: "Updated Project",
-      });
-      expect(result).toEqual(updatedProject);
-      expect(mockPrisma.labelingProject.update).toHaveBeenCalledWith({
-        where: { id: "project-1" },
-        data: { name: "Updated Project" },
-        include: {
-          field_schema: { orderBy: { display_order: "asc" } },
-        },
-      });
-    });
-
-    it("should return null when project not found (P2025 error)", async () => {
-      mockPrisma.labelingProject.update.mockImplementationOnce(() => {
-        throw { code: "P2025" };
-      });
-      const result = await service.updateLabelingProject("not-found", {
-        name: "Updated",
-      });
-      expect(result).toBeNull();
-    });
-
-    it("should re-throw non-P2025 errors", async () => {
-      mockPrisma.labelingProject.update.mockImplementationOnce(() => {
-        throw new Error("Database error");
-      });
-      await expect(
-        service.updateLabelingProject("project-1", { name: "Updated" }),
-      ).rejects.toThrow("Database error");
-    });
-  });
-
-  describe("deleteLabelingProject", () => {
-    it("should delete a labeling project and return true", async () => {
-      mockPrisma.labelingProject.delete.mockResolvedValueOnce(
-        defaultLabelingProject,
-      );
-      const result = await service.deleteLabelingProject("project-1");
-      expect(result).toBe(true);
-      expect(mockPrisma.labelingProject.delete).toHaveBeenCalledWith({
-        where: { id: "project-1" },
-      });
-    });
-
-    it("should return false when project not found (P2025 error)", async () => {
-      mockPrisma.labelingProject.delete.mockImplementationOnce(() => {
-        throw { code: "P2025" };
-      });
-      const result = await service.deleteLabelingProject("not-found");
-      expect(result).toBe(false);
-    });
-
-    it("should re-throw non-P2025 errors", async () => {
-      mockPrisma.labelingProject.delete.mockImplementationOnce(() => {
-        throw new Error("Database error");
-      });
-      await expect(service.deleteLabelingProject("project-1")).rejects.toThrow(
-        "Database error",
-      );
-    });
-  });
-
-  describe("createFieldDefinition", () => {
-    it("should create a field definition with auto-incremented display_order", async () => {
-      mockPrisma.fieldDefinition.aggregate.mockResolvedValueOnce({
-        _max: { display_order: 2 },
-      });
-      mockPrisma.fieldDefinition.create.mockResolvedValueOnce(
-        defaultFieldDefinition,
-      );
-      const result = await service.createFieldDefinition("project-1", {
-        field_key: "invoice_number",
-        field_type: FieldType.string,
-      });
-      expect(result).toEqual(defaultFieldDefinition);
-      expect(mockPrisma.fieldDefinition.aggregate).toHaveBeenCalledWith({
-        where: { project_id: "project-1" },
-        _max: { display_order: true },
-      });
-      expect(mockPrisma.fieldDefinition.create).toHaveBeenCalledWith({
-        data: {
-          project_id: "project-1",
-          field_key: "invoice_number",
-          field_type: FieldType.string,
-          field_format: undefined,
-          display_order: 3,
-        },
-      });
-    });
-
-    it("should create a field definition with provided display_order", async () => {
-      mockPrisma.fieldDefinition.create.mockResolvedValueOnce(
-        defaultFieldDefinition,
-      );
-      const result = await service.createFieldDefinition("project-1", {
-        field_key: "invoice_number",
-        field_type: FieldType.string,
-        display_order: 5,
-      });
-      expect(result).toEqual(defaultFieldDefinition);
-      expect(mockPrisma.fieldDefinition.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          display_order: 5,
-        }),
-      });
-    });
-
-    it("should handle first field creation (no existing fields)", async () => {
-      mockPrisma.fieldDefinition.aggregate.mockResolvedValueOnce({
-        _max: { display_order: null },
-      });
-      mockPrisma.fieldDefinition.create.mockResolvedValueOnce(
-        defaultFieldDefinition,
-      );
-      const result = await service.createFieldDefinition("project-1", {
-        field_key: "invoice_number",
-        field_type: FieldType.string,
-      });
-      expect(result).toEqual(defaultFieldDefinition);
-      expect(mockPrisma.fieldDefinition.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          display_order: 0,
-        }),
-      });
-    });
-  });
-
-  describe("updateFieldDefinition", () => {
-    it("should update a field definition", async () => {
-      const updatedField = {
-        ...defaultFieldDefinition,
-        field_format: "MM/DD/YYYY",
-      };
-      mockPrisma.fieldDefinition.update.mockResolvedValueOnce(updatedField);
-      const result = await service.updateFieldDefinition("field-1", {
-        field_format: "MM/DD/YYYY",
-      });
-      expect(result).toEqual(updatedField);
-      expect(mockPrisma.fieldDefinition.update).toHaveBeenCalledWith({
-        where: { id: "field-1" },
-        data: {
-          field_format: "MM/DD/YYYY",
-        },
-      });
-    });
-
-    it("should return null when field not found (P2025 error)", async () => {
-      mockPrisma.fieldDefinition.update.mockImplementationOnce(() => {
-        throw { code: "P2025" };
-      });
-      const result = await service.updateFieldDefinition("not-found", {
-        field_format: "MM/DD/YYYY",
-      });
-      expect(result).toBeNull();
-    });
-
-    it("should re-throw non-P2025 errors", async () => {
-      mockPrisma.fieldDefinition.update.mockImplementationOnce(() => {
-        throw new Error("Database error");
-      });
-      await expect(
-        service.updateFieldDefinition("field-1", {
-          field_format: "MM/DD/YYYY",
-        }),
-      ).rejects.toThrow("Database error");
-    });
-  });
-
-  describe("deleteFieldDefinition", () => {
-    it("should delete a field definition and return true", async () => {
-      mockPrisma.fieldDefinition.delete.mockResolvedValueOnce(
-        defaultFieldDefinition,
-      );
-      const result = await service.deleteFieldDefinition("field-1");
-      expect(result).toBe(true);
-      expect(mockPrisma.fieldDefinition.delete).toHaveBeenCalledWith({
-        where: { id: "field-1" },
-      });
-    });
-
-    it("should return false when field not found (P2025 error)", async () => {
-      mockPrisma.fieldDefinition.delete.mockImplementationOnce(() => {
-        throw { code: "P2025" };
-      });
-      const result = await service.deleteFieldDefinition("not-found");
-      expect(result).toBe(false);
-    });
-
-    it("should re-throw non-P2025 errors", async () => {
-      mockPrisma.fieldDefinition.delete.mockImplementationOnce(() => {
-        throw new Error("Database error");
-      });
-      await expect(service.deleteFieldDefinition("field-1")).rejects.toThrow(
-        "Database error",
-      );
-    });
-  });
-
-  describe("addDocumentToProject", () => {
-    it("should add a document to a project", async () => {
-      mockPrisma.labeledDocument.create.mockResolvedValueOnce(
-        defaultLabeledDocument,
-      );
-      const result = await service.addDocumentToProject(
-        "project-1",
-        "labeling-doc-1",
-      );
-      expect(result).toEqual(defaultLabeledDocument);
-      expect(mockPrisma.labeledDocument.create).toHaveBeenCalledWith({
-        data: {
-          project_id: "project-1",
-          labeling_document_id: "labeling-doc-1",
-          status: LabelingStatus.unlabeled,
-        },
-        include: {
-          labeling_document: true,
-          labels: true,
-        },
-      });
-    });
-  });
-
-  describe("findLabeledDocument", () => {
-    it("should find a labeled document", async () => {
-      mockPrisma.labeledDocument.findUnique.mockResolvedValueOnce(
-        defaultLabeledDocument,
-      );
-      const result = await service.findLabeledDocument(
-        "project-1",
-        "labeling-doc-1",
-      );
-      expect(result).toEqual(defaultLabeledDocument);
-      expect(mockPrisma.labeledDocument.findUnique).toHaveBeenCalledWith({
-        where: {
-          project_id_labeling_document_id: {
-            project_id: "project-1",
-            labeling_document_id: "labeling-doc-1",
-          },
-        },
-        include: {
-          labeling_document: true,
-          labels: true,
-        },
-      });
-    });
-
-    it("should return null if labeled document not found", async () => {
-      mockPrisma.labeledDocument.findUnique.mockResolvedValueOnce(null);
-      const result = await service.findLabeledDocument(
-        "project-1",
-        "not-found",
-      );
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("findLabeledDocuments", () => {
-    it("should find all labeled documents for a project", async () => {
-      mockPrisma.labeledDocument.findMany.mockResolvedValueOnce([
-        defaultLabeledDocument,
-      ]);
-      const result = await service.findLabeledDocuments("project-1");
-      expect(result).toEqual([defaultLabeledDocument]);
-      expect(mockPrisma.labeledDocument.findMany).toHaveBeenCalledWith({
-        where: { project_id: "project-1" },
-        orderBy: { created_at: "desc" },
-        include: {
-          labeling_document: true,
-          labels: true,
-        },
-      });
-    });
-  });
-
-  describe("removeDocumentFromProject", () => {
-    it("should remove a document from a project and return true", async () => {
-      mockPrisma.labeledDocument.delete.mockResolvedValueOnce(
-        defaultLabeledDocument,
-      );
-      const result = await service.removeDocumentFromProject(
-        "project-1",
-        "labeling-doc-1",
-      );
-      expect(result).toBe(true);
-      expect(mockPrisma.labeledDocument.delete).toHaveBeenCalledWith({
-        where: {
-          project_id_labeling_document_id: {
-            project_id: "project-1",
-            labeling_document_id: "labeling-doc-1",
-          },
-        },
-      });
-    });
-
-    it("should return false when document not found (P2025 error)", async () => {
-      mockPrisma.labeledDocument.delete.mockImplementationOnce(() => {
-        throw { code: "P2025" };
-      });
-      const result = await service.removeDocumentFromProject(
-        "project-1",
-        "not-found",
-      );
-      expect(result).toBe(false);
-    });
-
-    it("should re-throw non-P2025 errors", async () => {
-      mockPrisma.labeledDocument.delete.mockImplementationOnce(() => {
-        throw new Error("Database error");
-      });
-      await expect(
-        service.removeDocumentFromProject("project-1", "labeling-doc-1"),
-      ).rejects.toThrow("Database error");
-    });
-  });
-
-  describe("updateLabeledDocumentStatus", () => {
-    it("should update the status of a labeled document", async () => {
-      mockPrisma.labeledDocument.update.mockResolvedValueOnce({
-        ...defaultLabeledDocument,
-        status: LabelingStatus.labeled,
-      });
-      await service.updateLabeledDocumentStatus(
-        "labeled-doc-1",
-        LabelingStatus.labeled,
-      );
-      expect(mockPrisma.labeledDocument.update).toHaveBeenCalledWith({
-        where: { id: "labeled-doc-1" },
-        data: { status: LabelingStatus.labeled },
-      });
-    });
-  });
-
-  describe("saveDocumentLabels", () => {
-    it("should delete existing labels and create new ones", async () => {
-      const labels = [
-        {
-          field_key: "invoice_number",
-          label_name: "Invoice Number",
-          value: "INV-12345",
-          page_number: 1,
-          bounding_box: { x: 0, y: 0, width: 100, height: 20 },
-        },
-      ];
-      mockPrisma.documentLabel.findMany.mockResolvedValueOnce([
-        defaultDocumentLabel,
-      ]);
-      const result = await service.saveDocumentLabels("labeled-doc-1", labels);
-      expect(result).toEqual([defaultDocumentLabel]);
-      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
-      expect(mockPrisma.documentLabel.findMany).toHaveBeenCalledWith({
-        where: { labeled_doc_id: "labeled-doc-1" },
-      });
-    });
-  });
-
-  describe("deleteDocumentLabel", () => {
-    it("should delete a document label and return true", async () => {
-      mockPrisma.documentLabel.delete.mockResolvedValueOnce(
-        defaultDocumentLabel,
-      );
-      const result = await service.deleteDocumentLabel("label-1");
-      expect(result).toBe(true);
-      expect(mockPrisma.documentLabel.delete).toHaveBeenCalledWith({
-        where: { id: "label-1" },
-      });
-    });
-
-    it("should return false when label not found (P2025 error)", async () => {
-      mockPrisma.documentLabel.delete.mockImplementationOnce(() => {
-        throw { code: "P2025" };
-      });
-      const result = await service.deleteDocumentLabel("not-found");
-      expect(result).toBe(false);
-    });
-
-    it("should re-throw non-P2025 errors", async () => {
-      mockPrisma.documentLabel.delete.mockImplementationOnce(() => {
-        throw new Error("Database error");
-      });
-      await expect(service.deleteDocumentLabel("label-1")).rejects.toThrow(
-        "Database error",
-      );
     });
   });
 

@@ -1,11 +1,8 @@
 import type {
   CorrectionAction,
   DocumentStatus,
-  FieldType,
-  LabelingStatus,
   OcrResult,
   Prisma,
-  ProjectStatus,
   ReviewStatus,
 } from "@generated/client";
 import { Injectable } from "@nestjs/common";
@@ -14,24 +11,11 @@ import {
   ClassifierStatus,
 } from "@/azure/dto/classifier-constants.dto";
 import type { AnalysisResponse } from "@/ocr/azure-types";
-import type {
-  DocumentData,
-  LabeledDocumentData,
-  LabelingDocumentData,
-  LabelingProjectData,
-  ReviewSessionData,
-} from "./database.types";
-import { LabelingProjectDbService } from "./labeling-project-db.service";
+import type { DocumentData, ReviewSessionData } from "./database.types";
 import { PrismaService } from "./prisma.service";
 import { ReviewDbService } from "./review-db.service";
 
-export type {
-  DocumentData,
-  LabeledDocumentData,
-  LabelingDocumentData,
-  LabelingProjectData,
-  ReviewSessionData,
-};
+export type { DocumentData, ReviewSessionData };
 
 export type ClassifierConfig = {
   labels: {
@@ -56,7 +40,6 @@ interface ClassifierEditableProperties {
 export class DatabaseService {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly labelingProjectDb: LabelingProjectDbService,
     private readonly reviewDb: ReviewDbService,
   ) {}
 
@@ -191,126 +174,6 @@ export class DatabaseService {
         ...updateObject,
       },
     });
-  }
-
-  async createLabelingProject(data: {
-    name: string;
-    description?: string;
-    created_by: string;
-    group_id: string;
-  }): Promise<LabelingProjectData> {
-    return this.labelingProjectDb.createLabelingProject(data);
-  }
-
-  async findLabelingProject(id: string): Promise<LabelingProjectData | null> {
-    return this.labelingProjectDb.findLabelingProject(id);
-  }
-
-  async findAllLabelingProjects(
-    groupIds?: string[],
-  ): Promise<LabelingProjectData[]> {
-    return this.labelingProjectDb.findAllLabelingProjects(groupIds);
-  }
-
-  async updateLabelingProject(
-    id: string,
-    data: {
-      name?: string;
-      description?: string;
-      status?: ProjectStatus;
-    },
-  ): Promise<LabelingProjectData | null> {
-    return this.labelingProjectDb.updateLabelingProject(id, data);
-  }
-
-  async deleteLabelingProject(id: string): Promise<boolean> {
-    return this.labelingProjectDb.deleteLabelingProject(id);
-  }
-
-  async createFieldDefinition(
-    projectId: string,
-    data: {
-      field_key: string;
-      field_type: FieldType;
-      field_format?: string;
-      display_order?: number;
-    },
-  ) {
-    return this.labelingProjectDb.createFieldDefinition(projectId, data);
-  }
-
-  async updateFieldDefinition(
-    id: string,
-    data: { field_format?: string; display_order?: number },
-  ) {
-    return this.labelingProjectDb.updateFieldDefinition(id, data);
-  }
-
-  async deleteFieldDefinition(id: string): Promise<boolean> {
-    return this.labelingProjectDb.deleteFieldDefinition(id);
-  }
-
-  async addDocumentToProject(
-    projectId: string,
-    labelingDocumentId: string,
-  ): Promise<LabeledDocumentData> {
-    return this.labelingProjectDb.addDocumentToProject(
-      projectId,
-      labelingDocumentId,
-    );
-  }
-
-  async findLabeledDocument(
-    projectId: string,
-    labelingDocumentId: string,
-  ): Promise<LabeledDocumentData | null> {
-    return this.labelingProjectDb.findLabeledDocument(
-      projectId,
-      labelingDocumentId,
-    );
-  }
-
-  async findLabeledDocuments(
-    projectId: string,
-  ): Promise<LabeledDocumentData[]> {
-    return this.labelingProjectDb.findLabeledDocuments(projectId);
-  }
-
-  async removeDocumentFromProject(
-    projectId: string,
-    labelingDocumentId: string,
-  ): Promise<boolean> {
-    return this.labelingProjectDb.removeDocumentFromProject(
-      projectId,
-      labelingDocumentId,
-    );
-  }
-
-  async updateLabeledDocumentStatus(
-    labeledDocId: string,
-    status: LabelingStatus,
-  ): Promise<void> {
-    return this.labelingProjectDb.updateLabeledDocumentStatus(
-      labeledDocId,
-      status,
-    );
-  }
-
-  async saveDocumentLabels(
-    labeledDocId: string,
-    labels: Array<{
-      field_key: string;
-      label_name: string;
-      value?: string;
-      page_number: number;
-      bounding_box: unknown;
-    }>,
-  ) {
-    return this.labelingProjectDb.saveDocumentLabels(labeledDocId, labels);
-  }
-
-  async deleteDocumentLabel(labelId: string): Promise<boolean> {
-    return this.labelingProjectDb.deleteDocumentLabel(labelId);
   }
 
   async createReviewSession(

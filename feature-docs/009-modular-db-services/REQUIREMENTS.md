@@ -114,7 +114,7 @@ All db-service methods must follow these naming conventions:
 
 ### R3 — labeling module: `LabelingProjectDbService`
 - Handles `LabelingProject`, `FieldDefinition`, `LabeledDocument`, and label-related models.
-- Provides: `createLabelingProject`, `findLabelingProject`, `findAllLabelingProjects`, `updateLabelingProject`, `deleteLabelingProject`, `createFieldDefinition`, `updateFieldDefinition`, `deleteFieldDefinition`, `addDocumentToProject`, `findLabeledDocument`, `findLabeledDocuments`, `removeDocumentFromProject`, `updateLabeledDocumentStatus`, `saveDocumentLabels`, `deleteDocumentLabel`.
+- Provides: `createLabelingProject`, `findLabelingProject`, `findAllLabelingProjects`, `updateLabelingProject`, `deleteLabelingProject`, `createFieldDefinition`, `updateFieldDefinition`, `deleteFieldDefinition`, `createLabeledDocument`, `findLabeledDocument`, `findAllLabeledDocuments`, `deleteLabeledDocument`, `updateLabeledDocument`, `upsertDocumentLabels`, `deleteDocumentLabel`.
 - Lives at: `apps/backend-services/src/labeling/labeling-project-db.service.ts`.
 - Registered as a provider in `LabelingModule`; **not** exported.
 - Types (`LabelingProjectData`, `LabeledDocumentData`) are defined in `apps/backend-services/src/labeling/labeling-project-db.types.ts`.

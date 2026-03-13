@@ -7,12 +7,12 @@ import {
   ProjectStatus,
 } from "@generated/client";
 import { Injectable } from "@nestjs/common";
+import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import type {
   LabeledDocumentData,
   LabelingProjectData,
-} from "./database.types";
-import { PrismaService } from "./prisma.service";
+} from "./labeling-project-db.types";
 
 type JsonValue = Prisma.JsonValue;
 
@@ -27,6 +27,12 @@ export class LabelingProjectDbService {
     return this.prismaService.prisma;
   }
 
+  /**
+   * Creates a new labeling project.
+   *
+   * @param data - The project creation data including name, optional description, creator ID, and group ID.
+   * @returns The created labeling project with its field schema.
+   */
   async createLabelingProject(data: {
     name: string;
     description?: string;
@@ -49,6 +55,12 @@ export class LabelingProjectDbService {
     return project as LabelingProjectData;
   }
 
+  /**
+   * Finds a labeling project by its ID, including field schema and documents.
+   *
+   * @param id - The project ID.
+   * @returns The labeling project with documents and labels, or null if not found.
+   */
   async findLabelingProject(id: string): Promise<LabelingProjectData | null> {
     this.logger.debug("Finding labeling project", { id });
     const project = await this.prisma.labelingProject.findUnique({
@@ -66,6 +78,12 @@ export class LabelingProjectDbService {
     return project as LabelingProjectData | null;
   }
 
+  /**
+   * Finds all labeling projects, optionally filtered by group IDs.
+   *
+   * @param groupIds - Optional list of group IDs to filter by.
+   * @returns An array of labeling projects with their field schemas.
+   */
   async findAllLabelingProjects(
     groupIds?: string[],
   ): Promise<LabelingProjectData[]> {
@@ -81,6 +99,13 @@ export class LabelingProjectDbService {
     return projects as LabelingProjectData[];
   }
 
+  /**
+   * Updates a labeling project by its ID.
+   *
+   * @param id - The project ID.
+   * @param data - The fields to update.
+   * @returns The updated project, or null if not found.
+   */
   async updateLabelingProject(
     id: string,
     data: { name?: string; description?: string; status?: ProjectStatus },
@@ -108,6 +133,12 @@ export class LabelingProjectDbService {
     }
   }
 
+  /**
+   * Deletes a labeling project by its ID.
+   *
+   * @param id - The project ID.
+   * @returns True if deleted, false if not found.
+   */
   async deleteLabelingProject(id: string): Promise<boolean> {
     this.logger.debug("Deleting labeling project", { id });
     try {
@@ -126,6 +157,13 @@ export class LabelingProjectDbService {
     }
   }
 
+  /**
+   * Creates a new field definition for a labeling project.
+   *
+   * @param projectId - The project ID to add the field to.
+   * @param data - The field definition data.
+   * @returns The created field definition.
+   */
   async createFieldDefinition(
     projectId: string,
     data: {
@@ -157,6 +195,13 @@ export class LabelingProjectDbService {
     });
   }
 
+  /**
+   * Updates an existing field definition.
+   *
+   * @param id - The field definition ID.
+   * @param data - The fields to update.
+   * @returns The updated field definition, or null if not found.
+   */
   async updateFieldDefinition(
     id: string,
     data: { field_format?: string; display_order?: number },
@@ -180,6 +225,12 @@ export class LabelingProjectDbService {
     }
   }
 
+  /**
+   * Deletes a field definition by its ID.
+   *
+   * @param id - The field definition ID.
+   * @returns True if deleted, false if not found.
+   */
   async deleteFieldDefinition(id: string): Promise<boolean> {
     this.logger.debug("Deleting field definition", { id });
     try {
@@ -198,7 +249,14 @@ export class LabelingProjectDbService {
     }
   }
 
-  async addDocumentToProject(
+  /**
+   * Adds a labeling document to a project by creating a labeled document record.
+   *
+   * @param projectId - The project ID.
+   * @param labelingDocumentId - The labeling document ID to add.
+   * @returns The created labeled document with its labeling document and labels.
+   */
+  async createLabeledDocument(
     projectId: string,
     labelingDocumentId: string,
   ): Promise<LabeledDocumentData> {
@@ -220,6 +278,13 @@ export class LabelingProjectDbService {
     return labeledDoc as LabeledDocumentData;
   }
 
+  /**
+   * Finds a specific labeled document within a project.
+   *
+   * @param projectId - The project ID.
+   * @param labelingDocumentId - The labeling document ID.
+   * @returns The labeled document with its labeling document and labels, or null if not found.
+   */
   async findLabeledDocument(
     projectId: string,
     labelingDocumentId: string,
@@ -243,7 +308,13 @@ export class LabelingProjectDbService {
     return labeledDoc as LabeledDocumentData | null;
   }
 
-  async findLabeledDocuments(
+  /**
+   * Finds all labeled documents belonging to a project.
+   *
+   * @param projectId - The project ID.
+   * @returns An array of labeled documents with their labeling documents and labels.
+   */
+  async findAllLabeledDocuments(
     projectId: string,
   ): Promise<LabeledDocumentData[]> {
     this.logger.debug("Finding labeled documents for project", { projectId });
@@ -258,7 +329,14 @@ export class LabelingProjectDbService {
     return docs as LabeledDocumentData[];
   }
 
-  async removeDocumentFromProject(
+  /**
+   * Removes a labeled document from a project.
+   *
+   * @param projectId - The project ID.
+   * @param labelingDocumentId - The labeling document ID.
+   * @returns True if removed, false if not found.
+   */
+  async deleteLabeledDocument(
     projectId: string,
     labelingDocumentId: string,
   ): Promise<boolean> {
@@ -289,7 +367,13 @@ export class LabelingProjectDbService {
     }
   }
 
-  async updateLabeledDocumentStatus(
+  /**
+   * Updates the labeling status of a labeled document.
+   *
+   * @param labeledDocId - The labeled document ID.
+   * @param status - The new labeling status.
+   */
+  async updateLabeledDocument(
     labeledDocId: string,
     status: LabelingStatus,
   ): Promise<void> {
@@ -300,7 +384,14 @@ export class LabelingProjectDbService {
     });
   }
 
-  async saveDocumentLabels(
+  /**
+   * Replaces all labels on a labeled document with the provided set.
+   *
+   * @param labeledDocId - The labeled document ID.
+   * @param labels - The new set of labels to persist.
+   * @returns The saved document labels.
+   */
+  async upsertDocumentLabels(
     labeledDocId: string,
     labels: Array<{
       field_key: string;
@@ -336,6 +427,12 @@ export class LabelingProjectDbService {
     });
   }
 
+  /**
+   * Deletes a single document label by its ID.
+   *
+   * @param labelId - The document label ID.
+   * @returns True if deleted, false if not found.
+   */
   async deleteDocumentLabel(labelId: string): Promise<boolean> {
     this.logger.debug("Deleting document label", { labelId });
     try {

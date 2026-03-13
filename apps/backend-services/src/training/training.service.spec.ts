@@ -34,11 +34,9 @@ import DocumentIntelligence, {
 
 describe("TrainingService", () => {
   let service: TrainingService;
-  let mockDbService: jest.Mocked<DatabaseService>;
   let mockBlobStorage: jest.Mocked<AzureStorageService>;
   let mockPrimaryBlobStorage: jest.Mocked<BlobStorageInterface>;
   let mockLabelingService: jest.Mocked<LabelingService>;
-  let _mockConfigService: jest.Mocked<ConfigService>;
   let mockAdminClient: any;
   let mockPrisma: any;
 
@@ -168,6 +166,8 @@ describe("TrainingService", () => {
 
     const mockLabeling = {
       exportProject: jest.fn(),
+      getProject: jest.fn(),
+      getProjectDocuments: jest.fn(),
     };
 
     const mockDeleteModel = jest.fn();
@@ -226,11 +226,9 @@ describe("TrainingService", () => {
     }).compile();
 
     service = module.get<TrainingService>(TrainingService);
-    mockDbService = module.get(DatabaseService);
     mockBlobStorage = module.get(AzureStorageService);
     mockPrimaryBlobStorage = module.get(BLOB_STORAGE);
     mockLabelingService = module.get(LabelingService);
-    _mockConfigService = module.get(ConfigService);
   });
 
   describe("constructor", () => {
@@ -270,10 +268,8 @@ describe("TrainingService", () => {
   describe("validateTrainingData", () => {
     it("should validate project successfully", async () => {
       const documents = Array(5).fill(mockLabeledDocument);
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
-      );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockLabelingService.getProject.mockResolvedValueOnce(mockProject as any);
+      mockLabelingService.getProjectDocuments.mockResolvedValueOnce(documents);
 
       const result = await service.validateTrainingData("project-1");
 
@@ -286,7 +282,9 @@ describe("TrainingService", () => {
     });
 
     it("should throw NotFoundException when project not found", async () => {
-      mockDbService.findLabelingProject.mockResolvedValueOnce(null);
+      mockLabelingService.getProject.mockRejectedValueOnce(
+        new NotFoundException("Project not found"),
+      );
 
       await expect(
         service.validateTrainingData("non-existent"),
@@ -295,10 +293,8 @@ describe("TrainingService", () => {
 
     it("should return issues for insufficient documents", async () => {
       const documents = Array(3).fill(mockLabeledDocument);
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
-      );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockLabelingService.getProject.mockResolvedValueOnce(mockProject as any);
+      mockLabelingService.getProjectDocuments.mockResolvedValueOnce(documents);
 
       const result = await service.validateTrainingData("project-1");
 
@@ -311,10 +307,10 @@ describe("TrainingService", () => {
     it("should return issues when no field schema", async () => {
       const projectNoSchema = { ...mockProject, field_schema: [] };
       const documents = Array(5).fill(mockLabeledDocument);
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
+      mockLabelingService.getProject.mockResolvedValueOnce(
         projectNoSchema as any,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockLabelingService.getProjectDocuments.mockResolvedValueOnce(documents);
 
       const result = await service.validateTrainingData("project-1");
 
@@ -327,10 +323,8 @@ describe("TrainingService", () => {
     it("should return issues when documents have no labels", async () => {
       const docWithoutLabels = { ...mockLabeledDocument, labels: [] };
       const documents = Array(5).fill(docWithoutLabels);
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
-      );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockLabelingService.getProject.mockResolvedValueOnce(mockProject as any);
+      mockLabelingService.getProjectDocuments.mockResolvedValueOnce(documents);
 
       const result = await service.validateTrainingData("project-1");
 
@@ -356,7 +350,7 @@ describe("TrainingService", () => {
       mockLabelingService.exportProject.mockResolvedValueOnce(
         exportResult as any,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
+      mockLabelingService.getProjectDocuments.mockResolvedValueOnce([
         mockLabeledDocument,
       ]);
 
@@ -395,7 +389,7 @@ describe("TrainingService", () => {
       mockLabelingService.exportProject.mockResolvedValueOnce(
         exportResult as any,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
+      mockLabelingService.getProjectDocuments.mockResolvedValueOnce([
         mockLabeledDocument,
       ]);
 
@@ -412,10 +406,8 @@ describe("TrainingService", () => {
         description: "Test model",
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
-      );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(
+      mockLabelingService.getProject.mockResolvedValueOnce(mockProject as any);
+      mockLabelingService.getProjectDocuments.mockResolvedValueOnce(
         Array(5).fill(mockLabeledDocument),
       );
       mockPrisma.trainedModel.findUnique.mockResolvedValueOnce(null);
@@ -436,10 +428,8 @@ describe("TrainingService", () => {
         description: "Test model",
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
-      );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
+      mockLabelingService.getProject.mockResolvedValueOnce(mockProject as any);
+      mockLabelingService.getProjectDocuments.mockResolvedValueOnce([
         mockLabeledDocument,
       ]);
 
@@ -464,10 +454,8 @@ describe("TrainingService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
-      );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(
+      mockLabelingService.getProject.mockResolvedValueOnce(mockProject as any);
+      mockLabelingService.getProjectDocuments.mockResolvedValueOnce(
         Array(5).fill(mockLabeledDocument),
       );
       mockPrisma.trainedModel.findUnique.mockResolvedValueOnce(
