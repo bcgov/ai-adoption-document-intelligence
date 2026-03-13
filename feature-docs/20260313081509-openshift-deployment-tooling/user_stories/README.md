@@ -41,7 +41,7 @@ After implementing the user story check it off at the bottom of this file
 
 ### Phase 1 — Foundation
 - [x] **US-001** (Service account setup — all scripts depend on the SA token)
-- [ ] **US-002** (Environment configuration files — deploy needs config)
+- [x] **US-002** (Environment configuration files — deploy needs config)
 - [ ] **US-003** (Instance name derivation — shared utility for all scripts)
 
 ### Phase 2 — Infrastructure
