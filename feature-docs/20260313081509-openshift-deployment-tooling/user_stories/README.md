@@ -49,7 +49,7 @@ After implementing the user story check it off at the bottom of this file
 - [x] **US-005** (GitHub Actions image build — deploy needs images to pull)
 
 ### Phase 3 — Core Deployment
-- [ ] **US-006** (Deploy script core flow — token validation, config loading, image build trigger)
+- [x] **US-006** (Deploy script core flow — token validation, config loading, image build trigger)
 - [ ] **US-007** (Deploy script overlay apply — Kustomize generation, migrations, access URLs)
 
 ### Phase 4 — Lifecycle Management
