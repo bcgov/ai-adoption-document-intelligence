@@ -41,9 +41,9 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService, DocumentData } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
+import { type DocumentData, DocumentService } from "./document.service";
 import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
 import { UpdateDocumentDto } from "./dto/update-document.dto";
@@ -52,7 +52,7 @@ import { UpdateDocumentDto } from "./dto/update-document.dto";
 @Controller("api/documents")
 export class DocumentController {
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly documentService: DocumentService,
     private readonly temporalClientService: TemporalClientService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
@@ -78,7 +78,7 @@ export class DocumentController {
     this.logger.debug(`=== DocumentController.getDocument ===`);
     this.logger.debug(`Document ID: ${documentId}`);
 
-    const document = await this.databaseService.findDocument(documentId);
+    const document = await this.documentService.findDocument(documentId);
     if (!document) {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
@@ -120,14 +120,14 @@ export class DocumentController {
     this.logger.debug(`=== DocumentController.updateDocument ===`);
     this.logger.debug(`Document ID: ${documentId}`);
 
-    const document = await this.databaseService.findDocument(documentId);
+    const document = await this.documentService.findDocument(documentId);
     if (!document) {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
     identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
-    const updated = await this.databaseService.updateDocument(documentId, {
+    const updated = await this.documentService.updateDocument(documentId, {
       ...(body.title !== undefined ? { title: body.title } : {}),
       ...(body.metadata !== undefined
         ? { metadata: body.metadata as Prisma.JsonValue }
@@ -156,21 +156,14 @@ export class DocumentController {
     this.logger.debug(`=== DocumentController.deleteDocument ===`);
     this.logger.debug(`Document ID: ${documentId}`);
 
-    const document = await this.databaseService.findDocument(documentId);
+    const document = await this.documentService.findDocument(documentId);
     if (!document) {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
     identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
-    await this.databaseService.deleteDocument(documentId);
-    try {
-      await this.blobStorage.delete(document.file_path);
-    } catch (error) {
-      this.logger.warn(
-        `Failed to delete blob for document ${documentId}: ${(error as Error).message}`,
-      );
-    }
+    await this.documentService.deleteDocument(documentId);
 
     this.logger.debug("=== DocumentController.deleteDocument completed ===");
   }
@@ -211,7 +204,7 @@ export class DocumentController {
     }
 
     try {
-      const documents = await this.databaseService.findAllDocuments(groupIds);
+      const documents = await this.documentService.findAllDocuments(groupIds);
 
       // Check workflow status for documents that have workflow_execution_id
       const documentsWithWorkflowStatus = await Promise.all(
@@ -240,7 +233,7 @@ export class DocumentController {
                 this.logger.warn(
                   `Document ${doc.id} workflow ended with status ${workflowStatus.status}, updating database`,
                 );
-                await this.databaseService.updateDocument(doc.id, {
+                await this.documentService.updateDocument(doc.id, {
                   status: DocumentStatus.failed,
                 });
                 return {
@@ -322,7 +315,7 @@ export class DocumentController {
 
     try {
       // First check if document exists and its status
-      const document = await this.databaseService.findDocument(documentId);
+      const document = await this.documentService.findDocument(documentId);
       if (!document) {
         this.logger.warn(`Document not found: ${documentId}`);
         throw new NotFoundException(`Document not found: ${documentId}`);
@@ -346,7 +339,7 @@ export class DocumentController {
         this.logger.debug(`APIM Request ID: ${document.apim_request_id}`);
       }
 
-      const ocrResult = await this.databaseService.findOcrResult(documentId);
+      const ocrResult = await this.documentService.findOcrResult(documentId);
 
       // Return consistent structure with document info and ocr_result
       const response = {
@@ -415,7 +408,7 @@ export class DocumentController {
 
     try {
       // Find the document
-      const document = await this.databaseService.findDocument(documentId);
+      const document = await this.documentService.findDocument(documentId);
       if (!document) {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
@@ -521,7 +514,7 @@ export class DocumentController {
       }
 
       // Find the document
-      const document = await this.databaseService.findDocument(documentId);
+      const document = await this.documentService.findDocument(documentId);
       if (!document) {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }

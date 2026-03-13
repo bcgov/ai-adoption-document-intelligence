@@ -5,37 +5,37 @@
 **So that** document-related database operations are colocated with their owning module and the `document` module is self-contained.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: DocumentDbService lives in the document module
+- [x] **Scenario 1**: DocumentDbService lives in the document module
     - **Given** the document module exists at `apps/backend-services/src/document/`
     - **When** the migration is complete
     - **Then** `DocumentDbService` exists at `apps/backend-services/src/document/document-db.service.ts` and is removed from the `database` module
 
-- [ ] **Scenario 2**: DocumentDbService only exposes the required methods
+- [x] **Scenario 2**: DocumentDbService only exposes the required methods
     - **Given** the new `DocumentDbService`
     - **When** reviewing its public API
     - **Then** it provides exactly: `createDocument`, `findDocument`, `findAllDocuments`, `updateDocument`, `deleteDocument`, `findOcrResult`, `upsertOcrResult`
 
-- [ ] **Scenario 3**: DocumentDbService injects PrismaService via private getter
+- [x] **Scenario 3**: DocumentDbService injects PrismaService via private getter
     - **Given** the new `DocumentDbService`
     - **When** reviewing how it accesses Prisma
     - **Then** it uses `private get prisma()` to access the injected `PrismaService` and does not expose the prisma client directly
 
-- [ ] **Scenario 4**: DocumentDbService is registered as a provider but not exported
+- [x] **Scenario 4**: DocumentDbService is registered as a provider but not exported
     - **Given** `DocumentModule`
     - **When** reviewing its `@Module` decorator
     - **Then** `DocumentDbService` is listed in `providers` and is NOT listed in `exports`
 
-- [ ] **Scenario 5**: DocumentService injects DocumentDbService
+- [x] **Scenario 5**: DocumentService injects DocumentDbService
     - **Given** `DocumentService`
     - **When** reviewing its constructor
     - **Then** it injects `DocumentDbService` and uses it for all database operations
 
-- [ ] **Scenario 6**: Types are colocated with the db-service
+- [x] **Scenario 6**: Types are colocated with the db-service
     - **Given** the document module folder
     - **When** reviewing its files
     - **Then** `DocumentData` type is defined in `apps/backend-services/src/document/document-db.types.ts`
 
-- [ ] **Scenario 7**: Unit tests exist for DocumentDbService
+- [x] **Scenario 7**: Unit tests exist for DocumentDbService
     - **Given** the new `DocumentDbService`
     - **When** running `npx jest document-db.service`
     - **Then** all tests pass with mocked `PrismaService`

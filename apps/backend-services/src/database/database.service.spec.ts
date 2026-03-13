@@ -123,7 +123,6 @@ import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
 import { DatabaseService } from "./database.service";
-import { DocumentDbService } from "./document-db.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { LabelingProjectDbService } from "./labeling-project-db.service";
 import { PrismaService } from "./prisma.service";
@@ -280,7 +279,6 @@ describe("DatabaseService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PrismaService,
-        DocumentDbService,
         LabelingDocumentDbService,
         LabelingProjectDbService,
         ReviewDbService,

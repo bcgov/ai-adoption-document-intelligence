@@ -12,8 +12,8 @@ import {
   ExtractedFields,
   KeyValuePair,
 } from "@/ocr/azure-types";
-import type { DocumentData } from "./database.types";
-import { PrismaService } from "./prisma.service";
+import { PrismaService } from "../database/prisma.service";
+import type { DocumentData } from "./document-db.types";
 
 @Injectable()
 export class DocumentDbService {
@@ -26,6 +26,12 @@ export class DocumentDbService {
     return this.prismaService.prisma;
   }
 
+  /**
+   * Creates a new document record in the database.
+   *
+   * @param data - Document data without auto-generated timestamps.
+   * @returns The created document record.
+   */
   async createDocument(
     data: Omit<DocumentData, "created_at" | "updated_at">,
   ): Promise<DocumentData> {
@@ -59,6 +65,12 @@ export class DocumentDbService {
     }
   }
 
+  /**
+   * Finds a document by its ID.
+   *
+   * @param id - The unique identifier of the document.
+   * @returns The document record, or `null` if not found.
+   */
   async findDocument(id: string): Promise<DocumentData | null> {
     this.logger.debug("Finding document", { id });
     try {
@@ -79,6 +91,12 @@ export class DocumentDbService {
     }
   }
 
+  /**
+   * Returns all documents, optionally filtered by group IDs.
+   *
+   * @param groupIds - Optional list of group IDs to filter by.
+   * @returns Array of matching document records ordered by creation date descending.
+   */
   async findAllDocuments(groupIds?: string[]): Promise<DocumentData[]> {
     this.logger.debug("Finding all documents");
     try {
@@ -96,6 +114,13 @@ export class DocumentDbService {
     }
   }
 
+  /**
+   * Updates a document by its ID.
+   *
+   * @param id - The unique identifier of the document to update.
+   * @param data - Partial document fields to update (excludes id and created_at).
+   * @returns The updated document, or `null` if not found.
+   */
   async updateDocument(
     id: string,
     data: Partial<Omit<DocumentData, "id" | "created_at">>,
@@ -128,6 +153,43 @@ export class DocumentDbService {
     }
   }
 
+  /**
+   * Deletes a document by its ID.
+   *
+   * @param id - The unique identifier of the document to delete.
+   * @returns `true` if the document was deleted, `false` if not found.
+   */
+  async deleteDocument(id: string): Promise<boolean> {
+    this.logger.debug("Deleting document", { id });
+    try {
+      await this.prisma.document.delete({
+        where: { id },
+      });
+      this.logger.debug("Document deleted", { id });
+      return true;
+    } catch (error: unknown) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code: string }).code === "P2025"
+      ) {
+        this.logger.debug("Document not found for deletion", { id });
+        return false;
+      }
+      this.logger.error("Failed to delete document", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves the most recent OCR result for a document.
+   *
+   * @param documentId - The ID of the document whose OCR result to fetch.
+   * @returns The OCR result record, or `null` if none exists.
+   */
   async findOcrResult(documentId: string): Promise<OcrResult | null> {
     this.logger.debug("Finding OCR result for document", { documentId });
     try {
@@ -174,6 +236,11 @@ export class DocumentDbService {
     return fields;
   }
 
+  /**
+   * Creates or updates the OCR result for a document.
+   *
+   * @param data - Object containing the document ID, analysis response, and optional metadata.
+   */
   async upsertOcrResult(data: {
     documentId: string;
     analysisResponse: AnalysisResponse;
@@ -220,37 +287,6 @@ export class DocumentDbService {
       });
     } catch (error) {
       this.logger.error("Failed to create/update OCR result", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Deletes a document by its ID.
-   *
-   * @param id - The unique identifier of the document to delete.
-   * @returns `true` if the document was deleted, `false` if not found.
-   */
-  async deleteDocument(id: string): Promise<boolean> {
-    this.logger.debug("Deleting document", { id });
-    try {
-      await this.prisma.document.delete({
-        where: { id },
-      });
-      this.logger.debug("Document deleted", { id });
-      return true;
-    } catch (error: unknown) {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        (error as { code: string }).code === "P2025"
-      ) {
-        this.logger.debug("Document not found for deletion", { id });
-        return false;
-      }
-      this.logger.error("Failed to delete document", {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;

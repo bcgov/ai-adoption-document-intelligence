@@ -8,21 +8,28 @@ The database layer in `apps/backend-services/src/database/` is split into focuse
 |------|---------|----------------|
 | `database.types.ts` | — | Shared types: `DocumentData`, `LabelingProjectData`, `LabeledDocumentData`, `LabelingDocumentData`, `ReviewSessionData` |
 | `prisma.service.ts` | `PrismaService` | Owns the Prisma client (connection, config). Exposes `prisma: PrismaClient`. |
-| `document-db.service.ts` | `DocumentDbService` | Document CRUD and OCR results: `createDocument`, `findDocument`, `findAllDocuments`, `updateDocument`, `findOcrResult`, `upsertOcrResult` |
 | `labeling-document-db.service.ts` | `LabelingDocumentDbService` | Labeling document CRUD: `createLabelingDocument`, `findLabelingDocument`, `updateLabelingDocument` |
 | `labeling-project-db.service.ts` | `LabelingProjectDbService` | Labeling projects, field definitions, labeled documents, document labels |
 | `review-db.service.ts` | `ReviewDbService` | Review sessions, field corrections, review queue, review analytics |
-| `database.service.ts` | `DatabaseService` | Facade that delegates to the above services and re-exports types. Exposes `prisma` getter for code that needs direct Prisma access (e.g. training). |
+| `database.service.ts` | `DatabaseService` | Facade that delegates to the above services and re-exports types. Exposes `prisma` getter for code that needs direct Prisma access (e.g. training). Document operations (`createDocument`, `findDocument`, etc.) are implemented directly here using Prisma for backward compatibility with existing callers. |
+
+## Document Module DB Service
+
+`DocumentDbService` has moved to `apps/backend-services/src/document/document-db.service.ts` and is scoped to the `DocumentModule`. It is a private provider (not exported) that `DocumentService` injects for all document DB operations. The `DocumentData` type is defined in `document/document-db.types.ts`.
+
+New code that only needs document DB operations should inject `DocumentService` (which exposes `findDocument`, `findAllDocuments`, `updateDocumentFields`, `findOcrResult`, etc.) instead of `DatabaseService`.
 
 ## Usage
 
-- **Most callers** should keep using `DatabaseService` (same API as before).
-- **New code** can inject the specific service (`DocumentDbService`, `LabelingProjectDbService`, etc.) when only one area is needed.
+- **Existing callers** (OCR service, HITL, benchmark) continue to use `DatabaseService` for document operations and do not need to change.
+- **New code** in the document module should inject `DocumentService` (backed by `DocumentDbService`).
 - **Direct Prisma access** (e.g. `TrainingJob`, `TrainedModel`) is via `DatabaseService.prisma` or by injecting `PrismaService` and using `prismaService.prisma`.
 
 ## Module
 
-`DatabaseModule` provides and exports: `PrismaService`, `DocumentDbService`, `LabelingDocumentDbService`, `LabelingProjectDbService`, `ReviewDbService`, `DatabaseService`.
+`DatabaseModule` provides and exports: `PrismaService`, `LabelingDocumentDbService`, `LabelingProjectDbService`, `ReviewDbService`, `DatabaseService`.
+
+`DocumentModule` provides (not exported): `DocumentDbService`. Imports `DatabaseModule` for `PrismaService`.
 
 # User Model
 

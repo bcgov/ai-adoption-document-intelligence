@@ -12,7 +12,7 @@ The goal of this feature is to decompose the monolithic `DatabaseService` by mov
 
 Move existing db-services out of the `database` module and create new ones for modules that previously had inline queries in `DatabaseService`.
 
-- [ ] [US-01: Move DocumentDbService into the Document Module](US-01-document-db-service.md)
+- [x] [US-01: Move DocumentDbService into the Document Module](US-01-document-db-service.md)
 - [ ] [US-02: Move LabelingDocumentDbService into the Labeling Module](US-02-labeling-document-db-service.md)
 - [ ] [US-03: Move LabelingProjectDbService into the Labeling Module](US-03-labeling-project-db-service.md)
 - [ ] [US-04: Create GroupDbService in the Group Module](US-04-group-db-service.md)

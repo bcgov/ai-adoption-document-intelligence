@@ -6,20 +6,23 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "./document.service";
+import { DocumentDbService } from "./document-db.service";
 
 describe("DocumentService", () => {
   let service: DocumentService;
-  let databaseService: DatabaseService;
+  let documentDbService: DocumentDbService;
   let blobStorage: BlobStorageInterface;
 
   beforeEach(async () => {
-    databaseService = {
+    documentDbService = {
       createDocument: jest.fn(),
       findDocument: jest.fn(),
       updateDocument: jest.fn(),
       deleteDocument: jest.fn(),
+      findAllDocuments: jest.fn(),
+      findOcrResult: jest.fn(),
+      upsertOcrResult: jest.fn(),
     } as any;
     blobStorage = {
       write: jest.fn(),
@@ -33,7 +36,7 @@ describe("DocumentService", () => {
       providers: [
         DocumentService,
         { provide: AppLoggerService, useValue: mockAppLogger },
-        { provide: DatabaseService, useValue: databaseService },
+        { provide: DocumentDbService, useValue: documentDbService },
         { provide: BLOB_STORAGE, useValue: blobStorage },
       ],
     }).compile();
@@ -62,7 +65,9 @@ describe("DocumentService", () => {
         model_id: "test-model-id",
         group_id: "group-1",
       };
-      (databaseService.createDocument as jest.Mock).mockResolvedValue(mockDoc);
+      (documentDbService.createDocument as jest.Mock).mockResolvedValue(
+        mockDoc,
+      );
       const result = await service.uploadDocument(
         "Test",
         base64,
@@ -75,7 +80,7 @@ describe("DocumentService", () => {
       expect(result.id).toBe("1");
       expect(result.original_filename).toBe("file.pdf");
       expect(result.title).toBe("Test");
-      expect(databaseService.createDocument).toHaveBeenCalled();
+      expect(documentDbService.createDocument).toHaveBeenCalled();
       expect(blobStorage.write).toHaveBeenCalledWith(
         expect.stringMatching(/^documents\/.+\/original\.pdf$/),
         expect.any(Buffer),
@@ -96,8 +101,8 @@ describe("DocumentService", () => {
     });
   });
 
-  describe("getDocument", () => {
-    it("should get a document by id", async () => {
+  describe("findDocument", () => {
+    it("should find a document by id", async () => {
       const mockDoc = {
         id: "1",
         title: "Test",
@@ -113,16 +118,16 @@ describe("DocumentService", () => {
         model_id: "test-model-id",
         group_id: "group-1",
       };
-      (databaseService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
-      const result = await service.getDocument("1");
+      (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
+      const result = await service.findDocument("1");
       expect(result).toBeDefined();
       expect(result?.id).toBe("1");
-      expect(databaseService.findDocument).toHaveBeenCalledWith("1");
+      expect(documentDbService.findDocument).toHaveBeenCalledWith("1");
     });
 
     it("should return null if document not found", async () => {
-      (databaseService.findDocument as jest.Mock).mockResolvedValue(null);
-      const result = await service.getDocument("notfound");
+      (documentDbService.findDocument as jest.Mock).mockResolvedValue(null);
+      const result = await service.findDocument("notfound");
       expect(result).toBeNull();
     });
   });
@@ -144,17 +149,19 @@ describe("DocumentService", () => {
         model_id: "test-model-id",
         group_id: "group-1",
       };
-      (databaseService.updateDocument as jest.Mock).mockResolvedValue(mockDoc);
+      (documentDbService.updateDocument as jest.Mock).mockResolvedValue(
+        mockDoc,
+      );
       const result = await service.updateDocument("1", { title: "Updated" });
       expect(result).not.toBeNull();
       expect(result?.title).toBe("Updated");
-      expect(databaseService.updateDocument).toHaveBeenCalledWith("1", {
+      expect(documentDbService.updateDocument).toHaveBeenCalledWith("1", {
         title: "Updated",
       });
     });
 
     it("should return null if document not found", async () => {
-      (databaseService.updateDocument as jest.Mock).mockResolvedValue(null);
+      (documentDbService.updateDocument as jest.Mock).mockResolvedValue(null);
       const result = await service.updateDocument("notfound", {
         title: "New",
       });
@@ -169,20 +176,20 @@ describe("DocumentService", () => {
         file_path: "documents/1/original.pdf",
         group_id: "group-1",
       };
-      (databaseService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
-      (databaseService.deleteDocument as jest.Mock).mockResolvedValue(true);
+      (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
+      (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);
       (blobStorage.delete as jest.Mock).mockResolvedValue(undefined);
       const result = await service.deleteDocument("1");
       expect(result).toBe(true);
-      expect(databaseService.deleteDocument).toHaveBeenCalledWith("1");
+      expect(documentDbService.deleteDocument).toHaveBeenCalledWith("1");
       expect(blobStorage.delete).toHaveBeenCalledWith(mockDoc.file_path);
     });
 
     it("should return false if document not found", async () => {
-      (databaseService.findDocument as jest.Mock).mockResolvedValue(null);
+      (documentDbService.findDocument as jest.Mock).mockResolvedValue(null);
       const result = await service.deleteDocument("notfound");
       expect(result).toBe(false);
-      expect(databaseService.deleteDocument).not.toHaveBeenCalled();
+      expect(documentDbService.deleteDocument).not.toHaveBeenCalled();
     });
 
     it("should still return true if blob deletion fails", async () => {
@@ -191,8 +198,8 @@ describe("DocumentService", () => {
         file_path: "documents/1/original.pdf",
         group_id: "group-1",
       };
-      (databaseService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
-      (databaseService.deleteDocument as jest.Mock).mockResolvedValue(true);
+      (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
+      (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);
       (blobStorage.delete as jest.Mock).mockRejectedValue(
         new Error("blob not found"),
       );
