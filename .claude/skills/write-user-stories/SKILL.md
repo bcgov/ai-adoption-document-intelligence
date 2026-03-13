@@ -12,6 +12,9 @@ Generate user stories from: $ARGUMENTS
 2.  **Decompose**: Break the requirements down into individual, independent User Stories.
 3.  **Draft**: Write each User Story using the strictly defined template at `.claude/skills/write-user-stories/user_story_template.md`.
     - Ensure each story has a clear Title, Description, and Acceptance Criteria.
+    - **Keep each story to 4-6 acceptance criteria scenarios maximum.** If a requirement naturally produces more than 6 scenarios, split it into multiple stories (e.g., sequential US numbers) preserving full detail across the split. Never sacrifice detail — distribute it across more stories instead.
+    - Each scenario must be independently implementable — a scenario's Given/When/Then should not depend on another scenario within the same story being implemented first. Cross-story dependencies are captured in the phase ordering.
+    - Ensure scenario checkboxes use exactly the format `- [ ] **Scenario N**: Title` (with the space inside brackets and bold scenario label) for consistent automated parsing.
     - Organize stories into logical phases/groups based on dependencies and priority.
 4.  **Output**:
     - Create a `user_stories` subfolder **in the same directory as the requirements file**.
@@ -67,6 +70,10 @@ After implementing the user story check it off at the bottom of this file
 ### Phase 2
 - [ ] **US-002** (brief description)
 - [ ] **US-003** (brief description)
+
+> Stories are ordered by dependency chain for automated implementation.
+> Each story should be implementable after all stories in previous phases are complete.
+> Do not start a phase until all stories in prior phases are checked off.
 ```
 
 ## Key Behaviors
@@ -75,3 +82,6 @@ After implementing the user story check it off at the bottom of this file
 - **Same Directory Organization**: Create the `user_stories` subfolder in the same directory as the requirements file.
 - **Comprehensive README**: Always generate the README.md with complete phase breakdown and tracking checkboxes.
 - **Logical Phases**: Organize implementation phases based on technical dependencies and priorities from the requirements.
+- **Scenario Size Limit**: Keep each story to 4-6 acceptance criteria scenarios maximum. If a requirement naturally has more, split into multiple stories preserving full detail — never sacrifice detail, distribute it across more stories.
+- **Atomic Scenarios**: Each scenario must be independently implementable within its story. No intra-story scenario dependencies.
+- **Consistent Checkbox Format**: Scenario checkboxes must use exactly `- [ ] **Scenario N**: Title` for automated parsing by the story-implementer skill.
