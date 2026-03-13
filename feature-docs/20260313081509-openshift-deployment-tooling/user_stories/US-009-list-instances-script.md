@@ -6,17 +6,17 @@
 
 ## Acceptance Criteria
 <!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
-- [ ] **Scenario 1**: List all running instances
+- [x] **Scenario 1**: List all running instances
     - **Given** multiple instances are deployed in the namespace
     - **When** the developer runs `./scripts/oc-list-instances.sh`
     - **Then** the output shows a table with columns: INSTANCE, STATUS, AGE for each deployed instance
 
-- [ ] **Scenario 2**: No instances deployed
+- [x] **Scenario 2**: No instances deployed
     - **Given** no instances are deployed in the namespace
     - **When** the developer runs `./scripts/oc-list-instances.sh`
     - **Then** the script outputs a message indicating no instances were found
 
-- [ ] **Scenario 3**: Instance status reflects deployment health
+- [x] **Scenario 3**: Instance status reflects deployment health
     - **Given** instances are deployed
     - **When** the list is displayed
     - **Then** the STATUS column reflects whether all pods in the instance are running/ready or if any are in error/pending states
