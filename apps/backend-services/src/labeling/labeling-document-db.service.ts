@@ -1,8 +1,8 @@
 import { DocumentStatus, PrismaClient } from "@generated/client";
 import { Injectable } from "@nestjs/common";
+import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import type { LabelingDocumentData } from "./database.types";
-import { PrismaService } from "./prisma.service";
+import type { LabelingDocumentData } from "./labeling-document-db.types";
 
 type JsonValue = import("@generated/client").Prisma.JsonValue;
 

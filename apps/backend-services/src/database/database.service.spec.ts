@@ -123,7 +123,6 @@ import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
 import { DatabaseService } from "./database.service";
-import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { LabelingProjectDbService } from "./labeling-project-db.service";
 import { PrismaService } from "./prisma.service";
 import { ReviewDbService } from "./review-db.service";
@@ -279,7 +278,6 @@ describe("DatabaseService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PrismaService,
-        LabelingDocumentDbService,
         LabelingProjectDbService,
         ReviewDbService,
         DatabaseService,
@@ -455,89 +453,6 @@ describe("DatabaseService", () => {
       expect(
         service.upsertOcrResult({ documentId: "123", analysisResponse }),
       ).rejects.toThrow("oops");
-    });
-  });
-
-  describe("createLabelingDocument", () => {
-    it("should create a labeling document", async () => {
-      mockPrisma.labelingDocument.create.mockResolvedValueOnce(
-        defaultLabelingDocument,
-      );
-      const result = await service.createLabelingDocument({
-        title: defaultLabelingDocument.title,
-        original_filename: defaultLabelingDocument.original_filename,
-        file_path: defaultLabelingDocument.file_path,
-        file_type: defaultLabelingDocument.file_type,
-        file_size: defaultLabelingDocument.file_size,
-        metadata: defaultLabelingDocument.metadata,
-        source: defaultLabelingDocument.source,
-        status: defaultLabelingDocument.status,
-        apim_request_id: defaultLabelingDocument.apim_request_id,
-        model_id: defaultLabelingDocument.model_id,
-        ocr_result: defaultLabelingDocument.ocr_result,
-        group_id: "group-1",
-      });
-      expect(result).toEqual(defaultLabelingDocument);
-      expect(mockPrisma.labelingDocument.create).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe("findLabelingDocument", () => {
-    it("should return a labeling document by id", async () => {
-      mockPrisma.labelingDocument.findUnique.mockResolvedValueOnce(
-        defaultLabelingDocument,
-      );
-      const result = await service.findLabelingDocument("labeling-doc-1");
-      expect(result).toEqual(defaultLabelingDocument);
-      expect(mockPrisma.labelingDocument.findUnique).toHaveBeenCalledWith({
-        where: { id: "labeling-doc-1" },
-      });
-    });
-
-    it("should return null if labeling document not found", async () => {
-      mockPrisma.labelingDocument.findUnique.mockResolvedValueOnce(null);
-      const result = await service.findLabelingDocument("not-found");
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("updateLabelingDocument", () => {
-    it("should update a labeling document", async () => {
-      const updatedDoc = {
-        ...defaultLabelingDocument,
-        title: "Updated Title",
-      };
-      mockPrisma.labelingDocument.update.mockResolvedValueOnce(updatedDoc);
-      const result = await service.updateLabelingDocument("labeling-doc-1", {
-        title: "Updated Title",
-      });
-      expect(result).toEqual(updatedDoc);
-      expect(mockPrisma.labelingDocument.update).toHaveBeenCalledWith({
-        where: { id: "labeling-doc-1" },
-        data: expect.objectContaining({
-          title: "Updated Title",
-          updated_at: expect.any(Date),
-        }),
-      });
-    });
-
-    it("should return null when document not found (P2025 error)", async () => {
-      mockPrisma.labelingDocument.update.mockImplementationOnce(() => {
-        throw { code: "P2025" };
-      });
-      const result = await service.updateLabelingDocument("not-found", {
-        title: "Updated",
-      });
-      expect(result).toBeNull();
-    });
-
-    it("should re-throw non-P2025 errors", async () => {
-      mockPrisma.labelingDocument.update.mockImplementationOnce(() => {
-        throw new Error("Database error");
-      });
-      await expect(
-        service.updateLabelingDocument("labeling-doc-1", { title: "Updated" }),
-      ).rejects.toThrow("Database error");
     });
   });
 

@@ -21,7 +21,6 @@ import type {
   LabelingProjectData,
   ReviewSessionData,
 } from "./database.types";
-import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { LabelingProjectDbService } from "./labeling-project-db.service";
 import { PrismaService } from "./prisma.service";
 import { ReviewDbService } from "./review-db.service";
@@ -57,7 +56,6 @@ interface ClassifierEditableProperties {
 export class DatabaseService {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly labelingDocumentDb: LabelingDocumentDbService,
     private readonly labelingProjectDb: LabelingProjectDbService,
     private readonly reviewDb: ReviewDbService,
   ) {}
@@ -193,23 +191,6 @@ export class DatabaseService {
         ...updateObject,
       },
     });
-  }
-
-  async createLabelingDocument(
-    data: Omit<LabelingDocumentData, "id" | "created_at" | "updated_at">,
-  ): Promise<LabelingDocumentData> {
-    return this.labelingDocumentDb.createLabelingDocument(data);
-  }
-
-  async findLabelingDocument(id: string): Promise<LabelingDocumentData | null> {
-    return this.labelingDocumentDb.findLabelingDocument(id);
-  }
-
-  async updateLabelingDocument(
-    id: string,
-    data: Partial<LabelingDocumentData>,
-  ): Promise<LabelingDocumentData | null> {
-    return this.labelingDocumentDb.updateLabelingDocument(id, data);
   }
 
   async createLabelingProject(data: {

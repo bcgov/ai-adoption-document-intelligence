@@ -30,6 +30,7 @@ import {
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
+import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { SuggestionService } from "./suggestion.service";
 
 @Injectable()
@@ -39,6 +40,7 @@ export class LabelingService {
     private readonly labelingOcrService: LabelingOcrService,
     private readonly logger: AppLoggerService,
     private readonly suggestionService: SuggestionService,
+    private readonly labelingDocumentDb: LabelingDocumentDbService,
   ) {}
 
   // ========== PROJECT OPERATIONS ==========
@@ -173,7 +175,9 @@ export class LabelingService {
     }
 
     // Check labeling document exists
-    const document = await this.db.findLabelingDocument(dto.labelingDocumentId);
+    const document = await this.labelingDocumentDb.findLabelingDocument(
+      dto.labelingDocumentId,
+    );
     if (!document) {
       throw new NotFoundException(
         `Labeling document with id ${dto.labelingDocumentId} not found`,
