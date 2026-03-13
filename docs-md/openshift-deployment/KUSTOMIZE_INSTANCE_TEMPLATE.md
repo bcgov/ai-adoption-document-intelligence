@@ -1,4 +1,4 @@
-# Kustomize Instance Template Overlay
+# Kustomize Instance Template
 
 ## Overview
 
@@ -12,7 +12,7 @@ The template uses placeholder tokens that the deploy script replaces with actual
 
 | Token | Description | Example Value |
 |-------|-------------|---------------|
-| `__INSTANCE_NAME__` | Sanitized instance name (from git branch) | `feature-my-thing` |
+| `__INSTANCE_NAME__` | Sanitized instance name | `feature-my-thing` |
 | `__ROUTE_HOST_SUFFIX__` | Cluster wildcard DNS suffix | `apps.silver.devops.gov.bc.ca` |
 | `__BACKEND_IMAGE__` | Backend container image (without tag) | `ghcr.io/org/repo/backend-services` |
 | `__FRONTEND_IMAGE__` | Frontend container image (without tag) | `ghcr.io/org/repo/frontend` |
@@ -24,7 +24,7 @@ The template uses placeholder tokens that the deploy script replaces with actual
 - **`namePrefix`**: Prefixes all resource names with `<instance-name>-`. Kustomize automatically updates cross-references (Service selectors, ConfigMap/Secret refs, PVC claims).
 - **`commonLabels`**: Adds `app.kubernetes.io/instance: <instance-name>` to all resources, including pod template labels and selector matchLabels.
 - **`images`**: Overrides base image references to point to ghcr.io images for the current branch.
-- **`patches`**: Updates hardcoded in-cluster service references (e.g., `temporal:7233` becomes `<instance>-temporal:7233`) and sets route hostnames.
+- **`patches`**: Updates hardcoded in-cluster service references and sets route hostnames.
 
 ### What Gets Patched
 
@@ -43,9 +43,7 @@ Each instance gets its own complete, independent stack:
 
 - Crunchy PostgreSQL cluster (app database)
 - Crunchy PostgreSQL cluster (Temporal database)
-- Temporal server
-- Temporal worker
-- Temporal UI
+- Temporal server, worker, and UI
 - Backend services deployment
 - Frontend deployment
 - Routes (with instance-specific hostnames)
@@ -53,7 +51,7 @@ Each instance gets its own complete, independent stack:
 - PVCs
 - NetworkPolicies (scoped to instance label, preventing cross-instance traffic)
 
-## Generate Overlay Script
+## Overlay Generation Library
 
 The `scripts/lib/generate-overlay.sh` library provides functions to generate and clean up instance-specific overlays:
 
@@ -76,23 +74,14 @@ oc apply -k "${OVERLAY_DIR}"
 cleanup_generated_overlay "${OVERLAY_DIR}"
 ```
 
-The function copies the template to a temporary directory, replaces all placeholder tokens with the provided values, and returns the path to the generated overlay. The caller is responsible for cleanup via `cleanup_generated_overlay`.
+The function copies the template to a temporary directory, replaces all placeholder tokens, and returns the path. The caller is responsible for cleanup via `cleanup_generated_overlay`.
 
-## Existing Overlays
-
-The instance template is additive. Existing overlays at `deployments/openshift/kustomize/overlays/` (`dev/`, `test/`, `prod/`) are not modified and continue to work as before.
-
-## Testing
-
-Run the test suite:
+### Testing
 
 ```bash
 bash scripts/lib/generate-overlay.test.sh
 ```
 
-The tests validate:
-- Placeholder replacement produces correct prefixes, labels, and hostnames
-- All placeholder tokens are replaced (none remain in output)
-- Existing overlays are not modified
-- Error handling for missing arguments
-- Cleanup of generated directories
+## Existing Overlays
+
+The instance template is additive. Existing overlays at `deployments/openshift/kustomize/overlays/` (`dev/`, `test/`, `prod/`) are not modified.
