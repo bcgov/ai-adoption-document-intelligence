@@ -78,9 +78,10 @@ describe("GroupController", () => {
     it("should call service with userId and groupId", async () => {
       const groupId = "group1";
       const userId = "user1";
+      const req = { resolvedIdentity: { userId: "caller-id" } } as any;
       jest.spyOn(service, "assignUserToGroup").mockResolvedValueOnce();
-      const result = await controller.addGroupMember(groupId, userId);
-      expect(service.assignUserToGroup).toHaveBeenCalledWith(userId, groupId);
+      const result = await controller.addGroupMember(req, groupId, userId);
+      expect(service.assignUserToGroup).toHaveBeenCalledWith(userId, groupId, req.resolvedIdentity);
       expect(result).toEqual({ success: true });
     });
   });
@@ -176,18 +177,20 @@ describe("GroupController", () => {
     it("should call service with groupId and userId from params", async () => {
       const groupId = "group1";
       const userId = "user1";
+      const req = { resolvedIdentity: { userId: "caller-id" } } as any;
       jest.spyOn(service, "removeGroupMember").mockResolvedValueOnce();
-      const result = await controller.removeGroupMember(groupId, userId);
-      expect(service.removeGroupMember).toHaveBeenCalledWith(groupId, userId);
+      const result = await controller.removeGroupMember(req, groupId, userId);
+      expect(service.removeGroupMember).toHaveBeenCalledWith(groupId, userId, req.resolvedIdentity);
       expect(result).toEqual({ success: true });
     });
 
     it("should propagate errors thrown by the service", async () => {
+      const req = { resolvedIdentity: { userId: "caller-id" } } as any;
       jest
         .spyOn(service, "removeGroupMember")
         .mockRejectedValueOnce(new Error("Forbidden"));
       await expect(
-        controller.removeGroupMember("group1", "user1"),
+        controller.removeGroupMember(req, "group1", "user1"),
       ).rejects.toThrow("Forbidden");
     });
   });
