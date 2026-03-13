@@ -45,7 +45,7 @@ After implementing the user story check it off at the bottom of this file
 - [x] **US-003** (Instance name derivation — shared utility for all scripts)
 
 ### Phase 2 — Infrastructure
-- [ ] **US-004** (Kustomize instance template — deploy script needs this to generate manifests)
+- [x] **US-004** (Kustomize instance template — deploy script needs this to generate manifests)
 - [ ] **US-005** (GitHub Actions image build — deploy needs images to pull)
 
 ### Phase 3 — Core Deployment
