@@ -158,6 +158,7 @@ RESOURCE_TYPES=(
   "deployments.apps"
   "services"
   "routes.route.openshift.io"
+  "networkpolicies.networking.k8s.io"
   "configmaps"
   "secrets"
   "persistentvolumeclaims"
