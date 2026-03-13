@@ -19,6 +19,17 @@ The database layer in `apps/backend-services/src/database/` is split into focuse
 
 New code that only needs document DB operations should inject `DocumentService` (which exposes `findDocument`, `findAllDocuments`, `updateDocumentFields`, `findOcrResult`, etc.) instead of `DatabaseService`.
 
+## Group Module DB Service
+
+`GroupDbService` lives at `apps/backend-services/src/group/group-db.service.ts` and is scoped to the `GroupModule`. It is a private provider (not exported) that `GroupService` injects for all group-related DB operations. `GroupService` itself is the public interface for callers outside the module.
+
+`GroupDbService` wraps all Prisma operations for the `Group`, `UserGroup`, and `GroupMembershipRequest` models, including:
+- **Group CRUD**: `findGroup`, `findActiveGroup`, `findGroupByName`, `findActiveGroupByNameExcluding`, `findAllGroups`, `createGroup`, `updateGroupData`, `softDeleteGroup`
+- **UserGroup**: `findUsersGroups`, `findUserAdminMemberships`, `findUserGroupsWithGroup`, `findUserGroupsInGroups`, `isUserInGroup`, `findUserGroupMembership`, `upsertUserGroup`, `deleteUserGroup`, `findGroupMembersWithUser`, `isUserSystemAdmin`
+- **GroupMembershipRequest**: `findMembershipRequest`, `findPendingMembershipRequest`, `createMembershipRequest`, `updateMembershipRequest`, `approveRequestTransaction`, `findGroupMembershipRequests`, `findUserMembershipRequests`
+
+`GroupModule` imports `DatabaseModule` so that `PrismaService` is available for injection into `GroupDbService`. `GroupService` no longer references `DatabaseService` or Prisma directly.
+
 ## Usage
 
 - **Existing callers** (OCR service, HITL, benchmark) continue to use `DatabaseService` for document operations and do not need to change.

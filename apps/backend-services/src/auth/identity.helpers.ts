@@ -1,7 +1,7 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "@/database/database.service";
 import { GroupRole } from "@/generated";
-import { ROLE_ORDER } from "./identity.guard";
+import { ROLE_ORDER } from "./role-order";
 import { ResolvedIdentity } from "./types";
 
 /**

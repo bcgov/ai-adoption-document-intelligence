@@ -291,38 +291,4 @@ export class DatabaseService {
       },
     });
   }
-
-  async getUsersGroups(userId: string) {
-    return await this.prisma.userGroup.findMany({
-      where: {
-        user_id: userId,
-      },
-    });
-  }
-
-  async isUserInGroup(userId: string, groupId: string) {
-    const entry = await this.prisma.userGroup.findUnique({
-      where: {
-        user_id_group_id: {
-          user_id: userId,
-          group_id: groupId,
-        },
-      },
-    });
-    return entry != null;
-  }
-
-  /**
-   * Checks whether a user is a system admin.
-   *
-   * @param userId - The ID of the user to check.
-   * @returns `true` when the user has `is_system_admin` set to `true`, `false` otherwise.
-   */
-  async isUserSystemAdmin(userId: string): Promise<boolean> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { is_system_admin: true },
-    });
-    return user?.is_system_admin ?? false;
-  }
 }

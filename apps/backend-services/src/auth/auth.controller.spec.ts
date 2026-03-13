@@ -2,7 +2,6 @@ import { GroupRole } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request, Response } from "express";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
-import { DatabaseService } from "../database/database.service";
 import { GroupService } from "../group/group.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { AuthController } from "./auth.controller";
@@ -16,7 +15,6 @@ describe("AuthController", () => {
   let controller: AuthController;
   let authService: jest.Mocked<AuthService>;
   let groupService: jest.Mocked<GroupService>;
-  let databaseService: jest.Mocked<Pick<DatabaseService, "isUserSystemAdmin">>;
   let res: jest.Mocked<Response>;
   let req: Partial<Request>;
 
@@ -37,10 +35,6 @@ describe("AuthController", () => {
       getAllGroups: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<GroupService>;
 
-    databaseService = {
-      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    } as unknown as jest.Mocked<Pick<DatabaseService, "isUserSystemAdmin">>;
-
     res = {
       redirect: jest.fn(),
       status: jest.fn().mockReturnThis(),
@@ -59,7 +53,6 @@ describe("AuthController", () => {
       providers: [
         { provide: AuthService, useValue: authService },
         { provide: GroupService, useValue: groupService },
-        { provide: DatabaseService, useValue: databaseService },
         { provide: AppLoggerService, useValue: mockAppLogger },
       ],
     }).compile();

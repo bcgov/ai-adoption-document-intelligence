@@ -1,4 +1,4 @@
-import { $Enums, GroupRole } from "@generated/client";
+import { $Enums, GroupRole, UserGroup } from "@generated/client";
 import {
   BadRequestException,
   ConflictException,
@@ -9,20 +9,48 @@ import {
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { ResolvedIdentity } from "@/auth/types";
 import { AuditService } from "../audit/audit.service";
-import { DatabaseService } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { GroupMemberDto } from "./dto/group-member.dto";
 import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { MyMembershipRequestDto } from "./dto/my-membership-request.dto";
 import { UserGroupDto } from "./dto/user-group.dto";
+import { GroupDbService } from "./group-db.service";
 
 @Injectable()
 export class GroupService {
   constructor(
-    private readonly databaseService: DatabaseService,
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
+    private readonly groupDb: GroupDbService,
   ) {}
+
+  /**
+   * Returns all UserGroup records for a given user.
+   * @param userId - The ID of the user whose group memberships to retrieve.
+   * @returns An array of UserGroup records.
+   */
+  async findUsersGroups(userId: string): Promise<UserGroup[]> {
+    return this.groupDb.findUsersGroups(userId);
+  }
+
+  /**
+   * Checks whether a user is a member of a given group.
+   * @param userId - The ID of the user to check.
+   * @param groupId - The ID of the group to check membership in.
+   * @returns `true` when the user is a member, `false` otherwise.
+   */
+  async isUserInGroup(userId: string, groupId: string): Promise<boolean> {
+    return this.groupDb.isUserInGroup(userId, groupId);
+  }
+
+  /**
+   * Checks whether a user is a system admin.
+   * @param userId - The ID of the user to check.
+   * @returns `true` when the user has `is_system_admin` set to `true`, `false` otherwise.
+   */
+  async isUserSystemAdmin(userId: string): Promise<boolean> {
+    return this.groupDb.isUserSystemAdmin(userId);
+  }
   /**
    * Soft-deletes an existing group by ID.
    * Sets `deleted_at` to the current timestamp and `deleted_by` to the caller's userId.
@@ -30,16 +58,11 @@ export class GroupService {
    * @param callerId - The ID of the user performing the deletion.
    */
   async deleteGroup(groupId: string, callerId: string): Promise<void> {
-    const group = await this.databaseService.prisma.group.findUnique({
-      where: { id: groupId },
-    });
+    const group = await this.groupDb.findGroup(groupId);
     if (!group) {
       throw new NotFoundException("Group not found");
     }
-    await this.databaseService.prisma.group.update({
-      where: { id: groupId },
-      data: { deleted_at: new Date(), deleted_by: callerId },
-    });
+    await this.groupDb.softDeleteGroup(groupId, callerId);
     await this.auditService.recordEvent({
       event_type: "group_deleted",
       resource_type: "group",
@@ -61,10 +84,7 @@ export class GroupService {
   async getAllGroups(): Promise<
     Array<{ id: string; name: string; description?: string }>
   > {
-    return await this.databaseService.prisma.group.findMany({
-      where: { deleted_at: null },
-      select: { id: true, name: true, description: true },
-    });
+    return await this.groupDb.findAllGroups();
   }
 
   /**
@@ -89,10 +109,9 @@ export class GroupService {
       return this.fetchUserGroups(userId);
     }
 
-    const callerAdminMemberships =
-      await this.databaseService.prisma.userGroup.findMany({
-        where: { user_id: identity.userId, role: GroupRole.ADMIN },
-      });
+    const callerAdminMemberships = await this.groupDb.findUserAdminMemberships(
+      identity.userId!,
+    );
 
     if (callerAdminMemberships.length === 0) {
       throw new ForbiddenException(
@@ -101,14 +120,10 @@ export class GroupService {
     }
 
     const callerGroupIds = callerAdminMemberships.map((m) => m.group_id);
-    const userGroups = await this.databaseService.prisma.userGroup.findMany({
-      where: {
-        user_id: userId,
-        group_id: { in: callerGroupIds },
-        group: { deleted_at: null },
-      },
-      include: { group: true },
-    });
+    const userGroups = await this.groupDb.findUserGroupsInGroups(
+      userId,
+      callerGroupIds,
+    );
     return userGroups.map((ug) => ({
       id: ug.group.id,
       name: ug.group.name,
@@ -122,10 +137,7 @@ export class GroupService {
    * @param userId - The ID of the user whose groups to fetch.
    */
   private async fetchUserGroups(userId: string): Promise<UserGroupDto[]> {
-    const userGroups = await this.databaseService.prisma.userGroup.findMany({
-      where: { user_id: userId, group: { deleted_at: null } },
-      include: { group: true },
-    });
+    const userGroups = await this.groupDb.findUserGroupsWithGroup(userId);
     return userGroups.map((ug) => ({
       id: ug.group.id,
       name: ug.group.name,
@@ -143,45 +155,30 @@ export class GroupService {
    * @param groupId - The ID of the group to request membership for.
    */
   async requestMembership(userId: string, groupId: string): Promise<void> {
-    const group = await this.databaseService.prisma.group.findUnique({
-      where: { id: groupId },
-    });
+    const group = await this.groupDb.findGroup(groupId);
     if (!group) {
       throw new NotFoundException("Group not found");
     }
 
-    const existingMembership =
-      await this.databaseService.prisma.userGroup.findUnique({
-        where: { user_id_group_id: { user_id: userId, group_id: groupId } },
-      });
+    const existingMembership = await this.groupDb.findUserGroupMembership(
+      userId,
+      groupId,
+    );
     if (existingMembership) {
       throw new BadRequestException("User is already a member of this group");
     }
 
-    const existingRequest =
-      await this.databaseService.prisma.groupMembershipRequest.findFirst({
-        where: {
-          user_id: userId,
-          group_id: groupId,
-          status: $Enums.GroupMembershipRequestStatus.PENDING,
-        },
-      });
+    const existingRequest = await this.groupDb.findPendingMembershipRequest(
+      userId,
+      groupId,
+    );
     if (existingRequest) {
       throw new BadRequestException(
         "A pending membership request already exists for this group",
       );
     }
 
-    const created =
-      await this.databaseService.prisma.groupMembershipRequest.create({
-        data: {
-          user_id: userId,
-          group_id: groupId,
-          status: $Enums.GroupMembershipRequestStatus.PENDING,
-          created_by: userId,
-          updated_by: userId,
-        },
-      });
+    const created = await this.groupDb.createMembershipRequest(userId, groupId);
     await this.auditService.recordEvent({
       event_type: "membership_request_created",
       resource_type: "group_membership_request",
@@ -216,14 +213,14 @@ export class GroupService {
         "Cannot cancel a request belonging to another user",
       );
     }
-    await this.databaseService.prisma.groupMembershipRequest.update({
-      where: { id: requestId },
-      data: this.buildResolutionData(
+    await this.groupDb.updateMembershipRequest(
+      requestId,
+      this.buildResolutionData(
         userId,
         $Enums.GroupMembershipRequestStatus.CANCELLED,
         reason,
       ),
-    });
+    );
     await this.auditService.recordEvent({
       event_type: "membership_request_cancelled",
       resource_type: "group_membership_request",
@@ -256,29 +253,16 @@ export class GroupService {
   ): Promise<void> {
     const request = await this.getValidPendingRequest(requestId, "approved");
     identityCanAccessGroup(identity, request.group_id, GroupRole.ADMIN);
-    await this.databaseService.prisma.$transaction([
-      this.databaseService.prisma.userGroup.upsert({
-        where: {
-          user_id_group_id: {
-            user_id: request.user_id,
-            group_id: request.group_id,
-          },
-        },
-        update: {},
-        create: {
-          user_id: request.user_id,
-          group_id: request.group_id,
-        },
-      }),
-      this.databaseService.prisma.groupMembershipRequest.update({
-        where: { id: requestId },
-        data: this.buildResolutionData(
-          identity.userId!,
-          $Enums.GroupMembershipRequestStatus.APPROVED,
-          reason,
-        ),
-      }),
-    ]);
+    await this.groupDb.approveRequestTransaction(
+      request.user_id,
+      request.group_id,
+      requestId,
+      this.buildResolutionData(
+        identity.userId!,
+        $Enums.GroupMembershipRequestStatus.APPROVED,
+        reason,
+      ),
+    );
     await this.auditService.recordEvent({
       event_type: "membership_request_approved",
       resource_type: "group_membership_request",
@@ -322,14 +306,14 @@ export class GroupService {
   ): Promise<void> {
     const request = await this.getValidPendingRequest(requestId, "denied");
     identityCanAccessGroup(identity, request.group_id, GroupRole.ADMIN);
-    await this.databaseService.prisma.groupMembershipRequest.update({
-      where: { id: requestId },
-      data: this.buildResolutionData(
+    await this.groupDb.updateMembershipRequest(
+      requestId,
+      this.buildResolutionData(
         identity.userId!,
         $Enums.GroupMembershipRequestStatus.DENIED,
         reason,
       ),
-    });
+    );
     await this.auditService.recordEvent({
       event_type: "membership_request_denied",
       resource_type: "group_membership_request",
@@ -354,10 +338,7 @@ export class GroupService {
    * @throws BadRequestException if the request is not in PENDING state.
    */
   private async getValidPendingRequest(requestId: string, action: string) {
-    const request =
-      await this.databaseService.prisma.groupMembershipRequest.findUnique({
-        where: { id: requestId },
-      });
+    const request = await this.groupDb.findMembershipRequest(requestId);
     if (!request) {
       throw new NotFoundException("Membership request not found");
     }
@@ -400,17 +381,12 @@ export class GroupService {
     name: string,
     description?: string,
   ): Promise<{ id: string; name: string; description: string | null }> {
-    const existing = await this.databaseService.prisma.group.findUnique({
-      where: { name },
-    });
+    const existing = await this.groupDb.findGroupByName(name);
     if (existing) {
       throw new ConflictException("Group with this name already exists");
     }
 
-    const group = await this.databaseService.prisma.group.create({
-      data: { name, ...(description !== undefined ? { description } : {}) },
-      select: { id: true, name: true, description: true },
-    });
+    const group = await this.groupDb.createGroup(name, description);
     await this.auditService.recordEvent({
       event_type: "group_created",
       resource_type: "group",
@@ -445,28 +421,23 @@ export class GroupService {
     name: string,
     description?: string,
   ): Promise<{ id: string; name: string; description: string | null }> {
-    const group = await this.databaseService.prisma.group.findUnique({
-      where: { id: groupId, deleted_at: null },
-    });
+    const group = await this.groupDb.findActiveGroup(groupId);
     if (!group) {
       throw new NotFoundException("Group not found");
     }
 
-    const duplicate = await this.databaseService.prisma.group.findFirst({
-      where: { name, id: { not: groupId }, deleted_at: null },
-    });
+    const duplicate = await this.groupDb.findActiveGroupByNameExcluding(
+      name,
+      groupId,
+    );
     if (duplicate) {
       throw new ConflictException("Group with this name already exists");
     }
 
-    const updated = await this.databaseService.prisma.group.update({
-      where: { id: groupId },
-      data: {
-        name,
-        description: description ?? null,
-        updated_by: callerId,
-      },
-      select: { id: true, name: true, description: true },
+    const updated = await this.groupDb.updateGroupData(groupId, {
+      name,
+      description: description ?? null,
+      updated_by: callerId,
     });
     await this.auditService.recordEvent({
       event_type: "group_updated",
@@ -503,27 +474,13 @@ export class GroupService {
     identity: ResolvedIdentity,
   ): Promise<void> {
     // Validate the group exists
-    const group = await this.databaseService.prisma.group.findUnique({
-      where: { id: groupId },
-    });
+    const group = await this.groupDb.findGroup(groupId);
     if (!group) {
       throw new NotFoundException("Group not found");
     }
 
     // Upsert user-group mapping
-    await this.databaseService.prisma.userGroup.upsert({
-      where: {
-        user_id_group_id: {
-          user_id: userId,
-          group_id: groupId,
-        },
-      },
-      update: {},
-      create: {
-        user_id: userId,
-        group_id: groupId,
-      },
-    });
+    await this.groupDb.upsertUserGroup(userId, groupId);
     await this.auditService.recordEvent({
       event_type: "member_added",
       resource_type: "user_group",
@@ -552,17 +509,12 @@ export class GroupService {
    * @throws ForbiddenException when the caller is not a member or system admin.
    */
   async getGroupMembers(groupId: string): Promise<GroupMemberDto[]> {
-    const group = await this.databaseService.prisma.group.findUnique({
-      where: { id: groupId, deleted_at: null },
-    });
+    const group = await this.groupDb.findActiveGroup(groupId);
     if (!group) {
       throw new NotFoundException("Group not found");
     }
 
-    const members = await this.databaseService.prisma.userGroup.findMany({
-      where: { group_id: groupId },
-      include: { user: true },
-    });
+    const members = await this.groupDb.findGroupMembersWithUser(groupId);
 
     return members.map((m) => ({
       userId: m.user_id,
@@ -578,9 +530,7 @@ export class GroupService {
    * @param groupId - The ID of the group to leave.
    */
   async leaveGroup(userId: string, groupId: string): Promise<void> {
-    await this.databaseService.prisma.userGroup.delete({
-      where: { user_id_group_id: { user_id: userId, group_id: groupId } },
-    });
+    await this.groupDb.deleteUserGroup(userId, groupId);
     await this.auditService.recordEvent({
       event_type: "user_left_group",
       resource_type: "user_group",
@@ -606,21 +556,15 @@ export class GroupService {
     groupId: string,
     status?: $Enums.GroupMembershipRequestStatus,
   ): Promise<GroupMembershipRequestDto[]> {
-    const group = await this.databaseService.prisma.group.findUnique({
-      where: { id: groupId, deleted_at: null },
-    });
+    const group = await this.groupDb.findActiveGroup(groupId);
     if (!group) {
       throw new NotFoundException("Group not found");
     }
 
-    const requests =
-      await this.databaseService.prisma.groupMembershipRequest.findMany({
-        where: {
-          group_id: groupId,
-          ...(status !== undefined ? { status } : {}),
-        },
-        include: { user: true },
-      });
+    const requests = await this.groupDb.findGroupMembershipRequests(
+      groupId,
+      status,
+    );
 
     return requests.map((r) => ({
       id: r.id,
@@ -645,14 +589,10 @@ export class GroupService {
     userId: string,
     status?: $Enums.GroupMembershipRequestStatus,
   ): Promise<MyMembershipRequestDto[]> {
-    const requests =
-      await this.databaseService.prisma.groupMembershipRequest.findMany({
-        where: {
-          user_id: userId,
-          ...(status !== undefined ? { status } : {}),
-        },
-        include: { group: { select: { name: true } } },
-      });
+    const requests = await this.groupDb.findUserMembershipRequests(
+      userId,
+      status,
+    );
 
     return requests.map((r) => ({
       id: r.id,
@@ -677,26 +617,20 @@ export class GroupService {
     userId: string,
     identity: ResolvedIdentity,
   ): Promise<void> {
-    const group = await this.databaseService.prisma.group.findUnique({
-      where: { id: groupId },
-    });
+    const group = await this.groupDb.findGroup(groupId);
     if (!group) {
       throw new NotFoundException("Group not found");
     }
 
-    const targetMembership =
-      await this.databaseService.prisma.userGroup.findUnique({
-        where: {
-          user_id_group_id: { user_id: userId, group_id: groupId },
-        },
-      });
+    const targetMembership = await this.groupDb.findUserGroupMembership(
+      userId,
+      groupId,
+    );
     if (!targetMembership) {
       throw new NotFoundException("User is not a member of this group");
     }
 
-    await this.databaseService.prisma.userGroup.delete({
-      where: { user_id_group_id: { user_id: userId, group_id: groupId } },
-    });
+    await this.groupDb.deleteUserGroup(userId, groupId);
     await this.auditService.recordEvent({
       event_type: "member_removed",
       resource_type: "user_group",
