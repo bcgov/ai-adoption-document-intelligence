@@ -114,10 +114,10 @@ function emit(
   };
   const entry: StructuredLogEntry = {
     timestamp: new Date().toISOString(),
+    ...merged,
     level,
     service,
     message,
-    ...merged,
   };
 
   const line = safeStringify(entry);
