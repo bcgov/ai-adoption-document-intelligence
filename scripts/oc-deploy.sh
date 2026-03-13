@@ -26,7 +26,7 @@ source "${SCRIPT_DIR}/lib/config-loader.sh"
 source "${SCRIPT_DIR}/lib/instance-name.sh"
 source "${SCRIPT_DIR}/lib/generate-overlay.sh"
 
-TOKEN_FILE="${PROJECT_ROOT}/.oc-deploy-token"
+TOKEN_FILE="${PROJECT_ROOT}/.oc-deploy/token"
 GITHUB_REPO="bcgov/ai-adoption-document-intelligence"
 REGISTRY="ghcr.io"
 IMAGE_BASE="${REGISTRY}/${GITHUB_REPO}"
@@ -147,12 +147,12 @@ oc login "${SERVER}" --token="${TOKEN}" --insecure-skip-tls-verify=true &>/dev/n
   exit 1
 }
 
-oc project "${NAMESPACE}" &>/dev/null || {
-  log_error "Failed to switch to namespace '${NAMESPACE}'."
+oc get pods -n "${NAMESPACE}" --no-headers &>/dev/null || {
+  log_error "Cannot access namespace '${NAMESPACE}'. Token may lack permissions."
   exit 1
 }
 
-log_info "Authenticated and switched to namespace: ${NAMESPACE}"
+log_info "Authenticated with access to namespace: ${NAMESPACE}"
 
 # ============================================================
 # Step 2: Determine instance name
@@ -244,11 +244,10 @@ if [[ "${IMAGES_EXIST}" == "false" ]]; then
     exit 1
   fi
 
-  # Trigger the workflow
-  gh workflow run "${WORKFLOW_FILE}" \
-    --repo "${GITHUB_REPO}" \
-    --ref "${CURRENT_BRANCH}" \
-    -f "branch=${CURRENT_BRANCH}" || {
+  # Trigger the workflow via the REST API so it works from non-default branches
+  gh api "repos/${GITHUB_REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches" \
+    -f "ref=${CURRENT_BRANCH}" \
+    -f 'inputs[branch]='"${CURRENT_BRANCH}" || {
     log_error "Failed to trigger image build workflow."
     log_error "Ensure your code is pushed to GitHub and 'gh' is authenticated."
     exit 1
