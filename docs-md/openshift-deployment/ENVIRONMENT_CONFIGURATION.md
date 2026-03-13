@@ -60,7 +60,19 @@ bash scripts/lib/config-loader.test.sh
 
 | Variable | Description |
 |----------|-------------|
-| `ROUTE_HOST_SUFFIX` | Route hostname suffix for OpenShift routes (e.g., `fd34fb-dev.apps.silver.devops.gov.bc.ca`) |
+| `CLUSTER_DOMAIN` | Cluster wildcard domain (e.g., `apps.silver.devops.gov.bc.ca`). The deploy script computes `ROUTE_HOST_SUFFIX` as `<namespace>.<CLUSTER_DOMAIN>` automatically from the namespace in `.oc-deploy-token`. |
+
+### Computed at Deploy Time (not in .env files)
+
+These values are derived automatically by the deploy script — do not set them in config files:
+
+| Variable | Computed As |
+|----------|-------------|
+| `ROUTE_HOST_SUFFIX` | `<namespace>.<CLUSTER_DOMAIN>` |
+| `FRONTEND_URL` | `https://<instance>-frontend.<ROUTE_HOST_SUFFIX>` |
+| `BACKEND_URL` | `https://<instance>-backend.<ROUTE_HOST_SUFFIX>` |
+| `SSO_REDIRECT_URI` | `<BACKEND_URL>/api/auth/callback` |
+| `TEMPORAL_ADDRESS` | `<instance>-temporal:7233` |
 
 ### Per-Environment Profile (not per-instance)
 
@@ -92,17 +104,6 @@ These variables differ between `dev` and `prod` profiles:
 | `TEMPORAL_TASK_QUEUE` | Temporal task queue name |
 | `PGSSLMODE` | PostgreSQL SSL mode |
 | `PGSSLREJECTUNAUTHORIZED` | Whether to reject unauthorized SSL certs |
-
-### Per-Instance (generated at deploy time)
-
-These contain `INSTANCE_NAME` as a placeholder, replaced by the deploy script:
-
-| Variable | Description |
-|----------|-------------|
-| `FRONTEND_URL` | Frontend route URL |
-| `BACKEND_URL` | Backend route URL |
-| `SSO_REDIRECT_URI` | SSO callback redirect URI |
-| `TEMPORAL_ADDRESS` | In-cluster Temporal server address |
 
 ## Secrets
 
