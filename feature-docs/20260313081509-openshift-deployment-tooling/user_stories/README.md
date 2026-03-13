@@ -46,7 +46,7 @@ After implementing the user story check it off at the bottom of this file
 
 ### Phase 2 — Infrastructure
 - [x] **US-004** (Kustomize instance template — deploy script needs this to generate manifests)
-- [ ] **US-005** (GitHub Actions image build — deploy needs images to pull)
+- [x] **US-005** (GitHub Actions image build — deploy needs images to pull)
 
 ### Phase 3 — Core Deployment
 - [ ] **US-006** (Deploy script core flow — token validation, config loading, image build trigger)
