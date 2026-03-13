@@ -10,7 +10,7 @@ Each "instance" is a complete, independent deployment of all services (frontend,
 # 1. Create your config files from the examples (one-time)
 cp deployments/openshift/config/dev.env.example deployments/openshift/config/dev.env
 cp deployments/openshift/config/prod.env.example deployments/openshift/config/prod.env
-# Edit dev.env / prod.env with your SSO, Azure, and other project-specific values
+# Edit dev.env / prod.env with your SSO, Azure, API keys, and other project-specific values
 
 # 2. Log into OpenShift with your personal credentials (one-time)
 oc login --server=https://api.silver.devops.gov.bc.ca:6443
@@ -88,8 +88,9 @@ The deploy flow:
 3. Loads environment config (`dev.env` or `prod.env`) with optional instance overrides
 4. Checks for existing images on ghcr.io, triggers a build if missing
 5. Generates a Kustomize overlay and applies it with `oc apply -k`
-6. Waits for all deployments to roll out (5-minute timeout each)
-7. Prints access URLs
+6. Creates per-instance OpenShift Secrets from config values (API keys, client secrets)
+7. Waits for all deployments to roll out (5-minute timeout each)
+8. Prints access URLs
 
 Each instance gets: frontend, backend, Temporal server + worker + UI, Crunchy PostgreSQL, routes, ConfigMaps, Secrets, PVCs, and NetworkPolicies. Prisma migrations run automatically via an init container during deployment.
 
@@ -246,7 +247,7 @@ Rules: lowercase, alphanumeric + hyphens only, max 63 characters. Override with 
 
 ## Environment Configuration
 
-Config files live in `deployments/openshift/config/` and are **gitignored** (they contain project-specific values). Example files are provided:
+Config files live in `deployments/openshift/config/` and are **gitignored** (they contain project-specific values and secrets). Example files are provided:
 
 ```bash
 # One-time setup: copy examples and edit with your values
@@ -254,10 +255,12 @@ cp deployments/openshift/config/dev.env.example deployments/openshift/config/dev
 cp deployments/openshift/config/prod.env.example deployments/openshift/config/prod.env
 ```
 
-- `dev.env.example` / `prod.env.example` — source-controlled templates with placeholder values
-- `dev.env` / `prod.env` — your actual config (gitignored)
+- `dev.env.example` / `prod.env.example` — source-controlled templates with placeholder values (including secrets)
+- `dev.env` / `prod.env` — your actual config (gitignored) — all settings, API keys, and secrets in one file
 - `<instance-name>.env` — optional per-instance overrides (merged on top of the profile)
 
 The deploy script automatically computes namespace-specific values (`ROUTE_HOST_SUFFIX`, `FRONTEND_URL`, `BACKEND_URL`, `SSO_REDIRECT_URI`, `TEMPORAL_ADDRESS`) from the namespace in `.oc-deploy-token` and the `CLUSTER_DOMAIN` setting. No manual URL configuration is needed.
+
+Secret values from the env file (API keys, client secrets, connection strings) are created as per-instance OpenShift Secrets during deployment. Each instance gets its own copy, so instances can be independently configured.
 
 See [docs-md/openshift-deployment/](../docs-md/openshift-deployment/) for the full variable reference and technical details.
