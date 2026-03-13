@@ -1,0 +1,174 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Reference the shared base manifests
+resources:
+  - ../../base
+
+# Prefix all resource names with the instance name.
+# The deploy script replaces __INSTANCE_NAME__ before running kustomize build.
+namePrefix: "__INSTANCE_NAME__-"
+
+# Apply instance label to all resources for isolation and selection.
+# Kustomize propagates commonLabels into metadata.labels, spec.selector.matchLabels,
+# and spec.template.metadata.labels automatically.
+commonLabels:
+  app.kubernetes.io/instance: "__INSTANCE_NAME__"
+
+# Image overrides — the deploy script replaces these placeholders with actual
+# ghcr.io image references for the current branch.
+images:
+  - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services
+    newName: "__BACKEND_IMAGE__"
+    newTag: "__IMAGE_TAG__"
+  - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal
+    newName: "__WORKER_IMAGE__"
+    newTag: "__IMAGE_TAG__"
+  - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/frontend
+    newName: "__FRONTEND_IMAGE__"
+    newTag: "__IMAGE_TAG__"
+
+# Patches for resources that contain hardcoded service references or hostnames.
+# Kustomize namePrefix updates metadata.name and cross-references (secretKeyRef,
+# configMapKeyRef, PVC claimName, service selector) automatically, but it does NOT
+# update string values embedded inside env var values or configmap data fields.
+patches:
+  # --- Route hostname patches ---
+  - target:
+      kind: Route
+      name: backend-services
+    patch: |
+      - op: add
+        path: /spec/host
+        value: "__INSTANCE_NAME__-backend.__ROUTE_HOST_SUFFIX__"
+  - target:
+      kind: Route
+      name: frontend
+    patch: |
+      - op: add
+        path: /spec/host
+        value: "__INSTANCE_NAME__-frontend.__ROUTE_HOST_SUFFIX__"
+  - target:
+      kind: Route
+      name: temporal-ui
+    patch: |
+      - op: add
+        path: /spec/host
+        value: "__INSTANCE_NAME__-temporal-ui.__ROUTE_HOST_SUFFIX__"
+
+  # --- Temporal server: update hardcoded Postgres service references ---
+  # The Temporal server deployment references temporal-postgres-cluster-primary
+  # in env vars. With namePrefix, the actual service becomes
+  # __INSTANCE_NAME__-temporal-postgres-cluster-primary.
+  - target:
+      kind: Deployment
+      name: temporal
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: temporal
+      spec:
+        template:
+          spec:
+            initContainers:
+              - name: config-init
+                env:
+                  - name: POSTGRES_SEEDS
+                    value: "__INSTANCE_NAME__-temporal-postgres-cluster-primary"
+              - name: schema-setup
+                env:
+                  - name: POSTGRES_SEEDS
+                    value: "__INSTANCE_NAME__-temporal-postgres-cluster-primary"
+            containers:
+              - name: temporal
+                env:
+                  - name: POSTGRES_SEEDS
+                    value: "__INSTANCE_NAME__-temporal-postgres-cluster-primary"
+
+  # --- Temporal UI: update hardcoded Temporal server address ---
+  - target:
+      kind: Deployment
+      name: temporal-ui
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: temporal-ui
+      spec:
+        template:
+          spec:
+            initContainers:
+              - name: config-init
+                env:
+                  - name: TEMPORAL_ADDRESS
+                    value: "__INSTANCE_NAME__-temporal:7233"
+            containers:
+              - name: temporal-ui
+                env:
+                  - name: TEMPORAL_ADDRESS
+                    value: "__INSTANCE_NAME__-temporal:7233"
+
+  # --- Backend services ConfigMap: update in-cluster service references ---
+  - target:
+      kind: ConfigMap
+      name: backend-services-config
+    patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: backend-services-config
+      data:
+        TEMPORAL_ADDRESS: "__INSTANCE_NAME__-temporal:7233"
+
+  # --- Temporal worker ConfigMap: update Temporal server address ---
+  - target:
+      kind: ConfigMap
+      name: temporal-worker-config
+    patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: temporal-worker-config
+      data:
+        TEMPORAL_ADDRESS: "__INSTANCE_NAME__-temporal:7233"
+
+  # --- NetworkPolicy patches: scope ingress to instance label ---
+  - target:
+      kind: NetworkPolicy
+      name: allow-all-ingress-nestjs
+    patch: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-all-ingress-nestjs
+      spec:
+        ingress:
+          - from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: "__INSTANCE_NAME__"
+            # Allow ingress from OpenShift router for external route access
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    network.openshift.io/policy-group: ingress
+
+  - target:
+      kind: NetworkPolicy
+      name: allow-all-ingress-frontend
+    patch: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-all-ingress-frontend
+      spec:
+        ingress:
+          - from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: "__INSTANCE_NAME__"
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    network.openshift.io/policy-group: ingress
