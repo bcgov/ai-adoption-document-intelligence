@@ -1,5 +1,6 @@
 import { DocumentStatus, PrismaClient } from "@generated/client";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import type { LabelingDocumentData } from "./database.types";
 import { PrismaService } from "./prisma.service";
 
@@ -7,9 +8,10 @@ type JsonValue = import("@generated/client").Prisma.JsonValue;
 
 @Injectable()
 export class LabelingDocumentDbService {
-  private readonly logger = new Logger(LabelingDocumentDbService.name);
-
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
   private get prisma(): PrismaClient {
     return this.prismaService.prisma;
@@ -39,7 +41,7 @@ export class LabelingDocumentDbService {
   }
 
   async findLabelingDocument(id: string): Promise<LabelingDocumentData | null> {
-    this.logger.debug("Finding labeling document: %s", id);
+    this.logger.debug("Finding labeling document", { id });
     const labelingDocument = await this.prisma.labelingDocument.findUnique({
       where: { id },
     });
@@ -50,7 +52,7 @@ export class LabelingDocumentDbService {
     id: string,
     data: Partial<LabelingDocumentData>,
   ): Promise<LabelingDocumentData | null> {
-    this.logger.debug("Updating labeling document: %s", id);
+    this.logger.debug("Updating labeling document", { id });
     try {
       const { metadata, ocr_result, ...restData } = data;
       const labelingDocument = await this.prisma.labelingDocument.update({

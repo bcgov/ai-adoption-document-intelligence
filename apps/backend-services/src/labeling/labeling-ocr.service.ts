@@ -1,9 +1,10 @@
 import { DocumentStatus, Prisma } from "@generated/client";
 import { HttpService } from "@nestjs/axios";
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { lastValueFrom } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -16,7 +17,6 @@ type JsonValue = Prisma.JsonValue;
 
 @Injectable()
 export class LabelingOcrService {
-  private readonly logger = new Logger(LabelingOcrService.name);
   private readonly azureEndpoint: string;
   private readonly azureApiKey: string;
 
@@ -26,6 +26,7 @@ export class LabelingOcrService {
     private readonly httpService: HttpService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
+    private readonly logger: AppLoggerService,
   ) {
     this.azureEndpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",

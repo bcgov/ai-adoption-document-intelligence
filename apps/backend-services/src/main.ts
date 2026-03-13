@@ -2,7 +2,8 @@
 // when decorators (e.g. @Throttle) are evaluated at import time.
 import "dotenv/config";
 
-import { Logger, ValidationPipe } from "@nestjs/common";
+import { createLogger } from "@ai-di/shared-logging";
+import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { json, urlencoded } from "body-parser";
@@ -10,20 +11,14 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { FileLogger } from "./logger/file-logger.service";
-import { LoggingInterceptor } from "./logger/logging.interceptor";
 
 const isDev = process.env.NODE_ENV !== "production";
-const logger = new Logger("Bootstrap");
+const logger = createLogger("backend-services");
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     ...(isDev ? { logger: new FileLogger() } : {}),
   });
-
-  if (isDev) {
-    // Enable HTTP request/response logging for local debugging
-    app.useGlobalInterceptors(new LoggingInterceptor());
-  }
 
   // Cookie parser must be registered before routes are mounted
   app.use(cookieParser());
@@ -116,8 +111,8 @@ async function bootstrap(): Promise<void> {
 
   const port = process.env.PORT || 3002;
   await app.listen(port, "0.0.0.0");
-  logger.log(`Backend services is running on: http://localhost:${port}`);
-  logger.log(`Upload endpoint: http://localhost:${port}/api/upload`);
+  logger.info(`Backend services is running on: http://localhost:${port}`);
+  logger.info(`Upload endpoint: http://localhost:${port}/api/upload`);
 }
 
 bootstrap();

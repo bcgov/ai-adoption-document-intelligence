@@ -6,6 +6,30 @@ This document describes how group membership is enforced when creating or access
 
 When a user or API key creates or accesses a top-level or sub-resource (`Document`, `Workflow`, `LabelingProject`, `LabelingDocument`, `FieldDefinition`, `DocumentLabel`, `TrainingJob`, `TrainedModel`, `ReviewSession`, `Dataset`, `BenchmarkProject`, or their child resources), the system verifies that the requestor belongs to the resource's group before allowing the operation to proceed. This prevents resources from being created, read, updated, or deleted by users not authorized to access the group.
 
+## How to add a group
+
+The message **"No groups are available. Contact an administrator"** appears when there are no groups in the database. Groups are created inside the app (database), not in the identity provider.
+
+**Option 1 — System administrator (UI)**  
+A user with **system-admin** rights can create groups:
+
+1. Log in as a user whose `user.is_system_admin` is `true` in the database.
+2. Go to **Groups** (`/groups`). System admins can open this page even when they have no group memberships.
+3. Click **Create group**, enter name and optional description, and save.
+
+Other users can then request membership from the Request group membership page; a group admin or system admin can approve.
+
+**Option 2 — Database seed (first group)**  
+To create the default group and optionally add yourself as system admin and group member:
+
+1. From `apps/backend-services`, run: `npm run db:seed`.
+2. Optionally set `SEED_USER_SUB` (and `SEED_USER_EMAIL`) in `.env` to your SSO user ID (Keycloak `sub` claim). The seed will create/update that user with `is_system_admin: true` and add them to the default group "Default".
+
+After seeding, log in with that user (or any user added to the default group) to access the app; other users can request membership to "Default".
+
+**Option 3 — API**  
+A system admin can create a group with `POST /api/groups` and body `{ "name": "Group Name", "description": "Optional" }`.
+
 ## Enforcement Location
 
 Group membership checks are performed in the **controller layer** before delegating to the service. This keeps authorization concerns at the HTTP boundary while keeping service methods reusable without identity coupling.
@@ -130,6 +154,27 @@ All creation DTOs include a required `group_id` (or `groupId`) field. A missing 
 | `400 Bad Request` | `group_id` is missing or empty in the request body |
 | `403 Forbidden` | Requestor identity is absent, or identity does not belong to the specified group |
 | `404 Not Found` | The fetched resource has `group_id = null` (orphaned record) — returned to all non-system-admin callers |
+
+## Auditing
+
+Group and membership-request operations are recorded in the audit store for traceability and security.
+
+**Audit events (AuditService):** The following event types are written to the `audit_event` table with `resource_type`, `resource_id`, `actor_id`, `group_id`, and optional `request_id` / `payload`:
+
+| Event type | Resource type | When |
+|------------|----------------|------|
+| `group_created` | group | System admin creates a group |
+| `group_updated` | group | System admin updates a group |
+| `group_deleted` | group | System admin soft-deletes a group |
+| `membership_request_created` | group_membership_request | User requests membership |
+| `membership_request_cancelled` | group_membership_request | User cancels own pending request |
+| `membership_request_approved` | group_membership_request | Admin approves request (and user is added to group) |
+| `membership_request_denied` | group_membership_request | Admin denies request |
+| `member_added` | user_group | User added to group (via approval or direct assign) |
+| `member_removed` | user_group | Admin removes a member |
+| `user_left_group` | user_group | User leaves a group |
+
+See the platform logging and audit documentation for log format, retention, and how to query audit events.
 
 ## Related
 

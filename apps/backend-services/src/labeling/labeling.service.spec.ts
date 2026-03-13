@@ -10,6 +10,8 @@ import {
   LabeledDocumentData,
   LabelingProjectData,
 } from "@/database/database.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DatabaseService } from "../database/database.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
@@ -139,6 +141,7 @@ describe("LabelingService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LabelingService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: DatabaseService,
           useValue: mockDb,

@@ -2,7 +2,6 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
-  Logger,
   OnModuleInit,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -10,6 +9,7 @@ import * as client from "openid-client";
 import { URL } from "url";
 import { TokenClaims, TokenResponseDto } from "@/auth/dto/token-response.dto";
 import { PrismaService } from "../database/prisma.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 
 /**
  * Result returned by getLoginUrl(), containing the Keycloak authorization URL
@@ -32,7 +32,6 @@ export interface LoginUrlResult {
  */
 @Injectable()
 export class AuthService implements OnModuleInit {
-  private readonly logger = new Logger(AuthService.name);
   private config: client.Configuration;
   private readonly issuer: string;
   private readonly clientId: string;
@@ -43,6 +42,7 @@ export class AuthService implements OnModuleInit {
   constructor(
     private configService: ConfigService,
     private prismaService: PrismaService,
+    private readonly logger: AppLoggerService,
   ) {
     const authServerUrl = this.configService.get<string>("SSO_AUTH_SERVER_URL");
     const realm = this.configService.get<string>("SSO_REALM");
@@ -185,7 +185,7 @@ export class AuthService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         `OAuth callback failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error instanceof Error ? error.stack : undefined,
+        { stack: error instanceof Error ? error.stack : undefined },
       );
       throw new HttpException("Authentication failed", HttpStatus.BAD_REQUEST);
     }
@@ -209,7 +209,7 @@ export class AuthService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         `Token refresh failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error instanceof Error ? error.stack : undefined,
+        { stack: error instanceof Error ? error.stack : undefined },
       );
       throw new HttpException("Token refresh failed", HttpStatus.BAD_REQUEST);
     }

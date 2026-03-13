@@ -308,7 +308,11 @@ function extractKeyValueFields(
     }
 
     const normalizedValue = normalizeKeyValue(rawValue);
-    const hasExisting = Object.prototype.hasOwnProperty.call(extracted, normalizedKey);
+    // biome-ignore lint/suspicious/noPrototypeBuiltins: Object.hasOwn requires ES2022; project lib is older
+    const hasExisting = Object.prototype.hasOwnProperty.call(
+      extracted,
+      normalizedKey,
+    );
     const existingIsCheckbox = checkboxKeyFlags[normalizedKey] ?? false;
 
     if (!hasExisting) {

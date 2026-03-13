@@ -4,7 +4,8 @@ import {
   Prisma,
   PrismaClient,
 } from "@generated/client";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   AnalysisResponse,
   DocumentField,
@@ -16,9 +17,10 @@ import { PrismaService } from "./prisma.service";
 
 @Injectable()
 export class DocumentDbService {
-  private readonly logger = new Logger(DocumentDbService.name);
-
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
   private get prisma(): PrismaClient {
     return this.prismaService.prisma;
@@ -27,7 +29,7 @@ export class DocumentDbService {
   async createDocument(
     data: Omit<DocumentData, "created_at" | "updated_at">,
   ): Promise<DocumentData> {
-    this.logger.debug("Creating document: %s", data.title);
+    this.logger.debug("Creating document", { title: data.title });
     try {
       const document = await this.prisma.document.create({
         data: {
@@ -47,34 +49,32 @@ export class DocumentDbService {
           group_id: data.group_id,
         },
       });
-      this.logger.debug("Document created: %s", document.id);
+      this.logger.debug("Document created", { id: document.id });
       return document;
     } catch (error) {
-      this.logger.error(
-        "Failed to create document: %s",
-        error instanceof Error ? error.message : String(error),
-      );
+      this.logger.error("Failed to create document", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
 
   async findDocument(id: string): Promise<DocumentData | null> {
-    this.logger.debug("Finding document: %s", id);
+    this.logger.debug("Finding document", { id });
     try {
       const document = await this.prisma.document.findUnique({
         where: { id },
       });
       if (document) {
-        this.logger.debug("Document found: %s", document.id);
+        this.logger.debug("Document found", { id: document.id });
       } else {
-        this.logger.debug("Document not found: %s", id);
+        this.logger.debug("Document not found", { id });
       }
       return document;
     } catch (error) {
-      this.logger.error(
-        "Failed to find document: %s",
-        error instanceof Error ? error.message : String(error),
-      );
+      this.logger.error("Failed to find document", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
@@ -86,13 +86,12 @@ export class DocumentDbService {
         where: groupIds ? { group_id: { in: groupIds } } : undefined,
         orderBy: { created_at: "desc" },
       });
-      this.logger.debug("Found %d documents", documents.length);
+      this.logger.debug("Found documents", { count: documents.length });
       return documents;
     } catch (error) {
-      this.logger.error(
-        "Failed to find documents: %s",
-        error instanceof Error ? error.message : String(error),
-      );
+      this.logger.error("Failed to find documents", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
@@ -101,7 +100,7 @@ export class DocumentDbService {
     id: string,
     data: Partial<Omit<DocumentData, "id" | "created_at">>,
   ): Promise<DocumentData | null> {
-    this.logger.debug("Updating document: %s", id);
+    this.logger.debug("Updating document", { id });
     try {
       const document = await this.prisma.document.update({
         where: { id },
@@ -110,7 +109,7 @@ export class DocumentDbService {
           updated_at: new Date(),
         },
       });
-      this.logger.debug("Document updated: %s", document.id);
+      this.logger.debug("Document updated", { id: document.id });
       return document;
     } catch (error: unknown) {
       if (
@@ -119,35 +118,33 @@ export class DocumentDbService {
         "code" in error &&
         (error as { code: string }).code === "P2025"
       ) {
-        this.logger.debug("Document not found for update: %s", id);
+        this.logger.debug("Document not found for update", { id });
         return null;
       }
-      this.logger.error(
-        "Failed to update document: %s",
-        error instanceof Error ? error.message : String(error),
-      );
+      this.logger.error("Failed to update document", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
 
   async findOcrResult(documentId: string): Promise<OcrResult | null> {
-    this.logger.debug("Finding OCR result for document: %s", documentId);
+    this.logger.debug("Finding OCR result for document", { documentId });
     try {
       const ocrResult = await this.prisma.ocrResult.findFirst({
         where: { document_id: documentId },
         orderBy: { processed_at: "desc" },
       });
       if (!ocrResult) {
-        this.logger.debug("No OCR result found for document: %s", documentId);
+        this.logger.debug("No OCR result found for document", { documentId });
         return null;
       }
-      this.logger.debug("OCR result found for document: %s", documentId);
+      this.logger.debug("OCR result found for document", { documentId });
       return ocrResult;
     } catch (error) {
-      this.logger.error(
-        "Failed to find OCR result: %s",
-        error instanceof Error ? error.message : String(error),
-      );
+      this.logger.error("Failed to find OCR result", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
@@ -182,10 +179,9 @@ export class DocumentDbService {
     analysisResponse: AnalysisResponse;
     metadata?: Record<string, unknown>;
   }): Promise<void> {
-    this.logger.debug(
-      "Creating/updating OCR result for document: %s",
-      data.documentId,
-    );
+    this.logger.debug("Creating/updating OCR result for document", {
+      documentId: data.documentId,
+    });
     try {
       const analysisResult = data.analysisResponse.analyzeResult;
       const asJson = (obj: unknown): Prisma.JsonValue =>
@@ -194,18 +190,16 @@ export class DocumentDbService {
       let extractedFields: ExtractedFields | null = null;
       if (analysisResult.documents?.length > 0) {
         extractedFields = analysisResult.documents[0].fields;
-        this.logger.debug(
-          "Using custom model fields: %d fields",
-          Object.keys(extractedFields).length,
-        );
+        this.logger.debug("Using custom model fields", {
+          fieldCount: Object.keys(extractedFields).length,
+        });
       } else if (analysisResult.keyValuePairs?.length > 0) {
         extractedFields = this.convertKeyValuePairsToFields(
           analysisResult.keyValuePairs,
         );
-        this.logger.debug(
-          "Converted %d keyValuePairs to fields format",
-          analysisResult.keyValuePairs.length,
-        );
+        this.logger.debug("Converted keyValuePairs to fields format", {
+          count: analysisResult.keyValuePairs.length,
+        });
       }
 
       const updateObject = {
@@ -221,15 +215,13 @@ export class DocumentDbService {
           ...updateObject,
         },
       });
-      this.logger.debug(
-        "OCR result created/updated for document: %s",
-        data.documentId,
-      );
+      this.logger.debug("OCR result created/updated for document", {
+        documentId: data.documentId,
+      });
     } catch (error) {
-      this.logger.error(
-        "Failed to create/update OCR result: %s",
-        error instanceof Error ? error.message : String(error),
-      );
+      this.logger.error("Failed to create/update OCR result", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
@@ -241,12 +233,12 @@ export class DocumentDbService {
    * @returns `true` if the document was deleted, `false` if not found.
    */
   async deleteDocument(id: string): Promise<boolean> {
-    this.logger.debug("Deleting document: %s", id);
+    this.logger.debug("Deleting document", { id });
     try {
       await this.prisma.document.delete({
         where: { id },
       });
-      this.logger.debug("Document deleted: %s", id);
+      this.logger.debug("Document deleted", { id });
       return true;
     } catch (error: unknown) {
       if (
@@ -255,13 +247,12 @@ export class DocumentDbService {
         "code" in error &&
         (error as { code: string }).code === "P2025"
       ) {
-        this.logger.debug("Document not found for deletion: %s", id);
+        this.logger.debug("Document not found for deletion", { id });
         return false;
       }
-      this.logger.error(
-        "Failed to delete document: %s",
-        error instanceof Error ? error.message : String(error),
-      );
+      this.logger.error("Failed to delete document", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }

@@ -2,7 +2,6 @@ import {
   Controller,
   Get,
   HttpStatus,
-  Logger,
   Post,
   Query,
   Req,
@@ -23,6 +22,7 @@ import {
 import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
 import { GroupService } from "../group/group.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import {
   THROTTLE_AUTH_LIMIT,
   THROTTLE_AUTH_REFRESH_LIMIT,
@@ -50,10 +50,10 @@ import { User } from "./types";
 @ApiTags("Authorization")
 @Controller("api/auth")
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
   constructor(
     private readonly authService: AuthService,
     private readonly groupService: GroupService,
+    private readonly logger: AppLoggerService,
   ) {}
 
   /**

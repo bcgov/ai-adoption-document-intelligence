@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import * as bcrypt from "bcrypt";
 import * as crypto from "crypto";
 import {
@@ -6,12 +6,14 @@ import {
   GeneratedApiKeyDto,
 } from "@/api-key/dto/api-key-info.dto";
 import { PrismaService } from "@/database/prisma.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 
 @Injectable()
 export class ApiKeyService {
-  private readonly logger = new Logger(ApiKeyService.name);
-
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
   private get prisma() {
     return this.prismaService.prisma;

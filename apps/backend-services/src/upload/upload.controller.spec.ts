@@ -1,5 +1,7 @@
 import { DocumentStatus, GroupRole } from "@generated/client";
 import { BadRequestException } from "@nestjs/common";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
 import { FileType, UploadDocumentDto } from "./dto/upload-document.dto";
@@ -17,7 +19,11 @@ describe("UploadController", () => {
     queueService = {
       processOcrForDocument: jest.fn().mockResolvedValue(undefined),
     } as any;
-    controller = new UploadController(documentService, queueService);
+    controller = new UploadController(
+      documentService,
+      queueService,
+      mockAppLogger,
+    );
   });
 
   describe("uploadDocument", () => {

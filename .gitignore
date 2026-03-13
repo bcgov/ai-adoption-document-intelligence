@@ -14,4 +14,4 @@ feature-docs/*/playwright/screenshots/
 
 # Backend logs
 apps/backend-services/backend.log
-.claude/settings.local.json
+/packages/logging/dist
