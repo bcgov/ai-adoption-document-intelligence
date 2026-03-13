@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 <!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
-- [ ] **Scenario 1**: Successful database backup
+- [x] **Scenario 1**: Successful database backup
     - **Given** an instance `feature-my-thing` is running with a PostgreSQL database
     - **When** the developer runs `./scripts/oc-backup-db.sh --instance feature-my-thing`
     - **Then** a SQL dump file is created at `./backups/feature-my-thing-<timestamp>.sql` on the local filesystem
 
-- [ ] **Scenario 2**: Default instance from git branch
+- [x] **Scenario 2**: Default instance from git branch
     - **Given** the developer is on branch `feature/my-thing`
     - **When** they run `./scripts/oc-backup-db.sh` without `--instance`
     - **Then** the script backs up the database for the instance derived from the current branch
 
-- [ ] **Scenario 3**: Backups directory is gitignored
+- [x] **Scenario 3**: Backups directory is gitignored
     - **Given** a backup has been created in `./backups/`
     - **When** the developer runs `git status`
     - **Then** the backups directory is not shown as untracked (it is listed in `.gitignore`)
 
-- [ ] **Scenario 4**: Backup uses pg_dump via pod exec
+- [x] **Scenario 4**: Backup uses pg_dump via pod exec
     - **Given** the script is backing up a database
     - **When** the dump is performed
     - **Then** the script execs into the Crunchy PostgreSQL pod and runs `pg_dump` (not Crunchy Operator's pgBackRest)
 
-- [ ] **Scenario 5**: Blob storage is not included
+- [x] **Scenario 5**: Blob storage is not included
     - **Given** the instance uses Azure Blob Storage for file content
     - **When** the backup runs
     - **Then** only the PostgreSQL database is backed up — blob storage content is not included
