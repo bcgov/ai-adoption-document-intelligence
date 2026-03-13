@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 <!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
-- [ ] **Scenario 1**: Dev environment file exists with defaults
+- [x] **Scenario 1**: Dev environment file exists with defaults
     - **Given** the developer is preparing to deploy
     - **When** they inspect `deployments/openshift/config/dev.env`
     - **Then** the file contains sensible default values for all required configuration including SSO/Keycloak settings (realm, client ID, auth server URL), Azure Document Intelligence, Azure Blob Storage (`BLOB_STORAGE_PROVIDER=azure`), and application-level settings
 
-- [ ] **Scenario 2**: Prod environment file exists with defaults
+- [x] **Scenario 2**: Prod environment file exists with defaults
     - **Given** the developer is preparing to deploy to prod
     - **When** they inspect `deployments/openshift/config/prod.env`
     - **Then** the file contains production-appropriate default values for all required configuration
 
-- [ ] **Scenario 3**: Instance-specific override
+- [x] **Scenario 3**: Instance-specific override
     - **Given** a developer needs custom configuration for their instance
     - **When** they create `deployments/openshift/config/<instance-name>.env` with override values
     - **Then** the deploy script merges instance overrides on top of the selected profile defaults (instance values take precedence)
 
-- [ ] **Scenario 4**: Profile selection at deploy time
+- [x] **Scenario 4**: Profile selection at deploy time
     - **Given** the developer runs the deploy script
     - **When** they specify `--env dev` or `--env prod`
     - **Then** the corresponding configuration file is loaded as the base configuration
