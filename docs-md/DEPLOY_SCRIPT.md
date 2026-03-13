@@ -50,7 +50,9 @@ The script executes the following steps in order:
 
 7. **Rollout monitoring** -- Waits for all deployments (backend, frontend, temporal, temporal-ui, temporal-worker) to roll out successfully, with a 5-minute timeout per deployment.
 
-8. **URL output** -- Prints the access URLs for the frontend, backend, and Temporal UI.
+8. **Prisma migrations** -- During rollout, the backend deployment's `migrate-db` init container runs `prisma migrate deploy` before the backend application container starts. This ensures the database schema is up to date on every deployment. The init container uses the same backend image and connects to the instance's PostgreSQL database via the `DATABASE_URL` secret.
+
+9. **URL output** -- Prints the access URLs for the frontend, backend, and Temporal UI.
 
 ## Configuration
 
@@ -76,6 +78,29 @@ Images are stored on GitHub Container Registry at:
 - `ghcr.io/bcgov/ai-adoption-document-intelligence/temporal:<tag>`
 
 The image tag matches the sanitized git branch name.
+
+## Database Migrations
+
+Prisma database migrations are executed automatically as part of the deployment process via the existing init container pattern in the backend-services deployment manifest (`deployments/openshift/kustomize/base/backend-services/deployment.yml`).
+
+The `migrate-db` init container:
+- Uses the same backend-services image as the main container
+- Runs `prisma migrate deploy` against the instance's PostgreSQL database
+- Connects using the `DATABASE_URL` from the `postgres-cluster-pguser-admin` secret (auto-prefixed with the instance name by Kustomize)
+- Handles SSL configuration for Crunchy Postgres self-signed certificates
+- Must complete successfully before the backend application container starts
+
+No additional configuration is needed -- the init container is part of the base manifests and is automatically included in every instance deployment.
+
+## Access URLs
+
+After deployment completes and all rollouts are ready, the script prints access URLs in this format:
+
+- **Frontend**: `https://<instance-name>-frontend.<ROUTE_HOST_SUFFIX>`
+- **Backend**: `https://<instance-name>-backend.<ROUTE_HOST_SUFFIX>`
+- **Temporal UI**: `https://<instance-name>-temporal-ui.<ROUTE_HOST_SUFFIX>`
+
+The route hostnames are set by the Kustomize overlay patches in the instance template.
 
 ## Error Handling
 
