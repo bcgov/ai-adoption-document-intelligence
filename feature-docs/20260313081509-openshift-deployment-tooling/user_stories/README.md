@@ -54,7 +54,7 @@ After implementing the user story check it off at the bottom of this file
 
 ### Phase 4 — Lifecycle Management
 - [x] **US-008** (Instance teardown script — uses SA token + instance naming)
-- [ ] **US-009** (List instances script — uses SA token + instance naming)
+- [x] **US-009** (List instances script — uses SA token + instance naming)
 
 ### Phase 5 — Database Operations
 - [ ] **US-010** (Database backup script — needs a running instance to back up)
