@@ -360,7 +360,7 @@ log_info "All deployments rolled out successfully."
 log_step "Step 8: Deployment Complete"
 
 FRONTEND_ROUTE="https://${INSTANCE_NAME}-frontend.${ROUTE_HOST_SUFFIX}"
-BACKEND_ROUTE="https://${INSTANCE_NAME}-backend-services.${ROUTE_HOST_SUFFIX}"
+BACKEND_ROUTE="https://${INSTANCE_NAME}-backend.${ROUTE_HOST_SUFFIX}"
 TEMPORAL_UI_ROUTE="https://${INSTANCE_NAME}-temporal-ui.${ROUTE_HOST_SUFFIX}"
 
 cat <<EOF
