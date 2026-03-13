@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 <!-- Keep to 4-6 scenarios max. Each scenario should be independently implementable. -->
-- [ ] **Scenario 1**: Kustomize overlay generation and apply
+- [x] **Scenario 1**: Kustomize overlay generation and apply
     - **Given** configuration is loaded and images are available
     - **When** the script deploys
     - **Then** it generates a Kustomize overlay from the instance template with the correct namePrefix, labels, config values, and image references, then runs `oc apply -k`
 
-- [ ] **Scenario 2**: Prisma migrations run during deployment
+- [x] **Scenario 2**: Prisma migrations run during deployment
     - **Given** the instance is being deployed
     - **When** the backend starts
     - **Then** Prisma migrations run via the existing init container pattern
 
-- [ ] **Scenario 3**: Access URLs printed on completion
+- [x] **Scenario 3**: Access URLs printed on completion
     - **Given** deployment completes successfully and all rollouts are ready
     - **When** the script finishes
     - **Then** it prints the access URLs for the frontend route, backend route, and Temporal UI route
 
-- [ ] **Scenario 4**: Default instance name from git branch
+- [x] **Scenario 4**: Default instance name from git branch
     - **Given** the developer does not specify `--instance`
     - **When** the script derives the instance name
     - **Then** it uses the current git branch, sanitized for Kubernetes naming
