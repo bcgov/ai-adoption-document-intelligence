@@ -328,9 +328,56 @@ cleanup() {
 trap cleanup EXIT
 
 # ============================================================
-# Step 6: Apply resources to OpenShift
+# Step 6: Create/update instance secrets
 # ============================================================
-log_step "Step 6: Applying resources to OpenShift"
+log_step "Step 6: Creating instance secrets"
+
+# Secrets are read from the same env file loaded in Step 3 (via get_config).
+# No separate secrets file is needed.
+
+# Create backend-services-secrets (prefixed by Kustomize namePrefix)
+BACKEND_SECRET_NAME=$(get_resource_name "${INSTANCE_NAME}" "backend-services-secrets")
+log_info "Creating secret: ${BACKEND_SECRET_NAME}"
+oc create secret generic "${BACKEND_SECRET_NAME}" \
+  --from-literal="SSO_CLIENT_SECRET=$(get_config SSO_CLIENT_SECRET || true)" \
+  --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=$(get_config AZURE_DOCUMENT_INTELLIGENCE_API_KEY || true)" \
+  --from-literal="AZURE_STORAGE_CONNECTION_STRING=$(get_config AZURE_STORAGE_CONNECTION_STRING || true)" \
+  --from-literal="AZURE_STORAGE_ACCOUNT_NAME=$(get_config AZURE_STORAGE_ACCOUNT_NAME || true)" \
+  --dry-run=client -o yaml | \
+  oc apply -f - -n "${NAMESPACE}" || {
+  log_error "Failed to create backend-services-secrets."
+  exit 1
+}
+
+# Label the secret for instance tracking
+oc label secret "${BACKEND_SECRET_NAME}" \
+  "app.kubernetes.io/instance=${INSTANCE_NAME}" \
+  --overwrite -n "${NAMESPACE}" &>/dev/null || true
+
+# Create temporal-worker-secrets (prefixed by Kustomize namePrefix)
+WORKER_SECRET_NAME=$(get_resource_name "${INSTANCE_NAME}" "temporal-worker-secrets")
+log_info "Creating secret: ${WORKER_SECRET_NAME}"
+oc create secret generic "${WORKER_SECRET_NAME}" \
+  --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=$(get_config AZURE_DOCUMENT_INTELLIGENCE_API_KEY || true)" \
+  --from-literal="AZURE_OPENAI_API_KEY=$(get_config AZURE_OPENAI_API_KEY || true)" \
+  --from-literal="AZURE_STORAGE_CONNECTION_STRING=$(get_config AZURE_STORAGE_CONNECTION_STRING || true)" \
+  --from-literal="AZURE_STORAGE_ACCOUNT_NAME=$(get_config AZURE_STORAGE_ACCOUNT_NAME || true)" \
+  --dry-run=client -o yaml | \
+  oc apply -f - -n "${NAMESPACE}" || {
+  log_error "Failed to create temporal-worker-secrets."
+  exit 1
+}
+
+oc label secret "${WORKER_SECRET_NAME}" \
+  "app.kubernetes.io/instance=${INSTANCE_NAME}" \
+  --overwrite -n "${NAMESPACE}" &>/dev/null || true
+
+log_info "Instance secrets created successfully."
+
+# ============================================================
+# Step 7: Apply resources to OpenShift
+# ============================================================
+log_step "Step 7: Applying resources to OpenShift"
 
 log_info "Running: oc apply -k ${OVERLAY_DIR} -n ${NAMESPACE}"
 oc apply -k "${OVERLAY_DIR}" -n "${NAMESPACE}" || {
@@ -341,9 +388,9 @@ oc apply -k "${OVERLAY_DIR}" -n "${NAMESPACE}" || {
 log_info "Resources applied successfully."
 
 # ============================================================
-# Step 7: Wait for rollout completion
+# Step 8: Wait for rollout completion
 # ============================================================
-log_step "Step 7: Waiting for rollout completion"
+log_step "Step 8: Waiting for rollout completion"
 
 DEPLOYMENT_SERVICES=("backend-services" "frontend" "temporal" "temporal-ui" "temporal-worker")
 
@@ -365,9 +412,9 @@ done
 log_info "All deployments rolled out successfully."
 
 # ============================================================
-# Step 8: Print access URLs
+# Step 9: Print access URLs
 # ============================================================
-log_step "Step 8: Deployment Complete"
+log_step "Step 9: Deployment Complete"
 
 FRONTEND_ROUTE="https://${INSTANCE_NAME}-frontend.${ROUTE_HOST_SUFFIX}"
 BACKEND_ROUTE="https://${INSTANCE_NAME}-backend.${ROUTE_HOST_SUFFIX}"
