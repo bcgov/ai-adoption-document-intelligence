@@ -30,8 +30,8 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
-import { Identity } from "@/auth/identity.decorator";
 import { AuditService } from "@/audit/audit.service";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,

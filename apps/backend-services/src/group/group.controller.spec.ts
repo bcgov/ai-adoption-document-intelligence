@@ -81,7 +81,11 @@ describe("GroupController", () => {
       const req = { resolvedIdentity: { userId: "caller-id" } } as any;
       jest.spyOn(service, "assignUserToGroup").mockResolvedValueOnce();
       const result = await controller.addGroupMember(req, groupId, userId);
-      expect(service.assignUserToGroup).toHaveBeenCalledWith(userId, groupId, req.resolvedIdentity);
+      expect(service.assignUserToGroup).toHaveBeenCalledWith(
+        userId,
+        groupId,
+        req.resolvedIdentity,
+      );
       expect(result).toEqual({ success: true });
     });
   });
@@ -180,7 +184,11 @@ describe("GroupController", () => {
       const req = { resolvedIdentity: { userId: "caller-id" } } as any;
       jest.spyOn(service, "removeGroupMember").mockResolvedValueOnce();
       const result = await controller.removeGroupMember(req, groupId, userId);
-      expect(service.removeGroupMember).toHaveBeenCalledWith(groupId, userId, req.resolvedIdentity);
+      expect(service.removeGroupMember).toHaveBeenCalledWith(
+        groupId,
+        userId,
+        req.resolvedIdentity,
+      );
       expect(result).toEqual({ success: true });
     });
 

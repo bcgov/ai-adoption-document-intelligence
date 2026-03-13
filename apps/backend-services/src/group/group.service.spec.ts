@@ -202,7 +202,7 @@ describe("getUserGroups", () => {
       mockAppLogger,
       mockAuditService,
     );
-    const result = await service.getUserGroups({userId: "user1"}, "user1");
+    const result = await service.getUserGroups({ userId: "user1" }, "user1");
     expect(result).toEqual([
       { id: "g1", name: "Group 1", role: "ADMIN" },
       { id: "g2", name: "Group 2", role: "MEMBER" },
@@ -311,7 +311,7 @@ describe("getUserGroups", () => {
       mockAppLogger,
       mockAuditService,
     );
-        await expect(
+    await expect(
       service.getUserGroups({ userId: "caller1" }, "user1"),
     ).rejects.toThrow(
       "You do not have permission to view another user's group memberships",
@@ -521,7 +521,9 @@ describe("assignUserToGroup", () => {
     const upsertFn = jest.fn().mockResolvedValue({});
     const db = buildDb({ upsertFn });
     const svc = new GroupService(db as any, mockAppLogger, mockAuditService);
-    await svc.assignUserToGroup(userId, groupId, { userId: "caller-id" } as ResolvedIdentity);
+    await svc.assignUserToGroup(userId, groupId, {
+      userId: "caller-id",
+    } as ResolvedIdentity);
     expect(upsertFn).toHaveBeenCalledWith({
       where: { user_id_group_id: { user_id: userId, group_id: groupId } },
       update: {},
@@ -533,7 +535,9 @@ describe("assignUserToGroup", () => {
     const upsertFn = jest.fn().mockResolvedValue({});
     const db = buildDb({ upsertFn });
     const svc = new GroupService(db as any, mockAppLogger, mockAuditService);
-    await svc.assignUserToGroup(userId, groupId, { userId: "caller-id" } as ResolvedIdentity);
+    await svc.assignUserToGroup(userId, groupId, {
+      userId: "caller-id",
+    } as ResolvedIdentity);
     expect(upsertFn).toHaveBeenCalled();
   });
 
@@ -541,10 +545,11 @@ describe("assignUserToGroup", () => {
     const db = buildDb({ group: null });
     const svc = new GroupService(db as any, mockAppLogger, mockAuditService);
     await expect(
-      svc.assignUserToGroup(userId, groupId, { userId: "caller-id" } as ResolvedIdentity),
+      svc.assignUserToGroup(userId, groupId, {
+        userId: "caller-id",
+      } as ResolvedIdentity),
     ).rejects.toThrow("Group not found");
   });
-
 });
 
 describe("cancelMembershipRequest", () => {
@@ -969,9 +974,9 @@ describe("denyMembershipRequest", () => {
       mockAppLogger,
       mockAuditService,
     );
-    await expect(svc.denyMembershipRequest(adminIdentity, requestId)).rejects.toThrow(
-      "Membership request not found",
-    );
+    await expect(
+      svc.denyMembershipRequest(adminIdentity, requestId),
+    ).rejects.toThrow("Membership request not found");
   });
 
   it("should throw BadRequestException when request is not PENDING", async () => {
@@ -1030,9 +1035,9 @@ describe("denyMembershipRequest", () => {
     };
     const db = buildDb(pendingRequest);
     const svc = new GroupService(db as any, mockAppLogger, mockAuditService);
-    await expect(svc.denyMembershipRequest(memberIdentity, requestId)).rejects.toThrow(
-      "Insufficient role within the group",
-    );
+    await expect(
+      svc.denyMembershipRequest(memberIdentity, requestId),
+    ).rejects.toThrow("Insufficient role within the group");
   });
 
   it("should throw ForbiddenException when caller is a group admin for a different group", async () => {
@@ -1043,9 +1048,9 @@ describe("denyMembershipRequest", () => {
     };
     const db = buildDb(pendingRequest);
     const svc = new GroupService(db as any, mockAppLogger, mockAuditService);
-    await expect(svc.denyMembershipRequest(differentGroupIdentity, requestId)).rejects.toThrow(
-      "User does not belong to requested group.",
-    );
+    await expect(
+      svc.denyMembershipRequest(differentGroupIdentity, requestId),
+    ).rejects.toThrow("User does not belong to requested group.");
   });
 });
 
@@ -1137,7 +1142,9 @@ describe("removeGroupMember", () => {
     const deleteFn = jest.fn().mockResolvedValue(undefined);
     const db = buildDb({ deleteFn });
     const svc = new GroupService(db as any, mockAppLogger, mockAuditService);
-    await svc.removeGroupMember(groupId, userId, { userId: "caller-id" } as ResolvedIdentity);
+    await svc.removeGroupMember(groupId, userId, {
+      userId: "caller-id",
+    } as ResolvedIdentity);
     expect(deleteFn).toHaveBeenCalledWith({
       where: { user_id_group_id: { user_id: userId, group_id: groupId } },
     });
@@ -1156,7 +1163,9 @@ describe("removeGroupMember", () => {
       isUserSystemAdmin: jest.fn().mockResolvedValue(true),
     };
     const svc = new GroupService(db as any, mockAppLogger, mockAuditService);
-    await svc.removeGroupMember(groupId, userId, { userId: "caller-id" } as ResolvedIdentity);
+    await svc.removeGroupMember(groupId, userId, {
+      userId: "caller-id",
+    } as ResolvedIdentity);
     expect(deleteFn).toHaveBeenCalledWith({
       where: { user_id_group_id: { user_id: userId, group_id: groupId } },
     });
@@ -1166,7 +1175,9 @@ describe("removeGroupMember", () => {
     const db = buildDb({ group: null });
     const svc = new GroupService(db as any, mockAppLogger, mockAuditService);
     await expect(
-      svc.removeGroupMember(groupId, userId, { userId: "caller-id" } as ResolvedIdentity),
+      svc.removeGroupMember(groupId, userId, {
+        userId: "caller-id",
+      } as ResolvedIdentity),
     ).rejects.toThrow("Group not found");
   });
 
@@ -1174,7 +1185,9 @@ describe("removeGroupMember", () => {
     const db = buildDb({ targetUserGroup: null });
     const svc = new GroupService(db as any, mockAppLogger, mockAuditService);
     await expect(
-      svc.removeGroupMember(groupId, userId, { userId: "caller-id" } as ResolvedIdentity),
+      svc.removeGroupMember(groupId, userId, {
+        userId: "caller-id",
+      } as ResolvedIdentity),
     ).rejects.toThrow("User is not a member of this group");
   });
 
@@ -1191,7 +1204,9 @@ describe("removeGroupMember", () => {
       isUserSystemAdmin: jest.fn().mockResolvedValue(true),
     };
     const svc = new GroupService(db as any, mockAppLogger, mockAuditService);
-    await svc.removeGroupMember(groupId, userId, { userId: "caller-id" } as ResolvedIdentity);
+    await svc.removeGroupMember(groupId, userId, {
+      userId: "caller-id",
+    } as ResolvedIdentity);
     // findUnique should only be called once (for the target), not for the caller
     expect(findUnique).toHaveBeenCalledTimes(1);
     expect(findUnique).toHaveBeenCalledWith({

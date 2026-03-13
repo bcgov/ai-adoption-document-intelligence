@@ -22,7 +22,7 @@ export class GroupService {
     private readonly databaseService: DatabaseService,
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
-  ) { }
+  ) {}
   /**
    * Soft-deletes an existing group by ID.
    * Sets `deleted_at` to the current timestamp and `deleted_by` to the caller's userId.
@@ -494,10 +494,14 @@ export class GroupService {
    * @param userId - The ID of the user to add to the group.
    * @param groupId - The ID of the group to add the user to.
    * @param identity - The resolved identity of the caller, used for audit logging.
-     *                   Authorization is enforced at the controller layer (group admins or system admins only).
+   *                   Authorization is enforced at the controller layer (group admins or system admins only).
    * @returns void
    */
-  async assignUserToGroup(userId: string, groupId: string, identity: ResolvedIdentity): Promise<void> {
+  async assignUserToGroup(
+    userId: string,
+    groupId: string,
+    identity: ResolvedIdentity,
+  ): Promise<void> {
     // Validate the group exists
     const group = await this.databaseService.prisma.group.findUnique({
       where: { id: groupId },
@@ -668,7 +672,11 @@ export class GroupService {
    * @param userId - The ID of the user to remove.
    * @param identity - The resolved identity of the caller.
    */
-  async removeGroupMember(groupId: string, userId: string, identity: ResolvedIdentity): Promise<void> {
+  async removeGroupMember(
+    groupId: string,
+    userId: string,
+    identity: ResolvedIdentity,
+  ): Promise<void> {
     const group = await this.databaseService.prisma.group.findUnique({
       where: { id: groupId },
     });

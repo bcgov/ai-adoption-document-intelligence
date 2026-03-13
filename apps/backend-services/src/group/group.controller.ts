@@ -363,7 +363,11 @@ export class GroupController {
       throw new HttpException("User ID is required", HttpStatus.BAD_REQUEST);
     }
 
-    await this.groupService.assignUserToGroup(userId, groupId, req.resolvedIdentity);
+    await this.groupService.assignUserToGroup(
+      userId,
+      groupId,
+      req.resolvedIdentity,
+    );
     return { success: true };
   }
 
@@ -478,7 +482,11 @@ export class GroupController {
     @Param("groupId") groupId: string,
     @Param("userId") userId: string,
   ): Promise<{ success: boolean }> {
-    await this.groupService.removeGroupMember(groupId, userId, req.resolvedIdentity);
+    await this.groupService.removeGroupMember(
+      groupId,
+      userId,
+      req.resolvedIdentity,
+    );
     return { success: true };
   }
 
