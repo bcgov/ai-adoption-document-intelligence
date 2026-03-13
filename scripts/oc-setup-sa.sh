@@ -125,6 +125,12 @@ rules:
   - apiGroups: ["route.openshift.io"]
     resources: ["routes"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["postgres-operator.crunchydata.com"]
+    resources: ["postgresclusters"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 EOF
 
 # ---------- create role binding (idempotent via apply) ----------

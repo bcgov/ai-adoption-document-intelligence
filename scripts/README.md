@@ -7,19 +7,24 @@ Each "instance" is a complete, independent deployment of all services (frontend,
 ## Quick Start
 
 ```bash
-# 1. Log into OpenShift with your personal credentials (one-time)
+# 1. Create your config files from the examples (one-time)
+cp deployments/openshift/config/dev.env.example deployments/openshift/config/dev.env
+cp deployments/openshift/config/prod.env.example deployments/openshift/config/prod.env
+# Edit dev.env / prod.env with your SSO, Azure, and other project-specific values
+
+# 2. Log into OpenShift with your personal credentials (one-time)
 oc login --server=https://api.silver.devops.gov.bc.ca:6443
 
-# 2. Create the service account (one-time per namespace)
-./scripts/oc-setup-sa.sh --namespace fd34fb-dev
+# 3. Create the service account (one-time per namespace)
+./scripts/oc-setup-sa.sh --namespace <your-namespace>
 
-# 3. Push your branch to GitHub (images are built from remote)
+# 4. Push your branch to GitHub (images are built from remote)
 git push origin feature/my-thing
 
-# 4. Deploy your instance
+# 5. Deploy your instance
 ./scripts/oc-deploy.sh --env dev
 
-# 5. Check what's running
+# 6. Check what's running
 ./scripts/oc-list-instances.sh
 ```
 
@@ -30,6 +35,7 @@ After deployment, the script prints access URLs for the frontend, backend, and T
 - `oc` CLI installed
 - `gh` CLI installed and authenticated (for triggering image builds)
 - Code pushed to GitHub (images are built from the remote branch via GitHub Actions)
+- Config files created from examples (see [Environment Configuration](#environment-configuration))
 
 ---
 
@@ -240,10 +246,18 @@ Rules: lowercase, alphanumeric + hyphens only, max 63 characters. Override with 
 
 ## Environment Configuration
 
-Config files live in `deployments/openshift/config/`:
+Config files live in `deployments/openshift/config/` and are **gitignored** (they contain project-specific values). Example files are provided:
 
-- `dev.env` — development defaults
-- `prod.env` — production defaults
+```bash
+# One-time setup: copy examples and edit with your values
+cp deployments/openshift/config/dev.env.example deployments/openshift/config/dev.env
+cp deployments/openshift/config/prod.env.example deployments/openshift/config/prod.env
+```
+
+- `dev.env.example` / `prod.env.example` — source-controlled templates with placeholder values
+- `dev.env` / `prod.env` — your actual config (gitignored)
 - `<instance-name>.env` — optional per-instance overrides (merged on top of the profile)
+
+The deploy script automatically computes namespace-specific values (`ROUTE_HOST_SUFFIX`, `FRONTEND_URL`, `BACKEND_URL`, `SSO_REDIRECT_URI`, `TEMPORAL_ADDRESS`) from the namespace in `.oc-deploy-token` and the `CLUSTER_DOMAIN` setting. No manual URL configuration is needed.
 
 See [docs-md/openshift-deployment/](../docs-md/openshift-deployment/) for the full variable reference and technical details.
