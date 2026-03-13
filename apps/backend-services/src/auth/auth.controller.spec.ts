@@ -1,8 +1,10 @@
 import { GroupRole } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request, Response } from "express";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DatabaseService } from "../database/database.service";
 import { GroupService } from "../group/group.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { AuthController } from "./auth.controller";
 import { AuthService, LoginUrlResult } from "./auth.service";
 import { AUTH_COOKIE_NAMES, COOKIE_OPTIONS } from "./cookie-auth.utils";
@@ -39,15 +41,6 @@ describe("AuthController", () => {
       isUserSystemAdmin: jest.fn().mockResolvedValue(false),
     } as unknown as jest.Mocked<Pick<DatabaseService, "isUserSystemAdmin">>;
 
-    groupService = {
-      getUserGroups: jest.fn().mockResolvedValue([]),
-      getAllGroups: jest.fn().mockResolvedValue([]),
-    } as unknown as jest.Mocked<GroupService>;
-
-    databaseService = {
-      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    } as unknown as jest.Mocked<Pick<DatabaseService, "isUserSystemAdmin">>;
-
     res = {
       redirect: jest.fn(),
       status: jest.fn().mockReturnThis(),
@@ -67,6 +60,7 @@ describe("AuthController", () => {
         { provide: AuthService, useValue: authService },
         { provide: GroupService, useValue: groupService },
         { provide: DatabaseService, useValue: databaseService },
+        { provide: AppLoggerService, useValue: mockAppLogger },
       ],
     }).compile();
 
@@ -433,7 +427,6 @@ describe("AuthController", () => {
       const result = await controller.getMe(req as Request);
 
       expect(result.expires_in).toBe(0);
-      expect(result.groups).toEqual([]);
       expect(result.groups).toEqual([]);
     });
   });

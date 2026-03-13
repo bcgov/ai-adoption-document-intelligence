@@ -2,6 +2,8 @@ import { NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as bcrypt from "bcrypt";
 import { PrismaService } from "@/database/prisma.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { ApiKeyService } from "./api-key.service";
 
 // Mock Prisma
@@ -30,6 +32,7 @@ describe("ApiKeyService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ApiKeyService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: PrismaService,
           useValue: mockPrismaService,

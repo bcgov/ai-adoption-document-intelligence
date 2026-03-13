@@ -14,8 +14,9 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   BlobStorageInterface,
   MinioBlobStorageConfig,
@@ -41,11 +42,13 @@ export function createMinioS3Client(config: MinioBlobStorageConfig): S3Client {
 
 @Injectable()
 export class MinioBlobStorageService implements BlobStorageInterface {
-  private readonly logger = new Logger(MinioBlobStorageService.name);
   private readonly s3Client: S3Client;
   private readonly bucket: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly logger: AppLoggerService,
+  ) {
     const config: MinioBlobStorageConfig = {
       provider: "minio",
       endpoint: this.configService.get<string>(
@@ -69,7 +72,7 @@ export class MinioBlobStorageService implements BlobStorageInterface {
     this.bucket = config.bucket;
     this.s3Client = createMinioS3Client(config);
 
-    this.logger.log(
+    this.logger.info(
       `MinIO blob storage initialized: endpoint=${config.endpoint}, bucket=${this.bucket}`,
     );
   }
@@ -92,7 +95,7 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       this.logger.debug(`Wrote blob: ${key} (${data.length} bytes)`);
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(`Failed to write blob: ${key}`, err.stack);
+      this.logger.error(`Failed to write blob: ${key}`, { stack: err.stack });
       throw new Error(`Failed to write blob "${key}": ${err.message}`);
     }
   }
@@ -130,7 +133,7 @@ export class MinioBlobStorageService implements BlobStorageInterface {
           `Blob not found: "${key}" does not exist in bucket "${this.bucket}"`,
         );
       }
-      this.logger.error(`Failed to read blob: ${key}`, err.stack);
+      this.logger.error(`Failed to read blob: ${key}`, { stack: err.stack });
       throw new Error(`Failed to read blob "${key}": ${err.message}`);
     }
   }
@@ -157,7 +160,9 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) {
         return false;
       }
-      this.logger.error(`Failed to check blob existence: ${key}`, err.stack);
+      this.logger.error(`Failed to check blob existence: ${key}`, {
+        stack: err.stack,
+      });
       throw new Error(
         `Failed to check blob existence "${key}": ${err.message}`,
       );
@@ -179,7 +184,7 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       this.logger.debug(`Deleted blob: ${key}`);
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(`Failed to delete blob: ${key}`, err.stack);
+      this.logger.error(`Failed to delete blob: ${key}`, { stack: err.stack });
       throw new Error(`Failed to delete blob "${key}": ${err.message}`);
     }
   }
@@ -220,10 +225,9 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       return keys;
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(
-        `Failed to list blobs with prefix "${prefix}"`,
-        err.stack,
-      );
+      this.logger.error(`Failed to list blobs with prefix "${prefix}"`, {
+        stack: err.stack,
+      });
       throw new Error(
         `Failed to list blobs with prefix "${prefix}": ${err.message}`,
       );

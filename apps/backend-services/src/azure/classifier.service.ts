@@ -1,5 +1,5 @@
 import { DocumentIntelligenceClient } from "@azure-rest/ai-document-intelligence";
-import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import "multer";
 import * as path from "path";
 import { AzureService } from "@/azure/azure.service";
@@ -10,6 +10,7 @@ import {
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
 import { DatabaseService } from "@/database/database.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 
 interface DocType {
   azureBlobSource: {
@@ -20,7 +21,6 @@ interface DocType {
 
 @Injectable()
 export class ClassifierService {
-  private readonly logger = new Logger(ClassifierService.name);
   private readonly client: DocumentIntelligenceClient;
   public readonly classifierContainer: string = "classification";
 
@@ -30,6 +30,7 @@ export class ClassifierService {
     private azureStorage: AzureStorageService,
     @Inject(BLOB_STORAGE)
     private blobStorage: BlobStorageInterface,
+    private readonly logger: AppLoggerService,
   ) {
     this.client = azureService.getClient();
   }
@@ -96,7 +97,7 @@ export class ClassifierService {
               );
             },
             (result) => {
-              this.logger.error("Analyze operation failed:", result);
+              this.logger.error("Analyze operation failed", { result });
             },
           );
         } else if (analyzeResponse.status == "404") {
@@ -105,7 +106,7 @@ export class ClassifierService {
           this.logger.warn(
             `404 from analyze API for ${filePath}, falling back to download/upload method.`,
           );
-          this.logger.warn(`Original error:`, analyzeResponse.body);
+          this.logger.warn("Original error", { body: analyzeResponse.body });
           // Download the blob
           const blobResp = await fetch(url);
           if (!blobResp.ok) {
@@ -138,19 +139,19 @@ export class ClassifierService {
               `Uploaded layout JSON to blob (fallback): ${jsonBlobName}`,
             );
           } else {
-            this.logger.error(
-              `Fallback analyze failed for ${filePath}:`,
-              uploadResponse.status,
-              uploadResponse.body,
-            );
+            this.logger.error("Fallback analyze failed", {
+              filePath,
+              status: uploadResponse.status,
+              body: uploadResponse.body,
+            });
           }
         } else {
-          this.logger.error(
-            `Failed to analyze blob ${filePath}:`,
-            `url: ${url}`,
-            analyzeResponse.status,
-            analyzeResponse.body,
-          );
+          this.logger.error("Failed to analyze blob", {
+            filePath,
+            url,
+            status: analyzeResponse.status,
+            body: analyzeResponse.body,
+          });
         }
       }),
     );
@@ -309,9 +310,10 @@ export class ClassifierService {
       );
     } else {
       const message = `Request for training classifier ${classifierName} unsuccessful. See logs for details.`;
-      this.logger.error(message);
-      this.logger.error(response.status);
-      this.logger.error(response.body);
+      this.logger.error(message, {
+        status: response.status,
+        body: response.body,
+      });
       throw new Error(message);
     }
   };

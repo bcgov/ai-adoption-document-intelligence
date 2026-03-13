@@ -1,6 +1,8 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "@/database/prisma.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import type { GraphWorkflowConfig } from "./graph-workflow-types";
 import { WorkflowService } from "./workflow.service";
 
@@ -67,6 +69,7 @@ describe("WorkflowService", () => {
           provide: PrismaService,
           useValue: mockPrismaService,
         },
+        { provide: AppLoggerService, useValue: mockAppLogger },
       ],
     }).compile();
 

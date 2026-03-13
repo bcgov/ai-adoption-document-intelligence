@@ -1,4 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DatabaseService } from "../database/database.service";
 import { AnalyticsService } from "./analytics.service";
 import { AnalyticsFilterDto } from "./dto/queue-filter.dto";
@@ -15,6 +17,7 @@ describe("AnalyticsService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AnalyticsService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: DatabaseService,
           useValue: mockDb,

@@ -1,4 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureService } from "../azure/azure.service";
 import { ClassifierStatus } from "../azure/dto/classifier-constants.dto";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
@@ -55,6 +57,7 @@ describe("ClassifierService", () => {
     module = await Test.createTestingModule({
       providers: [
         ClassifierService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         { provide: DatabaseService, useValue: databaseService },
         { provide: AzureService, useValue: azureService },
         { provide: AzureStorageService, useValue: azureStorage },
@@ -289,11 +292,11 @@ describe("ClassifierService", () => {
       await expect(
         service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
-      expect(errorLogger).toHaveBeenCalledWith(
-        "Fallback analyze failed for file.jpg:",
-        "500",
-        "fail",
-      );
+      expect(errorLogger).toHaveBeenCalledWith("Fallback analyze failed", {
+        filePath: "file.jpg",
+        status: "500",
+        body: "fail",
+      });
     });
 
     it("should log error for non-202/404 analyze response", async () => {
@@ -321,12 +324,12 @@ describe("ClassifierService", () => {
       await expect(
         service.createLayoutJson(["file.jpg"]),
       ).resolves.toBeUndefined();
-      expect(errorLogger).toHaveBeenCalledWith(
-        "Failed to analyze blob file.jpg:",
-        "url: https://mockbloburl/file.jpg",
-        "500",
-        "fail",
-      );
+      expect(errorLogger).toHaveBeenCalledWith("Failed to analyze blob", {
+        filePath: "file.jpg",
+        url: "https://mockbloburl/file.jpg",
+        status: "500",
+        body: "fail",
+      });
     });
 
     it("should log error if operation-location header is missing", async () => {

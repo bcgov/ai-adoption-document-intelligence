@@ -1,21 +1,21 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { AzureStorageService } from "@/blob-storage/azure-storage.service";
 import { DatabaseService } from "@/database/database.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { ClassifierService } from "./classifier.service";
 
 @Injectable()
 export class ClassifierPollerService {
-  private readonly logger = new Logger(ClassifierPollerService.name);
-
   constructor(
     private readonly db: DatabaseService,
     private readonly azureService: AzureService,
     private readonly databaseService: DatabaseService,
     private readonly azureStorage: AzureStorageService,
     private readonly classifierService: ClassifierService,
+    private readonly logger: AppLoggerService,
   ) {}
 
   @Cron(CronExpression.EVERY_30_SECONDS)
@@ -38,7 +38,9 @@ export class ClassifierPollerService {
         );
       }
     } catch (error) {
-      this.logger.error("Error polling active classifiers", error.stack);
+      this.logger.error("Error polling active classifiers", {
+        stack: error instanceof Error ? error.stack : String(error),
+      });
     }
   }
 

@@ -751,6 +751,7 @@ export async function benchmarkRunWorkflow(
       });
     } catch (error) {
       // Don't fail the run if baseline comparison fails
+      // biome-ignore lint/suspicious/noConsole: workflow sandbox; console is the supported way to emit structured logs
       console.error(
         JSON.stringify({
           workflow: "benchmarkRunWorkflow",

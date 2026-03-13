@@ -6,7 +6,8 @@ import {
   PrismaClient,
   ProjectStatus,
 } from "@generated/client";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import type {
   LabeledDocumentData,
   LabelingProjectData,
@@ -17,9 +18,10 @@ type JsonValue = Prisma.JsonValue;
 
 @Injectable()
 export class LabelingProjectDbService {
-  private readonly logger = new Logger(LabelingProjectDbService.name);
-
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
   private get prisma(): PrismaClient {
     return this.prismaService.prisma;
@@ -31,7 +33,7 @@ export class LabelingProjectDbService {
     created_by: string;
     group_id: string;
   }): Promise<LabelingProjectData> {
-    this.logger.debug("Creating labeling project: %s", data.name);
+    this.logger.debug("Creating labeling project", { name: data.name });
     const project = await this.prisma.labelingProject.create({
       data: {
         name: data.name,
@@ -48,7 +50,7 @@ export class LabelingProjectDbService {
   }
 
   async findLabelingProject(id: string): Promise<LabelingProjectData | null> {
-    this.logger.debug("Finding labeling project: %s", id);
+    this.logger.debug("Finding labeling project", { id });
     const project = await this.prisma.labelingProject.findUnique({
       where: { id },
       include: {
@@ -83,7 +85,7 @@ export class LabelingProjectDbService {
     id: string,
     data: { name?: string; description?: string; status?: ProjectStatus },
   ): Promise<LabelingProjectData | null> {
-    this.logger.debug("Updating labeling project: %s", id);
+    this.logger.debug("Updating labeling project", { id });
     try {
       const project = await this.prisma.labelingProject.update({
         where: { id },
@@ -107,7 +109,7 @@ export class LabelingProjectDbService {
   }
 
   async deleteLabelingProject(id: string): Promise<boolean> {
-    this.logger.debug("Deleting labeling project: %s", id);
+    this.logger.debug("Deleting labeling project", { id });
     try {
       await this.prisma.labelingProject.delete({ where: { id } });
       return true;
@@ -133,11 +135,10 @@ export class LabelingProjectDbService {
       display_order?: number;
     },
   ): Promise<FieldDefinition> {
-    this.logger.debug(
-      "Creating field definition: %s for project: %s",
-      data.field_key,
+    this.logger.debug("Creating field definition for project", {
+      field_key: data.field_key,
       projectId,
-    );
+    });
     if (data.display_order === undefined) {
       const maxOrder = await this.prisma.fieldDefinition.aggregate({
         where: { project_id: projectId },
@@ -160,7 +161,7 @@ export class LabelingProjectDbService {
     id: string,
     data: { field_format?: string; display_order?: number },
   ): Promise<FieldDefinition | null> {
-    this.logger.debug("Updating field definition: %s", id);
+    this.logger.debug("Updating field definition", { id });
     try {
       return await this.prisma.fieldDefinition.update({
         where: { id },
@@ -180,7 +181,7 @@ export class LabelingProjectDbService {
   }
 
   async deleteFieldDefinition(id: string): Promise<boolean> {
-    this.logger.debug("Deleting field definition: %s", id);
+    this.logger.debug("Deleting field definition", { id });
     try {
       await this.prisma.fieldDefinition.delete({ where: { id } });
       return true;
@@ -201,11 +202,10 @@ export class LabelingProjectDbService {
     projectId: string,
     labelingDocumentId: string,
   ): Promise<LabeledDocumentData> {
-    this.logger.debug(
-      "Adding document %s to project %s",
+    this.logger.debug("Adding document to project", {
       labelingDocumentId,
       projectId,
-    );
+    });
     const labeledDoc = await this.prisma.labeledDocument.create({
       data: {
         project_id: projectId,
@@ -224,11 +224,10 @@ export class LabelingProjectDbService {
     projectId: string,
     labelingDocumentId: string,
   ): Promise<LabeledDocumentData | null> {
-    this.logger.debug(
-      "Finding labeled document %s in project %s",
+    this.logger.debug("Finding labeled document in project", {
       labelingDocumentId,
       projectId,
-    );
+    });
     const labeledDoc = await this.prisma.labeledDocument.findUnique({
       where: {
         project_id_labeling_document_id: {
@@ -247,7 +246,7 @@ export class LabelingProjectDbService {
   async findLabeledDocuments(
     projectId: string,
   ): Promise<LabeledDocumentData[]> {
-    this.logger.debug("Finding labeled documents for project: %s", projectId);
+    this.logger.debug("Finding labeled documents for project", { projectId });
     const docs = await this.prisma.labeledDocument.findMany({
       where: { project_id: projectId },
       orderBy: { created_at: "desc" },
@@ -263,11 +262,10 @@ export class LabelingProjectDbService {
     projectId: string,
     labelingDocumentId: string,
   ): Promise<boolean> {
-    this.logger.debug(
-      "Removing document %s from project %s",
+    this.logger.debug("Removing document from project", {
       labelingDocumentId,
       projectId,
-    );
+    });
     try {
       await this.prisma.labeledDocument.delete({
         where: {
@@ -295,7 +293,7 @@ export class LabelingProjectDbService {
     labeledDocId: string,
     status: LabelingStatus,
   ): Promise<void> {
-    this.logger.debug("Updating labeled document status: %s", labeledDocId);
+    this.logger.debug("Updating labeled document status", { labeledDocId });
     await this.prisma.labeledDocument.update({
       where: { id: labeledDocId },
       data: { status },
@@ -312,11 +310,10 @@ export class LabelingProjectDbService {
       bounding_box: unknown;
     }>,
   ): Promise<import("@generated/client").DocumentLabel[]> {
-    this.logger.debug(
-      "Saving %d labels for document: %s",
-      labels.length,
+    this.logger.debug("Saving labels for document", {
+      count: labels.length,
       labeledDocId,
-    );
+    });
     await this.prisma.$transaction([
       this.prisma.documentLabel.deleteMany({
         where: { labeled_doc_id: labeledDocId },
@@ -340,7 +337,7 @@ export class LabelingProjectDbService {
   }
 
   async deleteDocumentLabel(labelId: string): Promise<boolean> {
-    this.logger.debug("Deleting document label: %s", labelId);
+    this.logger.debug("Deleting document label", { labelId });
     try {
       await this.prisma.documentLabel.delete({ where: { id: labelId } });
       return true;

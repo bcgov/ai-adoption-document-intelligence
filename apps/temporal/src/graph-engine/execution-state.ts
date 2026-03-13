@@ -20,6 +20,7 @@ export interface ExecutionState {
   mapBranchResults: Map<string, unknown[]>; // mapNodeId -> array of branch results
   configHash: string;
   runnerVersion: string;
+  requestId?: string;
   lastError: {
     current?: {
       nodeId: string;

@@ -1,6 +1,8 @@
 import { TrainingStatus } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DatabaseService } from "../database/database.service";
 import { TrainingPollerService } from "./training-poller.service";
 
@@ -92,6 +94,7 @@ describe("TrainingPollerService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TrainingPollerService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: DatabaseService,
           useValue: mockDb,
@@ -128,6 +131,7 @@ describe("TrainingPollerService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingPollerService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
           {
             provide: DatabaseService,
             useValue: { prisma: mockPrisma },
@@ -157,6 +161,7 @@ describe("TrainingPollerService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingPollerService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
           {
             provide: DatabaseService,
             useValue: { prisma: mockPrisma },
@@ -237,6 +242,7 @@ describe("TrainingPollerService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingPollerService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
           {
             provide: DatabaseService,
             useValue: mockDbNoPrisma,
@@ -607,6 +613,7 @@ describe("TrainingPollerService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingPollerService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
           {
             provide: DatabaseService,
             useValue: mockDbNoPrisma,

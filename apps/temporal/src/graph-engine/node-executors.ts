@@ -110,10 +110,11 @@ async function executeActivityNode(
     }
   }
 
-  // Step 3: Merge static parameters with resolved inputs
+  // Step 3: Merge static parameters with resolved inputs; inject requestId for tracing
   const activityParams = {
     ...inputs,
     ...node.parameters,
+    ...(state.requestId && { requestId: state.requestId }),
   };
 
   // Step 4: Create activity proxy with timeout and retry configuration

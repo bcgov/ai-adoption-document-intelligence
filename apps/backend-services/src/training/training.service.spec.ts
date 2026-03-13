@@ -7,6 +7,8 @@ import {
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AppLoggerService } from "@/logging/app-logger.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
@@ -199,6 +201,7 @@ describe("TrainingService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TrainingService,
+        { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: DatabaseService,
           useValue: mockDb,
@@ -250,6 +253,7 @@ describe("TrainingService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
           { provide: DatabaseService, useValue: { prisma: mockPrisma } },
           { provide: AzureStorageService, useValue: mockBlobStorage },
           { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
@@ -626,6 +630,7 @@ describe("TrainingService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingService,
+          { provide: AppLoggerService, useValue: mockAppLogger },
           { provide: DatabaseService, useValue: { prisma: mockPrisma } },
           { provide: AzureStorageService, useValue: mockBlobStorage },
           { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },

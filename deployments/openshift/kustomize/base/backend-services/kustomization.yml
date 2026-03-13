@@ -6,6 +6,8 @@ resources:
   - route.yml
   - configmap.yml
   - pvc.yml
+  - pvc-logs.yml
+  - logrotate-configmap.yml
   - networkpolicy.yml
 commonLabels:
   app: backend-services

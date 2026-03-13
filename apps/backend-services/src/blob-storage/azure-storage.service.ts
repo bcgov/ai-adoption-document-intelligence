@@ -17,8 +17,9 @@ import {
   SASProtocol,
   StorageSharedKeyCredential,
 } from "@azure/storage-blob";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AppLoggerService } from "@/logging/app-logger.service";
 
 /** Result of a single file upload. */
 export interface UploadFileResult {
@@ -52,14 +53,16 @@ export const AZURE_STORAGE = Symbol("AZURE_STORAGE");
 
 @Injectable()
 export class AzureStorageService {
-  private readonly logger = new Logger(AzureStorageService.name);
   private blobServiceClient: BlobServiceClient;
   private accountName: string;
   private accountKey: string;
   private readonly deleteRetryDelayMs = 5000;
   private readonly deleteRetryAttempts = 24;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly logger: AppLoggerService,
+  ) {
     const connectionString = this.configService.get<string>(
       "AZURE_STORAGE_CONNECTION_STRING",
     );
@@ -129,7 +132,9 @@ export class AzureStorageService {
 
         this.logger.error(
           `Failed to ensure container exists: ${containerName}`,
-          err.stack,
+          {
+            stack: err.stack,
+          },
         );
         throw error;
       }
@@ -166,7 +171,9 @@ export class AzureStorageService {
       return blockBlobClient.url;
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(`Failed to upload blob: ${blobName}`, err.stack);
+      this.logger.error(`Failed to upload blob: ${blobName}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -273,7 +280,9 @@ export class AzureStorageService {
       const err = error as Error;
       this.logger.error(
         `Failed to generate SAS URL for container: ${containerName}`,
-        err.stack,
+        {
+          stack: err.stack,
+        },
       );
       throw error;
     }
@@ -382,10 +391,9 @@ export class AzureStorageService {
       return blobs;
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(
-        `Failed to list blobs in container: ${containerName}`,
-        err.stack,
-      );
+      this.logger.error(`Failed to list blobs in container: ${containerName}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -402,10 +410,9 @@ export class AzureStorageService {
       this.logger.log(`Deleted container: ${containerName}`);
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(
-        `Failed to delete container: ${containerName}`,
-        err.stack,
-      );
+      this.logger.error(`Failed to delete container: ${containerName}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -429,10 +436,9 @@ export class AzureStorageService {
       return true;
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(
-        `Failed to delete container: ${containerName}`,
-        err.stack,
-      );
+      this.logger.error(`Failed to delete container: ${containerName}`, {
+        stack: err.stack,
+      });
       throw error;
     }
   }
@@ -462,7 +468,9 @@ export class AzureStorageService {
       const err = error as Error;
       this.logger.error(
         `Failed to clear container contents: ${containerName}`,
-        err.stack,
+        {
+          stack: err.stack,
+        },
       );
       throw error;
     }
