@@ -6,35 +6,12 @@ import type {
   ReviewStatus,
 } from "@generated/client";
 import { Injectable } from "@nestjs/common";
-import {
-  ClassifierSource,
-  ClassifierStatus,
-} from "@/azure/dto/classifier-constants.dto";
 import type { AnalysisResponse } from "@/ocr/azure-types";
 import type { DocumentData, ReviewSessionData } from "./database.types";
 import { PrismaService } from "./prisma.service";
 import { ReviewDbService } from "./review-db.service";
 
 export type { DocumentData, ReviewSessionData };
-
-export type ClassifierConfig = {
-  labels: {
-    label: string;
-    fromFolder: string;
-    blobFolder: string;
-  }[];
-};
-
-interface ClassifierEditableProperties {
-  version?: number;
-  group_id: string;
-  config: ClassifierConfig;
-  description: string;
-  status: ClassifierStatus;
-  source: ClassifierSource;
-  last_used_at?: Date;
-  operation_location?: string;
-}
 
 @Injectable()
 export class DatabaseService {
@@ -231,64 +208,5 @@ export class DatabaseService {
     groupIds?: string[];
   }) {
     return this.reviewDb.getReviewAnalytics(filters);
-  }
-
-  async createClassifierModel(
-    classifierName: string,
-    properties: ClassifierEditableProperties,
-    userId: string,
-  ) {
-    return await this.prisma.classifierModel.create({
-      data: {
-        ...properties,
-        created_by: userId,
-        updated_by: userId,
-        name: classifierName,
-      },
-    });
-  }
-
-  async updateClassifierModel(
-    classifierName: string,
-    groupId: string,
-    properties: Partial<ClassifierEditableProperties>,
-    userId?: string,
-  ) {
-    return await this.prisma.classifierModel.update({
-      where: {
-        name_group_id: {
-          name: classifierName,
-          group_id: groupId,
-        },
-      },
-      data: {
-        ...properties,
-        created_by: userId,
-        updated_by: userId,
-        name: classifierName,
-      },
-    });
-  }
-
-  async getClassifierModel(classifierName: string, groupId: string) {
-    return await this.prisma.classifierModel.findUnique({
-      where: {
-        name_group_id: {
-          name: classifierName,
-          group_id: groupId,
-        },
-      },
-    });
-  }
-
-  async getClassifierModelsForGroups(groupIds: string[]) {
-    return await this.prisma.classifierModel.findMany({
-      where: {
-        group_id: { in: groupIds },
-      },
-      include: {
-        group: true,
-      },
-    });
   }
 }

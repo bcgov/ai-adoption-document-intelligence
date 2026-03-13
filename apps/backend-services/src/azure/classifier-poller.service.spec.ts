@@ -1,18 +1,14 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
-import { DatabaseService } from "../database/database.service";
 import { AzureService } from "./azure.service";
 import { ClassifierService } from "./classifier.service";
+import { ClassifierDbService } from "./classifier-db.service";
 import { ClassifierPollerService } from "./classifier-poller.service";
 import { ClassifierStatus } from "./dto/classifier-constants.dto";
 
-const mockDatabaseService = {
-  prisma: {
-    classifierModel: {
-      findMany: jest.fn(),
-    },
-  },
+const mockClassifierDbService = {
+  findAllTrainingClassifiers: jest.fn(),
   updateClassifierModel: jest.fn(),
 };
 const mockAzureService = {
@@ -39,7 +35,7 @@ describe("ClassifierPollerService", () => {
       providers: [
         ClassifierPollerService,
         { provide: AppLoggerService, useValue: mockLogger },
-        { provide: DatabaseService, useValue: mockDatabaseService },
+        { provide: ClassifierDbService, useValue: mockClassifierDbService },
         { provide: AzureService, useValue: mockAzureService },
         { provide: AzureStorageService, useValue: mockBlobService },
         { provide: ClassifierService, useValue: mockClassifierService },
@@ -52,7 +48,7 @@ describe("ClassifierPollerService", () => {
 
   describe("pollActiveClassifiers", () => {
     it("should not poll if no classifiers are training", async () => {
-      mockDatabaseService.prisma.classifierModel.findMany.mockResolvedValue([]);
+      mockClassifierDbService.findAllTrainingClassifiers.mockResolvedValue([]);
       await service.pollActiveClassifiers();
       // No logger assertions
     });
@@ -72,7 +68,7 @@ describe("ClassifierPollerService", () => {
           status: ClassifierStatus.TRAINING,
         },
       ];
-      mockDatabaseService.prisma.classifierModel.findMany.mockResolvedValue(
+      mockClassifierDbService.findAllTrainingClassifiers.mockResolvedValue(
         classifiers,
       );
       const pollSpy = jest
@@ -86,7 +82,7 @@ describe("ClassifierPollerService", () => {
     });
 
     it("should not throw if polling fails", async () => {
-      mockDatabaseService.prisma.classifierModel.findMany.mockRejectedValue(
+      mockClassifierDbService.findAllTrainingClassifiers.mockRejectedValue(
         new Error("fail"),
       );
       await expect(service.pollActiveClassifiers()).resolves.not.toThrow();
@@ -99,11 +95,9 @@ describe("ClassifierPollerService", () => {
         json: async () => ({ status: "succeeded" }),
       });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
-      expect(mockDatabaseService.updateClassifierModel).toHaveBeenCalledWith(
-        "clf",
-        "gid",
-        { status: ClassifierStatus.READY },
-      );
+      expect(
+        mockClassifierDbService.updateClassifierModel,
+      ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.READY });
       expect(mockBlobService.deleteFilesWithPrefix).toHaveBeenCalledWith(
         "gid/clf",
         "classification",
@@ -115,11 +109,9 @@ describe("ClassifierPollerService", () => {
         json: async () => ({ status: "failed" }),
       });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
-      expect(mockDatabaseService.updateClassifierModel).toHaveBeenCalledWith(
-        "clf",
-        "gid",
-        { status: ClassifierStatus.FAILED },
-      );
+      expect(
+        mockClassifierDbService.updateClassifierModel,
+      ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.FAILED });
     });
 
     it("should not update if still training", async () => {
@@ -127,7 +119,9 @@ describe("ClassifierPollerService", () => {
         json: async () => ({ status: "running" }),
       });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
-      expect(mockDatabaseService.updateClassifierModel).not.toHaveBeenCalled();
+      expect(
+        mockClassifierDbService.updateClassifierModel,
+      ).not.toHaveBeenCalled();
     });
 
     it("should not throw if polling fails", async () => {
