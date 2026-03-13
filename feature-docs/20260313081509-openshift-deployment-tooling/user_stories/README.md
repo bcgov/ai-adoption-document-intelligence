@@ -40,7 +40,7 @@ After implementing the user story check it off at the bottom of this file
 ## Suggested Implementation Order (by dependency chain)
 
 ### Phase 1 — Foundation
-- [ ] **US-001** (Service account setup — all scripts depend on the SA token)
+- [x] **US-001** (Service account setup — all scripts depend on the SA token)
 - [ ] **US-002** (Environment configuration files — deploy needs config)
 - [ ] **US-003** (Instance name derivation — shared utility for all scripts)
 
