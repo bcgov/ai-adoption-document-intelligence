@@ -12,41 +12,6 @@ Environment configuration for OpenShift deployments is managed via `.env` files 
 | `deployments/openshift/config/prod.env` | Default configuration for production deployments |
 | `deployments/openshift/config/<instance-name>.env` | Optional instance-specific overrides |
 
-## Profile Selection
-
-When running the deploy script, specify the environment profile with `--env`:
-
-```bash
-./scripts/oc-deploy.sh --env dev
-./scripts/oc-deploy.sh --env prod
-```
-
-The corresponding configuration file (`dev.env` or `prod.env`) is loaded as the base configuration.
-
-## Instance-Specific Overrides
-
-To customize configuration for a specific instance, create a file named after the instance in the config directory:
-
-```
-deployments/openshift/config/<instance-name>.env
-```
-
-For example, if your instance is named `feature-my-thing`:
-
-```
-deployments/openshift/config/feature-my-thing.env
-```
-
-Override values take precedence over profile defaults. Only include the variables you want to override:
-
-```env
-# Override just the port and add a custom variable
-PORT=3003
-VITE_APP_NAME=My Custom Frontend
-```
-
-Variables not specified in the instance file retain their profile default values.
-
 ## Configuration Merge Order
 
 1. Profile defaults (`dev.env` or `prod.env`) are loaded first
@@ -82,6 +47,12 @@ print_config
 | `export_config` | Export all loaded values as environment variables |
 | `print_config` | Print all loaded key=value pairs (sorted) |
 | `get_config_dir` | Return the path to the config directory |
+
+### Testing
+
+```bash
+bash scripts/lib/config-loader.test.sh
+```
 
 ## Configuration Variables
 
