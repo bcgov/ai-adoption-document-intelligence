@@ -102,7 +102,6 @@ These values are derived automatically by the deploy script — do not set them 
 |----------|--------|-------------|
 | `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | No | Azure Document Intelligence API endpoint |
 | `AZURE_DOCUMENT_INTELLIGENCE_API_KEY` | Yes | Azure Document Intelligence API key |
-| `AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID` | No | Default model ID (e.g., `prebuilt-read`) |
 | `AZURE_DOC_INTELLIGENCE_MODELS` | No | Comma-separated allowed model IDs |
 
 ### Azure Blob Storage
@@ -113,6 +112,7 @@ These values are derived automatically by the deploy script — do not set them 
 | `AZURE_STORAGE_CONTAINER_NAME` | No | Azure blob container name |
 | `AZURE_STORAGE_CONNECTION_STRING` | Yes | Azure storage connection string |
 | `AZURE_STORAGE_ACCOUNT_NAME` | Yes | Azure storage account name |
+| `AZURE_STORAGE_ACCOUNT_KEY` | Yes | Azure storage account key |
 
 ### Azure OpenAI (LLM Enrichment)
 
@@ -170,6 +170,7 @@ Created by the deploy script with keys:
 - `AZURE_DOCUMENT_INTELLIGENCE_API_KEY`
 - `AZURE_STORAGE_CONNECTION_STRING`
 - `AZURE_STORAGE_ACCOUNT_NAME`
+- `AZURE_STORAGE_ACCOUNT_KEY`
 
 Referenced by the backend-services deployment via `secretKeyRef`.
 
@@ -180,6 +181,7 @@ Created by the deploy script with keys:
 - `AZURE_OPENAI_API_KEY`
 - `AZURE_STORAGE_CONNECTION_STRING`
 - `AZURE_STORAGE_ACCOUNT_NAME`
+- `AZURE_STORAGE_ACCOUNT_KEY`
 
 Referenced by the temporal-worker deployment via `secretKeyRef`.
 
