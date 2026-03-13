@@ -23,7 +23,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # Source library functions
 source "${SCRIPT_DIR}/lib/instance-name.sh"
 
-TOKEN_FILE="${PROJECT_ROOT}/.oc-deploy-token"
+TOKEN_FILE="${PROJECT_ROOT}/.oc-deploy/token"
 SA_NAME="deploy-sa"
 ROLE_NAME="deploy-sa-role"
 ROLE_BINDING_NAME="deploy-sa-rolebinding"
@@ -126,12 +126,12 @@ oc login "${SERVER}" --token="${TOKEN}" --insecure-skip-tls-verify=true &>/dev/n
   exit 1
 }
 
-oc project "${NAMESPACE}" &>/dev/null || {
-  log_error "Failed to switch to namespace '${NAMESPACE}'."
+oc get pods -n "${NAMESPACE}" --no-headers &>/dev/null || {
+  log_error "Cannot access namespace '${NAMESPACE}'. Token may lack permissions."
   exit 1
 }
 
-log_info "Authenticated and switched to namespace: ${NAMESPACE}"
+log_info "Authenticated with access to namespace: ${NAMESPACE}"
 
 # ============================================================
 # Step 2: Determine instance name
@@ -212,8 +212,8 @@ if [[ "${REMAINING_INSTANCES}" -eq 0 ]]; then
   log_info "Service account and RBAC resources removed."
 
   if [[ -f "${TOKEN_FILE}" ]]; then
-    rm -f "${TOKEN_FILE}"
-    log_info "Deleted local token file: ${TOKEN_FILE}"
+    rm -rf "$(dirname "${TOKEN_FILE}")"
+    log_info "Deleted local token directory: $(dirname "${TOKEN_FILE}")"
   fi
 else
   log_info "${REMAINING_INSTANCES} other instance(s) still deployed — keeping service account."

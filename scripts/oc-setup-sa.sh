@@ -17,7 +17,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 SA_NAME="deploy-sa"
-TOKEN_FILE="${PROJECT_ROOT}/.oc-deploy-token"
+TOKEN_DIR="${PROJECT_ROOT}/.oc-deploy"
+TOKEN_FILE="${TOKEN_DIR}/token"
 ROLE_NAME="deploy-sa-role"
 ROLE_BINDING_NAME="deploy-sa-rolebinding"
 
@@ -166,6 +167,7 @@ fi
 
 # ---------- save token to file ----------
 
+mkdir -p "${TOKEN_DIR}"
 cat > "${TOKEN_FILE}" <<TOKENEOF
 # OpenShift deploy service account token
 # Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -177,6 +179,7 @@ SERVER=$(oc whoami --show-server)
 TOKEN=${TOKEN}
 TOKENEOF
 
+chmod 700 "${TOKEN_DIR}"
 chmod 600 "${TOKEN_FILE}"
 
 log_info "Token saved to ${TOKEN_FILE}"
