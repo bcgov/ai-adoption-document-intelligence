@@ -2,14 +2,16 @@
 
 ## Overview
 
-Environment configuration for OpenShift deployments is managed via `.env` files in `deployments/openshift/config/`. Two environment profiles are provided: `dev` and `prod`. Instance-specific overrides can be layered on top.
+Environment configuration for OpenShift deployments is managed via `.env` files in `deployments/openshift/config/`. Two environment profiles are provided: `dev` and `prod`. All settings — including secrets — live in a single file per profile. Instance-specific overrides can be layered on top.
 
 ## Configuration Files
 
 | File | Purpose |
 |------|---------|
-| `deployments/openshift/config/dev.env` | Default configuration for development deployments |
-| `deployments/openshift/config/prod.env` | Default configuration for production deployments |
+| `deployments/openshift/config/dev.env` | All configuration for dev deployments (gitignored) |
+| `deployments/openshift/config/prod.env` | All configuration for prod deployments (gitignored) |
+| `deployments/openshift/config/dev.env.example` | Source-controlled template with placeholder values |
+| `deployments/openshift/config/prod.env.example` | Source-controlled template with placeholder values |
 | `deployments/openshift/config/<instance-name>.env` | Optional instance-specific overrides |
 
 ## Configuration Merge Order
@@ -74,42 +76,116 @@ These values are derived automatically by the deploy script — do not set them 
 | `SSO_REDIRECT_URI` | `<BACKEND_URL>/api/auth/callback` |
 | `TEMPORAL_ADDRESS` | `<instance>-temporal:7233` |
 
-### Per-Environment Profile (not per-instance)
-
-These variables differ between `dev` and `prod` profiles:
-
-| Variable | Description |
-|----------|-------------|
-| `SSO_AUTH_SERVER_URL` | Keycloak/SSO authentication server URL |
-| `SSO_REALM` | SSO realm name |
-| `SSO_CLIENT_ID` | SSO client identifier |
-| `VITE_SSO_AUTH_SERVER_URL` | Frontend SSO auth server URL (build arg) |
-| `VITE_SSO_REALM` | Frontend SSO realm (build arg) |
-| `VITE_SSO_CLIENT_ID` | Frontend SSO client ID (build arg) |
-| `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | Azure Document Intelligence API endpoint |
-| `VITE_ENV` | Environment identifier for frontend |
-| `THROTTLE_AUTH_LIMIT` | Auth endpoint rate limit (stricter in prod) |
-| `THROTTLE_AUTH_REFRESH_LIMIT` | Token refresh rate limit (stricter in prod) |
-
-### Common Settings (same across profiles)
+### Application Settings
 
 | Variable | Description |
 |----------|-------------|
 | `NODE_ENV` | Node.js environment (`production` for all OpenShift deployments) |
 | `PORT` | Backend service port |
 | `BODY_LIMIT` | Request body size limit |
-| `BLOB_STORAGE_PROVIDER` | Blob storage backend (`azure` for cloud) |
-| `AZURE_STORAGE_CONTAINER_NAME` | Azure blob container name |
+
+### SSO / Keycloak
+
+| Variable | Secret | Description |
+|----------|--------|-------------|
+| `SSO_AUTH_SERVER_URL` | No | Keycloak/SSO authentication server URL |
+| `SSO_REALM` | No | SSO realm name |
+| `SSO_CLIENT_ID` | No | SSO client identifier |
+| `SSO_CLIENT_SECRET` | Yes | SSO client secret |
+| `VITE_SSO_AUTH_SERVER_URL` | No | Frontend SSO auth server URL (build arg) |
+| `VITE_SSO_REALM` | No | Frontend SSO realm (build arg) |
+| `VITE_SSO_CLIENT_ID` | No | Frontend SSO client ID (build arg) |
+
+### Azure Document Intelligence
+
+| Variable | Secret | Description |
+|----------|--------|-------------|
+| `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | No | Azure Document Intelligence API endpoint |
+| `AZURE_DOCUMENT_INTELLIGENCE_API_KEY` | Yes | Azure Document Intelligence API key |
+| `AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID` | No | Default model ID (e.g., `prebuilt-read`) |
+| `AZURE_DOC_INTELLIGENCE_MODELS` | No | Comma-separated allowed model IDs |
+
+### Azure Blob Storage
+
+| Variable | Secret | Description |
+|----------|--------|-------------|
+| `BLOB_STORAGE_PROVIDER` | No | Storage backend (`azure` for cloud) |
+| `AZURE_STORAGE_CONTAINER_NAME` | No | Azure blob container name |
+| `AZURE_STORAGE_CONNECTION_STRING` | Yes | Azure storage connection string |
+| `AZURE_STORAGE_ACCOUNT_NAME` | Yes | Azure storage account name |
+
+### Azure OpenAI (LLM Enrichment)
+
+| Variable | Secret | Description |
+|----------|--------|-------------|
+| `AZURE_OPENAI_ENDPOINT` | No | Azure OpenAI endpoint URL |
+| `AZURE_OPENAI_API_KEY` | Yes | Azure OpenAI API key |
+| `AZURE_OPENAI_DEPLOYMENT` | No | OpenAI deployment/model name |
+| `AZURE_OPENAI_API_VERSION` | No | OpenAI API version (e.g., `2024-02-15-preview`) |
+| `ENRICHMENT_REDACT_PII` | No | Redact PII in LLM enrichment (`true`/`false`) |
+
+### Temporal
+
+| Variable | Description |
+|----------|-------------|
 | `TEMPORAL_NAMESPACE` | Temporal namespace |
 | `TEMPORAL_TASK_QUEUE` | Temporal task queue name |
+| `BENCHMARK_TASK_QUEUE` | Benchmark processing task queue |
+| `ENABLE_BENCHMARK_QUEUE` | Enable separate benchmark worker |
+
+### Database SSL
+
+| Variable | Description |
+|----------|-------------|
 | `PGSSLMODE` | PostgreSQL SSL mode |
 | `PGSSLREJECTUNAUTHORIZED` | Whether to reject unauthorized SSL certs |
 
-## Secrets
+### Frontend Build Args
 
-Secrets (API keys, client secrets, connection strings) are **not** stored in config files. They are managed via OpenShift Secrets:
+| Variable | Description |
+|----------|-------------|
+| `VITE_APP_NAME` | Application display name |
+| `VITE_APP_VERSION` | Application version |
+| `VITE_ENV` | Environment identifier |
 
-- `SSO_CLIENT_SECRET` - SSO client secret
-- `AZURE_DOCUMENT_INTELLIGENCE_API_KEY` - Azure Document Intelligence API key
-- `AZURE_STORAGE_CONNECTION_STRING` - Azure Blob Storage connection string
-- `DATABASE_URL` - PostgreSQL connection string (from Crunchy Operator)
+### Rate Limiting
+
+| Variable | Description |
+|----------|-------------|
+| `THROTTLE_GLOBAL_TTL_MS` | Global rate limit window in milliseconds |
+| `THROTTLE_GLOBAL_LIMIT` | Max requests per IP globally |
+| `THROTTLE_AUTH_TTL_MS` | Auth endpoint rate limit window |
+| `THROTTLE_AUTH_LIMIT` | Max auth requests per IP (stricter in prod) |
+| `THROTTLE_AUTH_REFRESH_TTL_MS` | Token refresh rate limit window |
+| `THROTTLE_AUTH_REFRESH_LIMIT` | Max refresh requests per IP (stricter in prod) |
+
+## How Secrets Reach the Pods
+
+The deploy script creates per-instance OpenShift Secrets from values in the env file. Each instance gets its own copy.
+
+### backend-services-secrets
+
+Created by the deploy script with keys:
+- `SSO_CLIENT_SECRET`
+- `AZURE_DOCUMENT_INTELLIGENCE_API_KEY`
+- `AZURE_STORAGE_CONNECTION_STRING`
+- `AZURE_STORAGE_ACCOUNT_NAME`
+
+Referenced by the backend-services deployment via `secretKeyRef`.
+
+### temporal-worker-secrets
+
+Created by the deploy script with keys:
+- `AZURE_DOCUMENT_INTELLIGENCE_API_KEY`
+- `AZURE_OPENAI_API_KEY`
+- `AZURE_STORAGE_CONNECTION_STRING`
+- `AZURE_STORAGE_ACCOUNT_NAME`
+
+Referenced by the temporal-worker deployment via `secretKeyRef`.
+
+### Auto-Managed Secrets (not in env files)
+
+| Secret | Managed By | Description |
+|--------|-----------|-------------|
+| `<instance>-postgres-cluster-pguser-admin` | Crunchy Operator | PostgreSQL connection credentials (`DATABASE_URL`) |
+| `<instance>-temporal-postgres-cluster-pguser-temporal` | Crunchy Operator | Temporal database credentials |
