@@ -178,13 +178,23 @@ load_config --env "${ENV_PROFILE}" --instance "${INSTANCE_NAME}" || {
 
 export_config
 
-# Read required config values
-ROUTE_HOST_SUFFIX=$(get_config "ROUTE_HOST_SUFFIX") || {
-  log_error "ROUTE_HOST_SUFFIX not found in configuration. Please add it to deployments/openshift/config/${ENV_PROFILE}.env"
+# Compute ROUTE_HOST_SUFFIX from namespace + CLUSTER_DOMAIN
+CLUSTER_DOMAIN=$(get_config "CLUSTER_DOMAIN") || {
+  log_error "CLUSTER_DOMAIN not found in configuration. Please add it to deployments/openshift/config/${ENV_PROFILE}.env"
   exit 1
 }
+ROUTE_HOST_SUFFIX="${NAMESPACE}.${CLUSTER_DOMAIN}"
 
-log_info "Route host suffix: ${ROUTE_HOST_SUFFIX}"
+# Inject computed instance-specific values into the loaded config
+FRONTEND_URL="https://${INSTANCE_NAME}-frontend.${ROUTE_HOST_SUFFIX}"
+BACKEND_URL="https://${INSTANCE_NAME}-backend.${ROUTE_HOST_SUFFIX}"
+SSO_REDIRECT_URI="${BACKEND_URL}/api/auth/callback"
+TEMPORAL_ADDRESS="${INSTANCE_NAME}-temporal:7233"
+
+# Make these available via the config system
+export ROUTE_HOST_SUFFIX FRONTEND_URL BACKEND_URL SSO_REDIRECT_URI TEMPORAL_ADDRESS
+
+log_info "Route host suffix: ${ROUTE_HOST_SUFFIX} (derived from namespace + CLUSTER_DOMAIN)"
 log_info "Configuration loaded successfully."
 
 # ============================================================
