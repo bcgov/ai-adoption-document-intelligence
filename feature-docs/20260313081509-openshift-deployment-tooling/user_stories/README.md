@@ -53,7 +53,7 @@ After implementing the user story check it off at the bottom of this file
 - [x] **US-007** (Deploy script overlay apply — Kustomize generation, migrations, access URLs)
 
 ### Phase 4 — Lifecycle Management
-- [ ] **US-008** (Instance teardown script — uses SA token + instance naming)
+- [x] **US-008** (Instance teardown script — uses SA token + instance naming)
 - [ ] **US-009** (List instances script — uses SA token + instance naming)
 
 ### Phase 5 — Database Operations
