@@ -19,7 +19,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-TOKEN_FILE="${PROJECT_ROOT}/.oc-deploy-token"
+TOKEN_FILE="${PROJECT_ROOT}/.oc-deploy/token"
 
 # ---------- helpers ----------
 
@@ -244,8 +244,8 @@ oc login "${SERVER}" --token="${TOKEN}" --insecure-skip-tls-verify=true &>/dev/n
   exit 1
 }
 
-oc project "${NAMESPACE}" &>/dev/null || {
-  log_error "Failed to switch to namespace '${NAMESPACE}'."
+oc get pods -n "${NAMESPACE}" --no-headers &>/dev/null || {
+  log_error "Cannot access namespace '${NAMESPACE}'. Token may lack permissions."
   exit 1
 }
 
