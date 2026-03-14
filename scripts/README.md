@@ -202,6 +202,42 @@ Notes:
 
 ---
 
+### oc-build-push.sh — Build & Push Images
+
+Builds and pushes container images locally to ghcr.io. Use this when iterating on a feature branch where the GitHub Actions workflow isn't available, or when you want faster rebuilds without pushing code first.
+
+```bash
+# Build and push just the frontend
+./scripts/oc-build-push.sh frontend
+
+# Build and push multiple services
+./scripts/oc-build-push.sh frontend backend-services
+
+# Build and push all services
+./scripts/oc-build-push.sh --all
+
+# Build, push, and restart OpenShift deployments to pick up the new image
+./scripts/oc-build-push.sh frontend --restart
+
+# Use a custom image tag
+./scripts/oc-build-push.sh frontend --tag my-custom-tag
+```
+
+| Option | Short | Required | Description |
+|--------|-------|----------|-------------|
+| `--all` | | No | Build all services (`backend-services`, `frontend`, `temporal`) |
+| `--restart` | | No | Restart OpenShift deployments after push so pods pull the updated image |
+| `--namespace` | `-n` | No | OpenShift namespace for `--restart` (default: auto-detect from `oc`) |
+| `--tag` | `-t` | No | Image tag override (default: sanitized git branch name) |
+| `--help` | `-h` | No | Show help |
+
+Notes:
+- Image tag defaults to the sanitized git branch name (same convention as the GHA workflow and deploy script)
+- Since the tag doesn't change between rebuilds, OpenShift pods won't pull the new image automatically — use `--restart` or manually run `oc rollout restart`
+- Requires Docker installed and `gh auth` with `write:packages` scope (`gh auth refresh -s write:packages`)
+
+---
+
 ## Common Workflows
 
 ### First-time setup
@@ -227,6 +263,13 @@ oc login --server=https://api.silver.devops.gov.bc.ca:6443
 ./scripts/oc-deploy.sh --env dev
 ./scripts/oc-restore-db.sh --instance feature-my-thing \
   --from ./backups/feature-my-thing-20260313-143022.sql
+```
+
+### Rebuild and redeploy a service
+
+```bash
+# Make code changes, then rebuild and restart just the frontend
+./scripts/oc-build-push.sh frontend --restart
 ```
 
 ### Migrate data between instances
