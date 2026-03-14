@@ -87,6 +87,12 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: FRONTEND_URL
+        - name: BOOTSTRAP_ADMIN_EMAIL
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: BOOTSTRAP_ADMIN_EMAIL
+              optional: true
         - name: BACKEND_URL
           valueFrom:
             configMapKeyRef:

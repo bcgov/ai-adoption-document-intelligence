@@ -121,7 +121,7 @@ patches:
         TEMPORAL_ADDRESS: "__INSTANCE_NAME__-temporal:7233"
         FRONTEND_URL: "https://__INSTANCE_NAME__-frontend-__NAMESPACE__.__CLUSTER_DOMAIN__"
         BACKEND_URL: "https://__INSTANCE_NAME__-backend-__NAMESPACE__.__CLUSTER_DOMAIN__"
-        SSO_REDIRECT_URI: "https://__INSTANCE_NAME__-backend-__NAMESPACE__.__CLUSTER_DOMAIN__/api/auth/callback"
+        SSO_REDIRECT_URI: "https://__INSTANCE_NAME__-frontend-__NAMESPACE__.__CLUSTER_DOMAIN__/api/auth/callback"
         SSO_AUTH_SERVER_URL: "__SSO_AUTH_SERVER_URL__"
         SSO_REALM: "__SSO_REALM__"
         SSO_CLIENT_ID: "__SSO_CLIENT_ID__"
