@@ -55,8 +55,8 @@ One-time setup that creates an OpenShift service account with scoped permissions
 | `--help` | `-h` | No | Show help |
 
 The script:
-- Creates a service account `deploy-sa` with permissions scoped to deployments, services, routes, configmaps, secrets, PVCs, pods, and pods/exec
-- Saves the token to `.oc-deploy-token` (gitignored, permissions `600`)
+- Creates a service account `deploy-sa` with permissions scoped to deployments, services, routes, configmaps, secrets, PVCs, pods, pods/exec, PostgresClusters, and NetworkPolicies
+- Saves the token to `.oc-deploy/token` (gitignored, directory permissions `700`, file permissions `600`)
 - Is idempotent — safe to re-run
 
 ---
@@ -74,23 +74,29 @@ Deploys the full application stack as an isolated instance.
 
 # Deploy with prod config
 ./scripts/oc-deploy.sh --env prod
+
+# Build images locally instead of via GitHub Actions
+./scripts/oc-deploy.sh --env prod --build-local
 ```
 
 | Option | Short | Required | Description |
 |--------|-------|----------|-------------|
 | `--env` | `-e` | Yes | Environment profile: `dev` or `prod` |
 | `--instance` | `-i` | No | Instance name override (default: from git branch) |
+| `--build-local` | | No | Build and push images locally with Docker instead of via GitHub Actions |
 | `--help` | `-h` | No | Show help |
 
 The deploy flow:
 1. Validates the service account token
 2. Derives the instance name from the git branch (or `--instance`)
 3. Loads environment config (`dev.env` or `prod.env`) with optional instance overrides
-4. Checks for existing images on ghcr.io, triggers a build if missing
+4. Checks for existing images on ghcr.io; if missing, builds them via GitHub Actions (default) or locally with Docker (`--build-local`)
 5. Generates a Kustomize overlay and applies it with `oc apply -k`
 6. Creates per-instance OpenShift Secrets from config values (API keys, client secrets)
 7. Waits for all deployments to roll out (5-minute timeout each)
 8. Prints access URLs
+
+**`--build-local`**: Builds images with `docker build` and pushes to ghcr.io directly from your machine. Requires Docker installed and `gh auth` with `write:packages` scope (`gh auth refresh -s write:packages`). Useful when the GitHub Actions workflow isn't on the default branch or you want faster iteration without pushing to GitHub first.
 
 Each instance gets: frontend, backend, Temporal server + worker + UI, Crunchy PostgreSQL, routes, ConfigMaps, Secrets, PVCs, and NetworkPolicies. Prisma migrations run automatically via an init container during deployment.
 
@@ -117,7 +123,7 @@ Behavior:
 - Deletes all resources by label selector (`app.kubernetes.io/instance=<name>`), including PVCs and Crunchy PostgreSQL clusters
 - No interactive prompts — runs to completion silently
 - No automatic backup — use `oc-backup-db.sh` first if you need to preserve data
-- If this is the last instance in the namespace, also removes the service account and `.oc-deploy-token`
+- If this is the last instance in the namespace, also removes the service account and `.oc-deploy/` directory
 - Idempotent — running on an already-deleted instance completes without error
 
 ---
