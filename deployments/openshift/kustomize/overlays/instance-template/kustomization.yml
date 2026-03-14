@@ -125,6 +125,7 @@ patches:
         SSO_AUTH_SERVER_URL: "__SSO_AUTH_SERVER_URL__"
         SSO_REALM: "__SSO_REALM__"
         SSO_CLIENT_ID: "__SSO_CLIENT_ID__"
+        BOOTSTRAP_ADMIN_EMAIL: "__BOOTSTRAP_ADMIN_EMAIL__"
 
   # --- Temporal worker ConfigMap: update Temporal server address ---
   - target:
