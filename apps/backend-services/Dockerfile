@@ -5,12 +5,15 @@ FROM node:24-alpine AS builder
 WORKDIR /app
 
 # Copy package files and config from apps/backend-services
-COPY apps/backend-services/package*.json ./
+COPY apps/backend-services/package.json ./
 COPY apps/backend-services/nest-cli.json ./
 COPY apps/backend-services/tsconfig*.json ./
 COPY apps/backend-services/.swcrc ./
 
-# Install dependencies (including dev dependencies for build)
+# Copy workspace packages referenced as file: dependencies (file:../../packages/logging resolves to /packages/logging)
+COPY packages/logging /packages/logging
+
+# Install dependencies (remove lockfile — monorepo file: paths don't match Docker layout)
 RUN npm install
 
 # Copy source and shared Prisma schema
@@ -42,8 +45,11 @@ WORKDIR /app
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001
 
+# Copy workspace packages for file: dependencies
+COPY packages/logging /packages/logging
+
 # Copy package files
-COPY apps/backend-services/package*.json ./
+COPY apps/backend-services/package.json ./
 
 # openshift runs as a different user than what docker builds with
 # this fixes the issue as related to the npm cache
