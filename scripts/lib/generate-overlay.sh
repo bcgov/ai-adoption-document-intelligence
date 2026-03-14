@@ -50,6 +50,21 @@ generate_instance_overlay() {
   local sso_realm=""
   local sso_client_id=""
   local bootstrap_admin_email=""
+  local blob_storage_provider="minio"
+  local azure_storage_container_name="document-blobs"
+  local benchmark_task_queue="benchmark-processing"
+  local enable_benchmark_queue="true"
+  local body_limit="50mb"
+  local throttle_global_ttl_ms="60000"
+  local throttle_global_limit="100"
+  local throttle_auth_ttl_ms="60000"
+  local throttle_auth_limit="10"
+  local throttle_auth_refresh_ttl_ms="60000"
+  local throttle_auth_refresh_limit="5"
+  local azure_openai_endpoint=""
+  local azure_openai_deployment=""
+  local azure_openai_api_version="2024-02-15-preview"
+  local enrichment_redact_pii="false"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -95,6 +110,66 @@ generate_instance_overlay() {
         ;;
       --bootstrap-admin-email)
         bootstrap_admin_email="$2"
+        shift 2
+        ;;
+      --blob-storage-provider)
+        blob_storage_provider="$2"
+        shift 2
+        ;;
+      --azure-storage-container-name)
+        azure_storage_container_name="$2"
+        shift 2
+        ;;
+      --benchmark-task-queue)
+        benchmark_task_queue="$2"
+        shift 2
+        ;;
+      --enable-benchmark-queue)
+        enable_benchmark_queue="$2"
+        shift 2
+        ;;
+      --body-limit)
+        body_limit="$2"
+        shift 2
+        ;;
+      --throttle-global-ttl-ms)
+        throttle_global_ttl_ms="$2"
+        shift 2
+        ;;
+      --throttle-global-limit)
+        throttle_global_limit="$2"
+        shift 2
+        ;;
+      --throttle-auth-ttl-ms)
+        throttle_auth_ttl_ms="$2"
+        shift 2
+        ;;
+      --throttle-auth-limit)
+        throttle_auth_limit="$2"
+        shift 2
+        ;;
+      --throttle-auth-refresh-ttl-ms)
+        throttle_auth_refresh_ttl_ms="$2"
+        shift 2
+        ;;
+      --throttle-auth-refresh-limit)
+        throttle_auth_refresh_limit="$2"
+        shift 2
+        ;;
+      --azure-openai-endpoint)
+        azure_openai_endpoint="$2"
+        shift 2
+        ;;
+      --azure-openai-deployment)
+        azure_openai_deployment="$2"
+        shift 2
+        ;;
+      --azure-openai-api-version)
+        azure_openai_api_version="$2"
+        shift 2
+        ;;
+      --enrichment-redact-pii)
+        enrichment_redact_pii="$2"
         shift 2
         ;;
       *)
@@ -159,6 +234,21 @@ generate_instance_overlay() {
     -e "s|__SSO_REALM__|${sso_realm}|g"
     -e "s|__SSO_CLIENT_ID__|${sso_client_id}|g"
     -e "s|__BOOTSTRAP_ADMIN_EMAIL__|${bootstrap_admin_email}|g"
+    -e "s|__BLOB_STORAGE_PROVIDER__|${blob_storage_provider}|g"
+    -e "s|__AZURE_STORAGE_CONTAINER_NAME__|${azure_storage_container_name}|g"
+    -e "s|__BENCHMARK_TASK_QUEUE__|${benchmark_task_queue}|g"
+    -e "s|__ENABLE_BENCHMARK_QUEUE__|${enable_benchmark_queue}|g"
+    -e "s|__BODY_LIMIT__|${body_limit}|g"
+    -e "s|__THROTTLE_GLOBAL_TTL_MS__|${throttle_global_ttl_ms}|g"
+    -e "s|__THROTTLE_GLOBAL_LIMIT__|${throttle_global_limit}|g"
+    -e "s|__THROTTLE_AUTH_TTL_MS__|${throttle_auth_ttl_ms}|g"
+    -e "s|__THROTTLE_AUTH_LIMIT__|${throttle_auth_limit}|g"
+    -e "s|__THROTTLE_AUTH_REFRESH_TTL_MS__|${throttle_auth_refresh_ttl_ms}|g"
+    -e "s|__THROTTLE_AUTH_REFRESH_LIMIT__|${throttle_auth_refresh_limit}|g"
+    -e "s|__AZURE_OPENAI_ENDPOINT__|${azure_openai_endpoint}|g"
+    -e "s|__AZURE_OPENAI_DEPLOYMENT__|${azure_openai_deployment}|g"
+    -e "s|__AZURE_OPENAI_API_VERSION__|${azure_openai_api_version}|g"
+    -e "s|__ENRICHMENT_REDACT_PII__|${enrichment_redact_pii}|g"
   )
 
   # Process all YAML files in the generated directory
