@@ -49,6 +49,7 @@ generate_instance_overlay() {
   local sso_auth_server_url=""
   local sso_realm=""
   local sso_client_id=""
+  local bootstrap_admin_email=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -90,6 +91,10 @@ generate_instance_overlay() {
         ;;
       --sso-client-id)
         sso_client_id="$2"
+        shift 2
+        ;;
+      --bootstrap-admin-email)
+        bootstrap_admin_email="$2"
         shift 2
         ;;
       *)
@@ -153,6 +158,7 @@ generate_instance_overlay() {
     -e "s|__SSO_AUTH_SERVER_URL__|${sso_auth_server_url}|g"
     -e "s|__SSO_REALM__|${sso_realm}|g"
     -e "s|__SSO_CLIENT_ID__|${sso_client_id}|g"
+    -e "s|__BOOTSTRAP_ADMIN_EMAIL__|${bootstrap_admin_email}|g"
   )
 
   # Process all YAML files in the generated directory
