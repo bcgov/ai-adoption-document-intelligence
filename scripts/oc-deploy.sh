@@ -41,9 +41,10 @@ Usage: $(basename "$0") --env <dev|prod> [--instance <name>]
 Deploys the full application stack as an isolated instance on OpenShift.
 
 Options:
-  --env, -e       Environment profile: dev or prod (required)
-  --instance, -i  Instance name override (default: derived from git branch)
-  --help, -h      Show this help message
+  --env, -e         Environment profile: dev or prod (required)
+  --instance, -i    Instance name override (default: derived from git branch)
+  --build-local     Build and push images locally with Docker instead of via GitHub Actions
+  --help, -h        Show this help message
 EOF
 }
 
@@ -66,6 +67,7 @@ log_step() {
 
 ENV_PROFILE=""
 INSTANCE_OVERRIDE=""
+BUILD_LOCAL=false
 PASS_THROUGH_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -86,6 +88,10 @@ while [[ $# -gt 0 ]]; do
       INSTANCE_OVERRIDE="$2"
       PASS_THROUGH_ARGS+=(--instance "$2")
       shift 2
+      ;;
+    --build-local)
+      BUILD_LOCAL=true
+      shift
       ;;
     --help|-h)
       usage
@@ -237,61 +243,122 @@ for service in "${SERVICES[@]}"; do
 done
 
 if [[ "${IMAGES_EXIST}" == "false" ]]; then
-  log_info "One or more images not found. Triggering GitHub Actions build workflow..."
 
-  if ! command -v gh &>/dev/null; then
-    log_error "'gh' CLI is not installed. Install it from https://cli.github.com/ to trigger image builds."
-    exit 1
-  fi
+  if [[ "${BUILD_LOCAL}" == "true" ]]; then
+    # ---------- Local Docker build ----------
+    log_info "Building images locally with Docker..."
 
-  # Trigger the workflow via the REST API so it works from non-default branches
-  gh api "repos/${GITHUB_REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches" \
-    -f "ref=${CURRENT_BRANCH}" \
-    -f 'inputs[branch]='"${CURRENT_BRANCH}" || {
-    log_error "Failed to trigger image build workflow."
-    log_error "Ensure your code is pushed to GitHub and 'gh' is authenticated."
-    exit 1
-  }
-
-  log_info "Build workflow triggered for branch '${CURRENT_BRANCH}'."
-  log_info "Waiting for workflow run to start..."
-  sleep 5
-
-  # Find the most recent run
-  RUN_ID=""
-  for attempt in $(seq 1 12); do
-    RUN_ID=$(gh run list \
-      --repo "${GITHUB_REPO}" \
-      --workflow "${WORKFLOW_FILE}" \
-      --branch "${CURRENT_BRANCH}" \
-      --limit 1 \
-      --json databaseId,status,createdAt \
-      --jq '.[0].databaseId' 2>/dev/null) || true
-
-    if [[ -n "${RUN_ID}" ]]; then
-      break
+    if ! command -v docker &>/dev/null; then
+      log_error "'docker' is not installed. Install Docker to use --build-local."
+      exit 1
     fi
 
-    log_info "  Waiting for workflow to appear... (attempt ${attempt}/12)"
-    sleep 5
-  done
+    # Log in to ghcr.io using gh CLI token
+    log_info "Logging into ${REGISTRY}..."
+    gh auth token | docker login "${REGISTRY}" -u "$(gh api user --jq .login)" --password-stdin || {
+      log_error "Failed to log in to ${REGISTRY}. Ensure 'gh' is authenticated with packages:write scope."
+      exit 1
+    }
 
-  if [[ -z "${RUN_ID}" ]]; then
-    log_error "Could not find the triggered workflow run. Check GitHub Actions manually."
-    exit 1
+    # Service definitions: name, context, dockerfile (matches GHA workflow matrix)
+    declare -A BUILD_CONTEXTS=( ["backend-services"]="." ["frontend"]="apps/frontend" ["temporal"]="." )
+    declare -A BUILD_DOCKERFILES=( ["backend-services"]="apps/backend-services/Dockerfile" ["frontend"]="apps/frontend/Dockerfile" ["temporal"]="apps/temporal/Dockerfile" )
+
+    BUILD_COUNT=0
+    TOTAL_SERVICES=${#SERVICES[@]}
+
+    for service in "${SERVICES[@]}"; do
+      BUILD_COUNT=$((BUILD_COUNT + 1))
+      IMAGE_REF="${IMAGE_BASE}/${service}:${IMAGE_TAG}"
+      log_info "[${BUILD_COUNT}/${TOTAL_SERVICES}] Building ${service}"
+      log_info "  Dockerfile: ${BUILD_DOCKERFILES[${service}]}"
+      log_info "  Context:    ${BUILD_CONTEXTS[${service}]}"
+      log_info "  Image:      ${IMAGE_REF}"
+
+      BUILD_START=$(date +%s)
+      docker build \
+        --progress=plain \
+        -f "${BUILD_DOCKERFILES[${service}]}" \
+        -t "${IMAGE_REF}" \
+        "${BUILD_CONTEXTS[${service}]}" || {
+        log_error "Docker build failed for ${service}."
+        exit 1
+      }
+      BUILD_ELAPSED=$(( $(date +%s) - BUILD_START ))
+      log_info "[${BUILD_COUNT}/${TOTAL_SERVICES}] ${service} built in ${BUILD_ELAPSED}s"
+
+      log_info "[${BUILD_COUNT}/${TOTAL_SERVICES}] Pushing ${service}..."
+      PUSH_START=$(date +%s)
+      docker push "${IMAGE_REF}" || {
+        log_error "Docker push failed for ${IMAGE_REF}."
+        exit 1
+      }
+      PUSH_ELAPSED=$(( $(date +%s) - PUSH_START ))
+      log_info "[${BUILD_COUNT}/${TOTAL_SERVICES}] ${service} pushed in ${PUSH_ELAPSED}s"
+    done
+
+    log_info "All ${TOTAL_SERVICES} images built and pushed locally."
+
+  else
+    # ---------- GitHub Actions build ----------
+    log_info "Triggering GitHub Actions build workflow..."
+
+    if ! command -v gh &>/dev/null; then
+      log_error "'gh' CLI is not installed. Install it from https://cli.github.com/ to trigger image builds."
+      exit 1
+    fi
+
+    # Trigger the workflow via the REST API so it works from non-default branches
+    gh api "repos/${GITHUB_REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches" \
+      -f "ref=${CURRENT_BRANCH}" \
+      -f 'inputs[branch]='"${CURRENT_BRANCH}" || {
+      log_error "Failed to trigger image build workflow."
+      log_error "Ensure your code is pushed to GitHub and 'gh' is authenticated."
+      log_error "If the workflow is not on the default branch, use --build-local instead."
+      exit 1
+    }
+
+    log_info "Build workflow triggered for branch '${CURRENT_BRANCH}'."
+    log_info "Waiting for workflow run to start..."
+    sleep 5
+
+    # Find the most recent run
+    RUN_ID=""
+    for attempt in $(seq 1 12); do
+      RUN_ID=$(gh run list \
+        --repo "${GITHUB_REPO}" \
+        --workflow "${WORKFLOW_FILE}" \
+        --branch "${CURRENT_BRANCH}" \
+        --limit 1 \
+        --json databaseId,status,createdAt \
+        --jq '.[0].databaseId' 2>/dev/null) || true
+
+      if [[ -n "${RUN_ID}" ]]; then
+        break
+      fi
+
+      log_info "  Waiting for workflow to appear... (attempt ${attempt}/12)"
+      sleep 5
+    done
+
+    if [[ -z "${RUN_ID}" ]]; then
+      log_error "Could not find the triggered workflow run. Check GitHub Actions manually."
+      exit 1
+    fi
+
+    log_info "Workflow run ID: ${RUN_ID}"
+    log_info "Waiting for build to complete (this may take several minutes)..."
+
+    # Wait for workflow completion
+    gh run watch "${RUN_ID}" --repo "${GITHUB_REPO}" --exit-status || {
+      log_error "Image build workflow failed. Check the run at:"
+      log_error "  https://github.com/${GITHUB_REPO}/actions/runs/${RUN_ID}"
+      exit 1
+    }
+
+    log_info "Image build completed successfully."
   fi
 
-  log_info "Workflow run ID: ${RUN_ID}"
-  log_info "Waiting for build to complete (this may take several minutes)..."
-
-  # Wait for workflow completion
-  gh run watch "${RUN_ID}" --repo "${GITHUB_REPO}" --exit-status || {
-    log_error "Image build workflow failed. Check the run at:"
-    log_error "  https://github.com/${GITHUB_REPO}/actions/runs/${RUN_ID}"
-    exit 1
-  }
-
-  log_info "Image build completed successfully."
 else
   log_info "All images already exist for tag '${IMAGE_TAG}'. Skipping build."
 fi
