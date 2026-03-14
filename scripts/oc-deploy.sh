@@ -412,12 +412,26 @@ cleanup() {
 trap cleanup EXIT
 
 # ============================================================
-# Step 6: Create/update instance secrets
+# Step 6: Apply resources to OpenShift
 # ============================================================
-log_step "Step 6: Creating instance secrets"
+log_step "Step 6: Applying resources to OpenShift"
+
+log_info "Running: oc apply -k ${OVERLAY_DIR} -n ${NAMESPACE}"
+oc apply -k "${OVERLAY_DIR}" -n "${NAMESPACE}" || {
+  log_error "Failed to apply Kustomize overlay to OpenShift."
+  exit 1
+}
+
+log_info "Resources applied successfully."
+
+# ============================================================
+# Step 7: Create/update instance secrets
+# ============================================================
+log_step "Step 7: Creating instance secrets"
 
 # Secrets are read from the same env file loaded in Step 3 (via get_config).
 # No separate secrets file is needed.
+# This runs AFTER Kustomize apply so the real values overwrite the base placeholders.
 
 # Create backend-services-secrets (prefixed by Kustomize namePrefix)
 BACKEND_SECRET_NAME=$(get_resource_name "${INSTANCE_NAME}" "backend-services-secrets")
@@ -459,19 +473,6 @@ oc label secret "${WORKER_SECRET_NAME}" \
   --overwrite -n "${NAMESPACE}" &>/dev/null || true
 
 log_info "Instance secrets created successfully."
-
-# ============================================================
-# Step 7: Apply resources to OpenShift
-# ============================================================
-log_step "Step 7: Applying resources to OpenShift"
-
-log_info "Running: oc apply -k ${OVERLAY_DIR} -n ${NAMESPACE}"
-oc apply -k "${OVERLAY_DIR}" -n "${NAMESPACE}" || {
-  log_error "Failed to apply Kustomize overlay to OpenShift."
-  exit 1
-}
-
-log_info "Resources applied successfully."
 
 # ============================================================
 # Step 8: Wait for rollout completion
