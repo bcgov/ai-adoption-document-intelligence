@@ -100,11 +100,15 @@ source "${SCRIPT_DIR}/generate-overlay.sh"
 
 # Common test parameters
 INSTANCE="feature-my-thing"
-ROUTE_SUFFIX="apps.silver.devops.gov.bc.ca"
+NAMESPACE="fd34fb-dev"
+CLUSTER_DOMAIN="apps.silver.devops.gov.bc.ca"
 BACKEND_IMAGE="ghcr.io/org/repo/backend-services"
 FRONTEND_IMAGE="ghcr.io/org/repo/frontend"
 WORKER_IMAGE="ghcr.io/org/repo/temporal"
 IMAGE_TAG="feature-my-thing"
+SSO_AUTH_SERVER_URL="https://sso.example.com/auth"
+SSO_REALM="test-realm"
+SSO_CLIENT_ID="test-client"
 
 echo ""
 echo "=== generate-overlay.sh tests ==="
@@ -120,11 +124,15 @@ echo ""
 echo "Test 1.1: generate_instance_overlay produces a directory"
 overlay_dir=$(generate_instance_overlay \
   --instance "${INSTANCE}" \
-  --route-suffix "${ROUTE_SUFFIX}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
   --backend-image "${BACKEND_IMAGE}" \
   --frontend-image "${FRONTEND_IMAGE}" \
   --worker-image "${WORKER_IMAGE}" \
-  --image-tag "${IMAGE_TAG}")
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}")
 exit_code=$?
 assert_exit_code "generate_instance_overlay succeeds" 0 "${exit_code}"
 echo ""
@@ -139,7 +147,7 @@ assert_contains "namePrefix contains instance name" "namePrefix: \"${INSTANCE}-\
 echo ""
 
 echo "Test 1.4: No placeholder tokens remain in generated files"
-remaining_placeholders=$(grep -r '__INSTANCE_NAME__\|__ROUTE_HOST_SUFFIX__\|__BACKEND_IMAGE__\|__FRONTEND_IMAGE__\|__WORKER_IMAGE__\|__IMAGE_TAG__' "${overlay_dir}/" 2>/dev/null || true)
+remaining_placeholders=$(grep -r '__INSTANCE_NAME__\|__NAMESPACE__\|__CLUSTER_DOMAIN__\|__BACKEND_IMAGE__\|__FRONTEND_IMAGE__\|__WORKER_IMAGE__\|__IMAGE_TAG__\|__SSO_AUTH_SERVER_URL__\|__SSO_REALM__\|__SSO_CLIENT_ID__' "${overlay_dir}/" 2>/dev/null || true)
 assert_eq "No placeholder tokens remain" "" "${remaining_placeholders}"
 echo ""
 
@@ -155,11 +163,15 @@ echo ""
 
 overlay_dir=$(generate_instance_overlay \
   --instance "${INSTANCE}" \
-  --route-suffix "${ROUTE_SUFFIX}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
   --backend-image "${BACKEND_IMAGE}" \
   --frontend-image "${FRONTEND_IMAGE}" \
   --worker-image "${WORKER_IMAGE}" \
-  --image-tag "${IMAGE_TAG}")
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}")
 
 echo "Test 2.1: commonLabels includes instance label"
 kustomization_content=$(cat "${overlay_dir}/kustomization.yml")
@@ -182,11 +194,15 @@ echo ""
 
 overlay_dir=$(generate_instance_overlay \
   --instance "${INSTANCE}" \
-  --route-suffix "${ROUTE_SUFFIX}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
   --backend-image "${BACKEND_IMAGE}" \
   --frontend-image "${FRONTEND_IMAGE}" \
   --worker-image "${WORKER_IMAGE}" \
-  --image-tag "${IMAGE_TAG}")
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}")
 
 echo "Test 3.1: Overlay references base directory"
 kustomization_content=$(cat "${overlay_dir}/kustomization.yml")
@@ -242,24 +258,24 @@ echo ""
 
 overlay_dir=$(generate_instance_overlay \
   --instance "${INSTANCE}" \
-  --route-suffix "${ROUTE_SUFFIX}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
   --backend-image "${BACKEND_IMAGE}" \
   --frontend-image "${FRONTEND_IMAGE}" \
   --worker-image "${WORKER_IMAGE}" \
-  --image-tag "${IMAGE_TAG}")
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}")
 
 kustomization_content=$(cat "${overlay_dir}/kustomization.yml")
 
-echo "Test 4.1: Backend route hostname includes instance name"
-assert_contains "Backend route hostname" "${INSTANCE}-backend.${ROUTE_SUFFIX}" "${kustomization_content}"
+echo "Test 4.1: Backend route hostname uses single-level wildcard pattern"
+assert_contains "Backend route hostname" "${INSTANCE}-backend-${NAMESPACE}.${CLUSTER_DOMAIN}" "${kustomization_content}"
 echo ""
 
-echo "Test 4.2: Frontend route hostname includes instance name"
-assert_contains "Frontend route hostname" "${INSTANCE}-frontend.${ROUTE_SUFFIX}" "${kustomization_content}"
-echo ""
-
-echo "Test 4.3: Temporal UI route hostname includes instance name"
-assert_contains "Temporal UI route hostname" "${INSTANCE}-temporal-ui.${ROUTE_SUFFIX}" "${kustomization_content}"
+echo "Test 4.2: Frontend route hostname uses single-level wildcard pattern"
+assert_contains "Frontend route hostname" "${INSTANCE}-frontend-${NAMESPACE}.${CLUSTER_DOMAIN}" "${kustomization_content}"
 echo ""
 
 # Clean up
@@ -307,23 +323,31 @@ echo ""
 echo "Test E.1: Missing --instance returns error"
 exit_code=0
 generate_instance_overlay \
-  --route-suffix "${ROUTE_SUFFIX}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
   --backend-image "${BACKEND_IMAGE}" \
   --frontend-image "${FRONTEND_IMAGE}" \
   --worker-image "${WORKER_IMAGE}" \
-  --image-tag "${IMAGE_TAG}" >/dev/null 2>&1 || exit_code=$?
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}" >/dev/null 2>&1 || exit_code=$?
 assert_exit_code "Missing --instance returns error" 1 "${exit_code}"
 echo ""
 
-echo "Test E.2: Missing --route-suffix returns error"
+echo "Test E.2: Missing --namespace returns error"
 exit_code=0
 generate_instance_overlay \
   --instance "${INSTANCE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
   --backend-image "${BACKEND_IMAGE}" \
   --frontend-image "${FRONTEND_IMAGE}" \
   --worker-image "${WORKER_IMAGE}" \
-  --image-tag "${IMAGE_TAG}" >/dev/null 2>&1 || exit_code=$?
-assert_exit_code "Missing --route-suffix returns error" 1 "${exit_code}"
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}" >/dev/null 2>&1 || exit_code=$?
+assert_exit_code "Missing --namespace returns error" 1 "${exit_code}"
 echo ""
 
 echo "Test E.3: Missing all arguments returns error"
@@ -335,11 +359,15 @@ echo ""
 echo "Test E.4: cleanup_generated_overlay removes directory"
 overlay_dir=$(generate_instance_overlay \
   --instance "${INSTANCE}" \
-  --route-suffix "${ROUTE_SUFFIX}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
   --backend-image "${BACKEND_IMAGE}" \
   --frontend-image "${FRONTEND_IMAGE}" \
   --worker-image "${WORKER_IMAGE}" \
-  --image-tag "${IMAGE_TAG}")
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}")
 cleanup_generated_overlay "${overlay_dir}"
 TESTS_RUN=$((TESTS_RUN + 1))
 if [[ ! -d "${overlay_dir}" ]]; then
@@ -373,15 +401,19 @@ echo ""
 echo "Test D.1: Different instance name produces different prefixes"
 overlay_dir=$(generate_instance_overlay \
   --instance "bugfix-login-issue" \
-  --route-suffix "${ROUTE_SUFFIX}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
   --backend-image "${BACKEND_IMAGE}" \
   --frontend-image "${FRONTEND_IMAGE}" \
   --worker-image "${WORKER_IMAGE}" \
-  --image-tag "bugfix-login-issue")
+  --image-tag "bugfix-login-issue" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}")
 kustomization_content=$(cat "${overlay_dir}/kustomization.yml")
 assert_contains "Different instance namePrefix" "namePrefix: \"bugfix-login-issue-\"" "${kustomization_content}"
 assert_contains "Different instance label" "app.kubernetes.io/instance: \"bugfix-login-issue\"" "${kustomization_content}"
-assert_contains "Different route hostname" "bugfix-login-issue-backend.${ROUTE_SUFFIX}" "${kustomization_content}"
+assert_contains "Different route hostname" "bugfix-login-issue-backend-${NAMESPACE}.${CLUSTER_DOMAIN}" "${kustomization_content}"
 cleanup_generated_overlay "${overlay_dir}"
 echo ""
 

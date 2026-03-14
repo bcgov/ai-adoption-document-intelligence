@@ -9,7 +9,8 @@
 #   source "$(dirname "${BASH_SOURCE[0]}")/lib/generate-overlay.sh"
 #   OVERLAY_DIR=$(generate_instance_overlay \
 #     --instance "feature-my-thing" \
-#     --route-suffix "apps.silver.devops.gov.bc.ca" \
+#     --namespace "fd34fb-prod" \
+#     --cluster-domain "apps.silver.devops.gov.bc.ca" \
 #     --backend-image "ghcr.io/org/repo/backend-services" \
 #     --frontend-image "ghcr.io/org/repo/frontend" \
 #     --worker-image "ghcr.io/org/repo/temporal" \
@@ -28,7 +29,8 @@ _TEMPLATE_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/overlays/instanc
 #
 # Required arguments:
 #   --instance <name>         Sanitized instance name (e.g., feature-my-thing)
-#   --route-suffix <suffix>   Route hostname suffix (e.g., apps.silver.devops.gov.bc.ca)
+#   --namespace <ns>          OpenShift namespace (e.g., fd34fb-prod)
+#   --cluster-domain <domain> Cluster wildcard domain (e.g., apps.silver.devops.gov.bc.ca)
 #   --backend-image <image>   Backend services container image (without tag)
 #   --frontend-image <image>  Frontend container image (without tag)
 #   --worker-image <image>    Temporal worker container image (without tag)
@@ -38,7 +40,8 @@ _TEMPLATE_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/overlays/instanc
 # Returns 1 on error.
 generate_instance_overlay() {
   local instance=""
-  local route_suffix=""
+  local namespace=""
+  local cluster_domain=""
   local backend_image=""
   local frontend_image=""
   local worker_image=""
@@ -53,8 +56,12 @@ generate_instance_overlay() {
         instance="$2"
         shift 2
         ;;
-      --route-suffix)
-        route_suffix="$2"
+      --namespace)
+        namespace="$2"
+        shift 2
+        ;;
+      --cluster-domain)
+        cluster_domain="$2"
         shift 2
         ;;
       --backend-image)
@@ -95,7 +102,8 @@ generate_instance_overlay() {
   # Validate required arguments
   local missing=()
   [[ -z "${instance}" ]] && missing+=("--instance")
-  [[ -z "${route_suffix}" ]] && missing+=("--route-suffix")
+  [[ -z "${namespace}" ]] && missing+=("--namespace")
+  [[ -z "${cluster_domain}" ]] && missing+=("--cluster-domain")
   [[ -z "${backend_image}" ]] && missing+=("--backend-image")
   [[ -z "${frontend_image}" ]] && missing+=("--frontend-image")
   [[ -z "${worker_image}" ]] && missing+=("--worker-image")
@@ -136,7 +144,8 @@ generate_instance_overlay() {
   # Replace all placeholder tokens in the generated overlay files
   local sed_args=(
     -e "s|__INSTANCE_NAME__|${instance}|g"
-    -e "s|__ROUTE_HOST_SUFFIX__|${route_suffix}|g"
+    -e "s|__NAMESPACE__|${namespace}|g"
+    -e "s|__CLUSTER_DOMAIN__|${cluster_domain}|g"
     -e "s|__BACKEND_IMAGE__|${backend_image}|g"
     -e "s|__FRONTEND_IMAGE__|${frontend_image}|g"
     -e "s|__WORKER_IMAGE__|${worker_image}|g"
