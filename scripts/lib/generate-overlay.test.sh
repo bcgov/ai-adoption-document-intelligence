@@ -210,7 +210,7 @@ assert_contains "Image tag" "${IMAGE_TAG}" "${kustomization_content}"
 echo ""
 
 echo "Test 3.6: Temporal server Postgres reference is prefixed"
-assert_contains "Temporal POSTGRES_SEEDS prefixed" "${INSTANCE}-temporal-postgres-cluster-primary" "${kustomization_content}"
+assert_contains "Temporal POSTGRES_SEEDS prefixed" "${INSTANCE}-temporal-pg-primary" "${kustomization_content}"
 echo ""
 
 echo "Test 3.7: Temporal address is prefixed in backend config"

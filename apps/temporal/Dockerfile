@@ -5,7 +5,7 @@ FROM node:24-bookworm-slim AS builder
 WORKDIR /app
 
 # Copy package files and config from apps/temporal
-COPY apps/temporal/package*.json ./
+COPY apps/temporal/package.json ./
 COPY apps/temporal/tsconfig.json ./
 COPY apps/temporal/prisma.config.ts ./
 
@@ -15,9 +15,10 @@ COPY apps/shared/prisma.config.ts /shared/prisma.config.ts
 
 # Copy workspace packages referenced as file: dependencies (file:../../packages/logging resolves to /packages/logging)
 COPY packages/logging /packages/logging
+RUN cd /packages/logging && npm install && npm run build
 
-# Install dependencies (remove lockfile — monorepo file: paths don't match Docker layout)
-RUN rm -f package-lock.json && npm install
+# Install dependencies (no lockfile — monorepo file: paths don't match Docker layout)
+RUN npm install
 
 # Generate Prisma client: patch schema to set output; url comes from prisma.config via DATABASE_URL.
 # The shared generate-prisma.js expects monorepo layout; we use a direct generate.
@@ -52,12 +53,12 @@ RUN mkdir -p /.npm && \
     chgrp -R 0 /.npm && \
     chmod -R g=u /.npm
 
-# Copy workspace packages for file: dependencies
-COPY packages/logging /packages/logging
+# Copy pre-built logging package from builder (avoids needing tsc in production stage)
+COPY --from=builder /packages/logging /packages/logging
 
 # Package files and production deps
 COPY apps/temporal/package.json ./
-RUN npm install --omit=dev && \
+RUN npm install --omit=dev --ignore-scripts && \
     npm cache clean --force
 
 # Built output and generated Prisma client from builder
