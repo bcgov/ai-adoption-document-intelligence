@@ -265,7 +265,7 @@ cp deployments/openshift/config/prod.env.example deployments/openshift/config/pr
 - `dev.env` / `prod.env` — your actual config (gitignored) — all settings, API keys, and secrets in one file
 - `<instance-name>.env` — optional per-instance overrides (merged on top of the profile)
 
-The deploy script automatically computes namespace-specific values (`ROUTE_HOST_SUFFIX`, `FRONTEND_URL`, `BACKEND_URL`, `SSO_REDIRECT_URI`, `TEMPORAL_ADDRESS`) from the namespace in `.oc-deploy-token` and the `CLUSTER_DOMAIN` setting. No manual URL configuration is needed.
+The deploy script automatically computes namespace-specific values (`FRONTEND_URL`, `BACKEND_URL`, `SSO_REDIRECT_URI`, `TEMPORAL_ADDRESS`) from the namespace in `.oc-deploy-token` and the `CLUSTER_DOMAIN` setting. Route hostnames use the pattern `<instance>-<service>-<namespace>.<CLUSTER_DOMAIN>` to stay under the wildcard cert. No manual URL configuration is needed.
 
 Secret values from the env file (API keys, client secrets, connection strings) are created as per-instance OpenShift Secrets during deployment. Each instance gets its own copy, so instances can be independently configured.
 

@@ -184,23 +184,25 @@ load_config --env "${ENV_PROFILE}" --instance "${INSTANCE_NAME}" || {
 
 export_config
 
-# Compute ROUTE_HOST_SUFFIX from namespace + CLUSTER_DOMAIN
+# Build route hostnames as <instance>-<service>-<namespace>.<CLUSTER_DOMAIN>
+# so they stay one level under the wildcard cert (*.apps.<cluster>).
+# Using a dot between namespace and cluster domain would create a sub-subdomain
+# that the wildcard cert doesn't cover, causing ERR_CERT_COMMON_NAME_INVALID.
 CLUSTER_DOMAIN=$(get_config "CLUSTER_DOMAIN") || {
   log_error "CLUSTER_DOMAIN not found in configuration. Please add it to deployments/openshift/config/${ENV_PROFILE}.env"
   exit 1
 }
-ROUTE_HOST_SUFFIX="${NAMESPACE}.${CLUSTER_DOMAIN}"
 
 # Inject computed instance-specific values into the loaded config
-FRONTEND_URL="https://${INSTANCE_NAME}-frontend.${ROUTE_HOST_SUFFIX}"
-BACKEND_URL="https://${INSTANCE_NAME}-backend.${ROUTE_HOST_SUFFIX}"
+FRONTEND_URL="https://${INSTANCE_NAME}-frontend-${NAMESPACE}.${CLUSTER_DOMAIN}"
+BACKEND_URL="https://${INSTANCE_NAME}-backend-${NAMESPACE}.${CLUSTER_DOMAIN}"
 SSO_REDIRECT_URI="${BACKEND_URL}/api/auth/callback"
 TEMPORAL_ADDRESS="${INSTANCE_NAME}-temporal:7233"
 
 # Make these available via the config system
-export ROUTE_HOST_SUFFIX FRONTEND_URL BACKEND_URL SSO_REDIRECT_URI TEMPORAL_ADDRESS
+export CLUSTER_DOMAIN FRONTEND_URL BACKEND_URL SSO_REDIRECT_URI TEMPORAL_ADDRESS
 
-log_info "Route host suffix: ${ROUTE_HOST_SUFFIX} (derived from namespace + CLUSTER_DOMAIN)"
+log_info "Route pattern: <instance>-<service>-${NAMESPACE}.${CLUSTER_DOMAIN}"
 log_info "Configuration loaded successfully."
 
 # ============================================================
@@ -384,7 +386,8 @@ SSO_CLIENT_ID=$(get_config "SSO_CLIENT_ID") || { log_error "SSO_CLIENT_ID not fo
 
 OVERLAY_DIR=$(generate_instance_overlay \
   --instance "${INSTANCE_NAME}" \
-  --route-suffix "${ROUTE_HOST_SUFFIX}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
   --backend-image "${BACKEND_IMAGE}" \
   --frontend-image "${FRONTEND_IMAGE}" \
   --worker-image "${WORKER_IMAGE}" \
@@ -496,9 +499,8 @@ log_info "All deployments rolled out successfully."
 # ============================================================
 log_step "Step 9: Deployment Complete"
 
-FRONTEND_ROUTE="https://${INSTANCE_NAME}-frontend.${ROUTE_HOST_SUFFIX}"
-BACKEND_ROUTE="https://${INSTANCE_NAME}-backend.${ROUTE_HOST_SUFFIX}"
-TEMPORAL_UI_ROUTE="https://${INSTANCE_NAME}-temporal-ui.${ROUTE_HOST_SUFFIX}"
+FRONTEND_ROUTE="https://${INSTANCE_NAME}-frontend-${NAMESPACE}.${CLUSTER_DOMAIN}"
+BACKEND_ROUTE="https://${INSTANCE_NAME}-backend-${NAMESPACE}.${CLUSTER_DOMAIN}"
 
 cat <<EOF
 
@@ -506,13 +508,16 @@ Instance "${INSTANCE_NAME}" deployed successfully to namespace "${NAMESPACE}".
 
   Frontend:    ${FRONTEND_ROUTE}
   Backend:     ${BACKEND_ROUTE}
-  Temporal UI: ${TEMPORAL_UI_ROUTE}
 
 Image tag: ${IMAGE_TAG}
 Environment: ${ENV_PROFILE}
 
 To check pod status:
   oc get pods -l $(get_instance_label "${INSTANCE_NAME}") -n ${NAMESPACE}
+
+To access Temporal UI (not publicly exposed):
+  oc port-forward deployment/${INSTANCE_NAME}-temporal-ui 8080:8080 -n ${NAMESPACE}
+  Then open http://localhost:8080
 
 To tear down this instance:
   ./scripts/oc-teardown.sh --instance ${INSTANCE_NAME}
