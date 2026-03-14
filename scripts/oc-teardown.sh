@@ -179,7 +179,7 @@ log_info "All instance resources deleted."
 # ============================================================
 log_step "Step 4: Verifying deletion"
 
-REMAINING=$(oc get all -l "${LABEL_SELECTOR}" -n "${NAMESPACE}" --no-headers 2>/dev/null | wc -l)
+REMAINING=$(oc get all -l "${LABEL_SELECTOR}" -n "${NAMESPACE}" --no-headers 2>/dev/null | wc -l || echo "0")
 REMAINING=$(echo "${REMAINING}" | tr -d '[:space:]')
 REMAINING="${REMAINING:-0}"
 
@@ -198,10 +198,14 @@ log_step "Step 5: Checking for remaining instances"
 
 # Count distinct instance labels across all resources
 # Look for the app.kubernetes.io/instance label on any remaining deployments
-REMAINING_INSTANCES=$(oc get deployments -n "${NAMESPACE}" \
+INSTANCE_LABELS=$(oc get deployments -n "${NAMESPACE}" \
   -l "app.kubernetes.io/instance" \
-  -o jsonpath='{range .items[*]}{.metadata.labels.app\.kubernetes\.io/instance}{"\n"}{end}' 2>/dev/null \
-  | sort -u | grep -v '^$' | wc -l || echo "0")
+  -o jsonpath='{range .items[*]}{.metadata.labels.app\.kubernetes\.io/instance}{"\n"}{end}' 2>/dev/null || true)
+REMAINING_INSTANCES=0
+if [[ -n "${INSTANCE_LABELS}" ]]; then
+  REMAINING_INSTANCES=$(echo "${INSTANCE_LABELS}" | sort -u | grep -vc '^$' || true)
+  REMAINING_INSTANCES="${REMAINING_INSTANCES:-0}"
+fi
 
 if [[ "${REMAINING_INSTANCES}" -eq 0 ]]; then
   log_info "No other instances found in namespace '${NAMESPACE}'."
