@@ -138,6 +138,24 @@ patches:
       data:
         TEMPORAL_ADDRESS: "__INSTANCE_NAME__-temporal:7233"
 
+  # --- Frontend: set backend proxy target for nginx reverse proxy ---
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: frontend
+      spec:
+        template:
+          spec:
+            containers:
+              - name: frontend
+                env:
+                  - name: BACKEND_SERVICE_URL
+                    value: "http://__INSTANCE_NAME__-backend-services:3002"
+
   # --- Crunchy Postgres secret name patches ---
   # The Crunchy operator auto-creates secrets named after the PostgresCluster CR.
   # Kustomize namePrefix updates metadata.name but not secretKeyRef references to
