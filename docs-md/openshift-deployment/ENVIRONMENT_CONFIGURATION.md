@@ -147,6 +147,12 @@ These values are derived automatically by the deploy script — do not set them 
 | `VITE_APP_VERSION` | Application version |
 | `VITE_ENV` | Environment identifier |
 
+### Bootstrap (First-Time Setup)
+
+| Variable | Description |
+|----------|-------------|
+| `BOOTSTRAP_ADMIN_EMAIL` | Email of the user who should be promoted to system admin on first launch. The Setup page only appears when zero admins exist in the database. Once bootstrap is complete this variable has no effect. |
+
 ### Rate Limiting
 
 | Variable | Description |

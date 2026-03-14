@@ -383,6 +383,7 @@ WORKER_IMAGE="${IMAGE_BASE}/temporal"
 SSO_AUTH_SERVER_URL=$(get_config "SSO_AUTH_SERVER_URL") || { log_error "SSO_AUTH_SERVER_URL not found in configuration."; exit 1; }
 SSO_REALM=$(get_config "SSO_REALM") || { log_error "SSO_REALM not found in configuration."; exit 1; }
 SSO_CLIENT_ID=$(get_config "SSO_CLIENT_ID") || { log_error "SSO_CLIENT_ID not found in configuration."; exit 1; }
+BOOTSTRAP_ADMIN_EMAIL=$(get_config "BOOTSTRAP_ADMIN_EMAIL" 2>/dev/null || echo "")
 
 OVERLAY_DIR=$(generate_instance_overlay \
   --instance "${INSTANCE_NAME}" \
@@ -394,7 +395,8 @@ OVERLAY_DIR=$(generate_instance_overlay \
   --image-tag "${IMAGE_TAG}" \
   --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
   --sso-realm "${SSO_REALM}" \
-  --sso-client-id "${SSO_CLIENT_ID}") || {
+  --sso-client-id "${SSO_CLIENT_ID}" \
+  --bootstrap-admin-email "${BOOTSTRAP_ADMIN_EMAIL}") || {
   log_error "Failed to generate Kustomize overlay."
   exit 1
 }

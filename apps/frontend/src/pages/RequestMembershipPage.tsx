@@ -18,22 +18,29 @@ import {
 import type { JSX } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { GroupsTable } from "../components/group/GroupsTable";
+import { useBootstrapStatus } from "../data/hooks/useBootstrap";
 import {
   useAllGroups,
   useMyRequests,
   useRequestMembership,
 } from "../data/hooks/useGroups";
+import { SetupPage } from "./SetupPage";
 
 /**
  * Page shown to authenticated users who have no group memberships.
  * Displays a filterable, sortable table of all available groups, each with a
  * per-row button to submit a membership request for administrator review.
  *
+ * When the system has not been bootstrapped yet (zero admins), this page
+ * renders the SetupPage instead of the normal membership request flow.
+ *
  * Users are redirected here by the `NoGroupGuard` when they try to access
  * protected application routes without belonging to any group.
  */
 export function RequestMembershipPage(): JSX.Element {
   const { logout } = useAuth();
+  const { data: bootstrapStatus, isLoading: bootstrapLoading } =
+    useBootstrapStatus(true);
   const {
     data: groups,
     isLoading: groupsLoading,
@@ -46,14 +53,23 @@ export function RequestMembershipPage(): JSX.Element {
     (pendingRequests ?? []).map((r) => r.groupId),
   );
 
-  /**
-   * Fires the membership request mutation for the given group.
-   *
-   * @param groupId - The ID of the group to request membership for.
-   */
   const handleRequest = (groupId: string): void => {
     requestMutation.mutate({ groupId });
   };
+
+  // While checking bootstrap status, show a loader (prevents flash)
+  if (bootstrapLoading) {
+    return (
+      <Center mih="100vh">
+        <Loader data-testid="bootstrap-check-loader" />
+      </Center>
+    );
+  }
+
+  // If bootstrap is needed, show the setup page instead
+  if (bootstrapStatus?.needed) {
+    return <SetupPage />;
+  }
 
   return (
     <>

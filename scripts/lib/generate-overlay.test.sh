@@ -147,7 +147,7 @@ assert_contains "namePrefix contains instance name" "namePrefix: \"${INSTANCE}-\
 echo ""
 
 echo "Test 1.4: No placeholder tokens remain in generated files"
-remaining_placeholders=$(grep -r '__INSTANCE_NAME__\|__NAMESPACE__\|__CLUSTER_DOMAIN__\|__BACKEND_IMAGE__\|__FRONTEND_IMAGE__\|__WORKER_IMAGE__\|__IMAGE_TAG__\|__SSO_AUTH_SERVER_URL__\|__SSO_REALM__\|__SSO_CLIENT_ID__' "${overlay_dir}/" 2>/dev/null || true)
+remaining_placeholders=$(grep -r '__INSTANCE_NAME__\|__NAMESPACE__\|__CLUSTER_DOMAIN__\|__BACKEND_IMAGE__\|__FRONTEND_IMAGE__\|__WORKER_IMAGE__\|__IMAGE_TAG__\|__SSO_AUTH_SERVER_URL__\|__SSO_REALM__\|__SSO_CLIENT_ID__\|__BOOTSTRAP_ADMIN_EMAIL__' "${overlay_dir}/" 2>/dev/null || true)
 assert_eq "No placeholder tokens remain" "" "${remaining_placeholders}"
 echo ""
 
