@@ -66,8 +66,12 @@ sanitize_instance_name() {
   # Strip trailing hyphens
   sanitized="${sanitized%-}"
 
-  # Truncate to 63 characters
-  sanitized="${sanitized:0:63}"
+  # Truncate to 20 characters — the Crunchy PostgreSQL operator generates labels
+  # and hostnames from the PostgresCluster name + internal suffixes (e.g.
+  # <instance>-temporal-postgres-cluster-repo-host-<hash>). Kubernetes labels and
+  # hostnames have a 63-character limit, so keeping the instance name short
+  # prevents exceeding those limits.
+  sanitized="${sanitized:0:20}"
 
   # After truncation, strip any trailing hyphen that may have appeared
   sanitized="${sanitized%-}"

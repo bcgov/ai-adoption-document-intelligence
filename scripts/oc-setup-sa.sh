@@ -114,23 +114,42 @@ metadata:
   name: ${ROLE_NAME}
   namespace: ${NAMESPACE}
 rules:
-  - apiGroups: ["apps"]
-    resources: ["deployments"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Core resources
   - apiGroups: [""]
-    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims", "pods"]
+    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims", "pods", "events"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["pods/exec"]
     verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # Apps (deployments, replicasets, statefulsets, daemonsets)
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale", "replicasets", "replicasets/scale", "statefulsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Batch (jobs, cronjobs)
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # OpenShift routes
   - apiGroups: ["route.openshift.io"]
     resources: ["routes"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes/custom-host"]
+    verbs: ["create"]
+  # Crunchy PostgreSQL operator
   - apiGroups: ["postgres-operator.crunchydata.com"]
     resources: ["postgresclusters"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Network policies
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Autoscaling
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 EOF
 

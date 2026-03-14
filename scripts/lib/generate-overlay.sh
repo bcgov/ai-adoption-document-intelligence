@@ -43,6 +43,9 @@ generate_instance_overlay() {
   local frontend_image=""
   local worker_image=""
   local image_tag=""
+  local sso_auth_server_url=""
+  local sso_realm=""
+  local sso_client_id=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -70,6 +73,18 @@ generate_instance_overlay() {
         image_tag="$2"
         shift 2
         ;;
+      --sso-auth-server-url)
+        sso_auth_server_url="$2"
+        shift 2
+        ;;
+      --sso-realm)
+        sso_realm="$2"
+        shift 2
+        ;;
+      --sso-client-id)
+        sso_client_id="$2"
+        shift 2
+        ;;
       *)
         echo "[ERROR] generate_instance_overlay: unknown argument '$1'" >&2
         return 1
@@ -85,6 +100,9 @@ generate_instance_overlay() {
   [[ -z "${frontend_image}" ]] && missing+=("--frontend-image")
   [[ -z "${worker_image}" ]] && missing+=("--worker-image")
   [[ -z "${image_tag}" ]] && missing+=("--image-tag")
+  [[ -z "${sso_auth_server_url}" ]] && missing+=("--sso-auth-server-url")
+  [[ -z "${sso_realm}" ]] && missing+=("--sso-realm")
+  [[ -z "${sso_client_id}" ]] && missing+=("--sso-client-id")
 
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "[ERROR] generate_instance_overlay: missing required arguments: ${missing[*]}" >&2
@@ -96,15 +114,24 @@ generate_instance_overlay() {
     return 1
   fi
 
-  # Create a temporary directory for the generated overlay
-  local generated_dir
-  generated_dir=$(mktemp -d "${TMPDIR:-/tmp}/kustomize-${instance}-XXXXXX") || {
+  # Create a temporary directory that preserves the relative path structure
+  # so that ../../base in kustomization.yml resolves correctly.
+  # Structure: tmpdir/overlays/instance/ (overlay) with tmpdir/base -> symlink to real base
+  local tmp_root
+  tmp_root=$(mktemp -d "${TMPDIR:-/tmp}/kustomize-${instance}-XXXXXX") || {
     echo "[ERROR] Failed to create temporary directory" >&2
     return 1
   }
 
-  # Copy the template
+  local generated_dir="${tmp_root}/overlays/instance"
+  mkdir -p "${generated_dir}"
+
+  # Copy the template into the nested overlay directory
   cp -r "${_TEMPLATE_DIR}/." "${generated_dir}/"
+
+  # Symlink the real base directory so ../../base resolves from overlays/instance/
+  local real_base="${_PROJECT_ROOT}/deployments/openshift/kustomize/base"
+  ln -s "${real_base}" "${tmp_root}/base"
 
   # Replace all placeholder tokens in the generated overlay files
   local sed_args=(
@@ -114,6 +141,9 @@ generate_instance_overlay() {
     -e "s|__FRONTEND_IMAGE__|${frontend_image}|g"
     -e "s|__WORKER_IMAGE__|${worker_image}|g"
     -e "s|__IMAGE_TAG__|${image_tag}|g"
+    -e "s|__SSO_AUTH_SERVER_URL__|${sso_auth_server_url}|g"
+    -e "s|__SSO_REALM__|${sso_realm}|g"
+    -e "s|__SSO_CLIENT_ID__|${sso_client_id}|g"
   )
 
   # Process all YAML files in the generated directory
@@ -134,10 +164,17 @@ cleanup_generated_overlay() {
     return 0
   fi
 
-  if [[ "${dir}" == /tmp/* || "${dir}" == "${TMPDIR:-/tmp}"/* ]]; then
-    rm -rf "${dir}"
+  # The overlay dir is nested at tmproot/overlays/instance/.
+  # Walk up to the kustomize-* temp root for cleanup.
+  local cleanup_dir="${dir}"
+  if [[ "${dir}" == */overlays/instance ]]; then
+    cleanup_dir="${dir%/overlays/instance}"
+  fi
+
+  if [[ "${cleanup_dir}" == /tmp/* || "${cleanup_dir}" == "${TMPDIR:-/tmp}"/* ]]; then
+    rm -rf "${cleanup_dir}"
   else
-    echo "[WARN] Refusing to remove directory outside of /tmp: ${dir}" >&2
+    echo "[WARN] Refusing to remove directory outside of /tmp: ${cleanup_dir}" >&2
     return 1
   fi
 }
