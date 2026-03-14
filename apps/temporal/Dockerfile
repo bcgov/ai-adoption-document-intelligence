@@ -13,8 +13,11 @@ COPY apps/temporal/prisma.config.ts ./
 COPY apps/shared/prisma ./shared/prisma
 COPY apps/shared/prisma.config.ts /shared/prisma.config.ts
 
-# Install dependencies
-RUN npm install
+# Copy workspace packages referenced as file: dependencies (file:../../packages/logging resolves to /packages/logging)
+COPY packages/logging /packages/logging
+
+# Install dependencies (remove lockfile — monorepo file: paths don't match Docker layout)
+RUN rm -f package-lock.json && npm install
 
 # Generate Prisma client: patch schema to set output; url comes from prisma.config via DATABASE_URL.
 # The shared generate-prisma.js expects monorepo layout; we use a direct generate.
@@ -49,8 +52,11 @@ RUN mkdir -p /.npm && \
     chgrp -R 0 /.npm && \
     chmod -R g=u /.npm
 
+# Copy workspace packages for file: dependencies
+COPY packages/logging /packages/logging
+
 # Package files and production deps
-COPY apps/temporal/package*.json ./
+COPY apps/temporal/package.json ./
 RUN npm install --omit=dev && \
     npm cache clean --force
 
