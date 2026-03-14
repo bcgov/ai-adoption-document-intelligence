@@ -179,7 +179,9 @@ log_info "All instance resources deleted."
 # ============================================================
 log_step "Step 4: Verifying deletion"
 
-REMAINING=$(oc get all -l "${LABEL_SELECTOR}" -n "${NAMESPACE}" --no-headers 2>/dev/null | wc -l || echo "0")
+REMAINING=$(oc get all -l "${LABEL_SELECTOR}" -n "${NAMESPACE}" --no-headers 2>/dev/null | wc -l)
+REMAINING=$(echo "${REMAINING}" | tr -d '[:space:]')
+REMAINING="${REMAINING:-0}"
 
 if [[ "${REMAINING}" -gt 0 ]]; then
   log_info "Some resources are still terminating. This is expected for resources with finalizers."

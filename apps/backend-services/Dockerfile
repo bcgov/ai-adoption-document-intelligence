@@ -12,8 +12,9 @@ COPY apps/backend-services/.swcrc ./
 
 # Copy workspace packages referenced as file: dependencies (file:../../packages/logging resolves to /packages/logging)
 COPY packages/logging /packages/logging
+RUN cd /packages/logging && npm install && npm run build
 
-# Install dependencies (remove lockfile — monorepo file: paths don't match Docker layout)
+# Install dependencies (no lockfile — monorepo file: paths don't match Docker layout)
 RUN npm install
 
 # Copy source and shared Prisma schema
@@ -45,8 +46,8 @@ WORKDIR /app
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001
 
-# Copy workspace packages for file: dependencies
-COPY packages/logging /packages/logging
+# Copy pre-built logging package from builder (avoids needing tsc in production stage)
+COPY --from=builder /packages/logging /packages/logging
 
 # Copy package files
 COPY apps/backend-services/package.json ./
@@ -58,8 +59,8 @@ RUN mkdir -p /.npm && \
     chgrp -R 0 /.npm && \
     chmod -R g=u /.npm
 
-# Install only production dependencies (but include prisma for migrations)
-RUN npm install --omit=dev && \
+# Install only production dependencies (skip lifecycle scripts — logging already built)
+RUN npm install --omit=dev --ignore-scripts && \
     npm cache clean --force
 
 # Copy Prisma schema and migrations from builder stage (needed for migrations)
