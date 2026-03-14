@@ -1,5 +1,6 @@
 import {
   DocumentStatus,
+  FieldCorrection,
   GroundTruthJobStatus,
   Prisma,
   ReviewStatus,
@@ -529,7 +530,11 @@ export class GroundTruthGenerationService {
    * Complete a ground truth job after HITL approval.
    * Extracts ground truth from OCR + corrections and writes to dataset storage.
    */
-  async completeJob(jobId: string, sessionId: string): Promise<void> {
+  async completeJob(
+    jobId: string,
+    sessionId: string,
+    corrections: FieldCorrection[],
+  ): Promise<void> {
     const job = await this.prisma.datasetGroundTruthJob.findUnique({
       where: { id: jobId },
       include: {
@@ -550,12 +555,6 @@ export class GroundTruthGenerationService {
       );
     }
 
-    // Load the review session with corrections
-    const session = await this.db.findReviewSession(sessionId);
-    if (!session) {
-      throw new NotFoundException(`Review session ${sessionId} not found`);
-    }
-
     const ocrFields = job.document.ocr_result
       .keyValuePairs as unknown as ExtractedFields | null;
     if (!ocrFields || typeof ocrFields !== "object") {
@@ -565,7 +564,7 @@ export class GroundTruthGenerationService {
     // Build ground truth using existing HitlDatasetService logic
     const groundTruth = this.hitlDatasetService.buildGroundTruth(
       ocrFields,
-      session.corrections,
+      corrections,
     );
 
     // Write ground truth to dataset storage

@@ -414,21 +414,16 @@ describe("GroundTruthGenerationService", () => {
         },
       };
 
-      const session = {
-        id: "session-1",
-        document_id: "doc-id-1",
-        corrections: [
-          {
-            field_key: "Date",
-            original_value: "2026-01-01",
-            corrected_value: "2026-01-15",
-            action: CorrectionAction.corrected,
-          },
-        ],
-      };
+      const corrections = [
+        {
+          field_key: "Date",
+          original_value: "2026-01-01",
+          corrected_value: "2026-01-15",
+          action: CorrectionAction.corrected,
+        },
+      ];
 
       mockPrismaClient.datasetGroundTruthJob.findUnique.mockResolvedValue(job);
-      mockDb.findReviewSession.mockResolvedValue(session);
       mockHitlDatasetService.buildGroundTruth.mockReturnValue({
         Name: "John",
         Date: "2026-01-15",
@@ -457,12 +452,12 @@ describe("GroundTruthGenerationService", () => {
         status: GroundTruthJobStatus.completed,
       });
 
-      await service.completeJob("job-1", "session-1");
+      await service.completeJob("job-1", "session-1", corrections as any);
 
       // Should build ground truth
       expect(mockHitlDatasetService.buildGroundTruth).toHaveBeenCalledWith(
         job.document.ocr_result.keyValuePairs,
-        session.corrections,
+        corrections,
       );
 
       // Should write ground truth JSON
@@ -493,7 +488,7 @@ describe("GroundTruthGenerationService", () => {
       mockPrismaClient.datasetGroundTruthJob.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.completeJob("nonexistent", "session-1"),
+        service.completeJob("nonexistent", "session-1", []),
       ).rejects.toThrow(NotFoundException);
     });
   });

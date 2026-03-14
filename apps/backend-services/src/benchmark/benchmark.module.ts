@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
 import { DatabaseModule } from "@/database/database.module";
 import { OcrModule } from "@/ocr/ocr.module";
+import { HitlModule } from "../hitl/hitl.module";
 import { AuditLogService } from "./audit-log.service";
 import { BenchmarkDefinitionController } from "./benchmark-definition.controller";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
@@ -20,7 +21,13 @@ import { HitlDatasetController } from "./hitl-dataset.controller";
 import { HitlDatasetService } from "./hitl-dataset.service";
 
 @Module({
-  imports: [ConfigModule, BlobStorageModule, DatabaseModule, OcrModule],
+  imports: [
+    ConfigModule,
+    BlobStorageModule,
+    DatabaseModule,
+    OcrModule,
+    HitlModule,
+  ],
   controllers: [
     DatasetController,
     HitlDatasetController,

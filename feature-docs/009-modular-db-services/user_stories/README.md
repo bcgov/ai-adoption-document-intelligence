@@ -17,7 +17,7 @@ Move existing db-services out of the `database` module and create new ones for m
 - [ ] [US-03: Move LabelingProjectDbService into the Labeling Module](US-03-labeling-project-db-service.md)
 - [x] [US-04: Create GroupDbService in the Group Module](US-04-group-db-service.md)
 - [x] [US-05: Create ClassifierDbService in the Azure Module](US-05-classifier-db-service.md)
-- [ ] [US-06: Move ReviewDbService into the HITL Module](US-06-review-db-service.md)
+- [x] [US-06: Move ReviewDbService into the HITL Module](US-06-review-db-service.md)
 
 ---
 

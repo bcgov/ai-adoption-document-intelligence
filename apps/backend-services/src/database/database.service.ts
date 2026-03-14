@@ -1,24 +1,15 @@
-import type {
-  CorrectionAction,
-  DocumentStatus,
-  OcrResult,
-  Prisma,
-  ReviewStatus,
-} from "@generated/client";
+import type { OcrResult } from "@generated/client";
+import { DocumentStatus, Prisma } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import type { AnalysisResponse } from "@/ocr/azure-types";
-import type { DocumentData, ReviewSessionData } from "./database.types";
+import type { DocumentData } from "./database.types";
 import { PrismaService } from "./prisma.service";
-import { ReviewDbService } from "./review-db.service";
 
-export type { DocumentData, ReviewSessionData };
+export type { DocumentData };
 
 @Injectable()
 export class DatabaseService {
-  constructor(
-    private readonly prismaService: PrismaService,
-    private readonly reviewDb: ReviewDbService,
-  ) {}
+  constructor(private readonly prismaService: PrismaService) {}
 
   get prisma() {
     return this.prismaService.prisma;
@@ -151,62 +142,5 @@ export class DatabaseService {
         ...updateObject,
       },
     });
-  }
-
-  async createReviewSession(
-    documentId: string,
-    reviewerId: string,
-  ): Promise<ReviewSessionData> {
-    return this.reviewDb.createReviewSession(documentId, reviewerId);
-  }
-
-  async findReviewSession(id: string): Promise<ReviewSessionData | null> {
-    return this.reviewDb.findReviewSession(id);
-  }
-
-  async findReviewQueue(filters: {
-    status?: import("@generated/client").DocumentStatus;
-    modelId?: string;
-    minConfidence?: number;
-    maxConfidence?: number;
-    limit?: number;
-    offset?: number;
-    reviewStatus?: "pending" | "reviewed" | "all";
-    groupIds?: string[];
-  }) {
-    return this.reviewDb.findReviewQueue(filters);
-  }
-
-  async updateReviewSession(
-    id: string,
-    data: { status?: ReviewStatus; completed_at?: Date },
-  ): Promise<ReviewSessionData | null> {
-    return this.reviewDb.updateReviewSession(id, data);
-  }
-
-  async createFieldCorrection(
-    sessionId: string,
-    data: {
-      field_key: string;
-      original_value?: string;
-      corrected_value?: string;
-      original_conf?: number;
-      action: CorrectionAction;
-    },
-  ) {
-    return this.reviewDb.createFieldCorrection(sessionId, data);
-  }
-
-  async findSessionCorrections(sessionId: string) {
-    return this.reviewDb.findSessionCorrections(sessionId);
-  }
-
-  async getReviewAnalytics(filters: {
-    startDate?: Date;
-    endDate?: Date;
-    reviewerId?: string;
-    groupIds?: string[];
-  }) {
-    return this.reviewDb.getReviewAnalytics(filters);
   }
 }

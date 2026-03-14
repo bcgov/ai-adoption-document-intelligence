@@ -5,32 +5,32 @@
 **So that** review session database operations are colocated with their owning module.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: ReviewDbService lives in the hitl module
+- [x] **Scenario 1**: ReviewDbService lives in the hitl module
     - **Given** the hitl module exists at `apps/backend-services/src/hitl/`
     - **When** the migration is complete
     - **Then** `ReviewDbService` exists at `apps/backend-services/src/hitl/review-db.service.ts` and is removed from the `database` module
 
-- [ ] **Scenario 2**: ReviewDbService exposes only the required methods
+- [x] **Scenario 2**: ReviewDbService exposes only the required methods
     - **Given** the new `ReviewDbService`
     - **When** reviewing its public API
     - **Then** it provides exactly: `createReviewSession`, `findReviewSession`, `findReviewQueue`, `updateReviewSession`, `createFieldCorrection`, `findSessionCorrections`, `getReviewAnalytics`
 
-- [ ] **Scenario 3**: ReviewDbService is registered as a provider but not exported
+- [x] **Scenario 3**: ReviewDbService is registered as a provider but not exported
     - **Given** `HitlModule`
     - **When** reviewing its `@Module` decorator
     - **Then** `ReviewDbService` is listed in `providers` and is NOT listed in `exports`
 
-- [ ] **Scenario 4**: ReviewDbService uses PrismaService via private getter
+- [x] **Scenario 4**: ReviewDbService uses PrismaService via private getter
     - **Given** the new `ReviewDbService`
     - **When** reviewing how it accesses Prisma
     - **Then** it uses `private get prisma()` to access the injected `PrismaService`
 
-- [ ] **Scenario 5**: Types are colocated with the db-service
+- [x] **Scenario 5**: Types are colocated with the db-service
     - **Given** the hitl module folder
     - **When** reviewing its files
     - **Then** `ReviewSessionData` type is defined in `apps/backend-services/src/hitl/review-db.types.ts`
 
-- [ ] **Scenario 6**: Unit tests exist for ReviewDbService
+- [x] **Scenario 6**: Unit tests exist for ReviewDbService
     - **Given** the new `ReviewDbService`
     - **When** running `npx jest review-db.service`
     - **Then** all tests pass with mocked `PrismaService`

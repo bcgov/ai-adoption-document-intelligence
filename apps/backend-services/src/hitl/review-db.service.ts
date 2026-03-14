@@ -7,8 +7,8 @@ import {
 } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import type { ReviewSessionData } from "./database.types";
-import { PrismaService } from "./prisma.service";
+import { PrismaService } from "../database/prisma.service";
+import type { ReviewSessionData } from "./review-db.types";
 
 @Injectable()
 export class ReviewDbService {
@@ -21,6 +21,12 @@ export class ReviewDbService {
     return this.prismaService.prisma;
   }
 
+  /**
+   * Creates a new review session for a document.
+   * @param documentId - The ID of the document to review.
+   * @param reviewerId - The ID of the reviewer.
+   * @returns The created review session with document and corrections.
+   */
   async createReviewSession(
     documentId: string,
     reviewerId: string,
@@ -44,6 +50,11 @@ export class ReviewDbService {
     return session as ReviewSessionData;
   }
 
+  /**
+   * Finds a review session by ID.
+   * @param id - The review session ID.
+   * @returns The review session, or null if not found.
+   */
   async findReviewSession(id: string): Promise<ReviewSessionData | null> {
     this.logger.debug("Finding review session", { id });
     const session = await this.prisma.reviewSession.findUnique({
@@ -60,6 +71,11 @@ export class ReviewDbService {
     return session as ReviewSessionData | null;
   }
 
+  /**
+   * Finds documents in the review queue based on filter criteria.
+   * @param filters - Filtering options for the queue.
+   * @returns Array of documents matching the filter criteria.
+   */
   async findReviewQueue(filters: {
     status?: DocumentStatus;
     modelId?: string;
@@ -136,6 +152,12 @@ export class ReviewDbService {
     });
   }
 
+  /**
+   * Updates a review session's status and/or completion timestamp.
+   * @param id - The review session ID.
+   * @param data - Fields to update on the session.
+   * @returns The updated session, or null if not found.
+   */
   async updateReviewSession(
     id: string,
     data: { status?: ReviewStatus; completed_at?: Date },
@@ -164,6 +186,12 @@ export class ReviewDbService {
     }
   }
 
+  /**
+   * Creates a field correction record for a review session.
+   * @param sessionId - The review session ID.
+   * @param data - The correction data.
+   * @returns The created FieldCorrection record.
+   */
   async createFieldCorrection(
     sessionId: string,
     data: {
@@ -183,6 +211,11 @@ export class ReviewDbService {
     });
   }
 
+  /**
+   * Finds all field corrections for a review session.
+   * @param sessionId - The review session ID.
+   * @returns Array of FieldCorrection records ordered by creation time.
+   */
   async findSessionCorrections(
     sessionId: string,
   ): Promise<import("@generated/client").FieldCorrection[]> {
@@ -193,6 +226,11 @@ export class ReviewDbService {
     });
   }
 
+  /**
+   * Returns aggregated analytics for review sessions within optional filters.
+   * @param filters - Date range, reviewer, and group filters.
+   * @returns Analytics summary including session counts, corrections, and average confidence.
+   */
   async getReviewAnalytics(filters: {
     startDate?: Date;
     endDate?: Date;
