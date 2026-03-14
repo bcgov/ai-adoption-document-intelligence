@@ -220,8 +220,14 @@ COMMIT_SHA=$(git rev-parse HEAD 2>/dev/null) || {
 }
 
 # The image tag matches the sanitized branch name (same logic as the GitHub Actions workflow).
-# This is always based on the branch, regardless of any --instance override.
-IMAGE_TAG=$(sanitize_instance_name "${CURRENT_BRANCH}")
+# Uses the same sanitization as the GHA workflow (128-char OCI tag limit), NOT the instance
+# name truncation (20 chars) which is shorter to avoid Kubernetes label limits.
+IMAGE_TAG=$(echo "${CURRENT_BRANCH}" \
+  | tr '[:upper:]' '[:lower:]' \
+  | sed 's/[^a-z0-9._-]/-/g' \
+  | sed 's/--*/-/g' \
+  | sed 's/^-//;s/-$//' \
+  | cut -c1-128)
 
 SERVICES=("backend-services" "frontend" "temporal")
 IMAGES_EXIST=true
@@ -372,13 +378,20 @@ BACKEND_IMAGE="${IMAGE_BASE}/backend-services"
 FRONTEND_IMAGE="${IMAGE_BASE}/frontend"
 WORKER_IMAGE="${IMAGE_BASE}/temporal"
 
+SSO_AUTH_SERVER_URL=$(get_config "SSO_AUTH_SERVER_URL") || { log_error "SSO_AUTH_SERVER_URL not found in configuration."; exit 1; }
+SSO_REALM=$(get_config "SSO_REALM") || { log_error "SSO_REALM not found in configuration."; exit 1; }
+SSO_CLIENT_ID=$(get_config "SSO_CLIENT_ID") || { log_error "SSO_CLIENT_ID not found in configuration."; exit 1; }
+
 OVERLAY_DIR=$(generate_instance_overlay \
   --instance "${INSTANCE_NAME}" \
   --route-suffix "${ROUTE_HOST_SUFFIX}" \
   --backend-image "${BACKEND_IMAGE}" \
   --frontend-image "${FRONTEND_IMAGE}" \
   --worker-image "${WORKER_IMAGE}" \
-  --image-tag "${IMAGE_TAG}") || {
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}") || {
   log_error "Failed to generate Kustomize overlay."
   exit 1
 }
@@ -467,10 +480,9 @@ for service in "${DEPLOYMENT_SERVICES[@]}"; do
   log_info "Waiting for deployment/${DEPLOY_NAME}..."
 
   if oc get deployment "${DEPLOY_NAME}" -n "${NAMESPACE}" &>/dev/null; then
-    oc rollout status "deployment/${DEPLOY_NAME}" -n "${NAMESPACE}" --timeout=300s || {
-      log_error "Rollout timed out for deployment/${DEPLOY_NAME}."
+    oc rollout status "deployment/${DEPLOY_NAME}" -n "${NAMESPACE}" --timeout=120s || {
+      log_error "Rollout timed out for deployment/${DEPLOY_NAME}. Continuing with remaining deployments."
       log_error "Check status with: oc get pods -l $(get_instance_label "${INSTANCE_NAME}") -n ${NAMESPACE}"
-      exit 1
     }
   else
     log_info "  Deployment '${DEPLOY_NAME}' not found — skipping (may not be in base manifests)."

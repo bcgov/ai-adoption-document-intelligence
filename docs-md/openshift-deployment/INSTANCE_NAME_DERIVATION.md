@@ -17,7 +17,13 @@ Branch names and user-provided instance names are sanitized to comply with Kuber
 | Replace any non-alphanumeric, non-hyphen character | `feature@test` -> `feature-test` |
 | Collapse consecutive hyphens | `feature//my__thing` -> `feature-my-thing` |
 | Strip leading/trailing hyphens | `-my-branch-` -> `my-branch` |
-| Truncate to 63 characters | Long names are truncated without leaving a trailing hyphen |
+| Truncate to 20 characters | Long names are truncated without leaving a trailing hyphen |
+
+## Truncation Rationale
+
+Instance names are truncated to 20 characters because the Crunchy PostgreSQL operator generates labels and hostnames from the PostgresCluster name plus internal suffixes (e.g., `<instance>-temporal-pg-repo-host-<hash>`). Kubernetes labels and hostnames have a 63-character limit, so keeping the instance name short prevents exceeding those limits.
+
+The image tag used for container images is decoupled from the instance name and allows up to 128 characters (the OCI tag limit), so image tags are not affected by instance name truncation.
 
 ## Resource Naming Convention
 
