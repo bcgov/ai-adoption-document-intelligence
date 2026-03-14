@@ -62,7 +62,7 @@ bash scripts/lib/config-loader.test.sh
 
 | Variable | Description |
 |----------|-------------|
-| `CLUSTER_DOMAIN` | Cluster wildcard domain (e.g., `apps.silver.devops.gov.bc.ca`). The deploy script computes `ROUTE_HOST_SUFFIX` as `<namespace>.<CLUSTER_DOMAIN>` automatically from the namespace in `.oc-deploy-token`. |
+| `CLUSTER_DOMAIN` | Cluster wildcard domain (e.g., `apps.silver.devops.gov.bc.ca`). Route hostnames are computed as `<instance>-<service>-<namespace>.<CLUSTER_DOMAIN>` to stay under the wildcard cert. |
 
 ### Computed at Deploy Time (not in .env files)
 
@@ -70,9 +70,8 @@ These values are derived automatically by the deploy script — do not set them 
 
 | Variable | Computed As |
 |----------|-------------|
-| `ROUTE_HOST_SUFFIX` | `<namespace>.<CLUSTER_DOMAIN>` |
-| `FRONTEND_URL` | `https://<instance>-frontend.<ROUTE_HOST_SUFFIX>` |
-| `BACKEND_URL` | `https://<instance>-backend.<ROUTE_HOST_SUFFIX>` |
+| `FRONTEND_URL` | `https://<instance>-frontend-<namespace>.<CLUSTER_DOMAIN>` |
+| `BACKEND_URL` | `https://<instance>-backend-<namespace>.<CLUSTER_DOMAIN>` |
 | `SSO_REDIRECT_URI` | `<BACKEND_URL>/api/auth/callback` |
 | `TEMPORAL_ADDRESS` | `<instance>-temporal:7233` |
 
