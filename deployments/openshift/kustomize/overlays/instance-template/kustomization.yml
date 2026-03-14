@@ -9,6 +9,11 @@ resources:
 # The deploy script replaces __INSTANCE_NAME__ before running kustomize build.
 namePrefix: "__INSTANCE_NAME__-"
 
+# Tell Kustomize how to update name references in OpenShift Route resources.
+# Without this, namePrefix updates metadata.name but not spec.to.name (service reference).
+configurations:
+  - kustomize-config.yml
+
 # Apply instance label to all resources for isolation and selection.
 # Kustomize propagates commonLabels into metadata.labels, spec.selector.matchLabels,
 # and spec.template.metadata.labels automatically.
@@ -59,7 +64,7 @@ patches:
   # --- Temporal server: update hardcoded Postgres service references ---
   # The Temporal server deployment references temporal-postgres-cluster-primary
   # in env vars. With namePrefix, the actual service becomes
-  # __INSTANCE_NAME__-temporal-postgres-cluster-primary.
+  # __INSTANCE_NAME__-temporal-pg-primary.
   - target:
       kind: Deployment
       name: temporal
@@ -75,16 +80,16 @@ patches:
               - name: config-init
                 env:
                   - name: POSTGRES_SEEDS
-                    value: "__INSTANCE_NAME__-temporal-postgres-cluster-primary"
+                    value: "__INSTANCE_NAME__-temporal-pg-primary"
               - name: schema-setup
                 env:
                   - name: POSTGRES_SEEDS
-                    value: "__INSTANCE_NAME__-temporal-postgres-cluster-primary"
+                    value: "__INSTANCE_NAME__-temporal-pg-primary"
             containers:
               - name: temporal
                 env:
                   - name: POSTGRES_SEEDS
-                    value: "__INSTANCE_NAME__-temporal-postgres-cluster-primary"
+                    value: "__INSTANCE_NAME__-temporal-pg-primary"
 
   # --- Temporal UI: update hardcoded Temporal server address ---
   - target:
@@ -110,6 +115,8 @@ patches:
                     value: "__INSTANCE_NAME__-temporal:7233"
 
   # --- Backend services ConfigMap: update in-cluster service references ---
+  # Also adds instance-specific values that are not in the base ConfigMap
+  # (route-derived URLs, SSO config) using template placeholders.
   - target:
       kind: ConfigMap
       name: backend-services-config
@@ -120,6 +127,12 @@ patches:
         name: backend-services-config
       data:
         TEMPORAL_ADDRESS: "__INSTANCE_NAME__-temporal:7233"
+        FRONTEND_URL: "https://__INSTANCE_NAME__-frontend.__ROUTE_HOST_SUFFIX__"
+        BACKEND_URL: "https://__INSTANCE_NAME__-backend.__ROUTE_HOST_SUFFIX__"
+        SSO_REDIRECT_URI: "https://__INSTANCE_NAME__-backend.__ROUTE_HOST_SUFFIX__/api/auth/callback"
+        SSO_AUTH_SERVER_URL: "__SSO_AUTH_SERVER_URL__"
+        SSO_REALM: "__SSO_REALM__"
+        SSO_CLIENT_ID: "__SSO_CLIENT_ID__"
 
   # --- Temporal worker ConfigMap: update Temporal server address ---
   - target:
@@ -132,6 +145,123 @@ patches:
         name: temporal-worker-config
       data:
         TEMPORAL_ADDRESS: "__INSTANCE_NAME__-temporal:7233"
+
+  # --- Crunchy Postgres secret name patches ---
+  # The Crunchy operator auto-creates secrets named after the PostgresCluster CR.
+  # Kustomize namePrefix updates metadata.name but not secretKeyRef references to
+  # operator-managed secrets. These patches fix the secret names.
+  - target:
+      kind: Deployment
+      name: backend-services
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: backend-services
+      spec:
+        template:
+          spec:
+            initContainers:
+              - name: migrate-db
+                env:
+                  - name: DATABASE_URL
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-app-pg-pguser-admin
+                        key: uri
+            containers:
+              - name: backend-services
+                env:
+                  - name: DATABASE_URL
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-app-pg-pguser-admin
+                        key: uri
+
+  - target:
+      kind: Deployment
+      name: temporal
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: temporal
+      spec:
+        template:
+          spec:
+            initContainers:
+              - name: config-init
+                env:
+                  - name: POSTGRES_USER
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-temporal-pg-pguser-temporal
+                        key: user
+                  - name: POSTGRES_PWD
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-temporal-pg-pguser-temporal
+                        key: password
+              - name: schema-setup
+                env:
+                  - name: POSTGRES_USER
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-temporal-pg-pguser-temporal
+                        key: user
+                  - name: SQL_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-temporal-pg-pguser-temporal
+                        key: password
+            containers:
+              - name: temporal
+                env:
+                  - name: POSTGRES_USER
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-temporal-pg-pguser-temporal
+                        key: user
+                  - name: POSTGRES_PWD
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-temporal-pg-pguser-temporal
+                        key: password
+
+  - target:
+      kind: Deployment
+      name: temporal-worker
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: temporal-worker
+      spec:
+        template:
+          spec:
+            containers:
+              - name: temporal-worker
+                env:
+                  - name: DATABASE_URL
+                    valueFrom:
+                      secretKeyRef:
+                        name: __INSTANCE_NAME__-app-pg-pguser-admin
+                        key: uri
+
+  # --- Crunchy PostgresCluster: fix databaseInitSQL ConfigMap reference ---
+  # Kustomize namePrefix does not update spec.databaseInitSQL.name in PostgresCluster CRDs.
+  - target:
+      kind: PostgresCluster
+      name: temporal-pg
+    patch: |
+      apiVersion: postgres-operator.crunchydata.com/v1beta1
+      kind: PostgresCluster
+      metadata:
+        name: temporal-pg
+      spec:
+        databaseInitSQL:
+          name: __INSTANCE_NAME__-temporal-postgres-init-sql
+          key: init.sql
 
   # --- NetworkPolicy patches: scope ingress to instance label ---
   - target:

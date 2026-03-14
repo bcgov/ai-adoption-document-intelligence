@@ -189,5 +189,5 @@ Referenced by the temporal-worker deployment via `secretKeyRef`.
 
 | Secret | Managed By | Description |
 |--------|-----------|-------------|
-| `<instance>-postgres-cluster-pguser-admin` | Crunchy Operator | PostgreSQL connection credentials (`DATABASE_URL`) |
-| `<instance>-temporal-postgres-cluster-pguser-temporal` | Crunchy Operator | Temporal database credentials |
+| `<instance>-app-pg-pguser-admin` | Crunchy Operator | PostgreSQL connection credentials (`DATABASE_URL`) |
+| `<instance>-temporal-pg-pguser-temporal` | Crunchy Operator | Temporal database credentials |

@@ -6,6 +6,8 @@ metadata:
     app: backend-services
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: backend-services
@@ -14,9 +16,6 @@ spec:
       labels:
         app: backend-services
     spec:
-      # Allow app user (nestjs/nodejs 1001) to write to logs PVC
-      securityContext:
-        fsGroup: 1001
       initContainers:
       - name: migrate-db
         # Tag is resolved only when a NEW pod is created. After pushing a new image, run: oc rollout restart deployment/backend-services -n <namespace>
@@ -45,7 +44,7 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: postgres-cluster-pguser-admin
+              name: app-pg-pguser-admin
               key: uri
         - name: PGSSLMODE
           value: "require"
@@ -101,7 +100,7 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: postgres-cluster-pguser-admin
+              name: app-pg-pguser-admin
               key: uri
         - name: PGSSLMODE
           value: "require"

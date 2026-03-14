@@ -6,6 +6,8 @@ metadata:
     app: temporal-worker
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: temporal-worker
@@ -14,9 +16,6 @@ spec:
       labels:
         app: temporal-worker
     spec:
-      # Allow app user (nodeuser/nodejs 1001) to write to logs PVC
-      securityContext:
-        fsGroup: 1001
       containers:
         - name: temporal-worker
           image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal:develop-latest
@@ -27,7 +26,7 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: postgres-cluster-pguser-admin
+                  name: app-pg-pguser-admin
                   key: uri
             # Crunchy Postgres on OpenShift requires SSL; uselibpqcompat allows self-signed certs
             - name: PGSSLMODE

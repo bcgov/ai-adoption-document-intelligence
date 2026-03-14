@@ -64,11 +64,17 @@ The workflow uses Docker Buildx layer caching via `actions/cache` to speed up su
 
 ## Service Account Permissions
 
-The service account created by `oc-setup-sa.sh` has permissions scoped to the minimum required for deployment operations:
+The service account created by `oc-setup-sa.sh` has broad permissions for deployment operations:
 
 | API Group | Resources | Verbs |
 |-----------|-----------|-------|
-| `apps` | deployments | get, list, watch, create, update, patch, delete |
-| (core) | services, configmaps, secrets, persistentvolumeclaims, pods | get, list, watch, create, update, patch, delete |
+| (core) | services, configmaps, secrets, persistentvolumeclaims, pods, events | get, list, watch, create, update, patch, delete |
 | (core) | pods/exec | create |
+| (core) | pods/log | get |
+| `apps` | deployments, deployments/scale, replicasets, replicasets/scale, statefulsets | get, list, watch, create, update, patch, delete |
+| `batch` | jobs, cronjobs | get, list, watch, create, update, patch, delete |
 | `route.openshift.io` | routes | get, list, watch, create, update, patch, delete |
+| `route.openshift.io` | routes/custom-host | create |
+| `postgres-operator.crunchydata.com` | postgresclusters | get, list, watch, create, update, patch, delete |
+| `networking.k8s.io` | networkpolicies | get, list, watch, create, update, patch, delete |
+| `autoscaling` | horizontalpodautoscalers | get, list, watch, create, update, patch, delete |
