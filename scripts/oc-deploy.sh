@@ -196,7 +196,7 @@ CLUSTER_DOMAIN=$(get_config "CLUSTER_DOMAIN") || {
 # Inject computed instance-specific values into the loaded config
 FRONTEND_URL="https://${INSTANCE_NAME}-frontend-${NAMESPACE}.${CLUSTER_DOMAIN}"
 BACKEND_URL="https://${INSTANCE_NAME}-backend-${NAMESPACE}.${CLUSTER_DOMAIN}"
-SSO_REDIRECT_URI="${BACKEND_URL}/api/auth/callback"
+SSO_REDIRECT_URI="${FRONTEND_URL}/api/auth/callback"
 TEMPORAL_ADDRESS="${INSTANCE_NAME}-temporal:7233"
 
 # Make these available via the config system
