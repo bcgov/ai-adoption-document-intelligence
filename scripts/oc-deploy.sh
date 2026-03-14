@@ -385,6 +385,23 @@ SSO_REALM=$(get_config "SSO_REALM") || { log_error "SSO_REALM not found in confi
 SSO_CLIENT_ID=$(get_config "SSO_CLIENT_ID") || { log_error "SSO_CLIENT_ID not found in configuration."; exit 1; }
 BOOTSTRAP_ADMIN_EMAIL=$(get_config "BOOTSTRAP_ADMIN_EMAIL" 2>/dev/null || echo "")
 
+# Optional config values with defaults
+BLOB_STORAGE_PROVIDER=$(get_config "BLOB_STORAGE_PROVIDER" 2>/dev/null || echo "minio")
+AZURE_STORAGE_CONTAINER_NAME=$(get_config "AZURE_STORAGE_CONTAINER_NAME" 2>/dev/null || echo "document-blobs")
+BENCHMARK_TASK_QUEUE=$(get_config "BENCHMARK_TASK_QUEUE" 2>/dev/null || echo "benchmark-processing")
+ENABLE_BENCHMARK_QUEUE=$(get_config "ENABLE_BENCHMARK_QUEUE" 2>/dev/null || echo "true")
+BODY_LIMIT=$(get_config "BODY_LIMIT" 2>/dev/null || echo "50mb")
+THROTTLE_GLOBAL_TTL_MS=$(get_config "THROTTLE_GLOBAL_TTL_MS" 2>/dev/null || echo "60000")
+THROTTLE_GLOBAL_LIMIT=$(get_config "THROTTLE_GLOBAL_LIMIT" 2>/dev/null || echo "100")
+THROTTLE_AUTH_TTL_MS=$(get_config "THROTTLE_AUTH_TTL_MS" 2>/dev/null || echo "60000")
+THROTTLE_AUTH_LIMIT=$(get_config "THROTTLE_AUTH_LIMIT" 2>/dev/null || echo "10")
+THROTTLE_AUTH_REFRESH_TTL_MS=$(get_config "THROTTLE_AUTH_REFRESH_TTL_MS" 2>/dev/null || echo "60000")
+THROTTLE_AUTH_REFRESH_LIMIT=$(get_config "THROTTLE_AUTH_REFRESH_LIMIT" 2>/dev/null || echo "5")
+AZURE_OPENAI_ENDPOINT=$(get_config "AZURE_OPENAI_ENDPOINT" 2>/dev/null || echo "")
+AZURE_OPENAI_DEPLOYMENT=$(get_config "AZURE_OPENAI_DEPLOYMENT" 2>/dev/null || echo "")
+AZURE_OPENAI_API_VERSION=$(get_config "AZURE_OPENAI_API_VERSION" 2>/dev/null || echo "2024-02-15-preview")
+ENRICHMENT_REDACT_PII=$(get_config "ENRICHMENT_REDACT_PII" 2>/dev/null || echo "false")
+
 OVERLAY_DIR=$(generate_instance_overlay \
   --instance "${INSTANCE_NAME}" \
   --namespace "${NAMESPACE}" \
@@ -396,7 +413,22 @@ OVERLAY_DIR=$(generate_instance_overlay \
   --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
   --sso-realm "${SSO_REALM}" \
   --sso-client-id "${SSO_CLIENT_ID}" \
-  --bootstrap-admin-email "${BOOTSTRAP_ADMIN_EMAIL}") || {
+  --bootstrap-admin-email "${BOOTSTRAP_ADMIN_EMAIL}" \
+  --blob-storage-provider "${BLOB_STORAGE_PROVIDER}" \
+  --azure-storage-container-name "${AZURE_STORAGE_CONTAINER_NAME}" \
+  --benchmark-task-queue "${BENCHMARK_TASK_QUEUE}" \
+  --enable-benchmark-queue "${ENABLE_BENCHMARK_QUEUE}" \
+  --body-limit "${BODY_LIMIT}" \
+  --throttle-global-ttl-ms "${THROTTLE_GLOBAL_TTL_MS}" \
+  --throttle-global-limit "${THROTTLE_GLOBAL_LIMIT}" \
+  --throttle-auth-ttl-ms "${THROTTLE_AUTH_TTL_MS}" \
+  --throttle-auth-limit "${THROTTLE_AUTH_LIMIT}" \
+  --throttle-auth-refresh-ttl-ms "${THROTTLE_AUTH_REFRESH_TTL_MS}" \
+  --throttle-auth-refresh-limit "${THROTTLE_AUTH_REFRESH_LIMIT}" \
+  --azure-openai-endpoint "${AZURE_OPENAI_ENDPOINT}" \
+  --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT}" \
+  --azure-openai-api-version "${AZURE_OPENAI_API_VERSION}" \
+  --enrichment-redact-pii "${ENRICHMENT_REDACT_PII}") || {
   log_error "Failed to generate Kustomize overlay."
   exit 1
 }
