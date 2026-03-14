@@ -9,3 +9,14 @@ data:
   TEMPORAL_NAMESPACE: "default"
   TEMPORAL_TASK_QUEUE: "ocr-processing"
   AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://your-azure-endpoint.cognitiveservices.azure.com"
+  # Blob storage
+  BLOB_STORAGE_PROVIDER: "minio"
+  AZURE_STORAGE_CONTAINER_NAME: "document-blobs"
+  # Benchmarking
+  BENCHMARK_TASK_QUEUE: "benchmark-processing"
+  ENABLE_BENCHMARK_QUEUE: "true"
+  # Azure OpenAI (enrichment)
+  AZURE_OPENAI_ENDPOINT: ""
+  AZURE_OPENAI_DEPLOYMENT: ""
+  AZURE_OPENAI_API_VERSION: "2024-02-15-preview"
+  ENRICHMENT_REDACT_PII: "false"
