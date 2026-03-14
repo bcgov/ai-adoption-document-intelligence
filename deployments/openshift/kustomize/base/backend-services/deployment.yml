@@ -168,6 +168,76 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: TEMPORAL_TASK_QUEUE
+        - name: BENCHMARK_TASK_QUEUE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: BENCHMARK_TASK_QUEUE
+        - name: ENABLE_BENCHMARK_QUEUE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: ENABLE_BENCHMARK_QUEUE
+        - name: BLOB_STORAGE_PROVIDER
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: BLOB_STORAGE_PROVIDER
+        - name: AZURE_STORAGE_CONTAINER_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AZURE_STORAGE_CONTAINER_NAME
+        - name: AZURE_STORAGE_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: backend-services-secrets
+              key: AZURE_STORAGE_CONNECTION_STRING
+        - name: AZURE_STORAGE_ACCOUNT_NAME
+          valueFrom:
+            secretKeyRef:
+              name: backend-services-secrets
+              key: AZURE_STORAGE_ACCOUNT_NAME
+        - name: AZURE_STORAGE_ACCOUNT_KEY
+          valueFrom:
+            secretKeyRef:
+              name: backend-services-secrets
+              key: AZURE_STORAGE_ACCOUNT_KEY
+        - name: BODY_LIMIT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: BODY_LIMIT
+        - name: THROTTLE_GLOBAL_TTL_MS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: THROTTLE_GLOBAL_TTL_MS
+        - name: THROTTLE_GLOBAL_LIMIT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: THROTTLE_GLOBAL_LIMIT
+        - name: THROTTLE_AUTH_TTL_MS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: THROTTLE_AUTH_TTL_MS
+        - name: THROTTLE_AUTH_LIMIT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: THROTTLE_AUTH_LIMIT
+        - name: THROTTLE_AUTH_REFRESH_TTL_MS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: THROTTLE_AUTH_REFRESH_TTL_MS
+        - name: THROTTLE_AUTH_REFRESH_LIMIT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: THROTTLE_AUTH_REFRESH_LIMIT
         volumeMounts:
         - name: storage
           mountPath: /app/data/blobs

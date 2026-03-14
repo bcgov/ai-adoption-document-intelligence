@@ -15,3 +15,18 @@ data:
   TEMPORAL_ADDRESS: "temporal:7233"
   TEMPORAL_NAMESPACE: "default"
   TEMPORAL_TASK_QUEUE: "ocr-processing"
+  # Blob storage
+  BLOB_STORAGE_PROVIDER: "minio"
+  AZURE_STORAGE_CONTAINER_NAME: "document-blobs"
+  # Benchmarking
+  BENCHMARK_TASK_QUEUE: "benchmark-processing"
+  ENABLE_BENCHMARK_QUEUE: "true"
+  # Request body limit
+  BODY_LIMIT: "50mb"
+  # Rate limiting
+  THROTTLE_GLOBAL_TTL_MS: "60000"
+  THROTTLE_GLOBAL_LIMIT: "100"
+  THROTTLE_AUTH_TTL_MS: "60000"
+  THROTTLE_AUTH_LIMIT: "10"
+  THROTTLE_AUTH_REFRESH_TTL_MS: "60000"
+  THROTTLE_AUTH_REFRESH_LIMIT: "5"
