@@ -13,7 +13,8 @@ The template uses placeholder tokens that the deploy script replaces with actual
 | Token | Description | Example Value |
 |-------|-------------|---------------|
 | `__INSTANCE_NAME__` | Sanitized instance name (max 20 chars) | `feature-deployment-f` |
-| `__ROUTE_HOST_SUFFIX__` | Cluster wildcard DNS suffix | `fd34fb-prod.apps.silver.devops.gov.bc.ca` |
+| `__NAMESPACE__` | OpenShift namespace | `fd34fb-prod` |
+| `__CLUSTER_DOMAIN__` | Cluster wildcard domain | `apps.silver.devops.gov.bc.ca` |
 | `__BACKEND_IMAGE__` | Backend container image (without tag) | `ghcr.io/org/repo/backend-services` |
 | `__FRONTEND_IMAGE__` | Frontend container image (without tag) | `ghcr.io/org/repo/frontend` |
 | `__WORKER_IMAGE__` | Temporal worker container image (without tag) | `ghcr.io/org/repo/temporal` |
@@ -39,7 +40,7 @@ Kustomize's `namePrefix` handles most cross-references automatically, but severa
 - **Temporal UI deployment**: `TEMPORAL_ADDRESS` env var updated to reference the prefixed Temporal service
 - **Backend services ConfigMap**: `TEMPORAL_ADDRESS`, `FRONTEND_URL`, `BACKEND_URL`, `SSO_REDIRECT_URI`, and SSO settings (`SSO_AUTH_SERVER_URL`, `SSO_REALM`, `SSO_CLIENT_ID`)
 - **Temporal worker ConfigMap**: `TEMPORAL_ADDRESS` updated to reference the prefixed Temporal service
-- **Route hostnames**: Set to `<instance>-<service>.<route-suffix>` for external access
+- **Route hostnames**: Set to `<instance>-<service>-<namespace>.<cluster-domain>` (single level under wildcard cert to avoid `ERR_CERT_COMMON_NAME_INVALID`)
 - **NetworkPolicies**: Scoped to only allow ingress from pods with the same instance label and from the OpenShift ingress router
 
 #### Operator-managed secret references (not auto-prefixed by Kustomize)
@@ -57,10 +58,10 @@ Each instance gets its own complete, independent stack:
 
 - Crunchy PostgreSQL cluster (app database)
 - Crunchy PostgreSQL cluster (Temporal database)
-- Temporal server, worker, and UI
+- Temporal server, worker, and UI (UI is not publicly exposed — use `oc port-forward` for local access)
 - Backend services deployment
 - Frontend deployment
-- Routes (with instance-specific hostnames)
+- Routes for frontend and backend (with instance-specific hostnames)
 - ConfigMaps and Secrets
 - PVCs
 - NetworkPolicies (scoped to instance label, preventing cross-instance traffic)
@@ -75,7 +76,8 @@ source scripts/lib/generate-overlay.sh
 # Generate an overlay
 OVERLAY_DIR=$(generate_instance_overlay \
   --instance "feature-my-thing" \
-  --route-suffix "apps.silver.devops.gov.bc.ca" \
+  --namespace "fd34fb-prod" \
+  --cluster-domain "apps.silver.devops.gov.bc.ca" \
   --backend-image "ghcr.io/org/repo/backend-services" \
   --frontend-image "ghcr.io/org/repo/frontend" \
   --worker-image "ghcr.io/org/repo/temporal" \

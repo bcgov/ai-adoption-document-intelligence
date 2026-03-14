@@ -45,22 +45,14 @@ patches:
     patch: |
       - op: add
         path: /spec/host
-        value: "__INSTANCE_NAME__-backend.__ROUTE_HOST_SUFFIX__"
+        value: "__INSTANCE_NAME__-backend-__NAMESPACE__.__CLUSTER_DOMAIN__"
   - target:
       kind: Route
       name: frontend
     patch: |
       - op: add
         path: /spec/host
-        value: "__INSTANCE_NAME__-frontend.__ROUTE_HOST_SUFFIX__"
-  - target:
-      kind: Route
-      name: temporal-ui
-    patch: |
-      - op: add
-        path: /spec/host
-        value: "__INSTANCE_NAME__-temporal-ui.__ROUTE_HOST_SUFFIX__"
-
+        value: "__INSTANCE_NAME__-frontend-__NAMESPACE__.__CLUSTER_DOMAIN__"
   # --- Temporal server: update hardcoded Postgres service references ---
   # The Temporal server deployment references temporal-postgres-cluster-primary
   # in env vars. With namePrefix, the actual service becomes
@@ -127,9 +119,9 @@ patches:
         name: backend-services-config
       data:
         TEMPORAL_ADDRESS: "__INSTANCE_NAME__-temporal:7233"
-        FRONTEND_URL: "https://__INSTANCE_NAME__-frontend.__ROUTE_HOST_SUFFIX__"
-        BACKEND_URL: "https://__INSTANCE_NAME__-backend.__ROUTE_HOST_SUFFIX__"
-        SSO_REDIRECT_URI: "https://__INSTANCE_NAME__-backend.__ROUTE_HOST_SUFFIX__/api/auth/callback"
+        FRONTEND_URL: "https://__INSTANCE_NAME__-frontend-__NAMESPACE__.__CLUSTER_DOMAIN__"
+        BACKEND_URL: "https://__INSTANCE_NAME__-backend-__NAMESPACE__.__CLUSTER_DOMAIN__"
+        SSO_REDIRECT_URI: "https://__INSTANCE_NAME__-backend-__NAMESPACE__.__CLUSTER_DOMAIN__/api/auth/callback"
         SSO_AUTH_SERVER_URL: "__SSO_AUTH_SERVER_URL__"
         SSO_REALM: "__SSO_REALM__"
         SSO_CLIENT_ID: "__SSO_CLIENT_ID__"
