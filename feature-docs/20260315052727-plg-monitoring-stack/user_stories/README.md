@@ -42,7 +42,7 @@ After implementing the user story check it off at the bottom of this file.
 ## Suggested Implementation Order (by dependency chain)
 
 ### Phase 1 — Log Enrichment (application code changes)
-- [ ] **US-001** (Add sessionId from Keycloak session_state to request context and log output)
+- [x] **US-001** (Add sessionId from Keycloak session_state to request context and log output)
 - [ ] **US-002** (Add clientIp extraction from X-Forwarded-For/X-Real-IP/socket to log output)
 - [ ] **US-003** (Add API key prefix/ID logging for API key-authenticated requests)
 
