@@ -33,9 +33,11 @@ After deployment, the script prints access URLs for the frontend, backend, and T
 ## Prerequisites
 
 - `oc` CLI installed
-- `gh` CLI installed and authenticated (for triggering image builds)
+- `gh` CLI installed and authenticated (for triggering image builds via GitHub Actions)
+- Docker installed (for local builds with `--build-local`)
 - Code pushed to GitHub (images are built from the remote branch via GitHub Actions)
 - Config files created from examples (see [Environment Configuration](#environment-configuration))
+- Artifactory credentials configured in your env file (see `ARTIFACTORY_URL`, `ARTIFACTORY_SA_USERNAME`, `ARTIFACTORY_SA_PASSWORD`)
 
 ---
 
@@ -90,13 +92,13 @@ The deploy flow:
 1. Validates the service account token
 2. Derives the instance name from the git branch (or `--instance`)
 3. Loads environment config (`dev.env` or `prod.env`) with optional instance overrides
-4. Checks for existing images on ghcr.io; if missing, builds them via GitHub Actions (default) or locally with Docker (`--build-local`)
+4. Checks for existing images on Artifactory; if missing, builds them via GitHub Actions (default) or locally with Docker (`--build-local`)
 5. Generates a Kustomize overlay and applies it with `oc apply -k`
 6. Creates per-instance OpenShift Secrets from config values (API keys, client secrets)
 7. Waits for all deployments to roll out (5-minute timeout each)
 8. Prints access URLs
 
-**`--build-local`**: Builds images with `docker build` and pushes to ghcr.io directly from your machine. Requires Docker installed and `gh auth` with `write:packages` scope (`gh auth refresh -s write:packages`). Useful when the GitHub Actions workflow isn't on the default branch or you want faster iteration without pushing to GitHub first.
+**`--build-local`**: Builds images with `docker build` and pushes to Artifactory directly from your machine. Requires Docker installed and Artifactory credentials in your env config file. Useful when the GitHub Actions workflow isn't on the default branch or you want faster iteration without pushing to GitHub first.
 
 Each instance gets: frontend, backend, Temporal server + worker + UI, Crunchy PostgreSQL, routes, ConfigMaps, Secrets, PVCs, and NetworkPolicies. Prisma migrations run automatically via an init container during deployment.
 
@@ -204,27 +206,28 @@ Notes:
 
 ### oc-build-push.sh — Build & Push Images
 
-Builds and pushes container images locally to ghcr.io. Use this when iterating on a feature branch where the GitHub Actions workflow isn't available, or when you want faster rebuilds without pushing code first.
+Builds and pushes container images locally to Artifactory. Use this when iterating on a feature branch where the GitHub Actions workflow isn't available, or when you want faster rebuilds without pushing code first.
 
 ```bash
 # Build and push just the frontend
-./scripts/oc-build-push.sh frontend
+./scripts/oc-build-push.sh --env dev frontend
 
 # Build and push multiple services
-./scripts/oc-build-push.sh frontend backend-services
+./scripts/oc-build-push.sh --env dev frontend backend-services
 
 # Build and push all services
-./scripts/oc-build-push.sh --all
+./scripts/oc-build-push.sh --env dev --all
 
 # Build, push, and restart OpenShift deployments to pick up the new image
-./scripts/oc-build-push.sh frontend --restart
+./scripts/oc-build-push.sh --env dev frontend --restart
 
 # Use a custom image tag
-./scripts/oc-build-push.sh frontend --tag my-custom-tag
+./scripts/oc-build-push.sh --env dev frontend --tag my-custom-tag
 ```
 
 | Option | Short | Required | Description |
 |--------|-------|----------|-------------|
+| `--env` | `-e` | Yes | Environment profile: `dev` or `prod` (for Artifactory credentials) |
 | `--all` | | No | Build all services (`backend-services`, `frontend`, `temporal`) |
 | `--restart` | | No | Restart OpenShift deployments after push so pods pull the updated image |
 | `--namespace` | `-n` | No | OpenShift namespace for `--restart` (default: auto-detect from `oc`) |
@@ -234,7 +237,7 @@ Builds and pushes container images locally to ghcr.io. Use this when iterating o
 Notes:
 - Image tag defaults to the sanitized git branch name (same convention as the GHA workflow and deploy script)
 - Since the tag doesn't change between rebuilds, OpenShift pods won't pull the new image automatically — use `--restart` or manually run `oc rollout restart`
-- Requires Docker installed and `gh auth` with `write:packages` scope (`gh auth refresh -s write:packages`)
+- Requires Docker installed and Artifactory credentials in your env config file
 
 ---
 
@@ -269,7 +272,7 @@ oc login --server=https://api.silver.devops.gov.bc.ca:6443
 
 ```bash
 # Make code changes, then rebuild and restart just the frontend
-./scripts/oc-build-push.sh frontend --restart
+./scripts/oc-build-push.sh --env dev frontend --restart
 ```
 
 ### Migrate data between instances
