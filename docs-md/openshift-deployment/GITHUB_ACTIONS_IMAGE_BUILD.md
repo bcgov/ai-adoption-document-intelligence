@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `build-instance-images.yml` workflow builds container images for all application services and pushes them to GitHub Container Registry (ghcr.io). OpenShift pulls these images when deploying developer instances.
+The `build-instance-images.yml` workflow builds container images for all application services and pushes them to Artifactory. OpenShift pulls these images when deploying developer instances.
 
 ## Workflow Location
 
@@ -40,23 +40,32 @@ Each image is tagged with two values:
 Example for branch `feature/my-thing` at commit `abc1234...`:
 
 ```
-ghcr.io/<org>/ai-adoption-document-intelligence/backend-services:feature-my-thing
-ghcr.io/<org>/ai-adoption-document-intelligence/backend-services:abc1234...
+<artifactory-url>/kfd3-fd34fb-local/backend-services:feature-my-thing
+<artifactory-url>/kfd3-fd34fb-local/backend-services:abc1234...
 ```
 
 ## Authentication
 
 ### Pushing (GitHub Actions)
 
-Uses the built-in `GITHUB_TOKEN` with `permissions: packages: write`. No PAT required.
+Uses `ARTIFACTORY_URL`, `ARTIFACTORY_SA_USERNAME`, and `ARTIFACTORY_SA_PASSWORD` from the GitHub environment secrets (dev/test/prod environments are resolved automatically based on the branch).
+
+### Pushing (Local builds)
+
+Uses the same Artifactory credentials configured in `deployments/openshift/config/<env>.env`. See the env example files for the required fields.
 
 ### Pulling (OpenShift)
 
-No pull secret or authentication required. The repository and its ghcr.io packages are public.
+OpenShift namespaces are pre-configured with Artifactory pull secrets.
 
-## Relationship to Existing CI/CD
+## Relationship to build-apps.yml
 
-This workflow is additive. Existing workflows (`build-apps.yml`, `migrate-db.yml`, `db-backup-manual.yml`, `db-restore.yml`) and their Artifactory-based pipelines remain untouched.
+Both `build-apps.yml` and `build-instance-images.yml` push to Artifactory:
+
+| Workflow | Trigger | Purpose | Tags |
+|----------|---------|---------|------|
+| `build-apps.yml` | Push to `main`/`develop` | CI/CD for mainline branches | `latest`, version, `{branch}-latest` |
+| `build-instance-images.yml` | Manual dispatch | Feature branch instance deployments | `{sanitized-branch}`, `{commit-sha}` |
 
 ## Caching
 

@@ -28,8 +28,7 @@ source "${SCRIPT_DIR}/lib/generate-overlay.sh"
 
 TOKEN_FILE="${PROJECT_ROOT}/.oc-deploy/token"
 GITHUB_REPO="bcgov/ai-adoption-document-intelligence"
-REGISTRY="ghcr.io"
-IMAGE_BASE="${REGISTRY}/${GITHUB_REPO}"
+ARTIFACTORY_REPO_PATH="kfd3-fd34fb-local"
 WORKFLOW_FILE="build-instance-images.yml"
 
 # ---------- helpers ----------
@@ -210,6 +209,23 @@ log_info "Configuration loaded successfully."
 # ============================================================
 log_step "Step 4: Building/verifying container images"
 
+# Load Artifactory credentials from config
+ARTIFACTORY_URL=$(get_config "ARTIFACTORY_URL") || {
+  log_error "ARTIFACTORY_URL not found in configuration."
+  log_error "Add it to deployments/openshift/config/${ENV_PROFILE}.env (see .env.example)."
+  exit 1
+}
+ARTIFACTORY_SA_USERNAME=$(get_config "ARTIFACTORY_SA_USERNAME") || {
+  log_error "ARTIFACTORY_SA_USERNAME not found in configuration."
+  exit 1
+}
+ARTIFACTORY_SA_PASSWORD=$(get_config "ARTIFACTORY_SA_PASSWORD") || {
+  log_error "ARTIFACTORY_SA_PASSWORD not found in configuration."
+  exit 1
+}
+
+IMAGE_BASE="${ARTIFACTORY_URL}/${ARTIFACTORY_REPO_PATH}"
+
 # Get current branch name (unsanitized, for GitHub Actions)
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || {
   log_error "Failed to determine current git branch."
@@ -234,12 +250,10 @@ IMAGE_TAG=$(echo "${CURRENT_BRANCH}" \
 SERVICES=("backend-services" "frontend" "temporal")
 IMAGES_EXIST=true
 
-log_info "Checking for existing images on ${REGISTRY} for tag '${IMAGE_TAG}'..."
+log_info "Checking for existing images on ${ARTIFACTORY_URL} for tag '${IMAGE_TAG}'..."
 
 for service in "${SERVICES[@]}"; do
   IMAGE_REF="${IMAGE_BASE}/${service}:${IMAGE_TAG}"
-  # Use skopeo or docker manifest inspect to check image existence
-  # Fall back to gh api for checking packages
   if docker manifest inspect "${IMAGE_REF}" &>/dev/null 2>&1; then
     log_info "  Found: ${IMAGE_REF}"
   elif skopeo inspect "docker://${IMAGE_REF}" &>/dev/null 2>&1; then
@@ -261,10 +275,11 @@ if [[ "${IMAGES_EXIST}" == "false" ]]; then
       exit 1
     fi
 
-    # Log in to ghcr.io using gh CLI token
-    log_info "Logging into ${REGISTRY}..."
-    gh auth token | docker login "${REGISTRY}" -u "$(gh api user --jq .login)" --password-stdin || {
-      log_error "Failed to log in to ${REGISTRY}. Ensure 'gh' is authenticated with packages:write scope."
+    # Log in to Artifactory
+    log_info "Logging into ${ARTIFACTORY_URL}..."
+    echo "${ARTIFACTORY_SA_PASSWORD}" | docker login "${ARTIFACTORY_URL}" \
+      -u "${ARTIFACTORY_SA_USERNAME}" --password-stdin || {
+      log_error "Failed to log in to ${ARTIFACTORY_URL}. Check ARTIFACTORY_SA_USERNAME and ARTIFACTORY_SA_PASSWORD in your config."
       exit 1
     }
 

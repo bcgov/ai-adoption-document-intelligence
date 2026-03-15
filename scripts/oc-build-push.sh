@@ -2,20 +2,20 @@
 #
 # oc-build-push.sh — Build and push container images locally for OpenShift deployment.
 #
-# Builds specified service images with Docker and pushes them to ghcr.io.
+# Builds specified service images with Docker and pushes them to Artifactory.
 # After pushing, optionally restarts the corresponding OpenShift deployments
 # so pods pull the updated image.
 #
 # Usage:
-#   ./scripts/oc-build-push.sh frontend
-#   ./scripts/oc-build-push.sh frontend backend-services
-#   ./scripts/oc-build-push.sh --all
-#   ./scripts/oc-build-push.sh frontend --restart
-#   ./scripts/oc-build-push.sh frontend --tag my-custom-tag
+#   ./scripts/oc-build-push.sh --env dev frontend
+#   ./scripts/oc-build-push.sh --env dev frontend backend-services
+#   ./scripts/oc-build-push.sh --env dev --all
+#   ./scripts/oc-build-push.sh --env dev frontend --restart
+#   ./scripts/oc-build-push.sh --env dev frontend --tag my-custom-tag
 #
 # Prerequisites:
 #   - Docker installed and running
-#   - gh CLI installed and authenticated (with packages:write scope)
+#   - Artifactory credentials configured in deployments/openshift/config/<env>.env
 #
 
 set -euo pipefail
@@ -23,9 +23,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-GITHUB_REPO="bcgov/ai-adoption-document-intelligence"
-REGISTRY="ghcr.io"
-IMAGE_BASE="${REGISTRY}/${GITHUB_REPO}"
+# Source config loader for Artifactory credentials
+source "${SCRIPT_DIR}/lib/config-loader.sh"
+
+ARTIFACTORY_REPO_PATH="kfd3-fd34fb-local"
 
 # Service definitions: context directory and Dockerfile path (relative to PROJECT_ROOT)
 declare -A BUILD_CONTEXTS=(
@@ -49,9 +50,9 @@ log_ok()    { echo -e "\033[0;32m[OK]\033[0m    $*"; }
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [OPTIONS] <service ...>
+Usage: $(basename "$0") --env <dev|prod> [OPTIONS] <service ...>
 
-Build and push container images locally to ghcr.io.
+Build and push container images locally to Artifactory.
 
 Services:
   backend-services    Backend NestJS API
@@ -59,6 +60,7 @@ Services:
   temporal            Temporal worker
 
 Options:
+  --env, -e           Environment profile: dev or prod (required, for registry credentials)
   --all               Build all services
   --restart           Restart OpenShift deployments after push (requires oc login)
   --namespace, -n     OpenShift namespace for restart (default: auto-detect from oc)
@@ -66,10 +68,10 @@ Options:
   --help, -h          Show this help message
 
 Examples:
-  $(basename "$0") frontend                    # Build and push frontend only
-  $(basename "$0") frontend backend-services   # Build and push two services
-  $(basename "$0") --all                       # Build and push all services
-  $(basename "$0") frontend --restart          # Build, push, and restart deployment
+  $(basename "$0") --env dev frontend                    # Build and push frontend only
+  $(basename "$0") --env dev frontend backend-services   # Build and push two services
+  $(basename "$0") --env dev --all                       # Build and push all services
+  $(basename "$0") --env dev frontend --restart          # Build, push, and restart deployment
 EOF
 }
 
@@ -93,9 +95,14 @@ SERVICES_TO_BUILD=()
 DO_RESTART=false
 NAMESPACE=""
 IMAGE_TAG=""
+ENV_PROFILE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --env|-e)
+      ENV_PROFILE="$2"
+      shift 2
+      ;;
     --all)
       SERVICES_TO_BUILD=("${ALL_SERVICES[@]}")
       shift
@@ -134,6 +141,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -z "${ENV_PROFILE}" ]]; then
+  log_error "--env is required (dev or prod) — needed for Artifactory credentials."
+  echo ""
+  usage
+  exit 1
+fi
+
 if [[ ${#SERVICES_TO_BUILD[@]} -eq 0 ]]; then
   log_error "No services specified. Use --all or specify service names."
   echo ""
@@ -148,15 +162,33 @@ if ! command -v docker &>/dev/null; then
   exit 1
 fi
 
-if ! command -v gh &>/dev/null; then
-  log_error "'gh' CLI is not installed. Install it from https://cli.github.com/"
-  exit 1
-fi
-
 if [[ "${DO_RESTART}" == "true" ]] && ! command -v oc &>/dev/null; then
   log_error "'oc' CLI is not installed. Required for --restart."
   exit 1
 fi
+
+# ---------- load config for Artifactory credentials ----------
+
+load_config --env "${ENV_PROFILE}" || {
+  log_error "Failed to load configuration for profile '${ENV_PROFILE}'."
+  exit 1
+}
+
+ARTIFACTORY_URL=$(get_config "ARTIFACTORY_URL") || {
+  log_error "ARTIFACTORY_URL not found in configuration."
+  log_error "Add it to deployments/openshift/config/${ENV_PROFILE}.env (see .env.example)."
+  exit 1
+}
+ARTIFACTORY_SA_USERNAME=$(get_config "ARTIFACTORY_SA_USERNAME") || {
+  log_error "ARTIFACTORY_SA_USERNAME not found in configuration."
+  exit 1
+}
+ARTIFACTORY_SA_PASSWORD=$(get_config "ARTIFACTORY_SA_PASSWORD") || {
+  log_error "ARTIFACTORY_SA_PASSWORD not found in configuration."
+  exit 1
+}
+
+IMAGE_BASE="${ARTIFACTORY_URL}/${ARTIFACTORY_REPO_PATH}"
 
 # ---------- determine image tag ----------
 
@@ -171,10 +203,11 @@ echo ""
 
 # ---------- authenticate ----------
 
-log_info "Logging into ${REGISTRY}..."
-gh auth token | docker login "${REGISTRY}" -u "$(gh api user --jq .login)" --password-stdin || {
-  log_error "Failed to log in to ${REGISTRY}."
-  log_error "Ensure 'gh' is authenticated with packages:write scope."
+log_info "Logging into ${ARTIFACTORY_URL}..."
+echo "${ARTIFACTORY_SA_PASSWORD}" | docker login "${ARTIFACTORY_URL}" \
+  -u "${ARTIFACTORY_SA_USERNAME}" --password-stdin || {
+  log_error "Failed to log in to ${ARTIFACTORY_URL}."
+  log_error "Check ARTIFACTORY_SA_USERNAME and ARTIFACTORY_SA_PASSWORD in your config."
   exit 1
 }
 echo ""
