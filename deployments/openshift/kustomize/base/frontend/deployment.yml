@@ -23,7 +23,7 @@ spec:
           - |
             ln -sf /var/log/app/access.log /var/log/nginx/access.log
             ln -sf /var/log/app/error.log /var/log/nginx/error.log
-            exec nginx -g 'daemon off;'
+            exec /docker-entrypoint.sh
         ports:
         - containerPort: 8080
           name: http
