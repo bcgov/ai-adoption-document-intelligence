@@ -260,10 +260,17 @@ if [[ "${DO_RESTART}" == "true" ]]; then
   log_info "Restarting OpenShift deployments..."
 
   if [[ -z "${NAMESPACE}" ]]; then
-    NAMESPACE=$(oc project -q 2>/dev/null) || {
-      log_error "Could not detect OpenShift namespace. Use --namespace to specify."
-      exit 1
-    }
+    # Try reading from token file first (SA login doesn't set oc project)
+    local token_file="${PROJECT_ROOT}/.oc-deploy/token"
+    if [[ -f "${token_file}" ]]; then
+      NAMESPACE=$(grep '^NAMESPACE=' "${token_file}" | cut -d= -f2-)
+    fi
+    if [[ -z "${NAMESPACE}" ]]; then
+      NAMESPACE=$(oc project -q 2>/dev/null) || {
+        log_error "Could not detect OpenShift namespace. Use --namespace to specify."
+        exit 1
+      }
+    fi
   fi
 
   log_info "Namespace: ${NAMESPACE}"

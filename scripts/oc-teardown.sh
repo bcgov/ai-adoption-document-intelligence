@@ -209,18 +209,12 @@ fi
 
 if [[ "${REMAINING_INSTANCES}" -eq 0 ]]; then
   log_info "No other instances found in namespace '${NAMESPACE}'."
-  log_info "Removing service account and related RBAC resources..."
-
-  oc delete rolebinding "${ROLE_BINDING_NAME}" -n "${NAMESPACE}" --ignore-not-found=true || true
-  oc delete role "${ROLE_NAME}" -n "${NAMESPACE}" --ignore-not-found=true || true
-  oc delete serviceaccount "${SA_NAME}" -n "${NAMESPACE}" --ignore-not-found=true || true
-
-  log_info "Service account and RBAC resources removed."
-
-  if [[ -f "${TOKEN_FILE}" ]]; then
-    rm -rf "$(dirname "${TOKEN_FILE}")"
-    log_info "Deleted local token directory: $(dirname "${TOKEN_FILE}")"
-  fi
+  log_info "Service account and token are preserved for future deployments."
+  log_info "To remove them manually, log in as a namespace admin and delete:"
+  log_info "  oc delete rolebinding ${ROLE_BINDING_NAME} -n ${NAMESPACE}"
+  log_info "  oc delete role ${ROLE_NAME} -n ${NAMESPACE}"
+  log_info "  oc delete serviceaccount ${SA_NAME} -n ${NAMESPACE}"
+  log_info "  rm -rf $(dirname "${TOKEN_FILE}")"
 else
   log_info "${REMAINING_INSTANCES} other instance(s) still deployed — keeping service account."
 fi
