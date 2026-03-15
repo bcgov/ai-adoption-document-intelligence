@@ -8,14 +8,6 @@ on:
         required: false
         type: string
 
-permissions:
-  contents: read
-  packages: write
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_BASE: ghcr.io/${{ github.repository }}
-
 jobs:
   metadata:
     name: Prepare Build Metadata
@@ -52,10 +44,24 @@ jobs:
           echo "Branch: $RAW_BRANCH -> Tag: $SANITIZED"
           echo "Commit SHA: $SHA"
 
+  get-environment:
+    name: Get Environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Get Environment
+        id: env
+        uses: ./.github/actions/get-environment
+
   build:
     name: Build ${{ matrix.service }}
-    needs: [metadata]
+    needs: [metadata, get-environment]
     runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.get-environment.outputs.environment }}
     strategy:
       fail-fast: false
       matrix:
@@ -69,6 +75,10 @@ jobs:
           - service: temporal
             context: "."
             dockerfile: apps/temporal/Dockerfile
+    env:
+      ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+      ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
+      ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,12 +88,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
+      - name: Login to Artifactory
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ${{ env.ARTIFACTORY_URL }}
+          username: ${{ env.ARTIFACTORY_SA_USERNAME }}
+          password: ${{ env.ARTIFACTORY_SA_PASSWORD }}
 
       - name: Cache Docker layers
         uses: actions/cache@v4
@@ -100,8 +110,8 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: true
           tags: |
-            ${{ env.IMAGE_BASE }}/${{ matrix.service }}:${{ needs.metadata.outputs.sanitized-branch }}
-            ${{ env.IMAGE_BASE }}/${{ matrix.service }}:${{ needs.metadata.outputs.commit-sha }}
+            ${{ env.ARTIFACTORY_URL }}/kfd3-fd34fb-local/${{ matrix.service }}:${{ needs.metadata.outputs.sanitized-branch }}
+            ${{ env.ARTIFACTORY_URL }}/kfd3-fd34fb-local/${{ matrix.service }}:${{ needs.metadata.outputs.commit-sha }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ needs.metadata.outputs.commit-sha }}
