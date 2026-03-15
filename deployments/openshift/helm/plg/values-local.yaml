@@ -1,0 +1,16 @@
+# PLG Stack - Local Docker Environment Overrides
+
+loki:
+  # Smaller storage for local development.
+  pvcSize: 2Gi
+
+  # Shorter retention for local development.
+  retentionDays: 7
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "250m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
