@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Promtail sidecar added to backend-services pod
+- [x] **Scenario 1**: Promtail sidecar added to backend-services pod
     - **Given** the backend-services deployment already has a logrotate sidecar writing to `/var/log/app/`
     - **When** the Promtail sidecar is added to the pod spec
     - **Then** Promtail tails log files from the shared log volume and forwards them to Loki with `service=backend-services` label
 
-- [ ] **Scenario 2**: Promtail sidecar added to temporal-worker pod
+- [x] **Scenario 2**: Promtail sidecar added to temporal-worker pod
     - **Given** the temporal-worker deployment runs in the same namespace
     - **When** the Promtail sidecar is added to the pod spec
     - **Then** Promtail collects and forwards temporal-worker logs to Loki with `service=temporal-worker` label
 
-- [ ] **Scenario 3**: Promtail sidecar added to temporal-server pod
+- [x] **Scenario 3**: Promtail sidecar added to temporal-server pod
     - **Given** the temporal-server deployment runs in the same namespace
     - **When** the Promtail sidecar is added to the pod spec
     - **Then** Promtail collects and forwards temporal-server logs to Loki with `service=temporal-server` label
 
-- [ ] **Scenario 4**: Promtail sidecar resource limits configured
+- [x] **Scenario 4**: Promtail sidecar resource limits configured
     - **Given** the Promtail sidecar has configurable resource limits
     - **When** deployed on OpenShift
     - **Then** the sidecar uses minimal resources (default: memory `64Mi`, CPU `100m`) configurable via Helm values
 
-- [ ] **Scenario 5**: Logs from frontend and PostgreSQL collected
+- [x] **Scenario 5**: Logs from frontend and PostgreSQL collected
     - **Given** frontend (nginx) and PostgreSQL pods run in the same namespace
     - **When** Promtail sidecars are added to these pods
     - **Then** logs are forwarded to Loki with appropriate service labels (`service=frontend`, `service=postgresql`)
