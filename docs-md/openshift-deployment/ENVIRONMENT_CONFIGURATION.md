@@ -132,6 +132,12 @@ These values are derived automatically by the deploy script — do not set them 
 | `BENCHMARK_TASK_QUEUE` | Benchmark processing task queue |
 | `ENABLE_BENCHMARK_QUEUE` | Enable separate benchmark worker |
 
+### Database Storage
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PG_BACKUP_STORAGE_SIZE` | `10Gi` | Backup PVC size for both `app-pg` and `temporal-pg` PostgresCluster resources. Reduce for test instances to stay within namespace backup storage quotas (e.g., `2Gi`). |
+
 ### Database SSL
 
 | Variable | Description |

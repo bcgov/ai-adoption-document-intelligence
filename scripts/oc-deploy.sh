@@ -416,6 +416,7 @@ AZURE_OPENAI_ENDPOINT=$(get_config "AZURE_OPENAI_ENDPOINT" 2>/dev/null || echo "
 AZURE_OPENAI_DEPLOYMENT=$(get_config "AZURE_OPENAI_DEPLOYMENT" 2>/dev/null || echo "")
 AZURE_OPENAI_API_VERSION=$(get_config "AZURE_OPENAI_API_VERSION" 2>/dev/null || echo "2024-02-15-preview")
 ENRICHMENT_REDACT_PII=$(get_config "ENRICHMENT_REDACT_PII" 2>/dev/null || echo "false")
+PG_BACKUP_STORAGE_SIZE=$(get_config "PG_BACKUP_STORAGE_SIZE" 2>/dev/null || echo "10Gi")
 
 OVERLAY_DIR=$(generate_instance_overlay \
   --instance "${INSTANCE_NAME}" \
@@ -443,7 +444,8 @@ OVERLAY_DIR=$(generate_instance_overlay \
   --azure-openai-endpoint "${AZURE_OPENAI_ENDPOINT}" \
   --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT}" \
   --azure-openai-api-version "${AZURE_OPENAI_API_VERSION}" \
-  --enrichment-redact-pii "${ENRICHMENT_REDACT_PII}") || {
+  --enrichment-redact-pii "${ENRICHMENT_REDACT_PII}" \
+  --pg-backup-storage-size "${PG_BACKUP_STORAGE_SIZE}") || {
   log_error "Failed to generate Kustomize overlay."
   exit 1
 }
