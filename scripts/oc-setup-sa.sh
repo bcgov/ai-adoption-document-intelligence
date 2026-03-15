@@ -119,7 +119,7 @@ rules:
     resources: ["services", "configmaps", "secrets", "persistentvolumeclaims", "pods", "events"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
-    resources: ["pods/exec"]
+    resources: ["pods/exec", "pods/portforward"]
     verbs: ["create"]
   - apiGroups: [""]
     resources: ["pods/log"]
