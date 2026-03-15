@@ -14,6 +14,7 @@ feature-docs/*/playwright/screenshots/
 
 # Backend logs
 apps/backend-services/backend.log
+/logs/
 /packages/logging/dist
 
 # OpenShift deployment tooling
