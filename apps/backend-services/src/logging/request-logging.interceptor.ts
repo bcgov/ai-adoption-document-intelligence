@@ -36,6 +36,13 @@ export class RequestLoggingInterceptor implements NestInterceptor {
       if (userId) store.userId = userId;
     }
 
+    if (store && request.user) {
+      const sessionState = request.user.session_state;
+      if (typeof sessionState === "string" && sessionState) {
+        store.sessionId = sessionState;
+      }
+    }
+
     return next.handle().pipe(
       tap({
         next: () => this.logRequest(request, context.getType()),
