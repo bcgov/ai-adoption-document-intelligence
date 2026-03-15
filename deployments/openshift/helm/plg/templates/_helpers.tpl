@@ -86,3 +86,28 @@ Prometheus fullname.
 {{- define "plg.prometheus.fullname" -}}
 {{- printf "%s-prometheus" (include "plg.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
+
+{{/*
+Grafana labels.
+*/}}
+{{- define "plg.grafana.labels" -}}
+{{ include "plg.labels" . }}
+app.kubernetes.io/name: grafana
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: visualization
+{{- end }}
+
+{{/*
+Grafana selector labels.
+*/}}
+{{- define "plg.grafana.selectorLabels" -}}
+app.kubernetes.io/name: grafana
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Grafana fullname.
+*/}}
+{{- define "plg.grafana.fullname" -}}
+{{- printf "%s-grafana" (include "plg.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
