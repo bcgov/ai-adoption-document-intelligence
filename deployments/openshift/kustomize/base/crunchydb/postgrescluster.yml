@@ -38,8 +38,9 @@ spec:
             limits:
               memory: "64Mi"
               cpu: "100m"
+          volumeClaimTemplates: []
       volumes:
-        - name: promtail-config
+        promtail-config:
           projected:
             sources:
               - configMap:
