@@ -22,29 +22,6 @@ spec:
             requests:
               cpu: '5m'
               memory: '10Mi'
-      containers:
-        - name: promtail
-          image: grafana/promtail:3.4.2
-          args:
-            - -config.file=/etc/promtail/promtail.yaml
-          volumeMounts:
-            - name: promtail-config
-              mountPath: /etc/promtail
-              readOnly: true
-          resources:
-            requests:
-              memory: "32Mi"
-              cpu: "50m"
-            limits:
-              memory: "64Mi"
-              cpu: "100m"
-          volumeClaimTemplates: []
-      volumes:
-        promtail-config:
-          projected:
-            sources:
-              - configMap:
-                  name: postgresql-promtail
   backups:
     pgbackrest:
       global:
