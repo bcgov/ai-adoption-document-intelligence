@@ -7,3 +7,5 @@ metadata:
 data:
   application-overview.json: |-
     {{- .Files.Get "dashboards/application-overview.json" | nindent 4 }}
+  logs-explorer.json: |-
+    {{- .Files.Get "dashboards/logs-explorer.json" | nindent 4 }}

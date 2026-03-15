@@ -61,7 +61,7 @@ After implementing the user story check it off at the bottom of this file.
 
 ### Phase 5 — Grafana Dashboards
 - [x] **US-011** (Application Overview dashboard — request rate, error rate, latency, active sessions)
-- [ ] **US-012** (Logs Explorer dashboard — filter by service, userId, sessionId, level)
+- [x] **US-012** (Logs Explorer dashboard — filter by service, userId, sessionId, level)
 - [ ] **US-013** (Node.js Runtime dashboard — heap, event loop lag, GC, active handles)
 
 > Stories are ordered by dependency chain for automated implementation.
