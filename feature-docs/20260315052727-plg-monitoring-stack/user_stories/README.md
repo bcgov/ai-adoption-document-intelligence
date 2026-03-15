@@ -57,7 +57,7 @@ After implementing the user story check it off at the bottom of this file.
 ### Phase 4 — Deployment Integration (local + OpenShift)
 - [x] **US-008** (Create docker-compose.monitoring.yml with Promtail, Loki, Prometheus, Grafana)
 - [x] **US-009** (Add Promtail sidecar containers to all OpenShift application pods)
-- [ ] **US-010** (Integrate PLG Helm deployment into GitHub Actions workflow and /scripts)
+- [x] **US-010** (Integrate PLG Helm deployment into GitHub Actions workflow and /scripts)
 
 ### Phase 5 — Grafana Dashboards
 - [ ] **US-011** (Application Overview dashboard — request rate, error rate, latency, active sessions)
