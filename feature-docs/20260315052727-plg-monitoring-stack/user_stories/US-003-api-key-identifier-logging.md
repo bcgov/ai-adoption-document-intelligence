@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: API key prefix logged for API key requests
+- [x] **Scenario 1**: API key prefix logged for API key requests
     - **Given** a request authenticated via API key (x-api-key header, validated by `ApiKeyAuthGuard`)
     - **When** the request is processed by the logging interceptor
     - **Then** the API key prefix or key ID from the database is included as `apiKeyId` in the NDJSON log output
 
-- [ ] **Scenario 2**: No sessionId for API key requests
+- [x] **Scenario 2**: No sessionId for API key requests
     - **Given** a request authenticated via API key (no JWT present)
     - **When** the request is logged
     - **Then** the `sessionId` field is omitted and `apiKeyId` is present instead
 
-- [ ] **Scenario 3**: JWT-authenticated requests omit apiKeyId
+- [x] **Scenario 3**: JWT-authenticated requests omit apiKeyId
     - **Given** a request authenticated via Keycloak JWT
     - **When** the request is logged
     - **Then** the `apiKeyId` field is omitted and `sessionId` is present instead
 
-- [ ] **Scenario 4**: Full API key value is never logged
+- [x] **Scenario 4**: Full API key value is never logged
     - **Given** any API key-authenticated request
     - **When** the request is logged
     - **Then** only the key prefix or database ID appears in logs — the full API key value is never written to log output
