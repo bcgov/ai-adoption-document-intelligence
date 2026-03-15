@@ -170,6 +170,16 @@ These values are derived automatically by the deploy script — do not set them 
 | `THROTTLE_AUTH_REFRESH_TTL_MS` | Token refresh rate limit window |
 | `THROTTLE_AUTH_REFRESH_LIMIT` | Max refresh requests per IP (stricter in prod) |
 
+### PLG Monitoring Stack
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GRAFANA_ADMIN_PASSWORD` | `admin` | Grafana admin login password |
+| `LOKI_RETENTION_DAYS` | `30` | Log retention period in days |
+| `LOKI_PVC_SIZE` | `10Gi` | Persistent volume size for Loki data |
+| `PROMETHEUS_PVC_SIZE` | `10Gi` | Persistent volume size for Prometheus TSDB |
+| `METRICS_SCRAPE_INTERVAL` | `15s` | How often Prometheus scrapes targets |
+
 ## How Secrets Reach the Pods
 
 The deploy script creates per-instance OpenShift Secrets from values in the env file. Each instance gets its own copy.
