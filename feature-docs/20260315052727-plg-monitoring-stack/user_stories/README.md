@@ -47,7 +47,7 @@ After implementing the user story check it off at the bottom of this file.
 - [x] **US-003** (Add API key prefix/ID logging for API key-authenticated requests)
 
 ### Phase 2 — Prometheus Metrics (application code changes)
-- [ ] **US-004** (Add prom-client, expose /metrics endpoint with RED + Node.js runtime metrics)
+- [x] **US-004** (Add prom-client, expose /metrics endpoint with RED + Node.js runtime metrics)
 
 ### Phase 3 — PLG Helm Charts (infrastructure)
 - [ ] **US-005** (Create Helm chart with Loki, NDJSON parsing, 30-day retention, PVC storage)
