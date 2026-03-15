@@ -4,6 +4,12 @@ metadata:
   name: backend-services
   labels:
     app: backend-services
+  annotations:
+    # Block /metrics from being accessible via the public Route.
+    # Prometheus scrapes /metrics via the in-cluster Service directly.
+    # The haproxy.router.openshift.io/deny list uses path-based ACLs
+    # to return 403 for matching request paths.
+    haproxy.router.openshift.io/deny-list: /metrics
 spec:
   to:
     kind: Service
