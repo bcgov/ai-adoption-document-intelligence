@@ -124,4 +124,42 @@ describe("AppLoggerService", () => {
       out.restore();
     }
   });
+
+  it("includes apiKeyId in log output when present in request context", () => {
+    const out = captureStdout();
+    try {
+      const service = new AppLoggerService();
+      const store = {
+        requestId: "req-5",
+        apiKeyId: "aBcDeFgH",
+      };
+      requestContext.run(store, () => {
+        service.log("test message");
+        const entry = parseLastLine(out.lines);
+        expect(entry.apiKeyId).toBe("aBcDeFgH");
+        expect(entry.requestId).toBe("req-5");
+      });
+    } finally {
+      out.restore();
+    }
+  });
+
+  it("omits apiKeyId from log output when not in request context", () => {
+    const out = captureStdout();
+    try {
+      const service = new AppLoggerService();
+      const store = {
+        requestId: "req-6",
+        sessionId: "session-xyz",
+      };
+      requestContext.run(store, () => {
+        service.log("test message");
+        const entry = parseLastLine(out.lines);
+        expect(entry.apiKeyId).toBeUndefined();
+        expect(entry.sessionId).toBe("session-xyz");
+      });
+    } finally {
+      out.restore();
+    }
+  });
 });

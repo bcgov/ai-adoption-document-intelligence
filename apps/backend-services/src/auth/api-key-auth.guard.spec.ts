@@ -119,10 +119,11 @@ describe("ApiKeyAuthGuard", () => {
     expect(apiKeyService.validateApiKey).toHaveBeenCalledWith("invalidkey");
   });
 
-  it("should set apiKeyGroupId for valid API key", async () => {
+  it("should set apiKeyGroupId and apiKeyPrefix for valid API key", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
     mockApiKeyService.validateApiKey.mockResolvedValue({
       groupId: "group-abc",
+      keyPrefix: "aBcDeFgH",
     });
 
     const mockRequest: Record<string, unknown> = {
@@ -142,6 +143,7 @@ describe("ApiKeyAuthGuard", () => {
     expect(result).toBe(true);
     expect(mockRequest.user).toBeUndefined();
     expect(mockRequest.apiKeyGroupId).toBe("group-abc");
+    expect(mockRequest.apiKeyPrefix).toBe("aBcDeFgH");
   });
 
   describe("failed-attempt throttling", () => {
@@ -236,6 +238,7 @@ describe("ApiKeyAuthGuard", () => {
       // Successful validation should reset the counter
       mockApiKeyService.validateApiKey.mockResolvedValueOnce({
         groupId: "group-reset",
+        keyPrefix: "validkey",
       });
 
       const mockRequest = {
