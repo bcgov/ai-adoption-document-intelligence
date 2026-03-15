@@ -41,3 +41,41 @@ loki:
     - path
     - statusCode
     - durationMs
+
+prometheus:
+  image:
+    repository: prom/prometheus
+    tag: "v3.2.1"
+    pullPolicy: IfNotPresent
+
+  # Data retention period in days.
+  retentionDays: 15
+
+  # PVC size for Prometheus TSDB storage.
+  pvcSize: 10Gi
+
+  # Storage class for the PVC. Empty string uses the cluster default.
+  storageClassName: ""
+
+  # Scrape interval for all targets.
+  scrapeInterval: "15s"
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  # Port Prometheus listens on.
+  httpPort: 9090
+
+  # Scrape targets reference service names within the same namespace.
+  scrapeTargets:
+    backendServices:
+      host: "backend-services"
+      port: 3002
+    temporalServer:
+      host: "temporal"
+      port: 9090

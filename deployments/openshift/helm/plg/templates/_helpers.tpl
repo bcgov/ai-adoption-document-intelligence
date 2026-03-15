@@ -61,3 +61,28 @@ Convert retention days to hours for Loki configuration.
 {{- define "plg.loki.retentionPeriod" -}}
 {{- printf "%dh" (mul .Values.loki.retentionDays 24) }}
 {{- end }}
+
+{{/*
+Prometheus labels.
+*/}}
+{{- define "plg.prometheus.labels" -}}
+{{ include "plg.labels" . }}
+app.kubernetes.io/name: prometheus
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: metrics
+{{- end }}
+
+{{/*
+Prometheus selector labels.
+*/}}
+{{- define "plg.prometheus.selectorLabels" -}}
+app.kubernetes.io/name: prometheus
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Prometheus fullname.
+*/}}
+{{- define "plg.prometheus.fullname" -}}
+{{- printf "%s-prometheus" (include "plg.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
