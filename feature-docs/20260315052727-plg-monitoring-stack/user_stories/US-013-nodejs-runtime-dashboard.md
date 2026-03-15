@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Heap usage panel
+- [x] **Scenario 1**: Heap usage panel
     - **Given** Prometheus is scraping Node.js runtime metrics from backend-services
     - **When** a user opens the Node.js Runtime dashboard in Grafana
     - **Then** a panel displays heap usage over time (used, total, external memory)
 
-- [ ] **Scenario 2**: Event loop lag panel
+- [x] **Scenario 2**: Event loop lag panel
     - **Given** `prom-client` default metrics include event loop lag
     - **When** a user views the dashboard
     - **Then** a panel displays event loop lag over time
 
-- [ ] **Scenario 3**: GC pause durations panel
+- [x] **Scenario 3**: GC pause durations panel
     - **Given** `prom-client` default metrics include GC pause durations
     - **When** a user views the dashboard
     - **Then** a panel displays garbage collection pause durations over time
 
-- [ ] **Scenario 4**: Active handles panel
+- [x] **Scenario 4**: Active handles panel
     - **Given** `prom-client` default metrics include active handles count
     - **When** a user views the dashboard
     - **Then** a panel displays the number of active handles over time
 
-- [ ] **Scenario 5**: Dashboard shipped as ConfigMap
+- [x] **Scenario 5**: Dashboard shipped as ConfigMap
     - **Given** the dashboard JSON definition exists
     - **When** the Helm chart is deployed
     - **Then** the dashboard is automatically provisioned in Grafana via a ConfigMap
