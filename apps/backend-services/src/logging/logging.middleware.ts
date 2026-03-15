@@ -16,9 +16,25 @@ export class LoggingMiddleware implements NestMiddleware {
     req.headers[REQUEST_ID_HEADER] = requestId;
     res.setHeader(REQUEST_ID_HEADER, requestId);
 
-    const store = { requestId };
+    const clientIp = this.extractClientIp(req);
+
+    const store = { requestId, clientIp };
     requestContext.run(store, () => {
       next();
     });
+  }
+
+  private extractClientIp(req: Request): string | undefined {
+    const xForwardedFor = req.headers["x-forwarded-for"];
+    if (typeof xForwardedFor === "string" && xForwardedFor) {
+      return xForwardedFor.split(",")[0].trim();
+    }
+
+    const xRealIp = req.headers["x-real-ip"];
+    if (typeof xRealIp === "string" && xRealIp) {
+      return xRealIp;
+    }
+
+    return req.socket.remoteAddress;
   }
 }

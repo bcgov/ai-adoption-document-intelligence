@@ -16,6 +16,7 @@ export const LOG_LEVELS: readonly LogLevel[] = [
 export interface LogContext {
   requestId?: string;
   sessionId?: string;
+  clientIp?: string;
   workflowExecutionId?: string;
   documentId?: string;
   userId?: string;

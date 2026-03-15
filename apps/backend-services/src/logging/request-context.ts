@@ -4,6 +4,7 @@ export interface RequestContextData {
   requestId: string;
   userId?: string;
   sessionId?: string;
+  clientIp?: string;
 }
 
 export const requestContext = new AsyncLocalStorage<RequestContextData>();
