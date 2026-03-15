@@ -18,6 +18,10 @@ deployments/openshift/helm/plg/
     prometheus-configmap.yaml        # Prometheus server configuration
     prometheus-statefulset.yaml      # Prometheus StatefulSet deployment
     prometheus-service.yaml          # ClusterIP Service for Prometheus
+    grafana-configmap.yaml           # Grafana server configuration
+    grafana-datasources-configmap.yaml # Pre-provisioned data sources
+    grafana-deployment.yaml          # Grafana Deployment
+    grafana-service.yaml             # ClusterIP Service for Grafana
 ```
 
 ## Configurable Values
