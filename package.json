@@ -23,6 +23,9 @@
     "test:dir": "playwright test",
     "test:db:reset": "cd apps/backend-services && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\" npx prisma migrate reset --force && npm run db:seed",
     "generate:openapi": "cd apps/backend-services && SSO_AUTH_SERVER_URL=http://localhost:8080/realms/test SSO_REALM=test SSO_CLIENT_ID=test-client SSO_CLIENT_SECRET=test-secret FRONTEND_URL=http://localhost:3000 KEYCLOAK_PUBLIC_KEY=dummy-key DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy BLOB_STORAGE_TYPE=filesystem BLOB_STORAGE_ROOT=/tmp/uploads TEMPORAL_ADDRESS=localhost:7233 TEMPORAL_NAMESPACE=default TS_NODE_TRANSPILE_ONLY=true node -r ts-node/register -r tsconfig-paths/register ../../docs/generate-openapi.ts",
+    "dev:monitoring": "docker compose -f docker-compose.monitoring.yml up -d",
+    "dev:monitoring:down": "docker compose -f docker-compose.monitoring.yml down",
+    "dev:monitoring:logs": "docker compose -f docker-compose.monitoring.yml logs -f",
     "docs:build": "npm run generate:openapi && cd docs && bash build.sh"
   },
   "devDependencies": {
