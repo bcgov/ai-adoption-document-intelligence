@@ -21,7 +21,7 @@ commonLabels:
   app.kubernetes.io/instance: "__INSTANCE_NAME__"
 
 # Image overrides — the deploy script replaces these placeholders with actual
-# ghcr.io image references for the current branch.
+# Artifactory image references for the current branch.
 images:
   - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services
     newName: "__BACKEND_IMAGE__"

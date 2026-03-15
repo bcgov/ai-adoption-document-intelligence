@@ -15,9 +15,9 @@ The template uses placeholder tokens that the deploy script replaces with actual
 | `__INSTANCE_NAME__` | Sanitized instance name (max 20 chars) | `feature-deployment-f` |
 | `__NAMESPACE__` | OpenShift namespace | `fd34fb-prod` |
 | `__CLUSTER_DOMAIN__` | Cluster wildcard domain | `apps.silver.devops.gov.bc.ca` |
-| `__BACKEND_IMAGE__` | Backend container image (without tag) | `ghcr.io/org/repo/backend-services` |
-| `__FRONTEND_IMAGE__` | Frontend container image (without tag) | `ghcr.io/org/repo/frontend` |
-| `__WORKER_IMAGE__` | Temporal worker container image (without tag) | `ghcr.io/org/repo/temporal` |
+| `__BACKEND_IMAGE__` | Backend container image (without tag) | `<artifactory-url>/kfd3-fd34fb-local/backend-services` |
+| `__FRONTEND_IMAGE__` | Frontend container image (without tag) | `<artifactory-url>/kfd3-fd34fb-local/frontend` |
+| `__WORKER_IMAGE__` | Temporal worker container image (without tag) | `<artifactory-url>/kfd3-fd34fb-local/temporal` |
 | `__IMAGE_TAG__` | Image tag for all services (max 128 chars, decoupled from instance name) | `feature-deployment-features` |
 | `__SSO_AUTH_SERVER_URL__` | Keycloak/SSO authentication server URL | `https://sso.example.com/auth` |
 | `__SSO_REALM__` | SSO realm name | `my-realm` |
@@ -27,7 +27,7 @@ The template uses placeholder tokens that the deploy script replaces with actual
 
 - **`namePrefix`**: Prefixes all resource names with `<instance-name>-`. Kustomize automatically updates cross-references (Service selectors, ConfigMap/Secret refs, PVC claims).
 - **`commonLabels`**: Adds `app.kubernetes.io/instance: <instance-name>` to all resources, including pod template labels and selector matchLabels.
-- **`images`**: Overrides base image references to point to ghcr.io images for the current branch.
+- **`images`**: Overrides base image references to point to Artifactory images for the current branch.
 - **`patches`**: Updates hardcoded in-cluster service references, sets route hostnames, fixes operator-managed secret references, and configures SSO settings.
 - **`configurations`**: References `kustomize-config.yml` which defines `nameReference` rules so Kustomize auto-updates Route `spec.to.name` when `namePrefix` is applied.
 
@@ -78,9 +78,9 @@ OVERLAY_DIR=$(generate_instance_overlay \
   --instance "feature-my-thing" \
   --namespace "fd34fb-prod" \
   --cluster-domain "apps.silver.devops.gov.bc.ca" \
-  --backend-image "ghcr.io/org/repo/backend-services" \
-  --frontend-image "ghcr.io/org/repo/frontend" \
-  --worker-image "ghcr.io/org/repo/temporal" \
+  --backend-image "<artifactory-url>/kfd3-fd34fb-local/backend-services" \
+  --frontend-image "<artifactory-url>/kfd3-fd34fb-local/frontend" \
+  --worker-image "<artifactory-url>/kfd3-fd34fb-local/temporal" \
   --image-tag "feature-my-thing")
 
 # Use the overlay

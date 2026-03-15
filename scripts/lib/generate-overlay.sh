@@ -11,9 +11,9 @@
 #     --instance "feature-my-thing" \
 #     --namespace "fd34fb-prod" \
 #     --cluster-domain "apps.silver.devops.gov.bc.ca" \
-#     --backend-image "ghcr.io/org/repo/backend-services" \
-#     --frontend-image "ghcr.io/org/repo/frontend" \
-#     --worker-image "ghcr.io/org/repo/temporal" \
+#     --backend-image "<artifactory-url>/kfd3-fd34fb-local/backend-services" \
+#     --frontend-image "<artifactory-url>/kfd3-fd34fb-local/frontend" \
+#     --worker-image "<artifactory-url>/kfd3-fd34fb-local/temporal" \
 #     --image-tag "feature-my-thing")
 #
 # The caller is responsible for cleaning up the generated directory after use.
