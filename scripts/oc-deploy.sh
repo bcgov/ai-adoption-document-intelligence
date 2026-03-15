@@ -474,9 +474,56 @@ oc apply -k "${OVERLAY_DIR}" -n "${NAMESPACE}" || {
 log_info "Resources applied successfully."
 
 # ============================================================
-# Step 7: Create/update instance secrets
+# Step 7: Deploy PLG monitoring stack (Helm)
 # ============================================================
-log_step "Step 7: Creating instance secrets"
+log_step "Step 7: Deploying PLG monitoring stack"
+
+if ! command -v helm &>/dev/null; then
+  log_error "'helm' CLI is not installed. Install Helm to deploy the PLG monitoring stack."
+  log_error "Skipping PLG deployment — the application will still work without it."
+else
+  PLG_CHART_DIR="${PROJECT_ROOT}/deployments/openshift/helm/plg"
+  PLG_RELEASE_NAME="${INSTANCE_NAME}-plg"
+
+  # Read PLG-specific configuration with defaults
+  GRAFANA_ADMIN_PASSWORD=$(get_config "GRAFANA_ADMIN_PASSWORD" 2>/dev/null || echo "admin")
+  LOKI_RETENTION_DAYS=$(get_config "LOKI_RETENTION_DAYS" 2>/dev/null || echo "30")
+  LOKI_PVC_SIZE=$(get_config "LOKI_PVC_SIZE" 2>/dev/null || echo "10Gi")
+  PROMETHEUS_PVC_SIZE=$(get_config "PROMETHEUS_PVC_SIZE" 2>/dev/null || echo "10Gi")
+  METRICS_SCRAPE_INTERVAL=$(get_config "METRICS_SCRAPE_INTERVAL" 2>/dev/null || echo "15s")
+
+  # Scrape targets use instance-prefixed service names (Kustomize namePrefix adds <instance>-)
+  BACKEND_SERVICES_HOST=$(get_resource_name "${INSTANCE_NAME}" "backend-services")
+  TEMPORAL_HOST=$(get_resource_name "${INSTANCE_NAME}" "temporal")
+
+  log_info "PLG release name: ${PLG_RELEASE_NAME}"
+  log_info "Helm chart: ${PLG_CHART_DIR}"
+  log_info "Loki retention: ${LOKI_RETENTION_DAYS} days, PVC: ${LOKI_PVC_SIZE}"
+  log_info "Prometheus PVC: ${PROMETHEUS_PVC_SIZE}, scrape interval: ${METRICS_SCRAPE_INTERVAL}"
+
+  helm upgrade --install "${PLG_RELEASE_NAME}" "${PLG_CHART_DIR}" \
+    --namespace "${NAMESPACE}" \
+    -f "${PLG_CHART_DIR}/values-openshift.yaml" \
+    --set "grafana.adminPassword=${GRAFANA_ADMIN_PASSWORD}" \
+    --set "loki.retentionDays=${LOKI_RETENTION_DAYS}" \
+    --set "loki.pvcSize=${LOKI_PVC_SIZE}" \
+    --set "prometheus.pvcSize=${PROMETHEUS_PVC_SIZE}" \
+    --set "prometheus.scrapeInterval=${METRICS_SCRAPE_INTERVAL}" \
+    --set "prometheus.scrapeTargets.backendServices.host=${BACKEND_SERVICES_HOST}" \
+    --set "prometheus.scrapeTargets.temporalServer.host=${TEMPORAL_HOST}" \
+    --wait --timeout 120s || {
+    log_error "Failed to deploy PLG monitoring stack."
+    log_error "The application deployment is unaffected. PLG can be deployed manually later."
+    log_error "  helm upgrade --install ${PLG_RELEASE_NAME} ${PLG_CHART_DIR} -n ${NAMESPACE} -f ${PLG_CHART_DIR}/values-openshift.yaml"
+  }
+
+  log_info "PLG monitoring stack deployed successfully."
+fi
+
+# ============================================================
+# Step 8: Create/update instance secrets
+# ============================================================
+log_step "Step 8: Creating instance secrets"
 
 # Secrets are read from the same env file loaded in Step 3 (via get_config).
 # No separate secrets file is needed.
@@ -524,9 +571,9 @@ oc label secret "${WORKER_SECRET_NAME}" \
 log_info "Instance secrets created successfully."
 
 # ============================================================
-# Step 8: Wait for rollout completion
+# Step 9: Wait for rollout completion
 # ============================================================
-log_step "Step 8: Waiting for rollout completion"
+log_step "Step 9: Waiting for rollout completion"
 
 DEPLOYMENT_SERVICES=("backend-services" "frontend" "temporal" "temporal-ui" "temporal-worker")
 
@@ -547,9 +594,9 @@ done
 log_info "All deployments rolled out successfully."
 
 # ============================================================
-# Step 9: Print access URLs
+# Step 10: Print access URLs
 # ============================================================
-log_step "Step 9: Deployment Complete"
+log_step "Step 10: Deployment Complete"
 
 FRONTEND_ROUTE="https://${INSTANCE_NAME}-frontend-${NAMESPACE}.${CLUSTER_DOMAIN}"
 BACKEND_ROUTE="https://${INSTANCE_NAME}-backend-${NAMESPACE}.${CLUSTER_DOMAIN}"
@@ -570,6 +617,10 @@ To check pod status:
 To access Temporal UI (not publicly exposed):
   oc port-forward deployment/${INSTANCE_NAME}-temporal-ui 8080:8080 -n ${NAMESPACE}
   Then open http://localhost:8080
+
+To access Grafana (not publicly exposed):
+  oc port-forward svc/${INSTANCE_NAME}-plg-grafana 3001:3001 -n ${NAMESPACE}
+  Then open http://localhost:3001 (admin / <GRAFANA_ADMIN_PASSWORD>)
 
 To tear down this instance:
   ./scripts/oc-teardown.sh --instance ${INSTANCE_NAME}
