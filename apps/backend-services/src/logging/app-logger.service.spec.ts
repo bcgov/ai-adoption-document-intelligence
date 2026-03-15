@@ -88,4 +88,40 @@ describe("AppLoggerService", () => {
       out.restore();
     }
   });
+
+  it("includes clientIp in log output when present in request context", () => {
+    const out = captureStdout();
+    try {
+      const service = new AppLoggerService();
+      const store = {
+        requestId: "req-3",
+        clientIp: "203.0.113.50",
+      };
+      requestContext.run(store, () => {
+        service.log("test message");
+        const entry = parseLastLine(out.lines);
+        expect(entry.clientIp).toBe("203.0.113.50");
+        expect(entry.requestId).toBe("req-3");
+      });
+    } finally {
+      out.restore();
+    }
+  });
+
+  it("omits clientIp from log output when not in request context", () => {
+    const out = captureStdout();
+    try {
+      const service = new AppLoggerService();
+      const store = {
+        requestId: "req-4",
+      };
+      requestContext.run(store, () => {
+        service.log("test message");
+        const entry = parseLastLine(out.lines);
+        expect(entry.clientIp).toBeUndefined();
+      });
+    } finally {
+      out.restore();
+    }
+  });
 });
