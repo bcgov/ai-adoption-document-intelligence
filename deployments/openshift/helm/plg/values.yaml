@@ -79,3 +79,24 @@ prometheus:
     temporalServer:
       host: "temporal"
       port: 9090
+
+grafana:
+  image:
+    repository: grafana/grafana
+    tag: "11.5.2"
+    pullPolicy: IfNotPresent
+
+  # Admin credentials. Override GRAFANA_ADMIN_PASSWORD via --set or environment values.
+  adminUser: admin
+  adminPassword: "admin"
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+  # Port Grafana listens on.
+  httpPort: 3001

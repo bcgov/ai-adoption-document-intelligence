@@ -52,7 +52,7 @@ After implementing the user story check it off at the bottom of this file.
 ### Phase 3 — PLG Helm Charts (infrastructure)
 - [x] **US-005** (Create Helm chart with Loki, NDJSON parsing, 30-day retention, PVC storage)
 - [x] **US-006** (Add Prometheus to Helm chart with scrape configs for backend-services and Temporal)
-- [ ] **US-007** (Add Grafana to Helm chart with username/password auth and pre-configured data sources)
+- [x] **US-007** (Add Grafana to Helm chart with username/password auth and pre-configured data sources)
 
 ### Phase 4 — Deployment Integration (local + OpenShift)
 - [ ] **US-008** (Create docker-compose.monitoring.yml with Promtail, Loki, Prometheus, Grafana)

@@ -6,22 +6,22 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Grafana deployed with username/password auth
+- [x] **Scenario 1**: Grafana deployed with username/password auth
     - **Given** the PLG Helm chart includes Grafana configuration
     - **When** the chart is deployed
     - **Then** Grafana is running with configurable admin credentials (`GRAFANA_ADMIN_PASSWORD`) and resource limits (memory `256Mi`, CPU `250m`)
 
-- [ ] **Scenario 2**: Prometheus data source pre-configured
+- [x] **Scenario 2**: Prometheus data source pre-configured
     - **Given** Grafana is deployed alongside Prometheus
     - **When** a user logs into Grafana
     - **Then** a Prometheus data source is already configured and available for querying without manual setup
 
-- [ ] **Scenario 3**: Loki data source pre-configured
+- [x] **Scenario 3**: Loki data source pre-configured
     - **Given** Grafana is deployed alongside Loki
     - **When** a user logs into Grafana
     - **Then** a Loki data source is already configured and available for log querying without manual setup
 
-- [ ] **Scenario 4**: Grafana not exposed via OpenShift Route
+- [x] **Scenario 4**: Grafana not exposed via OpenShift Route
     - **Given** the Helm chart is deployed on OpenShift
     - **When** the deployment completes
     - **Then** no OpenShift Route is created for Grafana — developers access it via port-forwarding/tunneling (same pattern as Temporal UI)
