@@ -65,6 +65,7 @@ generate_instance_overlay() {
   local azure_openai_deployment=""
   local azure_openai_api_version="2024-02-15-preview"
   local enrichment_redact_pii="false"
+  local pg_backup_storage_size="10Gi"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -172,6 +173,10 @@ generate_instance_overlay() {
         enrichment_redact_pii="$2"
         shift 2
         ;;
+      --pg-backup-storage-size)
+        pg_backup_storage_size="$2"
+        shift 2
+        ;;
       *)
         echo "[ERROR] generate_instance_overlay: unknown argument '$1'" >&2
         return 1
@@ -249,6 +254,7 @@ generate_instance_overlay() {
     -e "s|__AZURE_OPENAI_DEPLOYMENT__|${azure_openai_deployment}|g"
     -e "s|__AZURE_OPENAI_API_VERSION__|${azure_openai_api_version}|g"
     -e "s|__ENRICHMENT_REDACT_PII__|${enrichment_redact_pii}|g"
+    -e "s|__PG_BACKUP_STORAGE_SIZE__|${pg_backup_storage_size}|g"
   )
 
   # Process all YAML files in the generated directory

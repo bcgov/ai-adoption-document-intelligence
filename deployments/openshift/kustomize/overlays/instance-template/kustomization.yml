@@ -293,6 +293,24 @@ patches:
           name: __INSTANCE_NAME__-temporal-postgres-init-sql
           key: init.sql
 
+  # --- Crunchy PostgresCluster: configurable backup PVC sizes ---
+  # Default is 10Gi (matching the base manifests). Override via PG_BACKUP_STORAGE_SIZE
+  # in config env files to reduce backup storage for test instances.
+  - target:
+      kind: PostgresCluster
+      name: app-pg
+    patch: |
+      - op: replace
+        path: /spec/backups/pgbackrest/repos/0/volume/volumeClaimSpec/resources/requests/storage
+        value: "__PG_BACKUP_STORAGE_SIZE__"
+  - target:
+      kind: PostgresCluster
+      name: temporal-pg
+    patch: |
+      - op: replace
+        path: /spec/backups/pgbackrest/repos/0/volume/volumeClaimSpec/resources/requests/storage
+        value: "__PG_BACKUP_STORAGE_SIZE__"
+
   # --- NetworkPolicy patches: scope ingress to instance label ---
   - target:
       kind: NetworkPolicy
