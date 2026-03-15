@@ -4,6 +4,7 @@ export interface RequestContextData {
   requestId: string;
   userId?: string;
   sessionId?: string;
+  apiKeyId?: string;
   clientIp?: string;
 }
 

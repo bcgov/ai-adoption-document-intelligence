@@ -134,4 +134,96 @@ describe("RequestLoggingInterceptor", () => {
       });
     });
   });
+
+  it("should set apiKeyId in the request context store when apiKeyPrefix is present (API key auth)", (done) => {
+    const request: Record<string, unknown> = {
+      apiKeyPrefix: "aBcDeFgH",
+      apiKeyGroupId: "group-123",
+      headers: { "x-request-id": "req-1", "x-api-key": "aBcDeFgH-rest-of-key" },
+      method: "POST",
+      path: "/api/resource",
+      res: { statusCode: 200 },
+    };
+
+    const store: RequestContextData = { requestId: "req-1" };
+
+    requestContext.run(store, () => {
+      const context = createContext(request);
+      interceptor.intercept(context, createCallHandler()).subscribe(() => {
+        expect(store.apiKeyId).toBe("aBcDeFgH");
+        done();
+      });
+    });
+  });
+
+  it("should omit sessionId when request is authenticated via API key", (done) => {
+    const request: Record<string, unknown> = {
+      apiKeyPrefix: "aBcDeFgH",
+      apiKeyGroupId: "group-123",
+      headers: { "x-request-id": "req-1", "x-api-key": "aBcDeFgH-rest-of-key" },
+      method: "POST",
+      path: "/api/resource",
+      res: { statusCode: 200 },
+    };
+
+    const store: RequestContextData = { requestId: "req-1" };
+
+    requestContext.run(store, () => {
+      const context = createContext(request);
+      interceptor.intercept(context, createCallHandler()).subscribe(() => {
+        expect(store.apiKeyId).toBe("aBcDeFgH");
+        expect(store.sessionId).toBeUndefined();
+        done();
+      });
+    });
+  });
+
+  it("should omit apiKeyId when request is authenticated via JWT", (done) => {
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1", session_state: "keycloak-session-uuid-456" },
+      resolvedIdentity: { userId: "user-1" },
+      headers: { "x-request-id": "req-1" },
+      method: "GET",
+      path: "/api/resource",
+      res: { statusCode: 200 },
+    };
+
+    const store: RequestContextData = { requestId: "req-1" };
+
+    requestContext.run(store, () => {
+      const context = createContext(request);
+      interceptor.intercept(context, createCallHandler()).subscribe(() => {
+        expect(store.sessionId).toBe("keycloak-session-uuid-456");
+        expect(store.apiKeyId).toBeUndefined();
+        done();
+      });
+    });
+  });
+
+  it("should only log the key prefix, never the full API key value", (done) => {
+    const fullApiKey = "aBcDeFgH-this-is-the-rest-of-the-secret-key-value";
+    const request: Record<string, unknown> = {
+      apiKeyPrefix: "aBcDeFgH",
+      apiKeyGroupId: "group-123",
+      headers: { "x-request-id": "req-1", "x-api-key": fullApiKey },
+      method: "POST",
+      path: "/api/resource",
+      res: { statusCode: 200 },
+    };
+
+    const store: RequestContextData = { requestId: "req-1" };
+
+    requestContext.run(store, () => {
+      const context = createContext(request);
+      interceptor.intercept(context, createCallHandler()).subscribe(() => {
+        expect(store.apiKeyId).toBe("aBcDeFgH");
+        expect(store.apiKeyId).not.toBe(fullApiKey);
+        expect(store.apiKeyId?.length).toBeLessThan(fullApiKey.length);
+        // Verify the logged context does not contain the full key
+        const loggedContext = mockLogger.log.mock.calls[0][1];
+        expect(JSON.stringify(loggedContext)).not.toContain(fullApiKey);
+        done();
+      });
+    });
+  });
 });
