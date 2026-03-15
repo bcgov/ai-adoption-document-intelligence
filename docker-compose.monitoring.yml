@@ -60,6 +60,7 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
       - ./deployments/local/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deployments/openshift/helm/plg/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "3001:3000"
     depends_on:
