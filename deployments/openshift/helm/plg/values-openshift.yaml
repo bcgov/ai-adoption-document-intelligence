@@ -11,3 +11,14 @@ loki:
     limits:
       memory: "256Mi"
       cpu: "500m"
+
+prometheus:
+  pvcSize: 10Gi
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
