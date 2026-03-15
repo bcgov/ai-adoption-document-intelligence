@@ -63,6 +63,18 @@ The script:
 
 ---
 
+### oc-login-sa.sh — Service Account Login
+
+Logs in to OpenShift using the stored service account token from `.oc-deploy/token`.
+
+```bash
+./scripts/oc-login-sa.sh
+```
+
+No options required. Use this to switch from your developer login to the deploy service account before running other scripts or `oc` commands.
+
+---
+
 ### oc-deploy.sh — Deploy Instance
 
 Deploys the full application stack as an isolated instance.
