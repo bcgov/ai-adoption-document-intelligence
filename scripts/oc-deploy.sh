@@ -43,6 +43,7 @@ Options:
   --env, -e         Environment profile: dev or prod (required)
   --instance, -i    Instance name override (default: derived from git branch)
   --build-local     Build and push images locally with Docker instead of via GitHub Actions
+  --rebuild         Force rebuild of images even if they already exist in the registry
   --help, -h        Show this help message
 EOF
 }
@@ -67,6 +68,7 @@ log_step() {
 ENV_PROFILE=""
 INSTANCE_OVERRIDE=""
 BUILD_LOCAL=false
+FORCE_REBUILD=false
 PASS_THROUGH_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -89,6 +91,11 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --build-local)
+      BUILD_LOCAL=true
+      shift
+      ;;
+    --rebuild)
+      FORCE_REBUILD=true
       BUILD_LOCAL=true
       shift
       ;;
@@ -250,19 +257,24 @@ IMAGE_TAG=$(echo "${CURRENT_BRANCH}" \
 SERVICES=("backend-services" "frontend" "temporal")
 IMAGES_EXIST=true
 
-log_info "Checking for existing images on ${ARTIFACTORY_URL} for tag '${IMAGE_TAG}'..."
+if [[ "${FORCE_REBUILD}" == "true" ]]; then
+  log_info "Force rebuild requested — skipping image existence check."
+  IMAGES_EXIST=false
+else
+  log_info "Checking for existing images on ${ARTIFACTORY_URL} for tag '${IMAGE_TAG}'..."
 
-for service in "${SERVICES[@]}"; do
-  IMAGE_REF="${IMAGE_BASE}/${service}:${IMAGE_TAG}"
-  if docker manifest inspect "${IMAGE_REF}" &>/dev/null 2>&1; then
-    log_info "  Found: ${IMAGE_REF}"
-  elif skopeo inspect "docker://${IMAGE_REF}" &>/dev/null 2>&1; then
-    log_info "  Found: ${IMAGE_REF}"
-  else
-    log_info "  Not found: ${IMAGE_REF}"
-    IMAGES_EXIST=false
-  fi
-done
+  for service in "${SERVICES[@]}"; do
+    IMAGE_REF="${IMAGE_BASE}/${service}:${IMAGE_TAG}"
+    if docker manifest inspect "${IMAGE_REF}" &>/dev/null 2>&1; then
+      log_info "  Found: ${IMAGE_REF}"
+    elif skopeo inspect "docker://${IMAGE_REF}" &>/dev/null 2>&1; then
+      log_info "  Found: ${IMAGE_REF}"
+    else
+      log_info "  Not found: ${IMAGE_REF}"
+      IMAGES_EXIST=false
+    fi
+  done
+fi
 
 if [[ "${IMAGES_EXIST}" == "false" ]]; then
 
