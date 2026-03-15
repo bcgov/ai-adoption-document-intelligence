@@ -9,3 +9,5 @@ data:
     {{- .Files.Get "dashboards/application-overview.json" | nindent 4 }}
   logs-explorer.json: |-
     {{- .Files.Get "dashboards/logs-explorer.json" | nindent 4 }}
+  nodejs-runtime.json: |-
+    {{- .Files.Get "dashboards/nodejs-runtime.json" | nindent 4 }}
