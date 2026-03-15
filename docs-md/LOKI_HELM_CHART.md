@@ -6,15 +6,18 @@ Loki is deployed as part of the PLG (Prometheus, Loki, Grafana) observability st
 
 ```
 deployments/openshift/helm/plg/
-  Chart.yaml                  # Chart metadata
-  values.yaml                 # Default values
-  values-local.yaml           # Local Docker environment overrides
-  values-openshift.yaml       # OpenShift environment overrides
+  Chart.yaml                         # Chart metadata
+  values.yaml                        # Default values
+  values-local.yaml                  # Local Docker environment overrides
+  values-openshift.yaml              # OpenShift environment overrides
   templates/
-    _helpers.tpl              # Template helper functions
-    loki-configmap.yaml       # Loki server configuration
-    loki-statefulset.yaml     # Loki StatefulSet deployment
-    loki-service.yaml         # ClusterIP Service for Loki
+    _helpers.tpl                     # Template helper functions
+    loki-configmap.yaml              # Loki server configuration
+    loki-statefulset.yaml            # Loki StatefulSet deployment
+    loki-service.yaml                # ClusterIP Service for Loki
+    prometheus-configmap.yaml        # Prometheus server configuration
+    prometheus-statefulset.yaml      # Prometheus StatefulSet deployment
+    prometheus-service.yaml          # ClusterIP Service for Prometheus
 ```
 
 ## Configurable Values

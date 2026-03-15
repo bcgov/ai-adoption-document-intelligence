@@ -14,3 +14,15 @@ loki:
     limits:
       memory: "256Mi"
       cpu: "500m"
+
+prometheus:
+  # Smaller storage for local development.
+  pvcSize: 2Gi
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
