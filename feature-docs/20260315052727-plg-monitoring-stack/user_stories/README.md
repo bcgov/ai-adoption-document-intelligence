@@ -60,7 +60,7 @@ After implementing the user story check it off at the bottom of this file.
 - [x] **US-010** (Integrate PLG Helm deployment into GitHub Actions workflow and /scripts)
 
 ### Phase 5 — Grafana Dashboards
-- [ ] **US-011** (Application Overview dashboard — request rate, error rate, latency, active sessions)
+- [x] **US-011** (Application Overview dashboard — request rate, error rate, latency, active sessions)
 - [ ] **US-012** (Logs Explorer dashboard — filter by service, userId, sessionId, level)
 - [ ] **US-013** (Node.js Runtime dashboard — heap, event loop lag, GC, active handles)
 

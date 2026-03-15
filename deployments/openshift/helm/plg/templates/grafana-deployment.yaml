@@ -16,6 +16,8 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/grafana-configmap.yaml") . | sha256sum }}
         checksum/datasources: {{ include (print $.Template.BasePath "/grafana-datasources-configmap.yaml") . | sha256sum }}
+        checksum/dashboards: {{ include (print $.Template.BasePath "/grafana-dashboards-configmap.yaml") . | sha256sum }}
+        checksum/dashboard-provisioner: {{ include (print $.Template.BasePath "/grafana-dashboard-provisioner-configmap.yaml") . | sha256sum }}
     spec:
       securityContext:
         fsGroup: 472
@@ -50,6 +52,10 @@ spec:
               subPath: grafana.ini
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provisioner
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
@@ -60,3 +66,9 @@ spec:
         - name: datasources
           configMap:
             name: {{ include "plg.grafana.fullname" . }}-datasources
+        - name: dashboard-provisioner
+          configMap:
+            name: {{ include "plg.grafana.fullname" . }}-dashboard-provisioner
+        - name: dashboards
+          configMap:
+            name: {{ include "plg.grafana.fullname" . }}-dashboards
