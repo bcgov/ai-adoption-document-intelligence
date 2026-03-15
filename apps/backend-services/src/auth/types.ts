@@ -35,6 +35,8 @@ declare module "express" {
     user?: User;
     /** Set by ApiKeyAuthGuard when a valid API key is used. */
     apiKeyGroupId?: string;
+    /** Set by ApiKeyAuthGuard — the stored key prefix for audit logging. */
+    apiKeyPrefix?: string;
     /**
      * Set by IdentityGuard after authentication succeeds.
      * Contains the normalised requestor identity for downstream authorization.
