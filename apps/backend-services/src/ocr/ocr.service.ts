@@ -11,7 +11,7 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { DatabaseService } from "@/database/database.service";
+import { DocumentService } from "@/document/document.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   AnalysisResponse,
@@ -31,7 +31,7 @@ export interface OcrRequestResponse {
 export class OcrService {
   constructor(
     _configService: ConfigService,
-    private databaseService: DatabaseService,
+    private documentService: DocumentService,
     private temporalClientService: TemporalClientService,
     @Inject(BLOB_STORAGE)
     private blobStorage: BlobStorageInterface,
@@ -51,7 +51,7 @@ export class OcrService {
   ): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
     // Find filepath of document
-    const document = await this.databaseService.findDocument(documentId);
+    const document = await this.documentService.findDocument(documentId);
     if (document == null) {
       throw new NotFoundException(
         `Entry for document with ID ${documentId} not found.`,
@@ -115,7 +115,7 @@ export class OcrService {
 
       // Update document with workflow configuration ID and Temporal workflow execution ID
       // Note: Status is set automatically by workflow pre-execution hook
-      const updateResult = await this.databaseService.updateDocument(
+      const updateResult = await this.documentService.updateDocument(
         documentId,
         {
           workflow_config_id: workflowConfigId || undefined,
@@ -152,7 +152,7 @@ export class OcrService {
       this.logger.error(`Stack: ${error.stack}`);
 
       if (document != null) {
-        await this.databaseService.updateDocument(documentId, {
+        await this.documentService.updateDocument(documentId, {
           status: DocumentStatus.failed,
         });
       }

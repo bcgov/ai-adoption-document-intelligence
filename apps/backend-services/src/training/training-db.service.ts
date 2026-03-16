@@ -181,4 +181,20 @@ export class TrainingDbService {
     const client = tx ?? this.prisma;
     return client.trainedModel.delete({ where: { model_id: modelId } });
   }
+
+  /**
+   * Returns all distinct trained model IDs across all projects.
+   * @param tx Optional transaction client.
+   * @returns An array of distinct model ID strings.
+   */
+  async findAllTrainedModelIds(
+    tx?: Prisma.TransactionClient,
+  ): Promise<string[]> {
+    const client = tx ?? this.prisma;
+    const results = await client.trainedModel.findMany({
+      select: { model_id: true },
+      distinct: ["model_id"],
+    });
+    return results.map((r) => r.model_id);
+  }
 }

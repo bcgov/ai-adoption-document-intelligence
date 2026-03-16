@@ -575,6 +575,16 @@ export class TrainingService {
   }
 
   /**
+   * Returns all distinct trained model IDs across all projects.
+   * Used by the OCR module to list available models.
+   *
+   * @returns An array of distinct model ID strings from the database.
+   */
+  async findAllTrainedModelIds(): Promise<string[]> {
+    return this.trainingDb.findAllTrainedModelIds();
+  }
+
+  /**
    * Map database model to DTO
    */
   private mapTrainedModelToDto(model: TrainedModel): TrainedModelDto {
