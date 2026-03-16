@@ -85,7 +85,10 @@ export function identityCanAccessGroup(
 
   if (identity.groupRoles !== undefined) {
     // API key path: groupRoles encodes the single scoped group.
-    if (!(groupId in identity.groupRoles)) {
+    // Use Object.hasOwn instead of `in` to avoid prototype chain traversal.
+    // The `in` operator returns true for inherited properties like "__proto__"
+    // or "constructor", which would bypass the membership check.
+    if (!Object.hasOwn(identity.groupRoles, groupId)) {
       throw new ForbiddenException("User does not belong to requested group.");
     }
     // Is their role for the group sufficient?

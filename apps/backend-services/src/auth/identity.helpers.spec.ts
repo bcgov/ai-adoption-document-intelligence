@@ -146,6 +146,20 @@ describe("identityCanAccessGroup", () => {
     });
   });
 
+  describe("prototype property bypass prevention", () => {
+    it.each(["__proto__", "constructor", "toString", "hasOwnProperty"])(
+      "should throw ForbiddenException when groupId is '%s'",
+      (groupId) => {
+        expect(() =>
+          identityCanAccessGroup(
+            { groupRoles: { "real-group": GroupRole.MEMBER } },
+            groupId,
+          ),
+        ).toThrow(ForbiddenException);
+      },
+    );
+  });
+
   describe("userId-only path (no groupRoles on identity)", () => {
     it("should throw ForbiddenException when identity has userId but no groupRoles", () => {
       expect(() =>
