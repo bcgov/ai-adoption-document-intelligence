@@ -64,14 +64,18 @@ describe("getLogLevel", () => {
 
 describe("createLogger", () => {
   const orig = process.env.LOG_LEVEL;
+  const origNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
     process.env.LOG_LEVEL = "debug";
+    process.env.NODE_ENV = "production"; // tests assert NDJSON; dev mode uses pretty format
   });
 
   afterEach(() => {
     if (orig !== undefined) process.env.LOG_LEVEL = orig;
     else delete process.env.LOG_LEVEL;
+    if (origNodeEnv !== undefined) process.env.NODE_ENV = origNodeEnv;
+    else delete process.env.NODE_ENV;
   });
 
   describe("NDJSON output", () => {
@@ -223,6 +227,28 @@ describe("createLogger", () => {
         expect(entry.message).toBe("activity ran");
       } finally {
         out.restore();
+      }
+    });
+  });
+
+  describe("development mode", () => {
+    it("emits pretty one-line format when NODE_ENV is development", () => {
+      process.env.NODE_ENV = "development";
+      const out = captureStdout();
+      try {
+        const log = createLogger(SERVICE);
+        log.info("hello");
+        expect(out.lines).toHaveLength(1);
+        const line = out.lines[0];
+        expect(line).toContain("INFO");
+        expect(line).toContain(SERVICE);
+        expect(line).toContain("hello");
+        expect(line).toMatch(/^\[\d{4}-\d{2}-\d{2}T/);
+        expect(() => JSON.parse(line)).toThrow(); // not NDJSON
+      } finally {
+        out.restore();
+        if (origNodeEnv !== undefined) process.env.NODE_ENV = origNodeEnv;
+        else delete process.env.NODE_ENV;
       }
     });
   });
