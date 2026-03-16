@@ -125,12 +125,13 @@ For `Dataset` sub-resource endpoints (versions, splits, samples, ground truth, f
 
 ## Authorization Logic
 
-The `identityCanAccessGroup(identity, groupId, db)` helper performs the following checks:
+The `identityCanAccessGroup(identity, groupId, minimumRole?)` helper performs the following checks using the pre-populated `resolvedIdentity` (no additional database queries):
 
 1. If `groupId` is `null` (orphaned record with no group assignment), throws `404 Not Found`. This prevents leaking the existence of orphaned records to any caller, regardless of identity.
 2. If `identity` is `undefined`, throws `403 Forbidden`.
-3. If the identity is an **API key** identity (`identity.groupId` is set), verifies the key's group matches the requested `groupId`. Throws `403 Forbidden` if they differ.
-4. If the identity is a **JWT user** identity (`identity.userId` is set), queries the database to confirm the user is a member of the group. Throws `403 Forbidden` if not a member.
+3. If `identity.isSystemAdmin` is `true`, access is always allowed (system admins bypass group checks).
+4. Checks `identity.groupRoles` for the requested `groupId`. If the group is not present, throws `403 Forbidden`. This applies to both JWT and API key identities — both use the same `groupRoles` map (populated by `IdentityGuard` from parallel DB queries for JWT, or directly from the key's scope for API keys).
+5. If `minimumRole` is specified, checks that the identity's role within the group meets the minimum (e.g., `MEMBER` < `ADMIN`). Throws `403 Forbidden` if insufficient.
 
 ## Request DTOs
 

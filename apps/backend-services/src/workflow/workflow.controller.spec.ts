@@ -1,3 +1,4 @@
+import { GroupRole } from "@generated/client";
 import { ForbiddenException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
@@ -95,7 +96,13 @@ describe("WorkflowController", () => {
     });
 
     it("returns workflows for the user's groups", async () => {
-      const req = { resolvedIdentity: { userId: "user-1" } } as Request;
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
       const result = await controller.getWorkflows(undefined, req);
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
@@ -105,7 +112,9 @@ describe("WorkflowController", () => {
     });
 
     it("returns workflows for an API key's group", async () => {
-      const req = { resolvedIdentity: { groupId: "group-1" } } as Request;
+      const req = {
+        resolvedIdentity: { groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
       const result = await controller.getWorkflows(undefined, req);
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
@@ -115,22 +124,29 @@ describe("WorkflowController", () => {
     });
 
     it("filters by groupId when groupId query param is provided", async () => {
-      const req = { resolvedIdentity: { userId: "user-1" } } as Request;
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
       const result = await controller.getWorkflows("group-1", req);
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
-      expect(databaseService.isUserInGroup).toHaveBeenCalledWith(
-        "user-1",
-        "group-1",
-      );
       expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith([
         "group-1",
       ]);
     });
 
     it("throws ForbiddenException when groupId is provided but identity is not a member", async () => {
-      const req = { resolvedIdentity: { userId: "user-1" } } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
       await expect(controller.getWorkflows("group-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -142,8 +158,12 @@ describe("WorkflowController", () => {
     it("returns workflow by id for a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
       const result = await controller.getWorkflow("wf-1", req);
       expect(result).toEqual({ workflow: mockWorkflowInfo });
@@ -151,19 +171,18 @@ describe("WorkflowController", () => {
         "wf-1",
         "user-1",
       );
-      expect(databaseService.isUserInGroup).toHaveBeenCalledWith(
-        "user-1",
-        "group-1",
-      );
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(controller.getWorkflow("wf-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -172,11 +191,15 @@ describe("WorkflowController", () => {
 
   describe("createWorkflow", () => {
     it("creates workflow and returns it", async () => {
-      const identity = { userId: "user-1" };
+      const identity = {
+        userId: "user-1",
+        isSystemAdmin: false,
+        groupRoles: { "group-1": GroupRole.MEMBER },
+      };
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identity,
-      } as Request;
+      } as unknown as Request;
       const dto: CreateWorkflowDto = {
         name: "New",
         groupId: "group-1",
@@ -194,14 +217,17 @@ describe("WorkflowController", () => {
     it("propagates ForbiddenException when user is not a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
       const dto: CreateWorkflowDto = {
         name: "New",
         groupId: "group-1",
         config: mockGraphConfig,
       };
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(controller.createWorkflow(dto, req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -213,8 +239,12 @@ describe("WorkflowController", () => {
     it("updates workflow and returns it for a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       const dto = { name: "Updated" };
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
       workflowService.updateWorkflow.mockResolvedValue({
@@ -227,10 +257,6 @@ describe("WorkflowController", () => {
         "wf-1",
         "user-1",
       );
-      expect(databaseService.isUserInGroup).toHaveBeenCalledWith(
-        "user-1",
-        "group-1",
-      );
       expect(workflowService.updateWorkflow).toHaveBeenCalledWith(
         "wf-1",
         "user-1",
@@ -241,11 +267,14 @@ describe("WorkflowController", () => {
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
       const dto = { name: "Updated" };
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(controller.updateWorkflow("wf-1", dto, req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -257,18 +286,18 @@ describe("WorkflowController", () => {
     it("deletes workflow for a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
       workflowService.deleteWorkflow.mockResolvedValue(undefined);
       await controller.deleteWorkflow("wf-1", req);
       expect(workflowService.getWorkflow).toHaveBeenCalledWith(
         "wf-1",
         "user-1",
-      );
-      expect(databaseService.isUserInGroup).toHaveBeenCalledWith(
-        "user-1",
-        "group-1",
       );
       expect(workflowService.deleteWorkflow).toHaveBeenCalledWith(
         "wf-1",
@@ -279,10 +308,13 @@ describe("WorkflowController", () => {
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(controller.deleteWorkflow("wf-1", req)).rejects.toThrow(
         ForbiddenException,
       );

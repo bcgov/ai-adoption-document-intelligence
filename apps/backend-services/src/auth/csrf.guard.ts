@@ -10,7 +10,7 @@ import { AUTH_COOKIE_NAMES, CSRF_HEADER_NAME } from "./cookie-auth.utils";
 /**
  * Global guard implementing the double-submit cookie CSRF pattern.
  *
- * Registered as the LAST APP_GUARD (after JwtAuthGuard, ApiKeyAuthGuard, RolesGuard)
+ * Registered as the LAST APP_GUARD (after JwtAuthGuard, ApiKeyAuthGuard, IdentityGuard)
  * so that by the time it runs, authentication has already been resolved.
  *
  * CSRF (Cross-Site Request Forgery) is only a threat for cookie-authenticated requests

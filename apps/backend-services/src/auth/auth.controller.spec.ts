@@ -341,7 +341,7 @@ describe("AuthController", () => {
         exp: Math.floor(Date.now() / 1000) + 3600,
       };
       req.user = user;
-      req.resolvedIdentity = { userId: user.sub };
+      req.resolvedIdentity = { userId: user.sub, isSystemAdmin: false };
       const userGroups = [
         { id: "group-1", name: "Group One", role: GroupRole.MEMBER },
       ];
@@ -349,11 +349,8 @@ describe("AuthController", () => {
 
       const result = await controller.getMe(req as Request);
 
-      expect(databaseService.isUserSystemAdmin).toHaveBeenCalledWith(
-        "user-123",
-      );
       expect(groupService.getUserGroups).toHaveBeenCalledWith(
-        "user-123",
+        { userId: "user-123", isSystemAdmin: false },
         "user-123",
       );
       expect(result).toEqual({
@@ -395,20 +392,16 @@ describe("AuthController", () => {
         exp: Math.floor(Date.now() / 1000) + 3600,
       };
       req.user = user;
-      req.resolvedIdentity = { userId: user.sub };
+      req.resolvedIdentity = { userId: user.sub, isSystemAdmin: true };
       const adminGroups = [
         { id: "group-1", name: "Group One", role: GroupRole.ADMIN },
       ];
-      (databaseService.isUserSystemAdmin as jest.Mock).mockResolvedValue(true);
       groupService.getUserGroups.mockResolvedValue(adminGroups);
 
       const result = await controller.getMe(req as Request);
 
-      expect(databaseService.isUserSystemAdmin).toHaveBeenCalledWith(
-        "admin-user",
-      );
       expect(groupService.getUserGroups).toHaveBeenCalledWith(
-        "admin-user",
+        { userId: "admin-user", isSystemAdmin: true },
         "admin-user",
       );
       expect(groupService.getAllGroups).not.toHaveBeenCalled();

@@ -12,7 +12,6 @@ import { CsrfGuard } from "./csrf.guard";
 import { IdentityGuard } from "./identity.guard";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { KeycloakJwtStrategy } from "./keycloak-jwt.strategy";
-import { RolesGuard } from "./roles.guard";
 
 @Module({
   imports: [
@@ -37,10 +36,6 @@ import { RolesGuard } from "./roles.guard";
     {
       provide: APP_GUARD,
       useClass: IdentityGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
     },
     {
       provide: APP_GUARD,

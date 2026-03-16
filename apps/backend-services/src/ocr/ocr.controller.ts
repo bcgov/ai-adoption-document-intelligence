@@ -1,8 +1,8 @@
 import { Controller, Get } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Identity } from "@/auth/identity.decorator";
 import { DatabaseService } from "@/database/database.service";
-import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 
 @ApiTags("OCR")
 @Controller("api")
@@ -25,7 +25,7 @@ export class OcrController {
   @ApiOperation({
     summary: "Get a list of available OCR models (prebuilt + trained)",
   })
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOkResponse({ schema: { default: { models: ["string"] } } })
   async getModels(): Promise<{ models: string[] }> {
     const prisma = this.db["prisma"];

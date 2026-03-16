@@ -5,12 +5,14 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-011-benchmark-definition-service-controller.md
  */
 
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsNotEmpty, IsObject, IsOptional, IsString } from "class-validator";
 
 export class CreateDefinitionDto {
   /**
    * Definition name
    */
+  @ApiProperty({ description: "Definition name" })
   @IsString()
   @IsNotEmpty()
   name: string;
@@ -18,6 +20,7 @@ export class CreateDefinitionDto {
   /**
    * Dataset version ID
    */
+  @ApiProperty({ description: "Dataset version ID" })
   @IsString()
   @IsNotEmpty()
   datasetVersionId: string;
@@ -25,6 +28,10 @@ export class CreateDefinitionDto {
   /**
    * Split ID (optional — if omitted, the benchmark runs on all samples)
    */
+  @ApiPropertyOptional({
+    description:
+      "Split ID (optional — if omitted, the benchmark runs on all samples)",
+  })
   @IsString()
   @IsOptional()
   splitId?: string;
@@ -32,6 +39,7 @@ export class CreateDefinitionDto {
   /**
    * Workflow ID
    */
+  @ApiProperty({ description: "Workflow ID" })
   @IsString()
   @IsNotEmpty()
   workflowId: string;
@@ -39,6 +47,9 @@ export class CreateDefinitionDto {
   /**
    * Evaluator type (must match a registered evaluator)
    */
+  @ApiProperty({
+    description: "Evaluator type (must match a registered evaluator)",
+  })
   @IsString()
   @IsNotEmpty()
   evaluatorType: string;
@@ -46,12 +57,22 @@ export class CreateDefinitionDto {
   /**
    * Evaluator configuration (JSON object)
    */
+  @ApiProperty({
+    description: "Evaluator configuration (JSON object)",
+    type: "object",
+    additionalProperties: true,
+  })
   @IsObject()
   evaluatorConfig: Record<string, unknown>;
 
   /**
    * Runtime settings (JSON object)
    */
+  @ApiProperty({
+    description: "Runtime settings (JSON object)",
+    type: "object",
+    additionalProperties: true,
+  })
   @IsObject()
   runtimeSettings: Record<string, unknown>;
 }

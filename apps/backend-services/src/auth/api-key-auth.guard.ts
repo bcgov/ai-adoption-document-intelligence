@@ -9,13 +9,13 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
-import { API_KEY_AUTH_KEY } from "@/decorators/custom-auth-decorators";
 import { ApiKeyService } from "../api-key/api-key.service";
 import {
   API_KEY_FAILED_WINDOW_MS,
   API_KEY_MAX_FAILED_ATTEMPTS,
   API_KEY_SWEEP_INTERVAL_MS,
 } from "./auth.config";
+import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
 
 /**
  * Tracks failed API key validation attempts per IP within a time window.
@@ -46,14 +46,13 @@ export class ApiKeyAuthGuard implements CanActivate, OnModuleDestroy {
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // Check if this endpoint allows API key auth
-    const allowApiKeyAuth = this.reflector.getAllAndOverride<boolean>(
-      API_KEY_AUTH_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    // Check if this endpoint allows API key auth via @Identity({ allowApiKey: true })
+    const identityOptions = this.reflector.getAllAndOverride<
+      IdentityOptions | undefined
+    >(IDENTITY_KEY, [context.getHandler(), context.getClass()]);
 
-    if (!allowApiKeyAuth) {
-      // This guard only handles API key auth for decorated endpoints
+    if (!identityOptions?.allowApiKey) {
+      // This guard only handles API key auth for endpoints that explicitly opt in
       return true;
     }
 

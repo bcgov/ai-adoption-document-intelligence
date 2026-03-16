@@ -6,6 +6,8 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { ResolvedIdentity } from "@/auth/types";
 import { AuditService } from "../audit/audit.service";
 import { DatabaseService } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
@@ -24,16 +26,10 @@ export class GroupService {
   /**
    * Soft-deletes an existing group by ID.
    * Sets `deleted_at` to the current timestamp and `deleted_by` to the caller's userId.
-   * Only system admins may perform this operation.
    * @param groupId - The ID of the group to soft-delete.
    * @param callerId - The ID of the user performing the deletion.
    */
   async deleteGroup(groupId: string, callerId: string): Promise<void> {
-    const isSystemAdmin =
-      await this.databaseService.isUserSystemAdmin(callerId);
-    if (!isSystemAdmin) {
-      throw new ForbiddenException("Only system admins can delete groups");
-    }
     const group = await this.databaseService.prisma.group.findUnique({
       where: { id: groupId },
     });
@@ -82,22 +78,20 @@ export class GroupService {
    * @param userId - The ID of the user whose groups are being retrieved.
    */
   async getUserGroups(
-    callerId: string,
+    identity: ResolvedIdentity,
     userId: string,
   ): Promise<UserGroupDto[]> {
-    if (callerId === userId) {
+    if (identity.userId === userId) {
       return this.fetchUserGroups(userId);
     }
 
-    const isSystemAdmin =
-      await this.databaseService.isUserSystemAdmin(callerId);
-    if (isSystemAdmin) {
+    if (identity.isSystemAdmin) {
       return this.fetchUserGroups(userId);
     }
 
     const callerAdminMemberships =
       await this.databaseService.prisma.userGroup.findMany({
-        where: { user_id: callerId, role: GroupRole.ADMIN },
+        where: { user_id: identity.userId, role: GroupRole.ADMIN },
       });
 
     if (callerAdminMemberships.length === 0) {
@@ -251,17 +245,17 @@ export class GroupService {
    * - Throws NotFoundException if the request does not exist.
    * - Throws BadRequestException if the request is not in PENDING state.
    * - Throws ForbiddenException if the caller is not a group admin or system admin.
-   * @param adminId - The ID of the approving admin (from JWT sub claim).
+   * @param identity - The resolved identity of the caller.
    * @param requestId - The ID of the membership request to approve.
    * @param reason - Optional reason for approval.
    */
   async approveMembershipRequest(
-    adminId: string,
+    identity: ResolvedIdentity,
     requestId: string,
     reason?: string,
   ): Promise<void> {
     const request = await this.getValidPendingRequest(requestId, "approved");
-    await this.checkGroupAdminOrSystemAdmin(adminId, request.group_id);
+    identityCanAccessGroup(identity, request.group_id, GroupRole.ADMIN);
     await this.databaseService.prisma.$transaction([
       this.databaseService.prisma.userGroup.upsert({
         where: {
@@ -279,7 +273,7 @@ export class GroupService {
       this.databaseService.prisma.groupMembershipRequest.update({
         where: { id: requestId },
         data: this.buildResolutionData(
-          adminId,
+          identity.userId!,
           $Enums.GroupMembershipRequestStatus.APPROVED,
           reason,
         ),
@@ -289,7 +283,7 @@ export class GroupService {
       event_type: "membership_request_approved",
       resource_type: "group_membership_request",
       resource_id: requestId,
-      actor_id: adminId,
+      actor_id: identity.userId,
       group_id: request.group_id,
       payload: {
         user_id: request.user_id,
@@ -300,13 +294,13 @@ export class GroupService {
       event_type: "member_added",
       resource_type: "user_group",
       resource_id: `${request.user_id}:${request.group_id}`,
-      actor_id: adminId,
+      actor_id: identity.userId,
       group_id: request.group_id,
       payload: { user_id: request.user_id, membership_request_id: requestId },
     });
     this.logger.log("Membership request approved, user added to group", {
       requestId,
-      adminId,
+      actorId: identity.userId,
       userId: request.user_id,
       groupId: request.group_id,
     });
@@ -317,21 +311,21 @@ export class GroupService {
    * - Throws NotFoundException if the request does not exist.
    * - Throws BadRequestException if the request is not in PENDING state.
    * - Throws ForbiddenException if the caller is not a group admin or system admin.
-   * @param adminId - The ID of the denying admin (from JWT sub claim).
+   * @param identity - The resolved identity of the caller.
    * @param requestId - The ID of the membership request to deny.
    * @param reason - Optional reason for denial.
    */
   async denyMembershipRequest(
-    adminId: string,
+    identity: ResolvedIdentity,
     requestId: string,
     reason?: string,
   ): Promise<void> {
     const request = await this.getValidPendingRequest(requestId, "denied");
-    await this.checkGroupAdminOrSystemAdmin(adminId, request.group_id);
+    identityCanAccessGroup(identity, request.group_id, GroupRole.ADMIN);
     await this.databaseService.prisma.groupMembershipRequest.update({
       where: { id: requestId },
       data: this.buildResolutionData(
-        adminId,
+        identity.userId!,
         $Enums.GroupMembershipRequestStatus.DENIED,
         reason,
       ),
@@ -340,43 +334,16 @@ export class GroupService {
       event_type: "membership_request_denied",
       resource_type: "group_membership_request",
       resource_id: requestId,
-      actor_id: adminId,
+      actor_id: identity.userId,
       group_id: request.group_id,
       payload: { user_id: request.user_id, reason },
     });
     this.logger.log("Membership request denied", {
       requestId,
-      adminId,
+      actorId: identity.userId,
       userId: request.user_id,
       groupId: request.group_id,
     });
-  }
-
-  /**
-   * Validates that the caller is either a system admin or a group admin for the given group.
-   * Throws ForbiddenException if neither condition is met.
-   * @param callerId - The ID of the caller.
-   * @param groupId - The ID of the group to check admin membership for.
-   */
-  private async checkGroupAdminOrSystemAdmin(
-    callerId: string,
-    groupId: string,
-  ): Promise<void> {
-    const isSystemAdmin =
-      await this.databaseService.isUserSystemAdmin(callerId);
-    if (isSystemAdmin) return;
-
-    const callerMembership =
-      await this.databaseService.prisma.userGroup.findUnique({
-        where: {
-          user_id_group_id: { user_id: callerId, group_id: groupId },
-        },
-      });
-    if (callerMembership?.role !== GroupRole.ADMIN) {
-      throw new ForbiddenException(
-        "Only group admins or system admins can approve or deny membership requests",
-      );
-    }
   }
 
   /**
@@ -422,8 +389,7 @@ export class GroupService {
 
   /**
    * Creates a new group with the given name and optional description.
-   * Only system admins are permitted to create groups.
-   * Throws ForbiddenException if the caller is not a system admin.
+   * Authorization is enforced at the controller layer (system admins only).
    * Throws ConflictException if a group with the same name already exists.
    * @param callerId - The ID of the caller (from resolvedIdentity.userId).
    * @param name - The name of the new group.
@@ -434,12 +400,6 @@ export class GroupService {
     name: string,
     description?: string,
   ): Promise<{ id: string; name: string; description: string | null }> {
-    const isSystemAdmin =
-      await this.databaseService.isUserSystemAdmin(callerId);
-    if (!isSystemAdmin) {
-      throw new ForbiddenException("Only system admins can create groups");
-    }
-
     const existing = await this.databaseService.prisma.group.findUnique({
       where: { name },
     });
@@ -472,8 +432,6 @@ export class GroupService {
 
   /**
    * Updates an existing group's name and optional description.
-   * Only system admins are permitted to update groups.
-   * Throws ForbiddenException if the caller is not a system admin.
    * Throws NotFoundException if the group does not exist or has been soft-deleted.
    * Throws ConflictException if another group already uses the provided name.
    * @param callerId - The ID of the caller (from resolvedIdentity.userId).
@@ -487,12 +445,6 @@ export class GroupService {
     name: string,
     description?: string,
   ): Promise<{ id: string; name: string; description: string | null }> {
-    const isSystemAdmin =
-      await this.databaseService.isUserSystemAdmin(callerId);
-    if (!isSystemAdmin) {
-      throw new ForbiddenException("Only system admins can update groups");
-    }
-
     const group = await this.databaseService.prisma.group.findUnique({
       where: { id: groupId, deleted_at: null },
     });
@@ -535,10 +487,20 @@ export class GroupService {
     return updated;
   }
 
+  /**
+   * Assigns a user to a group by creating a UserGroup record.
+   * Throws NotFoundException if the group does not exist.
+   * Idempotent: if the user is already a member, no error is thrown and the existing membership is left unchanged.
+   * @param userId - The ID of the user to add to the group.
+   * @param groupId - The ID of the group to add the user to.
+   * @param identity - The resolved identity of the caller, used for audit logging.
+   *                   Authorization is enforced at the controller layer (group admins or system admins only).
+   * @returns void
+   */
   async assignUserToGroup(
-    callerId: string,
     userId: string,
     groupId: string,
+    identity: ResolvedIdentity,
   ): Promise<void> {
     // Validate the group exists
     const group = await this.databaseService.prisma.group.findUnique({
@@ -546,20 +508,6 @@ export class GroupService {
     });
     if (!group) {
       throw new NotFoundException("Group not found");
-    }
-
-    const isSystemAdmin =
-      await this.databaseService.isUserSystemAdmin(callerId);
-    if (!isSystemAdmin) {
-      const isMember = await this.databaseService.isUserInGroup(
-        callerId,
-        groupId,
-      );
-      if (!isMember) {
-        throw new ForbiddenException(
-          "You do not have permission to view members of this group",
-        );
-      }
     }
 
     // Upsert user-group mapping
@@ -580,14 +528,14 @@ export class GroupService {
       event_type: "member_added",
       resource_type: "user_group",
       resource_id: `${userId}:${groupId}`,
-      actor_id: callerId,
+      actor_id: identity.userId,
       group_id: groupId,
       payload: { user_id: userId },
     });
     this.logger.log("User added to group", {
       userId,
       groupId,
-      actorId: callerId,
+      actorId: identity.userId,
     });
   }
 
@@ -603,29 +551,12 @@ export class GroupService {
    * @throws NotFoundException when the group does not exist.
    * @throws ForbiddenException when the caller is not a member or system admin.
    */
-  async getGroupMembers(
-    callerId: string,
-    groupId: string,
-  ): Promise<GroupMemberDto[]> {
+  async getGroupMembers(groupId: string): Promise<GroupMemberDto[]> {
     const group = await this.databaseService.prisma.group.findUnique({
       where: { id: groupId, deleted_at: null },
     });
     if (!group) {
       throw new NotFoundException("Group not found");
-    }
-
-    const isSystemAdmin =
-      await this.databaseService.isUserSystemAdmin(callerId);
-    if (!isSystemAdmin) {
-      const isMember = await this.databaseService.isUserInGroup(
-        callerId,
-        groupId,
-      );
-      if (!isMember) {
-        throw new ForbiddenException(
-          "You do not have permission to view members of this group",
-        );
-      }
     }
 
     const members = await this.databaseService.prisma.userGroup.findMany({
@@ -647,12 +578,6 @@ export class GroupService {
    * @param groupId - The ID of the group to leave.
    */
   async leaveGroup(userId: string, groupId: string): Promise<void> {
-    const membership = await this.databaseService.prisma.userGroup.findUnique({
-      where: { user_id_group_id: { user_id: userId, group_id: groupId } },
-    });
-    if (!membership) {
-      throw new BadRequestException("User is not a member of this group");
-    }
     await this.databaseService.prisma.userGroup.delete({
       where: { user_id_group_id: { user_id: userId, group_id: groupId } },
     });
@@ -686,22 +611,6 @@ export class GroupService {
     });
     if (!group) {
       throw new NotFoundException("Group not found");
-    }
-
-    const isSystemAdmin =
-      await this.databaseService.isUserSystemAdmin(callerId);
-    if (!isSystemAdmin) {
-      const callerMembership =
-        await this.databaseService.prisma.userGroup.findUnique({
-          where: {
-            user_id_group_id: { user_id: callerId, group_id: groupId },
-          },
-        });
-      if (callerMembership?.role !== GroupRole.ADMIN) {
-        throw new ForbiddenException(
-          "Only group admins or system admins can view membership requests",
-        );
-      }
     }
 
     const requests =
@@ -756,41 +665,23 @@ export class GroupService {
   }
 
   /**
-   * Removes a user from a group, with authorization enforcement.
-   * The caller must be a group admin (UserGroup record with role = ADMIN) or a system admin.
+   * Removes a user from a group.
    * Throws NotFoundException if the group does not exist.
-   * Throws ForbiddenException if the caller lacks the required role.
    * Throws NotFoundException if the target user is not a member of the group.
-   * @param callerId - The ID of the user performing the removal (from resolvedIdentity.userId).
    * @param groupId - The ID of the group.
    * @param userId - The ID of the user to remove.
+   * @param identity - The resolved identity of the caller.
    */
   async removeGroupMember(
-    callerId: string,
     groupId: string,
     userId: string,
+    identity: ResolvedIdentity,
   ): Promise<void> {
     const group = await this.databaseService.prisma.group.findUnique({
       where: { id: groupId },
     });
     if (!group) {
       throw new NotFoundException("Group not found");
-    }
-
-    const isSystemAdmin =
-      await this.databaseService.isUserSystemAdmin(callerId);
-    if (!isSystemAdmin) {
-      const callerMembership =
-        await this.databaseService.prisma.userGroup.findUnique({
-          where: {
-            user_id_group_id: { user_id: callerId, group_id: groupId },
-          },
-        });
-      if (callerMembership?.role !== GroupRole.ADMIN) {
-        throw new ForbiddenException(
-          "Only group admins or system admins can remove members",
-        );
-      }
     }
 
     const targetMembership =
@@ -810,14 +701,14 @@ export class GroupService {
       event_type: "member_removed",
       resource_type: "user_group",
       resource_id: `${userId}:${groupId}`,
-      actor_id: callerId,
+      actor_id: identity.userId,
       group_id: groupId,
       payload: { removed_user_id: userId },
     });
     this.logger.log("Member removed from group", {
       groupId,
       removedUserId: userId,
-      actorId: callerId,
+      actorId: identity.userId,
     });
   }
 }

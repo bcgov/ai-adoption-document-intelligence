@@ -31,14 +31,11 @@ import {
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
 import { AuditService } from "@/audit/audit.service";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
 import { DocumentDataDto } from "@/document/dto/document-data.dto";
 import {
   BLOB_STORAGE,
@@ -65,8 +62,7 @@ export class DocumentController {
 
   @Get("/:documentId")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get a document by ID" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
@@ -87,11 +83,7 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      document.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
     await this.auditService.recordEvent({
       event_type: "document_accessed",
@@ -109,8 +101,7 @@ export class DocumentController {
 
   @Patch("/:documentId")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Update a document" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiBody({ type: UpdateDocumentDto })
@@ -134,11 +125,7 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      document.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
     const updated = await this.databaseService.updateDocument(documentId, {
       ...(body.title !== undefined ? { title: body.title } : {}),
@@ -156,8 +143,7 @@ export class DocumentController {
 
   @Delete("/:documentId")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Delete a document" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiNoContentResponse({ description: "Document deleted successfully" })
@@ -175,11 +161,7 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      document.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
     await this.databaseService.deleteDocument(documentId);
     try {
@@ -198,8 +180,7 @@ export class DocumentController {
   // and align workflow query status contract. See: ./get-all-documents-fixes.md
   @Get()
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get all documents" })
   @ApiQuery({
     name: "group_id",
@@ -223,17 +204,10 @@ export class DocumentController {
     let groupIds: string[] | undefined;
 
     if (groupId !== undefined) {
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        groupId,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, groupId);
       groupIds = [groupId];
     } else {
-      groupIds = await getIdentityGroupIds(
-        req.resolvedIdentity,
-        this.databaseService,
-      );
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
 
     try {
@@ -330,8 +304,7 @@ export class DocumentController {
 
   @Get("/:documentId/ocr")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get OCR result for a document by ID" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
@@ -355,11 +328,7 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        document.group_id,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
       await this.auditService.recordEvent({
         event_type: "document_accessed",
@@ -428,7 +397,7 @@ export class DocumentController {
 
   @Get("/:documentId/download")
   @HttpCode(HttpStatus.OK)
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({ summary: "Download a document file by ID" })
   @ApiParam({ name: "documentId", description: "Document ID" })
   @ApiOkResponse({
@@ -451,11 +420,7 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        document.group_id,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
       await this.auditService.recordEvent({
         event_type: "document_accessed",
@@ -510,7 +475,7 @@ export class DocumentController {
 
   @Post("/:documentId/approve")
   @HttpCode(HttpStatus.OK)
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({
     summary: "Approve or reject a document",
     description:
@@ -561,11 +526,7 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        document.group_id,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
       // Get workflow execution ID from document
       // Use workflow_execution_id (new field) or fallback to workflow_id (legacy)

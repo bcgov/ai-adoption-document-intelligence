@@ -5,6 +5,7 @@ import {
 } from "@generated/client";
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { ResolvedIdentity } from "@/auth/types";
 import {
   LabeledDocumentData,
   LabelingProjectData,
@@ -743,9 +744,11 @@ describe("LabelingService", () => {
         suggestions as never,
       );
 
+      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true };
       const result = await service.generateDocumentSuggestions(
         "project-1",
         "labeled-doc-1",
+        mockIdentity,
       );
 
       expect(mockSuggestionService.generateSuggestions).toHaveBeenCalled();
@@ -755,8 +758,13 @@ describe("LabelingService", () => {
     it("should throw NotFoundException when document not found", async () => {
       mockDbService.findLabeledDocument.mockResolvedValueOnce(null);
 
+      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true };
       await expect(
-        service.generateDocumentSuggestions("project-1", "missing-doc"),
+        service.generateDocumentSuggestions(
+          "project-1",
+          "missing-doc",
+          mockIdentity,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -770,8 +778,13 @@ describe("LabelingService", () => {
       } as unknown as LabeledDocumentData;
       mockDbService.findLabeledDocument.mockResolvedValueOnce(noOcrDoc);
 
+      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true };
       await expect(
-        service.generateDocumentSuggestions("project-1", "labeled-doc-1"),
+        service.generateDocumentSuggestions(
+          "project-1",
+          "labeled-doc-1",
+          mockIdentity,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });
