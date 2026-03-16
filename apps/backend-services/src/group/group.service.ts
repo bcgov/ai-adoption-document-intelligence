@@ -1,4 +1,4 @@
-import { $Enums, GroupRole, UserGroup } from "@generated/client";
+import { $Enums, GroupRole, Prisma, UserGroup } from "@generated/client";
 import {
   BadRequestException,
   ConflictException,
@@ -27,29 +27,42 @@ export class GroupService {
   /**
    * Returns all UserGroup records for a given user.
    * @param userId - The ID of the user whose group memberships to retrieve.
+   * @param tx - Optional transaction client for atomic operations.
    * @returns An array of UserGroup records.
    */
-  async findUsersGroups(userId: string): Promise<UserGroup[]> {
-    return this.groupDb.findUsersGroups(userId);
+  async findUsersGroups(
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<UserGroup[]> {
+    return this.groupDb.findUsersGroups(userId, tx);
   }
 
   /**
    * Checks whether a user is a member of a given group.
    * @param userId - The ID of the user to check.
    * @param groupId - The ID of the group to check membership in.
+   * @param tx - Optional transaction client for atomic operations.
    * @returns `true` when the user is a member, `false` otherwise.
    */
-  async isUserInGroup(userId: string, groupId: string): Promise<boolean> {
-    return this.groupDb.isUserInGroup(userId, groupId);
+  async isUserInGroup(
+    userId: string,
+    groupId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    return this.groupDb.isUserInGroup(userId, groupId, tx);
   }
 
   /**
    * Checks whether a user is a system admin.
    * @param userId - The ID of the user to check.
+   * @param tx - Optional transaction client for atomic operations.
    * @returns `true` when the user has `is_system_admin` set to `true`, `false` otherwise.
    */
-  async isUserSystemAdmin(userId: string): Promise<boolean> {
-    return this.groupDb.isUserSystemAdmin(userId);
+  async isUserSystemAdmin(
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    return this.groupDb.isUserSystemAdmin(userId, tx);
   }
   /**
    * Soft-deletes an existing group by ID.

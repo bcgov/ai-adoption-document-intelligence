@@ -715,4 +715,85 @@ describe("LabelingProjectDbService", () => {
       );
     });
   });
+
+  describe("transaction support", () => {
+    it("should use provided tx client instead of this.prisma for createLabelingProject", async () => {
+      const expected = {
+        id: "project-1",
+        name: "Tx Project",
+        field_schema: [],
+      };
+      const mockTxLabelingProject = {
+        create: jest.fn().mockResolvedValueOnce(expected),
+      };
+      const mockTx = { labelingProject: mockTxLabelingProject } as any;
+
+      const result = await service.createLabelingProject(
+        { name: "Tx Project", created_by: "user-1", group_id: "g-1" },
+        mockTx,
+      );
+
+      expect(result).toEqual(expected);
+      expect(mockTxLabelingProject.create).toHaveBeenCalled();
+      expect(mockPrisma.labelingProject.create).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for findLabelingProject", async () => {
+      const expected = { id: "project-1", name: "Test", field_schema: [] };
+      const mockTxLabelingProject = {
+        findUnique: jest.fn().mockResolvedValueOnce(expected),
+      };
+      const mockTx = { labelingProject: mockTxLabelingProject } as any;
+
+      const result = await service.findLabelingProject("project-1", mockTx);
+
+      expect(result).toEqual(expected);
+      expect(mockTxLabelingProject.findUnique).toHaveBeenCalled();
+      expect(mockPrisma.labelingProject.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for deleteLabelingProject", async () => {
+      const mockTxLabelingProject = {
+        delete: jest.fn().mockResolvedValueOnce({}),
+      };
+      const mockTx = { labelingProject: mockTxLabelingProject } as any;
+
+      const result = await service.deleteLabelingProject("project-1", mockTx);
+
+      expect(result).toBe(true);
+      expect(mockTxLabelingProject.delete).toHaveBeenCalledWith({
+        where: { id: "project-1" },
+      });
+      expect(mockPrisma.labelingProject.delete).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client directly for upsertDocumentLabels when tx is provided", async () => {
+      const savedLabels = [{ id: "label-1", field_key: "name" }];
+      const mockTxDocumentLabel = {
+        deleteMany: jest.fn().mockResolvedValueOnce({}),
+        create: jest.fn().mockResolvedValueOnce({}),
+        findMany: jest.fn().mockResolvedValueOnce(savedLabels),
+      };
+      const mockTx = { documentLabel: mockTxDocumentLabel } as any;
+
+      const result = await service.upsertDocumentLabels(
+        "labeled-doc-1",
+        [
+          {
+            field_key: "name",
+            label_name: "Name",
+            page_number: 1,
+            bounding_box: {},
+          },
+        ],
+        mockTx,
+      );
+
+      expect(result).toEqual(savedLabels);
+      expect(mockTxDocumentLabel.deleteMany).toHaveBeenCalled();
+      expect(mockTxDocumentLabel.create).toHaveBeenCalled();
+      expect(mockTxDocumentLabel.findMany).toHaveBeenCalled();
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+  });
 });

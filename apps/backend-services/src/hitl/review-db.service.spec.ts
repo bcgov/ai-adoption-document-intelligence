@@ -399,4 +399,74 @@ describe("ReviewDbService", () => {
       });
     });
   });
+
+  describe("transaction support", () => {
+    it("should use provided tx client instead of this.prisma for createReviewSession", async () => {
+      const session = makeReviewSession();
+      const mockTxReviewSession = {
+        create: jest.fn().mockResolvedValue(session),
+      };
+      const mockTx = { reviewSession: mockTxReviewSession } as any;
+
+      const result = await service.createReviewSession(
+        "doc-1",
+        "reviewer-1",
+        mockTx,
+      );
+
+      expect(result).toEqual(session);
+      expect(mockTxReviewSession.create).toHaveBeenCalled();
+      expect(mockReviewSession.create).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for findReviewSession", async () => {
+      const session = makeReviewSession();
+      const mockTxReviewSession = {
+        findUnique: jest.fn().mockResolvedValue(session),
+      };
+      const mockTx = { reviewSession: mockTxReviewSession } as any;
+
+      const result = await service.findReviewSession("session-1", mockTx);
+
+      expect(result).toEqual(session);
+      expect(mockTxReviewSession.findUnique).toHaveBeenCalled();
+      expect(mockReviewSession.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for updateReviewSession", async () => {
+      const session = makeReviewSession({ status: ReviewStatus.approved });
+      const mockTxReviewSession = {
+        update: jest.fn().mockResolvedValue(session),
+      };
+      const mockTx = { reviewSession: mockTxReviewSession } as any;
+
+      const result = await service.updateReviewSession(
+        "session-1",
+        { status: ReviewStatus.approved, completed_at: new Date() },
+        mockTx,
+      );
+
+      expect(result).toEqual(session);
+      expect(mockTxReviewSession.update).toHaveBeenCalled();
+      expect(mockReviewSession.update).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for createFieldCorrection", async () => {
+      const correction = makeFieldCorrection();
+      const mockTxFieldCorrection = {
+        create: jest.fn().mockResolvedValue(correction),
+      };
+      const mockTx = { fieldCorrection: mockTxFieldCorrection } as any;
+
+      const result = await service.createFieldCorrection(
+        "session-1",
+        { field_key: "invoice_number", action: CorrectionAction.corrected },
+        mockTx,
+      );
+
+      expect(result).toEqual(correction);
+      expect(mockTxFieldCorrection.create).toHaveBeenCalled();
+      expect(mockFieldCorrection.create).not.toHaveBeenCalled();
+    });
+  });
 });

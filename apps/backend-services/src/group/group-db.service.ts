@@ -24,24 +24,36 @@ export class GroupDbService {
    * Finds a group by ID (including soft-deleted groups).
    * @param id - The group ID.
    */
-  async findGroup(id: string): Promise<Group | null> {
-    return this.prisma.group.findUnique({ where: { id } });
+  async findGroup(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Group | null> {
+    const client = tx ?? this.prisma;
+    return client.group.findUnique({ where: { id } });
   }
 
   /**
    * Finds a non-deleted group by ID.
    * @param id - The group ID.
    */
-  async findActiveGroup(id: string): Promise<Group | null> {
-    return this.prisma.group.findUnique({ where: { id, deleted_at: null } });
+  async findActiveGroup(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Group | null> {
+    const client = tx ?? this.prisma;
+    return client.group.findUnique({ where: { id, deleted_at: null } });
   }
 
   /**
    * Finds a group by name.
    * @param name - The group name.
    */
-  async findGroupByName(name: string): Promise<Group | null> {
-    return this.prisma.group.findUnique({ where: { name } });
+  async findGroupByName(
+    name: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Group | null> {
+    const client = tx ?? this.prisma;
+    return client.group.findUnique({ where: { name } });
   }
 
   /**
@@ -53,8 +65,10 @@ export class GroupDbService {
   async findActiveGroupByNameExcluding(
     name: string,
     excludeId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<Group | null> {
-    return this.prisma.group.findFirst({
+    const client = tx ?? this.prisma;
+    return client.group.findFirst({
       where: { name, id: { not: excludeId }, deleted_at: null },
     });
   }
@@ -62,10 +76,11 @@ export class GroupDbService {
   /**
    * Returns all non-deleted groups with their id, name, and description.
    */
-  async findAllGroups(): Promise<
-    Array<{ id: string; name: string; description: string | null }>
-  > {
-    return this.prisma.group.findMany({
+  async findAllGroups(
+    tx?: Prisma.TransactionClient,
+  ): Promise<Array<{ id: string; name: string; description: string | null }>> {
+    const client = tx ?? this.prisma;
+    return client.group.findMany({
       where: { deleted_at: null },
       select: { id: true, name: true, description: true },
     });
@@ -79,8 +94,10 @@ export class GroupDbService {
   async createGroup(
     name: string,
     description?: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<{ id: string; name: string; description: string | null }> {
-    return this.prisma.group.create({
+    const client = tx ?? this.prisma;
+    return client.group.create({
       data: { name, ...(description !== undefined ? { description } : {}) },
       select: { id: true, name: true, description: true },
     });
@@ -94,8 +111,10 @@ export class GroupDbService {
   async updateGroupData(
     id: string,
     data: { name: string; description: string | null; updated_by: string },
+    tx?: Prisma.TransactionClient,
   ): Promise<{ id: string; name: string; description: string | null }> {
-    return this.prisma.group.update({
+    const client = tx ?? this.prisma;
+    return client.group.update({
       where: { id },
       data,
       select: { id: true, name: true, description: true },
@@ -107,8 +126,13 @@ export class GroupDbService {
    * @param id - The group ID.
    * @param deletedBy - The ID of the user performing the deletion.
    */
-  async softDeleteGroup(id: string, deletedBy: string): Promise<void> {
-    await this.prisma.group.update({
+  async softDeleteGroup(
+    id: string,
+    deletedBy: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.group.update({
       where: { id },
       data: { deleted_at: new Date(), deleted_by: deletedBy },
     });
@@ -120,16 +144,24 @@ export class GroupDbService {
    * Returns all UserGroup records for a given user.
    * @param userId - The ID of the user whose group memberships to retrieve.
    */
-  async findUsersGroups(userId: string): Promise<UserGroup[]> {
-    return this.prisma.userGroup.findMany({ where: { user_id: userId } });
+  async findUsersGroups(
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<UserGroup[]> {
+    const client = tx ?? this.prisma;
+    return client.userGroup.findMany({ where: { user_id: userId } });
   }
 
   /**
    * Returns all ADMIN-role UserGroup records for a given user.
    * @param userId - The user ID.
    */
-  async findUserAdminMemberships(userId: string): Promise<UserGroup[]> {
-    return this.prisma.userGroup.findMany({
+  async findUserAdminMemberships(
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<UserGroup[]> {
+    const client = tx ?? this.prisma;
+    return client.userGroup.findMany({
       where: { user_id: userId, role: "ADMIN" as GroupRole },
     });
   }
@@ -140,8 +172,10 @@ export class GroupDbService {
    */
   async findUserGroupsWithGroup(
     userId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<Prisma.UserGroupGetPayload<{ include: { group: true } }>[]> {
-    return this.prisma.userGroup.findMany({
+    const client = tx ?? this.prisma;
+    return client.userGroup.findMany({
       where: { user_id: userId, group: { deleted_at: null } },
       include: { group: true },
     });
@@ -155,8 +189,10 @@ export class GroupDbService {
   async findUserGroupsInGroups(
     userId: string,
     groupIds: string[],
+    tx?: Prisma.TransactionClient,
   ): Promise<Prisma.UserGroupGetPayload<{ include: { group: true } }>[]> {
-    return this.prisma.userGroup.findMany({
+    const client = tx ?? this.prisma;
+    return client.userGroup.findMany({
       where: {
         user_id: userId,
         group_id: { in: groupIds },
@@ -171,8 +207,13 @@ export class GroupDbService {
    * @param userId - The user ID.
    * @param groupId - The group ID.
    */
-  async isUserInGroup(userId: string, groupId: string): Promise<boolean> {
-    const entry = await this.prisma.userGroup.findUnique({
+  async isUserInGroup(
+    userId: string,
+    groupId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    const client = tx ?? this.prisma;
+    const entry = await client.userGroup.findUnique({
       where: { user_id_group_id: { user_id: userId, group_id: groupId } },
     });
     return entry != null;
@@ -186,8 +227,10 @@ export class GroupDbService {
   async findUserGroupMembership(
     userId: string,
     groupId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<UserGroup | null> {
-    return this.prisma.userGroup.findUnique({
+    const client = tx ?? this.prisma;
+    return client.userGroup.findUnique({
       where: { user_id_group_id: { user_id: userId, group_id: groupId } },
     });
   }
@@ -197,8 +240,13 @@ export class GroupDbService {
    * @param userId - The user ID.
    * @param groupId - The group ID.
    */
-  async upsertUserGroup(userId: string, groupId: string): Promise<void> {
-    await this.prisma.userGroup.upsert({
+  async upsertUserGroup(
+    userId: string,
+    groupId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.userGroup.upsert({
       where: { user_id_group_id: { user_id: userId, group_id: groupId } },
       update: {},
       create: { user_id: userId, group_id: groupId },
@@ -210,8 +258,13 @@ export class GroupDbService {
    * @param userId - The user ID.
    * @param groupId - The group ID.
    */
-  async deleteUserGroup(userId: string, groupId: string): Promise<void> {
-    await this.prisma.userGroup.delete({
+  async deleteUserGroup(
+    userId: string,
+    groupId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.userGroup.delete({
       where: { user_id_group_id: { user_id: userId, group_id: groupId } },
     });
   }
@@ -222,8 +275,10 @@ export class GroupDbService {
    */
   async findGroupMembersWithUser(
     groupId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<Prisma.UserGroupGetPayload<{ include: { user: true } }>[]> {
-    return this.prisma.userGroup.findMany({
+    const client = tx ?? this.prisma;
+    return client.userGroup.findMany({
       where: { group_id: groupId },
       include: { user: true },
     });
@@ -234,8 +289,12 @@ export class GroupDbService {
    * @param userId - The ID of the user to check.
    * @returns `true` when the user has `is_system_admin` set to `true`, `false` otherwise.
    */
-  async isUserSystemAdmin(userId: string): Promise<boolean> {
-    const user = await this.prisma.user.findUnique({
+  async isUserSystemAdmin(
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    const client = tx ?? this.prisma;
+    const user = await client.user.findUnique({
       where: { id: userId },
       select: { is_system_admin: true },
     });
@@ -250,8 +309,10 @@ export class GroupDbService {
    */
   async findMembershipRequest(
     id: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<GroupMembershipRequest | null> {
-    return this.prisma.groupMembershipRequest.findUnique({ where: { id } });
+    const client = tx ?? this.prisma;
+    return client.groupMembershipRequest.findUnique({ where: { id } });
   }
 
   /**
@@ -262,8 +323,10 @@ export class GroupDbService {
   async findPendingMembershipRequest(
     userId: string,
     groupId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<GroupMembershipRequest | null> {
-    return this.prisma.groupMembershipRequest.findFirst({
+    const client = tx ?? this.prisma;
+    return client.groupMembershipRequest.findFirst({
       where: {
         user_id: userId,
         group_id: groupId,
@@ -280,8 +343,10 @@ export class GroupDbService {
   async createMembershipRequest(
     userId: string,
     groupId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<GroupMembershipRequest> {
-    return this.prisma.groupMembershipRequest.create({
+    const client = tx ?? this.prisma;
+    return client.groupMembershipRequest.create({
       data: {
         user_id: userId,
         group_id: groupId,
@@ -300,8 +365,10 @@ export class GroupDbService {
   async updateMembershipRequest(
     id: string,
     data: Prisma.GroupMembershipRequestUpdateInput,
+    tx?: Prisma.TransactionClient,
   ): Promise<void> {
-    await this.prisma.groupMembershipRequest.update({ where: { id }, data });
+    const client = tx ?? this.prisma;
+    await client.groupMembershipRequest.update({ where: { id }, data });
   }
 
   /**
@@ -317,7 +384,25 @@ export class GroupDbService {
     requestGroupId: string,
     requestId: string,
     resolutionData: Prisma.GroupMembershipRequestUpdateInput,
+    tx?: Prisma.TransactionClient,
   ): Promise<void> {
+    if (tx) {
+      await tx.userGroup.upsert({
+        where: {
+          user_id_group_id: {
+            user_id: requestUserId,
+            group_id: requestGroupId,
+          },
+        },
+        update: {},
+        create: { user_id: requestUserId, group_id: requestGroupId },
+      });
+      await tx.groupMembershipRequest.update({
+        where: { id: requestId },
+        data: resolutionData,
+      });
+      return;
+    }
     await this.prisma.$transaction([
       this.prisma.userGroup.upsert({
         where: {
@@ -345,10 +430,12 @@ export class GroupDbService {
   async findGroupMembershipRequests(
     groupId: string,
     status?: $Enums.GroupMembershipRequestStatus,
+    tx?: Prisma.TransactionClient,
   ): Promise<
     Prisma.GroupMembershipRequestGetPayload<{ include: { user: true } }>[]
   > {
-    return this.prisma.groupMembershipRequest.findMany({
+    const client = tx ?? this.prisma;
+    return client.groupMembershipRequest.findMany({
       where: { group_id: groupId, ...(status !== undefined ? { status } : {}) },
       include: { user: true },
     });
@@ -363,12 +450,14 @@ export class GroupDbService {
   async findUserMembershipRequests(
     userId: string,
     status?: $Enums.GroupMembershipRequestStatus,
+    tx?: Prisma.TransactionClient,
   ): Promise<
     Prisma.GroupMembershipRequestGetPayload<{
       include: { group: { select: { name: true } } };
     }>[]
   > {
-    return this.prisma.groupMembershipRequest.findMany({
+    const client = tx ?? this.prisma;
+    return client.groupMembershipRequest.findMany({
       where: { user_id: userId, ...(status !== undefined ? { status } : {}) },
       include: { group: { select: { name: true } } },
     });

@@ -122,7 +122,10 @@ describe("DocumentService", () => {
       const result = await service.findDocument("1");
       expect(result).toBeDefined();
       expect(result?.id).toBe("1");
-      expect(documentDbService.findDocument).toHaveBeenCalledWith("1");
+      expect(documentDbService.findDocument).toHaveBeenCalledWith(
+        "1",
+        undefined,
+      );
     });
 
     it("should return null if document not found", async () => {
@@ -155,9 +158,13 @@ describe("DocumentService", () => {
       const result = await service.updateDocument("1", { title: "Updated" });
       expect(result).not.toBeNull();
       expect(result?.title).toBe("Updated");
-      expect(documentDbService.updateDocument).toHaveBeenCalledWith("1", {
-        title: "Updated",
-      });
+      expect(documentDbService.updateDocument).toHaveBeenCalledWith(
+        "1",
+        {
+          title: "Updated",
+        },
+        undefined,
+      );
     });
 
     it("should return null if document not found", async () => {

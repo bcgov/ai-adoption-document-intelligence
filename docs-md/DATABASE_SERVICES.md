@@ -7,7 +7,7 @@ The database layer in `apps/backend-services/src/database/` is split into focuse
 | File | Service | Responsibility |
 |------|---------|----------------|
 | `database.types.ts` | — | Shared types: `DocumentData`, `LabelingProjectData`, `LabeledDocumentData`, `LabelingDocumentData`, `ReviewSessionData` |
-| `prisma.service.ts` | `PrismaService` | Owns the Prisma client (connection, config). Exposes `prisma: PrismaClient`. |
+| `prisma.service.ts` | `PrismaService` | Owns the Prisma client (connection, config). Exposes `prisma: PrismaClient` and `transaction<T>(fn)` helper for atomic operations. |
 | `labeling-document-db.service.ts` | `LabelingDocumentDbService` | Labeling document CRUD: `createLabelingDocument`, `findLabelingDocument`, `updateLabelingDocument` |
 | `labeling-project-db.service.ts` | `LabelingProjectDbService` | Labeling projects, field definitions, labeled documents, document labels |
 | `review-db.service.ts` | `ReviewDbService` | Review sessions, field corrections, review queue, review analytics |
@@ -29,6 +29,22 @@ New code that only needs document DB operations should inject `DocumentService` 
 - **GroupMembershipRequest**: `findMembershipRequest`, `findPendingMembershipRequest`, `createMembershipRequest`, `updateMembershipRequest`, `approveRequestTransaction`, `findGroupMembershipRequests`, `findUserMembershipRequests`
 
 `GroupModule` imports `DatabaseModule` so that `PrismaService` is available for injection into `GroupDbService`. `GroupService` no longer references `DatabaseService` or Prisma directly.
+
+## Transaction Support
+
+All db-service methods accept an optional `tx?: Prisma.TransactionClient` as their last parameter. When provided, the db-service uses the transaction client instead of `this.prisma`. This enables multi-step operations to participate in a single database transaction.
+
+`PrismaService` exposes a `transaction<T>(fn)` helper that services use to define transaction boundaries:
+
+```typescript
+// In a service method
+await this.prismaService.transaction(async (tx) => {
+  await this.myDb.updateRecord(id, data, tx);
+  await this.otherService.updateRelated(relatedId, tx);
+});
+```
+
+Service methods that may be called as part of a cross-module transaction accept and pass `tx?` straight through without querying it directly. Controllers never initiate or receive transactions.
 
 ## Usage
 

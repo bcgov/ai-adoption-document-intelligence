@@ -136,14 +136,16 @@ export class DocumentService {
    *
    * @param id - The document ID.
    * @param data - Fields to update.
+   * @param tx - Optional transaction client for atomic operations.
    * @returns The updated document record, or `null` if not found.
    */
   async updateDocument(
     id: string,
     data: Partial<Omit<DocumentData, "id" | "created_at">>,
+    tx?: Prisma.TransactionClient,
   ): Promise<DocumentData | null> {
     this.logger.debug(`DocumentService.updateDocument: ${id}`);
-    return this.documentDb.updateDocument(id, data);
+    return this.documentDb.updateDocument(id, data, tx);
   }
 
   /**
@@ -173,29 +175,41 @@ export class DocumentService {
    * Finds a document by its ID and returns the raw database record.
    *
    * @param id - The unique identifier of the document.
+   * @param tx - Optional transaction client for atomic operations.
    * @returns The document record, or `null` if not found.
    */
-  async findDocument(id: string): Promise<DocumentData | null> {
-    return this.documentDb.findDocument(id);
+  async findDocument(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<DocumentData | null> {
+    return this.documentDb.findDocument(id, tx);
   }
 
   /**
    * Returns all documents, optionally filtered by group IDs.
    *
    * @param groupIds - Optional list of group IDs to filter by.
+   * @param tx - Optional transaction client for atomic operations.
    * @returns Array of matching document records.
    */
-  async findAllDocuments(groupIds?: string[]): Promise<DocumentData[]> {
-    return this.documentDb.findAllDocuments(groupIds);
+  async findAllDocuments(
+    groupIds?: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<DocumentData[]> {
+    return this.documentDb.findAllDocuments(groupIds, tx);
   }
 
   /**
    * Returns the most recent OCR result for a document.
    *
    * @param documentId - The document ID.
+   * @param tx - Optional transaction client for atomic operations.
    * @returns The OCR result, or `null` if none exists.
    */
-  async findOcrResult(documentId: string): Promise<OcrResult | null> {
-    return this.documentDb.findOcrResult(documentId);
+  async findOcrResult(
+    documentId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<OcrResult | null> {
+    return this.documentDb.findOcrResult(documentId, tx);
   }
 }

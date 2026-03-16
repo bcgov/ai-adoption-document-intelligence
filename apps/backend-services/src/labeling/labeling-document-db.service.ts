@@ -1,4 +1,4 @@
-import { DocumentStatus, PrismaClient } from "@generated/client";
+import { DocumentStatus, Prisma, PrismaClient } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -19,9 +19,11 @@ export class LabelingDocumentDbService {
 
   async createLabelingDocument(
     data: Omit<LabelingDocumentData, "id" | "created_at" | "updated_at">,
+    tx?: Prisma.TransactionClient,
   ): Promise<LabelingDocumentData> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Creating labeling document");
-    const labelingDocument = await this.prisma.labelingDocument.create({
+    const labelingDocument = await client.labelingDocument.create({
       data: {
         title: data.title,
         original_filename: data.original_filename,
@@ -40,9 +42,13 @@ export class LabelingDocumentDbService {
     return labelingDocument as LabelingDocumentData;
   }
 
-  async findLabelingDocument(id: string): Promise<LabelingDocumentData | null> {
+  async findLabelingDocument(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<LabelingDocumentData | null> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Finding labeling document", { id });
-    const labelingDocument = await this.prisma.labelingDocument.findUnique({
+    const labelingDocument = await client.labelingDocument.findUnique({
       where: { id },
     });
     return labelingDocument as LabelingDocumentData | null;
@@ -51,11 +57,13 @@ export class LabelingDocumentDbService {
   async updateLabelingDocument(
     id: string,
     data: Partial<LabelingDocumentData>,
+    tx?: Prisma.TransactionClient,
   ): Promise<LabelingDocumentData | null> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Updating labeling document", { id });
     try {
       const { metadata, ocr_result, ...restData } = data;
-      const labelingDocument = await this.prisma.labelingDocument.update({
+      const labelingDocument = await client.labelingDocument.update({
         where: { id },
         data: {
           ...restData,

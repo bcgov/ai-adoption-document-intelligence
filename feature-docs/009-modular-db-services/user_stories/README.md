@@ -25,7 +25,7 @@ Move existing db-services out of the `database` module and create new ones for m
 
 Standardise transaction handling across all db-services and services.
 
-- [ ] [US-07: Implement Transaction Support in PrismaService and Db-Services](US-07-transaction-support.md)
+- [x] [US-07: Implement Transaction Support in PrismaService and Db-Services](US-07-transaction-support.md)
 
 ---
 

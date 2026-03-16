@@ -170,4 +170,50 @@ describe("GroupDbService", () => {
       );
     });
   });
+
+  describe("transaction support", () => {
+    it("should use provided tx client instead of this.prisma for findUsersGroups", async () => {
+      const userGroups = [{ user_id: "user-1", group_id: "g1" }];
+      const mockTxUserGroup = {
+        findMany: jest.fn().mockResolvedValueOnce(userGroups),
+      };
+      const mockTx = { userGroup: mockTxUserGroup } as any;
+
+      const result = await service.findUsersGroups("user-1", mockTx);
+
+      expect(result).toEqual(userGroups);
+      expect(mockTxUserGroup.findMany).toHaveBeenCalledWith({
+        where: { user_id: "user-1" },
+      });
+      expect(mockPrisma.userGroup.findMany).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for isUserInGroup", async () => {
+      const mockTxUserGroup = {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({ user_id: "user-1", group_id: "g1" }),
+      };
+      const mockTx = { userGroup: mockTxUserGroup } as any;
+
+      const result = await service.isUserInGroup("user-1", "g1", mockTx);
+
+      expect(result).toBe(true);
+      expect(mockTxUserGroup.findUnique).toHaveBeenCalled();
+      expect(mockPrisma.userGroup.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for isUserSystemAdmin", async () => {
+      const mockTxUser = {
+        findUnique: jest.fn().mockResolvedValueOnce({ is_system_admin: true }),
+      };
+      const mockTx = { user: mockTxUser } as any;
+
+      const result = await service.isUserSystemAdmin("user-1", mockTx);
+
+      expect(result).toBe(true);
+      expect(mockTxUser.findUnique).toHaveBeenCalled();
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -295,4 +295,66 @@ describe("ClassifierDbService", () => {
       );
     });
   });
+
+  describe("transaction support", () => {
+    it("should use provided tx client instead of this.prisma for createClassifierModel", async () => {
+      const expected = { id: "1", name: "clf1" };
+      const mockTxClassifierModel = {
+        create: jest.fn().mockResolvedValueOnce(expected),
+      };
+      const mockTx = { classifierModel: mockTxClassifierModel } as any;
+      const properties: ClassifierEditableProperties = {
+        group_id: "g1",
+        config: { labels: [] },
+        description: "test",
+        status: ClassifierStatus.PRETRAINING,
+        source: ClassifierSource.AZURE,
+      };
+
+      const result = await service.createClassifierModel(
+        "clf1",
+        properties,
+        "user1",
+        mockTx,
+      );
+
+      expect(result).toEqual(expected);
+      expect(mockTxClassifierModel.create).toHaveBeenCalled();
+      expect(mockPrisma.classifierModel.create).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for findClassifierModel", async () => {
+      const expected = { id: "1", name: "clf1", group_id: "g1" };
+      const mockTxClassifierModel = {
+        findUnique: jest.fn().mockResolvedValueOnce(expected),
+      };
+      const mockTx = { classifierModel: mockTxClassifierModel } as any;
+
+      const result = await service.findClassifierModel("clf1", "g1", mockTx);
+
+      expect(result).toEqual(expected);
+      expect(mockTxClassifierModel.findUnique).toHaveBeenCalled();
+      expect(mockPrisma.classifierModel.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for updateClassifierModel", async () => {
+      const expected = { id: "1", name: "clf1", group_id: "g1" };
+      const mockTxClassifierModel = {
+        update: jest.fn().mockResolvedValueOnce(expected),
+      };
+      const mockTx = { classifierModel: mockTxClassifierModel } as any;
+
+      const result = await service.updateClassifierModel(
+        "clf1",
+        "g1",
+        { description: "updated" },
+        undefined,
+        mockTx,
+      );
+
+      expect(result).toEqual(expected);
+      expect(mockTxClassifierModel.update).toHaveBeenCalled();
+      expect(mockPrisma.classifierModel.update).not.toHaveBeenCalled();
+    });
+  });
 });

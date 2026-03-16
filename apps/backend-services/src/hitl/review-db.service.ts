@@ -30,9 +30,11 @@ export class ReviewDbService {
   async createReviewSession(
     documentId: string,
     reviewerId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<ReviewSessionData> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Creating review session for document", { documentId });
-    const session = await this.prisma.reviewSession.create({
+    const session = await client.reviewSession.create({
       data: {
         document_id: documentId,
         reviewer_id: reviewerId,
@@ -55,9 +57,13 @@ export class ReviewDbService {
    * @param id - The review session ID.
    * @returns The review session, or null if not found.
    */
-  async findReviewSession(id: string): Promise<ReviewSessionData | null> {
+  async findReviewSession(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<ReviewSessionData | null> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Finding review session", { id });
-    const session = await this.prisma.reviewSession.findUnique({
+    const session = await client.reviewSession.findUnique({
       where: { id },
       include: {
         document: {
@@ -76,16 +82,20 @@ export class ReviewDbService {
    * @param filters - Filtering options for the queue.
    * @returns Array of documents matching the filter criteria.
    */
-  async findReviewQueue(filters: {
-    status?: DocumentStatus;
-    modelId?: string;
-    minConfidence?: number;
-    maxConfidence?: number;
-    limit?: number;
-    offset?: number;
-    reviewStatus?: "pending" | "reviewed" | "all";
-    groupIds?: string[];
-  }): Promise<Document[]> {
+  async findReviewQueue(
+    filters: {
+      status?: DocumentStatus;
+      modelId?: string;
+      minConfidence?: number;
+      maxConfidence?: number;
+      limit?: number;
+      offset?: number;
+      reviewStatus?: "pending" | "reviewed" | "all";
+      groupIds?: string[];
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<Document[]> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Finding review queue");
 
     const where: Prisma.DocumentWhereInput = {
@@ -125,7 +135,7 @@ export class ReviewDbService {
       };
     }
 
-    return this.prisma.document.findMany({
+    return client.document.findMany({
       where,
       orderBy: { created_at: "desc" },
       take: filters.limit ?? 50,
@@ -161,10 +171,12 @@ export class ReviewDbService {
   async updateReviewSession(
     id: string,
     data: { status?: ReviewStatus; completed_at?: Date },
+    tx?: Prisma.TransactionClient,
   ): Promise<ReviewSessionData | null> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Updating review session", { id });
     try {
-      const session = await this.prisma.reviewSession.update({
+      const session = await client.reviewSession.update({
         where: { id },
         data,
         include: {
@@ -201,9 +213,11 @@ export class ReviewDbService {
       original_conf?: number;
       action: import("@generated/client").CorrectionAction;
     },
+    tx?: Prisma.TransactionClient,
   ): Promise<import("@generated/client").FieldCorrection> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Creating field correction for session", { sessionId });
-    return this.prisma.fieldCorrection.create({
+    return client.fieldCorrection.create({
       data: {
         session_id: sessionId,
         ...data,
@@ -218,9 +232,11 @@ export class ReviewDbService {
    */
   async findSessionCorrections(
     sessionId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<import("@generated/client").FieldCorrection[]> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Finding corrections for session", { sessionId });
-    return this.prisma.fieldCorrection.findMany({
+    return client.fieldCorrection.findMany({
       where: { session_id: sessionId },
       orderBy: { created_at: "asc" },
     });
@@ -231,18 +247,22 @@ export class ReviewDbService {
    * @param filters - Date range, reviewer, and group filters.
    * @returns Analytics summary including session counts, corrections, and average confidence.
    */
-  async getReviewAnalytics(filters: {
-    startDate?: Date;
-    endDate?: Date;
-    reviewerId?: string;
-    groupIds?: string[];
-  }): Promise<{
+  async getReviewAnalytics(
+    filters: {
+      startDate?: Date;
+      endDate?: Date;
+      reviewerId?: string;
+      groupIds?: string[];
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<{
     totalSessions: number;
     completedSessions: number;
     totalCorrections: number;
     correctionsByAction: Record<string, number>;
     averageConfidence: number;
   }> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Getting review analytics");
 
     const where: Prisma.ReviewSessionWhereInput = {};
@@ -259,8 +279,8 @@ export class ReviewDbService {
     }
 
     const [sessions, corrections] = await Promise.all([
-      this.prisma.reviewSession.findMany({ where }),
-      this.prisma.fieldCorrection.findMany({
+      client.reviewSession.findMany({ where }),
+      client.fieldCorrection.findMany({
         where: {
           session: where,
         },

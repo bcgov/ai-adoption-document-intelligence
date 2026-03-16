@@ -3,6 +3,7 @@ import {
   Document,
   DocumentStatus,
   OcrResult,
+  Prisma,
   ReviewSession,
   ReviewStatus,
 } from "@generated/client";
@@ -219,28 +220,36 @@ export class HitlService {
   /**
    * Returns a raw review session for authorization checks (e.g. group membership).
    * @param id - The review session ID.
+   * @param tx - Optional transaction client for atomic operations.
    * @returns The review session data, or null if not found.
    */
-  async findReviewSession(id: string): Promise<ReviewSessionData | null> {
-    return this.reviewDb.findReviewSession(id);
+  async findReviewSession(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<ReviewSessionData | null> {
+    return this.reviewDb.findReviewSession(id, tx);
   }
 
   /**
    * Returns raw documents from the review queue for data access needs.
    * @param filters - Filtering options for the queue.
+   * @param tx - Optional transaction client for atomic operations.
    * @returns Array of documents matching the filters.
    */
-  async findReviewQueue(filters: {
-    status?: DocumentStatus;
-    modelId?: string;
-    minConfidence?: number;
-    maxConfidence?: number;
-    limit?: number;
-    offset?: number;
-    reviewStatus?: "pending" | "reviewed" | "all";
-    groupIds?: string[];
-  }): Promise<Document[]> {
-    return this.reviewDb.findReviewQueue(filters);
+  async findReviewQueue(
+    filters: {
+      status?: DocumentStatus;
+      modelId?: string;
+      minConfidence?: number;
+      maxConfidence?: number;
+      limit?: number;
+      offset?: number;
+      reviewStatus?: "pending" | "reviewed" | "all";
+      groupIds?: string[];
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<Document[]> {
+    return this.reviewDb.findReviewQueue(filters, tx);
   }
 
   async getSession(id: string) {

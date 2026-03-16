@@ -1,4 +1,4 @@
-import type { ClassifierModel, PrismaClient } from "@generated/client";
+import type { ClassifierModel, Prisma, PrismaClient } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import {
   ClassifierSource,
@@ -57,8 +57,10 @@ export class ClassifierDbService {
     classifierName: string,
     properties: ClassifierEditableProperties,
     userId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<ClassifierModel> {
-    return this.prisma.classifierModel.create({
+    const client = tx ?? this.prisma;
+    return client.classifierModel.create({
       data: {
         ...properties,
         created_by: userId,
@@ -81,8 +83,10 @@ export class ClassifierDbService {
     groupId: string,
     properties: Partial<ClassifierEditableProperties>,
     userId?: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<ClassifierModel> {
-    return this.prisma.classifierModel.update({
+    const client = tx ?? this.prisma;
+    return client.classifierModel.update({
       where: {
         name_group_id: {
           name: classifierName,
@@ -108,8 +112,10 @@ export class ClassifierDbService {
   async findClassifierModel(
     classifierName: string,
     groupId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<ClassifierModel | null> {
-    return this.prisma.classifierModel.findUnique({
+    const client = tx ?? this.prisma;
+    return client.classifierModel.findUnique({
       where: {
         name_group_id: {
           name: classifierName,
@@ -126,8 +132,10 @@ export class ClassifierDbService {
    */
   async findAllClassifierModelsForGroups(
     groupIds: string[],
+    tx?: Prisma.TransactionClient,
   ): Promise<ClassifierModelWithGroup[]> {
-    return this.prisma.classifierModel.findMany({
+    const client = tx ?? this.prisma;
+    return client.classifierModel.findMany({
       where: {
         group_id: { in: groupIds },
       },
@@ -142,8 +150,11 @@ export class ClassifierDbService {
    * Used by the poller to check training progress.
    * @returns An array of ClassifierModel records in TRAINING status.
    */
-  async findAllTrainingClassifiers(): Promise<ClassifierModel[]> {
-    return this.prisma.classifierModel.findMany({
+  async findAllTrainingClassifiers(
+    tx?: Prisma.TransactionClient,
+  ): Promise<ClassifierModel[]> {
+    const client = tx ?? this.prisma;
+    return client.classifierModel.findMany({
       where: {
         status: ClassifierStatus.TRAINING,
         operation_location: { not: null },

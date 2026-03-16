@@ -158,4 +158,71 @@ describe("LabelingDocumentDbService", () => {
       ).rejects.toThrow("Database error");
     });
   });
+
+  describe("transaction support", () => {
+    it("should use provided tx client instead of this.prisma for createLabelingDocument", async () => {
+      const expected = { ...defaultLabelingDocument };
+      const mockTxLabelingDocument = {
+        create: jest.fn().mockResolvedValueOnce(expected),
+      };
+      const mockTx = { labelingDocument: mockTxLabelingDocument } as any;
+
+      const result = await service.createLabelingDocument(
+        {
+          title: defaultLabelingDocument.title,
+          original_filename: defaultLabelingDocument.original_filename,
+          file_path: defaultLabelingDocument.file_path,
+          file_type: defaultLabelingDocument.file_type,
+          file_size: defaultLabelingDocument.file_size,
+          metadata: defaultLabelingDocument.metadata,
+          source: defaultLabelingDocument.source,
+          status: defaultLabelingDocument.status,
+          apim_request_id: defaultLabelingDocument.apim_request_id,
+          model_id: defaultLabelingDocument.model_id,
+          ocr_result: defaultLabelingDocument.ocr_result,
+          group_id: defaultLabelingDocument.group_id,
+        },
+        mockTx,
+      );
+
+      expect(result).toEqual(expected);
+      expect(mockTxLabelingDocument.create).toHaveBeenCalled();
+      expect(mockPrisma.labelingDocument.create).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for findLabelingDocument", async () => {
+      const expected = { ...defaultLabelingDocument };
+      const mockTxLabelingDocument = {
+        findUnique: jest.fn().mockResolvedValueOnce(expected),
+      };
+      const mockTx = { labelingDocument: mockTxLabelingDocument } as any;
+
+      const result = await service.findLabelingDocument(
+        "labeling-doc-1",
+        mockTx,
+      );
+
+      expect(result).toEqual(expected);
+      expect(mockTxLabelingDocument.findUnique).toHaveBeenCalled();
+      expect(mockPrisma.labelingDocument.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for updateLabelingDocument", async () => {
+      const expected = { ...defaultLabelingDocument, title: "Updated" };
+      const mockTxLabelingDocument = {
+        update: jest.fn().mockResolvedValueOnce(expected),
+      };
+      const mockTx = { labelingDocument: mockTxLabelingDocument } as any;
+
+      const result = await service.updateLabelingDocument(
+        "labeling-doc-1",
+        { title: "Updated" },
+        mockTx,
+      );
+
+      expect(result).toEqual(expected);
+      expect(mockTxLabelingDocument.update).toHaveBeenCalled();
+      expect(mockPrisma.labelingDocument.update).not.toHaveBeenCalled();
+    });
+  });
 });

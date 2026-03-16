@@ -34,10 +34,12 @@ export class DocumentDbService {
    */
   async createDocument(
     data: Omit<DocumentData, "created_at" | "updated_at">,
+    tx?: Prisma.TransactionClient,
   ): Promise<DocumentData> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Creating document", { title: data.title });
     try {
-      const document = await this.prisma.document.create({
+      const document = await client.document.create({
         data: {
           ...(data.id ? { id: data.id } : {}),
           title: data.title,
@@ -71,10 +73,14 @@ export class DocumentDbService {
    * @param id - The unique identifier of the document.
    * @returns The document record, or `null` if not found.
    */
-  async findDocument(id: string): Promise<DocumentData | null> {
+  async findDocument(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<DocumentData | null> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Finding document", { id });
     try {
-      const document = await this.prisma.document.findUnique({
+      const document = await client.document.findUnique({
         where: { id },
       });
       if (document) {
@@ -97,10 +103,14 @@ export class DocumentDbService {
    * @param groupIds - Optional list of group IDs to filter by.
    * @returns Array of matching document records ordered by creation date descending.
    */
-  async findAllDocuments(groupIds?: string[]): Promise<DocumentData[]> {
+  async findAllDocuments(
+    groupIds?: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<DocumentData[]> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Finding all documents");
     try {
-      const documents = await this.prisma.document.findMany({
+      const documents = await client.document.findMany({
         where: groupIds ? { group_id: { in: groupIds } } : undefined,
         orderBy: { created_at: "desc" },
       });
@@ -124,10 +134,12 @@ export class DocumentDbService {
   async updateDocument(
     id: string,
     data: Partial<Omit<DocumentData, "id" | "created_at">>,
+    tx?: Prisma.TransactionClient,
   ): Promise<DocumentData | null> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Updating document", { id });
     try {
-      const document = await this.prisma.document.update({
+      const document = await client.document.update({
         where: { id },
         data: {
           ...data,
@@ -159,10 +171,14 @@ export class DocumentDbService {
    * @param id - The unique identifier of the document to delete.
    * @returns `true` if the document was deleted, `false` if not found.
    */
-  async deleteDocument(id: string): Promise<boolean> {
+  async deleteDocument(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Deleting document", { id });
     try {
-      await this.prisma.document.delete({
+      await client.document.delete({
         where: { id },
       });
       this.logger.debug("Document deleted", { id });
@@ -190,10 +206,14 @@ export class DocumentDbService {
    * @param documentId - The ID of the document whose OCR result to fetch.
    * @returns The OCR result record, or `null` if none exists.
    */
-  async findOcrResult(documentId: string): Promise<OcrResult | null> {
+  async findOcrResult(
+    documentId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<OcrResult | null> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Finding OCR result for document", { documentId });
     try {
-      const ocrResult = await this.prisma.ocrResult.findFirst({
+      const ocrResult = await client.ocrResult.findFirst({
         where: { document_id: documentId },
         orderBy: { processed_at: "desc" },
       });
@@ -241,11 +261,15 @@ export class DocumentDbService {
    *
    * @param data - Object containing the document ID, analysis response, and optional metadata.
    */
-  async upsertOcrResult(data: {
-    documentId: string;
-    analysisResponse: AnalysisResponse;
-    metadata?: Record<string, unknown>;
-  }): Promise<void> {
+  async upsertOcrResult(
+    data: {
+      documentId: string;
+      analysisResponse: AnalysisResponse;
+      metadata?: Record<string, unknown>;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Creating/updating OCR result for document", {
       documentId: data.documentId,
     });
@@ -274,7 +298,7 @@ export class DocumentDbService {
         keyValuePairs: asJson(extractedFields),
       };
 
-      await this.prisma.ocrResult.upsert({
+      await client.ocrResult.upsert({
         where: { document_id: data.documentId },
         update: updateObject,
         create: {

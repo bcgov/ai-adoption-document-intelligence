@@ -331,4 +331,75 @@ describe("DocumentDbService", () => {
       ).rejects.toThrow("DB error");
     });
   });
+
+  describe("transaction support", () => {
+    it("should use provided tx client instead of this.prisma for findDocument", async () => {
+      const doc = makeDocument();
+      const mockTxDocument = { findUnique: jest.fn().mockResolvedValue(doc) };
+      const mockTx = { document: mockTxDocument } as any;
+
+      const result = await service.findDocument("doc-1", mockTx);
+
+      expect(result).toEqual(doc);
+      expect(mockTxDocument.findUnique).toHaveBeenCalledWith({
+        where: { id: "doc-1" },
+      });
+      expect(mockPrismaDocument.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for updateDocument", async () => {
+      const updatedDoc = makeDocument({ title: "Tx Updated" });
+      const mockTxDocument = {
+        update: jest.fn().mockResolvedValue(updatedDoc),
+      };
+      const mockTx = { document: mockTxDocument } as any;
+
+      const result = await service.updateDocument(
+        "doc-1",
+        { title: "Tx Updated" },
+        mockTx,
+      );
+
+      expect(result).toEqual(updatedDoc);
+      expect(mockTxDocument.update).toHaveBeenCalled();
+      expect(mockPrismaDocument.update).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for createDocument", async () => {
+      const doc = makeDocument();
+      const mockTxDocument = { create: jest.fn().mockResolvedValue(doc) };
+      const mockTx = { document: mockTxDocument } as any;
+
+      const result = await service.createDocument(doc, mockTx);
+
+      expect(result).toEqual(doc);
+      expect(mockTxDocument.create).toHaveBeenCalled();
+      expect(mockPrismaDocument.create).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for deleteDocument", async () => {
+      const mockTxDocument = { delete: jest.fn().mockResolvedValue({}) };
+      const mockTx = { document: mockTxDocument } as any;
+
+      const result = await service.deleteDocument("doc-1", mockTx);
+
+      expect(result).toBe(true);
+      expect(mockTxDocument.delete).toHaveBeenCalledWith({
+        where: { id: "doc-1" },
+      });
+      expect(mockPrismaDocument.delete).not.toHaveBeenCalled();
+    });
+
+    it("should use provided tx client instead of this.prisma for findOcrResult", async () => {
+      const ocrResult = { id: "ocr-1", document_id: "doc-1" };
+      const mockTxOcr = { findFirst: jest.fn().mockResolvedValue(ocrResult) };
+      const mockTx = { ocrResult: mockTxOcr } as any;
+
+      const result = await service.findOcrResult("doc-1", mockTx);
+
+      expect(result).toEqual(ocrResult);
+      expect(mockTxOcr.findFirst).toHaveBeenCalled();
+      expect(mockPrismaOcrResult.findFirst).not.toHaveBeenCalled();
+    });
+  });
 });
