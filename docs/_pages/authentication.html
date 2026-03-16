@@ -223,14 +223,31 @@ X-CSRF-Token: abc123...</code></pre>
     <li><strong>Key Provider:</strong> <code>passport-jwt</code> with <code>secretOrKeyProvider</code> using <code>jwks-rsa</code> — automatically fetches and caches Keycloak's RS256 public keys from the JWKS endpoint</li>
     <li><strong>Token Extraction:</strong> Cookie-first (<code>req.cookies.access_token</code>), with <code>Authorization: Bearer {token}</code> header as fallback for API clients</li>
     <li><strong>Validation:</strong> RS256 signature, issuer, audience, expiration</li>
-    <li><strong>Role Normalization:</strong> Collects roles from three Keycloak JWT locations:
-        <ul>
-            <li><code>payload.roles[]</code> — top-level claim</li>
-            <li><code>payload.realm_access.roles[]</code> — realm-level roles</li>
-            <li><code>payload.resource_access.&lt;client_id&gt;.roles[]</code> — client-specific roles</li>
-        </ul>
-    </li>
 </ul>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Keycloak JWT roles are not used for authorization.</strong> The JWT strategy still normalizes Keycloak roles from the token into <code>request.user.roles</code>, but no guard, controller, or service reads this field. All authorization is handled by the <code>IdentityGuard</code> using database-backed roles: <code>is_system_admin</code> (boolean on the <code>User</code> table) and <code>GroupRole</code> (<code>ADMIN</code> | <code>MEMBER</code>, stored in the <code>UserGroup</code> table). See <a href="#authorization">Authorization</a> below.
+    </div>
+</div>
+
+<h3>Authorization Model</h3>
+
+<p>Authorization uses a <strong>two-tier database-backed role system</strong>, not Keycloak JWT roles:</p>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: var(--bc-blue);">
+        <h4 style="margin-top: 0;">System Admin (<code>is_system_admin</code>)</h4>
+        <p>A boolean flag on the <code>User</code> database table. System admins bypass all group membership checks and can access all resources. Checked via <code>@Identity({ requireSystemAdmin: true })</code> or through the pre-populated <code>resolvedIdentity.isSystemAdmin</code> flag.</p>
+    </div>
+    <div class="card" style="border-left-color: var(--bc-gold);">
+        <h4 style="margin-top: 0;">Group Role (<code>GroupRole</code>)</h4>
+        <p>A per-group role stored in the <code>UserGroup</code> join table. Two levels: <code>MEMBER</code> (default) and <code>ADMIN</code>. Checked via <code>@Identity({ groupIdFrom: ..., minimumRole: GroupRole.ADMIN })</code> or through <code>resolvedIdentity.groupRoles</code>. API keys are always assigned <code>MEMBER</code> role within their scoped group.</p>
+    </div>
+</div>
 
 <!-- ====================================================================== -->
 <h2>Decorator Composition Rules</h2>
@@ -349,7 +366,7 @@ X-API-Key: your-api-key-here</code></pre>
             <li>Keys are validated by the <code>ApiKeyAuthGuard</code> via <code>ApiKeyService</code></li>
             <li>On validation, <code>request.apiKeyGroupId</code> is set to the key's owning group ID, and <code>request.user</code> is populated with <strong>roles inherited from the creating user's JWT at key creation time</strong></li>
             <li>The <code>IdentityGuard</code> then sets <code>request.resolvedIdentity = { isSystemAdmin: false, groupRoles: { [groupId]: MEMBER } }</code> for downstream authorization — no database queries required</li>
-            <li>Regenerating a key captures the requesting user's current Keycloak roles</li>
+            <li>Regenerating a key creates a fresh key for the same group</li>
         </ul>
     </div>
     <div class="card" style="border-left-color: #8b5cf6;">
@@ -462,7 +479,7 @@ uploadDocument() { ... }</code></pre>
         <tr><td><code>auth.service.ts</code></td><td>OAuth orchestrator — OIDC discovery, PKCE, code exchange, token refresh via <code>openid-client</code></td></tr>
         <tr><td><code>cookie-auth.utils.ts</code></td><td>Centralized cookie configuration — <code>setAuthCookies()</code>, <code>clearAuthCookies()</code>, CSRF token generation</td></tr>
         <tr><td><code>csrf.guard.ts</code></td><td>Global CSRF guard — double-submit cookie validation for state-changing requests</td></tr>
-        <tr><td><code>keycloak-jwt.strategy.ts</code></td><td>Passport JWT strategy — cookie-first extraction, JWKS validation, role normalization</td></tr>
+        <tr><td><code>keycloak-jwt.strategy.ts</code></td><td>Passport JWT strategy — cookie-first extraction, JWKS validation</td></tr>
         <tr><td><code>jwt-auth.guard.ts</code></td><td>Global JWT guard — extends <code>AuthGuard('jwt')</code>, handles <code>@Public()</code> bypass, defers to API key guard when <code>x-api-key</code> header present</td></tr>
         <tr><td><code>api-key-auth.guard.ts</code></td><td>API key validation guard</td></tr>
         <tr><td><code>identity.decorator.ts</code></td><td><code>@Identity()</code> — declares authentication and authorization requirements (<code>requireSystemAdmin</code>, <code>groupIdFrom</code>, <code>minimumRole</code>, <code>allowApiKey</code>); also adds Swagger metadata</td></tr>

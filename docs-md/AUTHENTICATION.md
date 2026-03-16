@@ -124,7 +124,7 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 │  │  │  - Falls back to Authorization: Bearer header               │   │    │
 │  │  │  - Validates token via JWKS (RS256)                         │   │    │
 │  │  │  - Verifies issuer & audience                               │   │    │
-│  │  │  - Normalizes Keycloak roles into request.user              │   │    │
+│  │  │  - Sets request.user (sub, email, display_name, etc.)       │   │    │
 │  │  └────────────────────────────────────────────────────────────┘   │    │
 │  │                              │                                      │    │
 │  │                              ▼                                      │    │
@@ -538,8 +538,7 @@ Global guard that validates JWTs on all routes except those marked `@Public()`. 
 3. Extract JWT from `access_token` cookie first; if absent, fall back to `Authorization: Bearer {token}` header
 4. Validate token via Passport JWT strategy (JWKS RS256 signature verification)
 5. Validate `issuer` and `audience` claims
-6. Normalize Keycloak role claims into `request.user.roles[]`
-7. Attach `user` object to request for downstream use
+6. Attach `user` object to request for downstream use (the `IdentityGuard` handles authorization separately using database-backed roles)
 
 **Passport JWT Strategy (cookie-first extraction):**
 
@@ -586,30 +585,16 @@ export class KeycloakJwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 }
 ```
 
-**Role Normalization:**
+**Role Normalization (vestigial):**
 
-Keycloak can embed roles in multiple JWT claims:
-- `roles[]` (top-level)
-- `realm_access.roles[]` (realm-level roles)
-- `resource_access.<client-id>.roles[]` (client-specific roles)
+The JWT strategy still normalizes Keycloak roles from three JWT locations (`roles[]`, `realm_access.roles[]`, `resource_access.<client-id>.roles[]`) into a flat `user.roles[]` array. However, **no guard, controller, or service reads `request.user.roles`**. The old `RolesGuard` and `@Roles()` decorator that consumed this field have been removed.
 
-The strategy normalizes all of these into a single `user.roles[]` array:
+All authorization is now handled by the `IdentityGuard` using **database-backed roles**:
 
-```typescript
-private extractRoles(payload: JwtPayload): string[] {
-  const roleSet = new Set<string>();
-  
-  // Collect from all potential sources
-  pushRoles(payload.roles);
-  pushRoles(payload.realm_access?.roles);
-  
-  const resourceRoles = payload.resource_access ?? {};
-  Object.values(resourceRoles).forEach((access) => pushRoles(access.roles));
-  pushRoles(resourceRoles[this.clientId]?.roles);
-  
-  return Array.from(roleSet);
-}
-```
+- **`is_system_admin`** — boolean on the `User` table, checked via `@Identity({ requireSystemAdmin: true })` or `resolvedIdentity.isSystemAdmin`
+- **`GroupRole`** (`ADMIN` | `MEMBER`) — stored per-group in the `UserGroup` table, checked via `@Identity({ minimumRole: GroupRole.ADMIN })` or `resolvedIdentity.groupRoles`
+
+The `extractRoles` method and the `roles` field on the `User` type are candidates for removal in a future cleanup.
 
 #### 5. **Module Wiring** (`auth.module.ts`)
 
@@ -1600,7 +1585,7 @@ model ApiKey {
 | `key_prefix` | First 8 chars of the key in plaintext — used for indexed lookup |
 | `user_id`    | The user who generated the key                                 |
 | `group_id`   | Unique constraint ensures one API key per group — the key is scoped to this group |
-| `roles`      | Snapshot of the user's Keycloak roles at key generation time   |
+| `roles`      | Snapshot of the user's Keycloak JWT roles at key generation time (vestigial — not used for authorization; authorization is handled via `IdentityGuard` using `GroupRole.MEMBER` for all API keys) |
 | `last_used`  | Updated on each successful validation                          |
 
 ### Key Lifecycle
@@ -1608,8 +1593,7 @@ model ApiKey {
 - **One key per group** — each group can have one active API key. Generating a new key when one exists requires deletion or regeneration
 - **Regeneration** deletes the old key and creates a new one, capturing the requesting user's current roles
 - **Full key shown once** — after generation, only the `key_prefix` is visible for identification
-- **Roles are static** — to update roles on an API key after a user's Keycloak roles change, regenerate the key
-- **Group-scoped** — API key requests can only access resources belonging to the key's group
+- **Group-scoped** — API key requests can only access resources belonging to the key's group. The `IdentityGuard` assigns `GroupRole.MEMBER` to all API keys within their scoped group
 
 ---
 
@@ -1980,9 +1964,9 @@ const checkAuthStatus = async () => {
    - csrf_token cookie missing or expired
    - Solution: Check that `getCsrfToken()` reads the cookie correctly, verify `withCredentials: true` is set
 
-6. **"Insufficient permissions"**
-   - User lacks required roles
-   - Solution: Check `request.user.roles` in backend, assign roles in Keycloak
+6. **"Insufficient permissions" / "System admin access required" / "Insufficient role within the group"**
+   - User lacks required authorization level
+   - Solution: Check the `@Identity()` decorator options on the endpoint — verify the user's `is_system_admin` flag or `GroupRole` in the `UserGroup` table
 
 7. **Infinite redirect loop**
    - Redirect URI mismatch (Keycloak config vs `SSO_REDIRECT_URI`)
