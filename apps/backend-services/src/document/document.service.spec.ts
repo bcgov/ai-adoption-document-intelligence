@@ -126,7 +126,11 @@ describe("DocumentService", () => {
         mockDoc,
       );
 
-      const { created_at, updated_at, ...inputData } = mockDoc;
+      const {
+        created_at: _created_at,
+        updated_at: _updated_at,
+        ...inputData
+      } = mockDoc;
 
       const result = await service.createDocument(inputData);
 
@@ -161,7 +165,11 @@ describe("DocumentService", () => {
         mockDoc,
       );
 
-      const { created_at, updated_at, ...inputData } = mockDoc;
+      const {
+        created_at: _created_at,
+        updated_at: _updated_at,
+        ...inputData
+      } = mockDoc;
       const fakeTx = {} as never;
 
       await service.createDocument(inputData, fakeTx);
