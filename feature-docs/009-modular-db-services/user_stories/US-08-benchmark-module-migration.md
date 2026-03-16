@@ -5,22 +5,22 @@
 **So that** the benchmark module no longer has a direct dependency on the monolithic `DatabaseService`.
 
 ## Acceptance Criteria
-- [ ] **Scenario 1**: Benchmark module no longer injects DatabaseService
+- [x] **Scenario 1**: Benchmark module no longer injects DatabaseService
     - **Given** all classes in the `benchmark` module
     - **When** reviewing their constructors
     - **Then** none of them inject `DatabaseService`
 
-- [ ] **Scenario 2**: Benchmark module uses the correct module services
+- [x] **Scenario 2**: Benchmark module uses the correct module services
     - **Given** the benchmark module's database operations
     - **When** reviewing which services are called
     - **Then** each operation is delegated to the appropriate module's primary service (e.g., `DocumentService`, `GroupService`)
 
-- [ ] **Scenario 3**: Benchmark module does not inject any db-services from other modules
+- [x] **Scenario 3**: Benchmark module does not inject any db-services from other modules
     - **Given** all classes in the `benchmark` module
     - **When** reviewing their constructors
     - **Then** none of them inject a db-service from another module (e.g., `DocumentDbService`, `GroupDbService`)
 
-- [ ] **Scenario 4**: All existing benchmark tests still pass
+- [x] **Scenario 4**: All existing benchmark tests still pass
     - **Given** the updated benchmark module
     - **When** running `npx jest benchmark`
     - **Then** all tests pass without modification to test behaviour

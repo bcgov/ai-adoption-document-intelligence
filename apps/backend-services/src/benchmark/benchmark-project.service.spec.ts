@@ -7,17 +7,16 @@
 
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { PrismaService } from "@/database/prisma.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
+import { BenchmarkProjectDbService } from "./benchmark-project-db.service";
 import { CreateProjectDto } from "./dto";
 
-const mockPrismaClient = {
-  benchmarkProject: {
-    create: jest.fn(),
-    findMany: jest.fn(),
-    findUnique: jest.fn(),
-    delete: jest.fn(),
-  },
+const mockBenchmarkProjectDbService = {
+  createBenchmarkProject: jest.fn(),
+  findBenchmarkProject: jest.fn(),
+  findBenchmarkProjectForDeletion: jest.fn(),
+  findAllBenchmarkProjects: jest.fn(),
+  deleteBenchmarkProject: jest.fn(),
 };
 
 describe("BenchmarkProjectService", () => {
@@ -28,8 +27,8 @@ describe("BenchmarkProjectService", () => {
       providers: [
         BenchmarkProjectService,
         {
-          provide: PrismaService,
-          useValue: { prisma: mockPrismaClient },
+          provide: BenchmarkProjectDbService,
+          useValue: mockBenchmarkProjectDbService,
         },
       ],
     }).compile();
@@ -64,18 +63,19 @@ describe("BenchmarkProjectService", () => {
         benchmarkRuns: [],
       };
 
-      mockPrismaClient.benchmarkProject.create.mockResolvedValue(mockProject);
+      mockBenchmarkProjectDbService.createBenchmarkProject.mockResolvedValue(
+        mockProject,
+      );
 
       const result = await service.createProject(createDto, "user@example.com");
 
-      expect(mockPrismaClient.benchmarkProject.create).toHaveBeenCalledWith({
-        data: {
-          name: createDto.name,
-          description: createDto.description,
-          createdBy: "user@example.com",
-          group_id: createDto.groupId,
-        },
-        include: expect.any(Object),
+      expect(
+        mockBenchmarkProjectDbService.createBenchmarkProject,
+      ).toHaveBeenCalledWith({
+        name: createDto.name,
+        description: createDto.description,
+        createdBy: "user@example.com",
+        group_id: createDto.groupId,
       });
 
       expect(result.id).toBe(mockProject.id);
@@ -102,18 +102,19 @@ describe("BenchmarkProjectService", () => {
         benchmarkRuns: [],
       };
 
-      mockPrismaClient.benchmarkProject.create.mockResolvedValue(mockProject);
+      mockBenchmarkProjectDbService.createBenchmarkProject.mockResolvedValue(
+        mockProject,
+      );
 
       const result = await service.createProject(createDto, "user@example.com");
 
-      expect(mockPrismaClient.benchmarkProject.create).toHaveBeenCalledWith({
-        data: {
-          name: createDto.name,
-          description: null,
-          createdBy: "user@example.com",
-          group_id: createDto.groupId,
-        },
-        include: expect.any(Object),
+      expect(
+        mockBenchmarkProjectDbService.createBenchmarkProject,
+      ).toHaveBeenCalledWith({
+        name: createDto.name,
+        description: null,
+        createdBy: "user@example.com",
+        group_id: createDto.groupId,
       });
 
       expect(result.description).toBeNull();
@@ -129,7 +130,9 @@ describe("BenchmarkProjectService", () => {
         code: string;
       };
       prismaError.code = "P2002";
-      mockPrismaClient.benchmarkProject.create.mockRejectedValue(prismaError);
+      mockBenchmarkProjectDbService.createBenchmarkProject.mockRejectedValue(
+        prismaError,
+      );
 
       await expect(
         service.createProject(createDto, "user@example.com"),
@@ -143,7 +146,9 @@ describe("BenchmarkProjectService", () => {
       };
 
       const dbError = new Error("Database connection failed");
-      mockPrismaClient.benchmarkProject.create.mockRejectedValue(dbError);
+      mockBenchmarkProjectDbService.createBenchmarkProject.mockRejectedValue(
+        dbError,
+      );
 
       await expect(
         service.createProject(createDto, "user@example.com"),
@@ -185,7 +190,7 @@ describe("BenchmarkProjectService", () => {
         },
       ];
 
-      mockPrismaClient.benchmarkProject.findMany.mockResolvedValue(
+      mockBenchmarkProjectDbService.findAllBenchmarkProjects.mockResolvedValue(
         mockProjects,
       );
 
@@ -204,7 +209,9 @@ describe("BenchmarkProjectService", () => {
     });
 
     it("returns empty array when no projects exist", async () => {
-      mockPrismaClient.benchmarkProject.findMany.mockResolvedValue([]);
+      mockBenchmarkProjectDbService.findAllBenchmarkProjects.mockResolvedValue(
+        [],
+      );
 
       const result = await service.listProjects(["test-group"]);
 
@@ -212,19 +219,15 @@ describe("BenchmarkProjectService", () => {
     });
 
     it("orders projects by createdAt descending", async () => {
-      mockPrismaClient.benchmarkProject.findMany.mockResolvedValue([]);
+      mockBenchmarkProjectDbService.findAllBenchmarkProjects.mockResolvedValue(
+        [],
+      );
 
       await service.listProjects(["test-group"]);
 
-      expect(mockPrismaClient.benchmarkProject.findMany).toHaveBeenCalledWith({
-        where: {
-          group_id: { in: ["test-group"] },
-        },
-        include: expect.any(Object),
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
+      expect(
+        mockBenchmarkProjectDbService.findAllBenchmarkProjects,
+      ).toHaveBeenCalledWith(["test-group"]);
     });
   });
 
@@ -284,18 +287,15 @@ describe("BenchmarkProjectService", () => {
         ],
       };
 
-      mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue(
+      mockBenchmarkProjectDbService.findBenchmarkProject.mockResolvedValue(
         mockProject,
       );
 
       const result = await service.getProjectById(projectId);
 
-      expect(mockPrismaClient.benchmarkProject.findUnique).toHaveBeenCalledWith(
-        {
-          where: { id: projectId },
-          include: expect.any(Object),
-        },
-      );
+      expect(
+        mockBenchmarkProjectDbService.findBenchmarkProject,
+      ).toHaveBeenCalledWith(projectId);
 
       expect(result.id).toBe(projectId);
       expect(result.name).toBe("Test Project");
@@ -315,7 +315,9 @@ describe("BenchmarkProjectService", () => {
     // Scenario 4: Project not found returns 404
     it("throws NotFoundException when project does not exist", async () => {
       const projectId = "non-existent-id";
-      mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue(null);
+      mockBenchmarkProjectDbService.findBenchmarkProject.mockResolvedValue(
+        null,
+      );
 
       await expect(service.getProjectById(projectId)).rejects.toThrow(
         NotFoundException,
@@ -332,23 +334,29 @@ describe("BenchmarkProjectService", () => {
   describe("deleteProject", () => {
     it("deletes a project with no active runs", async () => {
       const projectId = "project-123";
-      mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue({
-        id: projectId,
-        name: "Test Project",
-        group_id: "test-group",
-        benchmarkRuns: [],
-      });
-      mockPrismaClient.benchmarkProject.delete.mockResolvedValue(undefined);
+      mockBenchmarkProjectDbService.findBenchmarkProjectForDeletion.mockResolvedValue(
+        {
+          id: projectId,
+          name: "Test Project",
+          group_id: "test-group",
+          benchmarkRuns: [],
+        },
+      );
+      mockBenchmarkProjectDbService.deleteBenchmarkProject.mockResolvedValue(
+        undefined,
+      );
 
       await service.deleteProject(projectId);
 
-      expect(mockPrismaClient.benchmarkProject.delete).toHaveBeenCalledWith({
-        where: { id: projectId },
-      });
+      expect(
+        mockBenchmarkProjectDbService.deleteBenchmarkProject,
+      ).toHaveBeenCalledWith(projectId);
     });
 
     it("throws NotFoundException when project does not exist", async () => {
-      mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue(null);
+      mockBenchmarkProjectDbService.findBenchmarkProjectForDeletion.mockResolvedValue(
+        null,
+      );
 
       await expect(service.deleteProject("non-existent")).rejects.toThrow(
         NotFoundException,
@@ -356,12 +364,14 @@ describe("BenchmarkProjectService", () => {
     });
 
     it("throws ConflictException when project has active runs", async () => {
-      mockPrismaClient.benchmarkProject.findUnique.mockResolvedValue({
-        id: "project-123",
-        name: "Test Project",
-        group_id: "test-group",
-        benchmarkRuns: [{ id: "run-1", status: "running" }],
-      });
+      mockBenchmarkProjectDbService.findBenchmarkProjectForDeletion.mockResolvedValue(
+        {
+          id: "project-123",
+          name: "Test Project",
+          group_id: "test-group",
+          benchmarkRuns: [{ id: "run-1", status: "running" }],
+        },
+      );
 
       await expect(service.deleteProject("project-123")).rejects.toThrow(
         ConflictException,

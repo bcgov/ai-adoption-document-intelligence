@@ -101,6 +101,78 @@ describe("DocumentService", () => {
     });
   });
 
+  describe("createDocument", () => {
+    it("should create a document record directly via db service", async () => {
+      const mockDoc = {
+        id: "doc-123",
+        title: "sample-doc",
+        original_filename: "doc.pdf",
+        file_path: "documents/doc-123/original.pdf",
+        file_type: "pdf",
+        file_size: 512,
+        metadata: { source: "ground-truth-generation" },
+        source: "ground-truth-generation",
+        status: DocumentStatus.pre_ocr,
+        apim_request_id: null,
+        workflow_id: null,
+        workflow_config_id: "wf-1",
+        workflow_execution_id: null,
+        model_id: "prebuilt-layout",
+        group_id: "group-1",
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+      (documentDbService.createDocument as jest.Mock).mockResolvedValue(
+        mockDoc,
+      );
+
+      const { created_at, updated_at, ...inputData } = mockDoc;
+
+      const result = await service.createDocument(inputData);
+
+      expect(result).toEqual(mockDoc);
+      expect(documentDbService.createDocument).toHaveBeenCalledWith(
+        inputData,
+        undefined,
+      );
+    });
+
+    it("should forward optional transaction client to db service", async () => {
+      const mockDoc = {
+        id: "doc-456",
+        title: "tx-doc",
+        original_filename: "tx.pdf",
+        file_path: "documents/doc-456/original.pdf",
+        file_type: "pdf",
+        file_size: 256,
+        metadata: {},
+        source: "api",
+        status: DocumentStatus.pre_ocr,
+        apim_request_id: null,
+        workflow_id: null,
+        workflow_config_id: null,
+        workflow_execution_id: null,
+        model_id: "prebuilt-layout",
+        group_id: "group-1",
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+      (documentDbService.createDocument as jest.Mock).mockResolvedValue(
+        mockDoc,
+      );
+
+      const { created_at, updated_at, ...inputData } = mockDoc;
+      const fakeTx = {} as never;
+
+      await service.createDocument(inputData, fakeTx);
+
+      expect(documentDbService.createDocument).toHaveBeenCalledWith(
+        inputData,
+        fakeTx,
+      );
+    });
+  });
+
   describe("findDocument", () => {
     it("should find a document by id", async () => {
       const mockDoc = {

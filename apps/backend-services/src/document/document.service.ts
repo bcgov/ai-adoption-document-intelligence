@@ -45,6 +45,22 @@ export class DocumentService {
     return typeMap[fileType.toLowerCase()] || "bin";
   }
 
+  /**
+   * Creates a document record directly in the database without uploading a file.
+   * Use this when the file has already been written to blob storage.
+   *
+   * @param data - Document data without auto-generated timestamps.
+   * @param tx - Optional transaction client for atomic operations.
+   * @returns The created document record.
+   */
+  async createDocument(
+    data: Omit<DocumentData, "created_at" | "updated_at">,
+    tx?: Prisma.TransactionClient,
+  ): Promise<DocumentData> {
+    this.logger.debug(`DocumentService.createDocument: ${data.id}`);
+    return this.documentDb.createDocument(data, tx);
+  }
+
   async uploadDocument(
     title: string,
     fileBase64: string,
