@@ -10,15 +10,11 @@ import { json, urlencoded } from "body-parser";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
-import { FileLogger } from "./logger/file-logger.service";
 
-const isDev = process.env.NODE_ENV !== "production";
 const logger = createLogger("backend-services");
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, {
-    ...(isDev ? { logger: new FileLogger() } : {}),
-  });
+  const app = await NestFactory.create(AppModule);
 
   // Cookie parser must be registered before routes are mounted
   app.use(cookieParser());
