@@ -90,6 +90,57 @@ function shouldEmit(configured: LogLevel, messageLevel: LogLevel): boolean {
   return LOG_LEVEL_ORDER[messageLevel] >= LOG_LEVEL_ORDER[configured];
 }
 
+function isDevelopment(): boolean {
+  return process.env.NODE_ENV === "development";
+}
+
+/** When set (e.g. LOG_PRETTY_CONTEXT=1), context is pretty-printed on multiple lines in dev. */
+function isPrettyContextEnabled(): boolean {
+  const v = process.env.LOG_PRETTY_CONTEXT;
+  if (v === undefined || v === "") return false;
+  return ["1", "true", "yes"].includes(v.toLowerCase());
+}
+
+/** ANSI colors for pretty dev output; no-op when stdout is not a TTY. */
+const TTY = typeof process.stdout.isTTY === "boolean" && process.stdout.isTTY;
+const reset = TTY ? "\x1b[0m" : "";
+const secondary = TTY ? "\x1b[90m" : ""; // bright gray (visible on dark/light)
+const levelColors: Record<LogLevel, string> = TTY
+  ? {
+      debug: "\x1b[32m", // green
+      info: "\x1b[36m", // cyan
+      warn: "\x1b[33m", // yellow
+      error: "\x1b[31m\x1b[1m", // red bold
+    }
+  : { debug: "", info: "", warn: "", error: "" };
+const serviceColor = TTY ? "\x1b[35m" : ""; // magenta
+const contextColor = TTY ? "\x1b[90m" : ""; // bright gray
+
+/** Human-readable format with spacing and optional colors when NODE_ENV=development. */
+function formatPretty(
+  timestamp: string,
+  level: LogLevel,
+  service: string,
+  message: string,
+  merged: Record<string, unknown>,
+): string {
+  const levelLabel = level.toUpperCase().padEnd(5);
+  const timePart = `${secondary}[${timestamp}]${reset}`;
+  const levelPart = `${levelColors[level]}${levelLabel}${reset}`;
+  const servicePart = `${serviceColor}${service}${reset}`;
+  let contextStr = "";
+  if (Object.keys(merged).length > 0) {
+    if (isPrettyContextEnabled()) {
+      const prettyJson = JSON.stringify(merged, null, 2);
+      const indented = prettyJson.split("\n").map((l) => "  " + l).join("\n");
+      contextStr = `\n${contextColor}${indented}${reset}`;
+    } else {
+      contextStr = `  ${contextColor}${JSON.stringify(merged)}${reset}`;
+    }
+  }
+  return `${timePart}  ${levelPart}  ${servicePart}  ${message}${contextStr}`;
+}
+
 export interface Logger {
   debug(message: string, context?: LogContext): void;
   info(message: string, context?: LogContext): void;
@@ -112,15 +163,18 @@ function emit(
     ...redactContext(baseContext ?? {}),
     ...redactContext(context ?? {}),
   };
-  const entry: StructuredLogEntry = {
-    timestamp: new Date().toISOString(),
-    ...merged,
-    level,
-    service,
-    message,
-  };
+  const timestamp = new Date().toISOString();
 
-  const line = safeStringify(entry);
+  const line = isDevelopment()
+    ? formatPretty(timestamp, level, service, message, merged)
+    : safeStringify({
+        timestamp,
+        ...merged,
+        level,
+        service,
+        message,
+      } as StructuredLogEntry);
+
   if (line) {
     writeStdout(line);
   } else {

@@ -1,6 +1,6 @@
 # Logging (shared package)
 
-The `@ai-di/shared-logging` package provides structured NDJSON logging used by `backend-services` and the Temporal worker. See feature spec in `feature-docs/007-logging-system` (if present).
+The `@ai-di/shared-logging` package provides structured logging used by `backend-services` and the Temporal worker. See feature spec in `feature-docs/007-logging-system` (if present). When `NODE_ENV=development`, the shared logger emits human-readable one-line format instead of NDJSON; otherwise it emits NDJSON. Set `NODE_ENV=development` in each app's `.env` for local dev (e.g. both `apps/backend-services` and `apps/temporal`); use no spaces around `=` so dotenv sets the variable correctly. In development, set `LOG_PRETTY_CONTEXT=1` (or `true`/`yes`) to pretty-print context JSON on multiple lines; when unset, context stays inline.
 
 ## Package location
 
@@ -9,7 +9,7 @@ The `@ai-di/shared-logging` package provides structured NDJSON logging used by `
 ## Usage
 
 - **Backend:** `AppLoggerService` wraps `createLogger("backend-services")` (see `apps/backend-services`). Request-scoped `requestId` and `userId` are merged into every log via middleware and request context. The `requestId` is always generated server-side (a new UUID per request); any client-supplied `x-request-id` header is ignored so logs and audit cannot be confused by reused IDs. In development, `LoggingInterceptor` (registered in `LoggingModule`) logs each HTTP request/response as NDJSON (method, path, statusCode, durationMs, and at debug level query, params, body).
-- **Temporal worker:** `createLogger("temporal-worker")` and `createActivityLogger(activityName, context)` (see `apps/temporal/src/logger.ts`). Activities that receive `requestId` in workflow input should pass it in `context` so logs can be traced by requestId across backend and worker. **SDK internal logs** (e.g. "Activity failed", "Workflow failed") are routed through the same shared logger via a custom Runtime logger and native log forwarding (`apps/temporal/src/temporal-runtime-logger.ts`), so all worker process output is NDJSON and respects `LOG_LEVEL`.
+- **Temporal worker:** `createLogger("temporal-worker")` and `createActivityLogger(activityName, context)` (see `apps/temporal/src/logger.ts`). Activities that receive `requestId` in workflow input should pass it in `context` so logs can be traced by requestId across backend and worker. **SDK internal logs** (e.g. "Activity failed", "Workflow failed") are always routed through the same shared logger via a custom Runtime logger (`apps/temporal/src/temporal-runtime-logger.ts`), so output format (pretty in dev, NDJSON in prod) and `LOG_LEVEL` are consistent for both SDK and application logs.
 
 ## Testing
 
