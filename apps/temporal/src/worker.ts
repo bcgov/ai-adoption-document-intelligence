@@ -16,7 +16,7 @@ async function run() {
   const dotenv = await import("dotenv");
   dotenv.config();
 
-  // Route all Temporal SDK logs (TS + native) through shared NDJSON logger (007-logging-system)
+  // Route Temporal SDK logs through shared logger (pretty in dev, NDJSON in prod).
   installTemporalRuntimeLogger();
 
   const address = process.env.TEMPORAL_ADDRESS || "localhost:7233";
