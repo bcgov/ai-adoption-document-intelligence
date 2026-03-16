@@ -733,11 +733,14 @@
         </nav>
     </header>
     <main>
+<!-- TITLE: Benchmarking Architecture -->
+<!-- NAV: benchmarkingtechnical -->
 
 <h1>Benchmarking System — Technical Reference</h1>
 
 <p>This page covers the internal architecture, data model, API surface, and development configuration of the benchmarking system. For a usage-focused guide, see the <a href="benchmarking-guide.html">Benchmarking Guide</a>.</p>
 
+<!-- ====================================================================== -->
 <h2>Table of Contents</h2>
 
 <ul>
@@ -794,6 +797,7 @@
     <li><a href="#key-files">Key Files Reference</a></li>
 </ul>
 
+<!-- ====================================================================== -->
 <h2 id="architecture">Architecture Overview</h2>
 
 <p>The benchmarking system is built on three infrastructure components that integrate with the existing NestJS backend and Temporal workflow engine:</p>
@@ -827,6 +831,7 @@
     </div>
 </div>
 
+<!-- ====================================================================== -->
 <h2 id="data-model">Data Model</h2>
 
 <p>All benchmark entities are defined in the Prisma schema at <code>apps/shared/prisma/schema.prisma</code>.</p>
@@ -1000,6 +1005,7 @@
     </div>
 </div>
 
+<!-- ====================================================================== -->
 <h2 id="api-reference">API Endpoints</h2>
 
 <h3 id="api-datasets">Dataset Management</h3>
@@ -1139,6 +1145,7 @@
     <tr><td><code>dimensionValue</code></td><td>string</td><td>Value of the dimension to filter on (e.g. <code>invoice</code>).</td></tr>
 </table>
 
+<!-- ====================================================================== -->
 <h2 id="workflow-engine">Temporal Workflow Engine</h2>
 
 <h3 id="workflow-orchestrator">Orchestrator Workflow</h3>
@@ -1240,6 +1247,7 @@
 
 <p>All defaults can be overridden per definition via <code>runtimeSettings</code>.</p>
 
+<!-- ====================================================================== -->
 <h2 id="evaluator-system">Evaluator System</h2>
 
 <h3 id="evaluator-interface">Evaluator Interface</h3>
@@ -1308,6 +1316,7 @@ interface EvaluationResult {
 
 <p>A simple Map-based registry that stores evaluator instances keyed by their <code>type</code> string. Both built-in evaluators are registered at module load time. Custom evaluators can be added via the <code>registerEvaluator()</code> function.</p>
 
+<!-- ====================================================================== -->
 <h2 id="metrics-pipeline">Metrics Pipeline</h2>
 
 <h3 id="metrics-per-sample">Per-Sample Metrics</h3>
@@ -1399,6 +1408,7 @@ interface EvaluationResult {
     <li><strong>Per-field error breakdown</strong> — (schema-aware evaluator only) aggregates comparison results across all samples to compute, for each field: total occurrences, match count, missing count, mismatch count, and error rate. Sorted by error rate descending.</li>
 </ul>
 
+<!-- ====================================================================== -->
 <h2 id="baseline-comparison">Baseline Comparison</h2>
 
 <p>File: <code>apps/temporal/src/activities/benchmark-baseline-comparison.ts</code></p>
@@ -1458,6 +1468,7 @@ interface MetricThreshold {
     </tr>
 </table>
 
+<!-- ====================================================================== -->
 <h2 id="storage">Object Storage</h2>
 
 <p>The benchmarking system accesses object storage through a <code>BlobStorageInterface</code> abstraction, supporting both <strong>MinIO</strong> (S3-compatible, default for local development) and <strong>Azure Blob Storage</strong> (for cloud deployments). The active provider is selected via the <code>BLOB_STORAGE_PROVIDER</code> environment variable (<code>"minio"</code> or <code>"azure"</code>).</p>
@@ -1484,6 +1495,7 @@ interface MetricThreshold {
     <li>On failure, the partial cache directory is removed.</li>
 </ul>
 
+<!-- ====================================================================== -->
 <h2 id="env-vars">Environment Variables</h2>
 
 <table>
@@ -1504,6 +1516,7 @@ interface MetricThreshold {
     <tr><td><code>AZURE_STORAGE_CONTAINER_NAME</code></td><td>(required for Azure)</td><td>Azure Blob Storage container name.</td></tr>
 </table>
 
+<!-- ====================================================================== -->
 <h2 id="key-files">Key Files Reference</h2>
 
 <h3>Backend Services</h3>
