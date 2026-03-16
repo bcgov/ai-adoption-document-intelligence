@@ -560,7 +560,6 @@ export class DatasetService {
       );
 
       if (
-        // biome-ignore lint/security/noSecrets: not a secret, bucket error check
         err.message.includes("NoSuchBucket") ||
         err.message.includes("bucket does not exist")
       ) {

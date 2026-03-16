@@ -54,7 +54,9 @@ function makeConfigService(
   values: Record<string, string | undefined> = {},
 ): ConfigService {
   return {
-    get: jest.fn((key: string, defaultVal?: string) => values[key] ?? defaultVal),
+    get: jest.fn(
+      (key: string, defaultVal?: string) => values[key] ?? defaultVal,
+    ),
   } as unknown as ConfigService;
 }
 
@@ -191,7 +193,9 @@ describe("AzureBlobProviderService", () => {
         download: jest.fn().mockRejectedValue(new Error("timeout")),
       });
       mockContainerClient.getBlockBlobClient.mockReturnValue(blobClient);
-      await expect(service.read("key")).rejects.toThrow('Failed to read blob "key"');
+      await expect(service.read("key")).rejects.toThrow(
+        'Failed to read blob "key"',
+      );
     });
   });
 

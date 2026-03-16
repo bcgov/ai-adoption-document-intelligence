@@ -1,5 +1,5 @@
-import * as fs from "fs";
 import { ConsoleLogger } from "@nestjs/common";
+import * as fs from "fs";
 import { FileLogger } from "./file-logger.service";
 
 jest.mock("fs", () => ({
@@ -43,7 +43,7 @@ describe("FileLogger", () => {
     });
 
     it("uses default path when none provided", () => {
-      const loggerDefault = new FileLogger();
+      const _loggerDefault = new FileLogger();
       const callArg = mockWriteFileSync.mock.calls[1]?.[0] as string;
       expect(typeof callArg).toBe("string");
       expect(callArg).toContain("backend.log");
@@ -113,7 +113,7 @@ describe("FileLogger", () => {
 
     it("does not include trace section when trace is absent", () => {
       logger.error("err only");
-      const entry = (mockAppendFileSync.mock.calls[0][1] as string);
+      const entry = mockAppendFileSync.mock.calls[0][1] as string;
       expect(entry.includes("\nundefined")).toBe(false);
     });
   });

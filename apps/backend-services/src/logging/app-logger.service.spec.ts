@@ -15,8 +15,8 @@ jest.mock("./request-context", () => ({
   getRequestContext: jest.fn(),
 }));
 
-import { getRequestContext } from "./request-context";
 import { AppLoggerService } from "./app-logger.service";
+import { getRequestContext } from "./request-context";
 
 const mockGetRequestContext = getRequestContext as jest.MockedFunction<
   typeof getRequestContext
@@ -31,9 +31,7 @@ describe("AppLoggerService", () => {
   });
 
   describe("without request context", () => {
-    beforeEach(() =>
-      mockGetRequestContext.mockReturnValue(undefined),
-    );
+    beforeEach(() => mockGetRequestContext.mockReturnValue(undefined));
 
     it("debug delegates to logger.debug with no extra context", () => {
       service.debug("test message");

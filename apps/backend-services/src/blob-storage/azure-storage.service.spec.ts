@@ -1,6 +1,6 @@
 import { ConfigService } from "@nestjs/config";
-import { AzureStorageService } from "./azure-storage.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import { AzureStorageService } from "./azure-storage.service";
 
 // ---- Mock @azure/storage-blob --------------------------------------------- //
 
@@ -45,9 +45,13 @@ jest.mock("@azure/storage-blob", () => ({
   BlobServiceClient: {
     fromConnectionString: jest.fn(() => mockBlobServiceClientInstance),
   },
-  ContainerClient: jest.fn().mockImplementation(() => mockContainerClientInstance),
+  ContainerClient: jest
+    .fn()
+    .mockImplementation(() => mockContainerClientInstance),
   StorageSharedKeyCredential: jest.fn(),
-  generateBlobSASQueryParameters: jest.fn(() => ({ toString: () => "sas-token" })),
+  generateBlobSASQueryParameters: jest.fn(() => ({
+    toString: () => "sas-token",
+  })),
   ContainerSASPermissions: { parse: jest.fn(() => ({})) },
   SASProtocol: { Https: "https" },
 }));
@@ -58,12 +62,15 @@ function makeConfigService(
   values: Record<string, string | undefined> = {},
 ): ConfigService {
   return {
-    get: jest.fn((key: string, defaultVal?: string) => values[key] ?? defaultVal),
+    get: jest.fn(
+      (key: string, defaultVal?: string) => values[key] ?? defaultVal,
+    ),
   } as unknown as ConfigService;
 }
 
 const validConfig = {
-  AZURE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key==;EndpointSuffix=core.windows.net",
+  AZURE_STORAGE_CONNECTION_STRING:
+    "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key==;EndpointSuffix=core.windows.net",
   AZURE_STORAGE_ACCOUNT_NAME: "testaccount",
   AZURE_STORAGE_ACCOUNT_KEY: "testkey==",
 };
@@ -77,10 +84,12 @@ describe("AzureStorageService", () => {
     mockBlobServiceClientInstance.getContainerClient.mockImplementation(
       () => mockContainerClientInstance,
     );
-    service = new AzureStorageService(makeConfigService(validConfig), mockAppLogger);
+    service = new AzureStorageService(
+      makeConfigService(validConfig),
+      mockAppLogger,
+    );
     // Suppress private delay for speed
     jest
-      // biome-ignore lint/suspicious/noExplicitAny: testing private method
       .spyOn(service as unknown as Record<string, unknown>, "delay" as never)
       .mockResolvedValue(undefined as never);
   });
@@ -130,15 +139,15 @@ describe("AzureStorageService", () => {
     });
 
     it("throws the last error after all retries are exhausted", async () => {
-      const beingDeleted = Object.assign(
-        new Error("being deleted"),
-        { statusCode: 409, code: "ContainerBeingDeleted" },
-      );
+      const beingDeleted = Object.assign(new Error("being deleted"), {
+        statusCode: 409,
+        code: "ContainerBeingDeleted",
+      });
       // Always fails with ContainerBeingDeleted
       mockContainerClientInstance.create.mockRejectedValue(beingDeleted);
-      await expect(
-        service.ensureContainerExists("stuck"),
-      ).rejects.toThrow("being deleted");
+      await expect(service.ensureContainerExists("stuck")).rejects.toThrow(
+        "being deleted",
+      );
     });
 
     it("throws immediately for unrelated errors", async () => {
@@ -153,17 +162,23 @@ describe("AzureStorageService", () => {
   describe("uploadFile", () => {
     it("uploads a Buffer and returns the blob URL", async () => {
       const blobClient = makeBlobClient();
-      mockContainerClientInstance.getBlockBlobClient.mockReturnValue(blobClient);
-      const url = await service.uploadFile("my-ctr", "file.json", Buffer.from("data"));
-      expect(blobClient.uploadData).toHaveBeenCalledWith(
-        expect.any(Buffer),
+      mockContainerClientInstance.getBlockBlobClient.mockReturnValue(
+        blobClient,
       );
+      const url = await service.uploadFile(
+        "my-ctr",
+        "file.json",
+        Buffer.from("data"),
+      );
+      expect(blobClient.uploadData).toHaveBeenCalledWith(expect.any(Buffer));
       expect(url).toContain("https://");
     });
 
     it("converts string content to Buffer before uploading", async () => {
       const blobClient = makeBlobClient();
-      mockContainerClientInstance.getBlockBlobClient.mockReturnValue(blobClient);
+      mockContainerClientInstance.getBlockBlobClient.mockReturnValue(
+        blobClient,
+      );
       await service.uploadFile("ctr", "notes.txt", "text content");
       const uploadArg = blobClient.uploadData.mock.calls[0][0];
       expect(Buffer.isBuffer(uploadArg)).toBe(true);
@@ -174,7 +189,9 @@ describe("AzureStorageService", () => {
       const blobClient = makeBlobClient({
         uploadData: jest.fn().mockRejectedValue(new Error("upload failed")),
       });
-      mockContainerClientInstance.getBlockBlobClient.mockReturnValue(blobClient);
+      mockContainerClientInstance.getBlockBlobClient.mockReturnValue(
+        blobClient,
+      );
       await expect(
         service.uploadFile("ctr", "f.txt", Buffer.from("x")),
       ).rejects.toThrow("upload failed");
@@ -288,7 +305,11 @@ describe("AzureStorageService", () => {
         (async function* () {
           yield {
             name: "a.json",
-            properties: { contentLength: 10, lastModified: lastMod, contentType: "application/json" },
+            properties: {
+              contentLength: 10,
+              lastModified: lastMod,
+              contentType: "application/json",
+            },
           };
         })(),
       );
@@ -315,7 +336,9 @@ describe("AzureStorageService", () => {
       mockContainerClientInstance.delete.mockRejectedValueOnce(
         new Error("delete fail"),
       );
-      await expect(service.deleteContainer("ctr")).rejects.toThrow("delete fail");
+      await expect(service.deleteContainer("ctr")).rejects.toThrow(
+        "delete fail",
+      );
     });
   });
 
@@ -385,9 +408,9 @@ describe("AzureStorageService", () => {
   describe("getContainerClient", () => {
     it("returns a ContainerClient for the given name", () => {
       const client = service.getContainerClient("my-ctr");
-      expect(mockBlobServiceClientInstance.getContainerClient).toHaveBeenCalledWith(
-        "my-ctr",
-      );
+      expect(
+        mockBlobServiceClientInstance.getContainerClient,
+      ).toHaveBeenCalledWith("my-ctr");
       expect(client).toBeDefined();
     });
   });

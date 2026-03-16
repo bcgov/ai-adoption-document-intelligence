@@ -1,9 +1,9 @@
-import { of, throwError } from "rxjs";
 import type { CallHandler, ExecutionContext } from "@nestjs/common";
 import type { Request } from "express";
+import { of, throwError } from "rxjs";
+import { AppLoggerService } from "./app-logger.service";
 import { requestContext } from "./request-context";
 import { RequestLoggingInterceptor } from "./request-logging.interceptor";
-import { AppLoggerService } from "./app-logger.service";
 
 jest.mock("./request-context", () => ({
   requestContext: { getStore: jest.fn() },
@@ -59,7 +59,9 @@ describe("RequestLoggingInterceptor", () => {
 
   it("does not set userId when store is null", () => {
     mockGetStore.mockReturnValue(undefined);
-    const req = makeRequest({ resolvedIdentity: { userId: "u-1" } } as Partial<Request>);
+    const req = makeRequest({
+      resolvedIdentity: { userId: "u-1" },
+    } as Partial<Request>);
     const ctx = makeContext(req);
     const next: CallHandler = { handle: () => of(undefined) };
     // expect no error
@@ -108,7 +110,11 @@ describe("RequestLoggingInterceptor", () => {
       interceptor.intercept(ctx, next).subscribe();
       expect(mockLogger.log).toHaveBeenCalledWith(
         "Request completed",
-        expect.objectContaining({ method: "GET", path: "/test", statusCode: 200 }),
+        expect.objectContaining({
+          method: "GET",
+          path: "/test",
+          statusCode: 200,
+        }),
       );
     });
 

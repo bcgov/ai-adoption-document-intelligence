@@ -1,10 +1,10 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import * as requestContextModule from "@/logging/request-context";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
-import { AppLoggerService } from "@/logging/app-logger.service";
 import { AuditService } from "./audit.service";
-import { AuditDbService } from "./audit-db.service";
 import type { CreateAuditEventInput } from "./audit.types";
+import { AuditDbService } from "./audit-db.service";
 
 describe("AuditService", () => {
   let service: AuditService;

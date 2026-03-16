@@ -243,17 +243,23 @@ describe("BenchmarkDefinitionDbService", () => {
   describe("findBenchmarkProject tx support", () => {
     it("uses provided tx client", async () => {
       const txBP = { findUnique: jest.fn().mockResolvedValue(null) };
-      const tx = { benchmarkProject: txBP } as unknown as import("@generated/client").Prisma.TransactionClient;
+      const tx = {
+        benchmarkProject: txBP,
+      } as unknown as import("@generated/client").Prisma.TransactionClient;
       await service.findBenchmarkProject("p-1", tx);
       expect(txBP.findUnique).toHaveBeenCalled();
-      expect(mockPrismaClient.benchmarkProject.findUnique).not.toHaveBeenCalled();
+      expect(
+        mockPrismaClient.benchmarkProject.findUnique,
+      ).not.toHaveBeenCalled();
     });
   });
 
   describe("findDatasetVersion tx support", () => {
     it("uses provided tx client", async () => {
       const txDV = { findUnique: jest.fn().mockResolvedValue(null) };
-      const tx = { datasetVersion: txDV } as unknown as import("@generated/client").Prisma.TransactionClient;
+      const tx = {
+        datasetVersion: txDV,
+      } as unknown as import("@generated/client").Prisma.TransactionClient;
       await service.findDatasetVersion("v-1", tx);
       expect(txDV.findUnique).toHaveBeenCalled();
       expect(mockPrismaClient.datasetVersion.findUnique).not.toHaveBeenCalled();
@@ -269,7 +275,9 @@ describe("BenchmarkDefinitionDbService", () => {
 
     it("uses provided tx client", async () => {
       const txSplit = { findUnique: jest.fn().mockResolvedValue(null) };
-      const tx = { split: txSplit } as unknown as import("@generated/client").Prisma.TransactionClient;
+      const tx = {
+        split: txSplit,
+      } as unknown as import("@generated/client").Prisma.TransactionClient;
       await service.findSplit("s-1", tx);
       expect(txSplit.findUnique).toHaveBeenCalled();
       expect(mockPrismaClient.split.findUnique).not.toHaveBeenCalled();
@@ -285,7 +293,9 @@ describe("BenchmarkDefinitionDbService", () => {
 
     it("uses provided tx client", async () => {
       const txWf = { findUnique: jest.fn().mockResolvedValue(null) };
-      const tx = { workflow: txWf } as unknown as import("@generated/client").Prisma.TransactionClient;
+      const tx = {
+        workflow: txWf,
+      } as unknown as import("@generated/client").Prisma.TransactionClient;
       await service.findWorkflow("w-1", tx);
       expect(txWf.findUnique).toHaveBeenCalled();
       expect(mockPrismaClient.workflow.findUnique).not.toHaveBeenCalled();
@@ -295,33 +305,57 @@ describe("BenchmarkDefinitionDbService", () => {
   describe("createBenchmarkDefinition tx support", () => {
     it("uses provided tx client", async () => {
       const txDef = { create: jest.fn().mockResolvedValue({ id: "def-tx" }) };
-      const tx = { benchmarkDefinition: txDef } as unknown as import("@generated/client").Prisma.TransactionClient;
+      const tx = {
+        benchmarkDefinition: txDef,
+      } as unknown as import("@generated/client").Prisma.TransactionClient;
       await service.createBenchmarkDefinition(
-        { name: "X", projectId: "p-1", datasetVersionId: "v-1", splitId: "s-1", workflowId: "w-1", evaluatorType: "t", evaluatorConfig: {}, runtimeSettings: {}, workflowConfigHash: "h", revision: 1, immutable: false },
+        {
+          name: "X",
+          projectId: "p-1",
+          datasetVersionId: "v-1",
+          splitId: "s-1",
+          workflowId: "w-1",
+          evaluatorType: "t",
+          evaluatorConfig: {},
+          runtimeSettings: {},
+          workflowConfigHash: "h",
+          revision: 1,
+          immutable: false,
+        },
         tx,
       );
       expect(txDef.create).toHaveBeenCalled();
-      expect(mockPrismaClient.benchmarkDefinition.create).not.toHaveBeenCalled();
+      expect(
+        mockPrismaClient.benchmarkDefinition.create,
+      ).not.toHaveBeenCalled();
     });
   });
 
   describe("updateBenchmarkDefinition tx support", () => {
     it("uses provided tx client", async () => {
       const txDef = { update: jest.fn().mockResolvedValue({ id: "def-1" }) };
-      const tx = { benchmarkDefinition: txDef } as unknown as import("@generated/client").Prisma.TransactionClient;
+      const tx = {
+        benchmarkDefinition: txDef,
+      } as unknown as import("@generated/client").Prisma.TransactionClient;
       await service.updateBenchmarkDefinition("def-1", {}, tx);
       expect(txDef.update).toHaveBeenCalled();
-      expect(mockPrismaClient.benchmarkDefinition.update).not.toHaveBeenCalled();
+      expect(
+        mockPrismaClient.benchmarkDefinition.update,
+      ).not.toHaveBeenCalled();
     });
   });
 
   describe("findAllBenchmarkDefinitions tx support", () => {
     it("uses provided tx client", async () => {
       const txDef = { findMany: jest.fn().mockResolvedValue([]) };
-      const tx = { benchmarkDefinition: txDef } as unknown as import("@generated/client").Prisma.TransactionClient;
+      const tx = {
+        benchmarkDefinition: txDef,
+      } as unknown as import("@generated/client").Prisma.TransactionClient;
       await service.findAllBenchmarkDefinitions("p-1", tx);
       expect(txDef.findMany).toHaveBeenCalled();
-      expect(mockPrismaClient.benchmarkDefinition.findMany).not.toHaveBeenCalled();
+      expect(
+        mockPrismaClient.benchmarkDefinition.findMany,
+      ).not.toHaveBeenCalled();
     });
   });
 });

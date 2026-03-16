@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
-import { requestContext } from "./request-context";
-import { LoggingMiddleware } from "./logging.middleware";
 import { AppLoggerService } from "./app-logger.service";
+import { LoggingMiddleware } from "./logging.middleware";
+import { requestContext } from "./request-context";
 
 jest.mock("./request-context", () => ({
   requestContext: { run: jest.fn() },

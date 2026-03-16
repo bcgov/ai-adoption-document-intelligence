@@ -1,9 +1,9 @@
-import { of, throwError } from "rxjs";
 import type { CallHandler, ExecutionContext } from "@nestjs/common";
 import type { Request, Response } from "express";
-import { LoggingInterceptor } from "./logging.interceptor";
+import { of, throwError } from "rxjs";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { getRequestContext } from "@/logging/request-context";
+import { LoggingInterceptor } from "./logging.interceptor";
 
 jest.mock("@/logging/request-context", () => ({
   getRequestContext: jest.fn(),
@@ -77,7 +77,10 @@ describe("LoggingInterceptor", () => {
     });
 
     it("uses url when path is undefined", () => {
-      const ctx = makeHttpContext({ url: "/url-path", path: undefined as unknown as string });
+      const ctx = makeHttpContext({
+        url: "/url-path",
+        path: undefined as unknown as string,
+      });
       const next: CallHandler = { handle: () => of(null) };
       interceptor.intercept(ctx, next).subscribe();
       expect(mockLogger.log).toHaveBeenCalledWith(
@@ -208,7 +211,10 @@ describe("LoggingInterceptor", () => {
       interceptor.intercept(ctx, next).subscribe();
       expect(mockLogger.log).toHaveBeenCalledWith(
         "HTTP request complete",
-        expect.objectContaining({ statusCode: 200, durationMs: expect.any(Number) }),
+        expect.objectContaining({
+          statusCode: 200,
+          durationMs: expect.any(Number),
+        }),
       );
     });
 
