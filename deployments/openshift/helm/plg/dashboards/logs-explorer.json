@@ -95,27 +95,21 @@
         "type": "custom"
       },
       {
-        "allValue": ".+",
-        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "current": { "selected": false, "text": ".*", "value": ".*" },
         "hide": 0,
-        "includeAll": true,
         "label": "User ID",
-        "multi": false,
         "name": "userId",
-        "options": [],
-        "query": "",
+        "options": [{ "selected": true, "text": ".*", "value": ".*" }],
+        "query": ".*",
         "type": "textbox"
       },
       {
-        "allValue": ".+",
-        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "current": { "selected": false, "text": ".*", "value": ".*" },
         "hide": 0,
-        "includeAll": true,
         "label": "Session ID",
-        "multi": false,
         "name": "sessionId",
-        "options": [],
-        "query": "",
+        "options": [{ "selected": true, "text": ".*", "value": ".*" }],
+        "query": ".*",
         "type": "textbox"
       }
     ]
