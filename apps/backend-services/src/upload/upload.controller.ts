@@ -72,7 +72,7 @@ export class UploadController {
         throw new BadRequestException("File data is required");
       }
 
-      await identityCanAccessGroup(req.resolvedIdentity, uploadDto.group_id);
+      identityCanAccessGroup(req.resolvedIdentity, uploadDto.group_id);
 
       // Use original_filename from DTO or default to title
       const originalFilename =
