@@ -140,6 +140,44 @@ describe("TrainingController", () => {
   describe("startTraining", () => {
     const dto: StartTrainingDto = { modelId: "my-model" };
 
+    it("derives userId from req.user.id when sub is absent", async () => {
+      const req = {
+        user: { id: "user-from-id" },
+        resolvedIdentity: {
+          userId: "user-from-id",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      trainingService.startTraining.mockResolvedValue(mockTrainingJob as any);
+      await controller.startTraining("project-1", dto, req);
+      expect(trainingService.startTraining).toHaveBeenCalledWith(
+        "project-1",
+        dto,
+        "user-from-id",
+      );
+    });
+
+    it("falls back to 'unknown' when req.user has neither sub nor id", async () => {
+      const req = {
+        user: {},
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      labelingService.getProject.mockResolvedValue(mockProject as any);
+      trainingService.startTraining.mockResolvedValue(mockTrainingJob as any);
+      await controller.startTraining("project-1", dto, req);
+      expect(trainingService.startTraining).toHaveBeenCalledWith(
+        "project-1",
+        dto,
+        "unknown",
+      );
+    });
+
     it("starts training for a group member", async () => {
       const req = {
         user: { sub: "user-1" },
