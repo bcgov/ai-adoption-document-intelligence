@@ -30,21 +30,18 @@ import {
   GeneratedApiKeyDto,
   GeneratedApiKeyWrapperDto,
 } from "@/api-key/dto/api-key-info.dto";
+import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
-import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
+import { GroupRole } from "@/generated";
 import { ApiKeyService } from "./api-key.service";
 
 @ApiTags("API Keys")
 @Controller("api/api-key")
 export class ApiKeyController {
-  constructor(
-    private readonly apiKeyService: ApiKeyService,
-    private readonly databaseService: DatabaseService,
-  ) {}
+  constructor(private readonly apiKeyService: ApiKeyService) {}
 
   @Get()
-  @KeycloakSSOAuth()
+  @Identity({ groupIdFrom: { query: "groupId" }, minimumRole: GroupRole.ADMIN })
   @ApiOperation({ summary: "Get API key information for a group" })
   @ApiQuery({
     name: "groupId",
@@ -66,7 +63,7 @@ export class ApiKeyController {
     await identityCanAccessGroup(
       req.resolvedIdentity,
       groupId,
-      this.databaseService,
+      GroupRole.ADMIN,
     );
     const apiKey = await this.apiKeyService.getApiKey(groupId);
     return { apiKey };
@@ -74,7 +71,7 @@ export class ApiKeyController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @KeycloakSSOAuth()
+  @Identity({ groupIdFrom: { body: "groupId" }, minimumRole: GroupRole.ADMIN })
   @ApiOperation({ summary: "Generate a new API key for a group" })
   @ApiBody({ type: GenerateApiKeyRequestDto })
   @ApiCreatedResponse({
@@ -93,11 +90,7 @@ export class ApiKeyController {
         "User ID is required to generate an API key",
       );
     }
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      body.groupId,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, body.groupId, GroupRole.ADMIN);
     const apiKey = await this.apiKeyService.generateApiKey(
       userId,
       body.groupId,
@@ -107,7 +100,7 @@ export class ApiKeyController {
 
   @Delete()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({ summary: "Delete the API key by its ID" })
   @ApiQuery({
     name: "id",
@@ -124,16 +117,12 @@ export class ApiKeyController {
       throw new BadRequestException("id query parameter is required");
     }
     const groupId = await this.apiKeyService.getApiKeyGroupId(id);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      groupId,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.ADMIN);
     await this.apiKeyService.deleteApiKey(id);
   }
 
   @Post("regenerate")
-  @KeycloakSSOAuth()
+  @Identity()
   @ApiOperation({ summary: "Regenerate the API key by its ID" })
   @ApiBody({ type: ApiKeyByIdRequestDto })
   @ApiOkResponse({
@@ -153,11 +142,7 @@ export class ApiKeyController {
       );
     }
     const groupId = await this.apiKeyService.getApiKeyGroupId(body.id);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      groupId,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.ADMIN);
     const apiKey = await this.apiKeyService.regenerateApiKey(userId, body.id);
     return { apiKey };
   }

@@ -1,3 +1,4 @@
+import { GroupRole } from "@generated/client";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
@@ -47,11 +48,8 @@ describe("HitlController", () => {
     } as unknown as jest.Mocked<HitlService>;
 
     databaseService = {
-      isUserInGroup: jest.fn().mockResolvedValue(true),
-      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
       findDocument: jest.fn().mockResolvedValue(mockDocument),
       findReviewSession: jest.fn().mockResolvedValue(mockSession),
-      getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "group-1" }]),
     } as unknown as jest.Mocked<DatabaseService>;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -74,8 +72,12 @@ describe("HitlController", () => {
   describe("getQueue", () => {
     it("delegates to service with group IDs from JWT identity", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       const mockResult = { documents: [], total: 0 };
       hitlService.getQueue.mockResolvedValue(mockResult as any);
       const result = await controller.getQueue({} as any, req);
@@ -85,8 +87,8 @@ describe("HitlController", () => {
 
     it("delegates to service with group ID from API key identity", async () => {
       const req = {
-        resolvedIdentity: { groupId: "group-1" },
-      } as Request;
+        resolvedIdentity: { groupRoles: { "group-1": GroupRole.MEMBER } },
+      } as unknown as Request;
       hitlService.getQueue.mockResolvedValue({
         documents: [],
         total: 0,
@@ -97,8 +99,12 @@ describe("HitlController", () => {
 
     it("scopes to a single group when group_id is provided and user is a member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       hitlService.getQueue.mockResolvedValue({
         documents: [],
         total: 0,
@@ -112,9 +118,12 @@ describe("HitlController", () => {
 
     it("throws ForbiddenException when group_id is provided but user is not a member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       await expect(
         controller.getQueue({ group_id: "group-2" } as any, req),
       ).rejects.toThrow(ForbiddenException);
@@ -125,8 +134,12 @@ describe("HitlController", () => {
   describe("getQueueStats", () => {
     it("delegates to service with group IDs from JWT identity", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       const mockResult = {
         totalDocuments: 0,
         requiresReview: 0,
@@ -143,8 +156,12 @@ describe("HitlController", () => {
 
     it("scopes stats to a single group when group_id is provided and user is a member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       hitlService.getQueueStats.mockResolvedValue({
         totalDocuments: 0,
         requiresReview: 0,
@@ -159,9 +176,12 @@ describe("HitlController", () => {
 
     it("throws ForbiddenException when group_id is provided but user is not a member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       await expect(
         controller.getQueueStats(undefined, req, "group-2"),
       ).rejects.toThrow(ForbiddenException);
@@ -172,8 +192,12 @@ describe("HitlController", () => {
   describe("getAnalytics", () => {
     it("delegates to service with group IDs from JWT identity", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       const mockResult = { totalDocuments: 0 };
       hitlService.getAnalytics.mockResolvedValue(mockResult as any);
       const result = await controller.getAnalytics({} as any, req);
@@ -192,8 +216,12 @@ describe("HitlController", () => {
 
     it("scopes analytics to a single group when group_id is provided and user is a member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       hitlService.getAnalytics.mockResolvedValue({ totalDocuments: 0 } as any);
       await controller.getAnalytics({ group_id: "group-1" } as any, req);
       expect(hitlService.getAnalytics).toHaveBeenCalledWith(
@@ -204,9 +232,12 @@ describe("HitlController", () => {
 
     it("throws ForbiddenException when group_id is provided but user is not a member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       await expect(
         controller.getAnalytics({ group_id: "group-2" } as any, req),
       ).rejects.toThrow(ForbiddenException);
@@ -220,8 +251,12 @@ describe("HitlController", () => {
     it("starts session for a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       const mockResult = { id: "session-1", documentId: "doc-1" };
       hitlService.startSession.mockResolvedValue(mockResult as any);
       const result = await controller.startSession(dto, req);
@@ -233,9 +268,12 @@ describe("HitlController", () => {
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
       await expect(controller.startSession(dto, req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -255,8 +293,12 @@ describe("HitlController", () => {
     it("throws NotFoundException when document does not exist", async () => {
       const req = {
         user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       (databaseService.findDocument as jest.Mock).mockResolvedValueOnce(null);
       await expect(controller.startSession(dto, req)).rejects.toThrow(
         NotFoundException,
@@ -268,8 +310,12 @@ describe("HitlController", () => {
   describe("getSession", () => {
     it("returns session for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       const mockResult = { id: "session-1" };
       hitlService.getSession.mockResolvedValue(mockResult as any);
       const result = await controller.getSession("session-1", req);
@@ -279,9 +325,12 @@ describe("HitlController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
       await expect(controller.getSession("session-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -300,8 +349,12 @@ describe("HitlController", () => {
 
     it("throws NotFoundException when session does not exist", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       (databaseService.findReviewSession as jest.Mock).mockResolvedValueOnce(
         null,
       );
@@ -317,8 +370,12 @@ describe("HitlController", () => {
 
     it("submits corrections for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       const mockResult = { sessionId: "session-1", corrections: [] };
       hitlService.submitCorrections.mockResolvedValue(mockResult as any);
       const result = await controller.submitCorrections("session-1", dto, req);
@@ -331,9 +388,12 @@ describe("HitlController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
       await expect(
         controller.submitCorrections("session-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -352,8 +412,12 @@ describe("HitlController", () => {
 
     it("throws NotFoundException when session does not exist", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       (databaseService.findReviewSession as jest.Mock).mockResolvedValueOnce(
         null,
       );
@@ -367,8 +431,12 @@ describe("HitlController", () => {
   describe("getCorrections", () => {
     it("returns corrections for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       const mockResult = { sessionId: "session-1", corrections: [] };
       hitlService.getCorrections.mockResolvedValue(mockResult as any);
       const result = await controller.getCorrections("session-1", req);
@@ -378,9 +446,12 @@ describe("HitlController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
       await expect(controller.getCorrections("session-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -399,8 +470,12 @@ describe("HitlController", () => {
 
     it("throws NotFoundException when session does not exist", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       (databaseService.findReviewSession as jest.Mock).mockResolvedValueOnce(
         null,
       );
@@ -413,8 +488,12 @@ describe("HitlController", () => {
   describe("approveSession", () => {
     it("approves session for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       const mockResult = {
         id: "session-1",
         status: "approved",
@@ -428,9 +507,12 @@ describe("HitlController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
       await expect(controller.approveSession("session-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -449,8 +531,12 @@ describe("HitlController", () => {
 
     it("throws NotFoundException when session does not exist", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       (databaseService.findReviewSession as jest.Mock).mockResolvedValueOnce(
         null,
       );
@@ -466,8 +552,12 @@ describe("HitlController", () => {
 
     it("escalates session for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       const mockResult = {
         id: "session-1",
         status: "escalated",
@@ -484,9 +574,12 @@ describe("HitlController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
       await expect(
         controller.escalateSession("session-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -505,8 +598,12 @@ describe("HitlController", () => {
 
     it("throws NotFoundException when session does not exist", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       (databaseService.findReviewSession as jest.Mock).mockResolvedValueOnce(
         null,
       );
@@ -520,8 +617,12 @@ describe("HitlController", () => {
   describe("skipSession", () => {
     it("skips session for a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       const mockResult = {
         id: "session-1",
         status: "skipped",
@@ -535,9 +636,12 @@ describe("HitlController", () => {
 
     it("throws ForbiddenException when user is not a group member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
       await expect(controller.skipSession("session-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -556,8 +660,12 @@ describe("HitlController", () => {
 
     it("throws NotFoundException when session does not exist", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
       (databaseService.findReviewSession as jest.Mock).mockResolvedValueOnce(
         null,
       );

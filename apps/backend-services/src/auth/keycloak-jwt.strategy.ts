@@ -104,9 +104,9 @@ export class KeycloakJwtStrategy extends PassportStrategy(Strategy, "jwt") {
    * Called by Passport AFTER the JWT signature, issuer, audience, and expiry
    * have all been verified. The returned object is attached to `req.user`.
    *
-   * We normalize roles here (via extractRoles) so that RolesGuard and
-   * downstream handlers can check `req.user.roles` without caring about
-   * Keycloak's nested claim structure.
+   * We normalize roles here (via extractRoles) so that downstream handlers
+   * can check `req.user.roles` without caring about Keycloak's nested claim
+   * structure.
    */
   validate(payload: KeycloakJwtPayload): User {
     const normalizedRoles = this.extractRoles(payload);
@@ -132,7 +132,7 @@ export class KeycloakJwtStrategy extends PassportStrategy(Strategy, "jwt") {
    *  - `resource_access.<clientId>.roles[]` — roles scoped to a specific client
    *
    * extractRoles merges all three into a flat, deduplicated array so the rest
-   * of the app (RolesGuard, controllers) can just check `user.roles.includes("admin")`
+   * of the app (controllers) can just check `user.roles.includes("admin")`
    * without knowing which Keycloak claim it came from.
    */
   private extractRoles(payload: KeycloakJwtPayload): string[] {

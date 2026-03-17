@@ -25,14 +25,11 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -72,8 +69,7 @@ export class LabelingController {
   // ========== PROJECT ENDPOINTS ==========
 
   @Get("projects")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get all labeling projects" })
   @ApiOkResponse({
     description: "List of labeling projects with their field schemas",
@@ -88,23 +84,15 @@ export class LabelingController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getProjects(@Req() req: Request, @Query("group_id") groupId?: string) {
     if (groupId) {
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        groupId,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, groupId);
       return this.labelingService.getProjects([groupId]);
     }
-    const groupIds = await getIdentityGroupIds(
-      req.resolvedIdentity,
-      this.databaseService,
-    );
+    const groupIds = getIdentityGroupIds(req.resolvedIdentity);
     return this.labelingService.getProjects(groupIds);
   }
 
   @Post("projects")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true, groupIdFrom: { body: "group_id" } })
   @ApiOperation({ summary: "Create a new labeling project" })
   @ApiCreatedResponse({
     description: "Newly created labeling project",
@@ -113,17 +101,12 @@ export class LabelingController {
   async createProject(@Body() dto: CreateProjectDto, @Req() req: Request) {
     const userId =
       req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      dto.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, dto.group_id);
     return this.labelingService.createProject(dto, userId);
   }
 
   @Get("projects/:id")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get project details with field schema" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiOkResponse({
@@ -134,17 +117,12 @@ export class LabelingController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getProject(@Param("id") id: string, @Req() req: Request) {
     const project = await this.labelingService.getProject(id);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return project;
   }
 
   @Put("projects/:id")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Update project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiOkResponse({
@@ -159,17 +137,12 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(id);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.updateProject(id, dto);
   }
 
   @Delete("projects/:id")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Delete project and all associated data" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiOkResponse({
@@ -180,19 +153,14 @@ export class LabelingController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async deleteProject(@Param("id") id: string, @Req() req: Request) {
     const project = await this.labelingService.getProject(id);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.deleteProject(id);
   }
 
   // ========== FIELD SCHEMA ENDPOINTS ==========
 
   @Get("projects/:id/fields")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get field schema for project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiOkResponse({
@@ -203,17 +171,12 @@ export class LabelingController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getFieldSchema(@Param("id") id: string, @Req() req: Request) {
     const project = await this.labelingService.getProject(id);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.getFieldSchema(id);
   }
 
   @Post("projects/:id/fields")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Add a field to the project schema" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiCreatedResponse({
@@ -228,17 +191,12 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.addField(projectId, dto);
   }
 
   @Put("projects/:id/fields/:fieldId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Update a field definition" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "fieldId", description: "Field ID" })
@@ -255,17 +213,12 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.updateField(projectId, fieldId, dto);
   }
 
   @Delete("projects/:id/fields/:fieldId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Delete a field from schema" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "fieldId", description: "Field ID" })
@@ -281,19 +234,14 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.deleteField(projectId, fieldId);
   }
 
   // ========== DOCUMENT ENDPOINTS ==========
 
   @Get("projects/:id/documents")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get all documents in project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiOkResponse({
@@ -307,17 +255,12 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.getProjectDocuments(projectId);
   }
 
   @Post("projects/:id/documents")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Add a document to project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiCreatedResponse({
@@ -339,18 +282,13 @@ export class LabelingController {
         `Labeling document with id ${dto.labelingDocumentId} not found`,
       );
     }
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      labelingDoc.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, labelingDoc.group_id);
     return this.labelingService.addDocumentToProject(projectId, dto);
   }
 
   @Post("projects/:id/upload")
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true, groupIdFrom: { body: "group_id" } })
   @ApiOperation({ summary: "Upload a document into a labeling project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiCreatedResponse({
@@ -362,17 +300,12 @@ export class LabelingController {
     @Body() dto: LabelingUploadDto,
     @Req() req: Request,
   ) {
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      dto.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, dto.group_id);
     return this.labelingService.uploadLabelingDocument(projectId, dto);
   }
 
   @Get("projects/:id/documents/:docId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get document with labels" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
@@ -392,18 +325,16 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     return labeledDoc;
   }
 
   @Get("projects/:id/documents/:docId/download")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Download a labeling document file" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Labeling Document ID" })
@@ -420,10 +351,9 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     const labelingDocument = labeledDoc.labeling_document;
     const fileBuffer = await this.blobStorage.read(labelingDocument.file_path);
@@ -444,8 +374,7 @@ export class LabelingController {
   }
 
   @Delete("projects/:id/documents/:docId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Remove document from project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
@@ -464,10 +393,9 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     return this.labelingService.removeDocumentFromProject(
       projectId,
@@ -478,8 +406,7 @@ export class LabelingController {
   // ========== LABEL ENDPOINTS ==========
 
   @Get("projects/:id/documents/:docId/labels")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get labels for document" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
@@ -498,17 +425,15 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     return this.labelingService.getDocumentLabels(projectId, documentId);
   }
 
   @Post("projects/:id/documents/:docId/labels")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Save labels for document" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
@@ -528,17 +453,15 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     return this.labelingService.saveDocumentLabels(projectId, documentId, dto);
   }
 
   @Delete("projects/:id/documents/:docId/labels/:labelId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Delete a specific label" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
@@ -559,10 +482,9 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     return this.labelingService.deleteLabel(projectId, documentId, labelId);
   }
@@ -570,8 +492,7 @@ export class LabelingController {
   // ========== OCR ENDPOINTS ==========
 
   @Get("projects/:id/documents/:docId/ocr")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get OCR data for document" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
@@ -589,38 +510,43 @@ export class LabelingController {
       projectId,
       documentId,
     );
-    await identityCanAccessGroup(
+    identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
-      this.databaseService,
     );
     return this.labelingService.getDocumentOcr(projectId, documentId);
   }
 
   @Post("projects/:id/documents/:docId/suggestions")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary:
       "Generate label suggestions mapped to existing words/selection marks",
   })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiParam({ name: "docId", description: "Document ID" })
+  @ApiOkResponse({
+    description: "Generated label suggestions for the document",
+    type: [LabelSuggestionDto],
+  })
+  @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async generateDocumentSuggestions(
+    @Req() req: Request,
     @Param("id") projectId: string,
     @Param("docId") documentId: string,
   ): Promise<LabelSuggestionDto[]> {
     return this.labelingService.generateDocumentSuggestions(
       projectId,
       documentId,
+      req.resolvedIdentity,
     );
   }
 
   // ========== EXPORT ENDPOINTS ==========
 
   @Post("projects/:id/export")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Export labeled data for training" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiOkResponse({
@@ -641,11 +567,7 @@ export class LabelingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.labelingService.exportProject(projectId, options);
   }
 }

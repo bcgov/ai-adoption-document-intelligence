@@ -1,5 +1,5 @@
-import { DocumentStatus } from "@generated/client";
-import { BadRequestException, ForbiddenException } from "@nestjs/common";
+import { DocumentStatus, GroupRole } from "@generated/client";
+import { BadRequestException } from "@nestjs/common";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DatabaseService } from "../database/database.service";
 import { DocumentService } from "../document/document.service";
@@ -11,7 +11,6 @@ describe("UploadController", () => {
   let controller: UploadController;
   let documentService: jest.Mocked<DocumentService>;
   let queueService: jest.Mocked<QueueService>;
-  let databaseService: jest.Mocked<DatabaseService>;
 
   beforeEach(() => {
     documentService = {
@@ -20,20 +19,19 @@ describe("UploadController", () => {
     queueService = {
       processOcrForDocument: jest.fn().mockResolvedValue(undefined),
     } as any;
-    databaseService = {
-      isUserInGroup: jest.fn().mockResolvedValue(true),
-      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    } as any;
     controller = new UploadController(
       documentService,
       queueService,
-      databaseService,
       mockAppLogger,
     );
   });
 
   describe("uploadDocument", () => {
-    const mockIdentity = { userId: "user-1" };
+    const mockIdentity = {
+      userId: "user-1",
+      isSystemAdmin: false,
+      groupRoles: { "group-1": GroupRole.MEMBER },
+    };
     const mockReq = { resolvedIdentity: mockIdentity } as any;
     const baseDto: UploadDocumentDto = {
       title: "Test",
@@ -104,14 +102,6 @@ describe("UploadController", () => {
       await expect(controller.uploadDocument(baseDto, mockReq)).rejects.toThrow(
         BadRequestException,
       );
-    });
-
-    it("should propagate ForbiddenException when user is not a group member", async () => {
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
-      await expect(controller.uploadDocument(baseDto, mockReq)).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(documentService.uploadDocument).not.toHaveBeenCalled();
     });
   });
 });

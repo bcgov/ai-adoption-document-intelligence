@@ -40,24 +40,24 @@ import {
 } from "@nestjs/swagger";
 import type { Response } from "express";
 import { Request } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
 import { DatasetService } from "./dataset.service";
 import {
   CreateDatasetDto,
   CreateSplitDto,
   CreateVersionDto,
   DatasetResponseDto,
+  FreezeSplitResponseDto,
   GroundTruthResponseDto,
   PaginatedDatasetResponseDto,
   SampleListResponseDto,
+  SplitDetailResponseDto,
+  SplitListResponseDto,
+  SplitResponseDto,
   UpdateVersionDto,
   UploadResponseDto,
   ValidateDatasetRequestDto,
@@ -69,27 +69,19 @@ import {
 @ApiTags("Benchmark - Datasets")
 @Controller("api/benchmark/datasets")
 export class DatasetController {
-  constructor(
-    private readonly datasetService: DatasetService,
-    private readonly databaseService: DatabaseService,
-  ) {}
+  constructor(private readonly datasetService: DatasetService) {}
 
   private async assertDatasetGroupAccess(
     datasetId: string,
     req: Request,
   ): Promise<void> {
     const dataset = await this.datasetService.getDatasetById(datasetId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      dataset.groupId,
-      this.databaseService,
-    );
+    await identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
   }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Create a new dataset" })
   @ApiBody({
     type: CreateDatasetDto,
@@ -110,18 +102,13 @@ export class DatasetController {
   ): Promise<DatasetResponseDto> {
     const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      createDto.groupId,
-      this.databaseService,
-    );
+    await identityCanAccessGroup(req.resolvedIdentity, createDto.groupId);
 
     return this.datasetService.createDataset(createDto, userId);
   }
 
   @Get()
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "List datasets with pagination" })
   @ApiQuery({
     name: "page",
@@ -156,18 +143,11 @@ export class DatasetController {
     const limitNum = limit ? parseInt(limit, 10) : 20;
 
     if (groupId) {
-      await identityCanAccessGroup(
-        req!.resolvedIdentity,
-        groupId,
-        this.databaseService,
-      );
+      await identityCanAccessGroup(req!.resolvedIdentity, groupId);
       return this.datasetService.listDatasets(pageNum, limitNum, [groupId]);
     }
 
-    const groupIds = await getIdentityGroupIds(
-      req!.resolvedIdentity,
-      this.databaseService,
-    );
+    const groupIds = await getIdentityGroupIds(req!.resolvedIdentity);
 
     if (groupIds.length === 0) {
       return {
@@ -183,8 +163,7 @@ export class DatasetController {
   }
 
   @Get(":id")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get dataset details by ID" })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiOkResponse({
@@ -202,19 +181,14 @@ export class DatasetController {
   ): Promise<DatasetResponseDto> {
     const dataset = await this.datasetService.getDatasetById(id);
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      dataset.groupId,
-      this.databaseService,
-    );
+    await identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
 
     return dataset;
   }
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Delete a dataset by ID" })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiOkResponse({
@@ -234,8 +208,7 @@ export class DatasetController {
 
   @Post(":id/versions/:versionId/upload")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @UseInterceptors(
     FilesInterceptor("files", 100, {
       limits: {
@@ -297,8 +270,7 @@ export class DatasetController {
 
   @Post(":id/versions")
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Create a new dataset version" })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiBody({
@@ -330,8 +302,7 @@ export class DatasetController {
   }
 
   @Get(":id/versions")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "List versions for a dataset" })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiOkResponse({
@@ -351,8 +322,7 @@ export class DatasetController {
   }
 
   @Get(":id/versions/:versionId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get version details by ID" })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
@@ -374,8 +344,7 @@ export class DatasetController {
   }
 
   @Patch(":id/versions/:versionId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Update a dataset version",
     description:
@@ -413,8 +382,7 @@ export class DatasetController {
 
   @Delete(":id/versions/:versionId")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Delete a dataset version",
     description:
@@ -443,8 +411,7 @@ export class DatasetController {
 
   @Delete(":id/versions/:versionId/samples/:sampleId")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Delete a sample from a draft dataset version",
     description:
@@ -473,8 +440,7 @@ export class DatasetController {
   }
 
   @Get(":id/versions/:versionId/samples")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "List samples from a dataset version" })
   @ApiParam({ name: "id", description: "Dataset ID (UUID)" })
   @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
@@ -517,8 +483,7 @@ export class DatasetController {
   }
 
   @Get(":id/versions/:versionId/samples/:sampleId/ground-truth")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Get ground truth JSON content for a sample",
     description:
@@ -548,8 +513,7 @@ export class DatasetController {
   }
 
   @Get(":id/versions/:versionId/files/download")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Download a raw file from a dataset version",
     description:
@@ -582,8 +546,7 @@ export class DatasetController {
   }
 
   @Post(":id/versions/:versionId/validate")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Validate a dataset version for quality issues",
     description:
@@ -624,8 +587,7 @@ export class DatasetController {
 
   @Post(":id/versions/:versionId/splits")
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Create a split for a dataset version",
     description:
@@ -635,9 +597,11 @@ export class DatasetController {
   @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
   @ApiBody({
     description: "Split creation request with name, type, and sampleIds",
+    type: CreateSplitDto,
   })
   @ApiCreatedResponse({
     description: "Split created successfully",
+    type: SplitResponseDto,
   })
   @ApiNotFoundResponse({
     description: "Dataset version not found",
@@ -647,14 +611,13 @@ export class DatasetController {
     @Param("versionId") versionId: string,
     @Body() createDto: CreateSplitDto,
     @Req() req: Request,
-  ): Promise<unknown> {
+  ): Promise<SplitResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.createSplit(id, versionId, createDto);
   }
 
   @Get(":id/versions/:versionId/splits")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "List splits for a dataset version",
     description:
@@ -664,6 +627,7 @@ export class DatasetController {
   @ApiParam({ name: "versionId", description: "Version ID (UUID)" })
   @ApiOkResponse({
     description: "List of splits for this dataset version",
+    type: SplitListResponseDto,
   })
   @ApiNotFoundResponse({
     description: "Dataset version not found",
@@ -672,15 +636,14 @@ export class DatasetController {
     @Param("id") id: string,
     @Param("versionId") versionId: string,
     @Req() req: Request,
-  ): Promise<unknown> {
+  ): Promise<SplitListResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
     const splits = await this.datasetService.listSplits(id, versionId);
     return { splits };
   }
 
   @Get(":id/versions/:versionId/splits/:splitId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Get a single split with full details",
     description:
@@ -691,6 +654,7 @@ export class DatasetController {
   @ApiParam({ name: "splitId", description: "Split ID (UUID)" })
   @ApiOkResponse({
     description: "Split details",
+    type: SplitDetailResponseDto,
   })
   @ApiNotFoundResponse({
     description: "Split not found",
@@ -700,14 +664,13 @@ export class DatasetController {
     @Param("versionId") versionId: string,
     @Param("splitId") splitId: string,
     @Req() req: Request,
-  ): Promise<unknown> {
+  ): Promise<SplitDetailResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.getSplit(id, versionId, splitId);
   }
 
   @Patch(":id/versions/:versionId/splits/:splitId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Update a split",
     description:
@@ -718,9 +681,21 @@ export class DatasetController {
   @ApiParam({ name: "splitId", description: "Split ID (UUID)" })
   @ApiBody({
     description: "Update request with new sampleIds",
+    schema: {
+      type: "object",
+      properties: {
+        sampleIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Array of sample IDs to include in the split",
+        },
+      },
+      required: ["sampleIds"],
+    },
   })
   @ApiOkResponse({
     description: "Split updated successfully",
+    type: SplitResponseDto,
   })
   @ApiNotFoundResponse({
     description: "Split not found",
@@ -734,14 +709,13 @@ export class DatasetController {
     @Param("splitId") splitId: string,
     @Body() updateDto: { sampleIds: string[] },
     @Req() req: Request,
-  ): Promise<unknown> {
+  ): Promise<SplitResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.updateSplit(id, versionId, splitId, updateDto);
   }
 
   @Post(":id/versions/:versionId/freeze")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Freeze a dataset version",
     description:
@@ -771,8 +745,7 @@ export class DatasetController {
   }
 
   @Post(":id/versions/:versionId/splits/:splitId/freeze")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Freeze a split",
     description:
@@ -783,6 +756,7 @@ export class DatasetController {
   @ApiParam({ name: "splitId", description: "Split ID (UUID)" })
   @ApiOkResponse({
     description: "Split frozen successfully",
+    type: FreezeSplitResponseDto,
   })
   @ApiNotFoundResponse({
     description: "Split not found",
@@ -792,7 +766,7 @@ export class DatasetController {
     @Param("versionId") versionId: string,
     @Param("splitId") splitId: string,
     @Req() req: Request,
-  ): Promise<unknown> {
+  ): Promise<FreezeSplitResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
     return this.datasetService.freezeSplit(id, versionId, splitId);
   }

@@ -60,7 +60,8 @@ export class AzureService {
    * @param operationLocation The URL to poll.
    * @param onSuccess Callback invoked with the result when status is 'succeeded'.
    * @param onFailure Callback invoked with the result when status is 'failed'.
-   * @param options Optional polling options (intervalMs, logger).
+   * @param options Optional polling options (intervalMs, maxRetries).
+   * @throws {Error} If the operationLocation is not a valid URL or does not match the configured Azure endpoint.
    */
   async pollOperationUntilResolved(
     operationLocation: string,
@@ -75,21 +76,47 @@ export class AzureService {
       maxRetries?: number;
     },
   ): Promise<void> {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(operationLocation);
+    } catch {
+      throw new Error(`Invalid operationLocation URL: ${operationLocation}`);
+    }
+
+    const expectedOrigin = new URL(this.endpoint).origin;
+    if (parsedUrl.origin !== expectedOrigin) {
+      throw new Error(
+        `operationLocation origin "${parsedUrl.origin}" does not match expected Azure endpoint origin "${expectedOrigin}"`,
+      );
+    }
+
     const maxRetries = options?.maxRetries ?? 5;
     const interval = options?.intervalMs ?? 5000;
-    const getStatus = (result) =>
-      result &&
-      (result.status ||
-        (result.analyzeResult && result.analyzeResult.status) ||
-        (result.modelInfo && result.modelInfo.status));
+    const getStatus = (
+      result:
+        | PagedDocumentIntelligenceOperationDetailsOutput
+        | DocumentIntelligenceErrorResponseOutput,
+    ): string | undefined => {
+      if (!result) return undefined;
+      const withStatus = result as { status?: string };
+      const withAnalyzeResult = result as {
+        analyzeResult?: { status?: string };
+      };
+      const withModelInfo = result as { modelInfo?: { status?: string } };
+      return (
+        withStatus.status ??
+        withAnalyzeResult.analyzeResult?.status ??
+        withModelInfo.modelInfo?.status
+      );
+    };
 
-    let status = "notStarted";
+    let status: string | undefined = "notStarted";
     let result:
       | PagedDocumentIntelligenceOperationDetailsOutput
       | DocumentIntelligenceErrorResponseOutput;
 
     // Fetch initial result before entering the loop
-    const pollResp = await this.checkOperationStatus(operationLocation);
+    const pollResp = await this.checkOperationStatus(parsedUrl.toString());
     result = await pollResp.json();
     status = getStatus(result);
     this.logger.debug(`Operation status: ${status}`);
@@ -101,8 +128,8 @@ export class AzureService {
     ) {
       retryCount++;
       await new Promise((res) => setTimeout(res, interval));
-      const pollResp = await this.checkOperationStatus(operationLocation);
-      result = await pollResp.json();
+      const retryResp = await this.checkOperationStatus(parsedUrl.toString());
+      result = await retryResp.json();
       status = getStatus(result);
       this.logger.debug(`Operation status: ${status}`);
     }

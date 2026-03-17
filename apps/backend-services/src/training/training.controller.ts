@@ -17,12 +17,8 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
-import { DatabaseService } from "../database/database.service";
 import { LabelingService } from "../labeling/labeling.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
 import { TrainedModelDto } from "./dto/trained-model.dto";
@@ -39,15 +35,13 @@ export class TrainingController {
   constructor(
     private readonly trainingService: TrainingService,
     private readonly labelingService: LabelingService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   /**
    * Validate if a project is ready for training
    */
   @Get("projects/:projectId/validate")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Validate project training data" })
   @ApiParam({ name: "projectId", description: "Labeling project ID" })
   @ApiOkResponse({
@@ -62,11 +56,7 @@ export class TrainingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.trainingService.validateTrainingData(projectId);
   }
 
@@ -74,8 +64,7 @@ export class TrainingController {
    * Start training process for a project
    */
   @Post("projects/:projectId/train")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Start model training for a project" })
   @ApiParam({ name: "projectId", description: "Labeling project ID" })
   @ApiCreatedResponse({
@@ -90,11 +79,7 @@ export class TrainingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     const userId =
       req.user?.sub || (req.user as { id?: string })?.id || "unknown";
     return this.trainingService.startTraining(projectId, dto, userId);
@@ -104,8 +89,7 @@ export class TrainingController {
    * Get all training jobs for a project
    */
   @Get("projects/:projectId/jobs")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get all training jobs for a project" })
   @ApiParam({ name: "projectId", description: "Labeling project ID" })
   @ApiOkResponse({
@@ -119,11 +103,7 @@ export class TrainingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.trainingService.getTrainingJobs(projectId);
   }
 
@@ -131,8 +111,7 @@ export class TrainingController {
    * Get specific training job status
    */
   @Get("jobs/:jobId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get training job status" })
   @ApiParam({ name: "jobId", description: "Training job ID" })
   @ApiOkResponse({
@@ -144,11 +123,7 @@ export class TrainingController {
   async getJobStatus(@Param("jobId") jobId: string, @Req() req: Request) {
     const job = await this.trainingService.getTrainingJob(jobId);
     const project = await this.labelingService.getProject(job.projectId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return job;
   }
 
@@ -156,8 +131,7 @@ export class TrainingController {
    * Get all trained models for a project
    */
   @Get("projects/:projectId/models")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get trained models for a project" })
   @ApiParam({ name: "projectId", description: "Labeling project ID" })
   @ApiOkResponse({
@@ -171,11 +145,7 @@ export class TrainingController {
     @Req() req: Request,
   ) {
     const project = await this.labelingService.getProject(projectId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     return this.trainingService.getTrainedModels(projectId);
   }
 
@@ -183,8 +153,7 @@ export class TrainingController {
    * Cancel a training job
    */
   @Delete("jobs/:jobId")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Cancel a training job" })
   @ApiParam({ name: "jobId", description: "Training job ID" })
   @ApiOkResponse({
@@ -196,11 +165,7 @@ export class TrainingController {
   async cancelJob(@Param("jobId") jobId: string, @Req() req: Request) {
     const job = await this.trainingService.getTrainingJob(jobId);
     const project = await this.labelingService.getProject(job.projectId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.group_id,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.group_id);
     await this.trainingService.cancelTrainingJob(jobId);
     return { success: true, message: "Training job cancelled" };
   }

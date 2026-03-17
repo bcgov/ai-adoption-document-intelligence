@@ -1,3 +1,4 @@
+import { GroupRole } from "@generated/client";
 import { BadRequestException, ForbiddenException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { DatabaseService } from "@/database/database.service";
@@ -25,7 +26,11 @@ describe("ApiKeyController", () => {
       email: "test@example.com",
       roles: ["admin", "editor"],
     },
-    resolvedIdentity: { userId: "testuser" },
+    resolvedIdentity: {
+      userId: "testuser",
+      isSystemAdmin: false,
+      groupRoles: { group123: GroupRole.ADMIN },
+    },
   };
 
   beforeEach(async () => {
@@ -81,10 +86,18 @@ describe("ApiKeyController", () => {
     });
 
     it("should throw ForbiddenException when user is not a group member", async () => {
-      databaseService.isUserInGroup.mockResolvedValue(false);
-
       await expect(
-        controller.getApiKey(mockRequest as any, "group123"),
+        controller.getApiKey(
+          {
+            ...mockRequest,
+            resolvedIdentity: {
+              userId: "testuser",
+              isSystemAdmin: false,
+              groupRoles: {},
+            },
+          } as any,
+          "group123",
+        ),
       ).rejects.toThrow(ForbiddenException);
       expect(apiKeyService.getApiKey).not.toHaveBeenCalled();
     });
@@ -103,7 +116,11 @@ describe("ApiKeyController", () => {
         controller.generateApiKey(
           {
             user: { sub: "testuser" },
-            resolvedIdentity: { userId: "testuser" },
+            resolvedIdentity: {
+              userId: "testuser",
+              isSystemAdmin: false,
+              groupRoles: { group123: GroupRole.ADMIN },
+            },
           } as any,
           { groupId: "group123" },
         ),
@@ -135,10 +152,18 @@ describe("ApiKeyController", () => {
     });
 
     it("should throw ForbiddenException when user is not a group member", async () => {
-      databaseService.isUserInGroup.mockResolvedValue(false);
-
       await expect(
-        controller.generateApiKey(mockRequest as any, { groupId: "group123" }),
+        controller.generateApiKey(
+          {
+            ...mockRequest,
+            resolvedIdentity: {
+              userId: "testuser",
+              isSystemAdmin: false,
+              groupRoles: {},
+            },
+          } as any,
+          { groupId: "group123" },
+        ),
       ).rejects.toThrow(ForbiddenException);
       expect(apiKeyService.generateApiKey).not.toHaveBeenCalled();
     });
@@ -150,7 +175,11 @@ describe("ApiKeyController", () => {
         controller.regenerateApiKey(
           {
             user: { sub: "testuser" },
-            resolvedIdentity: { userId: "testuser" },
+            resolvedIdentity: {
+              userId: "testuser",
+              isSystemAdmin: false,
+              groupRoles: { group123: GroupRole.ADMIN },
+            },
           } as any,
           { id: "key123" },
         ),
@@ -176,11 +205,20 @@ describe("ApiKeyController", () => {
     });
 
     it("should throw ForbiddenException when user is not a group member", async () => {
-      databaseService.isUserInGroup.mockResolvedValue(false);
       mockApiKeyService.getApiKeyGroupId.mockResolvedValue("group123");
 
       await expect(
-        controller.deleteApiKey(mockRequest as any, "key123"),
+        controller.deleteApiKey(
+          {
+            ...mockRequest,
+            resolvedIdentity: {
+              userId: "testuser",
+              isSystemAdmin: false,
+              groupRoles: {},
+            },
+          } as any,
+          "key123",
+        ),
       ).rejects.toThrow(ForbiddenException);
       expect(apiKeyService.deleteApiKey).not.toHaveBeenCalled();
     });
@@ -211,13 +249,22 @@ describe("ApiKeyController", () => {
     });
 
     it("should throw ForbiddenException when user is not a group member", async () => {
-      databaseService.isUserInGroup.mockResolvedValue(false);
       mockApiKeyService.getApiKeyGroupId.mockResolvedValue("group123");
 
       await expect(
-        controller.regenerateApiKey(mockRequest as any, {
-          id: "key123",
-        }),
+        controller.regenerateApiKey(
+          {
+            ...mockRequest,
+            resolvedIdentity: {
+              userId: "testuser",
+              isSystemAdmin: false,
+              groupRoles: {},
+            },
+          } as any,
+          {
+            id: "key123",
+          },
+        ),
       ).rejects.toThrow(ForbiddenException);
       expect(apiKeyService.regenerateApiKey).not.toHaveBeenCalled();
     });
@@ -237,7 +284,11 @@ describe("ApiKeyController", () => {
 
       const reqWithDifferentUser = {
         user: { sub: newUserId },
-        resolvedIdentity: { userId: newUserId },
+        resolvedIdentity: {
+          userId: newUserId,
+          isSystemAdmin: false,
+          groupRoles: { group123: GroupRole.ADMIN },
+        },
       };
 
       const result = await controller.regenerateApiKey(

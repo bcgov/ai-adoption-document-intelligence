@@ -34,15 +34,11 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { CreateProjectDto, ProjectDetailsDto, ProjectSummaryDto } from "./dto";
 
@@ -53,13 +49,11 @@ export class BenchmarkProjectController {
 
   constructor(
     private readonly benchmarkProjectService: BenchmarkProjectService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Create a benchmark project" })
   @ApiBody({ type: CreateProjectDto })
   @ApiCreatedResponse({
@@ -80,18 +74,13 @@ export class BenchmarkProjectController {
 
     const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      createProjectDto.groupId,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, createProjectDto.groupId);
 
     return this.benchmarkProjectService.createProject(createProjectDto, userId);
   }
 
   @Get()
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "List benchmark projects" })
   @ApiQuery({
     name: "groupId",
@@ -110,18 +99,11 @@ export class BenchmarkProjectController {
     this.logger.log("GET /api/benchmark/projects");
 
     if (groupId) {
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        groupId,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, groupId);
       return this.benchmarkProjectService.listProjects([groupId]);
     }
 
-    const groupIds = await getIdentityGroupIds(
-      req.resolvedIdentity,
-      this.databaseService,
-    );
+    const groupIds = getIdentityGroupIds(req.resolvedIdentity);
 
     if (groupIds.length === 0) {
       return [];
@@ -131,8 +113,7 @@ export class BenchmarkProjectController {
   }
 
   @Get(":id")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Get project details by ID" })
   @ApiParam({ name: "id", description: "Project ID (UUID)" })
   @ApiOkResponse({
@@ -149,19 +130,14 @@ export class BenchmarkProjectController {
 
     const project = await this.benchmarkProjectService.getProjectById(id);
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.groupId,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
 
     return project;
   }
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Delete a benchmark project" })
   @ApiParam({ name: "id", description: "Project ID (UUID)" })
   @ApiNoContentResponse({ description: "Project deleted successfully" })
@@ -176,11 +152,7 @@ export class BenchmarkProjectController {
 
     const project = await this.benchmarkProjectService.getProjectById(id);
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.groupId,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
 
     return this.benchmarkProjectService.deleteProject(id);
   }

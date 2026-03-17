@@ -22,20 +22,19 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
 import { DatasetService } from "./dataset.service";
 import {
   AddVersionFromHitlDto,
+  AddVersionFromHitlResponseDto,
   CreateDatasetFromHitlDto,
+  CreateDatasetFromHitlResponseDto,
   EligibleDocumentsFilterDto,
+  EligibleDocumentsResponseDto,
 } from "./dto";
 import { HitlDatasetService } from "./hitl-dataset.service";
 
@@ -45,12 +44,10 @@ export class HitlDatasetController {
   constructor(
     private readonly hitlDatasetService: HitlDatasetService,
     private readonly datasetService: DatasetService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   @Get("from-hitl/eligible-documents")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "List HITL-verified documents eligible for dataset creation",
   })
@@ -62,7 +59,10 @@ export class HitlDatasetController {
     type: String,
     description: "Filter by filename",
   })
-  @ApiOkResponse({ description: "Paginated list of eligible documents" })
+  @ApiOkResponse({
+    description: "Paginated list of eligible documents",
+    type: EligibleDocumentsResponseDto,
+  })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async listEligibleDocuments(
     @Query() filters: EligibleDocumentsFilterDto,
@@ -70,17 +70,10 @@ export class HitlDatasetController {
   ) {
     let groupIds: string[];
     if (filters.group_id) {
-      await identityCanAccessGroup(
-        req.resolvedIdentity,
-        filters.group_id,
-        this.databaseService,
-      );
+      identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
       groupIds = [filters.group_id];
     } else {
-      groupIds = await getIdentityGroupIds(
-        req.resolvedIdentity,
-        this.databaseService,
-      );
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
     }
 
     if (groupIds.length === 0) {
@@ -92,14 +85,14 @@ export class HitlDatasetController {
 
   @Post("from-hitl")
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Create a new dataset from HITL-verified documents",
   })
   @ApiBody({ type: CreateDatasetFromHitlDto })
   @ApiCreatedResponse({
     description: "Dataset and version created from verified documents",
+    type: CreateDatasetFromHitlResponseDto,
   })
   @ApiBadRequestResponse({
     description: "Invalid request or no documents could be processed",
@@ -111,19 +104,14 @@ export class HitlDatasetController {
   ) {
     const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      dto.groupId,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, dto.groupId);
 
     return this.hitlDatasetService.createDatasetFromHitl(dto, userId);
   }
 
   @Post(":id/versions/from-hitl")
   @HttpCode(HttpStatus.CREATED)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary:
       "Add a new version to an existing dataset from HITL-verified documents",
@@ -132,6 +120,7 @@ export class HitlDatasetController {
   @ApiBody({ type: AddVersionFromHitlDto })
   @ApiCreatedResponse({
     description: "New version created from verified documents",
+    type: AddVersionFromHitlResponseDto,
   })
   @ApiNotFoundResponse({ description: "Dataset not found" })
   @ApiBadRequestResponse({
@@ -146,11 +135,7 @@ export class HitlDatasetController {
     const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
     const dataset = await this.datasetService.getDatasetById(datasetId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      dataset.groupId,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
 
     return this.hitlDatasetService.addVersionFromHitl(datasetId, dto, userId);
   }
