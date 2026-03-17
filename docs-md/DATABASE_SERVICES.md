@@ -120,7 +120,7 @@ Service wiring in the benchmark module:
 ```mermaid
 graph LR
     Controller[Controller] --> Service[Feature Service]
-    Service --> DbService["*DbService"]
+    Service --> DbService[#42;DbService]
     DbService --> PS[(PrismaService)]
     PS --> DB[(Database)]
 ```
