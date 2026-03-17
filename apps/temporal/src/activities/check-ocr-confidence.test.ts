@@ -364,4 +364,46 @@ describe("checkOcrConfidence activity", () => {
     expect(result.averageConfidence).toBeCloseTo(0.88, 2);
     expect(result.requiresReview).toBe(false);
   });
+
+  it("skips document update when documentId is benchmark synthetic id", async () => {
+    const ocrResult: OCRResult = {
+      success: true,
+      status: "succeeded",
+      apimRequestId: "test",
+      fileName: "form_image_1.jpg",
+      fileType: "pdf",
+      modelId: "prebuilt-layout",
+      extractedText: "Test",
+      pages: [
+        {
+          pageNumber: 1,
+          width: 8.5,
+          height: 11,
+          unit: "inch",
+          words: [
+            { content: "Word1", confidence: 0.85, polygon: [], span: { offset: 0, length: 5 } },
+            { content: "Word2", confidence: 0.9, polygon: [], span: { offset: 6, length: 5 } },
+          ],
+          lines: [],
+          spans: [],
+        },
+      ],
+      paragraphs: [],
+      tables: [],
+      keyValuePairs: [],
+      sections: [],
+      figures: [],
+      documents: [],
+      processedAt: "2024-01-01T00:00:00Z",
+    };
+
+    const result = await checkOcrConfidence({
+      documentId: "benchmark-form_image_1",
+      ocrResult,
+      threshold: 0.95,
+    });
+
+    expect(result.requiresReview).toBe(true);
+    expect(prismaMock.document.update).not.toHaveBeenCalled();
+  });
 });
