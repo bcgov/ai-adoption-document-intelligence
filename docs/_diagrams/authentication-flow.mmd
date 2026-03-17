@@ -6,7 +6,7 @@ sequenceDiagram
     participant API as API Service<br/>(Axios + Cookies)
     participant BE as NestJS Backend<br/>(/api/auth)
     participant Guard as JwtAuthGuard<br/>(Passport JWT)
-    participant Identity as IdentityGuard<br/>(Identity Resolution)
+    participant Identity as IdentityGuard<br/>(Identity + Authorization)
     participant CSRF as CsrfGuard<br/>(Double-Submit)
     participant KC as Keycloak<br/>(Identity Provider)
 
@@ -38,7 +38,8 @@ sequenceDiagram
     Guard ->> Guard: Verify token signature<br/>Validate iss, aud, exp<br/>Normalize Keycloak roles
     Guard -->> BE: request.user = { sub, roles, ... }
     BE ->> Identity: IdentityGuard intercepts
-    Identity ->> Identity: Set resolvedIdentity<br/>{ userId: user.sub }
+    Identity ->> Identity: Parallel DB queries:<br/>isUserSystemAdmin(sub)<br/>getUsersGroups(sub)
+    Identity ->> Identity: Set resolvedIdentity<br/>{ userId, isSystemAdmin,<br/>groupRoles }
     Identity -->> BE: request.resolvedIdentity set
     BE -->> SPA: 200 OK { sub, name,<br/>email, roles, expires_in }
     SPA ->> SPA: Set user state<br/>Schedule refresh timer (75%)
@@ -53,7 +54,8 @@ sequenceDiagram
     Guard ->> Guard: Verify token<br/>Set request.user
     Guard -->> BE: Authenticated
     BE ->> Identity: IdentityGuard intercepts
-    Identity ->> Identity: Set resolvedIdentity<br/>{ userId: user.sub }
+    Identity ->> Identity: Enrich resolvedIdentity<br/>{ userId, isSystemAdmin,<br/>groupRoles }
+    Identity ->> Identity: Enforce @Identity options<br/>(requireSystemAdmin,<br/>groupIdFrom, minimumRole)
     Identity -->> BE: request.resolvedIdentity set
     BE -->> API: 200 OK (response data)
 
@@ -109,12 +111,13 @@ sequenceDiagram
     rect rgb(236, 253, 245)
         Note over API,Identity: Machine-to-Machine (M2M) — Group-Scoped
         API ->> BE: POST /api/upload<br/>X-API-Key: api_key_value
-        BE ->> Guard: JwtAuthGuard skips<br/>(@ApiKeyAuth route + x-api-key present)
+        BE ->> Guard: JwtAuthGuard skips<br/>(x-api-key header present)
         BE ->> BE: ApiKeyAuthGuard checks<br/>failed attempts for IP<br/>(max 20/min, else 429)
         BE ->> BE: Validate key via ApiKeyService<br/>(prefix lookup + bcrypt)
         BE ->> BE: Set request.user from key<br/>(sub, email, roles)<br/>Set request.apiKeyGroupId
         BE ->> Identity: IdentityGuard intercepts
-        Identity ->> Identity: Set resolvedIdentity<br/>{ groupId: apiKeyGroupId }
+        Identity ->> Identity: Check @Identity({ allowApiKey })<br/>Reject if not allowed (403)
+        Identity ->> Identity: Set resolvedIdentity<br/>{ isSystemAdmin: false,<br/>groupRoles: { groupId: MEMBER } }
         Identity -->> BE: request.resolvedIdentity set
         BE -->> API: 200 OK
     end

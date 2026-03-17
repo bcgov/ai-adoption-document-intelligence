@@ -908,7 +908,7 @@ X-CSRF-Token: abc123...</code></pre>
 
 <h3>Guard Execution Order</h3>
 
-<p>Six guards are registered globally via NestJS <code>APP_GUARD</code>. They execute in this order on every request:</p>
+<p>Five guards are registered globally via NestJS <code>APP_GUARD</code>. They execute in this order on every request:</p>
 
 <table>
     <thead>
@@ -923,25 +923,20 @@ X-CSRF-Token: abc123...</code></pre>
         <tr>
             <td><strong>2</strong></td>
             <td><code>JwtAuthGuard</code></td>
-            <td>Extends Passport <code>AuthGuard('jwt')</code>. Skips <code>@Public()</code> routes. Defers to API key guard if <code>@ApiKeyAuth()</code> and <code>x-api-key</code> header present. Otherwise validates token via <code>KeycloakJwtStrategy</code> (cookie-first, Bearer fallback).</td>
+            <td>Extends Passport <code>AuthGuard('jwt')</code>. Skips <code>@Public()</code> routes. Defers to API key guard if <code>x-api-key</code> header present. Otherwise validates token via <code>KeycloakJwtStrategy</code> (cookie-first, Bearer fallback).</td>
         </tr>
         <tr>
             <td><strong>3</strong></td>
             <td><code>ApiKeyAuthGuard</code></td>
-            <td>Validates <code>X-API-Key</code> header on <code>@ApiKeyAuth()</code>-decorated routes. Skips if user already authenticated via JWT. Tracks failed validation attempts per IP — after the configured limit (default: 20 failures/minute), blocks with <code>429 Too Many Requests</code> before reaching the expensive bcrypt comparison. All thresholds are env-configurable.</td>
+            <td>Validates <code>X-API-Key</code> header when present. Skips if user already authenticated via JWT. Tracks failed validation attempts per IP — after the configured limit (default: 20 failures/minute), blocks with <code>429 Too Many Requests</code> before reaching the expensive bcrypt comparison. All thresholds are env-configurable.</td>
         </tr>
         <tr>
             <td><strong>4</strong></td>
             <td><code>IdentityGuard</code></td>
-            <td>Resolves the requestor's identity and attaches a normalised <code>ResolvedIdentity</code> object to <code>request.resolvedIdentity</code>. For JWT-authenticated requests, sets <code>userId</code> from <code>request.user.sub</code>. For API-key-authenticated requests, sets <code>groupId</code> from <code>request.apiKeyGroupId</code>. Always returns <code>true</code> — this guard never blocks requests on its own.</td>
+            <td>Reads <code>@Identity()</code> decorator metadata to resolve and enrich the requestor's identity. For JWT requests, runs parallel DB queries (<code>isUserSystemAdmin</code> + <code>getUsersGroups</code>) and attaches <code>resolvedIdentity</code> with <code>userId</code>, <code>isSystemAdmin</code>, and <code>groupRoles</code>. For API key requests, rejects unless <code>@Identity({ allowApiKey: true })</code> is set, then populates <code>groupRoles</code> from the key's group scope. Enforces <code>requireSystemAdmin</code>, <code>groupIdFrom</code> membership, and <code>minimumRole</code> checks declaratively. Throws <code>403</code> on authorization failure or <code>401</code> on unauthenticated access to non-public endpoints.</td>
         </tr>
         <tr>
             <td><strong>5</strong></td>
-            <td><code>RolesGuard</code></td>
-            <td>Checks <code>@Roles()</code> decorator metadata against <code>request.user.roles</code>. Requires at least one matching role.</td>
-        </tr>
-        <tr>
-            <td><strong>6</strong></td>
             <td><code>CsrfGuard</code></td>
             <td>Validates CSRF double-submit token on state-changing requests (POST, PUT, DELETE, PATCH) when the user is authenticated via cookies. Skips Bearer and API-key authenticated requests.</td>
         </tr>
@@ -956,18 +951,35 @@ X-CSRF-Token: abc123...</code></pre>
     <li><strong>Key Provider:</strong> <code>passport-jwt</code> with <code>secretOrKeyProvider</code> using <code>jwks-rsa</code> — automatically fetches and caches Keycloak's RS256 public keys from the JWKS endpoint</li>
     <li><strong>Token Extraction:</strong> Cookie-first (<code>req.cookies.access_token</code>), with <code>Authorization: Bearer {token}</code> header as fallback for API clients</li>
     <li><strong>Validation:</strong> RS256 signature, issuer, audience, expiration</li>
-    <li><strong>Role Normalization:</strong> Collects roles from three Keycloak JWT locations:
-        <ul>
-            <li><code>payload.roles[]</code> — top-level claim</li>
-            <li><code>payload.realm_access.roles[]</code> — realm-level roles</li>
-            <li><code>payload.resource_access.&lt;client_id&gt;.roles[]</code> — client-specific roles</li>
-        </ul>
-    </li>
 </ul>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Keycloak JWT roles are not used for authorization.</strong> The JWT strategy still normalizes Keycloak roles from the token into <code>request.user.roles</code>, but no guard, controller, or service reads this field. All authorization is handled by the <code>IdentityGuard</code> using database-backed roles: <code>is_system_admin</code> (boolean on the <code>User</code> table) and <code>GroupRole</code> (<code>ADMIN</code> | <code>MEMBER</code>, stored in the <code>UserGroup</code> table). See <a href="#authorization">Authorization</a> below.
+    </div>
+</div>
+
+<h3>Authorization Model</h3>
+
+<p>Authorization uses a <strong>two-tier database-backed role system</strong>, not Keycloak JWT roles:</p>
+
+<div class="grid grid-2">
+    <div class="card" style="border-left-color: var(--bc-blue);">
+        <h4 style="margin-top: 0;">System Admin (<code>is_system_admin</code>)</h4>
+        <p>A boolean flag on the <code>User</code> database table. System admins bypass all group membership checks and can access all resources. Checked via <code>@Identity({ requireSystemAdmin: true })</code> or through the pre-populated <code>resolvedIdentity.isSystemAdmin</code> flag.</p>
+    </div>
+    <div class="card" style="border-left-color: var(--bc-gold);">
+        <h4 style="margin-top: 0;">Group Role (<code>GroupRole</code>)</h4>
+        <p>A per-group role stored in the <code>UserGroup</code> join table. Two levels: <code>MEMBER</code> (default) and <code>ADMIN</code>. Checked via <code>@Identity({ groupIdFrom: ..., minimumRole: GroupRole.ADMIN })</code> or through <code>resolvedIdentity.groupRoles</code>. API keys are always assigned <code>MEMBER</code> role within their scoped group.</p>
+    </div>
+</div>
 
 <h2>Decorator Composition Rules</h2>
 
-<p>The guard chain runs globally in this order: <code>JwtAuthGuard</code> &rarr; <code>ApiKeyAuthGuard</code> &rarr; <code>IdentityGuard</code> &rarr; <code>RolesGuard</code> &rarr; <code>CsrfGuard</code>. Decorators control which guards activate. Follow these rules when protecting endpoints.</p>
+<p>The guard chain runs globally in this order: <code>JwtAuthGuard</code> &rarr; <code>ApiKeyAuthGuard</code> &rarr; <code>IdentityGuard</code> &rarr; <code>CsrfGuard</code>. The <code>@Identity()</code> decorator controls how the <code>IdentityGuard</code> resolves and enforces authorization. Follow these rules when protecting endpoints.</p>
 
 <h3>Available Decorators</h3>
 
@@ -982,19 +994,24 @@ X-CSRF-Token: abc123...</code></pre>
             <td><code>JwtAuthGuard</code> returns <code>true</code> immediately &mdash; all downstream guards become no-ops</td>
         </tr>
         <tr>
-            <td><code>@ApiKeyAuth()</code></td>
+            <td><code>@Identity()</code></td>
+            <td>Identity resolution + authorization</td>
+            <td><code>IdentityGuard</code> enriches <code>request.resolvedIdentity</code> with <code>isSystemAdmin</code> and <code>groupRoles</code> (parallel DB queries for JWT, no queries for API key). Enforces <code>requireSystemAdmin</code>, <code>groupIdFrom</code> membership, and <code>minimumRole</code> checks. Also adds Swagger <code>@ApiBearerAuth</code> metadata. Without this decorator, <code>IdentityGuard</code> still sets a base identity but skips enrichment and enforcement.</td>
+        </tr>
+        <tr>
+            <td><code>@Identity({ allowApiKey: true })</code></td>
             <td>Allow API key authentication</td>
-            <td>Sets metadata read by <code>JwtAuthGuard</code> (skip JWT when API key header present) and <code>ApiKeyAuthGuard</code> (validate the key)</td>
+            <td>Tells <code>IdentityGuard</code> to accept API-key-authenticated requests. Also adds Swagger <code>@ApiSecurity("api-key")</code> metadata. Without this flag, API key requests receive <code>403 Forbidden</code>.</td>
         </tr>
         <tr>
-            <td><code>@KeycloakSSOAuth()</code></td>
-            <td>Swagger documentation only</td>
-            <td>Adds <code>ApiBearerAuth</code> and <code>ApiUnauthorizedResponse</code> to OpenAPI spec. <strong>No runtime effect</strong> &mdash; JWT is enforced globally</td>
+            <td><code>@Identity({ requireSystemAdmin: true })</code></td>
+            <td>System admin only</td>
+            <td><code>IdentityGuard</code> throws <code>403</code> if the resolved identity is not a system admin. API keys always fail this check (<code>isSystemAdmin</code> is always <code>false</code> for API keys).</td>
         </tr>
         <tr>
-            <td><code>@Roles(...)</code></td>
-            <td>Require specific roles</td>
-            <td><code>RolesGuard</code> checks <code>request.user.roles</code> for at least one match. Works with both JWT and API key users</td>
+            <td><code>@Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })</code></td>
+            <td>Group-scoped with role check</td>
+            <td><code>IdentityGuard</code> extracts the group ID from the specified request location (param, query, or body), verifies the identity is a member of that group, and checks that their role meets the minimum. System admins bypass these checks.</td>
         </tr>
     </tbody>
 </table>
@@ -1004,35 +1021,34 @@ X-CSRF-Token: abc123...</code></pre>
 <div class="grid grid-2">
     <div class="card" style="border-left-color: #2E8540;">
         <h4 style="margin-top: 0;">Standard JWT-protected (most common)</h4>
-        <pre><code>@KeycloakSSOAuth()
+        <pre><code>@Identity()
 @Get("documents")
 listDocuments() {}</code></pre>
-        <p style="margin-bottom: 0;">Requires valid JWT. API keys ignored. <code>@KeycloakSSOAuth()</code> is Swagger-only; enforcement comes from the global <code>JwtAuthGuard</code>.</p>
+        <p style="margin-bottom: 0;">Requires valid JWT. API keys rejected. Identity enriched with <code>isSystemAdmin</code> and <code>groupRoles</code> for downstream use.</p>
     </div>
     <div class="card" style="border-left-color: var(--bc-blue);">
         <h4 style="margin-top: 0;">Dual auth &mdash; JWT or API key</h4>
-        <pre><code>@ApiKeyAuth()
-@KeycloakSSOAuth()
+        <pre><code>@Identity({ allowApiKey: true })
 @Post("upload")
 uploadDocument() {}</code></pre>
         <p style="margin-bottom: 0;">Accepts <strong>either</strong> JWT <strong>or</strong> <code>X-API-Key</code>. If neither &rarr; <code>401</code>. CSRF automatically exempted for API key and Bearer requests.</p>
     </div>
     <div class="card" style="border-left-color: var(--bc-gold);">
-        <h4 style="margin-top: 0;">JWT with role enforcement</h4>
-        <pre><code>@Roles("admin")
-@KeycloakSSOAuth()
-@Delete("documents/:id")
-deleteDocument() {}</code></pre>
-        <p style="margin-bottom: 0;">Requires valid JWT <strong>and</strong> the <code>admin</code> role. Users without the role get <code>403</code>. API keys not accepted.</p>
+        <h4 style="margin-top: 0;">System admin only</h4>
+        <pre><code>@Identity({ requireSystemAdmin: true })
+@Delete("admin/users/:id")
+deleteUser() {}</code></pre>
+        <p style="margin-bottom: 0;">Requires valid JWT <strong>and</strong> system-admin status. API keys always fail this check. Non-admins get <code>403</code>.</p>
     </div>
     <div class="card" style="border-left-color: #4C2C92;">
-        <h4 style="margin-top: 0;">Dual auth with role enforcement</h4>
-        <pre><code>@ApiKeyAuth()
-@Roles("admin")
-@KeycloakSSOAuth()
-@Post("admin/users")
-createUser() {}</code></pre>
-        <p style="margin-bottom: 0;">JWT or API key, <strong>plus</strong> <code>admin</code> role required. API key roles inherited from creating user.</p>
+        <h4 style="margin-top: 0;">Group-scoped with minimum role</h4>
+        <pre><code>@Identity({
+  groupIdFrom: { param: "groupId" },
+  minimumRole: GroupRole.ADMIN,
+})
+@Put(":groupId/settings")
+updateGroupSettings() {}</code></pre>
+        <p style="margin-bottom: 0;">Extracts <code>groupId</code> from the route param, verifies membership, and requires at least <code>ADMIN</code> role within that group. System admins bypass these checks.</p>
     </div>
 </div>
 
@@ -1044,9 +1060,8 @@ createUser() {}</code></pre>
     </div>
     <div>
         <ul style="margin-bottom: 0;">
-            <li><code>@Public()</code> + <code>@Roles(...)</code> &mdash; Roles guard throws <code>403</code> because <code>@Public()</code> skips auth, leaving <code>request.user</code> undefined</li>
-            <li><code>@ApiKeyAuth()</code> without <code>@KeycloakSSOAuth()</code> &mdash; Works at runtime but Swagger won't show the bearer auth option (misleading docs)</li>
-            <li><code>@Public()</code> + <code>@ApiKeyAuth()</code> &mdash; <code>@Public()</code> short-circuits the guard chain; the API key decorator has no effect</li>
+            <li><code>@Public()</code> + <code>@Identity()</code> &mdash; <code>@Public()</code> short-circuits the guard chain; the identity decorator has no effect</li>
+            <li><code>@Identity({ requireSystemAdmin: true, allowApiKey: true })</code> &mdash; API keys always have <code>isSystemAdmin = false</code>, so this combination always rejects API key requests</li>
         </ul>
     </div>
 </div>
@@ -1054,14 +1069,16 @@ createUser() {}</code></pre>
 <h3>Decision Flowchart</h3>
 <ol>
     <li>Is this an auth flow endpoint (login, callback, refresh, logout)? &rarr; <code>@Public()</code></li>
-    <li>Does this endpoint need machine-to-machine access? &rarr; Add <code>@ApiKeyAuth()</code> + <code>@KeycloakSSOAuth()</code></li>
-    <li>Only browser/JWT access? &rarr; <code>@KeycloakSSOAuth()</code></li>
-    <li>Does this endpoint require specific roles? &rarr; Add <code>@Roles('role1', 'role2')</code></li>
+    <li>Does this endpoint need machine-to-machine access? &rarr; <code>@Identity({ allowApiKey: true })</code></li>
+    <li>Does this endpoint require system-admin access? &rarr; <code>@Identity({ requireSystemAdmin: true })</code></li>
+    <li>Does this endpoint need group-scoped authorization? &rarr; <code>@Identity({ groupIdFrom: { param: "groupId" } })</code></li>
+    <li>Does it also need a minimum role? &rarr; Add <code>minimumRole: GroupRole.ADMIN</code> to the options</li>
+    <li>Standard authenticated endpoint? &rarr; <code>@Identity()</code></li>
 </ol>
 
 <h2>API Key Authentication</h2>
 
-<p>For machine-to-machine (M2M) integrations, routes decorated with <code>@ApiKeyAuth()</code> accept an API key via the <code>X-API-Key</code> header as an alternative to Bearer tokens.</p>
+<p>For machine-to-machine (M2M) integrations, routes decorated with <code>@Identity({ allowApiKey: true })</code> accept an API key via the <code>X-API-Key</code> header as an alternative to Bearer tokens.</p>
 
 <pre><code>GET /api/documents
 X-API-Key: your-api-key-here</code></pre>
@@ -1074,8 +1091,8 @@ X-API-Key: your-api-key-here</code></pre>
             <li>Each group can have <strong>one active key</strong> at a time — keys are scoped to the group, not individual users</li>
             <li>Keys are validated by the <code>ApiKeyAuthGuard</code> via <code>ApiKeyService</code></li>
             <li>On validation, <code>request.apiKeyGroupId</code> is set to the key's owning group ID, and <code>request.user</code> is populated with <strong>roles inherited from the creating user's JWT at key creation time</strong></li>
-            <li>The <code>IdentityGuard</code> then sets <code>request.resolvedIdentity = { groupId }</code> for downstream authorization</li>
-            <li>Regenerating a key captures the requesting user's current Keycloak roles</li>
+            <li>The <code>IdentityGuard</code> then sets <code>request.resolvedIdentity = { isSystemAdmin: false, groupRoles: { [groupId]: MEMBER } }</code> for downstream authorization — no database queries required</li>
+            <li>Regenerating a key creates a fresh key for the same group</li>
         </ul>
     </div>
     <div class="card" style="border-left-color: #8b5cf6;">
@@ -1089,29 +1106,28 @@ X-API-Key: your-api-key-here</code></pre>
     </div>
 </div>
 
-<!-- ====================================================================== -->
 <h2>Group-Scoped Authorization</h2>
 
 <p>All primary resources (documents, workflows, OCR results, HITL sessions, etc.) are scoped to a <strong>group</strong> via a <code>group_id</code> foreign key. The <code>IdentityGuard</code> resolves the requestor's identity, and service-layer helpers enforce group-level access control.</p>
 
 <h3>Identity Resolution</h3>
 
-<p>The <code>IdentityGuard</code> runs after authentication and attaches a <code>ResolvedIdentity</code> to <code>request.resolvedIdentity</code>. Exactly one of <code>userId</code> or <code>groupId</code> is set:</p>
+<p>The <code>IdentityGuard</code> runs after authentication and attaches a <code>ResolvedIdentity</code> to <code>request.resolvedIdentity</code>. The identity is enriched with <code>isSystemAdmin</code> and <code>groupRoles</code> — a map of group IDs to the identity's role within each group:</p>
 
 <table>
     <thead>
-        <tr><th>Auth Method</th><th>Identity Field</th><th>Group Resolution</th></tr>
+        <tr><th>Auth Method</th><th>Identity Fields</th><th>How Resolved</th></tr>
     </thead>
     <tbody>
         <tr>
             <td>JWT (Keycloak SSO)</td>
-            <td><code>resolvedIdentity.userId</code></td>
-            <td>Service layer queries <code>UserGroup</code> table for the user's group memberships</td>
+            <td><code>{ userId, isSystemAdmin, groupRoles }</code></td>
+            <td>Two parallel DB queries: <code>isUserSystemAdmin(userId)</code> and <code>getUsersGroups(userId)</code>. No additional queries needed downstream.</td>
         </tr>
         <tr>
             <td>API Key</td>
-            <td><code>resolvedIdentity.groupId</code></td>
-            <td>Key is group-scoped — <code>groupId</code> is the only group the key can access</td>
+            <td><code>{ isSystemAdmin: false, groupRoles: { [groupId]: MEMBER } }</code></td>
+            <td>Key is group-scoped — populated directly from <code>request.apiKeyGroupId</code>. No database queries required.</td>
         </tr>
     </tbody>
 </table>
@@ -1123,45 +1139,53 @@ X-API-Key: your-api-key-here</code></pre>
 <div class="grid grid-2">
     <div class="card" style="border-left-color: #2E8540;">
         <h4 style="margin-top: 0;"><code>getIdentityGroupIds(identity)</code></h4>
-        <p>Returns the list of group IDs the identity can access, or <code>undefined</code> for system-admins (unrestricted access). Used by list/query endpoints to filter results to the requestor's groups.</p>
+        <p>Returns the list of group IDs the identity can access, or <code>undefined</code> for system-admins (unrestricted access). Used by list/query endpoints to filter results to the requestor's groups. No additional database queries — uses pre-populated <code>groupRoles</code>.</p>
         <ul style="margin-bottom: 0;">
-            <li><strong>API key</strong> &rarr; <code>[identity.groupId]</code></li>
-            <li><strong>JWT system-admin</strong> &rarr; <code>undefined</code> (no filter)</li>
-            <li><strong>JWT regular user</strong> &rarr; user's group IDs from the database</li>
+            <li><strong>API key</strong> &rarr; keys of <code>identity.groupRoles</code></li>
+            <li><strong>System admin (<code>isSystemAdmin: true</code>)</strong> &rarr; <code>undefined</code> (no filter)</li>
+            <li><strong>Regular user</strong> &rarr; keys of <code>identity.groupRoles</code></li>
         </ul>
     </div>
     <div class="card" style="border-left-color: #8b5cf6;">
-        <h4 style="margin-top: 0;"><code>identityCanAccessGroup(identity, groupId)</code></h4>
-        <p>Asserts that the identity can access a specific group. Throws HTTP exceptions on failure. Used by single-resource endpoints (get, update, delete) after fetching the resource's <code>group_id</code>.</p>
+        <h4 style="margin-top: 0;"><code>identityCanAccessGroup(identity, groupId, minimumRole?)</code></h4>
+        <p>Asserts that the identity can access a specific group with an optional minimum role check. Throws HTTP exceptions on failure. Used by single-resource endpoints (get, update, delete) after fetching the resource's <code>group_id</code>. No additional database queries — uses pre-populated <code>groupRoles</code>.</p>
         <ul style="margin-bottom: 0;">
             <li><code>groupId === null</code> &rarr; <code>404 Not Found</code> (orphaned record)</li>
             <li>No identity &rarr; <code>403 Forbidden</code></li>
-            <li>API key group mismatch &rarr; <code>403 Forbidden</code></li>
-            <li>JWT user not in group &rarr; <code>403 Forbidden</code></li>
-            <li>JWT system-admin &rarr; always allowed</li>
+            <li>System admin (<code>isSystemAdmin: true</code>) &rarr; always allowed</li>
+            <li>Group not in <code>groupRoles</code> &rarr; <code>403 Forbidden</code></li>
+            <li>Role below <code>minimumRole</code> &rarr; <code>403 Forbidden</code></li>
         </ul>
     </div>
 </div>
 
-<!-- ====================================================================== -->
-<h2>Authorization (RBAC)</h2>
+<h2>Authorization</h2>
 
-<p>Role-Based Access Control is enforced via the <code>@Roles()</code> decorator and the global <code>RolesGuard</code>.</p>
+<p>Authorization is enforced declaratively through the <code>@Identity()</code> decorator and the <code>IdentityGuard</code>. The old <code>@Roles()</code> decorator and <code>RolesGuard</code> have been removed.</p>
 
-<h3>How Roles Are Applied</h3>
+<h3>How Authorization Is Applied</h3>
 
-<pre><code>// Controller example
-@Controller('admin')
-export class AdminController {
-  @Get('users')
-  @Roles('admin', 'user-manager')  // Requires at least one
-  async listUsers() { ... }
-}</code></pre>
+<pre><code>// System admin only
+@Identity({ requireSystemAdmin: true })
+@Post("groups")
+createGroup() { ... }
+
+// Group-scoped with minimum role
+@Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
+@Put(":groupId/settings")
+updateSettings() { ... }
+
+// Allow API key access
+@Identity({ allowApiKey: true })
+@Post("upload")
+uploadDocument() { ... }</code></pre>
 
 <ul>
-    <li>Roles in the decorator use <strong>OR</strong> logic — the user needs at least one of the listed roles</li>
-    <li>If no <code>@Roles()</code> decorator is present, any authenticated user can access the route</li>
-    <li>Roles are sourced from the validated JWT (Keycloak realm and client roles, normalized by <code>KeycloakJwtStrategy</code>)</li>
+    <li><code>requireSystemAdmin</code> checks <code>resolvedIdentity.isSystemAdmin</code> — API keys always fail this check</li>
+    <li><code>groupIdFrom</code> extracts the group ID from a route param, query param, or request body field, then verifies membership via <code>resolvedIdentity.groupRoles</code></li>
+    <li><code>minimumRole</code> checks that the identity's role within the group meets the minimum (<code>MEMBER</code> &lt; <code>ADMIN</code>)</li>
+    <li>System admins bypass <code>groupIdFrom</code> and <code>minimumRole</code> checks</li>
+    <li>If no <code>@Identity()</code> decorator is present, the guard still sets a base identity but performs no authorization enforcement</li>
 </ul>
 
 <h2>Backend Module Structure</h2>
@@ -1178,14 +1202,13 @@ export class AdminController {
         <tr><td><code>auth.service.ts</code></td><td>OAuth orchestrator — OIDC discovery, PKCE, code exchange, token refresh via <code>openid-client</code></td></tr>
         <tr><td><code>cookie-auth.utils.ts</code></td><td>Centralized cookie configuration — <code>setAuthCookies()</code>, <code>clearAuthCookies()</code>, CSRF token generation</td></tr>
         <tr><td><code>csrf.guard.ts</code></td><td>Global CSRF guard — double-submit cookie validation for state-changing requests</td></tr>
-        <tr><td><code>keycloak-jwt.strategy.ts</code></td><td>Passport JWT strategy — cookie-first extraction, JWKS validation, role normalization</td></tr>
-        <tr><td><code>jwt-auth.guard.ts</code></td><td>Global JWT guard — extends <code>AuthGuard('jwt')</code>, handles <code>@Public()</code> and <code>@ApiKeyAuth()</code> bypass</td></tr>
+        <tr><td><code>keycloak-jwt.strategy.ts</code></td><td>Passport JWT strategy — cookie-first extraction, JWKS validation</td></tr>
+        <tr><td><code>jwt-auth.guard.ts</code></td><td>Global JWT guard — extends <code>AuthGuard('jwt')</code>, handles <code>@Public()</code> bypass, defers to API key guard when <code>x-api-key</code> header present</td></tr>
         <tr><td><code>api-key-auth.guard.ts</code></td><td>API key validation guard</td></tr>
-        <tr><td><code>identity.guard.ts</code></td><td>Identity resolution guard — attaches <code>ResolvedIdentity</code> to <code>request.resolvedIdentity</code></td></tr>
-        <tr><td><code>identity.helpers.ts</code></td><td>Authorization helpers — <code>getIdentityGroupIds()</code> and <code>identityCanAccessGroup()</code> for group-scoped access control</td></tr>
-        <tr><td><code>roles.guard.ts</code></td><td>RBAC enforcement based on <code>@Roles()</code> decorator</td></tr>
+        <tr><td><code>identity.decorator.ts</code></td><td><code>@Identity()</code> — declares authentication and authorization requirements (<code>requireSystemAdmin</code>, <code>groupIdFrom</code>, <code>minimumRole</code>, <code>allowApiKey</code>); also adds Swagger metadata</td></tr>
+        <tr><td><code>identity.guard.ts</code></td><td>Identity resolution and authorization guard — enriches <code>request.resolvedIdentity</code> with <code>isSystemAdmin</code> and <code>groupRoles</code>, then enforces <code>@Identity()</code> options</td></tr>
+        <tr><td><code>identity.helpers.ts</code></td><td>Authorization helpers — <code>getIdentityGroupIds()</code> and <code>identityCanAccessGroup()</code> for group-scoped access control (no DB queries, uses pre-populated identity)</td></tr>
         <tr><td><code>public.decorator.ts</code></td><td><code>@Public()</code> — marks routes as unauthenticated</td></tr>
-        <tr><td><code>roles.decorator.ts</code></td><td><code>@Roles(...)</code> — declares required roles</td></tr>
         <tr><td><code>types.ts</code></td><td><code>User</code> and <code>ResolvedIdentity</code> interfaces, plus Express <code>Request</code> augmentation for <code>apiKeyGroupId</code> and <code>resolvedIdentity</code></td></tr>
         <tr><td><code>dto/*.ts</code></td><td>Validated DTOs for all auth endpoints (class-validator)</td></tr>
     </tbody>
@@ -1377,7 +1400,7 @@ export class AdminController {
 <h3>4. <s>Duplicate Decorator Definitions</s> — RESOLVED</h3>
 
 <div class="card" style="border-left-color: #22c55e;">
-    <p><strong>Resolved:</strong> The dead <code>api-key-auth.decorator.ts</code> file in <code>src/auth/</code> has been removed. The canonical <code>@ApiKeyAuth()</code> decorator is defined in <code>src/decorators/custom-auth-decorators.ts</code>, which includes both <code>SetMetadata</code> and Swagger annotations (<code>@ApiSecurity</code>, <code>@ApiUnauthorizedResponse</code>). All guards and controllers import from this single location.</p>
+    <p><strong>Resolved:</strong> The old <code>@ApiKeyAuth()</code>, <code>@KeycloakSSOAuth()</code>, and <code>@Roles()</code> decorators along with the <code>RolesGuard</code> have been removed. All authentication and authorization requirements are now declared through a single <code>@Identity()</code> decorator in <code>src/auth/identity.decorator.ts</code>, which handles both runtime metadata and Swagger annotations.</p>
 </div>
 
 <h3>5. <s>No Rate Limiting on Auth Endpoints</s> — RESOLVED</h3>

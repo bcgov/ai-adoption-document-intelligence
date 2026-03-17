@@ -115,6 +115,7 @@ describe("identityCanAccessGroup", () => {
         ),
       ).not.toThrow();
     });
+  });
 
     it("should throw ForbiddenException when the requested groupId is not in groupRoles", () => {
       expect(() =>
@@ -143,6 +144,22 @@ describe("identityCanAccessGroup", () => {
           GroupRole.ADMIN,
         ),
       ).not.toThrow();
+    });
+  });
+
+  describe("prototype property bypass prevention", () => {
+    it.each([
+      "__proto__",
+      "constructor",
+      "toString",
+      "hasOwnProperty",
+    ])("should throw ForbiddenException when groupId is '%s'", (groupId) => {
+      expect(() =>
+        identityCanAccessGroup(
+          { groupRoles: { "real-group": GroupRole.MEMBER } },
+          groupId,
+        ),
+      ).toThrow(ForbiddenException);
     });
   });
 
