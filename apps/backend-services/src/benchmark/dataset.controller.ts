@@ -76,7 +76,7 @@ export class DatasetController {
     req: Request,
   ): Promise<void> {
     const dataset = await this.datasetService.getDatasetById(datasetId);
-    await identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
   }
 
   @Post()
@@ -102,7 +102,7 @@ export class DatasetController {
   ): Promise<DatasetResponseDto> {
     const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
 
-    await identityCanAccessGroup(req.resolvedIdentity, createDto.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, createDto.groupId);
 
     return this.datasetService.createDataset(createDto, userId);
   }
@@ -143,7 +143,7 @@ export class DatasetController {
     const limitNum = limit ? parseInt(limit, 10) : 20;
 
     if (groupId) {
-      await identityCanAccessGroup(req!.resolvedIdentity, groupId);
+      identityCanAccessGroup(req!.resolvedIdentity, groupId);
       return this.datasetService.listDatasets(pageNum, limitNum, [groupId]);
     }
 
@@ -181,7 +181,7 @@ export class DatasetController {
   ): Promise<DatasetResponseDto> {
     const dataset = await this.datasetService.getDatasetById(id);
 
-    await identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
 
     return dataset;
   }

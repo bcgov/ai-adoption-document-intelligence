@@ -36,6 +36,7 @@ import {
   WorkflowResponseDto,
 } from "./dto/workflow-info.dto";
 import { WorkflowInfo, WorkflowService } from "./workflow.service";
+import { GroupRole } from "@/generated/edge";
 
 @ApiTags("Workflow")
 @Controller("api/workflows")
@@ -102,7 +103,7 @@ export class WorkflowController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ allowApiKey: true })
+  @Identity({ allowApiKey: true, groupIdFrom: { body: "groupId" }, minimumRole: GroupRole.MEMBER })
   @ApiOperation({ summary: "Create a new workflow" })
   @ApiBody({
     type: CreateWorkflowDto,
@@ -122,8 +123,6 @@ export class WorkflowController {
   ): Promise<{ workflow: WorkflowInfo }> {
     const user = req.user;
     const userId = user?.sub as string;
-
-    identityCanAccessGroup(req.resolvedIdentity, dto.groupId);
 
     const workflow = await this.workflowService.createWorkflow(userId, dto);
     return { workflow };

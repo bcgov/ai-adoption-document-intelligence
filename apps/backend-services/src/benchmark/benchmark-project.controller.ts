@@ -41,6 +41,7 @@ import {
 } from "@/auth/identity.helpers";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { CreateProjectDto, ProjectDetailsDto, ProjectSummaryDto } from "./dto";
+import { GroupRole } from "@/generated";
 
 @ApiTags("Benchmark - Projects")
 @Controller("api/benchmark/projects")
@@ -53,7 +54,7 @@ export class BenchmarkProjectController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ allowApiKey: true })
+  @Identity({ allowApiKey: true, groupIdFrom: { body: "groupId" }, minimumRole: GroupRole.MEMBER })
   @ApiOperation({ summary: "Create a benchmark project" })
   @ApiBody({ type: CreateProjectDto })
   @ApiCreatedResponse({
@@ -73,8 +74,6 @@ export class BenchmarkProjectController {
     );
 
     const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
-
-    identityCanAccessGroup(req.resolvedIdentity, createProjectDto.groupId);
 
     return this.benchmarkProjectService.createProject(createProjectDto, userId);
   }
