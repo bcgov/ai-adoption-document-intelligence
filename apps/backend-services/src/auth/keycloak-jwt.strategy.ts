@@ -33,8 +33,6 @@ interface KeycloakJwtPayload {
  */
 @Injectable()
 export class KeycloakJwtStrategy extends PassportStrategy(Strategy, "jwt") {
-  private readonly clientId: string;
-
   constructor(configService: ConfigService) {
     const ssoAuthServerUrl = configService.get<string>("SSO_AUTH_SERVER_URL");
     const realm = configService.get<string>("SSO_REALM");
@@ -96,8 +94,6 @@ export class KeycloakJwtStrategy extends PassportStrategy(Strategy, "jwt") {
       // token signed with the public key as a symmetric secret.
       algorithms: ["RS256"],
     });
-
-    this.clientId = clientId;
   }
 
   /**

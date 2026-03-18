@@ -30,13 +30,13 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { GroupRole } from "@/generated/edge";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
 import {
   WorkflowListResponseDto,
   WorkflowResponseDto,
 } from "./dto/workflow-info.dto";
 import { WorkflowInfo, WorkflowService } from "./workflow.service";
-import { GroupRole } from "@/generated/edge";
 
 @ApiTags("Workflow")
 @Controller("api/workflows")
@@ -103,7 +103,11 @@ export class WorkflowController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ allowApiKey: true, groupIdFrom: { body: "groupId" }, minimumRole: GroupRole.MEMBER })
+  @Identity({
+    allowApiKey: true,
+    groupIdFrom: { body: "groupId" },
+    minimumRole: GroupRole.MEMBER,
+  })
   @ApiOperation({ summary: "Create a new workflow" })
   @ApiBody({
     type: CreateWorkflowDto,

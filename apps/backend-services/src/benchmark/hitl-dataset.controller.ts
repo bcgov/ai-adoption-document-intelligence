@@ -27,6 +27,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { GroupRole } from "@/generated/edge";
 import { DatasetService } from "./dataset.service";
 import {
   AddVersionFromHitlDto,
@@ -37,7 +38,6 @@ import {
   EligibleDocumentsResponseDto,
 } from "./dto";
 import { HitlDatasetService } from "./hitl-dataset.service";
-import { GroupRole } from "@/generated/edge";
 
 @ApiTags("Benchmark - HITL Datasets")
 @Controller("api/benchmark/datasets")
@@ -86,7 +86,11 @@ export class HitlDatasetController {
 
   @Post("from-hitl")
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ allowApiKey: true, groupIdFrom: { body: "groupId" }, minimumRole: GroupRole.MEMBER })
+  @Identity({
+    allowApiKey: true,
+    groupIdFrom: { body: "groupId" },
+    minimumRole: GroupRole.MEMBER,
+  })
   @ApiOperation({
     summary: "Create a new dataset from HITL-verified documents",
   })

@@ -30,6 +30,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { GroupRole } from "@/generated/edge";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -55,7 +56,6 @@ import {
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { LabelingService } from "./labeling.service";
-import { GroupRole } from "@/generated/edge";
 
 @ApiTags("labeling")
 @Controller("api/labeling")
@@ -93,7 +93,11 @@ export class LabelingController {
   }
 
   @Post("projects")
-  @Identity({ allowApiKey: true, groupIdFrom: { body: "group_id" }, minimumRole: GroupRole.MEMBER })
+  @Identity({
+    allowApiKey: true,
+    groupIdFrom: { body: "group_id" },
+    minimumRole: GroupRole.MEMBER,
+  })
   @ApiOperation({ summary: "Create a new labeling project" })
   @ApiCreatedResponse({
     description: "Newly created labeling project",
@@ -288,7 +292,11 @@ export class LabelingController {
 
   @Post("projects/:id/upload")
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ allowApiKey: true, groupIdFrom: { body: "group_id" }, minimumRole: GroupRole.MEMBER })
+  @Identity({
+    allowApiKey: true,
+    groupIdFrom: { body: "group_id" },
+    minimumRole: GroupRole.MEMBER,
+  })
   @ApiOperation({ summary: "Upload a document into a labeling project" })
   @ApiParam({ name: "id", description: "Project ID" })
   @ApiCreatedResponse({

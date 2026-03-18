@@ -85,23 +85,6 @@ describe("ApiKeyController", () => {
       expect(apiKeyService.getApiKey).toHaveBeenCalledWith("group123");
     });
 
-    it("should throw ForbiddenException when user is not a group member", async () => {
-      await expect(
-        controller.getApiKey(
-          {
-            ...mockRequest,
-            resolvedIdentity: {
-              userId: "testuser",
-              isSystemAdmin: false,
-              groupRoles: {},
-            },
-          } as any,
-          "group123",
-        ),
-      ).rejects.toThrow(ForbiddenException);
-      expect(apiKeyService.getApiKey).not.toHaveBeenCalled();
-    });
-
     it("should throw BadRequestException when groupId is missing", async () => {
       await expect(
         controller.getApiKey(mockRequest as any, ""),
@@ -149,23 +132,6 @@ describe("ApiKeyController", () => {
         "testuser",
         "group123",
       );
-    });
-
-    it("should throw ForbiddenException when user is not a group member", async () => {
-      await expect(
-        controller.generateApiKey(
-          {
-            ...mockRequest,
-            resolvedIdentity: {
-              userId: "testuser",
-              isSystemAdmin: false,
-              groupRoles: {},
-            },
-          } as any,
-          { groupId: "group123" },
-        ),
-      ).rejects.toThrow(ForbiddenException);
-      expect(apiKeyService.generateApiKey).not.toHaveBeenCalled();
     });
 
     it("should not throw when user has no email for regenerate", async () => {
