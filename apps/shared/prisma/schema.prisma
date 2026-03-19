@@ -14,7 +14,7 @@ datasource db {
 }
 
 model Document {
-  id                    String          @id @default(cuid())
+  id                    String                 @id @default(cuid())
   title                 String
   original_filename     String
   file_path             String
@@ -22,19 +22,19 @@ model Document {
   file_size             Int
   metadata              Json?
   source                String
-  status                DocumentStatus  @default(pre_ocr)
-  created_at            DateTime        @default(now())
-  updated_at            DateTime        @updatedAt
+  status                DocumentStatus         @default(pre_ocr)
+  created_at            DateTime               @default(now())
+  updated_at            DateTime               @updatedAt
   apim_request_id       String?
   workflow_id           String? // @deprecated: Use workflow_config_id and workflow_execution_id instead
   workflow_config_id    String? // Reference to Workflow.id (workflow configuration)
-  workflow_execution_id String?         @unique // Temporal workflow execution ID
-  model_id              String          @default("prebuilt-layout")
+  workflow_execution_id String?                @unique // Temporal workflow execution ID
+  model_id              String                 @default("prebuilt-layout")
   ocr_result            OcrResult?
   review_sessions       ReviewSession[]
   groundTruthJob        DatasetGroundTruthJob?
   group_id              String
-  group                 Group           @relation(fields: [group_id], references: [id])
+  group                 Group                  @relation(fields: [group_id], references: [id])
 
   @@index([group_id])
   @@map("documents")
@@ -75,43 +75,40 @@ model OcrResult {
 }
 
 model ApiKey {
-  id                   String    @id @default(cuid())
-  key_hash             String    @unique
-  key_prefix           String
+  id                 String    @id @default(cuid())
+  key_hash           String    @unique
+  key_prefix         String
   /// The user who most recently generated or regenerated this key. Recorded for
   /// audit purposes only; not used for authentication identity resolution.
-  generating_user_id   String?
-  generating_user      User?     @relation(fields: [generating_user_id], references: [id])
-  group_id             String
-  group                Group     @relation(fields: [group_id], references: [id])
-  created_at           DateTime  @default(now())
-  last_used            DateTime?
+  generating_user_id String
+  generating_user    User      @relation(fields: [generating_user_id], references: [id])
+  group_id           String    @unique
+  group              Group     @relation(fields: [group_id], references: [id])
+  created_at         DateTime  @default(now())
+  last_used          DateTime?
+  actor_id           String    @unique
+  actor              Actor     @relation(fields: [actor_id], references: [id])
 
   @@index([group_id])
   @@map("api_keys")
 }
 
 model User {
-  id            String    @id
-  email         String    @unique
-  last_login_at DateTime?
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
+  id              String    @id
+  email           String    @unique
+  last_login_at   DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  is_system_admin Boolean   @default(false)
+  actor_id        String    @unique
+  actor           Actor     @relation(fields: [actor_id], references: [id])
 
-  apiKeys ApiKey[]
-
-  workflows Workflow[]
-
-  labelingProjects LabelingProject[]
-
-  createdClassifierModels ClassifierModel[] @relation(name: "CreatedUser")
-
-  updatedClassifierModels ClassifierModel[] @relation(name: "UpdatedUser")
-
-  userGroups UserGroup[]
-
-  is_system_admin Boolean @default(false)
-
+  apiKeys                   ApiKey[]
+  workflows                 Workflow[]
+  labelingProjects          LabelingProject[]
+  createdClassifierModels   ClassifierModel[]        @relation(name: "CreatedUser")
+  updatedClassifierModels   ClassifierModel[]        @relation(name: "UpdatedUser")
+  userGroups                UserGroup[]
   membershipRequests        GroupMembershipRequest[] @relation(name: "MembershipRequestUser")
   actedMembershipRequests   GroupMembershipRequest[] @relation(name: "MembershipRequestActor")
   createdMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestCreatedBy")
@@ -123,19 +120,25 @@ model User {
   @@map("user")
 }
 
+model Actor {
+  id     String  @id @default(cuid())
+  apiKey ApiKey?
+  user   User?
+}
+
 model Workflow {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  user_id     String
-  user        User     @relation(fields: [user_id], references: [id])
-  config      Json // GraphWorkflowConfig stored as JSON
-  version     Int      @default(1)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  id                   String                @id @default(cuid())
+  name                 String
+  description          String?
+  user_id              String
+  user                 User                  @relation(fields: [user_id], references: [id])
+  config               Json // GraphWorkflowConfig stored as JSON
+  version              Int                   @default(1)
+  created_at           DateTime              @default(now())
+  updated_at           DateTime              @updatedAt
   benchmarkDefinitions BenchmarkDefinition[]
-  group_id    String
-  group       Group    @relation(fields: [group_id], references: [id])
+  group_id             String
+  group                Group                 @relation(fields: [group_id], references: [id])
 
   @@index([group_id])
   @@map("workflows")
@@ -302,11 +305,11 @@ model Group {
 
 model UserGroup {
   user_id    String
-  user       User?      @relation(fields: [user_id], references: [id])
+  user       User?     @relation(fields: [user_id], references: [id])
   group_id   String
-  group      Group?     @relation(fields: [group_id], references: [id])
-  role       GroupRole  @default(MEMBER)
-  created_at DateTime   @default(now())
+  group      Group?    @relation(fields: [group_id], references: [id])
+  role       GroupRole @default(MEMBER)
+  created_at DateTime  @default(now())
 
   @@id([user_id, group_id])
   @@index([group_id])
@@ -338,17 +341,17 @@ model GroupMembershipRequest {
 // ========== AUDIT ==========
 
 model AuditEvent {
-  id                     String   @id @default(cuid())
-  occurred_at            DateTime @default(now())
-  event_type             String
-  actor_id               String?
-  resource_type          String
-  resource_id            String
-  document_id            String?
-  workflow_execution_id  String?
-  group_id               String?
-  request_id             String?
-  payload                Json?
+  id                    String   @id @default(cuid())
+  occurred_at           DateTime @default(now())
+  event_type            String
+  actor_id              String?
+  resource_type         String
+  resource_id           String
+  document_id           String?
+  workflow_execution_id String?
+  group_id              String?
+  request_id            String?
+  payload               Json?
 
   @@index([occurred_at])
   @@index([event_type])
@@ -454,17 +457,17 @@ enum DocumentStatus {
 // ========== BENCHMARKING MODELS ==========
 
 model Dataset {
-  id              String            @id @default(uuid())
-  name            String
-  description     String?
-  metadata        Json              @default("{}")
-  storagePath     String            @default("")
-  createdBy       String
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  group_id        String
-  group           Group             @relation(fields: [group_id], references: [id])
-  versions        DatasetVersion[]
+  id          String           @id @default(uuid())
+  name        String
+  description String?
+  metadata    Json             @default("{}")
+  storagePath String           @default("")
+  createdBy   String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  group_id    String
+  group       Group            @relation(fields: [group_id], references: [id])
+  versions    DatasetVersion[]
 
   @@unique([name, group_id])
   @@index([group_id])
@@ -472,50 +475,50 @@ model Dataset {
 }
 
 model DatasetVersion {
-  id                  String                 @id @default(uuid())
-  datasetId           String
-  dataset             Dataset                @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  version             String
-  name                String?
-  storagePrefix       String?
-  manifestPath        String
-  documentCount       Int
-  groundTruthSchema   Json?
-  frozen              Boolean                @default(false)
-  createdAt           DateTime               @default(now())
-  splits              Split[]
+  id                   String                  @id @default(uuid())
+  datasetId            String
+  dataset              Dataset                 @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  version              String
+  name                 String?
+  storagePrefix        String?
+  manifestPath         String
+  documentCount        Int
+  groundTruthSchema    Json?
+  frozen               Boolean                 @default(false)
+  createdAt            DateTime                @default(now())
+  splits               Split[]
   benchmarkDefinitions BenchmarkDefinition[]
-  groundTruthJobs     DatasetGroundTruthJob[]
+  groundTruthJobs      DatasetGroundTruthJob[]
 
   @@index([datasetId])
   @@map("dataset_versions")
 }
 
 model Split {
-  id                    String                 @id @default(uuid())
-  datasetVersionId      String
-  datasetVersion        DatasetVersion         @relation(fields: [datasetVersionId], references: [id], onDelete: Cascade)
-  name                  String
-  type                  SplitType
-  sampleIds             Json
-  stratificationRules   Json?
-  frozen                Boolean                @default(false)
-  createdAt             DateTime               @default(now())
-  benchmarkDefinitions  BenchmarkDefinition[]
+  id                   String                @id @default(uuid())
+  datasetVersionId     String
+  datasetVersion       DatasetVersion        @relation(fields: [datasetVersionId], references: [id], onDelete: Cascade)
+  name                 String
+  type                 SplitType
+  sampleIds            Json
+  stratificationRules  Json?
+  frozen               Boolean               @default(false)
+  createdAt            DateTime              @default(now())
+  benchmarkDefinitions BenchmarkDefinition[]
 
   @@index([datasetVersionId])
   @@map("splits")
 }
 
 model BenchmarkProject {
-  id                   String                 @id @default(uuid())
+  id                   String                @id @default(uuid())
   name                 String
   description          String?
   createdBy            String
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
   group_id             String
-  group                Group                  @relation(fields: [group_id], references: [id])
+  group                Group                 @relation(fields: [group_id], references: [id])
   benchmarkDefinitions BenchmarkDefinition[]
   benchmarkRuns        BenchmarkRun[]
 
@@ -525,28 +528,28 @@ model BenchmarkProject {
 }
 
 model BenchmarkDefinition {
-  id                  String             @id @default(uuid())
-  projectId           String
-  project             BenchmarkProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name                String
-  datasetVersionId    String
-  datasetVersion      DatasetVersion     @relation(fields: [datasetVersionId], references: [id])
-  splitId             String?
-  split               Split?             @relation(fields: [splitId], references: [id])
-  workflowId          String
-  workflow            Workflow           @relation(fields: [workflowId], references: [id])
-  workflowConfigHash  String
-  evaluatorType       String
-  evaluatorConfig     Json
-  runtimeSettings     Json
-  immutable           Boolean            @default(false)
-  revision            Int                @default(1)
-  scheduleEnabled     Boolean            @default(false)
-  scheduleCron        String?
-  scheduleId          String?            @unique
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  benchmarkRuns       BenchmarkRun[]
+  id                 String           @id @default(uuid())
+  projectId          String
+  project            BenchmarkProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name               String
+  datasetVersionId   String
+  datasetVersion     DatasetVersion   @relation(fields: [datasetVersionId], references: [id])
+  splitId            String?
+  split              Split?           @relation(fields: [splitId], references: [id])
+  workflowId         String
+  workflow           Workflow         @relation(fields: [workflowId], references: [id])
+  workflowConfigHash String
+  evaluatorType      String
+  evaluatorConfig    Json
+  runtimeSettings    Json
+  immutable          Boolean          @default(false)
+  revision           Int              @default(1)
+  scheduleEnabled    Boolean          @default(false)
+  scheduleCron       String?
+  scheduleId         String?          @unique
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  benchmarkRuns      BenchmarkRun[]
 
   @@index([projectId])
   @@index([datasetVersionId])
@@ -556,25 +559,25 @@ model BenchmarkDefinition {
 }
 
 model BenchmarkRun {
-  id                   String                @id @default(uuid())
-  definitionId         String
-  definition           BenchmarkDefinition   @relation(fields: [definitionId], references: [id], onDelete: Cascade)
-  projectId            String
-  project              BenchmarkProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  status               BenchmarkRunStatus    @default(pending)
-  temporalWorkflowId   String
-  workerImageDigest    String?
-  workerGitSha         String
-  startedAt            DateTime?
-  completedAt          DateTime?
-  metrics              Json                  @default("{}")
-  params               Json                  @default("{}")
-  tags                 Json                  @default("{}")
-  error                String?
-  isBaseline           Boolean               @default(false)
-  baselineThresholds   Json?
-  baselineComparison   Json?
-  createdAt            DateTime              @default(now())
+  id                 String              @id @default(uuid())
+  definitionId       String
+  definition         BenchmarkDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  projectId          String
+  project            BenchmarkProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status             BenchmarkRunStatus  @default(pending)
+  temporalWorkflowId String
+  workerImageDigest  String?
+  workerGitSha       String
+  startedAt          DateTime?
+  completedAt        DateTime?
+  metrics            Json                @default("{}")
+  params             Json                @default("{}")
+  tags               Json                @default("{}")
+  error              String?
+  isBaseline         Boolean             @default(false)
+  baselineThresholds Json?
+  baselineComparison Json?
+  createdAt          DateTime            @default(now())
 
   @@index([definitionId])
   @@index([projectId])
@@ -582,13 +585,13 @@ model BenchmarkRun {
 }
 
 model BenchmarkAuditLog {
-  id          String       @id @default(uuid())
-  timestamp   DateTime     @default(now())
-  userId      String
-  action      AuditAction
-  entityType  String
-  entityId    String
-  metadata    Json?
+  id         String      @id @default(uuid())
+  timestamp  DateTime    @default(now())
+  userId     String
+  action     AuditAction
+  entityType String
+  entityId   String
+  metadata   Json?
 
   @@index([timestamp])
   @@index([userId])
@@ -597,7 +600,6 @@ model BenchmarkAuditLog {
 }
 
 // ========== BENCHMARKING ENUMS ==========
-
 
 enum SplitType {
   train
@@ -633,19 +635,19 @@ enum GroundTruthJobStatus {
 }
 
 model DatasetGroundTruthJob {
-  id                 String                @id @default(uuid())
+  id                 String               @id @default(uuid())
   datasetVersionId   String
-  datasetVersion     DatasetVersion        @relation(fields: [datasetVersionId], references: [id], onDelete: Cascade)
+  datasetVersion     DatasetVersion       @relation(fields: [datasetVersionId], references: [id], onDelete: Cascade)
   sampleId           String
-  documentId         String?               @unique
-  document           Document?             @relation(fields: [documentId], references: [id])
+  documentId         String?              @unique
+  document           Document?            @relation(fields: [documentId], references: [id])
   workflowConfigId   String
   temporalWorkflowId String?
-  status             GroundTruthJobStatus  @default(pending)
+  status             GroundTruthJobStatus @default(pending)
   groundTruthPath    String?
   error              String?
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 
   @@index([datasetVersionId])
   @@index([documentId])

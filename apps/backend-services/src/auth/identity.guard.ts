@@ -12,6 +12,8 @@ import { Request } from "express";
 import { GroupService } from "../group/group.service";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
 import { ROLE_ORDER } from "./role-order";
+import { UserService } from "@/actor/user.service";
+import { ApiKeyService } from "@/actor/api-key.service";
 
 export { ROLE_ORDER };
 
@@ -26,10 +28,7 @@ export { ROLE_ORDER };
  * Populates `resolvedIdentity` on the request:
  * - **JWT path**: When the {@link Identity} decorator is present on the handler,
  *   `resolvedIdentity.userId` is set from `request.user.sub`,
- *   `resolvedIdentity.isSystemAdmin` is populated via `isUserSystemAdmin(userId)`,
- *   and `resolvedIdentity.groupRoles` is populated via `getUsersGroups(userId)`,
- *   both executed in parallel. When the decorator is absent, only
- *   `resolvedIdentity.userId` is set with no DB queries.
+
  * - **API key path**: When the {@link Identity} decorator is present on the handler,
  *   `resolvedIdentity.isSystemAdmin` is set to `false` and `resolvedIdentity.groupRoles`
  *   is populated using `request.apiKeyGroupId` (set by `ApiKeyAuthGuard`) as the key
@@ -48,7 +47,8 @@ export { ROLE_ORDER };
 export class IdentityGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private groupService: GroupService,
+    private userService: UserService,
+    private apiKeyService: ApiKeyService,
   ) {}
 
   /**
@@ -71,7 +71,7 @@ export class IdentityGuard implements CanActivate {
       IdentityOptions | undefined
     >(IDENTITY_KEY, [context.getHandler(), context.getClass()]);
 
-    if (request.apiKeyGroupId) {
+    if (request.apiKey) {
       if (identityOptions !== undefined) {
         // Reject API key requests unless the endpoint explicitly opts in.
         if (!identityOptions.allowApiKey) {
@@ -79,36 +79,34 @@ export class IdentityGuard implements CanActivate {
             "API key authentication is not allowed for this endpoint",
           );
         }
+        const {groupId, actorId} = request.apiKey;
         // @Identity is present and allowApiKey is true: enrich with isSystemAdmin and groupRoles.
         // No database queries required; the key is group-scoped.
         request.resolvedIdentity = {
           isSystemAdmin: false,
-          groupRoles: { [request.apiKeyGroupId]: GroupRole.MEMBER },
+          groupRoles: { [groupId]: GroupRole.MEMBER },
+          actorId: actorId
         };
       } else {
-        // Api-key was not explicity allowed. It it denied by default.
+        // Api-key was not explicity allowed. It is denied by default.
         throw new ForbiddenException(
           "API key authentication is not allowed for this endpoint",
         );
       }
     } else if (request.user?.sub) {
       const userId = request.user.sub;
-
-      // @Identity is present: run parallel DB queries to enrich identity.
-      const [isSystemAdmin, userGroups] = await Promise.all([
-        this.groupService.isUserSystemAdmin(userId),
-        this.groupService.findUsersGroups(userId),
-      ]);
+      const userWithGroups = await this.userService.getUserWithGroups(userId);
 
       const groupRoles: Record<string, GroupRole> = {};
-      for (const ug of userGroups) {
+      for (const ug of userWithGroups.userGroups) {
         groupRoles[ug.group_id] = ug.role;
       }
 
       request.resolvedIdentity = {
         userId,
-        isSystemAdmin,
+        isSystemAdmin: userWithGroups.is_system_admin,
         groupRoles,
+        actorId: userWithGroups.actor_id
       };
     } else {
       // else: public route or unauthenticated request

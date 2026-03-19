@@ -4,7 +4,7 @@ import * as crypto from "crypto";
 import {
   ApiKeyInfoDto,
   GeneratedApiKeyDto,
-} from "@/api-key/dto/api-key-info.dto";
+} from "@/actor/dto/api-key-info.dto";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { ApiKeyDbService } from "./api-key-db.service";
 
@@ -13,7 +13,7 @@ export class ApiKeyService {
   constructor(
     private readonly apiKeyDb: ApiKeyDbService,
     private readonly logger: AppLoggerService,
-  ) {}
+  ) { }
 
   async getApiKey(groupId: string): Promise<ApiKeyInfoDto | null> {
     const apiKey = await this.apiKeyDb.findApiKeyByGroupId(groupId);
@@ -28,6 +28,7 @@ export class ApiKeyService {
       groupId: apiKey.group_id,
       createdAt: apiKey.created_at,
       lastUsed: apiKey.last_used,
+      actorId: apiKey.actor_id
     };
   }
 
@@ -47,19 +48,20 @@ export class ApiKeyService {
   }
 
   async generateApiKey(
-    userId: string,
-    groupId: string,
-  ): Promise<GeneratedApiKeyDto> {
-    // Delete any existing key for this group (upsert: one key per group)
-    await this.apiKeyDb.deleteApiKeysByGroupId(groupId);
 
+  ) {
     // Generate a secure random key
     const key = crypto.randomBytes(32).toString("base64url");
     const keyPrefix = key.substring(0, 8);
 
     // Hash the key for storage
     const keyHash = await bcrypt.hash(key, 10);
+    return { keyHash, key, keyPrefix };
+  }
 
+  async createApiKey(userId: string,
+    groupId: string): Promise<GeneratedApiKeyDto> {
+    const { key, keyHash, keyPrefix } = await this.generateApiKey();
     const apiKey = await this.apiKeyDb.createApiKey({
       key_hash: keyHash,
       key_prefix: keyPrefix,
@@ -76,6 +78,7 @@ export class ApiKeyService {
       groupId: apiKey.group_id,
       createdAt: apiKey.created_at,
       lastUsed: null,
+      actorId: apiKey.actor_id,
     };
   }
 
@@ -92,10 +95,27 @@ export class ApiKeyService {
     keyId: string,
   ): Promise<GeneratedApiKeyDto> {
     const groupId = await this.getApiKeyGroupId(keyId);
-    return this.generateApiKey(userId, groupId);
+    const { key, keyHash, keyPrefix } = await this.generateApiKey();
+    const apiKey = await this.apiKeyDb.updateApiKey({
+      key_hash: keyHash, key_prefix: keyPrefix, group_id: groupId, generating_user_id:
+        userId,
+    })
+
+    this.logger.log(`API key generated for user ${userId} in group ${groupId}`);
+
+    return {
+      id: apiKey.id,
+      key,
+      keyPrefix,
+      groupId: apiKey.group_id,
+      createdAt: apiKey.created_at,
+      lastUsed: apiKey.last_used,
+      actorId: apiKey.actor_id,
+    };
+
   }
 
-  async validateApiKey(key: string): Promise<{ groupId: string } | null> {
+  async validateApiKey(key: string): Promise<{ groupId: string, actorId: string } | null> {
     // Extract prefix from the incoming key for indexed lookup
     const prefix = key.substring(0, 8);
 
@@ -109,7 +129,7 @@ export class ApiKeyService {
         // Update last_used timestamp
         await this.apiKeyDb.updateApiKeyLastUsed(apiKey.id);
 
-        return { groupId: apiKey.group_id };
+        return { groupId: apiKey.group_id, actorId: apiKey.actor_id };
       }
     }
 

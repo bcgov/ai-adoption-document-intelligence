@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Test, TestingModule } from "@nestjs/testing";
-import { ApiKeyService } from "../api-key/api-key.service";
+import { ApiKeyService } from "../actor/api-key.service";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
 import { IdentityOptions } from "./identity.decorator";
 

@@ -10,7 +10,7 @@ import { APP_GUARD, Reflector } from "@nestjs/core";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as request from "supertest";
 import { Identity } from "@/auth/identity.decorator";
-import { ApiKeyService } from "../api-key/api-key.service";
+import { ApiKeyService } from "../actor/api-key.service";
 import { GroupService } from "../group/group.service";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
 import { CsrfGuard } from "./csrf.guard";

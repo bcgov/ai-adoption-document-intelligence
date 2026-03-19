@@ -53,18 +53,6 @@ export class GroupService {
   }
 
   /**
-   * Checks whether a user is a system admin.
-   * @param userId - The ID of the user to check.
-   * @param tx - Optional transaction client for atomic operations.
-   * @returns `true` when the user has `is_system_admin` set to `true`, `false` otherwise.
-   */
-  async isUserSystemAdmin(
-    userId: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<boolean> {
-    return this.groupDb.isUserSystemAdmin(userId, tx);
-  }
-  /**
    * Soft-deletes an existing group by ID.
    * Sets `deleted_at` to the current timestamp and `deleted_by` to the caller's userId.
    * @param groupId - The ID of the group to soft-delete.

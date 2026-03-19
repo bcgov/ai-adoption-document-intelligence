@@ -2,7 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { PassportModule } from "@nestjs/passport";
-import { ApiKeyModule } from "../api-key/api-key.module";
+import { ActorModule } from "../actor/actor.module";
 import { GroupModule } from "../group/group.module";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
 import { AuthController } from "./auth.controller";
@@ -16,7 +16,7 @@ import { KeycloakJwtStrategy } from "./keycloak-jwt.strategy";
   imports: [
     ConfigModule,
     PassportModule.register({ defaultStrategy: "jwt" }),
-    ApiKeyModule,
+    ActorModule,
     GroupModule,
   ],
   controllers: [AuthController],

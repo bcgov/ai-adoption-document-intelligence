@@ -13,6 +13,11 @@ export interface User {
   [key: string]: unknown;
 }
 
+export interface ApiKeyRequestInfo {
+  groupId: string;
+  actorId: string;
+}
+
 /**
  * Resolved requestor identity attached to the request by the IdentityGuard.
  *
@@ -26,15 +31,16 @@ export interface User {
  */
 export interface ResolvedIdentity {
   userId?: string;
-  isSystemAdmin?: boolean;
-  groupRoles?: Record<string, GroupRole>;
+  isSystemAdmin: boolean;
+  groupRoles: Record<string, GroupRole>;
+  actorId: string;
 }
 
 declare module "express" {
   interface Request {
     user?: User;
     /** Set by ApiKeyAuthGuard when a valid API key is used. */
-    apiKeyGroupId?: string;
+    apiKey?: ApiKeyRequestInfo;
     /**
      * Set by IdentityGuard after authentication succeeds.
      * Contains the normalised requestor identity for downstream authorization.

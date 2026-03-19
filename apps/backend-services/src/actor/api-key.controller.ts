@@ -29,7 +29,7 @@ import {
   GenerateApiKeyRequestDto,
   GeneratedApiKeyDto,
   GeneratedApiKeyWrapperDto,
-} from "@/api-key/dto/api-key-info.dto";
+} from "@/actor/dto/api-key-info.dto";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { GroupRole } from "@/generated";
@@ -91,7 +91,7 @@ export class ApiKeyController {
       );
     }
     identityCanAccessGroup(req.resolvedIdentity, body.groupId, GroupRole.ADMIN);
-    const apiKey = await this.apiKeyService.generateApiKey(
+    const apiKey = await this.apiKeyService.createApiKey(
       userId,
       body.groupId,
     );

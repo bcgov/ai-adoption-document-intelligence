@@ -5,7 +5,7 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { AuditModule } from "@/audit/audit.module";
 import { AzureModule } from "@/azure/azure.module";
-import { ApiKeyModule } from "./api-key/api-key.module";
+import { ActorModule } from "./actor/actor.module";
 import { AuthModule } from "./auth/auth.module";
 import { BenchmarkModule } from "./benchmark/benchmark.module";
 import { BlobStorageModule } from "./blob-storage/blob-storage.module";
@@ -45,7 +45,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
       }),
     }),
     AuthModule,
-    ApiKeyModule,
+    ActorModule,
     AuditModule,
     BenchmarkModule,
     DatabaseModule,

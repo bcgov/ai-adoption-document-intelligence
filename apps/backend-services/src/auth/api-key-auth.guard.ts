@@ -9,7 +9,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
-import { ApiKeyService } from "../api-key/api-key.service";
+import { ApiKeyService } from "../actor/api-key.service";
 import {
   API_KEY_FAILED_WINDOW_MS,
   API_KEY_MAX_FAILED_ATTEMPTS,
@@ -96,7 +96,7 @@ export class ApiKeyAuthGuard implements CanActivate, OnModuleDestroy {
     // Attach the API key's group_id for use by IdentityGuard and downstream
     // service-layer authorization helpers. The key is group-scoped; there is
     // no user identity to apply.
-    request.apiKeyGroupId = keyInfo.groupId;
+    request.apiKey = keyInfo;
 
     return true;
   }

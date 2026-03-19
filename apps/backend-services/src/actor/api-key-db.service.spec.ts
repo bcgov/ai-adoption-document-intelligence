@@ -164,7 +164,7 @@ describe("ApiKeyDbService", () => {
     it("should create an api key using this.prisma when no tx", async () => {
       mockApiKeyPrisma.create.mockResolvedValue(mockApiKey);
 
-      const result = await service.createApiKey(createData);
+      const result = await service.upsertApiKey(createData);
 
       expect(result).toEqual(mockApiKey);
       expect(mockApiKeyPrisma.create).toHaveBeenCalledWith({
@@ -175,10 +175,10 @@ describe("ApiKeyDbService", () => {
     it("should use tx when provided", async () => {
       const txApiKey = { create: jest.fn().mockResolvedValue(mockApiKey) };
       const tx = { apiKey: txApiKey } as unknown as Parameters<
-        typeof service.createApiKey
+        typeof service.upsertApiKey
       >[1];
 
-      const result = await service.createApiKey(createData, tx);
+      const result = await service.upsertApiKey(createData, tx);
 
       expect(result).toEqual(mockApiKey);
       expect(txApiKey.create).toHaveBeenCalled();

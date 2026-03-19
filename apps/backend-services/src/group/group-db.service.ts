@@ -284,23 +284,6 @@ export class GroupDbService {
     });
   }
 
-  /**
-   * Checks whether a user is a system admin.
-   * @param userId - The ID of the user to check.
-   * @returns `true` when the user has `is_system_admin` set to `true`, `false` otherwise.
-   */
-  async isUserSystemAdmin(
-    userId: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<boolean> {
-    const client = tx ?? this.prisma;
-    const user = await client.user.findUnique({
-      where: { id: userId },
-      select: { is_system_admin: true },
-    });
-    return user?.is_system_admin ?? false;
-  }
-
   // ---- GroupMembershipRequest ----
 
   /**
