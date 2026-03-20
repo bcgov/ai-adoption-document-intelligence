@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "npx @biomejs/biome check",
-    "lint:fix": "npm run lint -- --write"
+    "lint:fix": "npm run lint -- --write",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",

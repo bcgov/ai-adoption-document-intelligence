@@ -16,7 +16,7 @@
     "build:frontend": "cd apps/frontend && npm run build",
     "build": "npm run build:backend-services && npm run build:frontend",
     "install:all": "npm install && cd apps/backend-services && npm install && cd ../frontend && npm install",
-    "prepare": "husky",
+    "prepare": "lefthook install",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:file": "playwright test",
@@ -26,8 +26,8 @@
     "docs:build": "npm run generate:openapi && cd docs && bash build.sh"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "husky": "^9.1.7"
+    "lefthook": "^1.11.13",
+    "concurrently": "^9.2.1"
   },
   "engines": {
     "node": ">=24.0.0",

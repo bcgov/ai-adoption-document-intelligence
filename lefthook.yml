@@ -1,0 +1,21 @@
+pre-commit:
+  parallel: true
+  commands:
+    backend-lint:
+      glob: "apps/backend-services/**/*.{ts,tsx}"
+      run: npm run lint --prefix apps/backend-services
+    backend-type-check:
+      glob: "apps/backend-services/**/*.{ts,tsx}"
+      run: npm run type-check --prefix apps/backend-services
+    frontend-lint:
+      glob: "apps/frontend/**/*.{ts,tsx}"
+      run: npm run lint --prefix apps/frontend
+    frontend-type-check:
+      glob: "apps/frontend/**/*.{ts,tsx}"
+      run: npm run type-check --prefix apps/frontend
+    temporal-lint:
+      glob: "apps/temporal/**/*.{ts,tsx}"
+      run: npm run lint --prefix apps/temporal
+    temporal-type-check:
+      glob: "apps/temporal/**/*.{ts,tsx}"
+      run: npm run type-check --prefix apps/temporal
