@@ -14,5 +14,7 @@ resources:
   - temporal-worker-deployment.yml
   - pvc-logs.yml
   - logrotate-configmap.yml
+  - promtail-configmap-worker.yml
+  - promtail-configmap-server.yml
 commonLabels:
   app.kubernetes.io/part-of: temporal
