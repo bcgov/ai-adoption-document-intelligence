@@ -23,9 +23,7 @@ export function useBootstrapStatus(enabled: boolean) {
       const response =
         await apiService.get<BootstrapStatus>("/bootstrap/status");
       if (!response.success) {
-        throw new Error(
-          response.message ?? "Failed to check bootstrap status",
-        );
+        throw new Error(response.message ?? "Failed to check bootstrap status");
       }
       return response.data ?? { needed: false, eligible: false };
     },
@@ -41,8 +39,7 @@ export function usePerformBootstrap() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (): Promise<BootstrapResult> => {
-      const response =
-        await apiService.post<BootstrapResult>("/bootstrap", {});
+      const response = await apiService.post<BootstrapResult>("/bootstrap", {});
       if (!response.success || !response.data) {
         throw new Error(response.message ?? "Failed to perform bootstrap");
       }

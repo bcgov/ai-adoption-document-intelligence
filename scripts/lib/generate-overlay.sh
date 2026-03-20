@@ -22,6 +22,12 @@ _GENERATE_OVERLAY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PROJECT_ROOT="$(cd "${_GENERATE_OVERLAY_DIR}/../.." && pwd)"
 _TEMPLATE_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/overlays/instance-template"
 
+# Escape a string for use as a sed replacement value.
+# Handles the delimiter (|), backslash, and ampersand.
+_sed_escape_replacement() {
+  printf '%s' "$1" | sed 's/[|\&]/\\&/g'
+}
+
 # generate_instance_overlay [options]
 #
 # Generates an instance-specific Kustomize overlay by copying the template
@@ -228,33 +234,33 @@ generate_instance_overlay() {
 
   # Replace all placeholder tokens in the generated overlay files
   local sed_args=(
-    -e "s|__INSTANCE_NAME__|${instance}|g"
-    -e "s|__NAMESPACE__|${namespace}|g"
-    -e "s|__CLUSTER_DOMAIN__|${cluster_domain}|g"
-    -e "s|__BACKEND_IMAGE__|${backend_image}|g"
-    -e "s|__FRONTEND_IMAGE__|${frontend_image}|g"
-    -e "s|__WORKER_IMAGE__|${worker_image}|g"
-    -e "s|__IMAGE_TAG__|${image_tag}|g"
-    -e "s|__SSO_AUTH_SERVER_URL__|${sso_auth_server_url}|g"
-    -e "s|__SSO_REALM__|${sso_realm}|g"
-    -e "s|__SSO_CLIENT_ID__|${sso_client_id}|g"
-    -e "s|__BOOTSTRAP_ADMIN_EMAIL__|${bootstrap_admin_email}|g"
-    -e "s|__BLOB_STORAGE_PROVIDER__|${blob_storage_provider}|g"
-    -e "s|__AZURE_STORAGE_CONTAINER_NAME__|${azure_storage_container_name}|g"
-    -e "s|__BENCHMARK_TASK_QUEUE__|${benchmark_task_queue}|g"
-    -e "s|__ENABLE_BENCHMARK_QUEUE__|${enable_benchmark_queue}|g"
-    -e "s|__BODY_LIMIT__|${body_limit}|g"
-    -e "s|__THROTTLE_GLOBAL_TTL_MS__|${throttle_global_ttl_ms}|g"
-    -e "s|__THROTTLE_GLOBAL_LIMIT__|${throttle_global_limit}|g"
-    -e "s|__THROTTLE_AUTH_TTL_MS__|${throttle_auth_ttl_ms}|g"
-    -e "s|__THROTTLE_AUTH_LIMIT__|${throttle_auth_limit}|g"
-    -e "s|__THROTTLE_AUTH_REFRESH_TTL_MS__|${throttle_auth_refresh_ttl_ms}|g"
-    -e "s|__THROTTLE_AUTH_REFRESH_LIMIT__|${throttle_auth_refresh_limit}|g"
-    -e "s|__AZURE_OPENAI_ENDPOINT__|${azure_openai_endpoint}|g"
-    -e "s|__AZURE_OPENAI_DEPLOYMENT__|${azure_openai_deployment}|g"
-    -e "s|__AZURE_OPENAI_API_VERSION__|${azure_openai_api_version}|g"
-    -e "s|__ENRICHMENT_REDACT_PII__|${enrichment_redact_pii}|g"
-    -e "s|__PG_BACKUP_STORAGE_SIZE__|${pg_backup_storage_size}|g"
+    -e "s|__INSTANCE_NAME__|$(_sed_escape_replacement "${instance}")|g"
+    -e "s|__NAMESPACE__|$(_sed_escape_replacement "${namespace}")|g"
+    -e "s|__CLUSTER_DOMAIN__|$(_sed_escape_replacement "${cluster_domain}")|g"
+    -e "s|__BACKEND_IMAGE__|$(_sed_escape_replacement "${backend_image}")|g"
+    -e "s|__FRONTEND_IMAGE__|$(_sed_escape_replacement "${frontend_image}")|g"
+    -e "s|__WORKER_IMAGE__|$(_sed_escape_replacement "${worker_image}")|g"
+    -e "s|__IMAGE_TAG__|$(_sed_escape_replacement "${image_tag}")|g"
+    -e "s|__SSO_AUTH_SERVER_URL__|$(_sed_escape_replacement "${sso_auth_server_url}")|g"
+    -e "s|__SSO_REALM__|$(_sed_escape_replacement "${sso_realm}")|g"
+    -e "s|__SSO_CLIENT_ID__|$(_sed_escape_replacement "${sso_client_id}")|g"
+    -e "s|__BOOTSTRAP_ADMIN_EMAIL__|$(_sed_escape_replacement "${bootstrap_admin_email}")|g"
+    -e "s|__BLOB_STORAGE_PROVIDER__|$(_sed_escape_replacement "${blob_storage_provider}")|g"
+    -e "s|__AZURE_STORAGE_CONTAINER_NAME__|$(_sed_escape_replacement "${azure_storage_container_name}")|g"
+    -e "s|__BENCHMARK_TASK_QUEUE__|$(_sed_escape_replacement "${benchmark_task_queue}")|g"
+    -e "s|__ENABLE_BENCHMARK_QUEUE__|$(_sed_escape_replacement "${enable_benchmark_queue}")|g"
+    -e "s|__BODY_LIMIT__|$(_sed_escape_replacement "${body_limit}")|g"
+    -e "s|__THROTTLE_GLOBAL_TTL_MS__|$(_sed_escape_replacement "${throttle_global_ttl_ms}")|g"
+    -e "s|__THROTTLE_GLOBAL_LIMIT__|$(_sed_escape_replacement "${throttle_global_limit}")|g"
+    -e "s|__THROTTLE_AUTH_TTL_MS__|$(_sed_escape_replacement "${throttle_auth_ttl_ms}")|g"
+    -e "s|__THROTTLE_AUTH_LIMIT__|$(_sed_escape_replacement "${throttle_auth_limit}")|g"
+    -e "s|__THROTTLE_AUTH_REFRESH_TTL_MS__|$(_sed_escape_replacement "${throttle_auth_refresh_ttl_ms}")|g"
+    -e "s|__THROTTLE_AUTH_REFRESH_LIMIT__|$(_sed_escape_replacement "${throttle_auth_refresh_limit}")|g"
+    -e "s|__AZURE_OPENAI_ENDPOINT__|$(_sed_escape_replacement "${azure_openai_endpoint}")|g"
+    -e "s|__AZURE_OPENAI_DEPLOYMENT__|$(_sed_escape_replacement "${azure_openai_deployment}")|g"
+    -e "s|__AZURE_OPENAI_API_VERSION__|$(_sed_escape_replacement "${azure_openai_api_version}")|g"
+    -e "s|__ENRICHMENT_REDACT_PII__|$(_sed_escape_replacement "${enrichment_redact_pii}")|g"
+    -e "s|__PG_BACKUP_STORAGE_SIZE__|$(_sed_escape_replacement "${pg_backup_storage_size}")|g"
   )
 
   # Process all YAML files in the generated directory
