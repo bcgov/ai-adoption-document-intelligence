@@ -34,8 +34,24 @@ Provide a set of OCR correction tools and expose them as graph workflow activiti
 - [ ] At least **one other** simple correction node/activity (in addition to spellcheck) is implemented and wired into the graph (types, registry, validation per ADDING_GRAPH_NODES_AND_ACTIVITIES.md).
 - [ ] Each tool is covered by **tests** and documented in `/docs`.
 
+## As implemented (summary)
+
+The deterministic correction activities are **`ocr.spellcheck`**, **`ocr.characterConfusion`**, and **`ocr.normalizeFields`**. The normalizer is a **composable rule pipeline**: parameters include optional **`enabledRules`** / **`disabledRules`** (rule IDs such as `unicode`, `whitespace`, `dehyphenation`, `digitGrouping`, `commaThousands`, `dateSeparators`, `currencySpacing`) and **`normalizeFullResult`** to extend normalization to full OCR text regions, not only key-value field values.
+
+The existing enrichment activity **`ocr.enrich`** is also available for schema-driven corrections (with optional LLM assistance), and can now be inserted by the recommendation pipeline.
+
+**Enrichment LLM and correction-agent steering:** When **`enableLlmEnrichment`** is true, low-confidence fields are sent to Azure OpenAI using the prompt builder in **`apps/temporal/src/activities/enrichment-llm.ts`**. Optional node parameter **`llmPromptAppend`** (string) is appended to the user message under a dedicated **“Additional instructions (correction agent)”** section so the improvement pipeline / AI recommender can inject concise guidance derived from HITL patterns (e.g. date formats, common O/0 confusions). Empty or whitespace-only values are ignored. Implementation: **`apps/temporal/src/activities/enrich-results.ts`**.
+
+**Safe insertion points** for AI-generated workflows are aligned to the standard OCR graph:
+- **`ocr.characterConfusion`** and **`ocr.normalizeFields`** between **`extractResults`** and **`checkConfidence`**
+- **`ocr.enrich`** between **`postOcrCleanup`** and **`checkConfidence`**
+- **`ocr.spellcheck`** between **`checkConfidence`** and **`reviewSwitch`**
+
+That keeps deterministic OCR fixes immediately after extraction, enrichment before confidence evaluation, and spellcheck near the review decision. Details and troubleshooting are in [docs-md/OCR_IMPROVEMENT_PIPELINE.md](../../docs-md/OCR_IMPROVEMENT_PIPELINE.md).
+
 ## References
 
 - [docs/graph-workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md](../../docs/graph-workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md)
 - [docs/ENRICHMENT.md](../../docs/ENRICHMENT.md)
 - `apps/temporal/src/activities/enrichment-rules.ts` (`fixCharacterConfusion`, `CONFUSION_MAP`)
+- [docs-md/OCR_IMPROVEMENT_PIPELINE.md](../../docs-md/OCR_IMPROVEMENT_PIPELINE.md)

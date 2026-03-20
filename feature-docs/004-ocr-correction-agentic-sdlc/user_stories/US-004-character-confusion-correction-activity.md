@@ -33,3 +33,4 @@
 ## Technical Notes / Assumptions
 - Step 2; extend or reuse `fixCharacterConfusion` in `apps/temporal/src/activities/enrichment-rules.ts`.
 - Full OCR result shape (keyValuePairs, documents); month-name protection for date fields per existing logic.
+- **Behavior notes (implementation):** Substitutions are gated so the active confusion map is applied in context of **glyph presence** where relevant. Valid **slash-separated dates** (`MM/DD/YYYY`-style) suppress the `/` → … mapping so separators stay intact while other mappings (e.g. O→0) may still apply. Edge cases such as a standalone **`$`** when the map would clear currency symbols are handled so legitimate currency tokens are not stripped incorrectly. See unit tests in `apps/temporal/src/activities/ocr-character-confusion.test.ts` and [docs-md/OCR_IMPROVEMENT_PIPELINE.md](../../../docs-md/OCR_IMPROVEMENT_PIPELINE.md) troubleshooting.

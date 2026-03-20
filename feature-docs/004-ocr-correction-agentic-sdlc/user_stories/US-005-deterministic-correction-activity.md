@@ -31,4 +31,4 @@
 - [ ] Low (Nice to Have)
 
 ## Technical Notes / Assumptions
-- Step 2; “at least one other” per requirements Section 3–4. Examples: trim/normalize whitespace, normalize digits/dates.
+- Step 2; “at least one other” per requirements Section 3–4. **Delivered as `ocr.normalizeFields`:** composable **rule IDs** (`enabledRules` / `disabledRules`), optional **`normalizeFullResult`** for full OCR text regions (pages, tables, etc.), plus **`fieldScope`**. Built-in rules cover unicode normalization, whitespace, dehyphenation, digit grouping, comma-as-thousands, date separators, currency spacing, with heuristic application for numeric/money-like values as documented in [docs-md/OCR_IMPROVEMENT_PIPELINE.md](../../../docs-md/OCR_IMPROVEMENT_PIPELINE.md). Implementation: `apps/temporal/src/activities/ocr-normalize-fields.ts`.

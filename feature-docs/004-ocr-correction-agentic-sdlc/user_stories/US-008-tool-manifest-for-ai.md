@@ -26,4 +26,5 @@
 - [ ] Low (Nice to Have)
 
 ## Technical Notes / Assumptions
-- Step 3; requirements Section 5. Backend has getRegisteredActivityTypeKeys() and REGISTERED_ACTIVITY_TYPES with descriptions; parameter metadata may need to be added or a separate manifest created.
+- Step 3; requirements Section 5. **Manifest:** OCR correction tools are described in **`apps/temporal/src/correction-tool-registry.ts`** (single source for worker + docs) and mirrored for Nest in **`apps/backend-services/src/hitl/tool-manifest.service.ts`**. Each entry includes **`toolId`**, parameter schemas, **`safeInsertionPoints`** (`afterNodeId` / `beforeNodeId` / description), and tags. When adding a tool, update both files so the AI pipeline and improvement orchestration stay aligned.
+- **`ocr.enrich`** includes optional **`llmPromptAppend`** (string): documented for the AI so recommendations can pass correction-agent guidance into the enrichment LLM user prompt when **`enableLlmEnrichment`** is true. See Step 2 and [docs-md/OCR_IMPROVEMENT_PIPELINE.md](../../../docs-md/OCR_IMPROVEMENT_PIPELINE.md).

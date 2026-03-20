@@ -1,6 +1,6 @@
 # OCR Correction Tools and Benchmark Comparison (Feature 004)
 
-This feature covers **confusion matrices**, **OCR correction tools** (spellcheck, character-confusion, and one other), **AI processing of HITL feedback** (tool recommendations), **workflow modification utility**, and **benchmark integration** (run baseline and candidate with workflow override, read comparison). The goal is to run the baseline, make corrections, run the candidate workflow, and **have AI review the results** so you can make design decisions. It does **not** include automatic workflow replacement or the full feedback loop—those are in [Feature 005 (Agentic SDLC Workflow Replacement and Feedback Loop)](../005-agentic-sdlc-workflow-replacement/).
+This feature covers **confusion matrices**, **OCR correction tools** (`ocr.spellcheck`, `ocr.characterConfusion`, `ocr.normalizeFields`, and `ocr.enrich`), **AI processing of HITL feedback** (tool recommendations), **workflow modification utility**, and **benchmark integration** (run baseline and candidate with workflow override, read comparison). The goal is to run the baseline, make corrections, run the candidate workflow, and **have AI review the results** so you can make design decisions. It does **not** include automatic workflow replacement or the full feedback loop—those are in [Feature 005 (Agentic SDLC Workflow Replacement and Feedback Loop)](../005-agentic-sdlc-workflow-replacement/).
 
 Requirements: [docs/OCR_CORRECTION_AND_AGENTIC_SDLC_REQUIREMENTS.md](../../docs/OCR_CORRECTION_AND_AGENTIC_SDLC_REQUIREMENTS.md) (Sections 1–6 and Section 10; Sections 7–9 are implemented in Feature 005).
 
@@ -9,7 +9,7 @@ Requirements: [docs/OCR_CORRECTION_AND_AGENTIC_SDLC_REQUIREMENTS.md](../../docs/
 | Step | Document | Summary |
 |------|----------|---------|
 | 1 | [step-01-confusion-matrices.md](./step-01-confusion-matrices.md) | Document and implement confusion-matrix–style data for analysis and tuning |
-| 2 | [step-02-ocr-correction-tools-and-nodes.md](./step-02-ocr-correction-tools-and-nodes.md) | Implement three correction tools and simple correction nodes (spellcheck, character-confusion, one other) |
+| 2 | [step-02-ocr-correction-tools-and-nodes.md](./step-02-ocr-correction-tools-and-nodes.md) | Implement deterministic correction tools and graph nodes (`ocr.spellcheck`, `ocr.characterConfusion`, `ocr.normalizeFields`) and keep `ocr.enrich` integration explicit |
 | 3 | [step-03-ai-hitl-processing-tool-selection.md](./step-03-ai-hitl-processing-tool-selection.md) | AI pipeline to process HITL feedback and output tool/placement recommendations |
 | 4 | [step-04-benchmark-integration-workflow-comparison.md](./step-04-benchmark-integration-workflow-comparison.md) | Integrate with benchmarking system: workflow override, workflow modification utility, run candidate, read baseline comparison |
 
@@ -27,6 +27,9 @@ Requirements: [docs/OCR_CORRECTION_AND_AGENTIC_SDLC_REQUIREMENTS.md](../../docs/
 | Topic | Location |
 |-------|----------|
 | Full requirements (004 scope: Sections 1–6, 10) | [docs/OCR_CORRECTION_AND_AGENTIC_SDLC_REQUIREMENTS.md](../../docs/OCR_CORRECTION_AND_AGENTIC_SDLC_REQUIREMENTS.md) |
+| **OCR improvement pipeline (API, UI, insertion order, troubleshooting)** | [docs-md/OCR_IMPROVEMENT_PIPELINE.md](../../docs-md/OCR_IMPROVEMENT_PIPELINE.md) |
 | Feature 005 (replacement, loop, exploration) | [feature-docs/005-agentic-sdlc-workflow-replacement/](../005-agentic-sdlc-workflow-replacement/) |
 | Enrichment, HITL, graph workflows | [docs/ENRICHMENT.md](../../docs/ENRICHMENT.md), [docs/HITL_ARCHITECTURE.md](../../docs/HITL_ARCHITECTURE.md), [docs/graph-workflows/](../../docs/graph-workflows/) |
 | Benchmarking system | [docs/benchmarking/BENCHMARKING_GUIDE.md](../../docs/benchmarking/BENCHMARKING_GUIDE.md), [feature-docs/003-benchmarking-system/REQUIREMENTS.md](../003-benchmarking-system/REQUIREMENTS.md) |
+
+**Implementation pointers (code):** correction tool manifest and safe insertion points — `apps/temporal/src/correction-tool-registry.ts` and `apps/backend-services/src/hitl/tool-manifest.service.ts` (kept in sync); applying AI recommendations to a graph — `applyRecommendations` in `apps/temporal/src/workflow-modification/workflow-modification.util.ts` (mirrored under backend `workflow/` for orchestration). **`ocr.enrich`** optional **`llmPromptAppend`** — appends correction-agent text to the enrichment LLM user prompt when LLM enrichment is enabled (`apps/temporal/src/activities/enrich-results.ts`, `enrichment-llm.ts`). Operational behavior and validation tips are documented in `docs-md/OCR_IMPROVEMENT_PIPELINE.md` rather than duplicated here.

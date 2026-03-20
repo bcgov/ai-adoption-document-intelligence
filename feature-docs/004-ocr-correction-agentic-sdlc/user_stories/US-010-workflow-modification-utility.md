@@ -32,3 +32,5 @@
 
 ## Technical Notes / Assumptions
 - Step 4; requirements Section 6. Non-trivial: edge splitting, new node id, two new edges, port bindings. Reference: graph-workflow-types.ts (GraphWorkflowConfig, nodes, edges, ctx).
+- **Multiple recommendations between the same pair of anchor nodes:** If the direct edge between `afterNodeId` and `beforeNodeId` was already split by a prior insertion, the utility finds the **last normal edge** on a path toward `beforeNodeId` and splits that so new nodes chain in order. Implemented in `applyRecommendations` — `apps/temporal/src/workflow-modification/workflow-modification.util.ts` (backend: `apps/backend-services/src/workflow/workflow-modification.util.ts`).
+- **Tool-specific wiring for `ocr.enrich`:** inserted enrich nodes bind `documentId <- ctx.documentId` and `ocrResult <- ctx.cleanedResult`, write `ocrResult -> ctx.cleanedResult`, and use a `3m` timeout (matching activity defaults). Node `parameters` may include `llmPromptAppend` (optional string) appended to the enrichment LLM user prompt when `enableLlmEnrichment` is true. Other correction inserts keep the generic `ocrResult` in/out binding with `2m` timeout.

@@ -27,3 +27,4 @@
 
 ## Technical Notes / Assumptions
 - Depends on US-003, US-004, US-005. Step 2 completion.
+- Correction activity types include `ocr.spellcheck`, `ocr.characterConfusion`, `ocr.normalizeFields`, and `ocr.enrich`. The **correction tool manifest** (`apps/temporal/src/correction-tool-registry.ts`, backend mirror in `hitl/tool-manifest.service.ts`) complements generic activity registration for AI-facing metadata and insertion-point guidance. User-facing pipeline and graph docs: [docs-md/OCR_IMPROVEMENT_PIPELINE.md](../../../docs-md/OCR_IMPROVEMENT_PIPELINE.md), [ADDING_GRAPH_NODES_AND_ACTIVITIES.md](../../../docs/graph-workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md).

@@ -32,3 +32,5 @@
 
 ## Technical Notes / Assumptions
 - Step 3; requirements Section 5. Depends on US-007, US-008.
+- **Recommendation service:** `AiRecommendationService` (`apps/backend-services/src/benchmark/ai-recommendation.service.ts`) and the Temporal activity `ai-tool-recommendation` use the manifest (including insertion points) and encode **preferred tool order** (`ocr.characterConfusion` and `ocr.normalizeFields` before confidence check; optional `ocr.enrich` after `postOcrCleanup`/before `checkConfidence` with `parameters.documentType`; `ocr.spellcheck` after confidence check, before review). See [docs-md/OCR_IMPROVEMENT_PIPELINE.md](../../../docs-md/OCR_IMPROVEMENT_PIPELINE.md).
+- **Enrichment steering:** When the model recommends **`ocr.enrich`** with **`enableLlmEnrichment: true`**, it may set **`parameters.llmPromptAppend`** with brief, pattern-based instructions (from HITL analysis). That string is appended to the enrichment LLM user prompt in **`enrichment-llm.ts`** / **`enrich-results.ts`**; it does not apply to other correction activities.

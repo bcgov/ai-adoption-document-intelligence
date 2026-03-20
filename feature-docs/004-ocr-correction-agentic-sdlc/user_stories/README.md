@@ -4,6 +4,8 @@ This feature covers confusion matrices, correction tools, AI HITL processing, wo
 
 Requirements: [docs/OCR_CORRECTION_AND_AGENTIC_SDLC_REQUIREMENTS.md](../../../docs/OCR_CORRECTION_AND_AGENTIC_SDLC_REQUIREMENTS.md) (Sections 1–6, 10). Step-by-step implementation: [feature-docs/004-ocr-correction-agentic-sdlc/](../).
 
+**Operational reference (pipeline API, UI entry points, correction order):** [docs-md/OCR_IMPROVEMENT_PIPELINE.md](../../../docs-md/OCR_IMPROVEMENT_PIPELINE.md).
+
 All user story files are in `feature-docs/004-ocr-correction-agentic-sdlc/user_stories/`.
 
 After implementing a user story, check it off in the phase sections below.

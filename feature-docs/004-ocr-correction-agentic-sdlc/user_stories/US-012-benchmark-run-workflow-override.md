@@ -26,4 +26,4 @@
 - [ ] Low (Nice to Have)
 
 ## Technical Notes / Assumptions
-- Step 4; requirements Section 6 (workflow versioning). Current code: benchmark-run.service and benchmark-temporal.service pass definition.workflowId and workflowConfigHash; they do not pass full workflowConfig. Implementation may need to load workflow config by id (or override id) and pass it into the Temporal workflow args.
+- Step 4; requirements Section 6 (workflow versioning). The **OCR improvement pipeline** persists a **candidate workflow** (`Workflow` row) with the modified graph and starts a benchmark run so execution uses that candidate’s config while the definition remains the comparison anchor. Orchestration: `OcrImprovementPipelineService` in `apps/backend-services/src/benchmark/ocr-improvement-pipeline.service.ts`. API, run `params` (e.g. `candidateWorkflowId`, config hash), and troubleshooting are documented in [docs-md/OCR_IMPROVEMENT_PIPELINE.md](../../../docs-md/OCR_IMPROVEMENT_PIPELINE.md).
