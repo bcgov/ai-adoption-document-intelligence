@@ -41,16 +41,16 @@ spec:
             - name: VISIBILITY_DBNAME
               value: "temporal_visibility"
             - name: POSTGRES_SEEDS
-              value: "temporal-postgres-cluster-primary"
+              value: "temporal-pg-primary"
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: temporal-postgres-cluster-pguser-temporal
+                  name: temporal-pg-pguser-temporal
                   key: user
             - name: POSTGRES_PWD
               valueFrom:
                 secretKeyRef:
-                  name: temporal-postgres-cluster-pguser-temporal
+                  name: temporal-pg-pguser-temporal
                   key: password
           command:
             - /bin/sh
@@ -74,18 +74,18 @@ spec:
             - name: SQL_TLS_DISABLE_HOST_VERIFICATION
               value: "true"
             - name: POSTGRES_SEEDS
-              value: "temporal-postgres-cluster-primary"
+              value: "temporal-pg-primary"
             - name: DB_PORT
               value: "5432"
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: temporal-postgres-cluster-pguser-temporal
+                  name: temporal-pg-pguser-temporal
                   key: user
             - name: SQL_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: temporal-postgres-cluster-pguser-temporal
+                  name: temporal-pg-pguser-temporal
                   key: password
           command:
             - /bin/sh
@@ -153,16 +153,16 @@ spec:
             - name: VISIBILITY_DBNAME
               value: "temporal_visibility"
             - name: POSTGRES_SEEDS
-              value: "temporal-postgres-cluster-primary"
+              value: "temporal-pg-primary"
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: temporal-postgres-cluster-pguser-temporal
+                  name: temporal-pg-pguser-temporal
                   key: user
             - name: POSTGRES_PWD
               valueFrom:
                 secretKeyRef:
-                  name: temporal-postgres-cluster-pguser-temporal
+                  name: temporal-pg-pguser-temporal
                   key: password
           resources:
             requests:

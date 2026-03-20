@@ -24,6 +24,13 @@ vi.mock("../data/hooks/useGroups", () => ({
   useMyRequests: () => mockUseMyRequests(),
 }));
 
+vi.mock("../data/hooks/useBootstrap", () => ({
+  useBootstrapStatus: () => ({
+    data: { needed: false, eligible: false },
+    isLoading: false,
+  }),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

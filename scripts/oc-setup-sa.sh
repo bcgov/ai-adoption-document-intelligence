@@ -17,7 +17,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 SA_NAME="deploy-sa"
-TOKEN_FILE="${PROJECT_ROOT}/.oc-deploy-token"
+TOKEN_DIR="${PROJECT_ROOT}/.oc-deploy"
+TOKEN_FILE="${TOKEN_DIR}/token"
 ROLE_NAME="deploy-sa-role"
 ROLE_BINDING_NAME="deploy-sa-rolebinding"
 
@@ -113,17 +114,42 @@ metadata:
   name: ${ROLE_NAME}
   namespace: ${NAMESPACE}
 rules:
-  - apiGroups: ["apps"]
-    resources: ["deployments"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Core resources
   - apiGroups: [""]
-    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims", "pods"]
+    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims", "pods", "events"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["pods/exec"]
     verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # Apps (deployments, replicasets, statefulsets, daemonsets)
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale", "replicasets", "replicasets/scale", "statefulsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Batch (jobs, cronjobs)
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # OpenShift routes
   - apiGroups: ["route.openshift.io"]
     resources: ["routes"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes/custom-host"]
+    verbs: ["create"]
+  # Crunchy PostgreSQL operator
+  - apiGroups: ["postgres-operator.crunchydata.com"]
+    resources: ["postgresclusters"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Network policies
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Autoscaling
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 EOF
 
@@ -160,6 +186,7 @@ fi
 
 # ---------- save token to file ----------
 
+mkdir -p "${TOKEN_DIR}"
 cat > "${TOKEN_FILE}" <<TOKENEOF
 # OpenShift deploy service account token
 # Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -171,6 +198,7 @@ SERVER=$(oc whoami --show-server)
 TOKEN=${TOKEN}
 TOKENEOF
 
+chmod 700 "${TOKEN_DIR}"
 chmod 600 "${TOKEN_FILE}"
 
 log_info "Token saved to ${TOKEN_FILE}"

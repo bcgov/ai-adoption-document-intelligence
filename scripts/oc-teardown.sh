@@ -23,7 +23,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # Source library functions
 source "${SCRIPT_DIR}/lib/instance-name.sh"
 
-TOKEN_FILE="${PROJECT_ROOT}/.oc-deploy-token"
+TOKEN_FILE="${PROJECT_ROOT}/.oc-deploy/token"
 SA_NAME="deploy-sa"
 ROLE_NAME="deploy-sa-role"
 ROLE_BINDING_NAME="deploy-sa-rolebinding"
@@ -126,12 +126,12 @@ oc login "${SERVER}" --token="${TOKEN}" --insecure-skip-tls-verify=true &>/dev/n
   exit 1
 }
 
-oc project "${NAMESPACE}" &>/dev/null || {
-  log_error "Failed to switch to namespace '${NAMESPACE}'."
+oc get pods -n "${NAMESPACE}" --no-headers &>/dev/null || {
+  log_error "Cannot access namespace '${NAMESPACE}'. Token may lack permissions."
   exit 1
 }
 
-log_info "Authenticated and switched to namespace: ${NAMESPACE}"
+log_info "Authenticated with access to namespace: ${NAMESPACE}"
 
 # ============================================================
 # Step 2: Determine instance name
@@ -158,6 +158,7 @@ RESOURCE_TYPES=(
   "deployments.apps"
   "services"
   "routes.route.openshift.io"
+  "networkpolicies.networking.k8s.io"
   "configmaps"
   "secrets"
   "persistentvolumeclaims"
@@ -179,6 +180,8 @@ log_info "All instance resources deleted."
 log_step "Step 4: Verifying deletion"
 
 REMAINING=$(oc get all -l "${LABEL_SELECTOR}" -n "${NAMESPACE}" --no-headers 2>/dev/null | wc -l || echo "0")
+REMAINING=$(echo "${REMAINING}" | tr -d '[:space:]')
+REMAINING="${REMAINING:-0}"
 
 if [[ "${REMAINING}" -gt 0 ]]; then
   log_info "Some resources are still terminating. This is expected for resources with finalizers."
@@ -195,25 +198,23 @@ log_step "Step 5: Checking for remaining instances"
 
 # Count distinct instance labels across all resources
 # Look for the app.kubernetes.io/instance label on any remaining deployments
-REMAINING_INSTANCES=$(oc get deployments -n "${NAMESPACE}" \
+INSTANCE_LABELS=$(oc get deployments -n "${NAMESPACE}" \
   -l "app.kubernetes.io/instance" \
-  -o jsonpath='{range .items[*]}{.metadata.labels.app\.kubernetes\.io/instance}{"\n"}{end}' 2>/dev/null \
-  | sort -u | grep -v '^$' | wc -l || echo "0")
+  -o jsonpath='{range .items[*]}{.metadata.labels.app\.kubernetes\.io/instance}{"\n"}{end}' 2>/dev/null || true)
+REMAINING_INSTANCES=0
+if [[ -n "${INSTANCE_LABELS}" ]]; then
+  REMAINING_INSTANCES=$(echo "${INSTANCE_LABELS}" | sort -u | grep -vc '^$' || true)
+  REMAINING_INSTANCES="${REMAINING_INSTANCES:-0}"
+fi
 
 if [[ "${REMAINING_INSTANCES}" -eq 0 ]]; then
   log_info "No other instances found in namespace '${NAMESPACE}'."
-  log_info "Removing service account and related RBAC resources..."
-
-  oc delete rolebinding "${ROLE_BINDING_NAME}" -n "${NAMESPACE}" --ignore-not-found=true || true
-  oc delete role "${ROLE_NAME}" -n "${NAMESPACE}" --ignore-not-found=true || true
-  oc delete serviceaccount "${SA_NAME}" -n "${NAMESPACE}" --ignore-not-found=true || true
-
-  log_info "Service account and RBAC resources removed."
-
-  if [[ -f "${TOKEN_FILE}" ]]; then
-    rm -f "${TOKEN_FILE}"
-    log_info "Deleted local token file: ${TOKEN_FILE}"
-  fi
+  log_info "Service account and token are preserved for future deployments."
+  log_info "To remove them manually, log in as a namespace admin and delete:"
+  log_info "  oc delete rolebinding ${ROLE_BINDING_NAME} -n ${NAMESPACE}"
+  log_info "  oc delete role ${ROLE_NAME} -n ${NAMESPACE}"
+  log_info "  oc delete serviceaccount ${SA_NAME} -n ${NAMESPACE}"
+  log_info "  rm -rf $(dirname "${TOKEN_FILE}")"
 else
   log_info "${REMAINING_INSTANCES} other instance(s) still deployed — keeping service account."
 fi

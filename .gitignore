@@ -17,5 +17,6 @@ apps/backend-services/backend.log
 /packages/logging/dist
 
 # OpenShift deployment tooling
-.oc-deploy-token
+.oc-deploy/
 backups/
+deployments/openshift/config/*.env
