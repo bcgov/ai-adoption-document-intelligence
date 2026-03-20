@@ -6,11 +6,7 @@ import {
   Post,
   Req,
 } from "@nestjs/common";
-import {
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from "@nestjs/swagger";
+import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Request } from "express";
 import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
 import { User } from "../auth/types";
@@ -22,7 +18,8 @@ export class BootstrapController {
   constructor(private readonly bootstrapService: BootstrapService) {}
 
   @ApiOperation({
-    summary: "Check if system bootstrap is needed and if the caller is eligible",
+    summary:
+      "Check if system bootstrap is needed and if the caller is eligible",
   })
   @ApiResponse({
     status: 200,

@@ -1,8 +1,8 @@
 import { GroupRole } from "@generated/client";
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
-  ConflictException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AuditService } from "../audit/audit.service";
