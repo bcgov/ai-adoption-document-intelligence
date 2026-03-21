@@ -4,14 +4,14 @@ import type {
   FieldCorrection,
   FieldDefinition,
   LabeledDocument,
-  LabelingProject,
   OcrResult,
   Prisma,
   ReviewSession,
+  TemplateModel,
 } from "@generated/client";
 
 export type DocumentData = Document;
-export type LabelingProjectData = LabelingProject & {
+export type TemplateModelData = TemplateModel & {
   field_schema: FieldDefinition[];
   documents?: LabeledDocument[];
 };

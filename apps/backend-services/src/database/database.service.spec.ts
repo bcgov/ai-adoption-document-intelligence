@@ -6,9 +6,11 @@ jest.mock("@generated/client", () => {
     completed_ocr: "completed_ocr",
     failed: "failed",
   };
-  const ProjectStatus = {
-    active: "active",
-    archived: "archived",
+  const TemplateModelStatus = {
+    draft: "draft",
+    training: "training",
+    trained: "trained",
+    failed: "failed",
   };
   const LabelingStatus = {
     unlabeled: "unlabeled",
@@ -39,7 +41,7 @@ jest.mock("@generated/client", () => {
   };
   return {
     DocumentStatus,
-    ProjectStatus,
+    TemplateModelStatus,
     LabelingStatus,
     ReviewStatus,
     FieldType,
@@ -61,7 +63,7 @@ jest.mock("@generated/client", () => {
         findUnique: jest.fn(),
         update: jest.fn(),
       },
-      labelingProject: {
+      templateModel: {
         create: jest.fn(),
         findUnique: jest.fn(),
         findMany: jest.fn(),
@@ -113,8 +115,8 @@ import {
   FieldType,
   LabelingStatus,
   OcrResult,
-  ProjectStatus,
   ReviewStatus,
+  TemplateModelStatus,
 } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
@@ -125,7 +127,7 @@ import { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
 import { DatabaseService } from "./database.service";
 import { DocumentDbService } from "./document-db.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
-import { LabelingProjectDbService } from "./labeling-project-db.service";
+import { TemplateModelDbService } from "./template-model-db.service";
 import { PrismaService } from "./prisma.service";
 import { ReviewDbService } from "./review-db.service";
 
@@ -202,11 +204,12 @@ const defaultLabelingDocument = {
   ocr_result: {},
 };
 
-const defaultLabelingProject = {
-  id: "project-1",
-  name: "Test Project",
+const defaultTemplateModel = {
+  id: "template-model-1",
+  name: "Test Template Model",
+  model_id: "model-1",
   description: "Test description",
-  status: ProjectStatus.active,
+  status: TemplateModelStatus.draft,
   created_by: "user-1",
   created_at: new Date(),
   updated_at: new Date(),
@@ -215,7 +218,7 @@ const defaultLabelingProject = {
 
 const defaultFieldDefinition = {
   id: "field-1",
-  project_id: "project-1",
+  template_model_id: "template-model-1",
   field_key: "invoice_number",
   field_type: FieldType.string,
   field_format: null,
@@ -226,7 +229,7 @@ const defaultFieldDefinition = {
 
 const defaultLabeledDocument = {
   id: "labeled-doc-1",
-  project_id: "project-1",
+  template_model_id: "template-model-1",
   labeling_document_id: "labeling-doc-1",
   status: LabelingStatus.unlabeled,
   created_at: new Date(),
@@ -282,7 +285,7 @@ describe("DatabaseService", () => {
         PrismaService,
         DocumentDbService,
         LabelingDocumentDbService,
-        LabelingProjectDbService,
+        TemplateModelDbService,
         ReviewDbService,
         DatabaseService,
         { provide: AppLoggerService, useValue: mockAppLogger },
@@ -543,25 +546,27 @@ describe("DatabaseService", () => {
     });
   });
 
-  describe("createLabelingProject", () => {
-    it("should create a labeling project", async () => {
-      mockPrisma.labelingProject.create.mockResolvedValueOnce(
-        defaultLabelingProject,
+  describe("createTemplateModel", () => {
+    it("should create a template model", async () => {
+      mockPrisma.templateModel.create.mockResolvedValueOnce(
+        defaultTemplateModel,
       );
-      const result = await service.createLabelingProject({
-        name: "Test Project",
+      const result = await service.createTemplateModel({
+        name: "Test Template Model",
+        model_id: "model-1",
         description: "Test description",
         created_by: "user-1",
         group_id: "group-1",
       });
-      expect(result).toEqual(defaultLabelingProject);
-      expect(mockPrisma.labelingProject.create).toHaveBeenCalledWith({
+      expect(result).toEqual(defaultTemplateModel);
+      expect(mockPrisma.templateModel.create).toHaveBeenCalledWith({
         data: {
-          name: "Test Project",
+          name: "Test Template Model",
+          model_id: "model-1",
           description: "Test description",
           created_by: "user-1",
           group_id: "group-1",
-          status: ProjectStatus.active,
+          status: TemplateModelStatus.draft,
         },
         include: {
           field_schema: { orderBy: { display_order: "asc" } },
@@ -570,19 +575,19 @@ describe("DatabaseService", () => {
     });
   });
 
-  describe("findLabelingProject", () => {
-    it("should return a labeling project by id", async () => {
-      const projectWithDocs = {
-        ...defaultLabelingProject,
+  describe("findTemplateModel", () => {
+    it("should return a template model by id", async () => {
+      const templateModelWithDocs = {
+        ...defaultTemplateModel,
         documents: [defaultLabeledDocument],
       };
-      mockPrisma.labelingProject.findUnique.mockResolvedValueOnce(
-        projectWithDocs,
+      mockPrisma.templateModel.findUnique.mockResolvedValueOnce(
+        templateModelWithDocs,
       );
-      const result = await service.findLabelingProject("project-1");
-      expect(result).toEqual(projectWithDocs);
-      expect(mockPrisma.labelingProject.findUnique).toHaveBeenCalledWith({
-        where: { id: "project-1" },
+      const result = await service.findTemplateModel("template-model-1");
+      expect(result).toEqual(templateModelWithDocs);
+      expect(mockPrisma.templateModel.findUnique).toHaveBeenCalledWith({
+        where: { id: "template-model-1" },
         include: {
           field_schema: { orderBy: { display_order: "asc" } },
           documents: {
@@ -595,21 +600,21 @@ describe("DatabaseService", () => {
       });
     });
 
-    it("should return null if project not found", async () => {
-      mockPrisma.labelingProject.findUnique.mockResolvedValueOnce(null);
-      const result = await service.findLabelingProject("not-found");
+    it("should return null if template model not found", async () => {
+      mockPrisma.templateModel.findUnique.mockResolvedValueOnce(null);
+      const result = await service.findTemplateModel("not-found");
       expect(result).toBeNull();
     });
   });
 
-  describe("findAllLabelingProjects", () => {
-    it("should return all labeling projects", async () => {
-      mockPrisma.labelingProject.findMany.mockResolvedValueOnce([
-        defaultLabelingProject,
+  describe("findAllTemplateModels", () => {
+    it("should return all template models", async () => {
+      mockPrisma.templateModel.findMany.mockResolvedValueOnce([
+        defaultTemplateModel,
       ]);
-      const result = await service.findAllLabelingProjects();
-      expect(result).toEqual([defaultLabelingProject]);
-      expect(mockPrisma.labelingProject.findMany).toHaveBeenCalledWith({
+      const result = await service.findAllTemplateModels();
+      expect(result).toEqual([defaultTemplateModel]);
+      expect(mockPrisma.templateModel.findMany).toHaveBeenCalledWith({
         where: undefined,
         orderBy: { updated_at: "desc" },
         include: {
@@ -620,12 +625,12 @@ describe("DatabaseService", () => {
     });
 
     it("should filter by groupIds when provided", async () => {
-      mockPrisma.labelingProject.findMany.mockResolvedValueOnce([
-        defaultLabelingProject,
+      mockPrisma.templateModel.findMany.mockResolvedValueOnce([
+        defaultTemplateModel,
       ]);
-      const result = await service.findAllLabelingProjects(["group-1"]);
-      expect(result).toEqual([defaultLabelingProject]);
-      expect(mockPrisma.labelingProject.findMany).toHaveBeenCalledWith({
+      const result = await service.findAllTemplateModels(["group-1"]);
+      expect(result).toEqual([defaultTemplateModel]);
+      expect(mockPrisma.templateModel.findMany).toHaveBeenCalledWith({
         where: { group_id: { in: ["group-1"] } },
         orderBy: { updated_at: "desc" },
         include: {
@@ -636,71 +641,71 @@ describe("DatabaseService", () => {
     });
   });
 
-  describe("updateLabelingProject", () => {
-    it("should update a labeling project", async () => {
-      const updatedProject = {
-        ...defaultLabelingProject,
-        name: "Updated Project",
+  describe("updateTemplateModel", () => {
+    it("should update a template model", async () => {
+      const updatedTemplateModel = {
+        ...defaultTemplateModel,
+        name: "Updated Template Model",
       };
-      mockPrisma.labelingProject.update.mockResolvedValueOnce(updatedProject);
-      const result = await service.updateLabelingProject("project-1", {
-        name: "Updated Project",
+      mockPrisma.templateModel.update.mockResolvedValueOnce(updatedTemplateModel);
+      const result = await service.updateTemplateModel("template-model-1", {
+        name: "Updated Template Model",
       });
-      expect(result).toEqual(updatedProject);
-      expect(mockPrisma.labelingProject.update).toHaveBeenCalledWith({
-        where: { id: "project-1" },
-        data: { name: "Updated Project" },
+      expect(result).toEqual(updatedTemplateModel);
+      expect(mockPrisma.templateModel.update).toHaveBeenCalledWith({
+        where: { id: "template-model-1" },
+        data: { name: "Updated Template Model" },
         include: {
           field_schema: { orderBy: { display_order: "asc" } },
         },
       });
     });
 
-    it("should return null when project not found (P2025 error)", async () => {
-      mockPrisma.labelingProject.update.mockImplementationOnce(() => {
+    it("should return null when template model not found (P2025 error)", async () => {
+      mockPrisma.templateModel.update.mockImplementationOnce(() => {
         throw { code: "P2025" };
       });
-      const result = await service.updateLabelingProject("not-found", {
+      const result = await service.updateTemplateModel("not-found", {
         name: "Updated",
       });
       expect(result).toBeNull();
     });
 
     it("should re-throw non-P2025 errors", async () => {
-      mockPrisma.labelingProject.update.mockImplementationOnce(() => {
+      mockPrisma.templateModel.update.mockImplementationOnce(() => {
         throw new Error("Database error");
       });
       await expect(
-        service.updateLabelingProject("project-1", { name: "Updated" }),
+        service.updateTemplateModel("template-model-1", { name: "Updated" }),
       ).rejects.toThrow("Database error");
     });
   });
 
-  describe("deleteLabelingProject", () => {
-    it("should delete a labeling project and return true", async () => {
-      mockPrisma.labelingProject.delete.mockResolvedValueOnce(
-        defaultLabelingProject,
+  describe("deleteTemplateModel", () => {
+    it("should delete a template model and return true", async () => {
+      mockPrisma.templateModel.delete.mockResolvedValueOnce(
+        defaultTemplateModel,
       );
-      const result = await service.deleteLabelingProject("project-1");
+      const result = await service.deleteTemplateModel("template-model-1");
       expect(result).toBe(true);
-      expect(mockPrisma.labelingProject.delete).toHaveBeenCalledWith({
-        where: { id: "project-1" },
+      expect(mockPrisma.templateModel.delete).toHaveBeenCalledWith({
+        where: { id: "template-model-1" },
       });
     });
 
-    it("should return false when project not found (P2025 error)", async () => {
-      mockPrisma.labelingProject.delete.mockImplementationOnce(() => {
+    it("should return false when template model not found (P2025 error)", async () => {
+      mockPrisma.templateModel.delete.mockImplementationOnce(() => {
         throw { code: "P2025" };
       });
-      const result = await service.deleteLabelingProject("not-found");
+      const result = await service.deleteTemplateModel("not-found");
       expect(result).toBe(false);
     });
 
     it("should re-throw non-P2025 errors", async () => {
-      mockPrisma.labelingProject.delete.mockImplementationOnce(() => {
+      mockPrisma.templateModel.delete.mockImplementationOnce(() => {
         throw new Error("Database error");
       });
-      await expect(service.deleteLabelingProject("project-1")).rejects.toThrow(
+      await expect(service.deleteTemplateModel("template-model-1")).rejects.toThrow(
         "Database error",
       );
     });
@@ -714,18 +719,18 @@ describe("DatabaseService", () => {
       mockPrisma.fieldDefinition.create.mockResolvedValueOnce(
         defaultFieldDefinition,
       );
-      const result = await service.createFieldDefinition("project-1", {
+      const result = await service.createFieldDefinition("template-model-1", {
         field_key: "invoice_number",
         field_type: FieldType.string,
       });
       expect(result).toEqual(defaultFieldDefinition);
       expect(mockPrisma.fieldDefinition.aggregate).toHaveBeenCalledWith({
-        where: { project_id: "project-1" },
+        where: { template_model_id: "template-model-1" },
         _max: { display_order: true },
       });
       expect(mockPrisma.fieldDefinition.create).toHaveBeenCalledWith({
         data: {
-          project_id: "project-1",
+          template_model_id: "template-model-1",
           field_key: "invoice_number",
           field_type: FieldType.string,
           field_format: undefined,
@@ -738,7 +743,7 @@ describe("DatabaseService", () => {
       mockPrisma.fieldDefinition.create.mockResolvedValueOnce(
         defaultFieldDefinition,
       );
-      const result = await service.createFieldDefinition("project-1", {
+      const result = await service.createFieldDefinition("template-model-1", {
         field_key: "invoice_number",
         field_type: FieldType.string,
         display_order: 5,
@@ -758,7 +763,7 @@ describe("DatabaseService", () => {
       mockPrisma.fieldDefinition.create.mockResolvedValueOnce(
         defaultFieldDefinition,
       );
-      const result = await service.createFieldDefinition("project-1", {
+      const result = await service.createFieldDefinition("template-model-1", {
         field_key: "invoice_number",
         field_type: FieldType.string,
       });
@@ -842,19 +847,19 @@ describe("DatabaseService", () => {
     });
   });
 
-  describe("addDocumentToProject", () => {
-    it("should add a document to a project", async () => {
+  describe("addDocumentToTemplateModel", () => {
+    it("should add a document to a template model", async () => {
       mockPrisma.labeledDocument.create.mockResolvedValueOnce(
         defaultLabeledDocument,
       );
-      const result = await service.addDocumentToProject(
-        "project-1",
+      const result = await service.addDocumentToTemplateModel(
+        "template-model-1",
         "labeling-doc-1",
       );
       expect(result).toEqual(defaultLabeledDocument);
       expect(mockPrisma.labeledDocument.create).toHaveBeenCalledWith({
         data: {
-          project_id: "project-1",
+          template_model_id: "template-model-1",
           labeling_document_id: "labeling-doc-1",
           status: LabelingStatus.unlabeled,
         },
@@ -872,14 +877,14 @@ describe("DatabaseService", () => {
         defaultLabeledDocument,
       );
       const result = await service.findLabeledDocument(
-        "project-1",
+        "template-model-1",
         "labeling-doc-1",
       );
       expect(result).toEqual(defaultLabeledDocument);
       expect(mockPrisma.labeledDocument.findUnique).toHaveBeenCalledWith({
         where: {
-          project_id_labeling_document_id: {
-            project_id: "project-1",
+          template_model_id_labeling_document_id: {
+            template_model_id: "template-model-1",
             labeling_document_id: "labeling-doc-1",
           },
         },
@@ -893,7 +898,7 @@ describe("DatabaseService", () => {
     it("should return null if labeled document not found", async () => {
       mockPrisma.labeledDocument.findUnique.mockResolvedValueOnce(null);
       const result = await service.findLabeledDocument(
-        "project-1",
+        "template-model-1",
         "not-found",
       );
       expect(result).toBeNull();
@@ -901,14 +906,14 @@ describe("DatabaseService", () => {
   });
 
   describe("findLabeledDocuments", () => {
-    it("should find all labeled documents for a project", async () => {
+    it("should find all labeled documents for a template model", async () => {
       mockPrisma.labeledDocument.findMany.mockResolvedValueOnce([
         defaultLabeledDocument,
       ]);
-      const result = await service.findLabeledDocuments("project-1");
+      const result = await service.findLabeledDocuments("template-model-1");
       expect(result).toEqual([defaultLabeledDocument]);
       expect(mockPrisma.labeledDocument.findMany).toHaveBeenCalledWith({
-        where: { project_id: "project-1" },
+        where: { template_model_id: "template-model-1" },
         orderBy: { created_at: "desc" },
         include: {
           labeling_document: true,
@@ -918,20 +923,20 @@ describe("DatabaseService", () => {
     });
   });
 
-  describe("removeDocumentFromProject", () => {
-    it("should remove a document from a project and return true", async () => {
+  describe("removeDocumentFromTemplateModel", () => {
+    it("should remove a document from a template model and return true", async () => {
       mockPrisma.labeledDocument.delete.mockResolvedValueOnce(
         defaultLabeledDocument,
       );
-      const result = await service.removeDocumentFromProject(
-        "project-1",
+      const result = await service.removeDocumentFromTemplateModel(
+        "template-model-1",
         "labeling-doc-1",
       );
       expect(result).toBe(true);
       expect(mockPrisma.labeledDocument.delete).toHaveBeenCalledWith({
         where: {
-          project_id_labeling_document_id: {
-            project_id: "project-1",
+          template_model_id_labeling_document_id: {
+            template_model_id: "template-model-1",
             labeling_document_id: "labeling-doc-1",
           },
         },
@@ -942,8 +947,8 @@ describe("DatabaseService", () => {
       mockPrisma.labeledDocument.delete.mockImplementationOnce(() => {
         throw { code: "P2025" };
       });
-      const result = await service.removeDocumentFromProject(
-        "project-1",
+      const result = await service.removeDocumentFromTemplateModel(
+        "template-model-1",
         "not-found",
       );
       expect(result).toBe(false);
@@ -954,7 +959,7 @@ describe("DatabaseService", () => {
         throw new Error("Database error");
       });
       await expect(
-        service.removeDocumentFromProject("project-1", "labeling-doc-1"),
+        service.removeDocumentFromTemplateModel("template-model-1", "labeling-doc-1"),
       ).rejects.toThrow("Database error");
     });
   });
