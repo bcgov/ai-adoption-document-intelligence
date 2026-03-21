@@ -370,7 +370,6 @@ async getMe(@Req() req: Request): Promise<MeResponseDto> {
     name: (user.name as string) || (user.display_name as string),
     preferred_username: (user.preferred_username as string) || (user.idir_username as string),
     email: user.email,
-    roles: user.roles || [],
     expires_in: Math.max(exp - now, 0),
     groups,  // all groups for system-admin, otherwise user's memberships
   };
@@ -586,8 +585,6 @@ export class KeycloakJwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 ```
 
 **Role Normalization (vestigial):**
-
-The JWT strategy still normalizes Keycloak roles from three JWT locations (`roles[]`, `realm_access.roles[]`, `resource_access.<client-id>.roles[]`) into a flat `user.roles[]` array. However, **no guard, controller, or service reads `request.user.roles`**. The old `RolesGuard` and `@Roles()` decorator that consumed this field have been removed.
 
 All authorization is now handled by the `IdentityGuard` using **database-backed roles**:
 
@@ -1562,36 +1559,43 @@ This reduces validation from O(n) bcrypt comparisons to O(1) in practice. The 8-
 
 ```prisma
 model ApiKey {
-  id         String    @id @default(cuid())
-  key_hash   String    @unique
-  key_prefix String
-  user_id    String
-  user_email String
-  group_id   String
-  roles      String[]  @default([])
-  created_at DateTime  @default(now())
-  last_used  DateTime?
+  id                   String    @id @default(cuid())
+  key_hash             String    @unique
+  key_prefix           String
+  /// The user who most recently generated or regenerated this key. Recorded for
+  /// audit purposes only; not used for authentication identity resolution.
+  generating_user_id   String?
+  generating_user      User?     @relation(fields: [generating_user_id], references: [id])
+  group_id             String
+  group                Group     @relation(fields: [group_id], references: [id])
+  created_at           DateTime  @default(now())
+  last_used            DateTime?
 
-  group      Group     @relation(fields: [group_id], references: [id])
-
-  @@unique([group_id])
+  @@index([group_id])
   @@map("api_keys")
 }
 ```
 
-| Column       | Purpose                                                        |
-|--------------|----------------------------------------------------------------|
-| `key_hash`   | Bcrypt hash of the full API key — used for authentication      |
-| `key_prefix` | First 8 chars of the key in plaintext — used for indexed lookup |
-| `user_id`    | The user who generated the key                                 |
-| `group_id`   | Unique constraint ensures one API key per group — the key is scoped to this group |
-| `roles`      | Snapshot of the user's Keycloak JWT roles at key generation time (vestigial — not used for authorization; authorization is handled via `IdentityGuard` using `GroupRole.MEMBER` for all API keys) |
-| `last_used`  | Updated on each successful validation                          |
+| Column                | Purpose                                                        |
+|-----------------------|----------------------------------------------------------------|
+| `key_hash`            | Bcrypt hash of the full API key — used for authentication      |
+| `key_prefix`          | First 8 chars of the key in plaintext — used for indexed lookup |
+| `generating_user_id`  | The user who most recently generated or regenerated this key — recorded for audit purposes only, not used for authentication |
+| `group_id`            | Enforces one API key per group — the key is scoped to this group |
+| `last_used`           | Updated on each successful validation                          |
+
+**Why `roles`, `user_id`, and `user_email` were removed:**
+
+The original schema stored a snapshot of the generating user's Keycloak JWT roles (along with `user_id` and `user_email`) at key-generation time. This was discarded when API keys were re-scoped from *users* to *groups*:
+
+- Each API key is now owned by a **group**, not a user. Because a key represents a group identity (not a multi-group user identity), there is no meaningful multi-role set to capture.
+- All API key requests are granted exactly `GroupRole.MEMBER` within the key's owning group — this is enforced by `IdentityGuard` at request time and requires no stored role data.
+- The generating user's identity is still recorded via `generating_user_id` for audit purposes, but it has no effect on the key's permissions.
 
 ### Key Lifecycle
 
 - **One key per group** — each group can have one active API key. Generating a new key when one exists requires deletion or regeneration
-- **Regeneration** deletes the old key and creates a new one, capturing the requesting user's current roles
+- **Regeneration** deletes the old key and creates a new one, recording the requesting user as `generating_user_id` for audit purposes
 - **Full key shown once** — after generation, only the `key_prefix` is visible for identification
 - **Group-scoped** — API key requests can only access resources belonging to the key's group. The `IdentityGuard` assigns `GroupRole.MEMBER` to all API keys within their scoped group
 
