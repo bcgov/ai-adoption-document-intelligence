@@ -15,50 +15,46 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { PrismaService } from "@/database/prisma.service";
+import { AuditLogDbService } from "./audit-log-db.service";
 import { DatasetService } from "./dataset.service";
+import { DatasetDbService } from "./dataset-db.service";
 
-const mockPrismaClient = {
-  dataset: {
-    create: jest.fn(),
-    findUnique: jest.fn(),
-    findMany: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-    count: jest.fn(),
-  },
-  datasetVersion: {
-    create: jest.fn(),
-    findFirst: jest.fn(),
-    findMany: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-    count: jest.fn(),
-    deleteMany: jest.fn(),
-  },
-  split: {
-    create: jest.fn(),
-    findFirst: jest.fn(),
-    findMany: jest.fn().mockResolvedValue([]),
-    update: jest.fn(),
-    updateMany: jest.fn(),
-    deleteMany: jest.fn(),
-  },
-  benchmarkDefinition: {
-    deleteMany: jest.fn(),
-  },
-  benchmarkRun: {
-    deleteMany: jest.fn(),
-  },
-  benchmarkAuditLog: {
-    create: jest.fn(),
-  },
+const mockDatasetDbService = {
+  createDataset: jest.fn(),
+  updateDataset: jest.fn(),
+  findDataset: jest.fn(),
+  findDatasetWithVersions: jest.fn(),
+  findDatasetForDeletion: jest.fn(),
+  countDatasets: jest.fn(),
+  findAllDatasets: jest.fn(),
+  deleteDataset: jest.fn(),
+  createDatasetVersion: jest.fn(),
+  findDatasetVersion: jest.fn(),
+  findDatasetVersionWithSplits: jest.fn(),
+  findDatasetVersionForDeletion: jest.fn(),
+  findAllDatasetVersionsWithSplits: jest.fn(),
+  countDatasetVersions: jest.fn(),
+  updateDatasetVersion: jest.fn(),
+  deleteDatasetVersion: jest.fn(),
+  deleteManyDatasetVersions: jest.fn(),
+  createSplit: jest.fn(),
+  findSplit: jest.fn(),
+  findSplitByName: jest.fn(),
+  findAllSplitsForVersion: jest.fn().mockResolvedValue([]),
+  updateSplit: jest.fn(),
+  deleteManySplits: jest.fn(),
+  deleteManyBenchmarkRuns: jest.fn(),
+  deleteManyBenchmarkDefinitions: jest.fn(),
+};
+
+const mockAuditLogDbService = {
+  createAuditLog: jest.fn(),
+  findAllAuditLogs: jest.fn(),
 };
 
 describe("DatasetService", () => {
   let service: DatasetService;
   let blobStorage: BlobStorageInterface;
-  let prisma: typeof mockPrismaClient;
 
   const mockBlobStorage: BlobStorageInterface = {
     write: jest.fn().mockResolvedValue(undefined),
@@ -90,13 +86,18 @@ describe("DatasetService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockDatasetDbService.findAllSplitsForVersion.mockResolvedValue([]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DatasetService,
         {
-          provide: PrismaService,
-          useValue: { prisma: mockPrismaClient },
+          provide: DatasetDbService,
+          useValue: mockDatasetDbService,
+        },
+        {
+          provide: AuditLogDbService,
+          useValue: mockAuditLogDbService,
         },
         { provide: BLOB_STORAGE, useValue: mockBlobStorage },
       ],
@@ -104,7 +105,6 @@ describe("DatasetService", () => {
 
     service = module.get<DatasetService>(DatasetService);
     blobStorage = module.get<BlobStorageInterface>(BLOB_STORAGE);
-    prisma = mockPrismaClient;
   });
 
   // -----------------------------------------------------------------------
@@ -112,28 +112,28 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("createDataset", () => {
     it("creates a dataset with auto-generated storagePath", async () => {
-      mockPrismaClient.dataset.create.mockResolvedValue({
+      mockDatasetDbService.createDataset.mockResolvedValue({
         ...mockDataset,
         storagePath: "",
       });
-      mockPrismaClient.dataset.update.mockResolvedValue(mockDataset);
-      mockPrismaClient.benchmarkAuditLog.create.mockResolvedValue({});
+      mockDatasetDbService.updateDataset.mockResolvedValue(mockDataset);
+      mockAuditLogDbService.createAuditLog.mockResolvedValue({});
 
       const result = await service.createDataset(createDto, "user-1");
 
-      expect(prisma.dataset.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(mockDatasetDbService.createDataset).toHaveBeenCalledWith(
+        expect.objectContaining({
           name: createDto.name,
           description: createDto.description,
           metadata: createDto.metadata,
           storagePath: "",
           createdBy: "user-1",
         }),
-      });
-      expect(prisma.dataset.update).toHaveBeenCalledWith({
-        where: { id: "dataset-1" },
-        data: { storagePath: "datasets/dataset-1" },
-      });
+      );
+      expect(mockDatasetDbService.updateDataset).toHaveBeenCalledWith(
+        "dataset-1",
+        { storagePath: "datasets/dataset-1" },
+      );
       expect(result.id).toBe("dataset-1");
       expect(result.storagePath).toBe("datasets/dataset-1");
     });
@@ -154,7 +154,7 @@ describe("DatasetService", () => {
         (await import("@generated/client")).Prisma.PrismaClientKnownRequestError
           .prototype,
       );
-      mockPrismaClient.dataset.create.mockRejectedValue(error);
+      mockDatasetDbService.createDataset.mockRejectedValue(error);
 
       await expect(service.createDataset(createDto, "user-1")).rejects.toThrow(
         ConflictException,
@@ -167,8 +167,8 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("listDatasets", () => {
     it("returns paginated datasets", async () => {
-      mockPrismaClient.dataset.count.mockResolvedValue(1);
-      mockPrismaClient.dataset.findMany.mockResolvedValue([
+      mockDatasetDbService.countDatasets.mockResolvedValue(1);
+      mockDatasetDbService.findAllDatasets.mockResolvedValue([
         {
           ...mockDataset,
           versions: [{ id: "v1" }, { id: "v2" }],
@@ -184,8 +184,8 @@ describe("DatasetService", () => {
     });
 
     it("returns empty list when no datasets exist", async () => {
-      mockPrismaClient.dataset.count.mockResolvedValue(0);
-      mockPrismaClient.dataset.findMany.mockResolvedValue([]);
+      mockDatasetDbService.countDatasets.mockResolvedValue(0);
+      mockDatasetDbService.findAllDatasets.mockResolvedValue([]);
 
       const result = await service.listDatasets(1, 20, ["test-group"]);
 
@@ -199,7 +199,7 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("getDatasetById", () => {
     it("returns dataset with recent versions", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue({
+      mockDatasetDbService.findDatasetWithVersions.mockResolvedValue({
         ...mockDataset,
         versions: [
           {
@@ -218,7 +218,7 @@ describe("DatasetService", () => {
     });
 
     it("throws NotFoundException when dataset does not exist", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetWithVersions.mockResolvedValue(null);
 
       await expect(service.getDatasetById("nonexistent")).rejects.toThrow(
         NotFoundException,
@@ -231,27 +231,27 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("deleteDataset", () => {
     it("deletes dataset and its storage files", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue({
+      mockDatasetDbService.findDatasetForDeletion.mockResolvedValue({
         ...mockDataset,
         versions: [],
       });
-      mockPrismaClient.datasetVersion.deleteMany.mockResolvedValue({
-        count: 0,
-      });
-      mockPrismaClient.dataset.delete.mockResolvedValue(mockDataset);
+      mockDatasetDbService.deleteManyDatasetVersions.mockResolvedValue(
+        undefined,
+      );
+      mockDatasetDbService.deleteDataset.mockResolvedValue(undefined);
 
       await service.deleteDataset("dataset-1");
 
-      expect(prisma.dataset.delete).toHaveBeenCalledWith({
-        where: { id: "dataset-1" },
-      });
+      expect(mockDatasetDbService.deleteDataset).toHaveBeenCalledWith(
+        "dataset-1",
+      );
       expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
         "datasets/dataset-1",
       );
     });
 
     it("throws NotFoundException when dataset does not exist", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetForDeletion.mockResolvedValue(null);
 
       await expect(service.deleteDataset("nonexistent")).rejects.toThrow(
         NotFoundException,
@@ -276,9 +276,9 @@ describe("DatasetService", () => {
         createdAt: new Date(),
       };
 
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.count.mockResolvedValue(0);
-      mockPrismaClient.datasetVersion.create.mockResolvedValue(mockVersion);
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.countDatasetVersions.mockResolvedValue(0);
+      mockDatasetDbService.createDatasetVersion.mockResolvedValue(mockVersion);
 
       const result = await service.createVersion(
         "dataset-1",
@@ -292,7 +292,7 @@ describe("DatasetService", () => {
     });
 
     it("throws NotFoundException when dataset does not exist", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(null);
+      mockDatasetDbService.findDataset.mockResolvedValue(null);
 
       await expect(
         service.createVersion("nonexistent", { version: "1.0.0" }, "user-1"),
@@ -305,8 +305,8 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("listVersions", () => {
     it("returns versions for a dataset", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findMany.mockResolvedValue([
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findAllDatasetVersionsWithSplits.mockResolvedValue([
         {
           id: "v1",
           version: "1.0.0",
@@ -326,7 +326,7 @@ describe("DatasetService", () => {
     });
 
     it("throws NotFoundException when dataset does not exist", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(null);
+      mockDatasetDbService.findDataset.mockResolvedValue(null);
 
       await expect(service.listVersions("nonexistent")).rejects.toThrow(
         NotFoundException,
@@ -339,7 +339,7 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("getVersionById", () => {
     it("returns version details", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersionWithSplits.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         version: "1.0.0",
@@ -360,7 +360,7 @@ describe("DatasetService", () => {
     });
 
     it("throws NotFoundException when version does not exist", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetVersionWithSplits.mockResolvedValue(null);
 
       await expect(
         service.getVersionById("dataset-1", "nonexistent"),
@@ -404,13 +404,13 @@ describe("DatasetService", () => {
     };
 
     it("uploads files to blob storage and updates manifest", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(mockVersion);
       // Mock manifest read failure (first upload, no existing manifest)
       (mockBlobStorage.read as jest.Mock).mockRejectedValueOnce(
         new Error("Not found"),
       );
-      mockPrismaClient.datasetVersion.update.mockResolvedValue({
+      mockDatasetDbService.updateDatasetVersion.mockResolvedValue({
         ...mockVersion,
         storagePrefix: "datasets/dataset-1/version-1",
         documentCount: 1,
@@ -448,7 +448,7 @@ describe("DatasetService", () => {
     });
 
     it("throws NotFoundException when dataset does not exist", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(null);
+      mockDatasetDbService.findDataset.mockResolvedValue(null);
 
       await expect(
         service.uploadFilesToVersion("nonexistent", "v1", mockFiles, "user-1"),
@@ -456,8 +456,8 @@ describe("DatasetService", () => {
     });
 
     it("throws NotFoundException when version does not exist", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
         service.uploadFilesToVersion(
@@ -470,8 +470,8 @@ describe("DatasetService", () => {
     });
 
     it("throws BadRequestException when version is frozen", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         ...mockVersion,
         frozen: true,
       });
@@ -492,8 +492,8 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("deleteSample", () => {
     it("removes sample from manifest and deletes files from storage", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "version-1",
         datasetId: "dataset-1",
         version: "1.0.0",
@@ -527,7 +527,7 @@ describe("DatasetService", () => {
       (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
         Buffer.from(JSON.stringify(manifest)),
       );
-      mockPrismaClient.datasetVersion.update.mockResolvedValue({});
+      mockDatasetDbService.updateDatasetVersion.mockResolvedValue({});
 
       await service.deleteSample("dataset-1", "version-1", "sample-1");
 
@@ -546,16 +546,15 @@ describe("DatasetService", () => {
       );
 
       // Verify document count was updated
-      expect(prisma.datasetVersion.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ documentCount: 1 }),
-        }),
+      expect(mockDatasetDbService.updateDatasetVersion).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ documentCount: 1 }),
       );
     });
 
     it("throws BadRequestException when version is frozen", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "version-1",
         datasetId: "dataset-1",
         version: "1.0.0",
@@ -571,8 +570,8 @@ describe("DatasetService", () => {
     });
 
     it("throws NotFoundException when sample not found in manifest", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "version-1",
         datasetId: "dataset-1",
         storagePrefix: "datasets/dataset-1/version-1",
@@ -606,14 +605,14 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("freezeVersion", () => {
     it("freezes a dataset version", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "version-1",
         datasetId: "dataset-1",
         version: "1.0.0",
         name: null,
         frozen: false,
       });
-      mockPrismaClient.datasetVersion.update.mockResolvedValue({
+      mockDatasetDbService.updateDatasetVersion.mockResolvedValue({
         id: "version-1",
         datasetId: "dataset-1",
         version: "1.0.0",
@@ -624,14 +623,14 @@ describe("DatasetService", () => {
       const result = await service.freezeVersion("dataset-1", "version-1");
 
       expect(result.frozen).toBe(true);
-      expect(prisma.datasetVersion.update).toHaveBeenCalledWith({
-        where: { id: "version-1" },
-        data: { frozen: true },
-      });
+      expect(mockDatasetDbService.updateDatasetVersion).toHaveBeenCalledWith(
+        "version-1",
+        { frozen: true },
+      );
     });
 
     it("throws NotFoundException when version does not exist", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
         service.freezeVersion("dataset-1", "nonexistent"),
@@ -644,16 +643,16 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("deleteVersion", () => {
     it("deletes version and its storage files", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersionForDeletion.mockResolvedValue({
         id: "version-1",
         datasetId: "dataset-1",
         storagePrefix: "datasets/dataset-1/version-1",
         benchmarkDefinitions: [],
       });
-      mockPrismaClient.datasetVersion.deleteMany.mockResolvedValue({
-        count: 1,
-      });
+      mockDatasetDbService.deleteManyDatasetVersions.mockResolvedValue(
+        undefined,
+      );
 
       await service.deleteVersion("dataset-1", "version-1");
 
@@ -663,8 +662,10 @@ describe("DatasetService", () => {
     });
 
     it("throws NotFoundException when version does not exist", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersionForDeletion.mockResolvedValue(
+        null,
+      );
 
       await expect(
         service.deleteVersion("dataset-1", "nonexistent"),
@@ -696,8 +697,13 @@ describe("DatasetService", () => {
         splits: [],
       };
 
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
-      mockPrismaClient.datasetVersion.update.mockResolvedValue(updatedVersion);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(mockVersion);
+      mockDatasetDbService.updateDatasetVersion.mockResolvedValue(
+        updatedVersion,
+      );
+      mockDatasetDbService.findDatasetVersionWithSplits.mockResolvedValue(
+        updatedVersion,
+      );
 
       const result = await service.updateVersionName(
         "dataset-1",
@@ -705,25 +711,15 @@ describe("DatasetService", () => {
         "Q4 invoices",
       );
 
-      expect(mockPrismaClient.datasetVersion.update).toHaveBeenCalledWith({
-        where: { id: "version-1" },
-        data: { name: "Q4 invoices" },
-        include: {
-          splits: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-              sampleIds: true,
-            },
-          },
-        },
-      });
+      expect(mockDatasetDbService.updateDatasetVersion).toHaveBeenCalledWith(
+        "version-1",
+        { name: "Q4 invoices" },
+      );
       expect(result.name).toBe("Q4 invoices");
     });
 
     it("throws NotFoundException when version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
         service.updateVersionName("dataset-1", "nonexistent", "test"),
@@ -731,7 +727,7 @@ describe("DatasetService", () => {
     });
 
     it("throws BadRequestException when version is frozen", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "version-1",
         datasetId: "dataset-1",
         frozen: true,
@@ -764,7 +760,7 @@ describe("DatasetService", () => {
     };
 
     it("returns paginated samples", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: "datasets/dataset-1/v1",
@@ -782,7 +778,7 @@ describe("DatasetService", () => {
     });
 
     it("returns empty when version has no storagePrefix", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: null,
@@ -795,7 +791,7 @@ describe("DatasetService", () => {
     });
 
     it("throws NotFoundException when version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
         service.listSamples("dataset-1", "nonexistent"),
@@ -808,7 +804,7 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("getGroundTruth", () => {
     it("returns ground truth content", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: "datasets/dataset-1/v1",
@@ -844,7 +840,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
         service.getGroundTruth("dataset-1", "v1", "s1"),
@@ -852,7 +848,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when version has no files", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: null,
@@ -864,7 +860,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when sample not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: "datasets/dataset-1/v1",
@@ -892,7 +888,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when sample has no ground truth files", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: "datasets/dataset-1/v1",
@@ -925,7 +921,7 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("getSampleFile", () => {
     it("returns file buffer, filename, and mime type", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: "datasets/dataset-1/v1",
@@ -948,7 +944,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
         service.getSampleFile("dataset-1", "v1", "inputs/sample.pdf"),
@@ -956,7 +952,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when version has no files", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: null,
@@ -968,7 +964,7 @@ describe("DatasetService", () => {
     });
 
     it("throws on directory traversal attempt", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: "datasets/dataset-1/v1",
@@ -980,7 +976,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when file does not exist", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: "datasets/dataset-1/v1",
@@ -994,7 +990,7 @@ describe("DatasetService", () => {
     });
 
     it("detects json mime type", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: "datasets/dataset-1/v1",
@@ -1015,7 +1011,7 @@ describe("DatasetService", () => {
     });
 
     it("uses octet-stream for unknown extension", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: "datasets/dataset-1/v1",
@@ -1048,7 +1044,7 @@ describe("DatasetService", () => {
     };
 
     it("validates with no issues for a valid dataset", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(mockVersion);
 
       const manifest = {
         schemaVersion: "1.0",
@@ -1077,7 +1073,7 @@ describe("DatasetService", () => {
     });
 
     it("detects missing ground truth", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(mockVersion);
 
       const manifest = {
         schemaVersion: "1.0",
@@ -1106,7 +1102,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
         service.validateDatasetVersion("dataset-1", "v1", {}),
@@ -1114,7 +1110,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when version has no files", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         ...mockVersion,
         storagePrefix: null,
       });
@@ -1125,7 +1121,7 @@ describe("DatasetService", () => {
     });
 
     it("detects missing ground truth files in storage", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(mockVersion);
 
       const manifest = {
         schemaVersion: "1.0",
@@ -1158,7 +1154,7 @@ describe("DatasetService", () => {
     });
 
     it("supports sampling with sampleSize", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(mockVersion);
 
       const samples = Array.from({ length: 10 }, (_, i) => ({
         id: `s${i}`,
@@ -1189,7 +1185,7 @@ describe("DatasetService", () => {
     });
 
     it("validates with schema and detects violations", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         ...mockVersion,
         groundTruthSchema: {
           type: "object",
@@ -1230,12 +1226,12 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("createSplit", () => {
     it("creates a split successfully", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
       });
-      mockPrismaClient.split.findFirst.mockResolvedValue(null);
-      mockPrismaClient.split.create.mockResolvedValue({
+      mockDatasetDbService.findSplitByName.mockResolvedValue(null);
+      mockDatasetDbService.createSplit.mockResolvedValue({
         id: "split-1",
         datasetVersionId: "v1",
         name: "test-split",
@@ -1258,7 +1254,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
         service.createSplit("dataset-1", "v1", {
@@ -1270,11 +1266,11 @@ describe("DatasetService", () => {
     });
 
     it("throws when split name already exists", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
       });
-      mockPrismaClient.split.findFirst.mockResolvedValue({
+      mockDatasetDbService.findSplitByName.mockResolvedValue({
         id: "existing",
         name: "test-split",
       });
@@ -1294,11 +1290,11 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("listSplits", () => {
     it("returns splits for a version", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
       });
-      mockPrismaClient.split.findMany.mockResolvedValue([
+      mockDatasetDbService.findAllSplitsForVersion.mockResolvedValue([
         {
           id: "split-1",
           datasetVersionId: "v1",
@@ -1318,7 +1314,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(service.listSplits("dataset-1", "v1")).rejects.toThrow(
         NotFoundException,
@@ -1331,11 +1327,11 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("getSplit", () => {
     it("returns split details", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
       });
-      mockPrismaClient.split.findFirst.mockResolvedValue({
+      mockDatasetDbService.findSplit.mockResolvedValue({
         id: "split-1",
         datasetVersionId: "v1",
         name: "test",
@@ -1353,7 +1349,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
         service.getSplit("dataset-1", "v1", "split-1"),
@@ -1361,11 +1357,11 @@ describe("DatasetService", () => {
     });
 
     it("throws when split not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
       });
-      mockPrismaClient.split.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findSplit.mockResolvedValue(null);
 
       await expect(
         service.getSplit("dataset-1", "v1", "nonexistent"),
@@ -1378,16 +1374,16 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("updateSplit", () => {
     it("updates split sample IDs", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
       });
-      mockPrismaClient.split.findFirst.mockResolvedValue({
+      mockDatasetDbService.findSplit.mockResolvedValue({
         id: "split-1",
         datasetVersionId: "v1",
         frozen: false,
       });
-      mockPrismaClient.split.update.mockResolvedValue({
+      mockDatasetDbService.updateSplit.mockResolvedValue({
         id: "split-1",
         datasetVersionId: "v1",
         name: "test",
@@ -1405,7 +1401,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
         service.updateSplit("dataset-1", "v1", "split-1", {
@@ -1415,11 +1411,11 @@ describe("DatasetService", () => {
     });
 
     it("throws when split not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
       });
-      mockPrismaClient.split.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findSplit.mockResolvedValue(null);
 
       await expect(
         service.updateSplit("dataset-1", "v1", "nonexistent", {
@@ -1429,11 +1425,11 @@ describe("DatasetService", () => {
     });
 
     it("throws when split is frozen", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
       });
-      mockPrismaClient.split.findFirst.mockResolvedValue({
+      mockDatasetDbService.findSplit.mockResolvedValue({
         id: "split-1",
         datasetVersionId: "v1",
         frozen: true,
@@ -1452,16 +1448,16 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("freezeSplit", () => {
     it("freezes a split", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
       });
-      mockPrismaClient.split.findFirst.mockResolvedValue({
+      mockDatasetDbService.findSplit.mockResolvedValue({
         id: "split-1",
         datasetVersionId: "v1",
         frozen: false,
       });
-      mockPrismaClient.split.update.mockResolvedValue({
+      mockDatasetDbService.updateSplit.mockResolvedValue({
         id: "split-1",
         datasetVersionId: "v1",
         name: "test",
@@ -1475,7 +1471,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
         service.freezeSplit("dataset-1", "v1", "split-1"),
@@ -1483,11 +1479,11 @@ describe("DatasetService", () => {
     });
 
     it("throws when split not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
       });
-      mockPrismaClient.split.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findSplit.mockResolvedValue(null);
 
       await expect(
         service.freezeSplit("dataset-1", "v1", "nonexistent"),
@@ -1500,11 +1496,11 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("updateVersionAfterHitlImport", () => {
     it("updates storagePrefix and documentCount", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
       });
-      mockPrismaClient.datasetVersion.update.mockResolvedValue({
+      mockDatasetDbService.updateDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         version: "1.0.0",
@@ -1529,7 +1525,7 @@ describe("DatasetService", () => {
     });
 
     it("throws when version not found", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
         service.updateVersionAfterHitlImport("dataset-1", "v1", "prefix", 5),
@@ -1542,7 +1538,7 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("deleteSample - additional branches", () => {
     it("throws when dataset not found", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(null);
+      mockDatasetDbService.findDataset.mockResolvedValue(null);
 
       await expect(
         service.deleteSample("nonexistent", "v1", "s1"),
@@ -1550,8 +1546,8 @@ describe("DatasetService", () => {
     });
 
     it("throws when version not found", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
         service.deleteSample("dataset-1", "nonexistent", "s1"),
@@ -1559,8 +1555,8 @@ describe("DatasetService", () => {
     });
 
     it("throws when version has no storagePrefix", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: null,
@@ -1572,8 +1568,8 @@ describe("DatasetService", () => {
     });
 
     it("removes sample ID from splits that reference it", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: "datasets/dataset-1/v1",
@@ -1593,17 +1589,16 @@ describe("DatasetService", () => {
       (mockBlobStorage.read as jest.Mock).mockResolvedValueOnce(
         Buffer.from(JSON.stringify(manifest)),
       );
-      mockPrismaClient.datasetVersion.update.mockResolvedValue({});
-      mockPrismaClient.split.findMany.mockResolvedValue([
+      mockDatasetDbService.updateDatasetVersion.mockResolvedValue({});
+      mockDatasetDbService.findAllSplitsForVersion.mockResolvedValue([
         { id: "split-1", sampleIds: ["s1", "s2"] },
       ]);
-      mockPrismaClient.split.update.mockResolvedValue({});
+      mockDatasetDbService.updateSplit.mockResolvedValue({});
 
       await service.deleteSample("dataset-1", "v1", "s1");
 
-      expect(mockPrismaClient.split.update).toHaveBeenCalledWith({
-        where: { id: "split-1" },
-        data: { sampleIds: ["s2"] },
+      expect(mockDatasetDbService.updateSplit).toHaveBeenCalledWith("split-1", {
+        sampleIds: ["s2"],
       });
     });
   });
@@ -1613,7 +1608,7 @@ describe("DatasetService", () => {
   // -----------------------------------------------------------------------
   describe("deleteVersion - additional branches", () => {
     it("rejects when version has benchmark definitions", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersionForDeletion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: "datasets/dataset-1/v1",
@@ -1626,14 +1621,14 @@ describe("DatasetService", () => {
     });
 
     it("handles version with no storagePrefix", async () => {
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue({
+      mockDatasetDbService.findDatasetVersionForDeletion.mockResolvedValue({
         id: "v1",
         datasetId: "dataset-1",
         storagePrefix: null,
         benchmarkDefinitions: [],
       });
-      mockPrismaClient.split.deleteMany.mockResolvedValue({ count: 0 });
-      mockPrismaClient.datasetVersion.delete.mockResolvedValue({});
+      mockDatasetDbService.deleteManySplits.mockResolvedValue(undefined);
+      mockDatasetDbService.deleteDatasetVersion.mockResolvedValue(undefined);
 
       await service.deleteVersion("dataset-1", "v1");
 
@@ -1658,8 +1653,8 @@ describe("DatasetService", () => {
     };
 
     it("throws BadRequestException on NoSuchBucket error", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(mockVersion);
 
       (mockBlobStorage.write as jest.Mock).mockRejectedValueOnce(
         new Error("NoSuchBucket: bucket does not exist"),
@@ -1685,8 +1680,8 @@ describe("DatasetService", () => {
     });
 
     it("throws BadRequestException on Failed to write blob error", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(mockVersion);
 
       (mockBlobStorage.write as jest.Mock).mockRejectedValueOnce(
         new Error("Failed to write blob: connection timeout"),
@@ -1712,8 +1707,8 @@ describe("DatasetService", () => {
     });
 
     it("deduplicates filenames in the same directory", async () => {
-      mockPrismaClient.dataset.findUnique.mockResolvedValue(mockDataset);
-      mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(mockVersion);
+      mockDatasetDbService.findDataset.mockResolvedValue(mockDataset);
+      mockDatasetDbService.findDatasetVersion.mockResolvedValue(mockVersion);
 
       const dupeFiles = [
         {
@@ -1737,7 +1732,7 @@ describe("DatasetService", () => {
       (mockBlobStorage.read as jest.Mock).mockRejectedValueOnce(
         new Error("Not found"),
       );
-      mockPrismaClient.datasetVersion.update.mockResolvedValue({
+      mockDatasetDbService.updateDatasetVersion.mockResolvedValue({
         ...mockVersion,
         storagePrefix: "datasets/dataset-1/version-1",
         documentCount: 2,

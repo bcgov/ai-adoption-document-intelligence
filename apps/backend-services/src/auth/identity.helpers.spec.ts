@@ -115,58 +115,58 @@ describe("identityCanAccessGroup", () => {
         ),
       ).not.toThrow();
     });
-
-    it("should throw ForbiddenException when the requested groupId is not in groupRoles", () => {
-      expect(() =>
-        identityCanAccessGroup(
-          { groupRoles: { "group-2": GroupRole.MEMBER } },
-          "group-1",
-        ),
-      ).toThrow(ForbiddenException);
-    });
-
-    it("should throw ForbiddenException when role is below minimumRole", () => {
-      expect(() =>
-        identityCanAccessGroup(
-          { groupRoles: { "group-1": GroupRole.MEMBER } },
-          "group-1",
-          GroupRole.ADMIN,
-        ),
-      ).toThrow(ForbiddenException);
-    });
-
-    it("should not throw when role meets minimumRole", () => {
-      expect(() =>
-        identityCanAccessGroup(
-          { groupRoles: { "group-1": GroupRole.ADMIN } },
-          "group-1",
-          GroupRole.ADMIN,
-        ),
-      ).not.toThrow();
-    });
   });
 
-  describe("prototype property bypass prevention", () => {
-    it.each([
-      "__proto__",
-      "constructor",
-      "toString",
-      "hasOwnProperty",
-    ])("should throw ForbiddenException when groupId is '%s'", (groupId) => {
-      expect(() =>
-        identityCanAccessGroup(
-          { groupRoles: { "real-group": GroupRole.MEMBER } },
-          groupId,
-        ),
-      ).toThrow(ForbiddenException);
-    });
+  it("should throw ForbiddenException when the requested groupId is not in groupRoles", () => {
+    expect(() =>
+      identityCanAccessGroup(
+        { groupRoles: { "group-2": GroupRole.MEMBER } },
+        "group-1",
+      ),
+    ).toThrow(ForbiddenException);
   });
 
-  describe("userId-only path (no groupRoles on identity)", () => {
-    it("should throw ForbiddenException when identity has userId but no groupRoles", () => {
-      expect(() =>
-        identityCanAccessGroup({ userId: "user-abc" }, "group-1"),
-      ).toThrow(ForbiddenException);
-    });
+  it("should throw ForbiddenException when role is below minimumRole", () => {
+    expect(() =>
+      identityCanAccessGroup(
+        { groupRoles: { "group-1": GroupRole.MEMBER } },
+        "group-1",
+        GroupRole.ADMIN,
+      ),
+    ).toThrow(ForbiddenException);
+  });
+
+  it("should not throw when role meets minimumRole", () => {
+    expect(() =>
+      identityCanAccessGroup(
+        { groupRoles: { "group-1": GroupRole.ADMIN } },
+        "group-1",
+        GroupRole.ADMIN,
+      ),
+    ).not.toThrow();
+  });
+});
+
+describe("prototype property bypass prevention", () => {
+  it.each([
+    "__proto__",
+    "constructor",
+    "toString",
+    "hasOwnProperty",
+  ])("should throw ForbiddenException when groupId is '%s'", (groupId) => {
+    expect(() =>
+      identityCanAccessGroup(
+        { groupRoles: { "real-group": GroupRole.MEMBER } },
+        groupId,
+      ),
+    ).toThrow(ForbiddenException);
+  });
+});
+
+describe("userId-only path (no groupRoles on identity)", () => {
+  it("should throw ForbiddenException when identity has userId but no groupRoles", () => {
+    expect(() =>
+      identityCanAccessGroup({ userId: "user-abc" }, "group-1"),
+    ).toThrow(ForbiddenException);
   });
 });

@@ -9,7 +9,7 @@
 
 import { AuditAction, BenchmarkAuditLog, Prisma } from "@generated/client";
 import { Injectable, Logger } from "@nestjs/common";
-import { PrismaService } from "@/database/prisma.service";
+import { AuditLogDbService, FindAuditLogsWhere } from "./audit-log-db.service";
 
 export interface LogAuditEventParams {
   userId: string;
@@ -31,11 +31,8 @@ export interface QueryAuditLogsParams {
 @Injectable()
 export class AuditLogService {
   private readonly logger = new Logger(AuditLogService.name);
-  private readonly prisma;
 
-  constructor(private readonly prismaService: PrismaService) {
-    this.prisma = this.prismaService.prisma;
-  }
+  constructor(private readonly auditLogDbService: AuditLogDbService) {}
 
   /**
    * Log a dataset creation event
@@ -153,14 +150,12 @@ export class AuditLogService {
       `Audit log: ${action} | ${entityType}:${entityId} | user:${userId}`,
     );
 
-    return this.prisma.benchmarkAuditLog.create({
-      data: {
-        userId,
-        action,
-        entityType,
-        entityId,
-        metadata: metadata as Prisma.InputJsonValue,
-      },
+    return this.auditLogDbService.createAuditLog({
+      userId,
+      action,
+      entityType,
+      entityId,
+      metadata: metadata as Record<string, unknown>,
     });
   }
 
@@ -179,7 +174,7 @@ export class AuditLogService {
       limit = 100,
     } = params;
 
-    const where: Prisma.BenchmarkAuditLogWhereInput = {};
+    const where: FindAuditLogsWhere = {};
 
     if (entityType) {
       where.entityType = entityType;
@@ -203,10 +198,6 @@ export class AuditLogService {
       }
     }
 
-    return this.prisma.benchmarkAuditLog.findMany({
-      where,
-      orderBy: { timestamp: "asc" },
-      take: limit,
-    });
+    return this.auditLogDbService.findAllAuditLogs(where, limit);
   }
 }

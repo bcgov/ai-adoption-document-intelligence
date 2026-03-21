@@ -1,12 +1,12 @@
 import { Module } from "@nestjs/common";
-import { DatabaseModule } from "@/database/database.module";
 import { ApiKeyController } from "./api-key.controller";
 import { ApiKeyService } from "./api-key.service";
+import { ApiKeyDbService } from "./api-key-db.service";
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [],
   controllers: [ApiKeyController],
-  providers: [ApiKeyService],
+  providers: [ApiKeyDbService, ApiKeyService],
   exports: [ApiKeyService],
 })
 export class ApiKeyModule {}

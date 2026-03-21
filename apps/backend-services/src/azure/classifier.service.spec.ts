@@ -8,11 +8,11 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService } from "../database/database.service";
 import { ClassifierService } from "./classifier.service";
+import { ClassifierDbService } from "./classifier-db.service";
 
-const mockDatabaseService = {
-  getClassifierModel: jest.fn(),
+const mockClassifierDbService = {
+  findClassifierModel: jest.fn(),
   updateClassifierModel: jest.fn(),
 };
 const mockAzureService = {
@@ -45,20 +45,20 @@ describe("ClassifierService", () => {
   let service: ClassifierService;
   let module: TestingModule;
   let blobStorage: BlobStorageInterface;
-  let databaseService: DatabaseService;
+  let classifierDbService: ClassifierDbService;
   let azureService: AzureService;
   let azureStorage: AzureStorageService;
 
   beforeEach(async () => {
     blobStorage = mockBlobStorage as any;
-    databaseService = mockDatabaseService as any;
+    classifierDbService = mockClassifierDbService as any;
     azureService = mockAzureService as any;
     azureStorage = mockBlobService as any;
     module = await Test.createTestingModule({
       providers: [
         ClassifierService,
         { provide: AppLoggerService, useValue: mockAppLogger },
-        { provide: DatabaseService, useValue: databaseService },
+        { provide: ClassifierDbService, useValue: classifierDbService },
         { provide: AzureService, useValue: azureService },
         { provide: AzureStorageService, useValue: azureStorage },
         { provide: BLOB_STORAGE, useValue: blobStorage },
@@ -75,7 +75,9 @@ describe("ClassifierService", () => {
 
   describe("requestClassifierTraining", () => {
     it("should throw NotFoundException if classifier not found", async () => {
-      (databaseService.getClassifierModel as jest.Mock).mockResolvedValue(null);
+      (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue(
+        null,
+      );
       await expect(
         service.requestClassifierTraining("c", "g", "u"),
       ).rejects.toThrow();
@@ -91,18 +93,20 @@ describe("ClassifierService", () => {
           }),
         }),
       };
-      (databaseService.getClassifierModel as jest.Mock).mockResolvedValue({
+      (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue({
         description: "desc",
       });
       (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
         listBlobsByHierarchy: jest.fn().mockReturnValue([]),
       });
-      (databaseService.updateClassifierModel as jest.Mock).mockResolvedValue({
+      (
+        classifierDbService.updateClassifierModel as jest.Mock
+      ).mockResolvedValue({
         status: ClassifierStatus.TRAINING,
       });
 
       const result = await service.requestClassifierTraining("c", "g", "u");
-      expect(mockDatabaseService.updateClassifierModel).toHaveBeenCalled();
+      expect(mockClassifierDbService.updateClassifierModel).toHaveBeenCalled();
       expect(result.status).toBe(ClassifierStatus.TRAINING);
     });
 
@@ -112,7 +116,7 @@ describe("ClassifierService", () => {
           post: jest.fn().mockResolvedValue({ status: "202" }),
         }),
       };
-      (databaseService.getClassifierModel as jest.Mock).mockResolvedValue({
+      (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue({
         description: "desc",
       });
       (azureStorage.getContainerClient as jest.Mock).mockReturnValue({

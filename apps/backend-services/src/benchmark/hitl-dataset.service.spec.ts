@@ -5,7 +5,7 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { DatabaseService } from "@/database/database.service";
+import { ReviewDbService } from "@/hitl/review-db.service";
 import { ExtractedFields } from "@/ocr/azure-types";
 import { AuditLogService } from "./audit-log.service";
 import { DatasetService } from "./dataset.service";
@@ -13,7 +13,7 @@ import { HitlDatasetService } from "./hitl-dataset.service";
 
 describe("HitlDatasetService", () => {
   let service: HitlDatasetService;
-  let mockDb: jest.Mocked<Partial<DatabaseService>>;
+  let mockReviewDbService: jest.Mocked<Partial<ReviewDbService>>;
   let mockDatasetService: jest.Mocked<Partial<DatasetService>>;
   let mockAuditLogService: jest.Mocked<Partial<AuditLogService>>;
   let mockBlobStorage: jest.Mocked<BlobStorageInterface>;
@@ -106,7 +106,7 @@ describe("HitlDatasetService", () => {
   ];
 
   beforeEach(async () => {
-    mockDb = {
+    mockReviewDbService = {
       findReviewQueue: jest.fn().mockResolvedValue(mockDocuments),
     };
 
@@ -161,7 +161,7 @@ describe("HitlDatasetService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         HitlDatasetService,
-        { provide: DatabaseService, useValue: mockDb },
+        { provide: ReviewDbService, useValue: mockReviewDbService },
         { provide: DatasetService, useValue: mockDatasetService },
         { provide: AuditLogService, useValue: mockAuditLogService },
         { provide: BLOB_STORAGE, useValue: mockBlobStorage },
@@ -386,7 +386,7 @@ describe("HitlDatasetService", () => {
     });
 
     it("should exclude documents without approved sessions", async () => {
-      mockDb.findReviewQueue = jest.fn().mockResolvedValue([
+      mockReviewDbService.findReviewQueue = jest.fn().mockResolvedValue([
         {
           ...mockDocuments[0],
           review_sessions: [
@@ -403,7 +403,7 @@ describe("HitlDatasetService", () => {
     });
 
     it("should exclude documents without OCR results", async () => {
-      mockDb.findReviewQueue = jest.fn().mockResolvedValue([
+      mockReviewDbService.findReviewQueue = jest.fn().mockResolvedValue([
         {
           ...mockDocuments[0],
           ocr_result: null,
@@ -476,7 +476,7 @@ describe("HitlDatasetService", () => {
     });
 
     it("should deduplicate sample IDs for documents with the same filename", async () => {
-      mockDb.findReviewQueue = jest.fn().mockResolvedValue([
+      mockReviewDbService.findReviewQueue = jest.fn().mockResolvedValue([
         mockDocuments[0],
         {
           ...mockDocuments[1],
