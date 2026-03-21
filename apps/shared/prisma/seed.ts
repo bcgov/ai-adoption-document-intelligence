@@ -5,7 +5,7 @@ import {
   FieldType,
   GroupRole,
   PrismaClient,
-  ProjectStatus,
+  TemplateModelStatus,
   SplitType,
   BenchmarkRunStatus,
   AuditAction,
@@ -22,11 +22,12 @@ const prisma = new PrismaClient({
 const SEED_GROUP_ID = "seed-default-group";
 const SEED_GROUP_NAME = "Default";
 
-const SDPR_TEMPLATE_PROJECT_ID = "seed-sdpr-monthly-report-template";
-const SDPR_TEMPLATE_PROJECT_NAME = "SDPR monthly report template";
-const SDPR_TEMPLATE_PROJECT_DESCRIPTION =
-  "Seeded labeling project for SDPR monthly report template training.";
-const SDPR_TEMPLATE_PROJECT_CREATED_BY = "seed";
+const SDPR_TEMPLATE_MODEL_ID = "seed-sdpr-monthly-report-template";
+const SDPR_TEMPLATE_MODEL_NAME = "SDPR Monthly Report";
+const SDPR_TEMPLATE_MODEL_MODEL_ID = "sdpr-monthly-report";
+const SDPR_TEMPLATE_MODEL_DESCRIPTION =
+  "Seeded template model for SDPR monthly report field extraction.";
+const SDPR_TEMPLATE_MODEL_CREATED_BY = "seed";
 
 type SeedFieldDefinition = {
   fieldKey: string;
@@ -1343,21 +1344,22 @@ async function seedBenchmarkingData() {
   console.log(`  - Runs: 5 (3 completed [1 baseline, 1 passing, 1 regressed], 1 running, 1 failed)`);
 }
 
-async function seedLabelingData() {
-  const project = await prisma.labelingProject.upsert({
-    where: { id: SDPR_TEMPLATE_PROJECT_ID },
+async function seedTemplateModelData() {
+  const templateModel = await prisma.templateModel.upsert({
+    where: { id: SDPR_TEMPLATE_MODEL_ID },
     update: {
-      name: SDPR_TEMPLATE_PROJECT_NAME,
-      description: SDPR_TEMPLATE_PROJECT_DESCRIPTION,
-      created_by: SDPR_TEMPLATE_PROJECT_CREATED_BY,
-      status: ProjectStatus.active,
+      name: SDPR_TEMPLATE_MODEL_NAME,
+      description: SDPR_TEMPLATE_MODEL_DESCRIPTION,
+      created_by: SDPR_TEMPLATE_MODEL_CREATED_BY,
+      status: TemplateModelStatus.draft,
     },
     create: {
-      id: SDPR_TEMPLATE_PROJECT_ID,
-      name: SDPR_TEMPLATE_PROJECT_NAME,
-      description: SDPR_TEMPLATE_PROJECT_DESCRIPTION,
-      created_by: SDPR_TEMPLATE_PROJECT_CREATED_BY,
-      status: ProjectStatus.active,
+      id: SDPR_TEMPLATE_MODEL_ID,
+      name: SDPR_TEMPLATE_MODEL_NAME,
+      model_id: SDPR_TEMPLATE_MODEL_MODEL_ID,
+      description: SDPR_TEMPLATE_MODEL_DESCRIPTION,
+      created_by: SDPR_TEMPLATE_MODEL_CREATED_BY,
+      status: TemplateModelStatus.draft,
       group_id: SEED_GROUP_ID,
     },
   });
@@ -1366,7 +1368,7 @@ async function seedLabelingData() {
 
   await prisma.fieldDefinition.deleteMany({
     where: {
-      project_id: project.id,
+      template_model_id: templateModel.id,
       field_key: {
         notIn: fieldKeys,
       },
@@ -1377,8 +1379,8 @@ async function seedLabelingData() {
     SDPR_MONTHLY_REPORT_FIELDS.map((field, index) =>
       prisma.fieldDefinition.upsert({
         where: {
-          project_id_field_key: {
-            project_id: project.id,
+          template_model_id_field_key: {
+            template_model_id: templateModel.id,
             field_key: field.fieldKey,
           },
         },
@@ -1388,7 +1390,7 @@ async function seedLabelingData() {
           display_order: index,
         },
         create: {
-          project_id: project.id,
+          template_model_id: templateModel.id,
           field_key: field.fieldKey,
           field_type: field.fieldType,
           field_format: field.fieldFormat ?? null,
@@ -1398,8 +1400,8 @@ async function seedLabelingData() {
     ),
   );
 
-  console.log("✅ Labeling project seed data created successfully");
-  console.log(`  - Project: ${project.name}`);
+  console.log("✅ Template model seed data created successfully");
+  console.log(`  - Model: ${templateModel.name} (${SDPR_TEMPLATE_MODEL_MODEL_ID})`);
   console.log(`  - Fields: ${SDPR_MONTHLY_REPORT_FIELDS.length}`);
 }
 
@@ -1519,7 +1521,7 @@ async function main() {
   await seedUsers();
   await seedGroup();
   await seedTestApiKey();
-  await seedLabelingData();
+  await seedTemplateModelData();
   await seedBenchmarkingData();
 
   console.log("\n✅ All seed data created successfully!");
