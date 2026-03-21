@@ -50,7 +50,7 @@ export async function enrichResults(
 
   try {
     const prisma = getPrismaClient();
-    const project = await prisma.labelingProject.findUnique({
+    const project = await prisma.templateModel.findUnique({
       where: { id: documentType },
       include: { field_schema: { orderBy: { display_order: "asc" } } },
     });
