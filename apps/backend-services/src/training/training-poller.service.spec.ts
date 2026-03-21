@@ -21,20 +21,23 @@ describe("TrainingPollerService", () => {
   let service: TrainingPollerService;
   let _mockDbService: jest.Mocked<DatabaseService>;
   let mockConfigService: jest.Mocked<ConfigService>;
-  let mockAdminClient: any;
-  let mockPrisma: any;
+  let mockAdminClient: Record<string, jest.Mock>;
+  let mockPrisma: Record<string, Record<string, jest.Mock>>;
+
+  const mockTemplateModel = {
+    id: "tm-1",
+    model_id: "model-123",
+  };
 
   const mockTrainingJob = {
     id: "job-1",
-    project_id: "project-1",
-    model_id: "model-123",
+    template_model_id: "tm-1",
+    template_model: mockTemplateModel,
     operation_id: "operation-123",
     status: TrainingStatus.TRAINING,
     started_at: new Date(),
     completed_at: null,
     error_message: null,
-    dataset_id: "dataset-1",
-    build_mode: "template",
     created_at: new Date(),
     updated_at: new Date(),
   };
@@ -80,8 +83,8 @@ describe("TrainingPollerService", () => {
     (DocumentIntelligence as jest.Mock).mockReturnValue(mockAdminClient);
 
     const mockConfig = {
-      get: jest.fn((key: string, defaultValue?: any) => {
-        const config: Record<string, any> = {
+      get: jest.fn((key: string, defaultValue?: number) => {
+        const config: Record<string, string | number> = {
           AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
           AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
           TRAINING_POLL_INTERVAL_SECONDS: 10,
@@ -119,8 +122,8 @@ describe("TrainingPollerService", () => {
 
     it("should handle missing Azure credentials", async () => {
       const mockConfigNoCredentials = {
-        get: jest.fn((key: string, defaultValue?: any) => {
-          const config: Record<string, any> = {
+        get: jest.fn((key: string, defaultValue?: number) => {
+          const config: Record<string, number> = {
             TRAINING_POLL_INTERVAL_SECONDS: 10,
             TRAINING_MAX_POLL_ATTEMPTS: 60,
           };
@@ -193,13 +196,22 @@ describe("TrainingPollerService", () => {
             in: [TrainingStatus.TRAINING, TrainingStatus.UPLOADED],
           },
         },
+        include: { template_model: true },
       });
     });
 
     it("should poll all active jobs", async () => {
       const jobs = [
-        { ...mockTrainingJob, id: "job-1", operation_id: "op-1" },
-        { ...mockTrainingJob, id: "job-2", operation_id: "op-2" },
+        {
+          ...mockTrainingJob,
+          id: "job-1",
+          operation_id: "op-1",
+        },
+        {
+          ...mockTrainingJob,
+          id: "job-2",
+          operation_id: "op-2",
+        },
       ];
 
       mockPrisma.trainingJob.findMany.mockResolvedValueOnce(jobs);
@@ -237,7 +249,7 @@ describe("TrainingPollerService", () => {
 
     it("should handle missing Prisma client", async () => {
       // Create service with db that has no prisma
-      const mockDbNoPrisma = {} as any;
+      const mockDbNoPrisma = {} as DatabaseService;
 
       const module = await Test.createTestingModule({
         providers: [
@@ -291,7 +303,11 @@ describe("TrainingPollerService", () => {
 
       mockPrisma.trainingJob.findUnique.mockResolvedValueOnce(oldJob);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockPrisma.trainingJob.update).toHaveBeenCalledWith({
         where: { id: "job-1" },
@@ -315,7 +331,11 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(true);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockPrisma.trainingJob.update).not.toHaveBeenCalled();
     });
@@ -336,7 +356,11 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(true);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockPrisma.trainingJob.update).toHaveBeenCalledWith({
         where: { id: "job-1" },
@@ -362,7 +386,11 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockPrisma.trainingJob.update).not.toHaveBeenCalled();
     });
@@ -381,7 +409,11 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockPrisma.trainingJob.update).not.toHaveBeenCalled();
     });
@@ -403,7 +435,11 @@ describe("TrainingPollerService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockPrisma.trainingJob.update).toHaveBeenCalledWith({
         where: { id: "job-1" },
@@ -443,10 +479,14 @@ describe("TrainingPollerService", () => {
       mockPrisma.trainingJob.update.mockResolvedValue(mockTrainingJob);
       mockPrisma.trainedModel.create.mockResolvedValue({
         id: "trained-1",
-        model_id: "model-1",
+        model_id: "model-123",
       });
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockPrisma.trainingJob.update).toHaveBeenCalledWith({
         where: { id: "job-1" },
@@ -458,9 +498,9 @@ describe("TrainingPollerService", () => {
 
       expect(mockPrisma.trainedModel.create).toHaveBeenCalledWith({
         data: {
-          project_id: "project-1",
+          template_model_id: "tm-1",
           training_job_id: "job-1",
-          model_id: "model-1",
+          model_id: "model-123",
           description: "Test model",
           doc_types: expect.any(Object),
           field_count: 2,
@@ -506,17 +546,21 @@ describe("TrainingPollerService", () => {
       mockPrisma.trainingJob.update.mockResolvedValue(mockTrainingJob);
       mockPrisma.trainedModel.create.mockResolvedValue({
         id: "trained-1",
-        model_id: "model-1",
+        model_id: "model-123",
       });
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockGetModel).toHaveBeenCalled();
       expect(mockPrisma.trainedModel.create).toHaveBeenCalledWith({
         data: {
-          project_id: "project-1",
+          template_model_id: "tm-1",
           training_job_id: "job-1",
-          model_id: "model-1",
+          model_id: "model-123",
           description: "Fetched model",
           doc_types: expect.any(Object),
           field_count: 3,
@@ -556,7 +600,11 @@ describe("TrainingPollerService", () => {
         return callCount > 1; // First call (operation) = false, second call (model) = true
       });
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockPrisma.trainingJob.update).toHaveBeenCalledWith({
         where: { id: "job-1" },
@@ -588,16 +636,20 @@ describe("TrainingPollerService", () => {
       mockPrisma.trainingJob.update.mockResolvedValue(mockTrainingJob);
       mockPrisma.trainedModel.create.mockResolvedValue({
         id: "trained-1",
-        model_id: "model-1",
+        model_id: "model-123",
       });
 
-      await service["pollTrainingStatus"]("job-1", "model-1", "operation-123");
+      await service["pollTrainingStatus"](
+        "job-1",
+        "model-123",
+        "operation-123",
+      );
 
       expect(mockPrisma.trainedModel.create).toHaveBeenCalledWith({
         data: {
-          project_id: "project-1",
+          template_model_id: "tm-1",
           training_job_id: "job-1",
-          model_id: "model-1",
+          model_id: "model-123",
           description: "Model without docTypes",
           doc_types: {},
           field_count: 0,
@@ -608,7 +660,7 @@ describe("TrainingPollerService", () => {
 
   describe("pollJob", () => {
     it("should throw error when Prisma not available", async () => {
-      const mockDbNoPrisma = {} as any;
+      const mockDbNoPrisma = {} as DatabaseService;
 
       const module = await Test.createTestingModule({
         providers: [
@@ -667,6 +719,7 @@ describe("TrainingPollerService", () => {
 
       expect(mockPrisma.trainingJob.findUnique).toHaveBeenCalledWith({
         where: { id: "job-1" },
+        include: { template_model: true },
       });
       expect(mockGetOperation).toHaveBeenCalled();
     });

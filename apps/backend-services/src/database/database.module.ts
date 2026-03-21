@@ -2,7 +2,7 @@ import { Module } from "@nestjs/common";
 import { DatabaseService } from "./database.service";
 import { DocumentDbService } from "./document-db.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
-import { LabelingProjectDbService } from "./labeling-project-db.service";
+import { TemplateModelDbService } from "./template-model-db.service";
 import { PrismaService } from "./prisma.service";
 import { ReviewDbService } from "./review-db.service";
 
@@ -11,7 +11,7 @@ import { ReviewDbService } from "./review-db.service";
     PrismaService,
     DocumentDbService,
     LabelingDocumentDbService,
-    LabelingProjectDbService,
+    TemplateModelDbService,
     ReviewDbService,
     DatabaseService,
   ],
@@ -19,7 +19,7 @@ import { ReviewDbService } from "./review-db.service";
     PrismaService,
     DocumentDbService,
     LabelingDocumentDbService,
-    LabelingProjectDbService,
+    TemplateModelDbService,
     ReviewDbService,
     DatabaseService,
   ],

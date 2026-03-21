@@ -1,7 +1,5 @@
 import {
-  DocumentStatus,
   LabelingStatus,
-  ProjectStatus,
   TrainingStatus,
 } from "@generated/client";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
@@ -15,8 +13,8 @@ import {
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { DatabaseService } from "../database/database.service";
-import { ExportFormat } from "../labeling/dto/export.dto";
-import { LabelingService } from "../labeling/labeling.service";
+import { ExportFormat } from "../template-model/dto/export.dto";
+import { TemplateModelService } from "../template-model/template-model.service";
 import { TrainingService } from "./training.service";
 
 // Mock Azure Document Intelligence
@@ -37,34 +35,26 @@ describe("TrainingService", () => {
   let mockDbService: jest.Mocked<DatabaseService>;
   let mockBlobStorage: jest.Mocked<AzureStorageService>;
   let mockPrimaryBlobStorage: jest.Mocked<BlobStorageInterface>;
-  let mockLabelingService: jest.Mocked<LabelingService>;
+  let mockTemplateModelService: jest.Mocked<TemplateModelService>;
   let _mockConfigService: jest.Mocked<ConfigService>;
-  let mockAdminClient: any;
-  let mockPrisma: any;
+  let mockAdminClient: Record<string, jest.Mock>;
+  let mockPrisma: Record<string, Record<string, jest.Mock>>;
 
-  const mockProject = {
-    id: "project-1",
-    name: "Test Project",
+  const mockTemplateModel = {
+    id: "tm-1",
+    name: "Test Template Model",
+    model_id: "custom-model-1",
     description: "Test",
     created_by: "user-1",
-    status: ProjectStatus.active,
+    status: "draft" as const,
     created_at: new Date(),
     updated_at: new Date(),
-    field_schema: [
-      {
-        id: "field-1",
-        field_key: "field1",
-        field_type: "string",
-        field_format: null,
-        display_order: 0,
-        project_id: "project-1",
-      },
-    ],
+    group_id: "group-1",
   };
 
   const mockLabeledDocument = {
     id: "labeled-doc-1",
-    project_id: "project-1",
+    template_model_id: "tm-1",
     labeling_document_id: "labeling-doc-1",
     status: LabelingStatus.labeled,
     created_at: new Date(),
@@ -78,7 +68,7 @@ describe("TrainingService", () => {
       file_size: 1024,
       metadata: {},
       source: "labeling",
-      status: DocumentStatus.completed_ocr,
+      status: "completed_ocr" as const,
       created_at: new Date(),
       updated_at: new Date(),
       apim_request_id: null,
@@ -100,27 +90,33 @@ describe("TrainingService", () => {
     ],
   };
 
+  const mockFieldDefinition = {
+    id: "field-1",
+    template_model_id: "tm-1",
+    field_key: "field1",
+    field_type: "string",
+    field_format: null,
+    display_order: 0,
+  };
+
   const mockTrainingJob = {
     id: "job-1",
-    project_id: "project-1",
+    template_model_id: "tm-1",
     status: TrainingStatus.PENDING,
-    container_name: "training-project-1",
+    container_name: "training-tm-1",
     sas_url: null,
-    blob_count: null,
-    model_id: "custom-model-1",
+    blob_count: 0,
     operation_id: null,
     error_message: null,
     started_at: new Date(),
     completed_at: null,
-    build_mode: "template",
-    dataset_id: null,
     created_at: new Date(),
     updated_at: new Date(),
   };
 
   const mockTrainedModel = {
     id: "trained-1",
-    project_id: "project-1",
+    template_model_id: "tm-1",
     training_job_id: "job-1",
     model_id: "custom-model-1",
     description: "Test Model",
@@ -142,13 +138,18 @@ describe("TrainingService", () => {
         findMany: jest.fn(),
         findUnique: jest.fn(),
         delete: jest.fn(),
+        deleteMany: jest.fn(),
+      },
+      labeledDocument: {
+        findMany: jest.fn(),
+      },
+      fieldDefinition: {
+        findMany: jest.fn(),
       },
     };
 
     const mockDb = {
       prisma: mockPrisma,
-      findLabelingProject: jest.fn(),
-      findLabeledDocuments: jest.fn(),
     };
 
     const mockBlob = {
@@ -166,8 +167,9 @@ describe("TrainingService", () => {
       deleteByPrefix: jest.fn(),
     };
 
-    const mockLabeling = {
-      exportProject: jest.fn(),
+    const mockTemplateModelSvc = {
+      getTemplateModel: jest.fn(),
+      exportTemplateModel: jest.fn(),
     };
 
     const mockDeleteModel = jest.fn();
@@ -187,8 +189,8 @@ describe("TrainingService", () => {
     (DocumentIntelligence as jest.Mock).mockReturnValue(mockAdminClient);
 
     const mockConfig = {
-      get: jest.fn((key: string, defaultValue?: any) => {
-        const config: Record<string, any> = {
+      get: jest.fn((key: string, defaultValue?: number) => {
+        const config: Record<string, string | number> = {
           AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
           AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
           TRAINING_MIN_DOCUMENTS: 5,
@@ -215,8 +217,8 @@ describe("TrainingService", () => {
           useValue: mockPrimaryBlob,
         },
         {
-          provide: LabelingService,
-          useValue: mockLabeling,
+          provide: TemplateModelService,
+          useValue: mockTemplateModelSvc,
         },
         {
           provide: ConfigService,
@@ -229,7 +231,7 @@ describe("TrainingService", () => {
     mockDbService = module.get(DatabaseService);
     mockBlobStorage = module.get(AzureStorageService);
     mockPrimaryBlobStorage = module.get(BLOB_STORAGE);
-    mockLabelingService = module.get(LabelingService);
+    mockTemplateModelService = module.get(TemplateModelService);
     _mockConfigService = module.get(ConfigService);
   });
 
@@ -241,8 +243,8 @@ describe("TrainingService", () => {
 
     it("should handle missing Azure credentials", async () => {
       const mockConfigNoCredentials = {
-        get: jest.fn((key: string, defaultValue?: any) => {
-          const config: Record<string, any> = {
+        get: jest.fn((key: string, defaultValue?: number) => {
+          const config: Record<string, number> = {
             TRAINING_MIN_DOCUMENTS: 5,
             TRAINING_SAS_EXPIRY_DAYS: 7,
           };
@@ -257,7 +259,10 @@ describe("TrainingService", () => {
           { provide: DatabaseService, useValue: { prisma: mockPrisma } },
           { provide: AzureStorageService, useValue: mockBlobStorage },
           { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
-          { provide: LabelingService, useValue: mockLabelingService },
+          {
+            provide: TemplateModelService,
+            useValue: mockTemplateModelService,
+          },
           { provide: ConfigService, useValue: mockConfigNoCredentials },
         ],
       }).compile();
@@ -268,14 +273,17 @@ describe("TrainingService", () => {
   });
 
   describe("validateTrainingData", () => {
-    it("should validate project successfully", async () => {
+    it("should validate template model successfully", async () => {
       const documents = Array(5).fill(mockLabeledDocument);
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockPrisma.labeledDocument.findMany.mockResolvedValueOnce(documents);
+      mockPrisma.fieldDefinition.findMany.mockResolvedValueOnce([
+        mockFieldDefinition,
+      ]);
 
-      const result = await service.validateTrainingData("project-1");
+      const result = await service.validateTrainingData("tm-1");
 
       expect(result).toEqual({
         valid: true,
@@ -285,22 +293,17 @@ describe("TrainingService", () => {
       });
     });
 
-    it("should throw NotFoundException when project not found", async () => {
-      mockDbService.findLabelingProject.mockResolvedValueOnce(null);
-
-      await expect(
-        service.validateTrainingData("non-existent"),
-      ).rejects.toThrow(NotFoundException);
-    });
-
     it("should return issues for insufficient documents", async () => {
       const documents = Array(3).fill(mockLabeledDocument);
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockPrisma.labeledDocument.findMany.mockResolvedValueOnce(documents);
+      mockPrisma.fieldDefinition.findMany.mockResolvedValueOnce([
+        mockFieldDefinition,
+      ]);
 
-      const result = await service.validateTrainingData("project-1");
+      const result = await service.validateTrainingData("tm-1");
 
       expect(result.valid).toBe(false);
       expect(
@@ -309,30 +312,33 @@ describe("TrainingService", () => {
     });
 
     it("should return issues when no field schema", async () => {
-      const projectNoSchema = { ...mockProject, field_schema: [] };
       const documents = Array(5).fill(mockLabeledDocument);
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        projectNoSchema as any,
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockPrisma.labeledDocument.findMany.mockResolvedValueOnce(documents);
+      mockPrisma.fieldDefinition.findMany.mockResolvedValueOnce([]);
 
-      const result = await service.validateTrainingData("project-1");
+      const result = await service.validateTrainingData("tm-1");
 
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.includes("no field schema"))).toBe(
-        true,
-      );
+      expect(
+        result.issues.some((i) => i.includes("no field schema")),
+      ).toBe(true);
     });
 
     it("should return issues when documents have no labels", async () => {
       const docWithoutLabels = { ...mockLabeledDocument, labels: [] };
       const documents = Array(5).fill(docWithoutLabels);
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(documents);
+      mockPrisma.labeledDocument.findMany.mockResolvedValueOnce(documents);
+      mockPrisma.fieldDefinition.findMany.mockResolvedValueOnce([
+        mockFieldDefinition,
+      ]);
 
-      const result = await service.validateTrainingData("project-1");
+      const result = await service.validateTrainingData("tm-1");
 
       expect(result.valid).toBe(false);
       expect(result.issues.some((i) => i.includes("have no labels"))).toBe(
@@ -353,17 +359,17 @@ describe("TrainingService", () => {
         ],
       };
 
-      mockLabelingService.exportProject.mockResolvedValueOnce(
-        exportResult as any,
+      mockTemplateModelService.exportTemplateModel.mockResolvedValueOnce(
+        exportResult as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
+      mockPrisma.labeledDocument.findMany.mockResolvedValueOnce([
         mockLabeledDocument,
       ]);
 
-      const files = await service.prepareTrainingFiles("project-1");
+      const files = await service.prepareTrainingFiles("tm-1");
 
-      expect(mockLabelingService.exportProject).toHaveBeenCalledWith(
-        "project-1",
+      expect(mockTemplateModelService.exportTemplateModel).toHaveBeenCalledWith(
+        "tm-1",
         {
           format: ExportFormat.AZURE,
           labeledOnly: true,
@@ -374,12 +380,12 @@ describe("TrainingService", () => {
     });
 
     it("should throw error when export fails", async () => {
-      mockLabelingService.exportProject.mockResolvedValueOnce({
-        project: {},
+      mockTemplateModelService.exportTemplateModel.mockResolvedValueOnce({
+        templateModel: {},
         documents: [],
-      } as any);
+      } as never);
 
-      await expect(service.prepareTrainingFiles("project-1")).rejects.toThrow(
+      await expect(service.prepareTrainingFiles("tm-1")).rejects.toThrow(
         "Azure export did not return training data",
       );
     });
@@ -392,14 +398,14 @@ describe("TrainingService", () => {
 
       mockPrimaryBlobStorage.exists.mockResolvedValue(false);
 
-      mockLabelingService.exportProject.mockResolvedValueOnce(
-        exportResult as any,
+      mockTemplateModelService.exportTemplateModel.mockResolvedValueOnce(
+        exportResult as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
+      mockPrisma.labeledDocument.findMany.mockResolvedValueOnce([
         mockLabeledDocument,
       ]);
 
-      const files = await service.prepareTrainingFiles("project-1");
+      const files = await service.prepareTrainingFiles("tm-1");
 
       expect(files.length).toBeGreaterThanOrEqual(1); // At least fields.json
     });
@@ -408,22 +414,28 @@ describe("TrainingService", () => {
   describe("startTraining", () => {
     it("should start training successfully", async () => {
       const dto = {
-        modelId: "custom-model-1",
         description: "Test model",
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(
+      // validateTrainingData calls getTemplateModel + prisma queries
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockPrisma.labeledDocument.findMany.mockResolvedValueOnce(
         Array(5).fill(mockLabeledDocument),
       );
-      mockPrisma.trainedModel.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.fieldDefinition.findMany.mockResolvedValueOnce([
+        mockFieldDefinition,
+      ]);
+      mockPrisma.trainedModel.deleteMany.mockResolvedValueOnce({ count: 0 });
       mockPrisma.trainingJob.create.mockResolvedValueOnce(mockTrainingJob);
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      const result = await service.startTraining("project-1", dto, "user-1");
+      const result = await service.startTraining("tm-1", dto, "user-1");
 
       expect(result).toHaveProperty("id", "job-1");
       expect(result).toHaveProperty("status", TrainingStatus.PENDING);
@@ -432,25 +444,30 @@ describe("TrainingService", () => {
 
     it("should throw BadRequestException for invalid training data", async () => {
       const dto = {
-        modelId: "custom-model-1",
         description: "Test model",
       };
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce([
+      // validateTrainingData
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockPrisma.labeledDocument.findMany.mockResolvedValueOnce([
         mockLabeledDocument,
+      ]);
+      mockPrisma.fieldDefinition.findMany.mockResolvedValueOnce([
+        mockFieldDefinition,
       ]);
 
       await expect(
-        service.startTraining("project-1", dto, "user-1"),
+        service.startTraining("tm-1", dto, "user-1"),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it("should delete existing model before training", async () => {
+    it("should delete existing trained model before training", async () => {
       const dto = {
-        modelId: "custom-model-1",
         description: "Test model",
       };
 
@@ -464,35 +481,41 @@ describe("TrainingService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      mockDbService.findLabelingProject.mockResolvedValueOnce(
-        mockProject as any,
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
       );
-      mockDbService.findLabeledDocuments.mockResolvedValueOnce(
+      // validateTrainingData
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockPrisma.labeledDocument.findMany.mockResolvedValueOnce(
         Array(5).fill(mockLabeledDocument),
       );
-      mockPrisma.trainedModel.findUnique.mockResolvedValueOnce(
-        mockTrainedModel,
-      );
-      mockPrisma.trainedModel.delete.mockResolvedValueOnce(mockTrainedModel);
+      mockPrisma.fieldDefinition.findMany.mockResolvedValueOnce([
+        mockFieldDefinition,
+      ]);
+      mockPrisma.trainedModel.deleteMany.mockResolvedValueOnce({ count: 1 });
       mockPrisma.trainingJob.create.mockResolvedValueOnce(mockTrainingJob);
 
-      await service.startTraining("project-1", dto, "user-1");
+      await service.startTraining("tm-1", dto, "user-1");
 
       expect(mockDelete).toHaveBeenCalled();
-      expect(mockPrisma.trainedModel.delete).toHaveBeenCalled();
+      expect(mockPrisma.trainedModel.deleteMany).toHaveBeenCalledWith({
+        where: { template_model_id: "tm-1" },
+      });
     });
   });
 
   describe("getTrainingJobs", () => {
-    it("should return all training jobs for a project", async () => {
+    it("should return all training jobs for a template model", async () => {
       const jobs = [mockTrainingJob, { ...mockTrainingJob, id: "job-2" }];
       mockPrisma.trainingJob.findMany.mockResolvedValueOnce(jobs);
 
-      const result = await service.getTrainingJobs("project-1");
+      const result = await service.getTrainingJobs("tm-1");
 
       expect(result).toHaveLength(2);
       expect(mockPrisma.trainingJob.findMany).toHaveBeenCalledWith({
-        where: { project_id: "project-1" },
+        where: { template_model_id: "tm-1" },
         orderBy: { started_at: "desc" },
       });
     });
@@ -516,21 +539,6 @@ describe("TrainingService", () => {
       await expect(service.getTrainingJob("non-existent")).rejects.toThrow(
         NotFoundException,
       );
-    });
-  });
-
-  describe("getTrainedModels", () => {
-    it("should return all trained models for a project", async () => {
-      const models = [mockTrainedModel, { ...mockTrainedModel, id: "model-2" }];
-      mockPrisma.trainedModel.findMany.mockResolvedValueOnce(models);
-
-      const result = await service.getTrainedModels("project-1");
-
-      expect(result).toHaveLength(2);
-      expect(mockPrisma.trainedModel.findMany).toHaveBeenCalledWith({
-        where: { project_id: "project-1" },
-        orderBy: { created_at: "desc" },
-      });
     });
   });
 
@@ -634,7 +642,10 @@ describe("TrainingService", () => {
           { provide: DatabaseService, useValue: { prisma: mockPrisma } },
           { provide: AzureStorageService, useValue: mockBlobStorage },
           { provide: BLOB_STORAGE, useValue: mockPrimaryBlobStorage },
-          { provide: LabelingService, useValue: mockLabelingService },
+          {
+            provide: TemplateModelService,
+            useValue: mockTemplateModelService,
+          },
           { provide: ConfigService, useValue: mockConfigNoCredentials },
         ],
       }).compile();
@@ -669,10 +680,9 @@ describe("TrainingService", () => {
       const result = service["mapTrainingJobToDto"](mockTrainingJob);
 
       expect(result).toHaveProperty("id", "job-1");
-      expect(result).toHaveProperty("projectId", "project-1");
+      expect(result).toHaveProperty("templateModelId", "tm-1");
       expect(result).toHaveProperty("status", TrainingStatus.PENDING);
-      expect(result).toHaveProperty("containerName", "training-project-1");
-      expect(result).toHaveProperty("modelId", "custom-model-1");
+      expect(result).toHaveProperty("containerName", "training-tm-1");
     });
   });
 
@@ -681,7 +691,7 @@ describe("TrainingService", () => {
       const result = service["mapTrainedModelToDto"](mockTrainedModel);
 
       expect(result).toHaveProperty("id", "trained-1");
-      expect(result).toHaveProperty("projectId", "project-1");
+      expect(result).toHaveProperty("templateModelId", "tm-1");
       expect(result).toHaveProperty("trainingJobId", "job-1");
       expect(result).toHaveProperty("modelId", "custom-model-1");
       expect(result).toHaveProperty("fieldCount", 1);

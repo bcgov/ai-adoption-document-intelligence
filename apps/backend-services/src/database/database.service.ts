@@ -2,8 +2,8 @@ import type {
   CorrectionAction,
   FieldType,
   LabelingStatus,
-  ProjectStatus,
   ReviewStatus,
+  TemplateModelStatus,
 } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import {
@@ -15,12 +15,12 @@ import type {
   DocumentData,
   LabeledDocumentData,
   LabelingDocumentData,
-  LabelingProjectData,
   ReviewSessionData,
+  TemplateModelData,
 } from "./database.types";
 import { DocumentDbService } from "./document-db.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
-import { LabelingProjectDbService } from "./labeling-project-db.service";
+import { TemplateModelDbService } from "./template-model-db.service";
 import { PrismaService } from "./prisma.service";
 import { ReviewDbService } from "./review-db.service";
 
@@ -28,8 +28,8 @@ export type {
   DocumentData,
   LabeledDocumentData,
   LabelingDocumentData,
-  LabelingProjectData,
   ReviewSessionData,
+  TemplateModelData,
 };
 
 export type ClassifierConfig = {
@@ -57,7 +57,7 @@ export class DatabaseService {
     private readonly prismaService: PrismaService,
     private readonly documentDb: DocumentDbService,
     private readonly labelingDocumentDb: LabelingDocumentDbService,
-    private readonly labelingProjectDb: LabelingProjectDbService,
+    private readonly templateModelDb: TemplateModelDbService,
     private readonly reviewDb: ReviewDbService,
   ) {}
 
@@ -119,42 +119,49 @@ export class DatabaseService {
     return this.documentDb.upsertOcrResult(data);
   }
 
-  async createLabelingProject(data: {
+  async createTemplateModel(data: {
     name: string;
+    model_id: string;
     description?: string;
     created_by: string;
     group_id: string;
-  }): Promise<LabelingProjectData> {
-    return this.labelingProjectDb.createLabelingProject(data);
+  }): Promise<TemplateModelData> {
+    return this.templateModelDb.createTemplateModel(data);
   }
 
-  async findLabelingProject(id: string): Promise<LabelingProjectData | null> {
-    return this.labelingProjectDb.findLabelingProject(id);
+  async findTemplateModel(id: string): Promise<TemplateModelData | null> {
+    return this.templateModelDb.findTemplateModel(id);
   }
 
-  async findAllLabelingProjects(
+  async findTemplateModelByModelId(
+    modelId: string,
+  ): Promise<TemplateModelData | null> {
+    return this.templateModelDb.findTemplateModelByModelId(modelId);
+  }
+
+  async findAllTemplateModels(
     groupIds?: string[],
-  ): Promise<LabelingProjectData[]> {
-    return this.labelingProjectDb.findAllLabelingProjects(groupIds);
+  ): Promise<TemplateModelData[]> {
+    return this.templateModelDb.findAllTemplateModels(groupIds);
   }
 
-  async updateLabelingProject(
+  async updateTemplateModel(
     id: string,
     data: {
       name?: string;
       description?: string;
-      status?: ProjectStatus;
+      status?: TemplateModelStatus;
     },
-  ): Promise<LabelingProjectData | null> {
-    return this.labelingProjectDb.updateLabelingProject(id, data);
+  ): Promise<TemplateModelData | null> {
+    return this.templateModelDb.updateTemplateModel(id, data);
   }
 
-  async deleteLabelingProject(id: string): Promise<boolean> {
-    return this.labelingProjectDb.deleteLabelingProject(id);
+  async deleteTemplateModel(id: string): Promise<boolean> {
+    return this.templateModelDb.deleteTemplateModel(id);
   }
 
   async createFieldDefinition(
-    projectId: string,
+    templateModelId: string,
     data: {
       field_key: string;
       field_type: FieldType;
@@ -162,52 +169,52 @@ export class DatabaseService {
       display_order?: number;
     },
   ) {
-    return this.labelingProjectDb.createFieldDefinition(projectId, data);
+    return this.templateModelDb.createFieldDefinition(templateModelId, data);
   }
 
   async updateFieldDefinition(
     id: string,
     data: { field_format?: string; display_order?: number },
   ) {
-    return this.labelingProjectDb.updateFieldDefinition(id, data);
+    return this.templateModelDb.updateFieldDefinition(id, data);
   }
 
   async deleteFieldDefinition(id: string): Promise<boolean> {
-    return this.labelingProjectDb.deleteFieldDefinition(id);
+    return this.templateModelDb.deleteFieldDefinition(id);
   }
 
-  async addDocumentToProject(
-    projectId: string,
+  async addDocumentToTemplateModel(
+    templateModelId: string,
     labelingDocumentId: string,
   ): Promise<LabeledDocumentData> {
-    return this.labelingProjectDb.addDocumentToProject(
-      projectId,
+    return this.templateModelDb.addDocumentToTemplateModel(
+      templateModelId,
       labelingDocumentId,
     );
   }
 
   async findLabeledDocument(
-    projectId: string,
+    templateModelId: string,
     labelingDocumentId: string,
   ): Promise<LabeledDocumentData | null> {
-    return this.labelingProjectDb.findLabeledDocument(
-      projectId,
+    return this.templateModelDb.findLabeledDocument(
+      templateModelId,
       labelingDocumentId,
     );
   }
 
   async findLabeledDocuments(
-    projectId: string,
+    templateModelId: string,
   ): Promise<LabeledDocumentData[]> {
-    return this.labelingProjectDb.findLabeledDocuments(projectId);
+    return this.templateModelDb.findLabeledDocuments(templateModelId);
   }
 
-  async removeDocumentFromProject(
-    projectId: string,
+  async removeDocumentFromTemplateModel(
+    templateModelId: string,
     labelingDocumentId: string,
   ): Promise<boolean> {
-    return this.labelingProjectDb.removeDocumentFromProject(
-      projectId,
+    return this.templateModelDb.removeDocumentFromTemplateModel(
+      templateModelId,
       labelingDocumentId,
     );
   }
@@ -216,7 +223,7 @@ export class DatabaseService {
     labeledDocId: string,
     status: LabelingStatus,
   ): Promise<void> {
-    return this.labelingProjectDb.updateLabeledDocumentStatus(
+    return this.templateModelDb.updateLabeledDocumentStatus(
       labeledDocId,
       status,
     );
@@ -232,11 +239,11 @@ export class DatabaseService {
       bounding_box: unknown;
     }>,
   ) {
-    return this.labelingProjectDb.saveDocumentLabels(labeledDocId, labels);
+    return this.templateModelDb.saveDocumentLabels(labeledDocId, labels);
   }
 
   async deleteDocumentLabel(labelId: string): Promise<boolean> {
-    return this.labelingProjectDb.deleteDocumentLabel(labelId);
+    return this.templateModelDb.deleteDocumentLabel(labelId);
   }
 
   async createReviewSession(
