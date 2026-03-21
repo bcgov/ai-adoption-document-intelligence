@@ -69,6 +69,12 @@ spec:
           min_wal_size: 32MB
           max_wal_size: 64MB # default is 1GB
           max_slot_wal_keep_size: 128MB # default is -1, allowing unlimited wal growth when replicas fall behind
+          logging_collector: 'on'
+          log_directory: 'log'
+          log_filename: 'postgresql.log'
+          log_truncate_on_rotation: 'on'
+          log_rotation_age: '1440'
+          log_rotation_size: '50000'
   # proxy:
   #   pgBouncer:
   #     replicas: 2

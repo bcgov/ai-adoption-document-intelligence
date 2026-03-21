@@ -91,6 +91,9 @@ Deploys the full application stack as an isolated instance.
 
 # Build images locally instead of via GitHub Actions
 ./scripts/oc-deploy.sh --env prod --build-local
+
+# Force rebuild images even if they already exist in the registry
+./scripts/oc-deploy.sh --env prod --rebuild
 ```
 
 | Option | Short | Required | Description |
@@ -98,6 +101,7 @@ Deploys the full application stack as an isolated instance.
 | `--env` | `-e` | Yes | Environment profile: `dev` or `prod` |
 | `--instance` | `-i` | No | Instance name override (default: from git branch) |
 | `--build-local` | | No | Build and push images locally with Docker instead of via GitHub Actions |
+| `--rebuild` | | No | Force rebuild of images even if they already exist in the registry (implies `--build-local`) |
 | `--help` | `-h` | No | Show help |
 
 The deploy flow:
@@ -111,6 +115,8 @@ The deploy flow:
 8. Prints access URLs
 
 **`--build-local`**: Builds images with `docker build` and pushes to Artifactory directly from your machine. Requires Docker installed and Artifactory credentials in your env config file. Useful when the GitHub Actions workflow isn't on the default branch or you want faster iteration without pushing to GitHub first.
+
+**`--rebuild`**: Forces a rebuild of all images even if they already exist in the registry for the current branch tag. Implies `--build-local`. Use this when you've made code changes on the same branch and need to update the deployed images.
 
 Each instance gets: frontend, backend, Temporal server + worker + UI, Crunchy PostgreSQL, routes, ConfigMaps, Secrets, PVCs, and NetworkPolicies. Prisma migrations run automatically via an init container during deployment.
 

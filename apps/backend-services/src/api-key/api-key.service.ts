@@ -107,7 +107,7 @@ export class ApiKeyService {
     return this.generateApiKey(userId, groupId);
   }
 
-  async validateApiKey(key: string): Promise<{ groupId: string } | null> {
+  async validateApiKey(key: string): Promise<{ groupId: string; keyPrefix: string } | null> {
     // Extract prefix from the incoming key for indexed lookup
     const prefix = key.substring(0, 8);
 
@@ -126,7 +126,7 @@ export class ApiKeyService {
           data: { last_used: new Date() },
         });
 
-        return { groupId: apiKey.group_id };
+        return { groupId: apiKey.group_id, keyPrefix: apiKey.key_prefix };
       }
     }
 

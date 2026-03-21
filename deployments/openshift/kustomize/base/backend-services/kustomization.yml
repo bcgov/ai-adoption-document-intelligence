@@ -9,6 +9,7 @@ resources:
   - pvc.yml
   - pvc-logs.yml
   - logrotate-configmap.yml
+  - promtail-configmap.yml
   - networkpolicy.yml
 commonLabels:
   app: backend-services

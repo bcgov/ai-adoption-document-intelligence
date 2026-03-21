@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: temporal-server-promtail
+  labels:
+    app: temporal
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 0
+      grpc_listen_port: 0
+    positions:
+      filename: /tmp/positions.yaml
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+    scrape_configs:
+      - job_name: temporal-server
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              service: temporal-server
+              __path__: /var/log/app/*.log

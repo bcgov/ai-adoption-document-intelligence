@@ -1,0 +1,102 @@
+# PLG Stack - Default Values
+# Override per environment via values-local.yaml, values-openshift.yaml, or --set flags.
+
+loki:
+  image:
+    repository: grafana/loki
+    tag: "3.4.0"
+    pullPolicy: IfNotPresent
+
+  # Retention period in days. Loki compactor deletes chunks older than this.
+  retentionDays: 30
+
+  # PVC size for Loki data storage.
+  pvcSize: 10Gi
+
+  # Storage class for the PVC. Empty string uses the cluster default.
+  storageClassName: ""
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "500m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+
+  # Port Loki listens on.
+  httpPort: 3100
+
+  # NDJSON fields to extract from log lines via pipeline stages.
+  # These match the fields produced by @ai-di/shared-logging.
+  ndjsonFields:
+    - timestamp
+    - level
+    - service
+    - requestId
+    - userId
+    - sessionId
+    - clientIp
+    - method
+    - path
+    - statusCode
+    - durationMs
+
+prometheus:
+  image:
+    repository: prom/prometheus
+    tag: "v3.2.1"
+    pullPolicy: IfNotPresent
+
+  # Data retention period in days.
+  retentionDays: 15
+
+  # PVC size for Prometheus TSDB storage.
+  pvcSize: 10Gi
+
+  # Storage class for the PVC. Empty string uses the cluster default.
+  storageClassName: ""
+
+  # Scrape interval for all targets.
+  scrapeInterval: "15s"
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  # Port Prometheus listens on.
+  httpPort: 9090
+
+  # Scrape targets reference service names within the same namespace.
+  scrapeTargets:
+    backendServices:
+      host: "backend-services"
+      port: 3002
+    temporalServer:
+      host: "temporal"
+      port: 9090
+
+grafana:
+  image:
+    repository: grafana/grafana
+    tag: "11.5.2"
+    pullPolicy: IfNotPresent
+
+  # Admin credentials. Override GRAFANA_ADMIN_PASSWORD via --set or environment values.
+  adminUser: admin
+  adminPassword: "admin"
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+  # Port Grafana listens on.
+  httpPort: 3001

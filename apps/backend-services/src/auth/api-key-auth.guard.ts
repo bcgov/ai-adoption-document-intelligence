@@ -97,6 +97,7 @@ export class ApiKeyAuthGuard implements CanActivate, OnModuleDestroy {
     // service-layer authorization helpers. The key is group-scoped; there is
     // no user identity to apply.
     request.apiKeyGroupId = keyInfo.groupId;
+    request.apiKeyPrefix = keyInfo.keyPrefix;
 
     return true;
   }
