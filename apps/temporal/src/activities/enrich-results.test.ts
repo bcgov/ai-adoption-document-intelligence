@@ -68,12 +68,12 @@ function projectWithSchema(
 
 describe("enrichResults activity", () => {
   let prismaMock: {
-    labelingProject: { findUnique: jest.Mock };
+    templateModel: { findUnique: jest.Mock };
   };
 
   beforeEach(() => {
     prismaMock = {
-      labelingProject: {
+      templateModel: {
         findUnique: jest.fn(),
       },
     };
@@ -88,7 +88,7 @@ describe("enrichResults activity", () => {
 
   describe("when project not found or empty schema", () => {
     it("returns ocrResult unchanged and summary null when project not found", async () => {
-      prismaMock.labelingProject.findUnique.mockResolvedValue(null);
+      prismaMock.templateModel.findUnique.mockResolvedValue(null);
       const ocrResult = minimalOcrResult();
       const params: EnrichResultsParams = {
         documentId: "doc-1",
@@ -100,14 +100,14 @@ describe("enrichResults activity", () => {
 
       expect(result.ocrResult).toBe(ocrResult);
       expect(result.summary).toBeNull();
-      expect(prismaMock.labelingProject.findUnique).toHaveBeenCalledWith({
+      expect(prismaMock.templateModel.findUnique).toHaveBeenCalledWith({
         where: { id: "missing-project" },
         include: { field_schema: { orderBy: { display_order: "asc" } } },
       });
     });
 
     it("returns ocrResult unchanged and summary null when field_schema is empty", async () => {
-      prismaMock.labelingProject.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findUnique.mockResolvedValue({
         id: "project-1",
         field_schema: [],
       });
@@ -125,7 +125,7 @@ describe("enrichResults activity", () => {
     });
 
     it("returns ocrResult unchanged and summary null when field_schema is null/undefined", async () => {
-      prismaMock.labelingProject.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findUnique.mockResolvedValue({
         id: "project-1",
         field_schema: null,
       });
@@ -142,7 +142,7 @@ describe("enrichResults activity", () => {
 
   describe("when project has field_schema (rules only)", () => {
     it("applies rules and returns enriched ocrResult with summary", async () => {
-      prismaMock.labelingProject.findUnique.mockResolvedValue(
+      prismaMock.templateModel.findUnique.mockResolvedValue(
         projectWithSchema([
           { field_key: "Date", field_type: "date", field_format: null },
           { field_key: "Amount", field_type: "number", field_format: null },
@@ -169,7 +169,7 @@ describe("enrichResults activity", () => {
     });
 
     it("uses custom confidenceThreshold when provided", async () => {
-      prismaMock.labelingProject.findUnique.mockResolvedValue(
+      prismaMock.templateModel.findUnique.mockResolvedValue(
         projectWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const ocrResult = minimalOcrResult();
@@ -179,7 +179,7 @@ describe("enrichResults activity", () => {
         documentType: "project-1",
         confidenceThreshold: 0.9,
       });
-      expect(prismaMock.labelingProject.findUnique).toHaveBeenCalled();
+      expect(prismaMock.templateModel.findUnique).toHaveBeenCalled();
     });
   });
 
@@ -193,7 +193,7 @@ describe("enrichResults activity", () => {
       delete process.env.AZURE_OPENAI_API_KEY;
       delete process.env.AZURE_OPENAI_DEPLOYMENT;
 
-      prismaMock.labelingProject.findUnique.mockResolvedValue(
+      prismaMock.templateModel.findUnique.mockResolvedValue(
         projectWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const ocrResult = minimalOcrResult();
@@ -240,7 +240,7 @@ describe("enrichResults activity", () => {
       process.env.AZURE_OPENAI_API_KEY = "key";
       process.env.AZURE_OPENAI_DEPLOYMENT = "gpt-4o";
 
-      prismaMock.labelingProject.findUnique.mockResolvedValue(
+      prismaMock.templateModel.findUnique.mockResolvedValue(
         projectWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const ocrResult = minimalOcrResult();
@@ -280,7 +280,7 @@ describe("enrichResults activity", () => {
       process.env.AZURE_OPENAI_API_KEY = "key";
       process.env.AZURE_OPENAI_DEPLOYMENT = "gpt-4o";
 
-      prismaMock.labelingProject.findUnique.mockResolvedValue(
+      prismaMock.templateModel.findUnique.mockResolvedValue(
         projectWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const ocrResult = minimalOcrResult();
@@ -307,7 +307,7 @@ describe("enrichResults activity", () => {
 
   describe("error handling", () => {
     it("on database error returns original ocrResult and summary null", async () => {
-      prismaMock.labelingProject.findUnique.mockRejectedValue(
+      prismaMock.templateModel.findUnique.mockRejectedValue(
         new Error("Database connection failed"),
       );
       const ocrResult = minimalOcrResult();
@@ -326,7 +326,7 @@ describe("enrichResults activity", () => {
 
   describe("return shape (graph contract)", () => {
     it("returns object with ocrResult and summary keys for output port binding", async () => {
-      prismaMock.labelingProject.findUnique.mockResolvedValue(
+      prismaMock.templateModel.findUnique.mockResolvedValue(
         projectWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const result = await enrichResults({
