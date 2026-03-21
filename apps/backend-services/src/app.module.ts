@@ -14,7 +14,7 @@ import { DatabaseModule } from "./database/database.module";
 import { DocumentModule } from "./document/document.module";
 import { GroupModule } from "./group/group.module";
 import { HitlModule } from "./hitl/hitl.module";
-import { LabelingModule } from "./labeling/labeling.module";
+import { TemplateModelModule } from "./template-model/template-model.module";
 import { LoggingModule } from "./logging/logging.module";
 import { MetricsModule } from "./metrics/metrics.module";
 import { OcrModule } from "./ocr/ocr.module";
@@ -56,7 +56,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     UploadModule,
     TemporalModule,
     OcrModule,
-    LabelingModule,
+    TemplateModelModule,
     HitlModule,
     BlobStorageModule,
     TrainingModule,

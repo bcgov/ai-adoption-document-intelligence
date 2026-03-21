@@ -35,6 +35,23 @@ interface AzureModelResponse {
   description?: string;
 }
 
+interface TrainingJobWithTemplateModel {
+  id: string;
+  template_model_id: string;
+  template_model: {
+    id: string;
+    model_id: string;
+  };
+  status: TrainingStatus;
+  container_name: string;
+  sas_url: string | null;
+  blob_count: number;
+  operation_id: string | null;
+  error_message: string | null;
+  started_at: Date;
+  completed_at: Date | null;
+}
+
 @Injectable()
 export class TrainingPollerService {
   private adminClient: DocumentIntelligenceClient;
@@ -100,7 +117,11 @@ export class TrainingPollerService {
 
       // Poll each active job
       for (const job of activeJobs) {
-        await this.pollTrainingStatus(job.id, job.model_id, job.operation_id);
+        await this.pollTrainingStatus(
+          job.id,
+          job.template_model.model_id,
+          job.operation_id,
+        );
       }
     } catch (error) {
       this.logger.error("Error polling active jobs", {
@@ -129,6 +150,8 @@ export class TrainingPollerService {
       if (!job) {
         return;
       }
+
+      const jobWithTemplateModel = job as TrainingJobWithTemplateModel;
 
       const elapsedSeconds = Math.floor(
         (Date.now() - job.started_at.getTime()) / 1000,
@@ -239,9 +262,9 @@ export class TrainingPollerService {
 
         // Create trained model record
         await this.trainingDb.createTrainedModel({
-          project_id: job.project_id,
+          template_model_id: jobWithTemplateModel.template_model_id,
           training_job_id: jobId,
-          model_id: modelId,
+          model_id: jobWithTemplateModel.template_model.model_id,
           description,
           doc_types: docTypes as Prisma.JsonValue,
           field_count: fieldCount,
@@ -282,7 +305,11 @@ export class TrainingPollerService {
       job.status === TrainingStatus.TRAINING ||
       job.status === TrainingStatus.UPLOADED
     ) {
-      await this.pollTrainingStatus(jobId, job.model_id, job.operation_id);
+      await this.pollTrainingStatus(
+        jobId,
+        job.template_model.model_id,
+        job.operation_id,
+      );
     }
   }
 }
