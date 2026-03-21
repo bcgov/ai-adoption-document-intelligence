@@ -28,6 +28,7 @@ import {
   IconCheck,
   IconCopy,
   IconFileDescription,
+  IconFileImport,
   IconPhoto,
   IconPlus,
   IconTrash,
@@ -35,14 +36,14 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FC, useEffect, useState } from "react";
+import { FC, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   type UploadQueueItem,
   useUploadQueue,
 } from "@/data/hooks/useUploadQueue";
 import { apiService } from "@/data/services/api.service";
-import type { FieldDefinition } from "../../core/types/field";
+import { type FieldDefinition, FieldType } from "../../core/types/field";
 import { ExportPanel } from "../components/ExportPanel";
 import { FieldSchemaEditor } from "../components/FieldSchemaEditor";
 import { TrainingPanel } from "../components/TrainingPanel";
@@ -129,6 +130,8 @@ export const ModelDetailPage: FC = () => {
   const [editingField, setEditingField] = useState<FieldDefinition | null>(
     null,
   );
+  const fieldsFileInputRef = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
   const {
     queue,
     isUploading,
@@ -244,6 +247,71 @@ export const ModelDetailPage: FC = () => {
     setEditingField(null);
   };
 
+  const validFieldTypes = new Set(Object.values(FieldType) as string[]);
+
+  const handleImportFields = async (file: File) => {
+    setIsImporting(true);
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const fields: Array<{ fieldKey: string; fieldType: string; fieldFormat?: string }> =
+        json.fields;
+      if (!Array.isArray(fields) || fields.length === 0) {
+        notifications.show({
+          title: "Invalid file",
+          message: "Expected a fields.json with a non-empty \"fields\" array.",
+          color: "red",
+        });
+        return;
+      }
+
+      const existingKeys = new Set(schema.map((f) => f.fieldKey));
+      let added = 0;
+      let skipped = 0;
+
+      for (let i = 0; i < fields.length; i++) {
+        const f = fields[i];
+        if (!f.fieldKey || !f.fieldType) {
+          skipped++;
+          continue;
+        }
+        if (existingKeys.has(f.fieldKey)) {
+          skipped++;
+          continue;
+        }
+        if (!validFieldTypes.has(f.fieldType)) {
+          skipped++;
+          continue;
+        }
+        addField({
+          field_key: f.fieldKey,
+          field_type: f.fieldType,
+          field_format: f.fieldFormat,
+          display_order: i,
+        });
+        existingKeys.add(f.fieldKey);
+        added++;
+      }
+
+      notifications.show({
+        title: "Import complete",
+        message: `Added ${added} field(s)${skipped > 0 ? `, skipped ${skipped} (duplicate or invalid)` : ""}.`,
+        color: "green",
+      });
+    } catch {
+      notifications.show({
+        title: "Import failed",
+        message: "Could not parse file. Expected JSON with { fields: [...] } format.",
+        color: "red",
+      });
+    } finally {
+      setIsImporting(false);
+      if (fieldsFileInputRef.current) {
+        fieldsFileInputRef.current.value = "";
+      }
+    }
+  };
+
   if (isModelLoading) {
     return (
       <Center h="70vh">
@@ -353,16 +421,28 @@ export const ModelDetailPage: FC = () => {
                           {doc.labeling_document.original_filename}
                         </Table.Td>
                         <Table.Td>
-                          <Stack gap={2}>
-                            <Badge size="sm" variant="light">
-                              {doc.labeling_document.status}
-                            </Badge>
-                            {!isReady && (
-                              <Text size="xs" c="dimmed">
-                                OCR running
-                              </Text>
-                            )}
-                          </Stack>
+                          <Badge
+                            size="sm"
+                            variant="light"
+                            color={
+                              doc.labeling_document.status === "completed_ocr"
+                                ? "green"
+                                : doc.labeling_document.status === "failed"
+                                  ? "red"
+                                  : "blue"
+                            }
+                          >
+                            {doc.labeling_document.status === "pre_ocr"
+                              ? "Pending OCR"
+                              : doc.labeling_document.status === "ongoing_ocr"
+                                ? "Processing OCR"
+                                : doc.labeling_document.status ===
+                                    "completed_ocr"
+                                  ? "OCR Complete"
+                                  : doc.labeling_document.status === "failed"
+                                    ? "Failed"
+                                    : doc.labeling_document.status}
+                          </Badge>
                         </Table.Td>
                         <Table.Td>{doc.labels?.length || 0}</Table.Td>
                         <Table.Td>
@@ -411,15 +491,35 @@ export const ModelDetailPage: FC = () => {
           <Stack gap="md">
             <Group justify="space-between">
               <Text fw={600}>Field schema</Text>
-              <Button
-                leftSection={<IconPlus size={16} />}
-                onClick={() => {
-                  setEditingField(null);
-                  setSchemaEditorOpen(true);
-                }}
-              >
-                Add field
-              </Button>
+              <Group gap="xs">
+                <input
+                  type="file"
+                  ref={fieldsFileInputRef}
+                  accept=".json"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImportFields(file);
+                  }}
+                />
+                <Button
+                  variant="light"
+                  leftSection={<IconFileImport size={16} />}
+                  onClick={() => fieldsFileInputRef.current?.click()}
+                  loading={isImporting}
+                >
+                  Import fields.json
+                </Button>
+                <Button
+                  leftSection={<IconPlus size={16} />}
+                  onClick={() => {
+                    setEditingField(null);
+                    setSchemaEditorOpen(true);
+                  }}
+                >
+                  Add field
+                </Button>
+              </Group>
             </Group>
 
             {isSchemaLoading ? (
