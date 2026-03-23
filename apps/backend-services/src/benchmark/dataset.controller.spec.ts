@@ -6,7 +6,6 @@ jest.mock("@/auth/identity.helpers", () => ({
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import { DatabaseService } from "@/database/database.service";
 import { DatasetController } from "./dataset.controller";
 import { DatasetService } from "./dataset.service";
 import {
@@ -41,12 +40,6 @@ const mockDatasetService = {
   deleteDataset: jest.fn(),
 };
 
-const mockDatabaseService = {
-  isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-  getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "test-group" }]),
-  isUserInGroup: jest.fn().mockResolvedValue(true),
-};
-
 describe("DatasetController", () => {
   let controller: DatasetController;
 
@@ -60,10 +53,7 @@ describe("DatasetController", () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DatasetController],
-      providers: [
-        { provide: DatasetService, useValue: mockDatasetService },
-        { provide: DatabaseService, useValue: mockDatabaseService },
-      ],
+      providers: [{ provide: DatasetService, useValue: mockDatasetService }],
     }).compile();
 
     controller = module.get<DatasetController>(DatasetController);

@@ -157,13 +157,6 @@ jobs:
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
           build-args: |
             GITHUB_SHA=${{ github.sha }}
-            # Note: Sensitive secrets should be provided at runtime via environment variables
-            # Only non-sensitive build-time configuration is passed here
-            VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL }}
-            VITE_SUPPORT_EMAIL=${{ secrets.VITE_SUPPORT_EMAIL }}
-            VITE_ENV=${{ secrets.VITE_ENV }}
-            REACT_APP_URL=${{ secrets.REACT_APP_URL }}
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
       - name: Move cache
         run: |
           rm -rf /tmp/.buildx-cache

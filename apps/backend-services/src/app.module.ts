@@ -9,6 +9,7 @@ import { ApiKeyModule } from "./api-key/api-key.module";
 import { AuthModule } from "./auth/auth.module";
 import { BenchmarkModule } from "./benchmark/benchmark.module";
 import { BlobStorageModule } from "./blob-storage/blob-storage.module";
+import { BootstrapModule } from "./bootstrap/bootstrap.module";
 import { DatabaseModule } from "./database/database.module";
 import { DocumentModule } from "./document/document.module";
 import { GroupModule } from "./group/group.module";
@@ -60,6 +61,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     TrainingModule,
     WorkflowModule,
     AzureModule,
+    BootstrapModule,
     GroupModule,
   ],
   providers: [

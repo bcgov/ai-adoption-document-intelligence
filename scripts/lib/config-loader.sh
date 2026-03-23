@@ -115,6 +115,10 @@ load_config() {
   local profile_file="${_CONFIG_DIR}/${profile}.env"
   if [[ ! -f "${profile_file}" ]]; then
     echo "[ERROR] Profile configuration file not found: ${profile_file}" >&2
+    if [[ -f "${profile_file}.example" ]]; then
+      echo "[ERROR] An example file exists at ${profile_file}.example" >&2
+      echo "[ERROR] Copy it to get started: cp ${profile_file}.example ${profile_file}" >&2
+    fi
     return 1
   fi
 

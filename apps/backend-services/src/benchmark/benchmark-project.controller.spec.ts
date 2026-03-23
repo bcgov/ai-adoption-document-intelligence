@@ -13,7 +13,6 @@ jest.mock("@/auth/identity.helpers", () => ({
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import { DatabaseService } from "@/database/database.service";
 import { BenchmarkProjectController } from "./benchmark-project.controller";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { CreateProjectDto, ProjectDetailsDto, ProjectSummaryDto } from "./dto";
@@ -29,12 +28,6 @@ describe("BenchmarkProjectController", () => {
     deleteProject: jest.fn(),
   };
 
-  const mockDatabaseService = {
-    isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "test-group" }]),
-    isUserInGroup: jest.fn().mockResolvedValue(true),
-  };
-
   const mockReq = {
     user: { sub: "user-1" },
     resolvedIdentity: { userId: "user-1" },
@@ -47,10 +40,6 @@ describe("BenchmarkProjectController", () => {
         {
           provide: BenchmarkProjectService,
           useValue: mockBenchmarkProjectService,
-        },
-        {
-          provide: DatabaseService,
-          useValue: mockDatabaseService,
         },
       ],
     }).compile();

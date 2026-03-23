@@ -26,16 +26,28 @@ You are implementing a user story for this project. Follow ALL rules in CLAUDE.m
 
 ### Implementation Instructions
 
+#### Phase 1: Explore & Plan (before writing any code)
+
 1. Read the requirements document at {REQUIREMENTS_PATH} for full project context
 2. Read CLAUDE.md for project rules you must follow
-3. For each scenario in your assignment:
-   a. Read the Given/When/Then carefully
-   b. Explore the codebase to understand where changes are needed
-   c. Implement the scenario fully (no stubs, no placeholders)
-   d. For backend changes: create/update tests and run them (`npm run test` from the relevant app directory)
-   e. For frontend changes: run typecheck (`npm run typecheck`)
-   f. After the scenario is fully working, edit {STORY_FILE_PATH} and change that scenario's `- [ ]` to `- [x]`
-4. After all assigned scenarios are complete, provide a summary of:
+3. Read each scenario's Given/When/Then carefully and identify:
+   - Which apps/packages are affected (backend-services, temporal, frontend, shared)
+   - Which existing files need to be modified vs. new files to create
+   - Existing patterns, utilities, or similar implementations to reuse
+4. Write a brief plan summarizing:
+   - Files to create or modify (with paths)
+   - Existing patterns or code to reuse
+   - Any ambiguities or gaps found — surface these to the user BEFORE implementing
+5. Only proceed to Phase 2 after your plan is clear and there are no blocking questions
+
+#### Phase 2: Implement
+
+6. For each scenario in your assignment:
+   a. Implement the scenario fully (no stubs, no placeholders)
+   b. For backend changes: create/update tests and run them (`npm run test` from the relevant app directory)
+   c. For frontend changes: run typecheck (`npm run typecheck`)
+   d. After the scenario is fully working, edit {STORY_FILE_PATH} and change that scenario's `- [ ]` to `- [x]`
+7. After all assigned scenarios are complete, provide a summary of:
    - Files created or modified
    - Tests added or updated
    - Any gaps or questions that came up (per CLAUDE.md: do not assume, report gaps)

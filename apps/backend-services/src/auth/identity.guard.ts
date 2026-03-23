@@ -9,17 +9,11 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
-import { DatabaseService } from "../database/database.service";
+import { GroupService } from "../group/group.service";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
+import { ROLE_ORDER } from "./role-order";
 
-/**
- * Numeric ordering of {@link GroupRole} values used for minimum-role comparisons.
- * Higher numbers represent greater privilege.
- */
-export const ROLE_ORDER: Record<GroupRole, number> = {
-  [GroupRole.MEMBER]: 0,
-  [GroupRole.ADMIN]: 1,
-};
+export { ROLE_ORDER };
 
 /**
  * Identity resolution guard.
@@ -54,7 +48,7 @@ export const ROLE_ORDER: Record<GroupRole, number> = {
 export class IdentityGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private databaseService: DatabaseService,
+    private groupService: GroupService,
   ) {}
 
   /**
@@ -102,8 +96,8 @@ export class IdentityGuard implements CanActivate {
 
       // @Identity is present: run parallel DB queries to enrich identity.
       const [isSystemAdmin, userGroups] = await Promise.all([
-        this.databaseService.isUserSystemAdmin(userId),
-        this.databaseService.getUsersGroups(userId),
+        this.groupService.isUserSystemAdmin(userId),
+        this.groupService.findUsersGroups(userId),
       ]);
 
       const groupRoles: Record<string, GroupRole> = {};

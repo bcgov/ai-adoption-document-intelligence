@@ -5,6 +5,7 @@ resources:
   - service.yml
   - route.yml
   - configmap.yml
+  - secret.yml
   - pvc.yml
   - pvc-logs.yml
   - logrotate-configmap.yml

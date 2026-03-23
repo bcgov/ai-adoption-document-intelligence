@@ -3,6 +3,7 @@ import {
   Document,
   DocumentStatus,
   OcrResult,
+  Prisma,
   ReviewSession,
   ReviewStatus,
 } from "@generated/client";
@@ -11,7 +12,7 @@ import { ModuleRef } from "@nestjs/core";
 import { AuditService } from "@/audit/audit.service";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { GroundTruthGenerationService } from "../benchmark/ground-truth-generation.service";
-import { DatabaseService } from "../database/database.service";
+import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { AnalyticsService } from "./analytics.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
@@ -21,6 +22,8 @@ import {
   DocumentStatusFilter,
   ReviewStatusFilter,
 } from "./dto/status-constants.dto";
+import { ReviewDbService } from "./review-db.service";
+import type { ReviewSessionData } from "./review-db.types";
 
 interface DocumentWithOcrResult extends Document {
   ocr_result: OcrResult | null;
@@ -40,7 +43,8 @@ interface ReviewSessionWithDocument extends ReviewSession {
 @Injectable()
 export class HitlService {
   constructor(
-    private readonly db: DatabaseService,
+    private readonly documentService: DocumentService,
+    private readonly reviewDb: ReviewDbService,
     private readonly analyticsService: AnalyticsService,
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
@@ -64,7 +68,7 @@ export class HitlService {
           ? "reviewed"
           : "pending";
 
-    const documents = await this.db.findReviewQueue({
+    const documents = await this.reviewDb.findReviewQueue({
       status,
       modelId: filters.modelId,
       maxConfidence: filters.maxConfidence ?? 0.9,
@@ -132,7 +136,7 @@ export class HitlService {
           ? "reviewed"
           : "pending";
 
-    const allDocs = await this.db.findReviewQueue({
+    const allDocs = await this.reviewDb.findReviewQueue({
       status: DocumentStatus.completed_ocr,
       limit: 1000,
       reviewStatus: reviewStatusFilter,
@@ -168,13 +172,13 @@ export class HitlService {
     );
 
     // Verify document exists
-    const document = await this.db.findDocument(dto.documentId);
+    const document = await this.documentService.findDocument(dto.documentId);
     if (!document) {
       throw new NotFoundException(`Document ${dto.documentId} not found`);
     }
 
     // Create review session
-    const session = await this.db.createReviewSession(
+    const session = await this.reviewDb.createReviewSession(
       dto.documentId,
       reviewerId,
     );
@@ -213,10 +217,45 @@ export class HitlService {
     };
   }
 
+  /**
+   * Returns a raw review session for authorization checks (e.g. group membership).
+   * @param id - The review session ID.
+   * @param tx - Optional transaction client for atomic operations.
+   * @returns The review session data, or null if not found.
+   */
+  async findReviewSession(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<ReviewSessionData | null> {
+    return this.reviewDb.findReviewSession(id, tx);
+  }
+
+  /**
+   * Returns raw documents from the review queue for data access needs.
+   * @param filters - Filtering options for the queue.
+   * @param tx - Optional transaction client for atomic operations.
+   * @returns Array of documents matching the filters.
+   */
+  async findReviewQueue(
+    filters: {
+      status?: DocumentStatus;
+      modelId?: string;
+      minConfidence?: number;
+      maxConfidence?: number;
+      limit?: number;
+      offset?: number;
+      reviewStatus?: "pending" | "reviewed" | "all";
+      groupIds?: string[];
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<Document[]> {
+    return this.reviewDb.findReviewQueue(filters, tx);
+  }
+
   async getSession(id: string) {
     this.logger.debug(`Getting session: ${id}`);
 
-    const session = await this.db.findReviewSession(id);
+    const session = await this.reviewDb.findReviewSession(id);
     if (!session) {
       throw new NotFoundException(`Review session ${id} not found`);
     }
@@ -245,7 +284,7 @@ export class HitlService {
   async submitCorrections(sessionId: string, dto: SubmitCorrectionsDto) {
     this.logger.debug(`Submitting corrections for session: ${sessionId}`);
 
-    const session = await this.db.findReviewSession(sessionId);
+    const session = await this.reviewDb.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
@@ -253,7 +292,7 @@ export class HitlService {
     // Save all corrections
     const savedCorrections = await Promise.all(
       dto.corrections.map((correction) =>
-        this.db.createFieldCorrection(sessionId, {
+        this.reviewDb.createFieldCorrection(sessionId, {
           field_key: correction.field_key,
           original_value: correction.original_value,
           corrected_value: correction.corrected_value,
@@ -287,12 +326,12 @@ export class HitlService {
   async approveSession(sessionId: string) {
     this.logger.debug(`Approving session: ${sessionId}`);
 
-    const session = await this.db.findReviewSession(sessionId);
+    const session = await this.reviewDb.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    const updated = await this.db.updateReviewSession(sessionId, {
+    const updated = await this.reviewDb.updateReviewSession(sessionId, {
       status: ReviewStatus.approved,
       completed_at: new Date(),
     });
@@ -326,7 +365,7 @@ export class HitlService {
       if (gtService) {
         const job = await gtService.getJobByDocumentId(session.document_id);
         if (job) {
-          await gtService.completeJob(job.id, sessionId);
+          await gtService.completeJob(job.id, sessionId, session.corrections);
           this.logger.log(
             `Ground truth generated for job ${job.id} via session ${sessionId}`,
           );
@@ -350,19 +389,19 @@ export class HitlService {
   async escalateSession(sessionId: string, dto: EscalateDto) {
     this.logger.debug(`Escalating session: ${sessionId}`);
 
-    const session = await this.db.findReviewSession(sessionId);
+    const session = await this.reviewDb.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
     // Create a correction record to track the escalation reason
-    await this.db.createFieldCorrection(sessionId, {
+    await this.reviewDb.createFieldCorrection(sessionId, {
       field_key: "_escalation",
       original_value: dto.reason,
       action: CorrectionAction.flagged,
     });
 
-    const updated = await this.db.updateReviewSession(sessionId, {
+    const updated = await this.reviewDb.updateReviewSession(sessionId, {
       status: ReviewStatus.escalated,
       completed_at: new Date(),
     });
@@ -392,12 +431,12 @@ export class HitlService {
   async skipSession(sessionId: string) {
     this.logger.debug(`Skipping session: ${sessionId}`);
 
-    const session = await this.db.findReviewSession(sessionId);
+    const session = await this.reviewDb.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    const updated = await this.db.updateReviewSession(sessionId, {
+    const updated = await this.reviewDb.updateReviewSession(sessionId, {
       status: ReviewStatus.skipped,
       completed_at: new Date(),
     });
@@ -426,12 +465,12 @@ export class HitlService {
   async getCorrections(sessionId: string) {
     this.logger.debug(`Getting corrections for session: ${sessionId}`);
 
-    const session = await this.db.findReviewSession(sessionId);
+    const session = await this.reviewDb.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    const corrections = await this.db.findSessionCorrections(sessionId);
+    const corrections = await this.reviewDb.findSessionCorrections(sessionId);
 
     return {
       sessionId,
