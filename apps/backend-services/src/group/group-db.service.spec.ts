@@ -181,9 +181,9 @@ describe("GroupDbService", () => {
     it("creates without description (no tx)", async () => {
       const g = { id: "g-1", name: "N", description: null };
       mockPrisma.group.create.mockResolvedValue(g);
-      await service.createGroup("N");
+      await service.createGroup("creator-id", "N");
       expect(mockPrisma.group.create).toHaveBeenCalledWith({
-        data: { name: "N" },
+        data: { created_by: "creator-id", name: "N" },
         select: { id: true, name: true, description: true },
       });
     });
@@ -193,9 +193,9 @@ describe("GroupDbService", () => {
         name: "N",
         description: "d",
       });
-      await service.createGroup("N", "d");
+      await service.createGroup("creator-id", "N", "d");
       expect(mockPrisma.group.create).toHaveBeenCalledWith({
-        data: { name: "N", description: "d" },
+        data: { created_by: "creator-id", name: "N", description: "d" },
         select: { id: true, name: true, description: true },
       });
     });
@@ -207,8 +207,8 @@ describe("GroupDbService", () => {
       };
       const tx = { group: txGroup } as unknown as Parameters<
         typeof service.createGroup
-      >[2];
-      await service.createGroup("X", undefined, tx);
+      >[3];
+      await service.createGroup("creator-id", "X", undefined, tx);
       expect(txGroup.create).toHaveBeenCalled();
       expect(mockPrisma.group.create).not.toHaveBeenCalled();
     });
@@ -428,32 +428,6 @@ describe("GroupDbService", () => {
       await service.findGroupMembersWithUser("g-1", tx);
       expect(txUG.findMany).toHaveBeenCalled();
       expect(mockPrisma.userGroup.findMany).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("isUserSystemAdmin", () => {
-    it("returns true when admin (no tx)", async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ is_system_admin: true });
-      expect(await service.isUserSystemAdmin("user-1")).toBe(true);
-    });
-    it("returns false when not admin", async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ is_system_admin: false });
-      expect(await service.isUserSystemAdmin("user-1")).toBe(false);
-    });
-    it("returns false when user not found", async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      expect(await service.isUserSystemAdmin("missing")).toBe(false);
-    });
-    it("uses tx client", async () => {
-      const txUser = {
-        findUnique: jest.fn().mockResolvedValue({ is_system_admin: true }),
-      };
-      const tx = { user: txUser } as unknown as Parameters<
-        typeof service.isUserSystemAdmin
-      >[1];
-      expect(await service.isUserSystemAdmin("user-1", tx)).toBe(true);
-      expect(txUser.findUnique).toHaveBeenCalled();
-      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
     });
   });
 

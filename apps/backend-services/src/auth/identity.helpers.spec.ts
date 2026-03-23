@@ -1,5 +1,6 @@
 import { GroupRole } from "@generated/client";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import { ResolvedIdentity } from "@/auth/types";
 import {
   getIdentityGroupIds,
   identityCanAccessGroup,
@@ -14,6 +15,8 @@ describe("getIdentityGroupIds", () => {
   it("should return a single-element array for an API key identity", () => {
     const result = getIdentityGroupIds({
       groupRoles: { "group-abc": GroupRole.MEMBER },
+      isSystemAdmin: false,
+      actorId: "actor-1",
     });
     expect(result).toEqual(["group-abc"]);
   });
@@ -23,6 +26,7 @@ describe("getIdentityGroupIds", () => {
       userId: "admin-id",
       isSystemAdmin: true,
       groupRoles: {},
+      actorId: "actor-1",
     });
     expect(result).toBeUndefined();
   });
@@ -35,6 +39,7 @@ describe("getIdentityGroupIds", () => {
         "group-1": GroupRole.MEMBER,
         "group-2": GroupRole.ADMIN,
       },
+      actorId: "actor-1",
     });
     expect(result).toEqual(expect.arrayContaining(["group-1", "group-2"]));
     expect(result).toHaveLength(2);
@@ -45,12 +50,13 @@ describe("getIdentityGroupIds", () => {
       userId: "user-abc",
       isSystemAdmin: false,
       groupRoles: {},
+      actorId: "actor-1",
     });
     expect(result).toEqual([]);
   });
 
   it("should return an empty array for an empty identity object", () => {
-    const result = getIdentityGroupIds({});
+    const result = getIdentityGroupIds({} as unknown as ResolvedIdentity);
     expect(result).toEqual([]);
   });
 });
@@ -59,14 +65,26 @@ describe("identityCanAccessGroup", () => {
   describe("when groupId is null (orphaned record)", () => {
     it("should throw NotFoundException regardless of identity", () => {
       expect(() =>
-        identityCanAccessGroup({ userId: "user-abc" }, null),
+        identityCanAccessGroup(
+          {
+            userId: "user-abc",
+            isSystemAdmin: false,
+            groupRoles: {},
+            actorId: "actor-1",
+          },
+          null,
+        ),
       ).toThrow(NotFoundException);
     });
 
     it("should throw NotFoundException when identity is an API key identity", () => {
       expect(() =>
         identityCanAccessGroup(
-          { groupRoles: { "group-1": GroupRole.MEMBER } },
+          {
+            groupRoles: { "group-1": GroupRole.MEMBER },
+            isSystemAdmin: false,
+            actorId: "actor-1",
+          },
           null,
         ),
       ).toThrow(NotFoundException);
@@ -89,9 +107,9 @@ describe("identityCanAccessGroup", () => {
 
   describe("when identity is an empty object", () => {
     it("should throw ForbiddenException", () => {
-      expect(() => identityCanAccessGroup({}, "group-1")).toThrow(
-        ForbiddenException,
-      );
+      expect(() =>
+        identityCanAccessGroup({} as unknown as ResolvedIdentity, "group-1"),
+      ).toThrow(ForbiddenException);
     });
   });
 
@@ -99,7 +117,12 @@ describe("identityCanAccessGroup", () => {
     it("should not throw for any groupId", () => {
       expect(() =>
         identityCanAccessGroup(
-          { userId: "admin", isSystemAdmin: true },
+          {
+            userId: "admin",
+            isSystemAdmin: true,
+            groupRoles: {},
+            actorId: "actor-1",
+          },
           "group-1",
         ),
       ).not.toThrow();
@@ -110,7 +133,11 @@ describe("identityCanAccessGroup", () => {
     it("should not throw when the requested groupId is in groupRoles", () => {
       expect(() =>
         identityCanAccessGroup(
-          { groupRoles: { "group-1": GroupRole.MEMBER } },
+          {
+            groupRoles: { "group-1": GroupRole.MEMBER },
+            isSystemAdmin: false,
+            actorId: "actor-1",
+          },
           "group-1",
         ),
       ).not.toThrow();
@@ -120,7 +147,11 @@ describe("identityCanAccessGroup", () => {
   it("should throw ForbiddenException when the requested groupId is not in groupRoles", () => {
     expect(() =>
       identityCanAccessGroup(
-        { groupRoles: { "group-2": GroupRole.MEMBER } },
+        {
+          groupRoles: { "group-2": GroupRole.MEMBER },
+          isSystemAdmin: false,
+          actorId: "actor-1",
+        },
         "group-1",
       ),
     ).toThrow(ForbiddenException);
@@ -129,7 +160,11 @@ describe("identityCanAccessGroup", () => {
   it("should throw ForbiddenException when role is below minimumRole", () => {
     expect(() =>
       identityCanAccessGroup(
-        { groupRoles: { "group-1": GroupRole.MEMBER } },
+        {
+          groupRoles: { "group-1": GroupRole.MEMBER },
+          isSystemAdmin: false,
+          actorId: "actor-1",
+        },
         "group-1",
         GroupRole.ADMIN,
       ),
@@ -139,7 +174,11 @@ describe("identityCanAccessGroup", () => {
   it("should not throw when role meets minimumRole", () => {
     expect(() =>
       identityCanAccessGroup(
-        { groupRoles: { "group-1": GroupRole.ADMIN } },
+        {
+          groupRoles: { "group-1": GroupRole.ADMIN },
+          isSystemAdmin: false,
+          actorId: "actor-1",
+        },
         "group-1",
         GroupRole.ADMIN,
       ),
@@ -156,7 +195,11 @@ describe("prototype property bypass prevention", () => {
   ])("should throw ForbiddenException when groupId is '%s'", (groupId) => {
     expect(() =>
       identityCanAccessGroup(
-        { groupRoles: { "real-group": GroupRole.MEMBER } },
+        {
+          groupRoles: { "real-group": GroupRole.MEMBER },
+          isSystemAdmin: false,
+          actorId: "actor-1",
+        },
         groupId,
       ),
     ).toThrow(ForbiddenException);
@@ -166,7 +209,15 @@ describe("prototype property bypass prevention", () => {
 describe("userId-only path (no groupRoles on identity)", () => {
   it("should throw ForbiddenException when identity has userId but no groupRoles", () => {
     expect(() =>
-      identityCanAccessGroup({ userId: "user-abc" }, "group-1"),
+      identityCanAccessGroup(
+        {
+          userId: "user-abc",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "actor-1",
+        },
+        "group-1",
+      ),
     ).toThrow(ForbiddenException);
   });
 });

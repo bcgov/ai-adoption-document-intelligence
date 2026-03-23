@@ -827,7 +827,11 @@ describe("LabelingService", () => {
         suggestions as never,
       );
 
-      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true };
+      const mockIdentity: ResolvedIdentity = {
+        isSystemAdmin: true,
+        groupRoles: {},
+        actorId: "actor-id",
+      };
       const result = await service.generateDocumentSuggestions(
         "project-1",
         "labeled-doc-1",
@@ -843,7 +847,11 @@ describe("LabelingService", () => {
         null,
       );
 
-      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true };
+      const mockIdentity: ResolvedIdentity = {
+        isSystemAdmin: true,
+        groupRoles: {},
+        actorId: "actor-id",
+      };
       await expect(
         service.generateDocumentSuggestions(
           "project-1",
@@ -865,7 +873,11 @@ describe("LabelingService", () => {
         noOcrDoc,
       );
 
-      const mockIdentity: ResolvedIdentity = { isSystemAdmin: true };
+      const mockIdentity: ResolvedIdentity = {
+        isSystemAdmin: true,
+        groupRoles: {},
+        actorId: "actor-id",
+      };
       await expect(
         service.generateDocumentSuggestions(
           "project-1",

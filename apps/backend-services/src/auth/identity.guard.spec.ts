@@ -5,16 +5,14 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { GroupService } from "../group/group.service";
+import { UserService } from "@/actor/user.service";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
 import { IdentityGuard } from "./identity.guard";
 
 describe("IdentityGuard", () => {
   let guard: IdentityGuard;
   let reflector: Reflector;
-  let groupService: jest.Mocked<
-    Pick<GroupService, "isUserSystemAdmin" | "findUsersGroups">
-  >;
+  let userService: jest.Mocked<Pick<UserService, "getUserWithGroups">>;
 
   /**
    * Builds a minimal mock ExecutionContext backed by the given request object.
@@ -44,9 +42,12 @@ describe("IdentityGuard", () => {
     }) as unknown as Reflector;
 
   beforeEach(() => {
-    groupService = {
-      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-      findUsersGroups: jest.fn().mockResolvedValue([]),
+    userService = {
+      getUserWithGroups: jest.fn().mockResolvedValue({
+        is_system_admin: false,
+        actor_id: "actor-id",
+        userGroups: [],
+      } as never),
     };
     reflector = {
       getAllAndOverride: jest.fn().mockImplementation((key: string) => {
@@ -54,10 +55,7 @@ describe("IdentityGuard", () => {
         return undefined; // No @Identity by default
       }),
     } as unknown as Reflector;
-    guard = new IdentityGuard(
-      reflector,
-      groupService as unknown as GroupService,
-    );
+    guard = new IdentityGuard(reflector, userService as unknown as UserService);
   });
 
   // ---------------------------------------------------------------------------
@@ -76,6 +74,7 @@ describe("IdentityGuard", () => {
       userId: "jwt-user-id",
       isSystemAdmin: false,
       groupRoles: {},
+      actorId: "actor-id",
     });
   });
 
@@ -98,11 +97,11 @@ describe("IdentityGuard", () => {
   it("should set resolvedIdentity with groupRoles and isSystemAdmin for an API-key-authenticated request when @Identity is present", async () => {
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ allowApiKey: true }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       // No request.user — API key auth does not set a user object
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", actorId: "api-actor-id" },
     };
 
     const result = await identityGuard.canActivate(createContext(request));
@@ -111,16 +110,17 @@ describe("IdentityGuard", () => {
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
       groupRoles: { "group-abc": GroupRole.MEMBER },
+      actorId: "api-actor-id",
     });
   });
 
   it("should not include userId in resolvedIdentity for API key authentication when @Identity with allowApiKey is present", async () => {
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ allowApiKey: true }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "specific-group-id",
+      apiKey: { groupId: "specific-group-id", actorId: "api-actor-id" },
     };
 
     await identityGuard.canActivate(createContext(request));
@@ -130,15 +130,15 @@ describe("IdentityGuard", () => {
     ).toBeUndefined();
   });
 
-  it("should prefer API key path over JWT path when apiKeyGroupId is set and @Identity is present", async () => {
+  it("should prefer API key path over JWT path when apiKey is set and @Identity is present", async () => {
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ allowApiKey: true }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     // Edge case: both present (should not happen in practice, but guard should be deterministic)
     const request: Record<string, unknown> = {
       user: { sub: "some-user" },
-      apiKeyGroupId: "group-id",
+      apiKey: { groupId: "group-id", actorId: "api-actor-id" },
     };
 
     await identityGuard.canActivate(createContext(request));
@@ -146,6 +146,7 @@ describe("IdentityGuard", () => {
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
       groupRoles: { "group-id": GroupRole.MEMBER },
+      actorId: "api-actor-id",
     });
   });
 
@@ -156,9 +157,11 @@ describe("IdentityGuard", () => {
   it("should set isSystemAdmin to false when @Identity is present and request uses an API key", async () => {
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ allowApiKey: true }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
-    const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
+    const request: Record<string, unknown> = {
+      apiKey: { groupId: "group-123", actorId: "api-actor-id" },
+    };
 
     await identityGuard.canActivate(createContext(request));
 
@@ -170,9 +173,11 @@ describe("IdentityGuard", () => {
   it("should set groupRoles with the scoped group as MEMBER when @Identity is present and request uses an API key", async () => {
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ allowApiKey: true }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
-    const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
+    const request: Record<string, unknown> = {
+      apiKey: { groupId: "group-123", actorId: "api-actor-id" },
+    };
 
     await identityGuard.canActivate(createContext(request));
 
@@ -184,7 +189,9 @@ describe("IdentityGuard", () => {
 
   it("should throw ForbiddenException when @Identity is absent and request uses an API key", async () => {
     // Default guard has no @Identity in reflector mock
-    const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
+    const request: Record<string, unknown> = {
+      apiKey: { groupId: "group-123", actorId: "api-actor-id" },
+    };
 
     await expect(guard.canActivate(createContext(request))).rejects.toThrow(
       ForbiddenException,
@@ -247,12 +254,15 @@ describe("IdentityGuard", () => {
   // ---------------------------------------------------------------------------
 
   it("should set isSystemAdmin from the database when @Identity is present and user is a system admin", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(true);
-    groupService.findUsersGroups.mockResolvedValue([]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: true,
+      actor_id: "actor-id",
+      userGroups: [],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity(),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "admin-user-id" },
@@ -266,12 +276,15 @@ describe("IdentityGuard", () => {
   });
 
   it("should set isSystemAdmin to false from the database when @Identity is present and user is not a system admin", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity(),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "regular-user-id" },
@@ -285,25 +298,28 @@ describe("IdentityGuard", () => {
   });
 
   it("should set groupRoles from the database when @Identity is present and user belongs to groups", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([
-      {
-        user_id: "user-1",
-        group_id: "g1",
-        role: GroupRole.MEMBER,
-        created_at: new Date(),
-      },
-      {
-        user_id: "user-1",
-        group_id: "g2",
-        role: GroupRole.ADMIN,
-        created_at: new Date(),
-      },
-    ]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [
+        {
+          user_id: "user-1",
+          group_id: "g1",
+          role: GroupRole.MEMBER,
+          created_at: new Date(),
+        },
+        {
+          user_id: "user-1",
+          group_id: "g2",
+          role: GroupRole.ADMIN,
+          created_at: new Date(),
+        },
+      ],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity(),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-1" },
@@ -318,12 +334,15 @@ describe("IdentityGuard", () => {
   });
 
   it("should set groupRoles to an empty record when @Identity is present and user has no groups", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity(),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-no-groups" },
@@ -338,12 +357,15 @@ describe("IdentityGuard", () => {
   });
 
   it("should also set userId on resolvedIdentity when @Identity is present and request is JWT", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity(),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "jwt-user-id" },
@@ -356,21 +378,10 @@ describe("IdentityGuard", () => {
     );
   });
 
-  it("should invoke isUserSystemAdmin and getUsersGroups in parallel via Promise.all when @Identity is present", async () => {
-    const callOrder: string[] = [];
-
-    groupService.isUserSystemAdmin.mockImplementation(async () => {
-      callOrder.push("isUserSystemAdmin");
-      return false;
-    });
-    groupService.findUsersGroups.mockImplementation(async () => {
-      callOrder.push("getUsersGroups");
-      return [];
-    });
-
+  it("should call getUserWithGroups when @Identity is present and request is JWT", async () => {
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity(),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-id" },
@@ -378,14 +389,10 @@ describe("IdentityGuard", () => {
 
     await identityGuard.canActivate(createContext(request));
 
-    expect(groupService.isUserSystemAdmin).toHaveBeenCalledWith("user-id");
-    expect(groupService.findUsersGroups).toHaveBeenCalledWith("user-id");
-    expect(callOrder).toEqual(
-      expect.arrayContaining(["isUserSystemAdmin", "getUsersGroups"]),
-    );
+    expect(userService.getUserWithGroups).toHaveBeenCalledWith("user-id");
   });
 
-  it("should call isUserSystemAdmin and getUsersGroups even when @Identity is absent and request is JWT", async () => {
+  it("should call getUserWithGroups even when @Identity is absent and request is JWT", async () => {
     // Guard always queries DB for JWT requests regardless of @Identity presence
     const request: Record<string, unknown> = {
       user: { sub: "jwt-user-id" },
@@ -393,8 +400,7 @@ describe("IdentityGuard", () => {
 
     await guard.canActivate(createContext(request));
 
-    expect(groupService.isUserSystemAdmin).toHaveBeenCalledWith("jwt-user-id");
-    expect(groupService.findUsersGroups).toHaveBeenCalledWith("jwt-user-id");
+    expect(userService.getUserWithGroups).toHaveBeenCalledWith("jwt-user-id");
   });
 
   // ---------------------------------------------------------------------------
@@ -402,12 +408,15 @@ describe("IdentityGuard", () => {
   // ---------------------------------------------------------------------------
 
   it("should allow access when requireSystemAdmin is true and JWT user is a system admin", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(true);
-    groupService.findUsersGroups.mockResolvedValue([]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: true,
+      actor_id: "actor-id",
+      userGroups: [],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ requireSystemAdmin: true }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "admin-user-id" },
@@ -422,12 +431,15 @@ describe("IdentityGuard", () => {
   });
 
   it("should throw ForbiddenException when requireSystemAdmin is true and JWT user is not a system admin", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ requireSystemAdmin: true }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "regular-user-id" },
@@ -444,10 +456,10 @@ describe("IdentityGuard", () => {
         requireSystemAdmin: true,
         allowApiKey: true,
       }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", actorId: "api-actor-id" },
     };
 
     await expect(
@@ -456,15 +468,18 @@ describe("IdentityGuard", () => {
   });
 
   it("should allow a system admin through even when groupIdFrom is also specified", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(true);
-    groupService.findUsersGroups.mockResolvedValue([]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: true,
+      actor_id: "actor-id",
+      userGroups: [],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({
         requireSystemAdmin: true,
         groupIdFrom: { param: "groupId" },
       }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "admin-user-id" },
@@ -481,19 +496,22 @@ describe("IdentityGuard", () => {
   // ---------------------------------------------------------------------------
 
   it("should pass when group ID is extracted from route param and caller is a member", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([
-      {
-        user_id: "user-1",
-        group_id: "group-abc",
-        role: GroupRole.MEMBER,
-        created_at: new Date(),
-      },
-    ]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [
+        {
+          user_id: "user-1",
+          group_id: "group-abc",
+          role: GroupRole.MEMBER,
+          created_at: new Date(),
+        },
+      ],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ groupIdFrom: { param: "groupId" } }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-1" },
@@ -506,19 +524,22 @@ describe("IdentityGuard", () => {
   });
 
   it("should pass when group ID is extracted from query param and caller is a member", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([
-      {
-        user_id: "user-1",
-        group_id: "group-xyz",
-        role: GroupRole.MEMBER,
-        created_at: new Date(),
-      },
-    ]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [
+        {
+          user_id: "user-1",
+          group_id: "group-xyz",
+          role: GroupRole.MEMBER,
+          created_at: new Date(),
+        },
+      ],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ groupIdFrom: { query: "group_id" } }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-1" },
@@ -531,19 +552,22 @@ describe("IdentityGuard", () => {
   });
 
   it("should pass when group ID is extracted from request body and caller is a member", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([
-      {
-        user_id: "user-1",
-        group_id: "group-def",
-        role: GroupRole.MEMBER,
-        created_at: new Date(),
-      },
-    ]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [
+        {
+          user_id: "user-1",
+          group_id: "group-def",
+          role: GroupRole.MEMBER,
+          created_at: new Date(),
+        },
+      ],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ groupIdFrom: { body: "group_id" } }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-1" },
@@ -556,12 +580,15 @@ describe("IdentityGuard", () => {
   });
 
   it("should throw BadRequestException when groupIdFrom param is specified but absent from request", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ groupIdFrom: { param: "groupId" } }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-1" },
@@ -574,19 +601,22 @@ describe("IdentityGuard", () => {
   });
 
   it("should throw ForbiddenException when caller is not a member of the extracted group", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([
-      {
-        user_id: "user-1",
-        group_id: "other-group",
-        role: GroupRole.MEMBER,
-        created_at: new Date(),
-      },
-    ]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [
+        {
+          user_id: "user-1",
+          group_id: "other-group",
+          role: GroupRole.MEMBER,
+          created_at: new Date(),
+        },
+      ],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ groupIdFrom: { param: "groupId" } }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-1" },
@@ -599,12 +629,15 @@ describe("IdentityGuard", () => {
   });
 
   it("should pass for a system admin regardless of group membership when groupIdFrom is specified", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(true);
-    groupService.findUsersGroups.mockResolvedValue([]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: true,
+      actor_id: "actor-id",
+      userGroups: [],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ groupIdFrom: { param: "groupId" } }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "admin-user" },
@@ -617,12 +650,15 @@ describe("IdentityGuard", () => {
   });
 
   it("should skip the membership check when groupIdFrom has no param, query, or body set", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ groupIdFrom: {} }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-1" },
@@ -638,22 +674,25 @@ describe("IdentityGuard", () => {
   // ---------------------------------------------------------------------------
 
   it("should pass when the caller holds exactly the minimum required role (ADMIN with ADMIN requirement)", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([
-      {
-        user_id: "user-1",
-        group_id: "group-abc",
-        role: GroupRole.ADMIN,
-        created_at: new Date(),
-      },
-    ]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [
+        {
+          user_id: "user-1",
+          group_id: "group-abc",
+          role: GroupRole.ADMIN,
+          created_at: new Date(),
+        },
+      ],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({
         groupIdFrom: { param: "groupId" },
         minimumRole: GroupRole.ADMIN,
       }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-1" },
@@ -666,22 +705,25 @@ describe("IdentityGuard", () => {
   });
 
   it("should pass when the caller holds a higher role than the minimum (ADMIN satisfies MEMBER minimum)", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([
-      {
-        user_id: "user-1",
-        group_id: "group-abc",
-        role: GroupRole.ADMIN,
-        created_at: new Date(),
-      },
-    ]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [
+        {
+          user_id: "user-1",
+          group_id: "group-abc",
+          role: GroupRole.ADMIN,
+          created_at: new Date(),
+        },
+      ],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({
         groupIdFrom: { param: "groupId" },
         minimumRole: GroupRole.MEMBER,
       }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-1" },
@@ -694,22 +736,25 @@ describe("IdentityGuard", () => {
   });
 
   it("should throw ForbiddenException when caller's role is below the minimum required role (MEMBER with ADMIN requirement)", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([
-      {
-        user_id: "user-1",
-        group_id: "group-abc",
-        role: GroupRole.MEMBER,
-        created_at: new Date(),
-      },
-    ]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [
+        {
+          user_id: "user-1",
+          group_id: "group-abc",
+          role: GroupRole.MEMBER,
+          created_at: new Date(),
+        },
+      ],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({
         groupIdFrom: { param: "groupId" },
         minimumRole: GroupRole.ADMIN,
       }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-1" },
@@ -722,12 +767,15 @@ describe("IdentityGuard", () => {
   });
 
   it("should skip the minimumRole check when groupIdFrom is absent", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ minimumRole: GroupRole.ADMIN }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-1" },
@@ -739,15 +787,18 @@ describe("IdentityGuard", () => {
   });
 
   it("should pass for a system admin regardless of minimumRole when groupIdFrom is specified", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(true);
-    groupService.findUsersGroups.mockResolvedValue([]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: true,
+      actor_id: "actor-id",
+      userGroups: [],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({
         groupIdFrom: { param: "groupId" },
         minimumRole: GroupRole.ADMIN,
       }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "admin-user" },
@@ -766,10 +817,10 @@ describe("IdentityGuard", () => {
   it("should throw ForbiddenException when an API key request arrives and allowApiKey is false (default)", async () => {
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({}),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", actorId: "api-actor-id" },
     };
 
     await expect(
@@ -780,10 +831,10 @@ describe("IdentityGuard", () => {
   it("should throw ForbiddenException when an API key request arrives and allowApiKey is explicitly false", async () => {
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ allowApiKey: false }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", actorId: "api-actor-id" },
     };
 
     await expect(
@@ -794,10 +845,10 @@ describe("IdentityGuard", () => {
   it("should allow an API key request when allowApiKey is true", async () => {
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ allowApiKey: true }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", actorId: "api-actor-id" },
     };
 
     const result = await identityGuard.canActivate(createContext(request));
@@ -806,16 +857,20 @@ describe("IdentityGuard", () => {
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
       groupRoles: { "group-abc": GroupRole.MEMBER },
+      actorId: "api-actor-id",
     });
   });
 
   it("should not reject a JWT request due to allowApiKey being false", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ allowApiKey: false }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "jwt-user-id" },
@@ -827,25 +882,28 @@ describe("IdentityGuard", () => {
   });
 
   it("should throw ForbiddenException before enrichment when allowApiKey is false (group membership not evaluated)", async () => {
-    groupService.isUserSystemAdmin.mockResolvedValue(false);
-    groupService.findUsersGroups.mockResolvedValue([
-      {
-        user_id: "user-1",
-        group_id: "group-abc",
-        role: GroupRole.MEMBER,
-        created_at: new Date(),
-      },
-    ]);
+    userService.getUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [
+        {
+          user_id: "user-1",
+          group_id: "group-abc",
+          role: GroupRole.MEMBER,
+          created_at: new Date(),
+        },
+      ],
+    } as never);
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({
         allowApiKey: false,
         groupIdFrom: { param: "groupId" },
       }),
-      groupService as unknown as GroupService,
+      userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", actorId: "api-actor-id" },
       params: { groupId: "group-abc" },
     };
 
@@ -854,9 +912,8 @@ describe("IdentityGuard", () => {
       identityGuard.canActivate(createContext(request)),
     ).rejects.toThrow(ForbiddenException);
 
-    // Enrichment queries should not be called (API key path skips DB)
-    expect(groupService.isUserSystemAdmin).not.toHaveBeenCalled();
-    expect(groupService.findUsersGroups).not.toHaveBeenCalled();
+    // No DB queries should be made for API key path
+    expect(userService.getUserWithGroups).not.toHaveBeenCalled();
   });
 
   // ---------------------------------------------------------------------------
@@ -872,8 +929,7 @@ describe("IdentityGuard", () => {
     const result = await guard.canActivate(createContext(request));
 
     expect(result).toBe(true);
-    expect(groupService.isUserSystemAdmin).toHaveBeenCalled();
-    expect(groupService.findUsersGroups).toHaveBeenCalled();
+    expect(userService.getUserWithGroups).toHaveBeenCalled();
   });
 
   it("should set resolvedIdentity.isSystemAdmin to false for a JWT request when @Identity is absent", async () => {
@@ -904,7 +960,7 @@ describe("IdentityGuard", () => {
   it("should throw ForbiddenException when @Identity is absent and request carries an API key", async () => {
     // Without @Identity, API key requests are always denied
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", actorId: "api-actor-id" },
     };
 
     await expect(guard.canActivate(createContext(request))).rejects.toThrow(
@@ -921,7 +977,6 @@ describe("IdentityGuard", () => {
     const result = await guard.canActivate(createContext(request));
 
     expect(result).toBe(true);
-    expect(groupService.isUserSystemAdmin).toHaveBeenCalledWith("jwt-user-id");
-    expect(groupService.findUsersGroups).toHaveBeenCalledWith("jwt-user-id");
+    expect(userService.getUserWithGroups).toHaveBeenCalledWith("jwt-user-id");
   });
 });

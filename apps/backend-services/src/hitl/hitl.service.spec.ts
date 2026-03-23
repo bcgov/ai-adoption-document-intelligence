@@ -78,6 +78,7 @@ describe("HitlService", () => {
     id: "session-1",
     document_id: "doc-1",
     reviewer_id: "reviewer-1",
+    actor_id: "reviewer-1",
     status: ReviewStatus.in_progress,
     started_at: new Date(),
     completed_at: null,

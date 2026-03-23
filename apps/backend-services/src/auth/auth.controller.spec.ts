@@ -334,7 +334,12 @@ describe("AuthController", () => {
         exp: Math.floor(Date.now() / 1000) + 3600,
       };
       req.user = user;
-      req.resolvedIdentity = { userId: user.sub, isSystemAdmin: false };
+      req.resolvedIdentity = {
+        userId: user.sub,
+        isSystemAdmin: false,
+        groupRoles: {},
+        actorId: "actor-id",
+      };
       const userGroups = [
         { id: "group-1", name: "Group One", role: GroupRole.MEMBER },
       ];
@@ -343,7 +348,7 @@ describe("AuthController", () => {
       const result = await controller.getMe(req as Request);
 
       expect(groupService.getUserGroups).toHaveBeenCalledWith(
-        { userId: "user-123", isSystemAdmin: false },
+        expect.objectContaining({ userId: "user-123", isSystemAdmin: false }),
         "user-123",
       );
       expect(result).toEqual({
@@ -365,7 +370,12 @@ describe("AuthController", () => {
         exp: Math.floor(Date.now() / 1000) + 100,
       };
       req.user = user;
-      req.resolvedIdentity = { userId: user.sub };
+      req.resolvedIdentity = {
+        userId: user.sub,
+        isSystemAdmin: false,
+        groupRoles: {},
+        actorId: "actor-id",
+      };
       groupService.getUserGroups.mockResolvedValue([]);
 
       const result = await controller.getMe(req as Request);
@@ -385,7 +395,12 @@ describe("AuthController", () => {
         exp: Math.floor(Date.now() / 1000) + 3600,
       };
       req.user = user;
-      req.resolvedIdentity = { userId: user.sub, isSystemAdmin: true };
+      req.resolvedIdentity = {
+        userId: user.sub,
+        isSystemAdmin: true,
+        groupRoles: {},
+        actorId: "actor-id",
+      };
       const adminGroups = [
         { id: "group-1", name: "Group One", role: GroupRole.ADMIN },
       ];
@@ -394,7 +409,7 @@ describe("AuthController", () => {
       const result = await controller.getMe(req as Request);
 
       expect(groupService.getUserGroups).toHaveBeenCalledWith(
-        { userId: "admin-user", isSystemAdmin: true },
+        expect.objectContaining({ userId: "admin-user", isSystemAdmin: true }),
         "admin-user",
       );
       expect(groupService.getAllGroups).not.toHaveBeenCalled();
@@ -408,7 +423,12 @@ describe("AuthController", () => {
         exp: Math.floor(Date.now() / 1000) - 100, // expired
       };
       req.user = user;
-      req.resolvedIdentity = { userId: user.sub };
+      req.resolvedIdentity = {
+        userId: user.sub,
+        isSystemAdmin: false,
+        groupRoles: {},
+        actorId: "actor-id",
+      };
 
       const result = await controller.getMe(req as Request);
 

@@ -4,10 +4,7 @@ import { UserDbService } from "./user-db.service";
 
 @Injectable()
 export class UserService {
-  constructor(
-    private readonly logger: AppLoggerService,
-    private readonly userDbService: UserDbService,
-  ) {}
+  constructor(private readonly userDbService: UserDbService) {}
 
   async getUserWithGroups(sub: string) {
     return await this.userDbService.getUser(sub, true);

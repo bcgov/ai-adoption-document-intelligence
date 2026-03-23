@@ -10,7 +10,7 @@ describe("ApiKeyController", () => {
 
   const mockApiKeyService = {
     getApiKey: jest.fn(),
-    generateApiKey: jest.fn(),
+    createApiKey: jest.fn(),
     deleteApiKey: jest.fn(),
     regenerateApiKey: jest.fn(),
     getApiKeyGroupId: jest.fn(),
@@ -96,7 +96,7 @@ describe("ApiKeyController", () => {
 
     it("should not throw when user has no email", async () => {
       // With new logic, email is not required for API key generation, so this should not throw
-      mockApiKeyService.generateApiKey.mockResolvedValue({});
+      mockApiKeyService.createApiKey.mockResolvedValue({});
       await expect(
         controller.generateApiKey(
           {
@@ -123,14 +123,14 @@ describe("ApiKeyController", () => {
         createdAt: new Date(),
         lastUsed: null,
       };
-      mockApiKeyService.generateApiKey.mockResolvedValue(mockGeneratedKey);
+      mockApiKeyService.createApiKey.mockResolvedValue(mockGeneratedKey);
 
       const result = await controller.generateApiKey(mockRequest as any, {
         groupId: "group123",
       });
 
       expect(result).toEqual({ apiKey: mockGeneratedKey });
-      expect(apiKeyService.generateApiKey).toHaveBeenCalledWith(
+      expect(apiKeyService.createApiKey).toHaveBeenCalledWith(
         "testuser",
         "group123",
       );
@@ -150,7 +150,7 @@ describe("ApiKeyController", () => {
           { groupId: "group123" },
         ),
       ).rejects.toThrow(ForbiddenException);
-      expect(apiKeyService.generateApiKey).not.toHaveBeenCalled();
+      expect(apiKeyService.createApiKey).not.toHaveBeenCalled();
     });
 
     it("should not throw when user has no email for regenerate", async () => {

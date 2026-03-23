@@ -45,7 +45,12 @@ describe("DatasetController", () => {
 
   const mockReq = {
     user: { sub: "user-123" },
-    resolvedIdentity: { userId: "user-123" },
+    resolvedIdentity: {
+      userId: "user-123",
+      isSystemAdmin: false,
+      groupRoles: {},
+      actorId: "user-123",
+    },
   } as unknown as Request;
 
   beforeEach(async () => {
@@ -97,7 +102,11 @@ describe("DatasetController", () => {
     it("uses anonymous user ID when user ID is missing", async () => {
       const mockRequestNoUser = {
         user: undefined,
-        resolvedIdentity: { userId: undefined },
+        resolvedIdentity: {
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "anonymous",
+        },
       } as unknown as Request;
 
       await controller.createDataset(createDto, mockRequestNoUser);
@@ -269,7 +278,6 @@ describe("DatasetController", () => {
       expect(mockDatasetService.createVersion).toHaveBeenCalledWith(
         "dataset-123",
         createDto,
-        "user-123",
       );
       expect(result).toEqual(mockResponse);
     });
@@ -277,7 +285,11 @@ describe("DatasetController", () => {
     it("uses anonymous user ID when user ID is missing", async () => {
       const mockRequestNoUser = {
         user: undefined,
-        resolvedIdentity: { userId: undefined },
+        resolvedIdentity: {
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "anonymous",
+        },
       } as unknown as Request;
 
       mockDatasetService.getDatasetById.mockResolvedValue({
@@ -294,7 +306,6 @@ describe("DatasetController", () => {
       expect(mockDatasetService.createVersion).toHaveBeenCalledWith(
         "dataset-123",
         createDto,
-        "anonymous",
       );
     });
   });
@@ -421,7 +432,6 @@ describe("DatasetController", () => {
         "dataset-123",
         "version-123",
         mockFiles,
-        "user-123",
       );
       expect(result).toEqual(mockResponse);
     });
@@ -469,7 +479,11 @@ describe("DatasetController", () => {
     it("uses anonymous user ID when user ID is missing", async () => {
       const mockRequestNoUser = {
         user: undefined,
-        resolvedIdentity: { userId: undefined },
+        resolvedIdentity: {
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "anonymous",
+        },
       } as unknown as Request;
       mockDatasetService.getDatasetById.mockResolvedValue({
         id: "dataset-123",
@@ -487,7 +501,6 @@ describe("DatasetController", () => {
         "dataset-123",
         "version-123",
         mockFiles,
-        "anonymous",
       );
     });
   });

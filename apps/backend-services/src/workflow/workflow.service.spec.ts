@@ -27,7 +27,7 @@ const mockWorkflowRecord = {
   id: "wf-1",
   name: "Test",
   description: "Desc",
-  user_id: "user-1",
+  actor_id: "user-1",
   config: makeGraphConfig(),
   version: 1,
   created_at: new Date(),
@@ -82,9 +82,9 @@ describe("WorkflowService", () => {
       const result = await service.getUserWorkflows("user-1");
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe("wf-1");
-      expect(result[0].userId).toBe("user-1");
+      expect(result[0].actorId).toBe("user-1");
       expect(mockWorkflow.findMany).toHaveBeenCalledWith({
-        where: { user_id: "user-1" },
+        where: { actor_id: "user-1" },
         orderBy: { created_at: "desc" },
       });
     });

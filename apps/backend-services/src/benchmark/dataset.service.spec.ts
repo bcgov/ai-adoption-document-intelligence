@@ -280,11 +280,9 @@ describe("DatasetService", () => {
       mockDatasetDbService.countDatasetVersions.mockResolvedValue(0);
       mockDatasetDbService.createDatasetVersion.mockResolvedValue(mockVersion);
 
-      const result = await service.createVersion(
-        "dataset-1",
-        { version: "1.0.0" },
-        "user-1",
-      );
+      const result = await service.createVersion("dataset-1", {
+        version: "1.0.0",
+      });
 
       expect(result.id).toBe("version-1");
       expect(result.version).toBe("1.0.0");
@@ -295,7 +293,7 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDataset.mockResolvedValue(null);
 
       await expect(
-        service.createVersion("nonexistent", { version: "1.0.0" }, "user-1"),
+        service.createVersion("nonexistent", { version: "1.0.0" }),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -420,7 +418,6 @@ describe("DatasetService", () => {
         "dataset-1",
         "version-1",
         mockFiles,
-        "user-1",
       );
 
       // Verify files were uploaded to blob storage
@@ -451,7 +448,7 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDataset.mockResolvedValue(null);
 
       await expect(
-        service.uploadFilesToVersion("nonexistent", "v1", mockFiles, "user-1"),
+        service.uploadFilesToVersion("nonexistent", "v1", mockFiles),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -460,12 +457,7 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
-        service.uploadFilesToVersion(
-          "dataset-1",
-          "nonexistent",
-          mockFiles,
-          "user-1",
-        ),
+        service.uploadFilesToVersion("dataset-1", "nonexistent", mockFiles),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -477,12 +469,7 @@ describe("DatasetService", () => {
       });
 
       await expect(
-        service.uploadFilesToVersion(
-          "dataset-1",
-          "version-1",
-          mockFiles,
-          "user-1",
-        ),
+        service.uploadFilesToVersion("dataset-1", "version-1", mockFiles),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -1661,21 +1648,16 @@ describe("DatasetService", () => {
       );
 
       await expect(
-        service.uploadFilesToVersion(
-          "dataset-1",
-          "version-1",
-          [
-            {
-              fieldname: "files",
-              originalname: "test.pdf",
-              encoding: "7bit",
-              mimetype: "application/pdf",
-              buffer: Buffer.from("data"),
-              size: 4,
-            },
-          ],
-          "user-1",
-        ),
+        service.uploadFilesToVersion("dataset-1", "version-1", [
+          {
+            fieldname: "files",
+            originalname: "test.pdf",
+            encoding: "7bit",
+            mimetype: "application/pdf",
+            buffer: Buffer.from("data"),
+            size: 4,
+          },
+        ]),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -1688,21 +1670,16 @@ describe("DatasetService", () => {
       );
 
       await expect(
-        service.uploadFilesToVersion(
-          "dataset-1",
-          "version-1",
-          [
-            {
-              fieldname: "files",
-              originalname: "test.pdf",
-              encoding: "7bit",
-              mimetype: "application/pdf",
-              buffer: Buffer.from("data"),
-              size: 4,
-            },
-          ],
-          "user-1",
-        ),
+        service.uploadFilesToVersion("dataset-1", "version-1", [
+          {
+            fieldname: "files",
+            originalname: "test.pdf",
+            encoding: "7bit",
+            mimetype: "application/pdf",
+            buffer: Buffer.from("data"),
+            size: 4,
+          },
+        ]),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -1742,7 +1719,6 @@ describe("DatasetService", () => {
         "dataset-1",
         "version-1",
         dupeFiles,
-        "user-1",
       );
 
       const filenames = result.uploadedFiles.map(

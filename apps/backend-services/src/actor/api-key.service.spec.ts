@@ -54,6 +54,7 @@ describe("ApiKeyService", () => {
         id: "key123",
         key_prefix: "abcd1234",
         group_id: "group123",
+        actor_id: "actor-1",
         created_at: new Date("2024-01-01"),
         last_used: new Date("2024-01-02"),
       };
@@ -65,6 +66,7 @@ describe("ApiKeyService", () => {
         id: "key123",
         keyPrefix: "abcd1234",
         groupId: "group123",
+        actorId: "actor-1",
         createdAt: mockKey.created_at,
         lastUsed: mockKey.last_used,
       });
@@ -72,54 +74,42 @@ describe("ApiKeyService", () => {
   });
 
   describe("generateApiKey", () => {
-    it("should create a new key when none exists for the group", async () => {
-      mockApiKeyDbService.deleteApiKeysByGroupId.mockResolvedValue(undefined);
+    it("should return a key hash, raw key, and prefix", async () => {
+      const result = await service.generateApiKey();
+
+      expect(result.key).toBeDefined();
+      expect(result.key.length).toBeGreaterThan(20);
+      expect(result.keyPrefix).toBe(result.key.substring(0, 8));
+      expect(result.keyHash).toBeDefined();
+    });
+  });
+
+  describe("createApiKey", () => {
+    it("should create a new key for the given user and group", async () => {
       mockApiKeyDbService.createApiKey.mockImplementation(async (data) => ({
         id: "newkey123",
         key_hash: data.key_hash,
         key_prefix: data.key_prefix,
         generating_user_id: data.generating_user_id,
         group_id: data.group_id,
+        actor_id: "actor-1",
         created_at: new Date(),
         last_used: null,
       }));
 
-      const result = await service.generateApiKey("user123", "group123");
+      const result = await service.createApiKey("user123", "group123");
 
       expect(result.id).toBe("newkey123");
       expect(result.key).toBeDefined();
       expect(result.key.length).toBeGreaterThan(20);
       expect(result.keyPrefix).toBe(result.key.substring(0, 8));
       expect(result.groupId).toBe("group123");
-      expect(mockApiKeyDbService.deleteApiKeysByGroupId).toHaveBeenCalledWith(
-        "group123",
-      );
-      expect(mockApiKeyDbService.createApiKey).toHaveBeenCalled();
-    });
-
-    it("should replace existing key and update generating_user_id when group already has a key", async () => {
-      mockApiKeyDbService.deleteApiKeysByGroupId.mockResolvedValue(undefined);
-      mockApiKeyDbService.createApiKey.mockImplementation(async (data) => ({
-        id: "newkey456",
-        key_hash: data.key_hash,
-        key_prefix: data.key_prefix,
-        generating_user_id: data.generating_user_id,
-        group_id: data.group_id,
-        created_at: new Date(),
-        last_used: null,
-      }));
-
-      const result = await service.generateApiKey("newuser456", "group123");
-
-      expect(result.id).toBe("newkey456");
-      expect(result.key).toBeDefined();
-      expect(result.groupId).toBe("group123");
-      // generating_user_id must reflect the new requesting user
+      expect(result.actorId).toBe("actor-1");
       expect(mockApiKeyDbService.createApiKey).toHaveBeenCalledWith(
-        expect.objectContaining({ generating_user_id: "newuser456" }),
-      );
-      expect(mockApiKeyDbService.deleteApiKeysByGroupId).toHaveBeenCalledWith(
-        "group123",
+        expect.objectContaining({
+          generating_user_id: "user123",
+          group_id: "group123",
+        }),
       );
     });
   });
@@ -184,13 +174,14 @@ describe("ApiKeyService", () => {
           key_prefix: "testkey1",
           generating_user_id: "user123",
           group_id: "group-test",
+          actor_id: "actor-key-1",
         },
       ]);
       mockApiKeyDbService.updateApiKeyLastUsed.mockResolvedValue({});
 
       const result = await service.validateApiKey(validKey);
 
-      expect(result).toEqual({ groupId: "group-test" });
+      expect(result).toEqual({ groupId: "group-test", actorId: "actor-key-1" });
       expect(mockApiKeyDbService.findApiKeysByPrefix).toHaveBeenCalledWith(
         "testkey1",
       );

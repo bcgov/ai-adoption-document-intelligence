@@ -171,6 +171,7 @@ export class HitlDatasetService {
   async addVersionFromHitl(
     datasetId: string,
     dto: AddVersionFromHitlDto,
+    actorId: string,
   ): Promise<{ version: VersionResponseDto; skipped: SkippedDocument[] }> {
     this.logger.log(
       `Adding HITL version to dataset ${datasetId} from ${dto.documentIds.length} documents`,
@@ -179,6 +180,7 @@ export class HitlDatasetService {
     return this.packageDocumentsIntoVersion(
       datasetId,
       dto.documentIds,
+      actorId,
       dto.version,
       dto.name,
     );

@@ -523,7 +523,6 @@ describe("HitlDatasetService", () => {
       expect(mockDatasetService.createVersion).toHaveBeenCalledWith(
         "dataset-1",
         { version: undefined, name: undefined },
-        "user-1",
       );
     });
 
@@ -541,7 +540,6 @@ describe("HitlDatasetService", () => {
       expect(mockDatasetService.createVersion).toHaveBeenCalledWith(
         "dataset-1",
         { version: "v2", name: "Second batch" },
-        "user-1",
       );
     });
   });

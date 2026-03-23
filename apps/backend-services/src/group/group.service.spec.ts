@@ -168,7 +168,15 @@ describe("getUserGroups", () => {
     const findUserGroupsWithGroup = jest.fn().mockResolvedValue(mockUserGroups);
     const groupDb = makeGroupDb({ findUserGroupsWithGroup });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    const result = await service.getUserGroups({ userId: "user1" }, "user1");
+    const result = await service.getUserGroups(
+      {
+        userId: "user1",
+        isSystemAdmin: false,
+        groupRoles: {},
+        actorId: "actor-1",
+      },
+      "user1",
+    );
     expect(result).toEqual([
       { id: "g1", name: "Group 1", role: "ADMIN" },
       { id: "g2", name: "Group 2", role: "MEMBER" },
@@ -186,7 +194,15 @@ describe("getUserGroups", () => {
       .mockResolvedValue([activeUserGroup]);
     const groupDb = makeGroupDb({ findUserGroupsWithGroup });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    const result = await service.getUserGroups({ userId: "user1" }, "user1");
+    const result = await service.getUserGroups(
+      {
+        userId: "user1",
+        isSystemAdmin: false,
+        groupRoles: {},
+        actorId: "actor-1",
+      },
+      "user1",
+    );
     expect(result).toEqual([
       { id: "g1", name: "Active Group", role: "MEMBER" },
     ]);
@@ -202,7 +218,12 @@ describe("getUserGroups", () => {
     const groupDb = makeGroupDb({ findUserGroupsWithGroup });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
     const result = await service.getUserGroups(
-      { userId: "admin1", isSystemAdmin: true },
+      {
+        userId: "admin1",
+        isSystemAdmin: true,
+        groupRoles: {},
+        actorId: "actor-1",
+      },
       "user1",
     );
     expect(result).toEqual([{ id: "g1", name: "Group 1", role: "MEMBER" }]);
@@ -225,7 +246,15 @@ describe("getUserGroups", () => {
       findUserGroupsInGroups,
     });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    const result = await service.getUserGroups({ userId: "admin1" }, "user1");
+    const result = await service.getUserGroups(
+      {
+        userId: "admin1",
+        isSystemAdmin: false,
+        groupRoles: {},
+        actorId: "actor-1",
+      },
+      "user1",
+    );
     expect(result).toEqual([{ id: "g1", name: "Group 1", role: "MEMBER" }]);
     expect(findUserAdminMemberships).toHaveBeenCalledWith("admin1");
     expect(findUserGroupsInGroups).toHaveBeenCalledWith("user1", ["g1", "g3"]);
@@ -236,7 +265,15 @@ describe("getUserGroups", () => {
     const groupDb = makeGroupDb({ findUserAdminMemberships });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
     await expect(
-      service.getUserGroups({ userId: "caller1" }, "user1"),
+      service.getUserGroups(
+        {
+          userId: "caller1",
+          isSystemAdmin: false,
+          groupRoles: {},
+          actorId: "actor-1",
+        },
+        "user1",
+      ),
     ).rejects.toThrow(
       "You do not have permission to view another user's group memberships",
     );
@@ -263,7 +300,12 @@ describe("requestMembership", () => {
       createMembershipRequest,
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await svc.requestMembership(userId, groupId);
+    await svc.requestMembership(userId, groupId, {
+      userId,
+      isSystemAdmin: false,
+      groupRoles: {},
+      actorId: "actor-1",
+    });
     expect(createMembershipRequest).toHaveBeenCalledWith(userId, groupId);
   });
 
@@ -272,9 +314,14 @@ describe("requestMembership", () => {
       findGroup: jest.fn().mockResolvedValue(null),
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await expect(svc.requestMembership(userId, groupId)).rejects.toThrow(
-      "Group not found",
-    );
+    await expect(
+      svc.requestMembership(userId, groupId, {
+        userId,
+        isSystemAdmin: false,
+        groupRoles: {},
+        actorId: "actor-1",
+      }),
+    ).rejects.toThrow("Group not found");
   });
 
   it("should throw when user is already a member", async () => {
@@ -287,9 +334,14 @@ describe("requestMembership", () => {
       createMembershipRequest,
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await expect(svc.requestMembership(userId, groupId)).rejects.toThrow(
-      "User is already a member of this group",
-    );
+    await expect(
+      svc.requestMembership(userId, groupId, {
+        userId,
+        isSystemAdmin: false,
+        groupRoles: {},
+        actorId: "actor-1",
+      }),
+    ).rejects.toThrow("User is already a member of this group");
     expect(createMembershipRequest).not.toHaveBeenCalled();
   });
 
@@ -304,7 +356,14 @@ describe("requestMembership", () => {
       createMembershipRequest,
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await expect(svc.requestMembership(userId, groupId)).rejects.toThrow(
+    await expect(
+      svc.requestMembership(userId, groupId, {
+        userId,
+        isSystemAdmin: false,
+        groupRoles: {},
+        actorId: "actor-1",
+      }),
+    ).rejects.toThrow(
       "A pending membership request already exists for this group",
     );
     expect(createMembershipRequest).not.toHaveBeenCalled();
@@ -327,7 +386,7 @@ describe("createGroup", () => {
     const result = await service.createGroup(callerId, "Test Group");
     expect(result).toEqual(mockGroup);
     expect(findGroupByName).toHaveBeenCalledWith("Test Group");
-    expect(createGroup).toHaveBeenCalledWith("Test Group", undefined);
+    expect(createGroup).toHaveBeenCalledWith(callerId, "Test Group", undefined);
   });
 
   it("should include description when provided", async () => {
@@ -348,7 +407,11 @@ describe("createGroup", () => {
       "A test group",
     );
     expect(result).toEqual(mockGroup);
-    expect(createGroup).toHaveBeenCalledWith("Test Group", "A test group");
+    expect(createGroup).toHaveBeenCalledWith(
+      callerId,
+      "Test Group",
+      "A test group",
+    );
   });
 
   it("should throw ConflictException if group name already exists", async () => {
@@ -514,12 +577,14 @@ describe("approveMembershipRequest", () => {
     userId: adminId,
     isSystemAdmin: false,
     groupRoles: { [pendingRequest.group_id]: GroupRole.ADMIN },
+    actorId: "actor-1",
   };
 
   const systemAdminIdentity: ResolvedIdentity = {
     userId: adminId,
     isSystemAdmin: true,
     groupRoles: {},
+    actorId: "actor-1",
   };
 
   it("should call approveRequestTransaction with correct args", async () => {
@@ -621,6 +686,7 @@ describe("approveMembershipRequest", () => {
       userId: adminId,
       isSystemAdmin: false,
       groupRoles: { [pendingRequest.group_id]: GroupRole.MEMBER },
+      actorId: "actor-1",
     };
     const groupDb = makeGroupDb({
       findMembershipRequest: jest.fn().mockResolvedValue(pendingRequest),
@@ -636,6 +702,7 @@ describe("approveMembershipRequest", () => {
       userId: adminId,
       isSystemAdmin: false,
       groupRoles: {},
+      actorId: "actor-1",
     };
     const groupDb = makeGroupDb({
       findMembershipRequest: jest.fn().mockResolvedValue(pendingRequest),
@@ -665,12 +732,14 @@ describe("denyMembershipRequest", () => {
     userId: adminId,
     isSystemAdmin: false,
     groupRoles: { [pendingRequest.group_id]: GroupRole.ADMIN },
+    actorId: "actor-1",
   };
 
   const systemAdminIdentity: ResolvedIdentity = {
     userId: adminId,
     isSystemAdmin: true,
     groupRoles: {},
+    actorId: "actor-1",
   };
 
   it("should update the request to DENIED with actor_id, resolved_at, and updated_by", async () => {
@@ -768,6 +837,7 @@ describe("denyMembershipRequest", () => {
       userId: adminId,
       isSystemAdmin: false,
       groupRoles: { [pendingRequest.group_id]: GroupRole.MEMBER },
+      actorId: "actor-1",
     };
     const groupDb = makeGroupDb({
       findMembershipRequest: jest.fn().mockResolvedValue(pendingRequest),
@@ -783,6 +853,7 @@ describe("denyMembershipRequest", () => {
       userId: adminId,
       isSystemAdmin: false,
       groupRoles: {},
+      actorId: "actor-1",
     };
     const groupDb = makeGroupDb({
       findMembershipRequest: jest.fn().mockResolvedValue(pendingRequest),

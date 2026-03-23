@@ -11,7 +11,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import * as request from "supertest";
 import { Identity } from "@/auth/identity.decorator";
 import { ApiKeyService } from "../actor/api-key.service";
-import { GroupService } from "../group/group.service";
+import { UserService } from "../actor/user.service";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
 import { CsrfGuard } from "./csrf.guard";
 import { IdentityGuard } from "./identity.guard";
@@ -139,9 +139,12 @@ describe("Guard Composition Integration", () => {
     validateApiKey: jest.fn(),
   };
 
-  const mockGroupService = {
-    isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    findUsersGroups: jest.fn().mockResolvedValue([]),
+  const mockUserService = {
+    getUserWithGroups: jest.fn().mockResolvedValue({
+      userGroups: [],
+      is_system_admin: false,
+      actor_id: "actor-1",
+    }),
   };
 
   beforeAll(async () => {
@@ -154,7 +157,7 @@ describe("Guard Composition Integration", () => {
         { provide: APP_GUARD, useClass: IdentityGuard },
         { provide: APP_GUARD, useClass: CsrfGuard },
         { provide: ApiKeyService, useValue: mockApiKeyService },
-        { provide: GroupService, useValue: mockGroupService },
+        { provide: UserService, useValue: mockUserService },
       ],
     }).compile();
 
@@ -178,8 +181,11 @@ describe("Guard Composition Integration", () => {
       },
     );
 
-    mockGroupService.isUserSystemAdmin.mockResolvedValue(false);
-    mockGroupService.findUsersGroups.mockResolvedValue([]);
+    mockUserService.getUserWithGroups.mockResolvedValue({
+      userGroups: [],
+      is_system_admin: false,
+      actor_id: "actor-1",
+    });
   });
 
   // =========================================================================

@@ -94,10 +94,20 @@ describe("GroupController", () => {
     it("should call service with userId from JWT sub and groupId from body", async () => {
       const sub = "jwt-user-id";
       const body: RequestMembershipDto = { groupId: "group1" };
+      const resolvedIdentity = {
+        userId: sub,
+        isSystemAdmin: false,
+        groupRoles: {},
+        actorId: sub,
+      };
       jest.spyOn(service, "requestMembership").mockResolvedValueOnce();
-      const req = { user: { sub } } as any;
+      const req = { user: { sub }, resolvedIdentity } as any;
       const result = await controller.requestMembership(req, body);
-      expect(service.requestMembership).toHaveBeenCalledWith(sub, body.groupId);
+      expect(service.requestMembership).toHaveBeenCalledWith(
+        sub,
+        body.groupId,
+        resolvedIdentity,
+      );
       expect(result).toEqual({ success: true });
     });
   });

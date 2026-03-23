@@ -152,7 +152,9 @@ describe("ApiKeyAuthGuard", () => {
 
     expect(result).toBe(true);
     expect(mockRequest.user).toBeUndefined();
-    expect(mockRequest.apiKeyGroupId).toBe("group-abc");
+    expect((mockRequest.apiKey as { groupId: string }).groupId).toBe(
+      "group-abc",
+    );
   });
 
   describe("failed-attempt throttling", () => {

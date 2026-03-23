@@ -135,6 +135,10 @@ export class HitlDatasetController {
     const dataset = await this.datasetService.getDatasetById(datasetId);
     identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
 
-    return this.hitlDatasetService.addVersionFromHitl(datasetId, dto);
+    return this.hitlDatasetService.addVersionFromHitl(
+      datasetId,
+      dto,
+      req.user?.sub || req.resolvedIdentity?.userId || "anonymous",
+    );
   }
 }

@@ -31,7 +31,7 @@ const mockWorkflowInfo: WorkflowInfo = {
   id: "wf-1",
   name: "Test Workflow",
   description: "Description",
-  userId: "user-1",
+  actorId: "user-1",
   groupId: "group-1",
   config: mockGraphConfig,
   schemaVersion: "1.0",

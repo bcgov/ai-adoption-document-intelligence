@@ -81,7 +81,6 @@ describe("GroundTruthGenerationController", () => {
         datasetId,
         versionId,
         "wf-config-1",
-        "user-1",
       );
       expect(result).toEqual(expected);
     });
@@ -107,7 +106,6 @@ describe("GroundTruthGenerationController", () => {
         datasetId,
         versionId,
         "wf-1",
-        "anonymous",
       );
     });
   });
