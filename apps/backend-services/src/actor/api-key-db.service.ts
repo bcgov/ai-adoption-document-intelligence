@@ -21,7 +21,7 @@ export interface UpdateApiKeyData {
  */
 @Injectable()
 export class ApiKeyDbService {
-  constructor(private readonly prismaService: PrismaService) { }
+  constructor(private readonly prismaService: PrismaService) {}
 
   private get prisma(): PrismaClient {
     return this.prismaService.prisma;
@@ -84,10 +84,10 @@ export class ApiKeyDbService {
       return await tx.apiKey.create({
         data: {
           ...data,
-          actor_id: actor.id
-        }
+          actor_id: actor.id,
+        },
       });
-    }
+    };
     return tx
       ? await apiKeyHelper(tx)
       : await this.prisma.$transaction(async (tx) => await apiKeyHelper(tx));
@@ -95,16 +95,17 @@ export class ApiKeyDbService {
 
   async updateApiKey(
     data: UpdateApiKeyData,
-    tx?: Prisma.TransactionClient
+    tx?: Prisma.TransactionClient,
   ): Promise<ApiKey> {
     const client = tx ?? this.prisma;
     return client.apiKey.update({
-      where: { group_id: data.group_id }, data: {
+      where: { group_id: data.group_id },
+      data: {
         generating_user_id: data.generating_user_id,
         key_hash: data.key_hash,
         key_prefix: data.key_prefix,
-      }
-    })
+      },
+    });
   }
 
   /**
@@ -131,11 +132,15 @@ export class ApiKeyDbService {
     tx?: Prisma.TransactionClient,
   ): Promise<ApiKey> {
     const deleteKeyHelper = async (tx: Prisma.TransactionClient) => {
-      const existingKey = await this.prisma.apiKey.findFirstOrThrow({ where: { id: id } })
-      const actor = await this.prisma.actor.findFirstOrThrow({ where: { id: existingKey.actor_id } })
+      const existingKey = await this.prisma.apiKey.findFirstOrThrow({
+        where: { id: id },
+      });
+      const actor = await this.prisma.actor.findFirstOrThrow({
+        where: { id: existingKey.actor_id },
+      });
       await tx.actor.delete({ where: { id: actor.id } });
       return tx.apiKey.delete({ where: { id } });
-    }
+    };
     return tx
       ? await deleteKeyHelper(tx)
       : await this.prisma.$transaction(async (tx) => await deleteKeyHelper(tx));

@@ -155,7 +155,11 @@ export class GroupService {
    * @param userId - The ID of the requesting user (from JWT sub claim).
    * @param groupId - The ID of the group to request membership for.
    */
-  async requestMembership(userId: string, groupId: string): Promise<void> {
+  async requestMembership(
+    userId: string,
+    groupId: string,
+    identity: ResolvedIdentity,
+  ): Promise<void> {
     const group = await this.groupDb.findGroup(groupId);
     if (!group) {
       throw new NotFoundException("Group not found");
@@ -184,7 +188,7 @@ export class GroupService {
       event_type: "membership_request_created",
       resource_type: "group_membership_request",
       resource_id: created.id,
-      actor_id: userId,
+      actor_id: identity.actorId,
       group_id: groupId,
       payload: { user_id: userId, group_id: groupId },
     });
@@ -387,7 +391,7 @@ export class GroupService {
       throw new ConflictException("Group with this name already exists");
     }
 
-    const group = await this.groupDb.createGroup(name, description);
+    const group = await this.groupDb.createGroup(callerId, name, description);
     await this.auditService.recordEvent({
       event_type: "group_created",
       resource_type: "group",

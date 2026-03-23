@@ -37,7 +37,7 @@ export class ReviewDbService {
     const session = await client.reviewSession.create({
       data: {
         document_id: documentId,
-        reviewer_id: reviewerId,
+        actor_id: reviewerId,
         status: ReviewStatus.in_progress,
       },
       include: {
@@ -272,7 +272,7 @@ export class ReviewDbService {
       if (filters.endDate) where.started_at.lte = filters.endDate;
     }
     if (filters.reviewerId) {
-      where.reviewer_id = filters.reviewerId;
+      where.actor_id = filters.reviewerId;
     }
     if (filters.groupIds) {
       where.document = { group_id: { in: filters.groupIds } };

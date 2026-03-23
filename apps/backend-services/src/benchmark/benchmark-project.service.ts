@@ -36,7 +36,7 @@ export class BenchmarkProjectService {
    */
   async createProject(
     dto: CreateProjectDto,
-    userId: string,
+    actorId: string,
   ): Promise<ProjectDetailsDto> {
     this.logger.log(`Creating benchmark project: ${dto.name}`);
 
@@ -44,7 +44,7 @@ export class BenchmarkProjectService {
       const project = await this.projectDbService.createBenchmarkProject({
         name: dto.name,
         description: dto.description || null,
-        createdBy: userId,
+        createdBy: actorId,
         group_id: dto.groupId,
       });
 

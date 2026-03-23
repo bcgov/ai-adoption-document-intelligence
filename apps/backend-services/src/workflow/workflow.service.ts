@@ -12,7 +12,7 @@ export interface WorkflowInfo {
   id: string;
   name: string;
   description: string | null;
-  userId: string;
+  actorId: string;
   groupId: string;
   config: GraphWorkflowConfig;
   schemaVersion: string;
@@ -82,9 +82,9 @@ export class WorkflowService {
     return oldStr !== newStr;
   }
 
-  async getUserWorkflows(userId: string): Promise<WorkflowInfo[]> {
+  async getUserWorkflows(actorId: string): Promise<WorkflowInfo[]> {
     const workflows = await this.prisma.workflow.findMany({
-      where: { user_id: userId },
+      where: { actor_id: actorId },
       orderBy: { created_at: "desc" },
     });
 
@@ -92,7 +92,7 @@ export class WorkflowService {
       id: w.id,
       name: w.name,
       description: w.description,
-      userId: w.user_id,
+      actorId: w.actor_id,
       groupId: w.group_id,
       config: this.asGraphConfig(w.config),
       schemaVersion: this.asGraphConfig(w.config).schemaVersion,
@@ -117,7 +117,7 @@ export class WorkflowService {
       id: w.id,
       name: w.name,
       description: w.description,
-      userId: w.user_id,
+      actorId: w.actor_id,
       groupId: w.group_id,
       config: this.asGraphConfig(w.config),
       schemaVersion: this.asGraphConfig(w.config).schemaVersion,
@@ -144,7 +144,7 @@ export class WorkflowService {
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
-      userId: workflow.user_id,
+      actorId: workflow.actor_id,
       groupId: workflow.group_id,
       config: this.asGraphConfig(workflow.config),
       schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
@@ -174,7 +174,7 @@ export class WorkflowService {
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
-      userId: workflow.user_id,
+      actorId: workflow.actor_id,
       groupId: workflow.group_id,
       config: this.asGraphConfig(workflow.config),
       schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
@@ -185,7 +185,7 @@ export class WorkflowService {
   }
 
   async createWorkflow(
-    userId: string,
+    actorId: string,
     dto: CreateWorkflowDto,
   ): Promise<WorkflowInfo> {
     // Validate workflow configuration
@@ -201,19 +201,19 @@ export class WorkflowService {
       data: {
         name: dto.name,
         description: dto.description || null,
-        user_id: userId,
+        actor_id: actorId,
         config: dto.config as object,
         group_id: dto.groupId,
       },
     });
 
-    this.logger.log(`Workflow created: ${workflow.id} by user ${userId}`);
+    this.logger.log(`Workflow created: ${workflow.id} by user ${actorId}`);
 
     return {
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
-      userId: workflow.user_id,
+      actorId: workflow.actor_id,
       groupId: workflow.group_id,
       config: this.asGraphConfig(workflow.config),
       schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,
@@ -302,7 +302,7 @@ export class WorkflowService {
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
-      userId: workflow.user_id,
+      actorId: workflow.actor_id,
       groupId: workflow.group_id,
       config: this.asGraphConfig(workflow.config),
       schemaVersion: this.asGraphConfig(workflow.config).schemaVersion,

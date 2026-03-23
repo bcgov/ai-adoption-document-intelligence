@@ -1,23 +1,27 @@
-import type { PrismaClient, Prisma } from "@generated/client";
+import type { Prisma, PrismaClient } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 
-
 @Injectable()
 export class UserDbService {
-  constructor(private readonly prismaService: PrismaService) { }
+  constructor(private readonly prismaService: PrismaService) {}
 
   private get prisma(): PrismaClient {
     return this.prismaService.prisma;
   }
 
-  async getUser(sub: string, includeGroups: boolean = false, tx?: Prisma.TransactionClient) {
+  async getUser(
+    sub: string,
+    includeGroups: boolean = false,
+    tx?: Prisma.TransactionClient,
+  ) {
     const client = tx ?? this.prisma;
     return await client.user.findUnique({
-      where: { id: sub }, include: {
+      where: { id: sub },
+      include: {
         userGroups: includeGroups,
-      }
-    })
+      },
+    });
   }
 
   async upsertUser(sub: string, email: string, tx?: Prisma.TransactionClient) {
@@ -28,12 +32,13 @@ export class UserDbService {
     if (existingUser != null) {
       return await client.user.update({
         where: {
-          id: sub
-        }, data: {
+          id: sub,
+        },
+        data: {
           email,
           last_login_at: lastLogin,
-        }
-      })
+        },
+      });
     }
     const userHelper = async (tx: Prisma.TransactionClient) => {
       const actor = await tx.actor.create({});
@@ -42,10 +47,10 @@ export class UserDbService {
           id: sub,
           email,
           last_login_at: lastLogin,
-          actor_id: actor.id
-        }
+          actor_id: actor.id,
+        },
       });
-    }
+    };
     return tx
       ? await userHelper(tx)
       : await this.prisma.$transaction(async (tx) => await userHelper(tx));

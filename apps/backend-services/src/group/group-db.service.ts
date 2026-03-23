@@ -92,13 +92,18 @@ export class GroupDbService {
    * @param description - Optional description.
    */
   async createGroup(
+    created_by_id: string,
     name: string,
     description?: string,
     tx?: Prisma.TransactionClient,
   ): Promise<{ id: string; name: string; description: string | null }> {
     const client = tx ?? this.prisma;
     return client.group.create({
-      data: { name, ...(description !== undefined ? { description } : {}) },
+      data: {
+        created_by: created_by_id,
+        name,
+        ...(description !== undefined ? { description } : {}),
+      },
       select: { id: true, name: true, description: true },
     });
   }

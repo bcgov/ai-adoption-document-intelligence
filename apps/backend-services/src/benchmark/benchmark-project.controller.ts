@@ -72,11 +72,14 @@ export class BenchmarkProjectController {
       `POST /api/benchmark/projects - name: ${createProjectDto.name}`,
     );
 
-    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
+    const actorId = req.resolvedIdentity.actorId;
 
     identityCanAccessGroup(req.resolvedIdentity, createProjectDto.groupId);
 
-    return this.benchmarkProjectService.createProject(createProjectDto, userId);
+    return this.benchmarkProjectService.createProject(
+      createProjectDto,
+      actorId,
+    );
   }
 
   @Get()

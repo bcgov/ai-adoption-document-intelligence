@@ -201,7 +201,7 @@ export class HitlService {
     return {
       id: session.id,
       documentId: session.document_id,
-      reviewerId: session.reviewer_id,
+      reviewerId: session.actor_id,
       status: session.status,
       startedAt: session.started_at,
       document: {
@@ -264,7 +264,7 @@ export class HitlService {
     return {
       id: session.id,
       documentId: session.document_id,
-      reviewerId: session.reviewer_id,
+      reviewerId: session.actor_id,
       status: session.status,
       startedAt: session.started_at,
       completedAt: session.completed_at,

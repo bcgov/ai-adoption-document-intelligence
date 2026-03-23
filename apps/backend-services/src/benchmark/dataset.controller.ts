@@ -100,11 +100,11 @@ export class DatasetController {
     @Body() createDto: CreateDatasetDto,
     @Req() req: Request,
   ): Promise<DatasetResponseDto> {
-    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
+    const actorId = req.resolvedIdentity.actorId;
 
     await identityCanAccessGroup(req.resolvedIdentity, createDto.groupId);
 
-    return this.datasetService.createDataset(createDto, userId);
+    return this.datasetService.createDataset(createDto, actorId);
   }
 
   @Get()
@@ -245,8 +245,6 @@ export class DatasetController {
   ): Promise<UploadResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
 
-    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
-
     if (!files || files.length === 0) {
       throw new BadRequestException("No files provided for upload");
     }
@@ -260,12 +258,7 @@ export class DatasetController {
       }
     }
 
-    return this.datasetService.uploadFilesToVersion(
-      id,
-      versionId,
-      files,
-      userId,
-    );
+    return this.datasetService.uploadFilesToVersion(id, versionId, files);
   }
 
   @Post(":id/versions")
@@ -295,10 +288,7 @@ export class DatasetController {
     @Req() req: Request,
   ): Promise<VersionResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
-
-    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
-
-    return this.datasetService.createVersion(id, createDto, userId);
+    return this.datasetService.createVersion(id, createDto);
   }
 
   @Get(":id/versions")

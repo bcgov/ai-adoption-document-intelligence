@@ -7,10 +7,10 @@ import {
 import { ConfigService } from "@nestjs/config";
 import * as client from "openid-client";
 import { URL } from "url";
+import { UserService } from "@/actor/user.service";
 import { TokenClaims, TokenResponseDto } from "@/auth/dto/token-response.dto";
 import { PrismaService } from "../database/prisma.service";
 import { AppLoggerService } from "../logging/app-logger.service";
-import { UserService } from "@/actor/user.service";
 
 /**
  * Result returned by getLoginUrl(), containing the Keycloak authorization URL
@@ -256,6 +256,6 @@ export class AuthService implements OnModuleInit {
         HttpStatus.BAD_REQUEST,
       );
     }
-    await this.userService.upsertUser(sub, email)
+    await this.userService.upsertUser(sub, email);
   }
 }

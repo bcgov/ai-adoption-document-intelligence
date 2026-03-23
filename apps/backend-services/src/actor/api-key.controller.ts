@@ -91,10 +91,7 @@ export class ApiKeyController {
       );
     }
     identityCanAccessGroup(req.resolvedIdentity, body.groupId, GroupRole.ADMIN);
-    const apiKey = await this.apiKeyService.createApiKey(
-      userId,
-      body.groupId,
-    );
+    const apiKey = await this.apiKeyService.createApiKey(userId, body.groupId);
     return { apiKey };
   }
 

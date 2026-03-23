@@ -13,7 +13,7 @@ export class ApiKeyService {
   constructor(
     private readonly apiKeyDb: ApiKeyDbService,
     private readonly logger: AppLoggerService,
-  ) { }
+  ) {}
 
   async getApiKey(groupId: string): Promise<ApiKeyInfoDto | null> {
     const apiKey = await this.apiKeyDb.findApiKeyByGroupId(groupId);
@@ -28,7 +28,7 @@ export class ApiKeyService {
       groupId: apiKey.group_id,
       createdAt: apiKey.created_at,
       lastUsed: apiKey.last_used,
-      actorId: apiKey.actor_id
+      actorId: apiKey.actor_id,
     };
   }
 
@@ -47,9 +47,7 @@ export class ApiKeyService {
     return apiKey.group_id;
   }
 
-  async generateApiKey(
-
-  ) {
+  async generateApiKey() {
     // Generate a secure random key
     const key = crypto.randomBytes(32).toString("base64url");
     const keyPrefix = key.substring(0, 8);
@@ -59,8 +57,10 @@ export class ApiKeyService {
     return { keyHash, key, keyPrefix };
   }
 
-  async createApiKey(userId: string,
-    groupId: string): Promise<GeneratedApiKeyDto> {
+  async createApiKey(
+    userId: string,
+    groupId: string,
+  ): Promise<GeneratedApiKeyDto> {
     const { key, keyHash, keyPrefix } = await this.generateApiKey();
     const apiKey = await this.apiKeyDb.createApiKey({
       key_hash: keyHash,
@@ -97,9 +97,11 @@ export class ApiKeyService {
     const groupId = await this.getApiKeyGroupId(keyId);
     const { key, keyHash, keyPrefix } = await this.generateApiKey();
     const apiKey = await this.apiKeyDb.updateApiKey({
-      key_hash: keyHash, key_prefix: keyPrefix, group_id: groupId, generating_user_id:
-        userId,
-    })
+      key_hash: keyHash,
+      key_prefix: keyPrefix,
+      group_id: groupId,
+      generating_user_id: userId,
+    });
 
     this.logger.log(`API key generated for user ${userId} in group ${groupId}`);
 
@@ -112,10 +114,11 @@ export class ApiKeyService {
       lastUsed: apiKey.last_used,
       actorId: apiKey.actor_id,
     };
-
   }
 
-  async validateApiKey(key: string): Promise<{ groupId: string, actorId: string } | null> {
+  async validateApiKey(
+    key: string,
+  ): Promise<{ groupId: string; actorId: string } | null> {
     // Extract prefix from the incoming key for indexed lookup
     const prefix = key.substring(0, 8);
 

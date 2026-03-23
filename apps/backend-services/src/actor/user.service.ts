@@ -9,11 +9,11 @@ export class UserService {
     private readonly userDbService: UserDbService,
   ) {}
 
-  async getUserWithGroups(sub: string){
+  async getUserWithGroups(sub: string) {
     return await this.userDbService.getUser(sub, true);
   }
 
-  async upsertUser(sub: string, email: string){
+  async upsertUser(sub: string, email: string) {
     return await this.userDbService.upsertUser(sub, email);
   }
 }

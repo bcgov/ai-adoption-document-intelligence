@@ -8,7 +8,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 
 export interface CreateAuditLogData {
-  userId: string;
+  actorId: string;
   action: AuditAction;
   entityType: string;
   entityId: string;
@@ -45,7 +45,7 @@ export class AuditLogDbService {
     const client = tx ?? this.prisma;
     return client.benchmarkAuditLog.create({
       data: {
-        userId: data.userId,
+        actor_id: data.actorId,
         action: data.action,
         entityType: data.entityType,
         entityId: data.entityId,

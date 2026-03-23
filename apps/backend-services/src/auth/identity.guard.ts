@@ -9,11 +9,11 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
+import { ApiKeyService } from "@/actor/api-key.service";
+import { UserService } from "@/actor/user.service";
 import { GroupService } from "../group/group.service";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
 import { ROLE_ORDER } from "./role-order";
-import { UserService } from "@/actor/user.service";
-import { ApiKeyService } from "@/actor/api-key.service";
 
 export { ROLE_ORDER };
 
@@ -48,7 +48,6 @@ export class IdentityGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private userService: UserService,
-    private apiKeyService: ApiKeyService,
   ) {}
 
   /**
@@ -79,13 +78,13 @@ export class IdentityGuard implements CanActivate {
             "API key authentication is not allowed for this endpoint",
           );
         }
-        const {groupId, actorId} = request.apiKey;
+        const { groupId, actorId } = request.apiKey;
         // @Identity is present and allowApiKey is true: enrich with isSystemAdmin and groupRoles.
         // No database queries required; the key is group-scoped.
         request.resolvedIdentity = {
           isSystemAdmin: false,
           groupRoles: { [groupId]: GroupRole.MEMBER },
-          actorId: actorId
+          actorId: actorId,
         };
       } else {
         // Api-key was not explicity allowed. It is denied by default.
@@ -106,7 +105,7 @@ export class IdentityGuard implements CanActivate {
         userId,
         isSystemAdmin: userWithGroups.is_system_admin,
         groupRoles,
-        actorId: userWithGroups.actor_id
+        actorId: userWithGroups.actor_id,
       };
     } else {
       // else: public route or unauthenticated request

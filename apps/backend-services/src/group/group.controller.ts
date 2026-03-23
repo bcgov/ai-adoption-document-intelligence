@@ -121,7 +121,11 @@ export class GroupController {
     @Body() body: RequestMembershipDto,
   ): Promise<{ success: boolean }> {
     const userId = req.user?.sub;
-    await this.groupService.requestMembership(userId, body.groupId);
+    await this.groupService.requestMembership(
+      userId,
+      body.groupId,
+      req.resolvedIdentity,
+    );
     return { success: true };
   }
 
