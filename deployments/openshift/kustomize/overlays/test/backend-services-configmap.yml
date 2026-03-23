@@ -5,7 +5,7 @@ metadata:
 data:
   FRONTEND_URL: "https://frontend-fd34fb-test.apps.silver.devops.gov.bc.ca"
   BACKEND_URL: "https://backend-services-fd34fb-test.apps.silver.devops.gov.bc.ca"
-  SSO_REDIRECT_URI: "https://backend-services-fd34fb-test.apps.silver.devops.gov.bc.ca/api/auth/callback"
+  SSO_REDIRECT_URI: "https://frontend-fd34fb-test.apps.silver.devops.gov.bc.ca/api/auth/callback"
   SSO_AUTH_SERVER_URL: "https://test.loginproxy.gov.bc.ca/auth/realms/standard/protocol/openid-connect"
   SSO_REALM: "standard"
   SSO_CLIENT_ID: "ai-adoption-document-intelligence-6162"
