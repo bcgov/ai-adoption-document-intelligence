@@ -4,6 +4,9 @@
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
+// TODO: Standardize created_by/creator and updated_by/updator columns.
+// TODO: Standardize case formatting. Decide between snake_case (bcgov recommended) or camelCase (prisma recommended).
+
 generator client {
   provider = "prisma-client-js"
   // Output path will be specified per-app via prisma generate command
@@ -104,18 +107,11 @@ model User {
   actor           Actor     @relation(fields: [actor_id], references: [id])
 
   apiKeys                   ApiKey[]
-  workflows                 Workflow[]
-  labelingProjects          LabelingProject[]
-  createdClassifierModels   ClassifierModel[]        @relation(name: "CreatedUser")
-  updatedClassifierModels   ClassifierModel[]        @relation(name: "UpdatedUser")
   userGroups                UserGroup[]
   membershipRequests        GroupMembershipRequest[] @relation(name: "MembershipRequestUser")
   actedMembershipRequests   GroupMembershipRequest[] @relation(name: "MembershipRequestActor")
   createdMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestCreatedBy")
   updatedMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestUpdatedBy")
-  createdGroups             Group[]                  @relation(name: "GroupCreatedBy")
-  updatedGroups             Group[]                  @relation(name: "GroupUpdatedBy")
-  deletedGroups             Group[]                  @relation(name: "GroupDeletedBy")
 
   @@map("user")
 }
@@ -124,14 +120,26 @@ model Actor {
   id     String  @id @default(cuid())
   apiKey ApiKey?
   user   User?
+
+  workflows               Workflow[]
+  labelingProjects        LabelingProject[]
+  classifierModelsCreated ClassifierModel[]   @relation(name: "ClassifierCreatedByActor")
+  classifierModelsUpdated ClassifierModel[]   @relation(name: "ClassifierUpdatedByActor")
+  createdGroups           Group[]             @relation(name: "GroupCreatedBy")
+  updatedGroups           Group[]             @relation(name: "GroupUpdatedBy")
+  deletedGroups           Group[]             @relation(name: "GroupDeletedBy")
+  reviewSessions          ReviewSession[]
+  datasets                Dataset[]
+  benchmarkProjects       BenchmarkProject[]
+  benchmarkAuditLogs      BenchmarkAuditLog[]
 }
 
 model Workflow {
   id                   String                @id @default(cuid())
   name                 String
   description          String?
-  user_id              String
-  user                 User                  @relation(fields: [user_id], references: [id])
+  actor_id             String
+  actor                Actor                 @relation(fields: [actor_id], references: [id])
   config               Json // GraphWorkflowConfig stored as JSON
   version              Int                   @default(1)
   created_at           DateTime              @default(now())
@@ -151,7 +159,7 @@ model LabelingProject {
   name           String
   description    String?
   created_by     String
-  user           User?             @relation(fields: [created_by], references: [id])
+  creator        Actor             @relation(fields: [created_by], references: [id])
   created_at     DateTime          @default(now())
   updated_at     DateTime          @updatedAt
   status         ProjectStatus     @default(active)
@@ -258,8 +266,8 @@ model ClassifierModel {
   description        String
   created_by         String
   updated_by         String
-  createduser        User?            @relation(name: "CreatedUser", fields: [created_by], references: [id])
-  updateduser        User?            @relation(name: "UpdatedUser", fields: [updated_by], references: [id])
+  creator            Actor            @relation(name: "ClassifierCreatedByActor", fields: [created_by], references: [id])
+  updator            Actor            @relation(name: "ClassifierUpdatedByActor", fields: [updated_by], references: [id])
   group_id           String
   group              Group            @relation(fields: [group_id], references: [id])
   config             Json
@@ -280,15 +288,15 @@ model Group {
   id                  String                   @id @default(cuid())
   name                String                   @unique
   description         String?
-  created_by          String?
+  created_by          String
   created_at          DateTime                 @default(now())
   updated_by          String?
   updated_at          DateTime                 @updatedAt
   deleted_at          DateTime?
   deleted_by          String?
-  creator             User?                    @relation(name: "GroupCreatedBy", fields: [created_by], references: [id])
-  updator             User?                    @relation(name: "GroupUpdatedBy", fields: [updated_by], references: [id])
-  deleter             User?                    @relation(name: "GroupDeletedBy", fields: [deleted_by], references: [id])
+  creator             Actor                    @relation(name: "GroupCreatedBy", fields: [created_by], references: [id])
+  updator             Actor?                   @relation(name: "GroupUpdatedBy", fields: [updated_by], references: [id])
+  deleter             Actor?                   @relation(name: "GroupDeletedBy", fields: [deleted_by], references: [id])
   classifier_models   ClassifierModel[]
   user_groups         UserGroup[]
   membership_requests GroupMembershipRequest[]
@@ -340,6 +348,7 @@ model GroupMembershipRequest {
 
 // ========== AUDIT ==========
 
+// TODO: Should these have references to the other tables?
 model AuditEvent {
   id                    String   @id @default(cuid())
   occurred_at           DateTime @default(now())
@@ -368,7 +377,8 @@ model ReviewSession {
   id           String            @id @default(cuid())
   document_id  String
   document     Document          @relation(fields: [document_id], references: [id], onDelete: Cascade)
-  reviewer_id  String
+  actor_id     String
+  actor        Actor             @relation(fields: [actor_id], references: [id])
   status       ReviewStatus      @default(in_progress)
   started_at   DateTime          @default(now())
   completed_at DateTime?
@@ -392,7 +402,7 @@ model FieldCorrection {
 }
 
 // ========== ENUMS ==========
-
+// TODO: Standarize these enums as constant casing
 enum ProjectStatus {
   active
   archived
@@ -463,6 +473,7 @@ model Dataset {
   metadata    Json             @default("{}")
   storagePath String           @default("")
   createdBy   String
+  creator     Actor            @relation(fields: [createdBy], references: [id])
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   group_id    String
@@ -474,6 +485,7 @@ model Dataset {
   @@map("datasets")
 }
 
+// TODO: Does this need created/updated info?
 model DatasetVersion {
   id                   String                  @id @default(uuid())
   datasetId            String
@@ -494,6 +506,7 @@ model DatasetVersion {
   @@map("dataset_versions")
 }
 
+// TODO: Does this need created/updated info?
 model Split {
   id                   String                @id @default(uuid())
   datasetVersionId     String
@@ -510,11 +523,13 @@ model Split {
   @@map("splits")
 }
 
+// TODO: No updated by?
 model BenchmarkProject {
   id                   String                @id @default(uuid())
   name                 String
   description          String?
   createdBy            String
+  creator              Actor                 @relation(fields: [createdBy], references: [id])
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   group_id             String
@@ -547,8 +562,8 @@ model BenchmarkDefinition {
   scheduleEnabled    Boolean          @default(false)
   scheduleCron       String?
   scheduleId         String?          @unique
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  createdAt          DateTime         @default(now()) // TODO: created_by?
+  updatedAt          DateTime         @updatedAt // TODO: updated_by?
   benchmarkRuns      BenchmarkRun[]
 
   @@index([projectId])
@@ -577,7 +592,7 @@ model BenchmarkRun {
   isBaseline         Boolean             @default(false)
   baselineThresholds Json?
   baselineComparison Json?
-  createdAt          DateTime            @default(now())
+  createdAt          DateTime            @default(now()) // TODO:  created_by
 
   @@index([definitionId])
   @@index([projectId])
@@ -587,14 +602,15 @@ model BenchmarkRun {
 model BenchmarkAuditLog {
   id         String      @id @default(uuid())
   timestamp  DateTime    @default(now())
-  userId     String
+  actor_id   String
+  actor      Actor       @relation(fields: [actor_id], references: [id])
   action     AuditAction
   entityType String
   entityId   String
   metadata   Json?
 
   @@index([timestamp])
-  @@index([userId])
+  @@index([actor_id])
   @@index([entityType, entityId])
   @@map("benchmark_audit_logs")
 }
@@ -648,6 +664,7 @@ model DatasetGroundTruthJob {
   error              String?
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
+  // TODO: created_by and updated_by?
 
   @@index([datasetVersionId])
   @@index([documentId])
