@@ -6,6 +6,7 @@ Deploy a fully isolated application stack (frontend, backend, Temporal server/wo
 
 - `--env <dev|prod>` (required) — Environment profile
 - `--instance <name>` (optional) — Instance name override (default: derived from git branch)
+- `--image-tag <tag>` (optional) — Image tag override (default: derived from git branch). Use to deploy images built from a different branch.
 - `--build-local` (optional) — Build images locally with Docker instead of GitHub Actions
 - `--rebuild` (optional) — Force rebuild even if images exist in registry
 
@@ -23,7 +24,7 @@ Deploy a fully isolated application stack (frontend, backend, Temporal server/wo
 
 4. **Run deployment**:
    ```bash
-   ./scripts/oc-deploy.sh --env <env> [--instance <name>] [--build-local] [--rebuild]
+   ./scripts/oc-deploy.sh --env <env> [--instance <name>] [--image-tag <tag>] [--build-local] [--rebuild]
    ```
 
 4. **Report results**: Show the deployment output including access URLs for frontend, backend, and Temporal UI.
@@ -42,6 +43,9 @@ Deploy a fully isolated application stack (frontend, backend, Temporal server/wo
 
 # Force rebuild and deploy
 ./scripts/oc-deploy.sh --env dev --rebuild
+
+# Deploy from a different branch using images built on another branch
+./scripts/oc-deploy.sh --env prod --instance bcgov-di --image-tag template-training-enhacements
 ```
 
 ## Common Pitfalls

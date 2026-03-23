@@ -42,6 +42,7 @@ Deploys the full application stack as an isolated instance on OpenShift.
 Options:
   --env, -e         Environment profile: dev or prod (required)
   --instance, -i    Instance name override (default: derived from git branch)
+  --image-tag, -t   Image tag override (default: derived from git branch)
   --build-local     Build and push images locally with Docker instead of via GitHub Actions
   --rebuild         Force rebuild of images even if they already exist in the registry
   --help, -h        Show this help message
@@ -67,6 +68,7 @@ log_step() {
 
 ENV_PROFILE=""
 INSTANCE_OVERRIDE=""
+IMAGE_TAG_OVERRIDE=""
 BUILD_LOCAL=false
 FORCE_REBUILD=false
 PASS_THROUGH_ARGS=()
@@ -88,6 +90,14 @@ while [[ $# -gt 0 ]]; do
       fi
       INSTANCE_OVERRIDE="$2"
       PASS_THROUGH_ARGS+=(--instance "$2")
+      shift 2
+      ;;
+    --image-tag|-t)
+      if [[ -z "${2:-}" ]]; then
+        log_error "--image-tag requires a value"
+        exit 1
+      fi
+      IMAGE_TAG_OVERRIDE="$2"
       shift 2
       ;;
     --build-local)
@@ -244,15 +254,21 @@ COMMIT_SHA=$(git rev-parse HEAD 2>/dev/null) || {
   exit 1
 }
 
-# The image tag matches the sanitized branch name (same logic as the GitHub Actions workflow).
+# The image tag defaults to the sanitized branch name (same logic as the GitHub Actions workflow).
 # Uses the same sanitization as the GHA workflow (128-char OCI tag limit), NOT the instance
 # name truncation (20 chars) which is shorter to avoid Kubernetes label limits.
-IMAGE_TAG=$(echo "${CURRENT_BRANCH}" \
-  | tr '[:upper:]' '[:lower:]' \
-  | sed 's/[^a-z0-9._-]/-/g' \
-  | sed 's/--*/-/g' \
-  | sed 's/^-//;s/-$//' \
-  | cut -c1-128)
+# Can be overridden with --image-tag to deploy images built from a different branch.
+if [[ -n "${IMAGE_TAG_OVERRIDE}" ]]; then
+  IMAGE_TAG="${IMAGE_TAG_OVERRIDE}"
+  log_info "Using image tag override: ${IMAGE_TAG}"
+else
+  IMAGE_TAG=$(echo "${CURRENT_BRANCH}" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed 's/[^a-z0-9._-]/-/g' \
+    | sed 's/--*/-/g' \
+    | sed 's/^-//;s/-$//' \
+    | cut -c1-128)
+fi
 
 SERVICES=("backend-services" "frontend" "temporal")
 IMAGES_EXIST=true
