@@ -424,6 +424,8 @@ THROTTLE_AUTH_TTL_MS=$(get_config "THROTTLE_AUTH_TTL_MS" 2>/dev/null || echo "60
 THROTTLE_AUTH_LIMIT=$(get_config "THROTTLE_AUTH_LIMIT" 2>/dev/null || echo "10")
 THROTTLE_AUTH_REFRESH_TTL_MS=$(get_config "THROTTLE_AUTH_REFRESH_TTL_MS" 2>/dev/null || echo "60000")
 THROTTLE_AUTH_REFRESH_LIMIT=$(get_config "THROTTLE_AUTH_REFRESH_LIMIT" 2>/dev/null || echo "5")
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=$(get_config "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT" 2>/dev/null || echo "")
+AZURE_DOC_INTELLIGENCE_MODELS=$(get_config "AZURE_DOC_INTELLIGENCE_MODELS" 2>/dev/null || echo "prebuilt-layout")
 AZURE_OPENAI_ENDPOINT=$(get_config "AZURE_OPENAI_ENDPOINT" 2>/dev/null || echo "")
 AZURE_OPENAI_DEPLOYMENT=$(get_config "AZURE_OPENAI_DEPLOYMENT" 2>/dev/null || echo "")
 AZURE_OPENAI_API_VERSION=$(get_config "AZURE_OPENAI_API_VERSION" 2>/dev/null || echo "2024-02-15-preview")
@@ -453,6 +455,8 @@ OVERLAY_DIR=$(generate_instance_overlay \
   --throttle-auth-limit "${THROTTLE_AUTH_LIMIT}" \
   --throttle-auth-refresh-ttl-ms "${THROTTLE_AUTH_REFRESH_TTL_MS}" \
   --throttle-auth-refresh-limit "${THROTTLE_AUTH_REFRESH_LIMIT}" \
+  --azure-doc-intelligence-endpoint "${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}" \
+  --azure-doc-intelligence-models "${AZURE_DOC_INTELLIGENCE_MODELS}" \
   --azure-openai-endpoint "${AZURE_OPENAI_ENDPOINT}" \
   --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT}" \
   --azure-openai-api-version "${AZURE_OPENAI_API_VERSION}" \
