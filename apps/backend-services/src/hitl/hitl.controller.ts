@@ -25,7 +25,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
-import { DatabaseService } from "../database/database.service";
+import { DocumentService } from "../document/document.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import {
   AnalyticsResponseDto,
@@ -46,7 +46,7 @@ import { HitlService } from "./hitl.service";
 export class HitlController {
   constructor(
     private readonly hitlService: HitlService,
-    private readonly databaseService: DatabaseService,
+    private readonly documentService: DocumentService,
   ) {}
 
   @Get("queue")
@@ -113,7 +113,7 @@ export class HitlController {
   @ApiNotFoundResponse({ description: "Document not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async startSession(@Body() dto: ReviewSessionDto, @Req() req: Request) {
-    const document = await this.databaseService.findDocument(dto.documentId);
+    const document = await this.documentService.findDocument(dto.documentId);
     if (!document) {
       throw new NotFoundException(`Document ${dto.documentId} not found`);
     }
@@ -134,7 +134,7 @@ export class HitlController {
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getSession(@Param("id") id: string, @Req() req: Request) {
-    const session = await this.databaseService.findReviewSession(id);
+    const session = await this.hitlService.findReviewSession(id);
     if (!session) {
       throw new NotFoundException(`Review session ${id} not found`);
     }
@@ -157,7 +157,7 @@ export class HitlController {
     @Body() dto: SubmitCorrectionsDto,
     @Req() req: Request,
   ) {
-    const session = await this.databaseService.findReviewSession(sessionId);
+    const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
@@ -176,7 +176,7 @@ export class HitlController {
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getCorrections(@Param("id") sessionId: string, @Req() req: Request) {
-    const session = await this.databaseService.findReviewSession(sessionId);
+    const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
@@ -195,7 +195,7 @@ export class HitlController {
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async approveSession(@Param("id") sessionId: string, @Req() req: Request) {
-    const session = await this.databaseService.findReviewSession(sessionId);
+    const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
@@ -218,7 +218,7 @@ export class HitlController {
     @Body() dto: EscalateDto,
     @Req() req: Request,
   ) {
-    const session = await this.databaseService.findReviewSession(sessionId);
+    const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
@@ -237,7 +237,7 @@ export class HitlController {
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async skipSession(@Param("id") sessionId: string, @Req() req: Request) {
-    const session = await this.databaseService.findReviewSession(sessionId);
+    const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }

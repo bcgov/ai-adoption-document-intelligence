@@ -12,8 +12,8 @@ import {
   ExtractedFields,
   KeyValuePair,
 } from "@/ocr/azure-types";
-import type { DocumentData } from "./database.types";
-import { PrismaService } from "./prisma.service";
+import { PrismaService } from "../database/prisma.service";
+import type { DocumentData } from "./document-db.types";
 
 @Injectable()
 export class DocumentDbService {
@@ -26,12 +26,20 @@ export class DocumentDbService {
     return this.prismaService.prisma;
   }
 
+  /**
+   * Creates a new document record in the database.
+   *
+   * @param data - Document data without auto-generated timestamps.
+   * @returns The created document record.
+   */
   async createDocument(
     data: Omit<DocumentData, "created_at" | "updated_at">,
+    tx?: Prisma.TransactionClient,
   ): Promise<DocumentData> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Creating document", { title: data.title });
     try {
-      const document = await this.prisma.document.create({
+      const document = await client.document.create({
         data: {
           ...(data.id ? { id: data.id } : {}),
           title: data.title,
@@ -59,10 +67,20 @@ export class DocumentDbService {
     }
   }
 
-  async findDocument(id: string): Promise<DocumentData | null> {
+  /**
+   * Finds a document by its ID.
+   *
+   * @param id - The unique identifier of the document.
+   * @returns The document record, or `null` if not found.
+   */
+  async findDocument(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<DocumentData | null> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Finding document", { id });
     try {
-      const document = await this.prisma.document.findUnique({
+      const document = await client.document.findUnique({
         where: { id },
       });
       if (document) {
@@ -79,10 +97,20 @@ export class DocumentDbService {
     }
   }
 
-  async findAllDocuments(groupIds?: string[]): Promise<DocumentData[]> {
+  /**
+   * Returns all documents, optionally filtered by group IDs.
+   *
+   * @param groupIds - Optional list of group IDs to filter by.
+   * @returns Array of matching document records ordered by creation date descending.
+   */
+  async findAllDocuments(
+    groupIds?: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<DocumentData[]> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Finding all documents");
     try {
-      const documents = await this.prisma.document.findMany({
+      const documents = await client.document.findMany({
         where: groupIds ? { group_id: { in: groupIds } } : undefined,
         orderBy: { created_at: "desc" },
       });
@@ -96,13 +124,22 @@ export class DocumentDbService {
     }
   }
 
+  /**
+   * Updates a document by its ID.
+   *
+   * @param id - The unique identifier of the document to update.
+   * @param data - Partial document fields to update (excludes id and created_at).
+   * @returns The updated document, or `null` if not found.
+   */
   async updateDocument(
     id: string,
     data: Partial<Omit<DocumentData, "id" | "created_at">>,
+    tx?: Prisma.TransactionClient,
   ): Promise<DocumentData | null> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Updating document", { id });
     try {
-      const document = await this.prisma.document.update({
+      const document = await client.document.update({
         where: { id },
         data: {
           ...data,
@@ -128,10 +165,55 @@ export class DocumentDbService {
     }
   }
 
-  async findOcrResult(documentId: string): Promise<OcrResult | null> {
+  /**
+   * Deletes a document by its ID.
+   *
+   * @param id - The unique identifier of the document to delete.
+   * @returns `true` if the document was deleted, `false` if not found.
+   */
+  async deleteDocument(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    const client = tx ?? this.prisma;
+    this.logger.debug("Deleting document", { id });
+    try {
+      await client.document.delete({
+        where: { id },
+      });
+      this.logger.debug("Document deleted", { id });
+      return true;
+    } catch (error: unknown) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code: string }).code === "P2025"
+      ) {
+        this.logger.debug("Document not found for deletion", { id });
+        return false;
+      }
+      this.logger.error("Failed to delete document", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves the most recent OCR result for a document.
+   *
+   * @param documentId - The ID of the document whose OCR result to fetch.
+   * @returns The OCR result record, or `null` if none exists.
+   */
+  async findOcrResult(
+    documentId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<OcrResult | null> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Finding OCR result for document", { documentId });
     try {
-      const ocrResult = await this.prisma.ocrResult.findFirst({
+      const ocrResult = await client.ocrResult.findFirst({
         where: { document_id: documentId },
         orderBy: { processed_at: "desc" },
       });
@@ -174,11 +256,20 @@ export class DocumentDbService {
     return fields;
   }
 
-  async upsertOcrResult(data: {
-    documentId: string;
-    analysisResponse: AnalysisResponse;
-    metadata?: Record<string, unknown>;
-  }): Promise<void> {
+  /**
+   * Creates or updates the OCR result for a document.
+   *
+   * @param data - Object containing the document ID, analysis response, and optional metadata.
+   */
+  async upsertOcrResult(
+    data: {
+      documentId: string;
+      analysisResponse: AnalysisResponse;
+      metadata?: Record<string, unknown>;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
     this.logger.debug("Creating/updating OCR result for document", {
       documentId: data.documentId,
     });
@@ -207,7 +298,7 @@ export class DocumentDbService {
         keyValuePairs: asJson(extractedFields),
       };
 
-      await this.prisma.ocrResult.upsert({
+      await client.ocrResult.upsert({
         where: { document_id: data.documentId },
         update: updateObject,
         create: {
@@ -220,37 +311,6 @@ export class DocumentDbService {
       });
     } catch (error) {
       this.logger.error("Failed to create/update OCR result", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Deletes a document by its ID.
-   *
-   * @param id - The unique identifier of the document to delete.
-   * @returns `true` if the document was deleted, `false` if not found.
-   */
-  async deleteDocument(id: string): Promise<boolean> {
-    this.logger.debug("Deleting document", { id });
-    try {
-      await this.prisma.document.delete({
-        where: { id },
-      });
-      this.logger.debug("Document deleted", { id });
-      return true;
-    } catch (error: unknown) {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        (error as { code: string }).code === "P2025"
-      ) {
-        this.logger.debug("Document not found for deletion", { id });
-        return false;
-      }
-      this.logger.error("Failed to delete document", {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
