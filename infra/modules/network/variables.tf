@@ -28,6 +28,11 @@ variable "apim_subnet_cidr" {
   type        = string
 }
 
+variable "resource_group_name" {
+  description = "Resource group for the route table (main RG, not networking RG)"
+  type        = string
+}
+
 variable "source_vnet_address_space" {
   description = "Address space of the source/tools VNet for NSG allow rules (empty string to skip)"
   type        = string

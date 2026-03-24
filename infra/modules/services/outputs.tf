@@ -10,7 +10,7 @@ output "key_vault_id" {
 
 output "key_vault_uri" {
   description = "URI of the Key Vault"
-  value       = module.key_vault.resource_uri
+  value       = module.key_vault.uri
 }
 
 output "key_vault_name" {

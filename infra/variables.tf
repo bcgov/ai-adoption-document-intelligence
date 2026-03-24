@@ -111,6 +111,12 @@ variable "storage_container" {
 # -----------------------------------------------------------------------------
 # APIM
 # -----------------------------------------------------------------------------
+variable "apim_vnet_injection_enabled" {
+  description = "Enable VNet injection for APIM (slower provisioning, enables private backend access)"
+  type        = bool
+  default     = false
+}
+
 variable "apim_publisher_name" {
   description = "APIM publisher name"
   type        = string
