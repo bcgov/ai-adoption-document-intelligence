@@ -29,11 +29,11 @@ export class RequestLoggingInterceptor implements NestInterceptor {
 
     const store = requestContext.getStore();
     if (store && request.resolvedIdentity) {
-      const userId =
-        "userId" in request.resolvedIdentity
-          ? request.resolvedIdentity.userId
+      const actorId =
+        "actorId" in request.resolvedIdentity
+          ? request.resolvedIdentity.actorId
           : undefined;
-      if (userId) store.userId = userId;
+      if (actorId) store.actorId = actorId;
     }
 
     return next.handle().pipe(

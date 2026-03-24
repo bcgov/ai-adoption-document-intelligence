@@ -15,6 +15,7 @@ import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { MyMembershipRequestDto } from "./dto/my-membership-request.dto";
 import { UserGroupDto } from "./dto/user-group.dto";
 import { GroupDbService } from "./group-db.service";
+import { UserService } from "@/actor/user.service";
 
 @Injectable()
 export class GroupService {

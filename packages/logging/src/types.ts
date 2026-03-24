@@ -17,7 +17,7 @@ export interface LogContext {
   requestId?: string;
   workflowExecutionId?: string;
   documentId?: string;
-  userId?: string;
+  actorId?: string;
   activity?: string;
   event?: string;
   durationMs?: number;

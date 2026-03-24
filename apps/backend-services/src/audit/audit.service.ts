@@ -28,7 +28,7 @@ export class AuditService {
           event_type: e.event_type,
           resource_type: e.resource_type,
           resource_id: e.resource_id,
-          actor_id: e.actor_id ?? ctx?.userId ?? null,
+          actor_id: e.actor_id,
           document_id: e.document_id ?? null,
           workflow_execution_id: e.workflow_execution_id ?? null,
           group_id: e.group_id ?? null,

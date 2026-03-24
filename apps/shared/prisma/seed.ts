@@ -1315,7 +1315,7 @@ async function seedBenchmarkingData() {
     data: {
       id: "audit-baseline-001",
       timestamp: twoDaysAgo,
-      userId: "test-user",
+      actor_id: "test-user",
       action: AuditAction.baseline_promoted,
       entityType: "BenchmarkRun",
       entityId: SEED_RUN_ID_COMPLETED,

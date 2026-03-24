@@ -167,13 +167,13 @@ describe("createLogger", () => {
         log.info("auth", {
           apiKey: "secret-key",
           token: "jwt-xxx",
-          userId: "u1",
+          actorId: "u1",
         });
         const entry = parseLastLine(out.lines);
         expect(entry.apiKey).toBe("[REDACTED]");
         expect(entry.token).toBe("[REDACTED]");
         expect(entry.authorization).toBeUndefined();
-        expect(entry.userId).toBe("u1");
+        expect(entry.actorId).toBe("u1");
       } finally {
         out.restore();
       }

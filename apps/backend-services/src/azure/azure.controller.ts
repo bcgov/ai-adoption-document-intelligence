@@ -142,7 +142,7 @@ export class AzureController {
         config: { labels: [] },
         group_id: group_id,
       },
-      req.resolvedIdentity.userId,
+      req.resolvedIdentity.actorId,
     );
     return creationResult;
   }
@@ -191,7 +191,7 @@ export class AzureController {
       name,
       group_id,
       updateData,
-      req.resolvedIdentity.userId,
+      req.resolvedIdentity.actorId,
     );
 
     return updateResult;
@@ -365,15 +365,14 @@ export class AzureController {
     @Body() body: RequestClassifierTrainingDto,
   ): Promise<ClassifierModelResponseDto> {
     const { name, group_id } = body;
-    const userId = req.user.sub;
     identityCanAccessGroup(req.resolvedIdentity, group_id);
-
+    const actorId = req.resolvedIdentity.actorId;
     // Respond immediately and run the heavy work in the background
     const model = await this.classifierService.updateClassifierModel(
       name,
       group_id,
       { status: ClassifierStatus.TRAINING },
-      userId,
+      actorId,
     );
 
     setImmediate(async () => {
@@ -393,7 +392,7 @@ export class AzureController {
         await this.classifierService.requestClassifierTraining(
           name,
           group_id,
-          userId,
+          actorId,
         );
       } catch (e) {
         this.logger.error(
@@ -404,7 +403,7 @@ export class AzureController {
           name,
           group_id,
           { status: ClassifierStatus.FAILED },
-          userId,
+          actorId,
         );
       }
     });
@@ -453,8 +452,8 @@ export class AzureController {
     @Query("group_id") group_id: string,
   ): Promise<ClassifierResponseDto> {
     const { name } = body;
-    const userId = req.user.sub;
     identityCanAccessGroup(req.resolvedIdentity, group_id);
+    const actorId = req.resolvedIdentity.actorId;
     // Is there a classifier trained for this group?
     const classifier = await this.classifierService.findClassifierModel(
       name,
@@ -476,7 +475,7 @@ export class AzureController {
       {
         last_used_at: new Date(),
       },
-      userId,
+      actorId,
     );
     return response;
   }
@@ -534,8 +533,8 @@ export class AzureController {
         "Must provide both name and group_id query parameters.",
       );
     }
-    const userId = req.user.sub;
     identityCanAccessGroup(req.resolvedIdentity, group_id);
+    const actorId = req.resolvedIdentity.actorId;
     const classifier = await this.classifierService.findClassifierModel(
       name,
       group_id,
@@ -556,7 +555,7 @@ export class AzureController {
           name,
           group_id,
           { status: ClassifierStatus.READY },
-          userId,
+          actorId,
         );
       },
       (r) => {

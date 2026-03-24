@@ -14,7 +14,7 @@ import { getRequestContext } from "@/logging/request-context";
  * HTTP request/response logger (dev only). Logs method, URL, status code,
  * duration, and at debug level query params, request body, and response body.
  *
- * Uses AppLoggerService so output is NDJSON with requestId/userId from
+ * Uses AppLoggerService so output is NDJSON with requestId/actorId from
  * request context. Registered only when NODE_ENV !== "production".
  */
 @Injectable()
@@ -25,7 +25,7 @@ export class LoggingInterceptor implements NestInterceptor {
     const ctx = getRequestContext();
     return {
       ...(ctx?.requestId && { requestId: ctx.requestId }),
-      ...(ctx?.userId && { userId: ctx.userId }),
+      ...(ctx?.actorId && { actorId: ctx.actorId }),
     };
   }
 

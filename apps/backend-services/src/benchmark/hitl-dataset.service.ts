@@ -206,10 +206,14 @@ export class HitlDatasetService {
     const documentMap = new Map(allDocuments.map((d) => [d.id, d]));
 
     // Create the version
-    const version = await this.datasetService.createVersion(datasetId, {
-      version: versionLabel,
-      name: versionName,
-    });
+    const version = await this.datasetService.createVersion(
+      datasetId,
+      {
+        version: versionLabel,
+        name: versionName,
+      },
+      actorId,
+    );
 
     const storagePrefix = `datasets/${datasetId}/${version.id}`;
     const skipped: SkippedDocument[] = [];

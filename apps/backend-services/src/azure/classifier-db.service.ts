@@ -50,21 +50,21 @@ export class ClassifierDbService {
    * Creates a new classifier model record.
    * @param classifierName The name of the classifier.
    * @param properties The editable properties for the classifier.
-   * @param userId The ID of the user creating the classifier.
+   * @param actorId The ID of the user creating the classifier.
    * @returns The created ClassifierModel record.
    */
   async createClassifierModel(
     classifierName: string,
     properties: ClassifierEditableProperties,
-    userId: string,
+    actorId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<ClassifierModel> {
     const client = tx ?? this.prisma;
     return client.classifierModel.create({
       data: {
         ...properties,
-        created_by: userId,
-        updated_by: userId,
+        created_by: actorId,
+        updated_by: actorId,
         name: classifierName,
       },
     });
@@ -75,14 +75,14 @@ export class ClassifierDbService {
    * @param classifierName The name of the classifier.
    * @param groupId The group ID that owns the classifier.
    * @param properties The partial properties to update.
-   * @param userId The ID of the user making the update.
+   * @param actorId The ID of the user making the update.
    * @returns The updated ClassifierModel record.
    */
   async updateClassifierModel(
     classifierName: string,
     groupId: string,
     properties: Partial<ClassifierEditableProperties>,
-    userId?: string,
+    actorId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<ClassifierModel> {
     const client = tx ?? this.prisma;
@@ -95,9 +95,8 @@ export class ClassifierDbService {
       },
       data: {
         ...properties,
-        ...(userId !== undefined
-          ? { created_by: userId, updated_by: userId }
-          : {}),
+         created_by: actorId, 
+         updated_by: actorId,
         name: classifierName,
       },
     });

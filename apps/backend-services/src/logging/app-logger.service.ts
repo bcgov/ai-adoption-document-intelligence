@@ -17,7 +17,7 @@ export class AppLoggerService {
     const ctx = getRequestContext();
     return {
       ...(ctx?.requestId && { requestId: ctx.requestId }),
-      ...(ctx?.userId && { userId: ctx.userId }),
+      ...(ctx?.actorId && { actorId: ctx.actorId }),
       ...context,
     };
   }

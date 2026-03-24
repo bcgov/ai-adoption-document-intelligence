@@ -61,7 +61,7 @@ export class AuditLogService {
     metadata?: Record<string, unknown>,
   ): Promise<BenchmarkAuditLog> {
     return this.logAuditEvent({
-      actorId: actorId,
+      actorId,
       action: AuditAction.version_published,
       entityType: "DatasetVersion",
       entityId: versionId,

@@ -262,13 +262,13 @@ export class ClassifierService {
    * The files must have been uploaded and had their layout json created before this point.
    * @param classifierName Name of the classifier model.
    * @param groupId ID of the group that owns the classifier.
-   * @param userId ID of the user making the request.
+   * @param actorId ID of the user making the request.
    * @returns The updated record of classifier model from the database.
    */
   requestClassifierTraining = async (
     classifierName: string,
     groupId: string,
-    userId: string,
+    actorId: string,
   ) => {
     // Does this classifier record exist?
     const existingClassifier = await this.classifierDb.findClassifierModel(
@@ -318,7 +318,7 @@ export class ClassifierService {
           status: ClassifierStatus.TRAINING,
           operation_location: operationLocation,
         },
-        userId,
+        actorId,
       );
     } else {
       const message = `Request for training classifier ${classifierName} unsuccessful. See logs for details.`;
@@ -444,18 +444,18 @@ export class ClassifierService {
    * Creates a new classifier model record.
    * @param classifierName The name of the classifier.
    * @param properties The editable properties for the classifier.
-   * @param userId The ID of the user creating the classifier.
+   * @param actorId The ID of the user creating the classifier.
    * @returns The created ClassifierModel record.
    */
   async createClassifierModel(
     classifierName: string,
     properties: ClassifierEditableProperties,
-    userId: string,
+    actorId: string,
   ): Promise<ClassifierModel> {
     return this.classifierDb.createClassifierModel(
       classifierName,
       properties,
-      userId,
+      actorId,
     );
   }
 
@@ -464,20 +464,20 @@ export class ClassifierService {
    * @param classifierName The name of the classifier.
    * @param groupId The group ID that owns the classifier.
    * @param properties The partial properties to update.
-   * @param userId The ID of the user making the update.
+   * @param actorId The ID of the user making the update.
    * @returns The updated ClassifierModel record.
    */
   async updateClassifierModel(
     classifierName: string,
     groupId: string,
     properties: Partial<ClassifierEditableProperties>,
-    userId?: string,
+    actorId: string,
   ): Promise<ClassifierModel> {
     return this.classifierDb.updateClassifierModel(
       classifierName,
       groupId,
       properties,
-      userId,
+      actorId,
     );
   }
 }

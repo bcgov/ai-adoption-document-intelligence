@@ -231,6 +231,7 @@ export class DatasetService {
   async createVersion(
     datasetId: string,
     createDto: CreateVersionDto,
+    actorId: string, // TODO: Why isn't this used?
   ): Promise<VersionResponseDto> {
     const dataset = await this.datasetDbService.findDataset(datasetId);
 
@@ -373,6 +374,7 @@ export class DatasetService {
       buffer: Buffer;
       size: number;
     }>,
+    actorId: string, // TODO: Why isn't this used?
   ): Promise<UploadResponseDto> {
     this.logger.log(
       `Uploading ${files.length} files to dataset ${datasetId}, version ${versionId}`,

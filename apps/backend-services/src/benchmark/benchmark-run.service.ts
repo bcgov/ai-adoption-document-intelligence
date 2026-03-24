@@ -17,8 +17,6 @@ import {
 } from "@nestjs/common";
 import { execSync } from "child_process";
 import { createHash } from "crypto";
-import { identity } from "rxjs";
-import { ResolvedIdentity } from "@/auth/types";
 import { AuditLogDbService } from "./audit-log-db.service";
 import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
@@ -38,6 +36,7 @@ import {
   RunSummaryDto,
   SampleFailureDto,
 } from "./dto";
+import { ResolvedIdentity } from "@/auth/types";
 
 @Injectable()
 export class BenchmarkRunService {

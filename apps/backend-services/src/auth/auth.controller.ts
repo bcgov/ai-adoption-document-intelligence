@@ -41,6 +41,7 @@ import {
 import { MeResponseDto, OAuthCallbackQueryDto, RefreshReturnDto } from "./dto";
 import { Public } from "./public.decorator";
 import { User } from "./types";
+import { Identity } from "./identity.decorator";
 
 /**
  * Thin HTTP layer that exposes the OAuth entrypoints to the frontend.
@@ -279,6 +280,7 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({ description: "Invalid token" })
+  @Identity({allowApiKey: false})
   async getMe(@Req() req: Request): Promise<MeResponseDto> {
     const user = req.user as User;
     const now = Math.floor(Date.now() / 1000);

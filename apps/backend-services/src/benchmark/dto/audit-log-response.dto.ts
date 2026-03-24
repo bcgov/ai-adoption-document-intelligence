@@ -20,10 +20,10 @@ export class BaselinePromotionHistoryDto {
   runId: string;
 
   /**
-   * User who promoted the baseline
+   * Actor who promoted the baseline
    */
-  @ApiProperty({ description: "User who promoted the baseline" })
-  userId: string;
+  @ApiProperty({ description: "Actor who promoted the baseline" })
+  actorId: string;
 
   /**
    * Definition ID this baseline belongs to

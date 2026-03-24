@@ -80,9 +80,7 @@ export class TrainingController {
   ) {
     const project = await this.labelingService.getProject(projectId);
     identityCanAccessGroup(req.resolvedIdentity, project.group_id);
-    const userId =
-      req.user?.sub || (req.user as { id?: string })?.id || "unknown";
-    return this.trainingService.startTraining(projectId, dto, userId);
+    return this.trainingService.startTraining(projectId, dto);
   }
 
   /**

@@ -221,7 +221,6 @@ export class TrainingService {
   async startTraining(
     projectId: string,
     dto: StartTrainingDto,
-    userId: string,
   ): Promise<TrainingJobDto> {
     this.logger.log(
       `Starting training for project ${projectId} with model ID: ${dto.modelId}`,
