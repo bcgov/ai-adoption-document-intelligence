@@ -2,7 +2,7 @@ import { Controller, Get } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Identity } from "@/auth/identity.decorator";
-import { DatabaseService } from "@/database/database.service";
+import { TrainingService } from "@/training/training.service";
 
 @ApiTags("OCR")
 @Controller("api")
@@ -11,7 +11,7 @@ export class OcrController {
 
   constructor(
     private configService: ConfigService,
-    private db: DatabaseService,
+    private trainingService: TrainingService,
   ) {
     const modelsEnv = this.configService.get<string>(
       "AZURE_DOC_INTELLIGENCE_MODELS",
@@ -28,18 +28,9 @@ export class OcrController {
   @Identity({ allowApiKey: true })
   @ApiOkResponse({ schema: { default: { models: ["string"] } } })
   async getModels(): Promise<{ models: string[] }> {
-    const prisma = this.db["prisma"];
-    const trained = prisma
-      ? await prisma.trainedModel.findMany({
-          select: { model_id: true },
-          distinct: ["model_id"],
-        })
-      : [];
+    const trainedModelIds = await this.trainingService.findAllTrainedModelIds();
     // Pull model_ids into one set for deduplication
-    const combined = new Set([
-      ...this.allowedModels,
-      ...trained.map((m) => m.model_id),
-    ]);
+    const combined = new Set([...this.allowedModels, ...trainedModelIds]);
     // Return sorted result if order matters
     return { models: Array.from(combined).sort() };
   }

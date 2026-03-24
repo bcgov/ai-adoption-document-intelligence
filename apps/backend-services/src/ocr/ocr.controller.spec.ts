@@ -1,15 +1,13 @@
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { DatabaseService } from "@/database/database.service";
+import { TrainingService } from "@/training/training.service";
 import { OcrController } from "./ocr.controller";
 
 describe("OcrController", () => {
   let controller: OcrController;
 
-  const mockPrisma = {
-    trainedModel: {
-      findMany: jest.fn().mockResolvedValue([]),
-    },
+  const mockTrainingService = {
+    findAllTrainedModelIds: jest.fn().mockResolvedValue([]),
   };
 
   beforeEach(async () => {
@@ -29,8 +27,8 @@ describe("OcrController", () => {
           },
         },
         {
-          provide: DatabaseService,
-          useValue: { prisma: mockPrisma },
+          provide: TrainingService,
+          useValue: mockTrainingService,
         },
       ],
     }).compile();
@@ -45,16 +43,13 @@ describe("OcrController", () => {
       expect(result).toEqual({
         models: ["prebuilt-invoice", "prebuilt-layout", "prebuilt-receipt"],
       });
-      expect(mockPrisma.trainedModel.findMany).toHaveBeenCalledWith({
-        select: { model_id: true },
-        distinct: ["model_id"],
-      });
+      expect(mockTrainingService.findAllTrainedModelIds).toHaveBeenCalled();
     });
 
     it("should include trained models from database", async () => {
-      mockPrisma.trainedModel.findMany.mockResolvedValueOnce([
-        { model_id: "sdpr-custom1" },
-        { model_id: "my-invoice-model" },
+      mockTrainingService.findAllTrainedModelIds.mockResolvedValueOnce([
+        "sdpr-custom1",
+        "my-invoice-model",
       ]);
       const result = await controller.getModels();
       // Controller returns models sorted alphabetically
@@ -68,8 +63,8 @@ describe("OcrController", () => {
     });
 
     it("should not duplicate trained model ID if it matches a prebuilt config entry", async () => {
-      mockPrisma.trainedModel.findMany.mockResolvedValueOnce([
-        { model_id: "prebuilt-layout" },
+      mockTrainingService.findAllTrainedModelIds.mockResolvedValueOnce([
+        "prebuilt-layout",
       ]);
       const result = await controller.getModels();
       // Controller returns models sorted alphabetically
@@ -93,8 +88,8 @@ describe("OcrController", () => {
             },
           },
           {
-            provide: DatabaseService,
-            useValue: { prisma: mockPrisma },
+            provide: TrainingService,
+            useValue: mockTrainingService,
           },
         ],
       }).compile();

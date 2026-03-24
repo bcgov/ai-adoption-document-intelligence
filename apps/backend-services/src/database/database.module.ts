@@ -1,27 +1,9 @@
-import { Module } from "@nestjs/common";
-import { DatabaseService } from "./database.service";
-import { DocumentDbService } from "./document-db.service";
-import { LabelingDocumentDbService } from "./labeling-document-db.service";
-import { LabelingProjectDbService } from "./labeling-project-db.service";
+import { Global, Module } from "@nestjs/common";
 import { PrismaService } from "./prisma.service";
-import { ReviewDbService } from "./review-db.service";
 
+@Global()
 @Module({
-  providers: [
-    PrismaService,
-    DocumentDbService,
-    LabelingDocumentDbService,
-    LabelingProjectDbService,
-    ReviewDbService,
-    DatabaseService,
-  ],
-  exports: [
-    PrismaService,
-    DocumentDbService,
-    LabelingDocumentDbService,
-    LabelingProjectDbService,
-    ReviewDbService,
-    DatabaseService,
-  ],
+  providers: [PrismaService],
+  exports: [PrismaService],
 })
 export class DatabaseModule {}

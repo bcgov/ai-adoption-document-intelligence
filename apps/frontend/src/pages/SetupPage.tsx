@@ -101,7 +101,8 @@ export function SetupPage(): JSX.Element {
               color="red"
               data-testid="bootstrap-mutation-error"
             >
-              {bootstrapMutation.error?.message ?? "Setup failed. Please try again."}
+              {bootstrapMutation.error?.message ??
+                "Setup failed. Please try again."}
             </Alert>
           )}
 
@@ -113,7 +114,9 @@ export function SetupPage(): JSX.Element {
               </Text>
               <Text size="sm" component="ul" pl="md">
                 <li>Promote your account to system administrator</li>
-                <li>Create a &quot;Default&quot; group with you as group admin</li>
+                <li>
+                  Create a &quot;Default&quot; group with you as group admin
+                </li>
               </Text>
               <Button
                 size="lg"

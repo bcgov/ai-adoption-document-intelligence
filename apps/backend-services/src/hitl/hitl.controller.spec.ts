@@ -2,7 +2,7 @@ import { GroupRole } from "@generated/client";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import { DatabaseService } from "../database/database.service";
+import { DocumentService } from "../document/document.service";
 import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import { HitlController } from "./hitl.controller";
@@ -11,7 +11,7 @@ import { HitlService } from "./hitl.service";
 describe("HitlController", () => {
   let controller: HitlController;
   let hitlService: jest.Mocked<HitlService>;
-  let databaseService: jest.Mocked<DatabaseService>;
+  let documentService: jest.Mocked<DocumentService>;
 
   const mockDocument = {
     id: "doc-1",
@@ -45,12 +45,12 @@ describe("HitlController", () => {
       getQueue: jest.fn(),
       getQueueStats: jest.fn(),
       getAnalytics: jest.fn(),
+      findReviewSession: jest.fn().mockResolvedValue(mockSession),
     } as unknown as jest.Mocked<HitlService>;
 
-    databaseService = {
+    documentService = {
       findDocument: jest.fn().mockResolvedValue(mockDocument),
-      findReviewSession: jest.fn().mockResolvedValue(mockSession),
-    } as unknown as jest.Mocked<DatabaseService>;
+    } as unknown as jest.Mocked<DocumentService>;
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HitlController],
@@ -60,8 +60,8 @@ describe("HitlController", () => {
           useValue: hitlService,
         },
         {
-          provide: DatabaseService,
-          useValue: databaseService,
+          provide: DocumentService,
+          useValue: documentService,
         },
       ],
     }).compile();
@@ -262,7 +262,7 @@ describe("HitlController", () => {
       const result = await controller.startSession(dto, req);
       expect(result).toEqual(mockResult);
       expect(hitlService.startSession).toHaveBeenCalledWith(dto, "user-1");
-      expect(databaseService.findDocument).toHaveBeenCalledWith("doc-1");
+      expect(documentService.findDocument).toHaveBeenCalledWith("doc-1");
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
@@ -299,7 +299,7 @@ describe("HitlController", () => {
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
-      (databaseService.findDocument as jest.Mock).mockResolvedValueOnce(null);
+      (documentService.findDocument as jest.Mock).mockResolvedValueOnce(null);
       await expect(controller.startSession(dto, req)).rejects.toThrow(
         NotFoundException,
       );
@@ -355,9 +355,7 @@ describe("HitlController", () => {
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
-      (databaseService.findReviewSession as jest.Mock).mockResolvedValueOnce(
-        null,
-      );
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
       await expect(controller.getSession("session-1", req)).rejects.toThrow(
         NotFoundException,
       );
@@ -418,9 +416,7 @@ describe("HitlController", () => {
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
-      (databaseService.findReviewSession as jest.Mock).mockResolvedValueOnce(
-        null,
-      );
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
       await expect(
         controller.submitCorrections("session-1", dto, req),
       ).rejects.toThrow(NotFoundException);
@@ -476,9 +472,7 @@ describe("HitlController", () => {
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
-      (databaseService.findReviewSession as jest.Mock).mockResolvedValueOnce(
-        null,
-      );
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
       await expect(controller.getCorrections("session-1", req)).rejects.toThrow(
         NotFoundException,
       );
@@ -537,9 +531,7 @@ describe("HitlController", () => {
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
-      (databaseService.findReviewSession as jest.Mock).mockResolvedValueOnce(
-        null,
-      );
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
       await expect(controller.approveSession("session-1", req)).rejects.toThrow(
         NotFoundException,
       );
@@ -604,9 +596,7 @@ describe("HitlController", () => {
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
-      (databaseService.findReviewSession as jest.Mock).mockResolvedValueOnce(
-        null,
-      );
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
       await expect(
         controller.escalateSession("session-1", dto, req),
       ).rejects.toThrow(NotFoundException);
@@ -666,9 +656,7 @@ describe("HitlController", () => {
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
-      (databaseService.findReviewSession as jest.Mock).mockResolvedValueOnce(
-        null,
-      );
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
       await expect(controller.skipSession("session-1", req)).rejects.toThrow(
         NotFoundException,
       );

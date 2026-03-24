@@ -6,7 +6,6 @@ jest.mock("@/auth/identity.helpers", () => ({
 import { BadRequestException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import { DatabaseService } from "@/database/database.service";
 import { DatasetService } from "./dataset.service";
 import { HitlDatasetController } from "./hitl-dataset.controller";
 import { HitlDatasetService } from "./hitl-dataset.service";
@@ -24,12 +23,6 @@ describe("HitlDatasetController", () => {
     user: {},
     resolvedIdentity: { userId: undefined },
   } as unknown as Request;
-
-  const mockDatabaseService = {
-    isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "test-group" }]),
-    isUserInGroup: jest.fn().mockResolvedValue(true),
-  };
 
   const mockDatasetService = {
     getDatasetById: jest
@@ -61,7 +54,6 @@ describe("HitlDatasetController", () => {
       providers: [
         { provide: HitlDatasetService, useValue: mockService },
         { provide: DatasetService, useValue: mockDatasetService },
-        { provide: DatabaseService, useValue: mockDatabaseService },
       ],
     }).compile();
 

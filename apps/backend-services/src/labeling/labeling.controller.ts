@@ -34,7 +34,6 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService } from "../database/database.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
 import { ExportDto } from "./dto/export.dto";
@@ -55,6 +54,7 @@ import {
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { LabelingService } from "./labeling.service";
+import { LabelingDocumentDbService } from "./labeling-document-db.service";
 
 @ApiTags("labeling")
 @Controller("api/labeling")
@@ -63,7 +63,7 @@ export class LabelingController {
     private readonly labelingService: LabelingService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
-    private readonly databaseService: DatabaseService,
+    private readonly labelingDocumentDbService: LabelingDocumentDbService,
   ) {}
 
   // ========== PROJECT ENDPOINTS ==========
@@ -274,9 +274,10 @@ export class LabelingController {
     @Body() dto: AddDocumentDto,
     @Req() req: Request,
   ) {
-    const labelingDoc = await this.databaseService.findLabelingDocument(
-      dto.labelingDocumentId,
-    );
+    const labelingDoc =
+      await this.labelingDocumentDbService.findLabelingDocument(
+        dto.labelingDocumentId,
+      );
     if (!labelingDoc) {
       throw new NotFoundException(
         `Labeling document with id ${dto.labelingDocumentId} not found`,
