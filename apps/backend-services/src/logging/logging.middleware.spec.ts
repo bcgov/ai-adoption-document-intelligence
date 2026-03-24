@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from "express";
+import type { Socket } from "net";
 import { AppLoggerService } from "./app-logger.service";
 import { LoggingMiddleware } from "./logging.middleware";
 import { requestContext } from "./request-context";
-import type { Socket } from "net";
 
 jest.mock("./request-context", () => ({
   requestContext: { run: jest.fn() },
@@ -124,10 +124,7 @@ describe("LoggingMiddleware", () => {
     });
 
     it("falls back to X-Real-IP when X-Forwarded-For is absent", () => {
-      const req = createMockRequest(
-        { "x-real-ip": "10.0.0.5" },
-        "127.0.0.1",
-      );
+      const req = createMockRequest({ "x-real-ip": "10.0.0.5" }, "127.0.0.1");
       middleware.use(req, mockRes as Response, mockNext);
       const storeArg = mockRun.mock.calls[0][0];
       expect(storeArg.clientIp).toBe("10.0.0.5");

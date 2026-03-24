@@ -11,9 +11,7 @@ describe("MetricsMiddleware", () => {
     middleware = new MetricsMiddleware(metricsService);
   });
 
-  function createMockRequest(
-    overrides: Partial<Request> = {},
-  ): Request {
+  function createMockRequest(overrides: Partial<Request> = {}): Request {
     return {
       method: "GET",
       path: "/test",
