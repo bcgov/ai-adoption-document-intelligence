@@ -16,6 +16,13 @@ variable "resource_group_name" {
 variable "apim_subnet_id" {
   description = "Subnet ID for APIM VNet injection"
   type        = string
+  default     = ""
+}
+
+variable "vnet_injection_enabled" {
+  description = "Enable VNet injection for APIM (requires subnet)"
+  type        = bool
+  default     = false
 }
 
 variable "publisher_name" {
@@ -46,6 +53,12 @@ variable "storage_blob_endpoint" {
 variable "log_analytics_workspace_id" {
   description = "Log Analytics workspace ID for diagnostics"
   type        = string
+}
+
+variable "public_ip_id" {
+  description = "Public IP address ID for APIM (required for stv2 External VNet injection)"
+  type        = string
+  default     = ""
 }
 
 variable "tags" {

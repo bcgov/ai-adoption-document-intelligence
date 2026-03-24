@@ -34,12 +34,17 @@ resource "azurerm_api_management" "this" {
     type = "SystemAssigned"
   }
 
-  # VNet injection (external mode) — APIM gateway is publicly accessible,
-  # but can reach private-endpoint-backed services through VNet
-  virtual_network_type = "External"
+  # VNet injection mode: "External" for VNet connectivity, "None" to skip
+  virtual_network_type = var.vnet_injection_enabled ? "External" : "None"
 
-  virtual_network_configuration {
-    subnet_id = var.apim_subnet_id
+  # stv2 External VNet requires a dedicated public IP
+  public_ip_address_id = var.vnet_injection_enabled ? var.public_ip_id : null
+
+  dynamic "virtual_network_configuration" {
+    for_each = var.vnet_injection_enabled ? [1] : []
+    content {
+      subnet_id = var.apim_subnet_id
+    }
   }
 
   tags = var.tags

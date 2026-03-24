@@ -30,6 +30,7 @@ module "network" {
 
   name_prefix               = local.name_prefix
   location                  = var.location
+  resource_group_name       = azurerm_resource_group.this.name
   vnet_name                 = var.vnet_name
   vnet_resource_group       = var.vnet_resource_group
   pe_subnet_cidr            = var.pe_subnet_cidr
@@ -71,6 +72,28 @@ module "foundry" {
 }
 
 # -----------------------------------------------------------------------------
+# Public IP for APIM (required for stv2 External VNet injection)
+# -----------------------------------------------------------------------------
+resource "azurerm_public_ip" "apim" {
+  count = var.apim_vnet_injection_enabled ? 1 : 0
+
+  name                = "${local.name_prefix}-apim-pip"
+  location            = var.location
+  resource_group_name = azurerm_resource_group.this.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  ip_version          = "IPv4"
+
+  domain_name_label = "${local.name_prefix}-apim"
+
+  tags = local.tags
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
+}
+
+# -----------------------------------------------------------------------------
 # APIM (Developer tier with VNet injection)
 # -----------------------------------------------------------------------------
 module "apim" {
@@ -80,6 +103,8 @@ module "apim" {
   location                       = var.location
   resource_group_name            = azurerm_resource_group.this.name
   apim_subnet_id                 = module.network.apim_subnet_id
+  vnet_injection_enabled         = var.apim_vnet_injection_enabled
+  public_ip_id                   = var.apim_vnet_injection_enabled ? azurerm_public_ip.apim[0].id : ""
   publisher_name                 = var.apim_publisher_name
   publisher_email                = var.apim_publisher_email
   ai_foundry_endpoint            = module.foundry.ai_foundry_endpoint

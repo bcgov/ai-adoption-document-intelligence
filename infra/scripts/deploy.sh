@@ -18,6 +18,17 @@ BACKEND_STORAGE_ACCOUNT="${BACKEND_STORAGE_ACCOUNT:-docintelstate}"
 BACKEND_CONTAINER_NAME="${BACKEND_CONTAINER_NAME:-tfstate}"
 BACKEND_KEY="${BACKEND_KEY:-doc-intel.tfstate}"
 
+# Read subscription_id and tenant_id from terraform.tfvars if not set as env vars
+cd "$INFRA_DIR"
+if [[ -z "${TF_VAR_subscription_id:-}" ]] && [[ -f terraform.tfvars ]]; then
+    TF_VAR_subscription_id=$(grep '^subscription_id' terraform.tfvars | sed 's/.*"\(.*\)".*/\1/' | head -1)
+    export TF_VAR_subscription_id
+fi
+if [[ -z "${TF_VAR_tenant_id:-}" ]] && [[ -f terraform.tfvars ]]; then
+    TF_VAR_tenant_id=$(grep '^tenant_id' terraform.tfvars | sed 's/.*"\(.*\)".*/\1/' | head -1)
+    export TF_VAR_tenant_id
+fi
+
 # Authentication
 if [[ "${ARM_USE_OIDC:-false}" == "true" ]]; then
     export ARM_USE_OIDC=true
@@ -29,11 +40,10 @@ else
 fi
 
 echo "=== Document Intelligence Infrastructure ==="
-echo "Command:  $COMMAND"
-echo "Backend:  $BACKEND_STORAGE_ACCOUNT/$BACKEND_CONTAINER_NAME/$BACKEND_KEY"
+echo "Command:      $COMMAND"
+echo "Subscription: ${TF_VAR_subscription_id:-<not set>}"
+echo "Backend:      $BACKEND_STORAGE_ACCOUNT/$BACKEND_CONTAINER_NAME/$BACKEND_KEY"
 echo ""
-
-cd "$INFRA_DIR"
 
 # Initialize
 echo "--- Terraform Init ---"
