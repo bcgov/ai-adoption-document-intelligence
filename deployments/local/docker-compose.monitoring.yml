@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     command: -config.file=/etc/loki/loki.yaml
     volumes:
-      - ./deployments/local/loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - ./loki/loki.yaml:/etc/loki/loki.yaml:ro
       - loki_data:/loki
     ports:
       - "3100:3100"
@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
     command: -config.file=/etc/promtail/promtail-config.yml
     volumes:
-      - ./deployments/local/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       loki:
@@ -37,7 +37,7 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=15d"
     volumes:
-      - ./deployments/local/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
@@ -59,7 +59,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
-      - ./deployments/local/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
       - "3001:3000"
     depends_on:
