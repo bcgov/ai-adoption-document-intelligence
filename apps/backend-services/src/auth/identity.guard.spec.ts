@@ -12,7 +12,7 @@ import { IdentityGuard } from "./identity.guard";
 describe("IdentityGuard", () => {
   let guard: IdentityGuard;
   let reflector: Reflector;
-  let userService: jest.Mocked<Pick<UserService, "getUserWithGroups">>;
+  let userService: jest.Mocked<Pick<UserService, "findUserWithGroups">>;
 
   /**
    * Builds a minimal mock ExecutionContext backed by the given request object.
@@ -43,7 +43,7 @@ describe("IdentityGuard", () => {
 
   beforeEach(() => {
     userService = {
-      getUserWithGroups: jest.fn().mockResolvedValue({
+      findUserWithGroups: jest.fn().mockResolvedValue({
         is_system_admin: false,
         actor_id: "actor-id",
         userGroups: [],
@@ -254,7 +254,7 @@ describe("IdentityGuard", () => {
   // ---------------------------------------------------------------------------
 
   it("should set isSystemAdmin from the database when @Identity is present and user is a system admin", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: true,
       actor_id: "actor-id",
       userGroups: [],
@@ -276,7 +276,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should set isSystemAdmin to false from the database when @Identity is present and user is not a system admin", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [],
@@ -298,7 +298,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should set groupRoles from the database when @Identity is present and user belongs to groups", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [
@@ -334,7 +334,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should set groupRoles to an empty record when @Identity is present and user has no groups", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [],
@@ -357,7 +357,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should also set userId on resolvedIdentity when @Identity is present and request is JWT", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [],
@@ -378,7 +378,7 @@ describe("IdentityGuard", () => {
     );
   });
 
-  it("should call getUserWithGroups when @Identity is present and request is JWT", async () => {
+  it("should call findUserWithGroups when @Identity is present and request is JWT", async () => {
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity(),
       userService as unknown as UserService,
@@ -389,10 +389,10 @@ describe("IdentityGuard", () => {
 
     await identityGuard.canActivate(createContext(request));
 
-    expect(userService.getUserWithGroups).toHaveBeenCalledWith("user-id");
+    expect(userService.findUserWithGroups).toHaveBeenCalledWith("user-id");
   });
 
-  it("should call getUserWithGroups even when @Identity is absent and request is JWT", async () => {
+  it("should call findUserWithGroups even when @Identity is absent and request is JWT", async () => {
     // Guard always queries DB for JWT requests regardless of @Identity presence
     const request: Record<string, unknown> = {
       user: { sub: "jwt-user-id" },
@@ -400,7 +400,7 @@ describe("IdentityGuard", () => {
 
     await guard.canActivate(createContext(request));
 
-    expect(userService.getUserWithGroups).toHaveBeenCalledWith("jwt-user-id");
+    expect(userService.findUserWithGroups).toHaveBeenCalledWith("jwt-user-id");
   });
 
   // ---------------------------------------------------------------------------
@@ -408,7 +408,7 @@ describe("IdentityGuard", () => {
   // ---------------------------------------------------------------------------
 
   it("should allow access when requireSystemAdmin is true and JWT user is a system admin", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: true,
       actor_id: "actor-id",
       userGroups: [],
@@ -431,7 +431,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should throw ForbiddenException when requireSystemAdmin is true and JWT user is not a system admin", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [],
@@ -468,7 +468,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should allow a system admin through even when groupIdFrom is also specified", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: true,
       actor_id: "actor-id",
       userGroups: [],
@@ -496,7 +496,7 @@ describe("IdentityGuard", () => {
   // ---------------------------------------------------------------------------
 
   it("should pass when group ID is extracted from route param and caller is a member", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [
@@ -524,7 +524,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should pass when group ID is extracted from query param and caller is a member", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [
@@ -552,7 +552,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should pass when group ID is extracted from request body and caller is a member", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [
@@ -580,7 +580,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should throw BadRequestException when groupIdFrom param is specified but absent from request", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [],
@@ -601,7 +601,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should throw ForbiddenException when caller is not a member of the extracted group", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [
@@ -629,7 +629,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should pass for a system admin regardless of group membership when groupIdFrom is specified", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: true,
       actor_id: "actor-id",
       userGroups: [],
@@ -650,7 +650,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should skip the membership check when groupIdFrom has no param, query, or body set", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [],
@@ -674,7 +674,7 @@ describe("IdentityGuard", () => {
   // ---------------------------------------------------------------------------
 
   it("should pass when the caller holds exactly the minimum required role (ADMIN with ADMIN requirement)", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [
@@ -705,7 +705,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should pass when the caller holds a higher role than the minimum (ADMIN satisfies MEMBER minimum)", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [
@@ -736,7 +736,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should throw ForbiddenException when caller's role is below the minimum required role (MEMBER with ADMIN requirement)", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [
@@ -767,7 +767,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should skip the minimumRole check when groupIdFrom is absent", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [],
@@ -787,7 +787,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should pass for a system admin regardless of minimumRole when groupIdFrom is specified", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: true,
       actor_id: "actor-id",
       userGroups: [],
@@ -862,7 +862,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should not reject a JWT request due to allowApiKey being false", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [],
@@ -882,7 +882,7 @@ describe("IdentityGuard", () => {
   });
 
   it("should throw ForbiddenException before enrichment when allowApiKey is false (group membership not evaluated)", async () => {
-    userService.getUserWithGroups.mockResolvedValue({
+    userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
       userGroups: [
@@ -913,7 +913,7 @@ describe("IdentityGuard", () => {
     ).rejects.toThrow(ForbiddenException);
 
     // No DB queries should be made for API key path
-    expect(userService.getUserWithGroups).not.toHaveBeenCalled();
+    expect(userService.findUserWithGroups).not.toHaveBeenCalled();
   });
 
   // ---------------------------------------------------------------------------
@@ -929,7 +929,7 @@ describe("IdentityGuard", () => {
     const result = await guard.canActivate(createContext(request));
 
     expect(result).toBe(true);
-    expect(userService.getUserWithGroups).toHaveBeenCalled();
+    expect(userService.findUserWithGroups).toHaveBeenCalled();
   });
 
   it("should set resolvedIdentity.isSystemAdmin to false for a JWT request when @Identity is absent", async () => {
@@ -977,6 +977,6 @@ describe("IdentityGuard", () => {
     const result = await guard.canActivate(createContext(request));
 
     expect(result).toBe(true);
-    expect(userService.getUserWithGroups).toHaveBeenCalledWith("jwt-user-id");
+    expect(userService.findUserWithGroups).toHaveBeenCalledWith("jwt-user-id");
   });
 });

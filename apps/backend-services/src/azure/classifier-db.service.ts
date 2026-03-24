@@ -103,6 +103,34 @@ export class ClassifierDbService {
   }
 
   /**
+   * Updates an existing classifier model record, but from a system's scheduled call.
+   * @param classifierName The name of the classifier.
+   * @param groupId The group ID that owns the classifier.
+   * @param properties The partial properties to update.
+   * @returns The updated ClassifierModel record.
+   */
+  async systemUpdateClassifierModel(
+    classifierName: string,
+    groupId: string,
+    properties: Partial<ClassifierEditableProperties>,
+    tx?: Prisma.TransactionClient,
+  ): Promise<ClassifierModel> {
+    const client = tx ?? this.prisma;
+    return client.classifierModel.update({
+      where: {
+        name_group_id: {
+          name: classifierName,
+          group_id: groupId,
+        },
+      },
+      data: {
+        ...properties,
+        name: classifierName,
+      },
+    });
+  }
+
+  /**
    * Finds a classifier model by name and group ID.
    * @param classifierName The name of the classifier.
    * @param groupId The group ID that owns the classifier.

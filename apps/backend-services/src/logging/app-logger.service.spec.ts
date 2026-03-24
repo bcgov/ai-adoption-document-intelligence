@@ -78,15 +78,15 @@ describe("AppLoggerService", () => {
     beforeEach(() =>
       mockGetRequestContext.mockReturnValue({
         requestId: "req-123",
-        userId: "user-456",
+        actorId: "user-456",
       }),
     );
 
-    it("debug merges requestId and userId", () => {
+    it("debug merges requestId and actorId", () => {
       service.debug("trace");
       expect(mockLoggerMethods.debug).toHaveBeenCalledWith("trace", {
         requestId: "req-123",
-        userId: "user-456",
+        actorId: "user-456",
       });
     });
 
@@ -94,7 +94,7 @@ describe("AppLoggerService", () => {
       service.child({ extra: "val" });
       expect(mockLoggerMethods.child).toHaveBeenCalledWith({
         requestId: "req-123",
-        userId: "user-456",
+        actorId: "user-456",
         extra: "val",
       });
     });
@@ -103,7 +103,7 @@ describe("AppLoggerService", () => {
       service.log("msg", { requestId: "override" });
       expect(mockLoggerMethods.info).toHaveBeenCalledWith("msg", {
         requestId: "override",
-        userId: "user-456",
+        actorId: "user-456",
       });
     });
   });

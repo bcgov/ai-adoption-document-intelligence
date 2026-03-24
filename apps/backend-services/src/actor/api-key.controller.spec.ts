@@ -23,7 +23,7 @@ describe("ApiKeyController", () => {
       roles: ["admin", "editor"],
     },
     resolvedIdentity: {
-      userId: "testuser",
+      actorId: "testuser",
       isSystemAdmin: false,
       groupRoles: { group123: GroupRole.ADMIN },
     },
@@ -76,7 +76,7 @@ describe("ApiKeyController", () => {
           {
             ...mockRequest,
             resolvedIdentity: {
-              userId: "testuser",
+              actorId: "testuser",
               isSystemAdmin: false,
               groupRoles: {},
             },
@@ -102,7 +102,7 @@ describe("ApiKeyController", () => {
           {
             user: { sub: "testuser" },
             resolvedIdentity: {
-              userId: "testuser",
+              actorId: "testuser",
               isSystemAdmin: false,
               groupRoles: { group123: GroupRole.ADMIN },
             },
@@ -142,7 +142,7 @@ describe("ApiKeyController", () => {
           {
             ...mockRequest,
             resolvedIdentity: {
-              userId: "testuser",
+              actorId: "testuser",
               isSystemAdmin: false,
               groupRoles: {},
             },
@@ -161,7 +161,7 @@ describe("ApiKeyController", () => {
           {
             user: { sub: "testuser" },
             resolvedIdentity: {
-              userId: "testuser",
+              actorId: "testuser",
               isSystemAdmin: false,
               groupRoles: { group123: GroupRole.ADMIN },
             },
@@ -197,7 +197,7 @@ describe("ApiKeyController", () => {
           {
             ...mockRequest,
             resolvedIdentity: {
-              userId: "testuser",
+              actorId: "testuser",
               isSystemAdmin: false,
               groupRoles: {},
             },
@@ -241,7 +241,7 @@ describe("ApiKeyController", () => {
           {
             ...mockRequest,
             resolvedIdentity: {
-              userId: "testuser",
+              actorId: "testuser",
               isSystemAdmin: false,
               groupRoles: {},
             },
@@ -270,7 +270,7 @@ describe("ApiKeyController", () => {
       const reqWithDifferentUser = {
         user: { sub: newUserId },
         resolvedIdentity: {
-          userId: newUserId,
+          actorId: newUserId,
           isSystemAdmin: false,
           groupRoles: { group123: GroupRole.ADMIN },
         },

@@ -49,7 +49,7 @@ export class ClassifierPollerService {
       const data = await result.json();
       const status = data.status || data.modelInfo?.status;
       if (status === "succeeded") {
-        await this.classifierDb.updateClassifierModel(classifierName, groupId, {
+        await this.classifierDb.systemUpdateClassifierModel(classifierName, groupId, {
           status: ClassifierStatus.READY,
         });
         this.logger.log(
@@ -61,7 +61,7 @@ export class ClassifierPollerService {
           this.classifierService.classifierContainer,
         );
       } else if (status === "failed") {
-        await this.classifierDb.updateClassifierModel(classifierName, groupId, {
+        await this.classifierDb.systemUpdateClassifierModel(classifierName, groupId, {
           status: ClassifierStatus.FAILED,
         });
         this.logger.warn(

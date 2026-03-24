@@ -23,6 +23,8 @@ describe("AzureController", () => {
       groupRoles: Object.fromEntries(
         groups.map((g) => [g, GroupRole.MEMBER]),
       ) as Record<string, GroupRole>,
+      actorId: "actor-1",
+      isSystemAdmin: false,
     },
   });
 

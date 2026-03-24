@@ -92,14 +92,14 @@ describe("LoggingInterceptor", () => {
     it("includes requestId and userId from request context when present", () => {
       mockGetRequestContext.mockReturnValue({
         requestId: "req-123",
-        userId: "user-abc",
+        actorId: "user-abc",
       });
       const ctx = makeHttpContext();
       const next: CallHandler = { handle: () => of(null) };
       interceptor.intercept(ctx, next).subscribe();
       expect(mockLogger.log).toHaveBeenCalledWith(
         "HTTP request start",
-        expect.objectContaining({ requestId: "req-123", userId: "user-abc" }),
+        expect.objectContaining({ requestId: "req-123", actorId: "user-abc" }),
       );
     });
   });

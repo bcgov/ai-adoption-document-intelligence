@@ -156,7 +156,7 @@ describe("WorkflowController", () => {
       expect(result).toEqual({ workflow: mockWorkflowInfo });
       expect(workflowService.getWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        "user-1",
+        undefined,
       );
     });
 
@@ -196,7 +196,7 @@ describe("WorkflowController", () => {
       const result = await controller.createWorkflow(dto, req);
       expect(result).toEqual({ workflow: mockWorkflowInfo });
       expect(workflowService.createWorkflow).toHaveBeenCalledWith(
-        "user-1",
+        undefined,
         dto,
       );
     });
@@ -242,11 +242,11 @@ describe("WorkflowController", () => {
       expect(result.workflow.name).toBe("Updated");
       expect(workflowService.getWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        "user-1",
+        undefined,
       );
       expect(workflowService.updateWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        "user-1",
+        undefined,
         dto,
       );
     });
@@ -284,11 +284,11 @@ describe("WorkflowController", () => {
       await controller.deleteWorkflow("wf-1", req);
       expect(workflowService.getWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        "user-1",
+        undefined,
       );
       expect(workflowService.deleteWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        "user-1",
+        undefined,
       );
     });
 

@@ -97,7 +97,7 @@ describe("ClassifierPollerService", () => {
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(
         mockClassifierDbService.updateClassifierModel,
-      ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.READY });
+      ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.READY }, undefined);
       expect(mockBlobService.deleteFilesWithPrefix).toHaveBeenCalledWith(
         "gid/clf",
         "classification",
@@ -111,7 +111,7 @@ describe("ClassifierPollerService", () => {
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(
         mockClassifierDbService.updateClassifierModel,
-      ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.FAILED });
+      ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.FAILED }, undefined);
     });
 
     it("should not update if still training", async () => {
