@@ -2,26 +2,15 @@ import type { Prisma, PrismaClient } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 
+/**
+ * Database service for ApiKey operations within the ApiKey module.
+ */
 @Injectable()
 export class UserDbService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(private readonly prismaService: PrismaService) { }
 
   private get prisma(): PrismaClient {
     return this.prismaService.prisma;
-  }
-
-  async getUser(
-    sub: string,
-    includeGroups: boolean = false,
-    tx?: Prisma.TransactionClient,
-  ) {
-    const client = tx ?? this.prisma;
-    return await client.user.findUnique({
-      where: { id: sub },
-      include: {
-        userGroups: includeGroups,
-      },
-    });
   }
 
   async upsertUser(sub: string, email: string, tx?: Prisma.TransactionClient) {
@@ -54,5 +43,29 @@ export class UserDbService {
     return tx
       ? await userHelper(tx)
       : await this.prisma.$transaction(async (tx) => await userHelper(tx));
+  }
+  /**
+     * Checks whether a user is a system admin.
+     * @param userId - The ID of the user to check.
+     * @returns `true` when the user has `is_system_admin` set to `true`, `false` otherwise.
+     */
+  async isUserSystemAdmin(
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    const client = tx ?? this.prisma;
+    const user = await client.user.findUnique({
+      where: { id: userId },
+      select: { is_system_admin: true },
+    });
+    return user?.is_system_admin ?? false;
+  }
+
+  async findUser(userId: string, includeGroups: boolean = false, tx?: Prisma.TransactionClient,) {
+    const client = tx ?? this.prisma;
+    return await client.user.findUnique({
+      where: { id: userId },
+      include: { userGroups: includeGroups }
+    })
   }
 }

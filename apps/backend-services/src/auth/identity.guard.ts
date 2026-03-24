@@ -9,9 +9,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
-import { ApiKeyService } from "@/actor/api-key.service";
 import { UserService } from "@/actor/user.service";
-import { GroupService } from "../group/group.service";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
 import { ROLE_ORDER } from "./role-order";
 
@@ -47,7 +45,7 @@ export { ROLE_ORDER };
 export class IdentityGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private userService: UserService,
+    private userService: UserService
   ) {}
 
   /**
@@ -94,18 +92,18 @@ export class IdentityGuard implements CanActivate {
       }
     } else if (request.user?.sub) {
       const userId = request.user.sub;
-      const userWithGroups = await this.userService.getUserWithGroups(userId);
+      const user = await this.userService.findUserWithGroups(userId);
 
       const groupRoles: Record<string, GroupRole> = {};
-      for (const ug of userWithGroups.userGroups) {
+      for (const ug of user.userGroups) {
         groupRoles[ug.group_id] = ug.role;
       }
 
       request.resolvedIdentity = {
         userId,
-        isSystemAdmin: userWithGroups.is_system_admin,
+        isSystemAdmin: user.is_system_admin,
         groupRoles,
-        actorId: userWithGroups.actor_id,
+        actorId: user.actor_id
       };
     } else {
       // else: public route or unauthenticated request

@@ -12,6 +12,7 @@ const mockApiKey: ApiKey = {
   actor_id: "actor-1",
   created_at: new Date("2024-01-01"),
   last_used: null,
+  actor_id: "actor-1"
 };
 
 const createData: CreateApiKeyData = {

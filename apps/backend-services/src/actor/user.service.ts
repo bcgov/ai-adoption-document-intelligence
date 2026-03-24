@@ -4,13 +4,25 @@ import { UserDbService } from "./user-db.service";
 
 @Injectable()
 export class UserService {
-  constructor(private readonly userDbService: UserDbService) {}
+  constructor(
+    private readonly userDb: UserDbService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
-  async getUserWithGroups(sub: string) {
-    return await this.userDbService.getUser(sub, true);
+  /**
+   * Returns true/false depending no user's system admin status.
+   * @param userId A user's id
+   * @returns A boolean value indicating user's system admin status
+   */
+  async isUserAdmin(userId){
+    return await this.userDb.isUserSystemAdmin(userId);
   }
 
   async upsertUser(sub: string, email: string) {
-    return await this.userDbService.upsertUser(sub, email);
+    return await this.userDb.upsertUser(sub, email);
+  }
+
+  async findUserWithGroups(userId){
+    return await this.userDb.findUser(userId, true)
   }
 }
