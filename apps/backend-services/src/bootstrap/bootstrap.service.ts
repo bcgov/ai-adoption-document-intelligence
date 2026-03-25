@@ -91,7 +91,7 @@ export class BootstrapService {
       });
 
       // Create "Default" group
-      const group = await this.prismaService.prisma.group.create({
+      const group = await tx.group.create({
         data: {
           name: "Default",
           description: "Initial group created during system setup",
@@ -100,7 +100,7 @@ export class BootstrapService {
       });
 
       // Assign user as group admin
-      await this.prismaService.prisma.userGroup.create({
+      await tx.userGroup.create({
         data: {
           user_id: userId,
           group_id: group.id,
@@ -112,7 +112,7 @@ export class BootstrapService {
         event_type: "system_bootstrap",
         resource_type: "system",
         resource_id: "bootstrap",
-        actor_id: userId,
+        actor_id: user.actor_id,
         group_id: group.id,
         payload: {
           user_email: userEmail,

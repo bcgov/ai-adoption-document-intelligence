@@ -9,7 +9,7 @@ const mockAuditService = {
 } as unknown as AuditService;
 
 function createMockPrisma(adminCount = 0) {
-  const user = { actor_id: "user-1" };
+  const user = { id: "user-1", email: "admin@example.com", actor_id: "actor-1" };
   const group = {
     id: "group-1",
     name: "Default",
@@ -115,7 +115,7 @@ describe("BootstrapService", () => {
         data: {
           name: "Default",
           description: "Initial group created during system setup",
-          created_by: "user-1",
+          created_by: "actor-1",
         },
       });
       expect(mockPrisma.prisma.userGroup.create).toHaveBeenCalledWith({
@@ -126,7 +126,10 @@ describe("BootstrapService", () => {
         },
       });
       expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ event_type: "system_bootstrap" }),
+        expect.objectContaining({
+          event_type: "system_bootstrap",
+          actor_id: "actor-1",
+        }),
       );
     });
 
