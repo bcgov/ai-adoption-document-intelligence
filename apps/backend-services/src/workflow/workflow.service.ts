@@ -127,7 +127,10 @@ export class WorkflowService {
     }));
   }
 
-  async getWorkflow(workflowId: string, actorId: string): Promise<WorkflowInfo> {
+  async getWorkflow(
+    workflowId: string,
+    actorId: string,
+  ): Promise<WorkflowInfo> {
     const workflow = await this.prisma.workflow.findUnique({
       where: {
         id: workflowId,
@@ -138,7 +141,9 @@ export class WorkflowService {
       throw new NotFoundException(`Workflow not found: ${workflowId}`);
     }
 
-    this.logger.debug(`getWorkflow: ${workflowId} requested by user ${actorId}`);
+    this.logger.debug(
+      `getWorkflow: ${workflowId} requested by user ${actorId}`,
+    );
 
     return {
       id: workflow.id,

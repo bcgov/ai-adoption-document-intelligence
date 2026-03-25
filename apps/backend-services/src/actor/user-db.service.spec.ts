@@ -4,7 +4,6 @@ import { PrismaService } from "@/database/prisma.service";
 import { ApiKeyDbService, type CreateApiKeyData } from "./api-key-db.service";
 import { UserDbService } from "./user-db.service";
 
-
 describe("UserDbService", () => {
   let service: UserDbService;
   let mockUserPrisma: {
@@ -47,7 +46,7 @@ describe("UserDbService", () => {
     expect(service).toBeDefined();
   });
 
-   describe("isUserSystemAdmin", () => {
+  describe("isUserSystemAdmin", () => {
     it("returns true when admin (no tx)", async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ is_system_admin: true });
       expect(await service.isUserSystemAdmin("user-1")).toBe(true);

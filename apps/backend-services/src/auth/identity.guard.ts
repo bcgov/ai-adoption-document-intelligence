@@ -43,7 +43,7 @@ export { ROLE_ORDER };
 export class IdentityGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private userService: UserService
+    private userService: UserService,
   ) {}
 
   /**
@@ -101,7 +101,7 @@ export class IdentityGuard implements CanActivate {
         userId,
         isSystemAdmin: user.is_system_admin,
         groupRoles,
-        actorId: user.actor_id
+        actorId: user.actor_id,
       };
     } else {
       // else: public route or unauthenticated request

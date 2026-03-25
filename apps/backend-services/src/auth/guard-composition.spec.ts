@@ -13,9 +13,11 @@ import { Identity } from "@/auth/identity.decorator";
 import { ApiKeyService } from "../actor/api-key.service";
 import { UserService } from "../actor/user.service";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
+import { AuthService } from "./auth.service";
 import { CsrfGuard } from "./csrf.guard";
 import { IdentityGuard } from "./identity.guard";
 import { JwtAuthGuard } from "./jwt-auth.guard";
+import { KeycloakJwtStrategy } from "./keycloak-jwt.strategy";
 import { Public } from "./public.decorator";
 
 /**
@@ -140,24 +142,32 @@ describe("Guard Composition Integration", () => {
   };
 
   const mockUserService = {
-    getUserWithGroups: jest.fn().mockResolvedValue({
+    findUserWithGroups: jest.fn().mockResolvedValue({
+      user_id: "user-1",
       userGroups: [],
       is_system_admin: false,
       actor_id: "actor-1",
     }),
   };
 
+  const mockAuthService = {};
+
+  const mockKeycloakJwtStrategy = {};
+
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TestGuardController],
       providers: [
         Reflector,
+        // Register guards in the correct order, only once each, using the stub for JwtAuthGuard
         { provide: APP_GUARD, useClass: StubJwtAuthGuard },
         { provide: APP_GUARD, useClass: ApiKeyAuthGuard },
         { provide: APP_GUARD, useClass: IdentityGuard },
         { provide: APP_GUARD, useClass: CsrfGuard },
+        { provide: KeycloakJwtStrategy, useValue: mockKeycloakJwtStrategy },
         { provide: ApiKeyService, useValue: mockApiKeyService },
         { provide: UserService, useValue: mockUserService },
+        { provide: AuthService, useValue: mockAuthService },
       ],
     }).compile();
 
@@ -181,7 +191,7 @@ describe("Guard Composition Integration", () => {
       },
     );
 
-    mockUserService.getUserWithGroups.mockResolvedValue({
+    mockUserService.findUserWithGroups.mockResolvedValue({
       userGroups: [],
       is_system_admin: false,
       actor_id: "actor-1",

@@ -95,8 +95,8 @@ export class ClassifierDbService {
       },
       data: {
         ...properties,
-         created_by: actorId, 
-         updated_by: actorId,
+        created_by: actorId,
+        updated_by: actorId,
         name: classifierName,
       },
     });

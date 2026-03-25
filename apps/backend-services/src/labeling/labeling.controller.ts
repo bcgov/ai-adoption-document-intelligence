@@ -100,7 +100,10 @@ export class LabelingController {
   })
   async createProject(@Body() dto: CreateProjectDto, @Req() req: Request) {
     identityCanAccessGroup(req.resolvedIdentity, dto.group_id);
-    return this.labelingService.createProject(dto, req.resolvedIdentity.actorId);
+    return this.labelingService.createProject(
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get("projects/:id")

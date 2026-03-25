@@ -2,8 +2,8 @@ import { Module } from "@nestjs/common";
 import { ApiKeyController } from "./api-key.controller";
 import { ApiKeyService } from "./api-key.service";
 import { ApiKeyDbService } from "./api-key-db.service";
-import { UserDbService } from "./user-db.service";
 import { UserService } from "./user.service";
+import { UserDbService } from "./user-db.service";
 
 @Module({
   imports: [],

@@ -547,7 +547,7 @@ describe("AzureController", () => {
         "c1",
         "g1",
         { description: "new desc" },
-        "user1",
+        "actor-1",
       );
     });
     it("should throw ForbiddenException if user not in group", async () => {

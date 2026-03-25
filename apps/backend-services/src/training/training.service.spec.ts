@@ -434,9 +434,9 @@ describe("TrainingService", () => {
         mockLabeledDocument,
       ]);
 
-      await expect(
-        service.startTraining("project-1", dto),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.startTraining("project-1", dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it("should delete existing model before training", async () => {

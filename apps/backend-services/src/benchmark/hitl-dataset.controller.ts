@@ -103,7 +103,10 @@ export class HitlDatasetController {
     @Req() req: Request,
   ) {
     identityCanAccessGroup(req.resolvedIdentity, dto.groupId);
-    return this.hitlDatasetService.createDatasetFromHitl(dto, req.resolvedIdentity.actorId);
+    return this.hitlDatasetService.createDatasetFromHitl(
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post(":id/versions/from-hitl")
@@ -132,6 +135,10 @@ export class HitlDatasetController {
     const dataset = await this.datasetService.getDatasetById(datasetId);
     identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
 
-    return this.hitlDatasetService.addVersionFromHitl(datasetId, dto, req.resolvedIdentity.actorId);
+    return this.hitlDatasetService.addVersionFromHitl(
+      datasetId,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 }

@@ -101,7 +101,10 @@ export class DatasetController {
     @Req() req: Request,
   ): Promise<DatasetResponseDto> {
     identityCanAccessGroup(req.resolvedIdentity, createDto.groupId);
-    return this.datasetService.createDataset(createDto, req.resolvedIdentity.actorId);
+    return this.datasetService.createDataset(
+      createDto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get()
@@ -289,7 +292,11 @@ export class DatasetController {
     @Req() req: Request,
   ): Promise<VersionResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
-    return this.datasetService.createVersion(id, createDto, req.resolvedIdentity.actorId);
+    return this.datasetService.createVersion(
+      id,
+      createDto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get(":id/versions")

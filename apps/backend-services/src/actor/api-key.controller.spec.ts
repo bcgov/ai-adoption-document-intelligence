@@ -23,9 +23,10 @@ describe("ApiKeyController", () => {
       roles: ["admin", "editor"],
     },
     resolvedIdentity: {
-      actorId: "testuser",
+      userId: "testuser",
       isSystemAdmin: false,
       groupRoles: { group123: GroupRole.ADMIN },
+      actorId: "actor-1",
     },
   };
 
@@ -102,7 +103,7 @@ describe("ApiKeyController", () => {
           {
             user: { sub: "testuser" },
             resolvedIdentity: {
-              actorId: "testuser",
+              userId: "testuser",
               isSystemAdmin: false,
               groupRoles: { group123: GroupRole.ADMIN },
             },
@@ -142,7 +143,7 @@ describe("ApiKeyController", () => {
           {
             ...mockRequest,
             resolvedIdentity: {
-              actorId: "testuser",
+              userId: "testuser",
               isSystemAdmin: false,
               groupRoles: {},
             },
@@ -161,7 +162,7 @@ describe("ApiKeyController", () => {
           {
             user: { sub: "testuser" },
             resolvedIdentity: {
-              actorId: "testuser",
+              userId: "testuser",
               isSystemAdmin: false,
               groupRoles: { group123: GroupRole.ADMIN },
             },
@@ -241,9 +242,10 @@ describe("ApiKeyController", () => {
           {
             ...mockRequest,
             resolvedIdentity: {
-              actorId: "testuser",
+              userId: "testuser",
               isSystemAdmin: false,
               groupRoles: {},
+              actorId: "actor-1",
             },
           } as any,
           {
@@ -273,6 +275,7 @@ describe("ApiKeyController", () => {
           actorId: newUserId,
           isSystemAdmin: false,
           groupRoles: { group123: GroupRole.ADMIN },
+          userId: newUserId,
         },
       };
 

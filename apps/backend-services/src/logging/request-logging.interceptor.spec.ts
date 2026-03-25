@@ -60,7 +60,12 @@ describe("RequestLoggingInterceptor", () => {
   it("does not set userId when store is null", () => {
     mockGetStore.mockReturnValue(undefined);
     const req = makeRequest({
-      resolvedIdentity: { userId: "u-1", actorId: "u-1", isSystemAdmin: false, groupRoles: {} },
+      resolvedIdentity: {
+        userId: "u-1",
+        actorId: "u-1",
+        isSystemAdmin: false,
+        groupRoles: {},
+      },
     } as Partial<Request>);
     const ctx = makeContext(req);
     const next: CallHandler = { handle: () => of(undefined) };
@@ -82,7 +87,12 @@ describe("RequestLoggingInterceptor", () => {
     const store = { requestId: "req-1" };
     mockGetStore.mockReturnValue(store);
     const req = makeRequest({
-      resolvedIdentity: { userId: "user-abc", actorId: "user-abc", isSystemAdmin: false, groupRoles: {} },
+      resolvedIdentity: {
+        userId: "user-abc",
+        actorId: "user-abc",
+        isSystemAdmin: false,
+        groupRoles: {},
+      },
     } as Partial<Request>);
     const ctx = makeContext(req);
     const next: CallHandler = { handle: () => of(undefined) };
@@ -94,12 +104,16 @@ describe("RequestLoggingInterceptor", () => {
     const store = { requestId: "req-1" };
     mockGetStore.mockReturnValue(store);
     const req = makeRequest({
-      resolvedIdentity: { groupRoles: {}, isSystemAdmin: false, actorId: "actor-1" },
+      resolvedIdentity: {
+        groupRoles: {},
+        isSystemAdmin: false,
+        actorId: "actor-1",
+      },
     } as Partial<Request>);
     const ctx = makeContext(req);
     const next: CallHandler = { handle: () => of(undefined) };
     interceptor.intercept(ctx, next).subscribe();
-      expect(store).not.toHaveProperty("userId");
+    expect(store).not.toHaveProperty("userId");
   });
 
   describe("logRequest", () => {

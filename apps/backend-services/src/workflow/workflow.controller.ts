@@ -90,7 +90,10 @@ export class WorkflowController {
     @Param("id") id: string,
     @Req() req: Request,
   ): Promise<{ workflow: WorkflowInfo }> {
-    const workflow = await this.workflowService.getWorkflow(id, req.resolvedIdentity.actorId);
+    const workflow = await this.workflowService.getWorkflow(
+      id,
+      req.resolvedIdentity.actorId,
+    );
 
     identityCanAccessGroup(req.resolvedIdentity, workflow.groupId);
 
@@ -119,7 +122,10 @@ export class WorkflowController {
   ): Promise<{ workflow: WorkflowInfo }> {
     identityCanAccessGroup(req.resolvedIdentity, dto.groupId);
 
-    const workflow = await this.workflowService.createWorkflow(req.resolvedIdentity.actorId, dto);
+    const workflow = await this.workflowService.createWorkflow(
+      req.resolvedIdentity.actorId,
+      dto,
+    );
     return { workflow };
   }
 
@@ -151,7 +157,11 @@ export class WorkflowController {
 
     identityCanAccessGroup(req.resolvedIdentity, existing.groupId);
 
-    const workflow = await this.workflowService.updateWorkflow(id, actorId, dto);
+    const workflow = await this.workflowService.updateWorkflow(
+      id,
+      actorId,
+      dto,
+    );
     return { workflow };
   }
 

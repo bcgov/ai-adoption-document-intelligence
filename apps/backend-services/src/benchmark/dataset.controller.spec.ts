@@ -278,6 +278,7 @@ describe("DatasetController", () => {
       expect(mockDatasetService.createVersion).toHaveBeenCalledWith(
         "dataset-123",
         createDto,
+        "user-123",
       );
       expect(result).toEqual(mockResponse);
     });
@@ -306,6 +307,7 @@ describe("DatasetController", () => {
       expect(mockDatasetService.createVersion).toHaveBeenCalledWith(
         "dataset-123",
         createDto,
+        "anonymous",
       );
     });
   });
@@ -432,6 +434,7 @@ describe("DatasetController", () => {
         "dataset-123",
         "version-123",
         mockFiles,
+        "user-123",
       );
       expect(result).toEqual(mockResponse);
     });
@@ -482,7 +485,7 @@ describe("DatasetController", () => {
         resolvedIdentity: {
           isSystemAdmin: false,
           groupRoles: {},
-          actorId: "anonymous",
+          actorId: "actor-1",
         },
       } as unknown as Request;
       mockDatasetService.getDatasetById.mockResolvedValue({
@@ -501,6 +504,7 @@ describe("DatasetController", () => {
         "dataset-123",
         "version-123",
         mockFiles,
+        "actor-1",
       );
     });
   });

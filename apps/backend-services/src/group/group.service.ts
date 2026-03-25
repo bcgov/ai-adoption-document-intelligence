@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { UserService } from "@/actor/user.service";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { ResolvedIdentity } from "@/auth/types";
 import { AuditService } from "../audit/audit.service";
@@ -15,7 +16,6 @@ import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { MyMembershipRequestDto } from "./dto/my-membership-request.dto";
 import { UserGroupDto } from "./dto/user-group.dto";
 import { GroupDbService } from "./group-db.service";
-import { UserService } from "@/actor/user.service";
 
 @Injectable()
 export class GroupService {

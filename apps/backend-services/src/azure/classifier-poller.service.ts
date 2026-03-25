@@ -49,9 +49,13 @@ export class ClassifierPollerService {
       const data = await result.json();
       const status = data.status || data.modelInfo?.status;
       if (status === "succeeded") {
-        await this.classifierDb.systemUpdateClassifierModel(classifierName, groupId, {
-          status: ClassifierStatus.READY,
-        });
+        await this.classifierDb.systemUpdateClassifierModel(
+          classifierName,
+          groupId,
+          {
+            status: ClassifierStatus.READY,
+          },
+        );
         this.logger.log(
           `Classifier ${classifierName} (group ${groupId}) training succeeded.`,
         );
@@ -61,9 +65,13 @@ export class ClassifierPollerService {
           this.classifierService.classifierContainer,
         );
       } else if (status === "failed") {
-        await this.classifierDb.systemUpdateClassifierModel(classifierName, groupId, {
-          status: ClassifierStatus.FAILED,
-        });
+        await this.classifierDb.systemUpdateClassifierModel(
+          classifierName,
+          groupId,
+          {
+            status: ClassifierStatus.FAILED,
+          },
+        );
         this.logger.warn(
           `Classifier ${classifierName} (group ${groupId}) training failed.`,
         );

@@ -39,9 +39,9 @@ import {
   setAuthCookies,
 } from "./cookie-auth.utils";
 import { MeResponseDto, OAuthCallbackQueryDto, RefreshReturnDto } from "./dto";
+import { Identity } from "./identity.decorator";
 import { Public } from "./public.decorator";
 import { User } from "./types";
-import { Identity } from "./identity.decorator";
 
 /**
  * Thin HTTP layer that exposes the OAuth entrypoints to the frontend.
@@ -280,7 +280,7 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({ description: "Invalid token" })
-  @Identity({allowApiKey: false})
+  @Identity({ allowApiKey: false })
   async getMe(@Req() req: Request): Promise<MeResponseDto> {
     const user = req.user as User;
     const now = Math.floor(Date.now() / 1000);
@@ -302,5 +302,10 @@ export class AuthController {
       expires_in: Math.max(exp - now, 0),
       groups,
     };
+  }
+
+  @Get("test")
+  async test() {
+    return "hi";
   }
 }

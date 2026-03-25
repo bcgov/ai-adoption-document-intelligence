@@ -101,7 +101,7 @@ export class BenchmarkRunController {
       projectId,
       definitionId,
       createRunDto,
-      req.resolvedIdentity
+      req.resolvedIdentity,
     );
   }
 
@@ -292,7 +292,7 @@ export class BenchmarkRunController {
       projectId,
       runId,
       promoteBaselineDto,
-      req.resolvedIdentity
+      req.resolvedIdentity,
     );
   }
 

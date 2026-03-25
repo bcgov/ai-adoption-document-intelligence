@@ -7,7 +7,7 @@ import { PrismaService } from "@/database/prisma.service";
  */
 @Injectable()
 export class UserDbService {
-  constructor(private readonly prismaService: PrismaService) { }
+  constructor(private readonly prismaService: PrismaService) {}
 
   private get prisma(): PrismaClient {
     return this.prismaService.prisma;
@@ -45,10 +45,10 @@ export class UserDbService {
       : await this.prisma.$transaction(async (tx) => await userHelper(tx));
   }
   /**
-     * Checks whether a user is a system admin.
-     * @param userId - The ID of the user to check.
-     * @returns `true` when the user has `is_system_admin` set to `true`, `false` otherwise.
-     */
+   * Checks whether a user is a system admin.
+   * @param userId - The ID of the user to check.
+   * @returns `true` when the user has `is_system_admin` set to `true`, `false` otherwise.
+   */
   async isUserSystemAdmin(
     userId: string,
     tx?: Prisma.TransactionClient,
@@ -61,11 +61,15 @@ export class UserDbService {
     return user?.is_system_admin ?? false;
   }
 
-  async findUser(userId: string, includeGroups: boolean = false, tx?: Prisma.TransactionClient,) {
+  async findUser(
+    userId: string,
+    includeGroups: boolean = false,
+    tx?: Prisma.TransactionClient,
+  ) {
     const client = tx ?? this.prisma;
     return await client.user.findUnique({
       where: { id: userId },
-      include: { userGroups: includeGroups }
-    })
+      include: { userGroups: includeGroups },
+    });
   }
 }
