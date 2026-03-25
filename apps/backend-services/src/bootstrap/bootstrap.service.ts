@@ -26,7 +26,7 @@ export class BootstrapService {
     private readonly configService: ConfigService,
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
-  ) { }
+  ) {}
 
   /**
    * Checks whether bootstrap is needed (zero system admins exist) and whether
@@ -119,8 +119,8 @@ export class BootstrapService {
           group_name: group.name,
         },
       });
-      return { user, group }
-    })
+      return { user, group };
+    });
 
     this.logger.log("System bootstrap completed", {
       user: user.id,

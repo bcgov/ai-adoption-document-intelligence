@@ -8,7 +8,6 @@ const mockAuditService = {
   recordEvent: jest.fn().mockResolvedValue(undefined),
 } as unknown as AuditService;
 
-
 function createMockPrisma(adminCount = 0) {
   const user = { actor_id: "user-1" };
   const group = {
