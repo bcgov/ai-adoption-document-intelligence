@@ -27,10 +27,7 @@ function createMockPrisma(adminCount = 0) {
   };
 }
 
-function createService(
-  adminCount: number,
-  bootstrapEmail: string | undefined,
-) {
+function createService(adminCount: number, bootstrapEmail: string | undefined) {
   const mockPrisma = createMockPrisma(adminCount);
   const configService = {
     get: jest.fn((key: string) => {

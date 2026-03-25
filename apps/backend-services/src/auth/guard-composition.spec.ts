@@ -11,7 +11,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import * as request from "supertest";
 import { Identity } from "@/auth/identity.decorator";
 import { ApiKeyService } from "../api-key/api-key.service";
-import { DatabaseService } from "../database/database.service";
+import { GroupService } from "../group/group.service";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
 import { CsrfGuard } from "./csrf.guard";
 import { IdentityGuard } from "./identity.guard";
@@ -47,8 +47,8 @@ const JWT_ADMIN = {
   email: "admin@example.com",
 };
 
-const API_KEY_USER = { groupId: "group-user" };
-const API_KEY_ADMIN = { groupId: "group-admin" };
+const API_KEY_USER = { groupId: "group-user", keyPrefix: "test-pre" };
+const API_KEY_ADMIN = { groupId: "group-admin", keyPrefix: "test-pre" };
 
 // ---------------------------------------------------------------------------
 // Stub: replaces Passport JWT validation with a simple token check.
@@ -139,9 +139,9 @@ describe("Guard Composition Integration", () => {
     validateApiKey: jest.fn(),
   };
 
-  const mockDatabaseService = {
+  const mockGroupService = {
     isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    getUsersGroups: jest.fn().mockResolvedValue([]),
+    findUsersGroups: jest.fn().mockResolvedValue([]),
   };
 
   beforeAll(async () => {
@@ -154,7 +154,7 @@ describe("Guard Composition Integration", () => {
         { provide: APP_GUARD, useClass: IdentityGuard },
         { provide: APP_GUARD, useClass: CsrfGuard },
         { provide: ApiKeyService, useValue: mockApiKeyService },
-        { provide: DatabaseService, useValue: mockDatabaseService },
+        { provide: GroupService, useValue: mockGroupService },
       ],
     }).compile();
 
@@ -170,7 +170,7 @@ describe("Guard Composition Integration", () => {
     jest.clearAllMocks();
 
     mockApiKeyService.validateApiKey.mockImplementation(
-      (key: string): Promise<{ groupId: string } | null> => {
+      (key: string): Promise<{ groupId: string; keyPrefix: string } | null> => {
         if (key === VALID_API_KEY) return Promise.resolve(API_KEY_USER);
         if (key === "valid-admin-api-key")
           return Promise.resolve(API_KEY_ADMIN);
@@ -178,8 +178,8 @@ describe("Guard Composition Integration", () => {
       },
     );
 
-    mockDatabaseService.isUserSystemAdmin.mockResolvedValue(false);
-    mockDatabaseService.getUsersGroups.mockResolvedValue([]);
+    mockGroupService.isUserSystemAdmin.mockResolvedValue(false);
+    mockGroupService.findUsersGroups.mockResolvedValue([]);
   });
 
   // =========================================================================

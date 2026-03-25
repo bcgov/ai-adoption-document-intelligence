@@ -35,7 +35,7 @@ export class GroundTruthGenerationController {
     req: Request,
   ): Promise<void> {
     const dataset = await this.datasetService.getDatasetById(datasetId);
-    await identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
   }
 
   @Post()

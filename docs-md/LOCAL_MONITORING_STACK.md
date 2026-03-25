@@ -13,7 +13,7 @@ npm run dev:monitoring
 Or start it alongside the core stack:
 
 ```bash
-docker compose -f apps/backend-services/docker-compose.yml -f docker-compose.monitoring.yml up -d
+docker compose -f apps/backend-services/docker-compose.yml -f deployments/local/docker-compose.monitoring.yml up -d
 ```
 
 Stop the monitoring stack:
@@ -73,7 +73,7 @@ The logs appear in Grafana under the `backend-services`, `frontend`, and `tempor
 Loki and Prometheus data is stored in named Docker volumes (`loki_data` and `prometheus_data`). Data survives container restarts and `docker compose down`. To clear all monitoring data:
 
 ```bash
-docker compose -f docker-compose.monitoring.yml down -v
+docker compose -f deployments/local/docker-compose.monitoring.yml down -v
 ```
 
 ### Log Collection
@@ -97,7 +97,7 @@ No manual configuration is required.
 
 | File                                                          | Purpose                       |
 |---------------------------------------------------------------|-------------------------------|
-| `docker-compose.monitoring.yml`                               | Docker Compose service definitions |
+| `deployments/local/docker-compose.monitoring.yml`             | Docker Compose service definitions |
 | `deployments/local/loki/loki.yaml`                            | Loki server configuration     |
 | `deployments/local/prometheus/prometheus.yml`                  | Prometheus scrape targets      |
 | `deployments/local/promtail/promtail-config.yml`              | Promtail log discovery rules   |

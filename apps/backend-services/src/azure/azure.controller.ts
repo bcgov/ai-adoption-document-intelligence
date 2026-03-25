@@ -62,7 +62,6 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { DatabaseService } from "@/database/database.service";
 import { GroupRole } from "@/generated/edge";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
@@ -73,13 +72,12 @@ export class AzureController {
     private readonly classifierService: ClassifierService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
-    private readonly databaseService: DatabaseService,
     private readonly azureService: AzureService,
     private readonly logger: AppLoggerService,
   ) {}
 
   @Get("classifier")
-  @Identity({ minimumRole: GroupRole.MEMBER })
+  @Identity()
   @ApiOperation({
     summary: "Get classifiers for user groups",
     description:
@@ -98,11 +96,11 @@ export class AzureController {
   async getClassifiers(@Request() req, @Query("group_id") groupId?: string) {
     if (groupId) {
       identityCanAccessGroup(req.resolvedIdentity, groupId);
-      return this.databaseService.getClassifierModelsForGroups([groupId]);
+      return this.classifierService.findAllClassifierModelsForGroups([groupId]);
     }
     const groupIds = getIdentityGroupIds(req.resolvedIdentity);
     const classifiers =
-      await this.databaseService.getClassifierModelsForGroups(groupIds);
+      await this.classifierService.findAllClassifierModelsForGroups(groupIds);
     return classifiers;
   }
 
@@ -125,17 +123,16 @@ export class AzureController {
   })
   async createClassifier(@Request() req, @Body() body: ClassifierCreationDto) {
     const { name, description, source, group_id } = body;
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
 
     // Does this classifier already exist?
-    const classifier = await this.databaseService.getClassifierModel(
+    const classifier = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
     if (classifier != null) {
       throw new ForbiddenException("Classifier with this name already exists.");
     }
-    const creationResult = await this.databaseService.createClassifierModel(
+    const creationResult = await this.classifierService.createClassifierModel(
       name,
       {
         description,
@@ -169,10 +166,8 @@ export class AzureController {
   async updateClassifier(@Request() req, @Body() body: UpdateClassifierDto) {
     const { name, group_id, description, source } = body;
 
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
-
     // Check if classifier exists
-    const classifier = await this.databaseService.getClassifierModel(
+    const classifier = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
@@ -189,7 +184,7 @@ export class AzureController {
       updateData.source = source;
     }
 
-    const updateResult = await this.databaseService.updateClassifierModel(
+    const updateResult = await this.classifierService.updateClassifierModel(
       name,
       group_id,
       updateData,
@@ -240,9 +235,8 @@ export class AzureController {
     @Query("group_id") group_id: string,
   ): Promise<UploadClassifierDocumentsResponseDto> {
     const { name, label } = body;
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
 
-    const existingModelData = await this.databaseService.getClassifierModel(
+    const existingModelData = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
@@ -283,9 +277,8 @@ export class AzureController {
     @Query() query: GetClassifierDocumentsQueryDto,
   ): Promise<string[]> {
     const { name, group_id } = query;
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
 
-    const existingModelData = await this.databaseService.getClassifierModel(
+    const existingModelData = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
@@ -317,9 +310,8 @@ export class AzureController {
     @Query() query: DeleteClassifierDocumentsDto,
   ): Promise<void> {
     const { name, group_id, folder } = query;
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
 
-    const existingModelData = await this.databaseService.getClassifierModel(
+    const existingModelData = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
@@ -368,10 +360,9 @@ export class AzureController {
   ): Promise<ClassifierModelResponseDto> {
     const { name, group_id } = body;
     const userId = req.user.sub;
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
 
     // Respond immediately and run the heavy work in the background
-    const model = await this.databaseService.updateClassifierModel(
+    const model = await this.classifierService.updateClassifierModel(
       name,
       group_id,
       { status: ClassifierStatus.TRAINING },
@@ -402,7 +393,7 @@ export class AzureController {
           `Background classification request failed for classifier ${name} in group ${group_id}.`,
           e,
         );
-        await this.databaseService.updateClassifierModel(
+        await this.classifierService.updateClassifierModel(
           name,
           group_id,
           { status: ClassifierStatus.FAILED },
@@ -456,9 +447,8 @@ export class AzureController {
   ): Promise<ClassifierResponseDto> {
     const { name } = body;
     const userId = req.user.sub;
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
     // Is there a classifier trained for this group?
-    const classifier = await this.databaseService.getClassifierModel(
+    const classifier = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
@@ -472,7 +462,7 @@ export class AzureController {
       group_id,
     );
 
-    await this.databaseService.updateClassifierModel(
+    await this.classifierService.updateClassifierModel(
       name,
       group_id,
       {
@@ -538,7 +528,7 @@ export class AzureController {
     }
     const userId = req.user.sub;
     identityCanAccessGroup(req.resolvedIdentity, group_id);
-    const classifier = await this.databaseService.getClassifierModel(
+    const classifier = await this.classifierService.findClassifierModel(
       name,
       group_id,
     );
@@ -554,7 +544,7 @@ export class AzureController {
     await this.azureService.pollOperationUntilResolved(
       classifier.operation_location,
       async (r) => {
-        returnValue = await this.databaseService.updateClassifierModel(
+        returnValue = await this.classifierService.updateClassifierModel(
           name,
           group_id,
           { status: ClassifierStatus.READY },

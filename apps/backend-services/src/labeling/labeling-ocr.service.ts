@@ -9,9 +9,9 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
-import { DatabaseService } from "../database/database.service";
 import type { AnalysisResponse, AnalysisResult } from "../ocr/azure-types";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
+import { LabelingDocumentDbService } from "./labeling-document-db.service";
 
 type JsonValue = Prisma.JsonValue;
 
@@ -21,7 +21,7 @@ export class LabelingOcrService {
   private readonly azureApiKey: string;
 
   constructor(
-    private readonly db: DatabaseService,
+    private readonly labelingDocumentDb: LabelingDocumentDbService,
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     @Inject(BLOB_STORAGE)
@@ -59,20 +59,21 @@ export class LabelingOcrService {
 
     await this.blobStorage.write(blobKey, fileBuffer);
 
-    const labelingDocument = await this.db.createLabelingDocument({
-      title: dto.title,
-      original_filename: originalFilename,
-      file_path: blobKey,
-      file_type: dto.file_type,
-      file_size: fileBuffer.length,
-      metadata: dto.metadata,
-      source: "labeling",
-      status: DocumentStatus.ongoing_ocr,
-      apim_request_id: null,
-      model_id: "prebuilt-layout",
-      ocr_result: null,
-      group_id: dto.group_id,
-    });
+    const labelingDocument =
+      await this.labelingDocumentDb.createLabelingDocument({
+        title: dto.title,
+        original_filename: originalFilename,
+        file_path: blobKey,
+        file_type: dto.file_type,
+        file_size: fileBuffer.length,
+        metadata: dto.metadata,
+        source: "labeling",
+        status: DocumentStatus.ongoing_ocr,
+        apim_request_id: null,
+        model_id: "prebuilt-layout",
+        ocr_result: null,
+        group_id: dto.group_id,
+      });
 
     return labelingDocument;
   }
@@ -81,7 +82,7 @@ export class LabelingOcrService {
     labelingDocumentId: string,
   ): Promise<void> {
     const labelingDocument =
-      await this.db.findLabelingDocument(labelingDocumentId);
+      await this.labelingDocumentDb.findLabelingDocument(labelingDocumentId);
     if (!labelingDocument) {
       return;
     }
@@ -89,14 +90,14 @@ export class LabelingOcrService {
     try {
       const apimRequestId = await this.requestOcr(labelingDocument.file_path);
 
-      await this.db.updateLabelingDocument(labelingDocumentId, {
+      await this.labelingDocumentDb.updateLabelingDocument(labelingDocumentId, {
         apim_request_id: apimRequestId,
         status: DocumentStatus.ongoing_ocr,
       });
 
       const analysisResponse = await this.waitForOcrCompletion(apimRequestId);
 
-      await this.db.updateLabelingDocument(labelingDocumentId, {
+      await this.labelingDocumentDb.updateLabelingDocument(labelingDocumentId, {
         status: DocumentStatus.completed_ocr,
         ocr_result: analysisResponse as unknown as JsonValue,
       });
@@ -104,7 +105,7 @@ export class LabelingOcrService {
       this.logger.error(
         `Labeling OCR failed for ${labelingDocumentId}: ${error.message}`,
       );
-      await this.db.updateLabelingDocument(labelingDocumentId, {
+      await this.labelingDocumentDb.updateLabelingDocument(labelingDocumentId, {
         status: DocumentStatus.failed,
       });
     }

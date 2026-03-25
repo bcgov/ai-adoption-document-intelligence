@@ -1,16 +1,28 @@
 import { DocumentIntelligenceClient } from "@azure-rest/ai-document-intelligence";
+import type { ClassifierModel } from "@generated/client";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import "multer";
 import * as path from "path";
 import { AzureService } from "@/azure/azure.service";
+import {
+  type ClassifierConfig,
+  ClassifierDbService,
+  type ClassifierEditableProperties,
+  type ClassifierModelWithGroup,
+} from "@/azure/classifier-db.service";
 import { ClassifierStatus } from "@/azure/dto/classifier-constants.dto";
 import { AzureStorageService } from "@/blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { DatabaseService } from "@/database/database.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
+
+export type {
+  ClassifierConfig,
+  ClassifierEditableProperties,
+  ClassifierModelWithGroup,
+};
 
 interface DocType {
   azureBlobSource: {
@@ -25,7 +37,7 @@ export class ClassifierService {
   public readonly classifierContainer: string = "classification";
 
   constructor(
-    private databaseService: DatabaseService,
+    private classifierDb: ClassifierDbService,
     private azureService: AzureService,
     private azureStorage: AzureStorageService,
     @Inject(BLOB_STORAGE)
@@ -259,7 +271,7 @@ export class ClassifierService {
     userId: string,
   ) => {
     // Does this classifier record exist?
-    const existingClassifier = await this.databaseService.getClassifierModel(
+    const existingClassifier = await this.classifierDb.findClassifierModel(
       classifierName,
       groupId,
     );
@@ -299,7 +311,7 @@ export class ClassifierService {
       );
 
       // Update classifier record
-      return await this.databaseService.updateClassifierModel(
+      return await this.classifierDb.updateClassifierModel(
         classifierName,
         groupId,
         {
@@ -403,4 +415,69 @@ export class ClassifierService {
   getConstructedClassifierName = (groupId: string, classifierName: string) => {
     return `${groupId}__${classifierName}`;
   };
+
+  /**
+   * Finds a classifier model by name and group ID.
+   * @param classifierName The name of the classifier.
+   * @param groupId The group ID that owns the classifier.
+   * @returns The ClassifierModel record or null if not found.
+   */
+  async findClassifierModel(
+    classifierName: string,
+    groupId: string,
+  ): Promise<ClassifierModel | null> {
+    return this.classifierDb.findClassifierModel(classifierName, groupId);
+  }
+
+  /**
+   * Finds all classifier models belonging to the specified groups.
+   * @param groupIds The list of group IDs to filter by.
+   * @returns An array of ClassifierModel records with their associated group.
+   */
+  async findAllClassifierModelsForGroups(
+    groupIds: string[],
+  ): Promise<ClassifierModelWithGroup[]> {
+    return this.classifierDb.findAllClassifierModelsForGroups(groupIds);
+  }
+
+  /**
+   * Creates a new classifier model record.
+   * @param classifierName The name of the classifier.
+   * @param properties The editable properties for the classifier.
+   * @param userId The ID of the user creating the classifier.
+   * @returns The created ClassifierModel record.
+   */
+  async createClassifierModel(
+    classifierName: string,
+    properties: ClassifierEditableProperties,
+    userId: string,
+  ): Promise<ClassifierModel> {
+    return this.classifierDb.createClassifierModel(
+      classifierName,
+      properties,
+      userId,
+    );
+  }
+
+  /**
+   * Updates an existing classifier model record.
+   * @param classifierName The name of the classifier.
+   * @param groupId The group ID that owns the classifier.
+   * @param properties The partial properties to update.
+   * @param userId The ID of the user making the update.
+   * @returns The updated ClassifierModel record.
+   */
+  async updateClassifierModel(
+    classifierName: string,
+    groupId: string,
+    properties: Partial<ClassifierEditableProperties>,
+    userId?: string,
+  ): Promise<ClassifierModel> {
+    return this.classifierDb.updateClassifierModel(
+      classifierName,
+      groupId,
+      properties,
+      userId,
+    );
+  }
 }

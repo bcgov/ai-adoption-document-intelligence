@@ -7,14 +7,18 @@ import {
   Req,
 } from "@nestjs/common";
 import {
+  ApiConflictResponse,
+  ApiForbiddenResponse,
+  ApiOkResponse,
   ApiOperation,
-  ApiResponse,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 import { Request } from "express";
-import { KeycloakSSOAuth } from "@/decorators/custom-auth-decorators";
+import { Identity } from "@/auth/identity.decorator";
 import { User } from "../auth/types";
 import { BootstrapService } from "./bootstrap.service";
+import { BootstrapResultDto, BootstrapStatusResponseDto } from "./dto";
 
 @ApiTags("Bootstrap")
 @Controller("api/bootstrap")
@@ -22,18 +26,20 @@ export class BootstrapController {
   constructor(private readonly bootstrapService: BootstrapService) {}
 
   @ApiOperation({
-    summary: "Check if system bootstrap is needed and if the caller is eligible",
+    summary:
+      "Check if system bootstrap is needed and if the caller is eligible",
   })
-  @ApiResponse({
-    status: 200,
+  @ApiOkResponse({
+    type: BootstrapStatusResponseDto,
     description:
       "Returns whether bootstrap is needed and whether the caller is eligible.",
   })
-  @KeycloakSSOAuth()
+  @ApiUnauthorizedResponse({ description: "User is not authenticated." })
+  @Identity()
   @Get("status")
   async getBootstrapStatus(
     @Req() req: Request & { user?: User },
-  ): Promise<{ needed: boolean; eligible: boolean }> {
+  ): Promise<BootstrapStatusResponseDto> {
     const userEmail = req.user?.email;
     return this.bootstrapService.getBootstrapStatus(userEmail);
   }
@@ -42,23 +48,22 @@ export class BootstrapController {
     summary:
       "Bootstrap the system: promote caller to admin, create Default group",
   })
-  @ApiResponse({
-    status: 200,
+  @ApiOkResponse({
+    type: BootstrapResultDto,
     description: "Bootstrap completed successfully.",
   })
-  @ApiResponse({
-    status: 403,
+  @ApiUnauthorizedResponse({ description: "User is not authenticated." })
+  @ApiForbiddenResponse({
     description: "Caller email does not match BOOTSTRAP_ADMIN_EMAIL.",
   })
-  @ApiResponse({
-    status: 409,
+  @ApiConflictResponse({
     description: "Bootstrap already completed — a system admin exists.",
   })
-  @KeycloakSSOAuth()
+  @Identity()
   @Post()
   async performBootstrap(
     @Req() req: Request & { user?: User },
-  ): Promise<{ success: boolean; groupId: string; groupName: string }> {
+  ): Promise<BootstrapResultDto> {
     const userId = req.resolvedIdentity?.userId;
     if (!userId) {
       throw new HttpException("Unauthorized", HttpStatus.UNAUTHORIZED);

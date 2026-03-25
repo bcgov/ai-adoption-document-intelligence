@@ -47,7 +47,9 @@ describe("MetricsController", () => {
       "Content-Type",
       expect.stringContaining("text/plain"),
     );
-    expect(res.send).toHaveBeenCalledWith(expect.stringContaining("http_requests_total"));
+    expect(res.send).toHaveBeenCalledWith(
+      expect.stringContaining("http_requests_total"),
+    );
   });
 
   it("should throw ForbiddenException when X-Forwarded-Host is present", async () => {

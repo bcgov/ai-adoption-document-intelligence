@@ -1,16 +1,12 @@
 import { GroupRole } from "@generated/client";
 import { BadRequestException, ForbiddenException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { DatabaseService } from "@/database/database.service";
 import { ApiKeyController } from "./api-key.controller";
 import { ApiKeyService } from "./api-key.service";
 
 describe("ApiKeyController", () => {
   let controller: ApiKeyController;
   let apiKeyService: ApiKeyService;
-  let databaseService: jest.Mocked<
-    Pick<DatabaseService, "isUserInGroup" | "isUserSystemAdmin">
-  >;
 
   const mockApiKeyService = {
     getApiKey: jest.fn(),
@@ -36,23 +32,12 @@ describe("ApiKeyController", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
-    databaseService = {
-      isUserInGroup: jest.fn().mockResolvedValue(true),
-      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    } as jest.Mocked<
-      Pick<DatabaseService, "isUserInGroup" | "isUserSystemAdmin">
-    >;
-
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ApiKeyController],
       providers: [
         {
           provide: ApiKeyService,
           useValue: mockApiKeyService,
-        },
-        {
-          provide: DatabaseService,
-          useValue: databaseService,
         },
       ],
     }).compile();
@@ -83,23 +68,6 @@ describe("ApiKeyController", () => {
 
       expect(result).toEqual({ apiKey: mockKeyInfo });
       expect(apiKeyService.getApiKey).toHaveBeenCalledWith("group123");
-    });
-
-    it("should throw ForbiddenException when user is not a group member", async () => {
-      await expect(
-        controller.getApiKey(
-          {
-            ...mockRequest,
-            resolvedIdentity: {
-              userId: "testuser",
-              isSystemAdmin: false,
-              groupRoles: {},
-            },
-          } as any,
-          "group123",
-        ),
-      ).rejects.toThrow(ForbiddenException);
-      expect(apiKeyService.getApiKey).not.toHaveBeenCalled();
     });
 
     it("should throw BadRequestException when groupId is missing", async () => {
@@ -149,23 +117,6 @@ describe("ApiKeyController", () => {
         "testuser",
         "group123",
       );
-    });
-
-    it("should throw ForbiddenException when user is not a group member", async () => {
-      await expect(
-        controller.generateApiKey(
-          {
-            ...mockRequest,
-            resolvedIdentity: {
-              userId: "testuser",
-              isSystemAdmin: false,
-              groupRoles: {},
-            },
-          } as any,
-          { groupId: "group123" },
-        ),
-      ).rejects.toThrow(ForbiddenException);
-      expect(apiKeyService.generateApiKey).not.toHaveBeenCalled();
     });
 
     it("should not throw when user has no email for regenerate", async () => {

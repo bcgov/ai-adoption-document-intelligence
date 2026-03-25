@@ -1,165 +1,201 @@
+const mockLoggerMethods = {
+  debug: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  child: jest.fn().mockReturnThis(),
+};
+
+jest.mock("@ai-di/shared-logging", () => ({
+  createLogger: jest.fn(() => mockLoggerMethods),
+  getLogLevel: jest.fn(() => "info"),
+}));
+
+jest.mock("./request-context", () => ({
+  getRequestContext: jest.fn(),
+}));
+
 import { AppLoggerService } from "./app-logger.service";
-import { requestContext } from "./request-context";
+import { getRequestContext } from "./request-context";
 
-function captureStdout(): { lines: string[]; restore: () => void } {
-  const lines: string[] = [];
-  const original = process.stdout.write;
-  process.stdout.write = ((chunk: string | Buffer, ...args: unknown[]) => {
-    const line = typeof chunk === "string" ? chunk : chunk.toString();
-    lines.push(line.trimEnd());
-    const cb = typeof args[0] === "function" ? args[0] : () => {};
-    (cb as (err?: Error) => void)();
-    return true;
-  }) as typeof process.stdout.write;
-  return {
-    lines,
-    restore: () => {
-      process.stdout.write = original;
-    },
-  };
-}
-
-function parseLastLine(lines: string[]): Record<string, unknown> {
-  const last = lines[lines.length - 1];
-  if (!last) throw new Error("No lines captured");
-  return JSON.parse(last) as Record<string, unknown>;
-}
+const mockGetRequestContext = getRequestContext as jest.MockedFunction<
+  typeof getRequestContext
+>;
 
 describe("AppLoggerService", () => {
-  const orig = process.env.LOG_LEVEL;
+  let service: AppLoggerService;
 
   beforeEach(() => {
-    process.env.LOG_LEVEL = "debug";
+    jest.clearAllMocks();
+    service = new AppLoggerService();
   });
 
-  afterEach(() => {
-    if (orig !== undefined) process.env.LOG_LEVEL = orig;
-    else delete process.env.LOG_LEVEL;
+  describe("without request context", () => {
+    beforeEach(() => mockGetRequestContext.mockReturnValue(undefined));
+
+    it("debug delegates to logger.debug with no extra context", () => {
+      service.debug("test message");
+      expect(mockLoggerMethods.debug).toHaveBeenCalledWith("test message", {});
+    });
+
+    it("debug merges provided context", () => {
+      service.debug("msg", { key: "val" });
+      expect(mockLoggerMethods.debug).toHaveBeenCalledWith("msg", {
+        key: "val",
+      });
+    });
+
+    it("log delegates to logger.info", () => {
+      service.log("log msg");
+      expect(mockLoggerMethods.info).toHaveBeenCalledWith("log msg", {});
+    });
+
+    it("info delegates to logger.info", () => {
+      service.info("info msg");
+      expect(mockLoggerMethods.info).toHaveBeenCalledWith("info msg", {});
+    });
+
+    it("warn delegates to logger.warn", () => {
+      service.warn("warn msg");
+      expect(mockLoggerMethods.warn).toHaveBeenCalledWith("warn msg", {});
+    });
+
+    it("error delegates to logger.error", () => {
+      service.error("err msg");
+      expect(mockLoggerMethods.error).toHaveBeenCalledWith("err msg", {});
+    });
+
+    it("child delegates to logger.child with provided context", () => {
+      const childLogger = { debug: jest.fn() };
+      mockLoggerMethods.child.mockReturnValueOnce(childLogger);
+      const result = service.child({ module: "test" });
+      expect(mockLoggerMethods.child).toHaveBeenCalledWith({ module: "test" });
+      expect(result).toBe(childLogger);
+    });
   });
 
-  it("includes sessionId in log output when present in request context", () => {
-    const out = captureStdout();
-    try {
-      const service = new AppLoggerService();
-      const store = {
+  describe("with full request context (requestId and userId)", () => {
+    beforeEach(() =>
+      mockGetRequestContext.mockReturnValue({
+        requestId: "req-123",
+        userId: "user-456",
+      }),
+    );
+
+    it("debug merges requestId and userId", () => {
+      service.debug("trace");
+      expect(mockLoggerMethods.debug).toHaveBeenCalledWith("trace", {
+        requestId: "req-123",
+        userId: "user-456",
+      });
+    });
+
+    it("child merges request context", () => {
+      service.child({ extra: "val" });
+      expect(mockLoggerMethods.child).toHaveBeenCalledWith({
+        requestId: "req-123",
+        userId: "user-456",
+        extra: "val",
+      });
+    });
+
+    it("provided context overrides merged context", () => {
+      service.log("msg", { requestId: "override" });
+      expect(mockLoggerMethods.info).toHaveBeenCalledWith("msg", {
+        requestId: "override",
+        userId: "user-456",
+      });
+    });
+  });
+
+  describe("with partial request context (only requestId)", () => {
+    beforeEach(() =>
+      mockGetRequestContext.mockReturnValue({ requestId: "req-only" }),
+    );
+
+    it("does not add userId when absent from context", () => {
+      service.log("msg");
+      expect(mockLoggerMethods.info).toHaveBeenCalledWith("msg", {
+        requestId: "req-only",
+      });
+    });
+  });
+
+  describe("with sessionId in request context", () => {
+    beforeEach(() =>
+      mockGetRequestContext.mockReturnValue({
         requestId: "req-1",
         userId: "user-1",
         sessionId: "session-abc-123",
-      };
-      requestContext.run(store, () => {
-        service.log("test message");
-        const entry = parseLastLine(out.lines);
-        expect(entry.sessionId).toBe("session-abc-123");
-        expect(entry.requestId).toBe("req-1");
-        expect(entry.userId).toBe("user-1");
+      }),
+    );
+
+    it("includes sessionId in merged context", () => {
+      service.log("test message");
+      expect(mockLoggerMethods.info).toHaveBeenCalledWith("test message", {
+        requestId: "req-1",
+        userId: "user-1",
+        sessionId: "session-abc-123",
       });
-    } finally {
-      out.restore();
-    }
+    });
   });
 
-  it("omits sessionId from log output when not in request context", () => {
-    const out = captureStdout();
-    try {
-      const service = new AppLoggerService();
-      const store = {
-        requestId: "req-2",
-        userId: "user-2",
-      };
-      requestContext.run(store, () => {
-        service.log("test message");
-        const entry = parseLastLine(out.lines);
-        expect(entry.sessionId).toBeUndefined();
-        expect(entry.requestId).toBe("req-2");
-      });
-    } finally {
-      out.restore();
-    }
-  });
-
-  it("omits sessionId from log output for unauthenticated requests (no context)", () => {
-    const out = captureStdout();
-    try {
-      const service = new AppLoggerService();
-      service.log("public request");
-      const entry = parseLastLine(out.lines);
-      expect(entry.sessionId).toBeUndefined();
-    } finally {
-      out.restore();
-    }
-  });
-
-  it("includes clientIp in log output when present in request context", () => {
-    const out = captureStdout();
-    try {
-      const service = new AppLoggerService();
-      const store = {
+  describe("with clientIp in request context", () => {
+    beforeEach(() =>
+      mockGetRequestContext.mockReturnValue({
         requestId: "req-3",
         clientIp: "203.0.113.50",
-      };
-      requestContext.run(store, () => {
-        service.log("test message");
-        const entry = parseLastLine(out.lines);
-        expect(entry.clientIp).toBe("203.0.113.50");
-        expect(entry.requestId).toBe("req-3");
+      }),
+    );
+
+    it("includes clientIp in merged context", () => {
+      service.log("test message");
+      expect(mockLoggerMethods.info).toHaveBeenCalledWith("test message", {
+        requestId: "req-3",
+        clientIp: "203.0.113.50",
       });
-    } finally {
-      out.restore();
-    }
+    });
   });
 
-  it("omits clientIp from log output when not in request context", () => {
-    const out = captureStdout();
-    try {
-      const service = new AppLoggerService();
-      const store = {
-        requestId: "req-4",
-      };
-      requestContext.run(store, () => {
-        service.log("test message");
-        const entry = parseLastLine(out.lines);
-        expect(entry.clientIp).toBeUndefined();
-      });
-    } finally {
-      out.restore();
-    }
-  });
-
-  it("includes apiKeyId in log output when present in request context", () => {
-    const out = captureStdout();
-    try {
-      const service = new AppLoggerService();
-      const store = {
+  describe("with apiKeyId in request context", () => {
+    beforeEach(() =>
+      mockGetRequestContext.mockReturnValue({
         requestId: "req-5",
         apiKeyId: "aBcDeFgH",
-      };
-      requestContext.run(store, () => {
-        service.log("test message");
-        const entry = parseLastLine(out.lines);
-        expect(entry.apiKeyId).toBe("aBcDeFgH");
-        expect(entry.requestId).toBe("req-5");
+      }),
+    );
+
+    it("includes apiKeyId in merged context", () => {
+      service.log("test message");
+      expect(mockLoggerMethods.info).toHaveBeenCalledWith("test message", {
+        requestId: "req-5",
+        apiKeyId: "aBcDeFgH",
       });
-    } finally {
-      out.restore();
-    }
+    });
   });
 
-  it("omits apiKeyId from log output when not in request context", () => {
-    const out = captureStdout();
-    try {
-      const service = new AppLoggerService();
-      const store = {
+  describe("omits falsy optional fields", () => {
+    beforeEach(() =>
+      mockGetRequestContext.mockReturnValue({
         requestId: "req-6",
-        sessionId: "session-xyz",
-      };
-      requestContext.run(store, () => {
-        service.log("test message");
-        const entry = parseLastLine(out.lines);
-        expect(entry.apiKeyId).toBeUndefined();
-        expect(entry.sessionId).toBe("session-xyz");
+        sessionId: undefined,
+        apiKeyId: undefined,
+        clientIp: undefined,
+      }),
+    );
+
+    it("does not include undefined optional fields", () => {
+      service.log("test message");
+      expect(mockLoggerMethods.info).toHaveBeenCalledWith("test message", {
+        requestId: "req-6",
       });
-    } finally {
-      out.restore();
-    }
+    });
+  });
+
+  describe("static getLogLevel", () => {
+    it("exposes the getLogLevel function", () => {
+      expect(AppLoggerService.getLogLevel).toBeDefined();
+      expect(typeof AppLoggerService.getLogLevel).toBe("function");
+    });
   });
 });

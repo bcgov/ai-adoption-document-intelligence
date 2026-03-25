@@ -15,7 +15,6 @@ describe("AzureController", () => {
   let controller: AzureController;
   let classifierService: any;
   let storageService: any;
-  let databaseService: any;
   let azureService: any;
   const createMockReq = (sub = "user1", groups: string[] = []) => ({
     user: { sub },
@@ -33,6 +32,10 @@ describe("AzureController", () => {
       createLayoutJson: jest.fn(),
       requestClassifierTraining: jest.fn(),
       requestClassificationFromFile: jest.fn(),
+      findClassifierModel: jest.fn(),
+      findAllClassifierModelsForGroups: jest.fn(),
+      createClassifierModel: jest.fn(),
+      updateClassifierModel: jest.fn(),
     };
     storageService = {
       write: jest.fn().mockResolvedValue(undefined),
@@ -42,20 +45,12 @@ describe("AzureController", () => {
       list: jest.fn().mockResolvedValue([]),
       deleteByPrefix: jest.fn().mockResolvedValue(undefined),
     };
-    databaseService = {
-      isUserInGroup: jest.fn(),
-      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-      getClassifierModel: jest.fn(),
-      createClassifierModel: jest.fn(),
-      updateClassifierModel: jest.fn(),
-    };
     azureService = {
       pollOperationUntilResolved: jest.fn(),
     };
     controller = new AzureController(
       classifierService,
       storageService,
-      databaseService,
       azureService,
       mockAppLogger,
     );
@@ -67,28 +62,28 @@ describe("AzureController", () => {
         { id: "c1", group_id: "g1" },
         { id: "c2", group_id: "g2" },
       ];
-      databaseService.getClassifierModelsForGroups = jest
+      classifierService.findAllClassifierModelsForGroups = jest
         .fn()
         .mockResolvedValue(mockClassifiers);
       const req = createMockReq("user1", ["g1", "g2"]);
       const result = await controller.getClassifiers(req, undefined);
       expect(result).toEqual(mockClassifiers);
-      expect(databaseService.getClassifierModelsForGroups).toHaveBeenCalledWith(
-        ["g1", "g2"],
-      );
+      expect(
+        classifierService.findAllClassifierModelsForGroups,
+      ).toHaveBeenCalledWith(["g1", "g2"]);
     });
 
     it("should return classifiers for the specified group when group_id is provided and user is a member", async () => {
       const mockClassifiers = [{ id: "c1", group_id: "g1" }];
-      databaseService.getClassifierModelsForGroups = jest
+      classifierService.findAllClassifierModelsForGroups = jest
         .fn()
         .mockResolvedValue(mockClassifiers);
       const req = createMockReq("user1", ["g1"]);
       const result = await controller.getClassifiers(req, "g1");
       expect(result).toEqual(mockClassifiers);
-      expect(databaseService.getClassifierModelsForGroups).toHaveBeenCalledWith(
-        ["g1"],
-      );
+      expect(
+        classifierService.findAllClassifierModelsForGroups,
+      ).toHaveBeenCalledWith(["g1"]);
     });
 
     it("should throw ForbiddenException when group_id is provided and user is not a member", async () => {
@@ -100,8 +95,8 @@ describe("AzureController", () => {
   });
   describe("createClassifier", () => {
     it("should create a classifier if user is in group and classifier does not exist", async () => {
-      databaseService.getClassifierModel.mockResolvedValue(null);
-      databaseService.createClassifierModel.mockResolvedValue({ id: "1" });
+      classifierService.findClassifierModel.mockResolvedValue(null);
+      classifierService.createClassifierModel.mockResolvedValue({ id: "1" });
       const req = createMockReq("user1", ["g1"]);
       const body = {
         name: "c1",
@@ -112,23 +107,10 @@ describe("AzureController", () => {
       };
       const result = await controller.createClassifier(req, body);
       expect(result).toEqual({ id: "1" });
-      expect(databaseService.createClassifierModel).toHaveBeenCalled();
-    });
-    it("should throw ForbiddenException if user not in group", async () => {
-      const req = createMockReq();
-      const body = {
-        name: "c1",
-        description: "desc",
-        source: ClassifierSource.AZURE,
-        status: ClassifierStatus.READY,
-        group_id: "g1",
-      };
-      await expect(controller.createClassifier(req, body)).rejects.toThrow(
-        ForbiddenException,
-      );
+      expect(classifierService.createClassifierModel).toHaveBeenCalled();
     });
     it("should throw ForbiddenException if classifier exists", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
+      classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
       const req = createMockReq("user1", ["g1"]);
       const body = {
         name: "c1",
@@ -157,7 +139,7 @@ describe("AzureController", () => {
       stream: {} as any,
     };
     it("should upload files if user in group and classifier exists", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
+      classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
       storageService.write.mockResolvedValue(undefined);
       const req = createMockReq("user1", ["g1"]);
       const files = [mockFile];
@@ -178,19 +160,8 @@ describe("AzureController", () => {
         expect.any(Buffer),
       );
     });
-    it("should throw ForbiddenException if user not in group", async () => {
-      const req = createMockReq();
-      await expect(
-        controller.uploadClassifierDocuments(
-          req,
-          [],
-          { name: "c1", label: "l1" },
-          "g1",
-        ),
-      ).rejects.toThrow(ForbiddenException);
-    });
     it("should throw NotFoundException if classifier does not exist", async () => {
-      databaseService.getClassifierModel.mockResolvedValue(null);
+      classifierService.findClassifierModel.mockResolvedValue(null);
       const req = createMockReq("user1", ["g1"]);
       await expect(
         controller.uploadClassifierDocuments(
@@ -205,7 +176,7 @@ describe("AzureController", () => {
 
   describe("deleteClassifierDocuments", () => {
     it("should delete folders if user in group and classifier exists", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
+      classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
       const req = createMockReq("user1", ["g1"]);
       const body = { name: "c1", group_id: "g1", folders: ["f1"] };
       await expect(
@@ -215,17 +186,8 @@ describe("AzureController", () => {
         "classifier/g1/c1/",
       );
     });
-    it("should throw ForbiddenException if user not in group", async () => {
-      const req = createMockReq();
-      await expect(
-        controller.deleteClassifierDocuments(req, {
-          name: "c1",
-          group_id: "g1",
-        }),
-      ).rejects.toThrow(ForbiddenException);
-    });
     it("should throw NotFoundException if classifier does not exist", async () => {
-      databaseService.getClassifierModel.mockResolvedValue(null);
+      classifierService.findClassifierModel.mockResolvedValue(null);
       const req = createMockReq("user1", ["g1"]);
       await expect(
         controller.deleteClassifierDocuments(req, {
@@ -238,14 +200,14 @@ describe("AzureController", () => {
 
   describe("requestClassifierTraining", () => {
     it("should request training and return model", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({
+      classifierService.findClassifierModel.mockResolvedValue({
         id: "1",
         operation_location: null,
         status: "READY",
         source: "API",
       });
       // The controller returns the result of updateClassifierModel, which is TRAINING immediately
-      databaseService.updateClassifierModel.mockResolvedValue({
+      classifierService.updateClassifierModel.mockResolvedValue({
         status: "TRAINING",
         source: "API",
       });
@@ -269,7 +231,7 @@ describe("AzureController", () => {
       classifierService.uploadDocumentsForTraining.mockRejectedValue(
         new Error("fail"),
       );
-      databaseService.updateClassifierModel.mockResolvedValue({
+      classifierService.updateClassifierModel.mockResolvedValue({
         status: "FAILED",
         source: "API",
       });
@@ -277,7 +239,7 @@ describe("AzureController", () => {
       const body = { name: "c1", group_id: "g1" };
       const result = await controller.requestClassifierTraining(req, body);
       expect(result.status).toBe("FAILED");
-      expect(databaseService.updateClassifierModel).toHaveBeenCalled();
+      expect(classifierService.updateClassifierModel).toHaveBeenCalled();
     });
   });
 
@@ -295,11 +257,11 @@ describe("AzureController", () => {
       stream: {} as any,
     };
     it("should classify document if user in group and classifier exists", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
+      classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
       classifierService.requestClassificationFromFile.mockResolvedValue({
         result: "ok",
       });
-      databaseService.updateClassifierModel.mockResolvedValue({});
+      classifierService.updateClassifierModel.mockResolvedValue({});
       const req = createMockReq("user1", ["g1"]);
       const file = mockFile;
       const body = { name: "c1" };
@@ -311,14 +273,8 @@ describe("AzureController", () => {
       );
       expect(result).toEqual({ result: "ok" });
     });
-    it("should throw ForbiddenException if user not in group", async () => {
-      const req = createMockReq();
-      await expect(
-        controller.requestClassification(req, { name: "c1" }, mockFile, "g1"),
-      ).rejects.toThrow(ForbiddenException);
-    });
     it("should throw NotFoundException if classifier does not exist", async () => {
-      databaseService.getClassifierModel.mockResolvedValue(null);
+      classifierService.findClassifierModel.mockResolvedValue(null);
       const req = createMockReq("user1", ["g1"]);
       await expect(
         controller.requestClassification(req, { name: "c1" }, mockFile, "g1"),
@@ -355,10 +311,10 @@ describe("AzureController", () => {
 
   describe("getTrainingResult", () => {
     it("should return updated model if classifier exists and operation_location present", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({
+      classifierService.findClassifierModel.mockResolvedValue({
         operation_location: "loc",
       });
-      databaseService.updateClassifierModel.mockResolvedValue({
+      classifierService.updateClassifierModel.mockResolvedValue({
         status: "READY",
       });
       azureService.pollOperationUntilResolved.mockImplementation(
@@ -378,17 +334,8 @@ describe("AzureController", () => {
         }),
       ).rejects.toThrow();
     });
-    it("should throw ForbiddenException if user not in group", async () => {
-      const req = createMockReq();
-      await expect(
-        controller.getTrainingResult(req, {
-          name: "c1",
-          group_id: "g1",
-        }),
-      ).rejects.toThrow(ForbiddenException);
-    });
     it("should throw NotFoundException if classifier not found", async () => {
-      databaseService.getClassifierModel.mockResolvedValue(null);
+      classifierService.findClassifierModel.mockResolvedValue(null);
       const req = createMockReq("user1", ["g1"]);
       await expect(
         controller.getTrainingResult(req, {
@@ -398,7 +345,7 @@ describe("AzureController", () => {
       ).rejects.toThrow(NotFoundException);
     });
     it("should throw error if operation_location missing", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({
+      classifierService.findClassifierModel.mockResolvedValue({
         operation_location: null,
       });
       const req = createMockReq("user1", ["g1"]);
@@ -410,7 +357,7 @@ describe("AzureController", () => {
       ).rejects.toThrow();
     });
     it("should throw error if pollOperationUntilResolved fails", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({
+      classifierService.findClassifierModel.mockResolvedValue({
         operation_location: "loc",
       });
       azureService.pollOperationUntilResolved.mockImplementation(
@@ -441,21 +388,15 @@ describe("AzureController", () => {
         controller.getTrainingResult(req, { name: null, group_id: null }),
       ).rejects.toThrow();
     });
-    it("should throw ForbiddenException if user not in group", async () => {
-      const req = createMockReq();
-      await expect(
-        controller.getTrainingResult(req, { name: "c1", group_id: "g1" }),
-      ).rejects.toThrow(ForbiddenException);
-    });
     it("should throw NotFoundException if classifier not found", async () => {
-      databaseService.getClassifierModel.mockResolvedValue(null);
+      classifierService.findClassifierModel.mockResolvedValue(null);
       const req = createMockReq("user1", ["g1"]);
       await expect(
         controller.getTrainingResult(req, { name: "c1", group_id: "g1" }),
       ).rejects.toThrow(NotFoundException);
     });
     it("should throw error if operation_location missing", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({
+      classifierService.findClassifierModel.mockResolvedValue({
         operation_location: null,
       });
       const req = createMockReq("user1", ["g1"]);
@@ -464,7 +405,7 @@ describe("AzureController", () => {
       ).rejects.toThrow();
     });
     it("should throw error if pollOperationUntilResolved fails", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({
+      classifierService.findClassifierModel.mockResolvedValue({
         operation_location: "loc",
       });
       const req = createMockReq("user1", ["g1"]);
@@ -481,7 +422,7 @@ describe("AzureController", () => {
   });
   describe("deleteClassifierDocuments error handling", () => {
     it("should throw InternalServerErrorException if deleteByPrefix throws", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
+      classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
       storageService.deleteByPrefix.mockImplementation(() => {
         throw new Error("fail");
       });
@@ -494,7 +435,7 @@ describe("AzureController", () => {
   });
   describe("deleteClassifierDocuments", () => {
     it("should delete a specific folder if folder param is provided", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
+      classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
       storageService.deleteByPrefix.mockResolvedValue(undefined);
       const req = createMockReq("user1", ["g1"]);
       const query = { name: "c1", group_id: "g1", folder: "f1" };
@@ -508,7 +449,7 @@ describe("AzureController", () => {
   });
   describe("getClassifierDocuments", () => {
     it("should return documents if user in group and classifier exists", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
+      classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
       storageService.list.mockResolvedValue([
         "classifier/g1/c1/labelA/doc1",
         "classifier/g1/c1/labelB/doc2",
@@ -519,15 +460,8 @@ describe("AzureController", () => {
       expect(result).toEqual(["labelA/doc1", "labelB/doc2"]);
       expect(storageService.list).toHaveBeenCalledWith("classifier/g1/c1/");
     });
-    it("should throw ForbiddenException if user not in group", async () => {
-      const req = createMockReq();
-      const query = { name: "c1", group_id: "g1" };
-      await expect(
-        controller.getClassifierDocuments(req, query),
-      ).rejects.toThrow(ForbiddenException);
-    });
     it("should throw NotFoundException if classifier does not exist", async () => {
-      databaseService.getClassifierModel.mockResolvedValue(null);
+      classifierService.findClassifierModel.mockResolvedValue(null);
       const req = createMockReq("user1", ["g1"]);
       const query = { name: "c1", group_id: "g1" };
       await expect(
@@ -537,8 +471,8 @@ describe("AzureController", () => {
   });
   describe("updateClassifier", () => {
     it("should update a classifier if user is in group and classifier exists", async () => {
-      databaseService.getClassifierModel.mockResolvedValue({ id: "1" });
-      databaseService.updateClassifierModel.mockResolvedValue({
+      classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
+      classifierService.updateClassifierModel.mockResolvedValue({
         id: "1",
         description: "new desc",
       });
@@ -546,22 +480,15 @@ describe("AzureController", () => {
       const body = { name: "c1", group_id: "g1", description: "new desc" };
       const result = await controller.updateClassifier(req, body);
       expect(result).toEqual({ id: "1", description: "new desc" });
-      expect(databaseService.updateClassifierModel).toHaveBeenCalledWith(
+      expect(classifierService.updateClassifierModel).toHaveBeenCalledWith(
         "c1",
         "g1",
         { description: "new desc" },
         "user1",
       );
     });
-    it("should throw ForbiddenException if user not in group", async () => {
-      const req = createMockReq();
-      const body = { name: "c1", group_id: "g1", description: "desc" };
-      await expect(controller.updateClassifier(req, body)).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
     it("should throw NotFoundException if classifier does not exist", async () => {
-      databaseService.getClassifierModel.mockResolvedValue(null);
+      classifierService.findClassifierModel.mockResolvedValue(null);
       const req = createMockReq("user1", ["g1"]);
       const body = { name: "c1", group_id: "g1", description: "desc" };
       await expect(controller.updateClassifier(req, body)).rejects.toThrow(

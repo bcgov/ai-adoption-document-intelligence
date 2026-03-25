@@ -1,10 +1,4 @@
-import {
-  Controller,
-  ForbiddenException,
-  Get,
-  Req,
-  Res,
-} from "@nestjs/common";
+import { Controller, ForbiddenException, Get, Req, Res } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 import type { Request, Response } from "express";
 import { Public } from "@/auth/public.decorator";
@@ -17,10 +11,7 @@ export class MetricsController {
 
   @Public()
   @Get("metrics")
-  async getMetrics(
-    @Req() req: Request,
-    @Res() res: Response,
-  ): Promise<void> {
+  async getMetrics(@Req() req: Request, @Res() res: Response): Promise<void> {
     // Block external access: when the request arrives via the OpenShift Route,
     // the router injects X-Forwarded-Host. In-cluster Prometheus scrapes
     // directly via the Service, so this header is absent.

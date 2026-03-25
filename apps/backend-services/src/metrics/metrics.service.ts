@@ -1,9 +1,9 @@
 import { Injectable, type OnModuleInit } from "@nestjs/common";
 import {
   Counter,
+  collectDefaultMetrics,
   Histogram,
   Registry,
-  collectDefaultMetrics,
 } from "prom-client";
 
 @Injectable()

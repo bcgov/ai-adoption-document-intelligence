@@ -9,17 +9,11 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
-import { DatabaseService } from "../database/database.service";
+import { GroupService } from "../group/group.service";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
+import { ROLE_ORDER } from "./role-order";
 
-/**
- * Numeric ordering of {@link GroupRole} values used for minimum-role comparisons.
- * Higher numbers represent greater privilege.
- */
-export const ROLE_ORDER: Record<GroupRole, number> = {
-  [GroupRole.MEMBER]: 0,
-  [GroupRole.ADMIN]: 1,
-};
+export { ROLE_ORDER };
 
 /**
  * Identity resolution guard.
@@ -38,7 +32,7 @@ export const ROLE_ORDER: Record<GroupRole, number> = {
  *   `resolvedIdentity.userId` is set with no DB queries.
  * - **API key path**: When the {@link Identity} decorator is present on the handler,
  *   `resolvedIdentity.isSystemAdmin` is set to `false` and `resolvedIdentity.groupRoles`
- *   is populated using `request.apiKeyGroupId` (set by `ApiKeyAuthGuard`) as the key
+ *   is populated using `request.apiKey.groupId` (set by `ApiKeyAuthGuard`) as the key
  *   with a default role of `GroupRole.MEMBER`. When the decorator is absent, a base
  *   identity object is set without enrichment. No database queries are made.
  *
@@ -54,7 +48,7 @@ export const ROLE_ORDER: Record<GroupRole, number> = {
 export class IdentityGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private databaseService: DatabaseService,
+    private groupService: GroupService,
   ) {}
 
   /**
@@ -77,7 +71,7 @@ export class IdentityGuard implements CanActivate {
       IdentityOptions | undefined
     >(IDENTITY_KEY, [context.getHandler(), context.getClass()]);
 
-    if (request.apiKeyGroupId) {
+    if (request.apiKey) {
       if (identityOptions !== undefined) {
         // Reject API key requests unless the endpoint explicitly opts in.
         if (!identityOptions.allowApiKey) {
@@ -89,7 +83,7 @@ export class IdentityGuard implements CanActivate {
         // No database queries required; the key is group-scoped.
         request.resolvedIdentity = {
           isSystemAdmin: false,
-          groupRoles: { [request.apiKeyGroupId]: GroupRole.MEMBER },
+          groupRoles: { [request.apiKey.groupId]: GroupRole.MEMBER },
         };
       } else {
         // Api-key was not explicity allowed. It it denied by default.
@@ -102,8 +96,8 @@ export class IdentityGuard implements CanActivate {
 
       // @Identity is present: run parallel DB queries to enrich identity.
       const [isSystemAdmin, userGroups] = await Promise.all([
-        this.databaseService.isUserSystemAdmin(userId),
-        this.databaseService.getUsersGroups(userId),
+        this.groupService.isUserSystemAdmin(userId),
+        this.groupService.findUsersGroups(userId),
       ]);
 
       const groupRoles: Record<string, GroupRole> = {};

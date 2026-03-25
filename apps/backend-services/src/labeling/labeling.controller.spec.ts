@@ -3,18 +3,18 @@ import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
 import { BLOB_STORAGE } from "../blob-storage/blob-storage.interface";
-import { DatabaseService } from "../database/database.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import { CreateProjectDto, UpdateProjectDto } from "./dto/create-project.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingController } from "./labeling.controller";
 import { LabelingService } from "./labeling.service";
+import { LabelingDocumentDbService } from "./labeling-document-db.service";
 
 describe("LabelingController", () => {
   let controller: LabelingController;
   let labelingService: jest.Mocked<LabelingService>;
-  let databaseService: jest.Mocked<DatabaseService>;
+  let labelingDocumentDbService: jest.Mocked<LabelingDocumentDbService>;
 
   const mockProject = {
     id: "project-1",
@@ -84,12 +84,9 @@ describe("LabelingController", () => {
       exportProject: jest.fn(),
     } as unknown as jest.Mocked<LabelingService>;
 
-    databaseService = {
-      isUserInGroup: jest.fn().mockResolvedValue(true),
-      isUserSystemAdmin: jest.fn().mockResolvedValue(false),
+    labelingDocumentDbService = {
       findLabelingDocument: jest.fn().mockResolvedValue(mockLabelingDocument),
-      getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "group-1" }]),
-    } as unknown as jest.Mocked<DatabaseService>;
+    } as unknown as jest.Mocked<LabelingDocumentDbService>;
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [LabelingController],
@@ -103,8 +100,8 @@ describe("LabelingController", () => {
           useValue: {},
         },
         {
-          provide: DatabaseService,
-          useValue: databaseService,
+          provide: LabelingDocumentDbService,
+          useValue: labelingDocumentDbService,
         },
       ],
     }).compile();
@@ -163,7 +160,6 @@ describe("LabelingController", () => {
       const req = {
         resolvedIdentity: { userId: "user-1" },
       } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(controller.getProjects(req, "group-1")).rejects.toThrow(
         ForbiddenException,
       );
@@ -190,29 +186,6 @@ describe("LabelingController", () => {
       expect(result).toEqual(mockProject);
       expect(labelingService.createProject).toHaveBeenCalledWith(dto, "user-1");
     });
-
-    it("throws ForbiddenException when user is not a group member", async () => {
-      const req = {
-        user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
-      await expect(controller.createProject(dto, req)).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(labelingService.createProject).not.toHaveBeenCalled();
-    });
-
-    it("throws ForbiddenException when no identity is provided", async () => {
-      const req = {
-        user: { sub: "user-1" },
-        resolvedIdentity: undefined,
-      } as Request;
-      await expect(controller.createProject(dto, req)).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(labelingService.createProject).not.toHaveBeenCalled();
-    });
   });
 
   describe("getProject", () => {
@@ -234,7 +207,6 @@ describe("LabelingController", () => {
         resolvedIdentity: { userId: "user-1" },
       } as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(controller.getProject("project-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -276,7 +248,6 @@ describe("LabelingController", () => {
         resolvedIdentity: { userId: "user-1" },
       } as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(
         controller.updateProject("project-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -318,7 +289,6 @@ describe("LabelingController", () => {
         resolvedIdentity: { userId: "user-1" },
       } as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(controller.deleteProject("project-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -368,29 +338,6 @@ describe("LabelingController", () => {
         dto,
       );
     });
-
-    it("throws ForbiddenException when user is not a group member", async () => {
-      const req = {
-        user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
-      await expect(
-        controller.uploadLabelingDocument("project-1", dto, req),
-      ).rejects.toThrow(ForbiddenException);
-      expect(labelingService.uploadLabelingDocument).not.toHaveBeenCalled();
-    });
-
-    it("throws ForbiddenException when no identity is provided", async () => {
-      const req = {
-        user: { sub: "user-1" },
-        resolvedIdentity: undefined,
-      } as Request;
-      await expect(
-        controller.uploadLabelingDocument("project-1", dto, req),
-      ).rejects.toThrow(ForbiddenException);
-      expect(labelingService.uploadLabelingDocument).not.toHaveBeenCalled();
-    });
   });
 
   describe("addDocumentToProject", () => {
@@ -422,7 +369,6 @@ describe("LabelingController", () => {
       const req = {
         resolvedIdentity: { userId: "user-1" },
       } as Request;
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(
         controller.addDocumentToProject("project-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -433,9 +379,9 @@ describe("LabelingController", () => {
       const req = {
         resolvedIdentity: { userId: "user-1" },
       } as Request;
-      (databaseService.findLabelingDocument as jest.Mock).mockResolvedValueOnce(
-        null,
-      );
+      (
+        labelingDocumentDbService.findLabelingDocument as jest.Mock
+      ).mockResolvedValueOnce(null);
       await expect(
         controller.addDocumentToProject("project-1", dto, req),
       ).rejects.toThrow(NotFoundException);
@@ -483,7 +429,6 @@ describe("LabelingController", () => {
       labelingService.getProjectDocument.mockResolvedValue(
         mockLabeledDocument as any,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(
         controller.getProjectDocument("project-1", "labeled-doc-1", req),
       ).rejects.toThrow(ForbiddenException);
@@ -536,7 +481,6 @@ describe("LabelingController", () => {
       labelingService.getProjectDocument.mockResolvedValue(
         mockLabeledDocument as any,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(
         controller.removeDocumentFromProject("project-1", "labeled-doc-1", req),
       ).rejects.toThrow(ForbiddenException);
@@ -588,7 +532,6 @@ describe("LabelingController", () => {
       labelingService.getProjectDocument.mockResolvedValue(
         mockLabeledDocument as any,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(
         controller.getDocumentLabels("project-1", "labeled-doc-1", req),
       ).rejects.toThrow(ForbiddenException);
@@ -646,7 +589,6 @@ describe("LabelingController", () => {
       labelingService.getProjectDocument.mockResolvedValue(
         mockLabeledDocument as any,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(
         controller.saveDocumentLabels("project-1", "labeled-doc-1", dto, req),
       ).rejects.toThrow(ForbiddenException);
@@ -703,7 +645,6 @@ describe("LabelingController", () => {
       labelingService.getProjectDocument.mockResolvedValue(
         mockLabeledDocument as any,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(
         controller.deleteLabel("project-1", "labeled-doc-1", "label-1", req),
       ).rejects.toThrow(ForbiddenException);
@@ -756,7 +697,6 @@ describe("LabelingController", () => {
       labelingService.getProjectDocument.mockResolvedValue(
         mockLabeledDocument as any,
       );
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(
         controller.getDocumentOcr("project-1", "labeled-doc-1", req),
       ).rejects.toThrow(ForbiddenException);
@@ -799,7 +739,6 @@ describe("LabelingController", () => {
         resolvedIdentity: { userId: "user-1" },
       } as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(
         controller.getProjectDocuments("project-1", req),
       ).rejects.toThrow(ForbiddenException);
@@ -838,7 +777,6 @@ describe("LabelingController", () => {
         resolvedIdentity: { userId: "user-1" },
       } as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(controller.getFieldSchema("project-1", req)).rejects.toThrow(
         ForbiddenException,
       );
@@ -884,7 +822,6 @@ describe("LabelingController", () => {
         resolvedIdentity: { userId: "user-1" },
       } as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(
         controller.addField("project-1", dto as any, req),
       ).rejects.toThrow(ForbiddenException);
@@ -935,7 +872,6 @@ describe("LabelingController", () => {
         resolvedIdentity: { userId: "user-1" },
       } as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(
         controller.updateField("project-1", "field-1", dto as any, req),
       ).rejects.toThrow(ForbiddenException);
@@ -980,7 +916,6 @@ describe("LabelingController", () => {
         resolvedIdentity: { userId: "user-1" },
       } as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(
         controller.deleteField("project-1", "field-1", req),
       ).rejects.toThrow(ForbiddenException);
@@ -1029,7 +964,6 @@ describe("LabelingController", () => {
         resolvedIdentity: { userId: "user-1" },
       } as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
-      (databaseService.isUserInGroup as jest.Mock).mockResolvedValueOnce(false);
       await expect(
         controller.exportProject("project-1", dto as any, req),
       ).rejects.toThrow(ForbiddenException);

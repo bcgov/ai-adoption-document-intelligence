@@ -1,12 +1,12 @@
 import { GroupRole } from "@generated/client";
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
-  ConflictException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { PrismaService } from "@/database/prisma.service";
 import { AuditService } from "../audit/audit.service";
-import { DatabaseService } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 
 interface BootstrapStatusResponse {
@@ -22,7 +22,7 @@ interface BootstrapResult {
 @Injectable()
 export class BootstrapService {
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly prismaService: PrismaService,
     private readonly configService: ConfigService,
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
@@ -84,13 +84,13 @@ export class BootstrapService {
     }
 
     // Promote user to system admin
-    await this.databaseService.prisma.user.update({
+    await this.prismaService.prisma.user.update({
       where: { id: userId },
       data: { is_system_admin: true },
     });
 
     // Create "Default" group
-    const group = await this.databaseService.prisma.group.create({
+    const group = await this.prismaService.prisma.group.create({
       data: {
         name: "Default",
         description: "Initial group created during system setup",
@@ -99,7 +99,7 @@ export class BootstrapService {
     });
 
     // Assign user as group admin
-    await this.databaseService.prisma.userGroup.create({
+    await this.prismaService.prisma.userGroup.create({
       data: {
         user_id: userId,
         group_id: group.id,
@@ -130,7 +130,7 @@ export class BootstrapService {
   }
 
   private async isBootstrapNeeded(): Promise<boolean> {
-    const adminCount = await this.databaseService.prisma.user.count({
+    const adminCount = await this.prismaService.prisma.user.count({
       where: { is_system_admin: true },
     });
     return adminCount === 0;
