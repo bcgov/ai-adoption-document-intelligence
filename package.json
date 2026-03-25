@@ -9,12 +9,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:backend": "cd apps/backend-services && npm run start:dev",
-    "dev:frontend": "cd apps/frontend && npm run dev",
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend:log": "mkdir -p logs && cd apps/backend-services && npm run start:dev 2>&1 | tee ../../logs/backend-services.log",
-    "dev:frontend:log": "mkdir -p logs && cd apps/frontend && npm run dev 2>&1 | tee ../../logs/frontend.log",
-    "dev:log": "mkdir -p logs && concurrently \"npm run dev:backend:log\" \"npm run dev:frontend:log\"",
+    "dev:backend": "mkdir -p logs && cd apps/backend-services && npm run start:dev 2>&1 | tee ../../logs/backend-services.log",
+    "dev:frontend": "mkdir -p logs && cd apps/frontend && npm run dev 2>&1 | tee ../../logs/frontend.log",
+    "dev": "mkdir -p logs && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:backend-services": "cd apps/backend-services && npm run build",
     "build:frontend": "cd apps/frontend && npm run build",
     "build": "npm run build:backend-services && npm run build:frontend",

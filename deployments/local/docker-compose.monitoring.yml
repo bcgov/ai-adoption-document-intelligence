@@ -24,7 +24,7 @@ services:
     volumes:
       - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./logs:/var/log/host-apps:ro
+      - ../../logs:/var/log/host-apps:ro
     depends_on:
       loki:
         condition: service_healthy
