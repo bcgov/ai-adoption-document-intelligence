@@ -9,7 +9,11 @@ const mockAuditService = {
 } as unknown as AuditService;
 
 function createMockPrisma(adminCount = 0) {
-  const user = { id: "user-1", email: "admin@example.com", actor_id: "actor-1" };
+  const user = {
+    id: "user-1",
+    email: "admin@example.com",
+    actor_id: "actor-1",
+  };
   const group = {
     id: "group-1",
     name: "Default",
