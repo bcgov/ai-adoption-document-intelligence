@@ -30,13 +30,21 @@ export interface ResolvedIdentity {
   groupRoles?: Record<string, GroupRole>;
 }
 
+/**
+ * Shape returned by ApiKeyService.validateApiKey and attached to the request
+ * by ApiKeyAuthGuard. Mirrors the optional `user` property so both auth
+ * paths expose their credential via a single object.
+ */
+export interface ValidatedApiKey {
+  groupId: string;
+  keyPrefix: string;
+}
+
 declare module "express" {
   interface Request {
     user?: User;
     /** Set by ApiKeyAuthGuard when a valid API key is used. */
-    apiKeyGroupId?: string;
-    /** Set by ApiKeyAuthGuard — the stored key prefix for audit logging. */
-    apiKeyPrefix?: string;
+    apiKey?: ValidatedApiKey;
     /**
      * Set by IdentityGuard after authentication succeeds.
      * Contains the normalised requestor identity for downstream authorization.

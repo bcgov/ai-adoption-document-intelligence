@@ -36,8 +36,8 @@ export class RequestLoggingInterceptor implements NestInterceptor {
       if (userId) store.userId = userId;
     }
 
-    if (store && request.apiKeyPrefix) {
-      store.apiKeyId = request.apiKeyPrefix;
+    if (store && request.apiKey) {
+      store.apiKeyId = request.apiKey.keyPrefix;
     } else if (store && request.user) {
       const sessionState = request.user.session_state;
       if (typeof sessionState === "string" && sessionState) {

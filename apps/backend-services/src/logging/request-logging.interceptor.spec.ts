@@ -155,12 +155,11 @@ describe("RequestLoggingInterceptor", () => {
   });
 
   describe("apiKeyId enrichment", () => {
-    it("sets apiKeyId from apiKeyPrefix when present", () => {
+    it("sets apiKeyId from apiKey.keyPrefix when present", () => {
       const store = { requestId: "req-1" };
       mockGetStore.mockReturnValue(store);
       const req = makeRequest({
-        apiKeyPrefix: "aBcDeFgH",
-        apiKeyGroupId: "group-123",
+        apiKey: { groupId: "group-123", keyPrefix: "aBcDeFgH" },
       } as Partial<Request>);
       const ctx = makeContext(req);
       const next: CallHandler = { handle: () => of(undefined) };
@@ -172,8 +171,7 @@ describe("RequestLoggingInterceptor", () => {
       const store = { requestId: "req-1" };
       mockGetStore.mockReturnValue(store);
       const req = makeRequest({
-        apiKeyPrefix: "aBcDeFgH",
-        apiKeyGroupId: "group-123",
+        apiKey: { groupId: "group-123", keyPrefix: "aBcDeFgH" },
       } as Partial<Request>);
       const ctx = makeContext(req);
       const next: CallHandler = { handle: () => of(undefined) };

@@ -102,7 +102,7 @@ describe("IdentityGuard", () => {
     );
     const request: Record<string, unknown> = {
       // No request.user — API key auth does not set a user object
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", keyPrefix: "aBcDeFgH" },
     };
 
     const result = await identityGuard.canActivate(createContext(request));
@@ -120,7 +120,7 @@ describe("IdentityGuard", () => {
       groupService as unknown as GroupService,
     );
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "specific-group-id",
+      apiKey: { groupId: "specific-group-id", keyPrefix: "aBcDeFgH" },
     };
 
     await identityGuard.canActivate(createContext(request));
@@ -130,7 +130,7 @@ describe("IdentityGuard", () => {
     ).toBeUndefined();
   });
 
-  it("should prefer API key path over JWT path when apiKeyGroupId is set and @Identity is present", async () => {
+  it("should prefer API key path over JWT path when apiKey is set and @Identity is present", async () => {
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({ allowApiKey: true }),
       groupService as unknown as GroupService,
@@ -138,7 +138,7 @@ describe("IdentityGuard", () => {
     // Edge case: both present (should not happen in practice, but guard should be deterministic)
     const request: Record<string, unknown> = {
       user: { sub: "some-user" },
-      apiKeyGroupId: "group-id",
+      apiKey: { groupId: "group-id", keyPrefix: "aBcDeFgH" },
     };
 
     await identityGuard.canActivate(createContext(request));
@@ -158,7 +158,7 @@ describe("IdentityGuard", () => {
       createReflectorWithIdentity({ allowApiKey: true }),
       groupService as unknown as GroupService,
     );
-    const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
+    const request: Record<string, unknown> = { apiKey: { groupId: "group-123", keyPrefix: "aBcDeFgH" } };
 
     await identityGuard.canActivate(createContext(request));
 
@@ -172,7 +172,7 @@ describe("IdentityGuard", () => {
       createReflectorWithIdentity({ allowApiKey: true }),
       groupService as unknown as GroupService,
     );
-    const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
+    const request: Record<string, unknown> = { apiKey: { groupId: "group-123", keyPrefix: "aBcDeFgH" } };
 
     await identityGuard.canActivate(createContext(request));
 
@@ -184,7 +184,7 @@ describe("IdentityGuard", () => {
 
   it("should throw ForbiddenException when @Identity is absent and request uses an API key", async () => {
     // Default guard has no @Identity in reflector mock
-    const request: Record<string, unknown> = { apiKeyGroupId: "group-123" };
+    const request: Record<string, unknown> = { apiKey: { groupId: "group-123", keyPrefix: "aBcDeFgH" } };
 
     await expect(guard.canActivate(createContext(request))).rejects.toThrow(
       ForbiddenException,
@@ -447,7 +447,7 @@ describe("IdentityGuard", () => {
       groupService as unknown as GroupService,
     );
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", keyPrefix: "aBcDeFgH" },
     };
 
     await expect(
@@ -769,7 +769,7 @@ describe("IdentityGuard", () => {
       groupService as unknown as GroupService,
     );
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", keyPrefix: "aBcDeFgH" },
     };
 
     await expect(
@@ -783,7 +783,7 @@ describe("IdentityGuard", () => {
       groupService as unknown as GroupService,
     );
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", keyPrefix: "aBcDeFgH" },
     };
 
     await expect(
@@ -797,7 +797,7 @@ describe("IdentityGuard", () => {
       groupService as unknown as GroupService,
     );
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", keyPrefix: "aBcDeFgH" },
     };
 
     const result = await identityGuard.canActivate(createContext(request));
@@ -845,7 +845,7 @@ describe("IdentityGuard", () => {
       groupService as unknown as GroupService,
     );
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", keyPrefix: "aBcDeFgH" },
       params: { groupId: "group-abc" },
     };
 
@@ -904,7 +904,7 @@ describe("IdentityGuard", () => {
   it("should throw ForbiddenException when @Identity is absent and request carries an API key", async () => {
     // Without @Identity, API key requests are always denied
     const request: Record<string, unknown> = {
-      apiKeyGroupId: "group-abc",
+      apiKey: { groupId: "group-abc", keyPrefix: "aBcDeFgH" },
     };
 
     await expect(guard.canActivate(createContext(request))).rejects.toThrow(
