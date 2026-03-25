@@ -77,7 +77,7 @@ export class AzureController {
   ) {}
 
   @Get("classifier")
-  @Identity({ minimumRole: GroupRole.MEMBER })
+  @Identity()
   @ApiOperation({
     summary: "Get classifiers for user groups",
     description:
@@ -123,7 +123,6 @@ export class AzureController {
   })
   async createClassifier(@Request() req, @Body() body: ClassifierCreationDto) {
     const { name, description, source, group_id } = body;
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
 
     // Does this classifier already exist?
     const classifier = await this.classifierService.findClassifierModel(
@@ -166,8 +165,6 @@ export class AzureController {
   })
   async updateClassifier(@Request() req, @Body() body: UpdateClassifierDto) {
     const { name, group_id, description, source } = body;
-
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
 
     // Check if classifier exists
     const classifier = await this.classifierService.findClassifierModel(
@@ -238,7 +235,6 @@ export class AzureController {
     @Query("group_id") group_id: string,
   ): Promise<UploadClassifierDocumentsResponseDto> {
     const { name, label } = body;
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
 
     const existingModelData = await this.classifierService.findClassifierModel(
       name,
@@ -281,7 +277,6 @@ export class AzureController {
     @Query() query: GetClassifierDocumentsQueryDto,
   ): Promise<string[]> {
     const { name, group_id } = query;
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
 
     const existingModelData = await this.classifierService.findClassifierModel(
       name,
@@ -315,7 +310,6 @@ export class AzureController {
     @Query() query: DeleteClassifierDocumentsDto,
   ): Promise<void> {
     const { name, group_id, folder } = query;
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
 
     const existingModelData = await this.classifierService.findClassifierModel(
       name,
@@ -366,7 +360,6 @@ export class AzureController {
   ): Promise<ClassifierModelResponseDto> {
     const { name, group_id } = body;
     const userId = req.user.sub;
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
 
     // Respond immediately and run the heavy work in the background
     const model = await this.classifierService.updateClassifierModel(
@@ -454,7 +447,6 @@ export class AzureController {
   ): Promise<ClassifierResponseDto> {
     const { name } = body;
     const userId = req.user.sub;
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
     // Is there a classifier trained for this group?
     const classifier = await this.classifierService.findClassifierModel(
       name,

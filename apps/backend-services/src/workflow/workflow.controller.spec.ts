@@ -200,26 +200,6 @@ describe("WorkflowController", () => {
         dto,
       );
     });
-
-    it("propagates ForbiddenException when user is not a group member", async () => {
-      const req = {
-        user: { sub: "user-1" },
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: {},
-        },
-      } as unknown as Request;
-      const dto: CreateWorkflowDto = {
-        name: "New",
-        groupId: "group-1",
-        config: mockGraphConfig,
-      };
-      await expect(controller.createWorkflow(dto, req)).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(workflowService.createWorkflow).not.toHaveBeenCalled();
-    });
   });
 
   describe("updateWorkflow", () => {

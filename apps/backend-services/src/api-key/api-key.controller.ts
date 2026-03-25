@@ -60,11 +60,6 @@ export class ApiKeyController {
     if (!groupId) {
       throw new BadRequestException("groupId query parameter is required");
     }
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      groupId,
-      GroupRole.ADMIN,
-    );
     const apiKey = await this.apiKeyService.getApiKey(groupId);
     return { apiKey };
   }
@@ -90,7 +85,6 @@ export class ApiKeyController {
         "User ID is required to generate an API key",
       );
     }
-    identityCanAccessGroup(req.resolvedIdentity, body.groupId, GroupRole.ADMIN);
     const apiKey = await this.apiKeyService.generateApiKey(
       userId,
       body.groupId,
