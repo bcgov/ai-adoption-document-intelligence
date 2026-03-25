@@ -1,6 +1,6 @@
 jest.mock("@/auth/identity.helpers", () => ({
-  identityCanAccessGroup: jest.fn().mockResolvedValue(undefined),
-  getIdentityGroupIds: jest.fn().mockResolvedValue(["test-group"]),
+  identityCanAccessGroup: jest.fn().mockReturnValue(undefined),
+  getIdentityGroupIds: jest.fn().mockReturnValue(["test-group"]),
 }));
 
 import { BadRequestException, NotFoundException } from "@nestjs/common";

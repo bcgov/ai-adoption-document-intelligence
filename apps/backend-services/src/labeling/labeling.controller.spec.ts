@@ -190,28 +190,6 @@ describe("LabelingController", () => {
         "actor-1",
       );
     });
-
-    it("throws ForbiddenException when user is not a group member", async () => {
-      const req = {
-        user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      await expect(controller.createProject(dto, req)).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(labelingService.createProject).not.toHaveBeenCalled();
-    });
-
-    it("throws ForbiddenException when no identity is provided", async () => {
-      const req = {
-        user: { sub: "user-1" },
-        resolvedIdentity: undefined,
-      } as Request;
-      await expect(controller.createProject(dto, req)).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(labelingService.createProject).not.toHaveBeenCalled();
-    });
   });
 
   describe("getProject", () => {
@@ -363,28 +341,6 @@ describe("LabelingController", () => {
         "project-1",
         dto,
       );
-    });
-
-    it("throws ForbiddenException when user is not a group member", async () => {
-      const req = {
-        user: { sub: "user-1" },
-        resolvedIdentity: { userId: "user-1" },
-      } as Request;
-      await expect(
-        controller.uploadLabelingDocument("project-1", dto, req),
-      ).rejects.toThrow(ForbiddenException);
-      expect(labelingService.uploadLabelingDocument).not.toHaveBeenCalled();
-    });
-
-    it("throws ForbiddenException when no identity is provided", async () => {
-      const req = {
-        user: { sub: "user-1" },
-        resolvedIdentity: undefined,
-      } as Request;
-      await expect(
-        controller.uploadLabelingDocument("project-1", dto, req),
-      ).rejects.toThrow(ForbiddenException);
-      expect(labelingService.uploadLabelingDocument).not.toHaveBeenCalled();
     });
   });
 

@@ -64,7 +64,7 @@ export class BenchmarkRunController {
   ): Promise<void> {
     const project =
       await this.benchmarkProjectService.getProjectById(projectId);
-    await identityCanAccessGroup(req.resolvedIdentity, project.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
   }
 
   @Post("definitions/:definitionId/runs")

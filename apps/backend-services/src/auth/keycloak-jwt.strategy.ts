@@ -33,8 +33,6 @@ interface KeycloakJwtPayload {
  */
 @Injectable()
 export class KeycloakJwtStrategy extends PassportStrategy(Strategy, "jwt") {
-  private readonly clientId: string;
-
   constructor(configService: ConfigService) {
     const ssoAuthServerUrl = configService.get<string>("SSO_AUTH_SERVER_URL");
     const realm = configService.get<string>("SSO_REALM");
@@ -96,64 +94,19 @@ export class KeycloakJwtStrategy extends PassportStrategy(Strategy, "jwt") {
       // token signed with the public key as a symmetric secret.
       algorithms: ["RS256"],
     });
-
-    this.clientId = clientId;
   }
 
   /**
    * Called by Passport AFTER the JWT signature, issuer, audience, and expiry
    * have all been verified. The returned object is attached to `req.user`.
-   *
-   * We normalize roles here (via extractRoles) so that downstream handlers
-   * can check `req.user.roles` without caring about Keycloak's nested claim
-   * structure.
    */
   validate(payload: KeycloakJwtPayload): User {
-    const normalizedRoles = this.extractRoles(payload);
-
     return {
       sub: payload.sub,
       idir_username: payload.idir_username,
       display_name: payload.display_name,
       email: payload.email,
-      roles: normalizedRoles,
       ...payload,
     };
-  }
-
-  // TODO: review. bcgov may store roles in a different structure,
-  // also determine if we need other roles from other sources.
-  /**
-   * Keycloak doesn't put roles in a single place — depending on how the realm
-   * and client are configured, roles can appear in up to three locations:
-   *
-   *  - `roles[]`                           — top-level claim (if client mappers add it)
-   *  - `realm_access.roles[]`              — realm-wide roles (e.g. "admin", "user")
-   *  - `resource_access.<clientId>.roles[]` — roles scoped to a specific client
-   *
-   * extractRoles merges all three into a flat, deduplicated array so the rest
-   * of the app (controllers) can just check `user.roles.includes("admin")`
-   * without knowing which Keycloak claim it came from.
-   */
-  private extractRoles(payload: KeycloakJwtPayload): string[] {
-    const roleSet = new Set<string>();
-
-    const pushRoles = (roles?: string[]) => {
-      roles?.forEach((role) => {
-        if (role) {
-          roleSet.add(role);
-        }
-      });
-    };
-
-    // Collect from all potential sources
-    pushRoles(payload.roles);
-    pushRoles(payload.realm_access?.roles);
-
-    const resourceRoles = payload.resource_access ?? {};
-    Object.values(resourceRoles).forEach((access) => pushRoles(access.roles));
-    pushRoles(resourceRoles[this.clientId]?.roles);
-
-    return Array.from(roleSet);
   }
 }

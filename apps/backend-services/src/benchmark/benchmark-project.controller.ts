@@ -39,6 +39,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { GroupRole } from "@/generated";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { CreateProjectDto, ProjectDetailsDto, ProjectSummaryDto } from "./dto";
 
@@ -53,7 +54,11 @@ export class BenchmarkProjectController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupIdFrom: { body: "groupId" },
+    minimumRole: GroupRole.MEMBER,
+  })
   @ApiOperation({ summary: "Create a benchmark project" })
   @ApiBody({ type: CreateProjectDto })
   @ApiCreatedResponse({
@@ -73,8 +78,6 @@ export class BenchmarkProjectController {
     );
 
     const actorId = req.resolvedIdentity.actorId;
-
-    identityCanAccessGroup(req.resolvedIdentity, createProjectDto.groupId);
 
     return this.benchmarkProjectService.createProject(
       createProjectDto,

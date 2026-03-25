@@ -30,6 +30,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { GroupRole } from "@/generated/edge";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
 import {
   WorkflowListResponseDto,
@@ -66,7 +67,7 @@ export class WorkflowController {
       return { workflows };
     }
 
-    const groupIds = Object.keys(req.resolvedIdentity.groupRoles);
+    const groupIds = getIdentityGroupIds(req.resolvedIdentity);
 
     if (groupIds.length === 0) {
       return { workflows: [] };
@@ -102,7 +103,11 @@ export class WorkflowController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupIdFrom: { body: "groupId" },
+    minimumRole: GroupRole.MEMBER,
+  })
   @ApiOperation({ summary: "Create a new workflow" })
   @ApiBody({
     type: CreateWorkflowDto,
@@ -120,8 +125,6 @@ export class WorkflowController {
     @Body() dto: CreateWorkflowDto,
     @Req() req: Request,
   ): Promise<{ workflow: WorkflowInfo }> {
-    identityCanAccessGroup(req.resolvedIdentity, dto.groupId);
-
     const workflow = await this.workflowService.createWorkflow(
       req.resolvedIdentity.actorId,
       dto,
