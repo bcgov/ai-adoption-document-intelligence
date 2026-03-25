@@ -57,49 +57,142 @@ describe("RequestLoggingInterceptor", () => {
     expect(typeof req._loggingStartTime).toBe("number");
   });
 
-  it("does not set userId when store is null", () => {
-    mockGetStore.mockReturnValue(undefined);
-    const req = makeRequest({
-      resolvedIdentity: { userId: "u-1" },
-    } as Partial<Request>);
-    const ctx = makeContext(req);
-    const next: CallHandler = { handle: () => of(undefined) };
-    // expect no error
-    expect(() => interceptor.intercept(ctx, next).subscribe()).not.toThrow();
+  describe("userId enrichment", () => {
+    it("does not set userId when store is null", () => {
+      mockGetStore.mockReturnValue(undefined);
+      const req = makeRequest({
+        resolvedIdentity: { userId: "u-1" },
+      } as Partial<Request>);
+      const ctx = makeContext(req);
+      const next: CallHandler = { handle: () => of(undefined) };
+      expect(() => interceptor.intercept(ctx, next).subscribe()).not.toThrow();
+    });
+
+    it("does not set userId when resolvedIdentity is absent", () => {
+      const store = { requestId: "req-1" };
+      mockGetStore.mockReturnValue(store);
+      const req = makeRequest();
+      const ctx = makeContext(req);
+      const next: CallHandler = { handle: () => of(undefined) };
+      interceptor.intercept(ctx, next).subscribe();
+      expect(store).not.toHaveProperty("userId");
+    });
+
+    it("sets userId from resolvedIdentity.userId when present", () => {
+      const store = { requestId: "req-1" };
+      mockGetStore.mockReturnValue(store);
+      const req = makeRequest({
+        resolvedIdentity: { userId: "user-abc" },
+      } as Partial<Request>);
+      const ctx = makeContext(req);
+      const next: CallHandler = { handle: () => of(undefined) };
+      interceptor.intercept(ctx, next).subscribe();
+      expect(store).toHaveProperty("userId", "user-abc");
+    });
+
+    it("does not set userId when resolvedIdentity lacks userId key", () => {
+      const store = { requestId: "req-1" };
+      mockGetStore.mockReturnValue(store);
+      const req = makeRequest({
+        resolvedIdentity: { groupIds: [] },
+      } as Partial<Request>);
+      const ctx = makeContext(req);
+      const next: CallHandler = { handle: () => of(undefined) };
+      interceptor.intercept(ctx, next).subscribe();
+      expect(store).not.toHaveProperty("userId");
+    });
   });
 
-  it("does not set userId when resolvedIdentity is absent", () => {
-    const store = { requestId: "req-1" };
-    mockGetStore.mockReturnValue(store);
-    const req = makeRequest();
-    const ctx = makeContext(req);
-    const next: CallHandler = { handle: () => of(undefined) };
-    interceptor.intercept(ctx, next).subscribe();
-    expect(store).not.toHaveProperty("userId");
+  describe("sessionId enrichment", () => {
+    it("sets sessionId from user.session_state when present", () => {
+      const store = { requestId: "req-1" };
+      mockGetStore.mockReturnValue(store);
+      const req = makeRequest({
+        user: { sub: "user-1", session_state: "keycloak-session-uuid-123" },
+        resolvedIdentity: { userId: "user-1" },
+      } as Partial<Request>);
+      const ctx = makeContext(req);
+      const next: CallHandler = { handle: () => of(undefined) };
+      interceptor.intercept(ctx, next).subscribe();
+      expect(store).toHaveProperty("sessionId", "keycloak-session-uuid-123");
+    });
+
+    it("does not set sessionId when user has no session_state", () => {
+      const store = { requestId: "req-1" };
+      mockGetStore.mockReturnValue(store);
+      const req = makeRequest({
+        user: { sub: "user-1" },
+        resolvedIdentity: { userId: "user-1" },
+      } as Partial<Request>);
+      const ctx = makeContext(req);
+      const next: CallHandler = { handle: () => of(undefined) };
+      interceptor.intercept(ctx, next).subscribe();
+      expect(store).not.toHaveProperty("sessionId");
+    });
+
+    it("does not set sessionId when user is undefined", () => {
+      const store = { requestId: "req-1" };
+      mockGetStore.mockReturnValue(store);
+      const req = makeRequest();
+      const ctx = makeContext(req);
+      const next: CallHandler = { handle: () => of(undefined) };
+      interceptor.intercept(ctx, next).subscribe();
+      expect(store).not.toHaveProperty("sessionId");
+    });
+
+    it("does not set sessionId when session_state is an empty string", () => {
+      const store = { requestId: "req-1" };
+      mockGetStore.mockReturnValue(store);
+      const req = makeRequest({
+        user: { sub: "user-1", session_state: "" },
+        resolvedIdentity: { userId: "user-1" },
+      } as Partial<Request>);
+      const ctx = makeContext(req);
+      const next: CallHandler = { handle: () => of(undefined) };
+      interceptor.intercept(ctx, next).subscribe();
+      expect(store).not.toHaveProperty("sessionId");
+    });
   });
 
-  it("sets userId from resolvedIdentity.userId when present", () => {
-    const store = { requestId: "req-1" };
-    mockGetStore.mockReturnValue(store);
-    const req = makeRequest({
-      resolvedIdentity: { userId: "user-abc" },
-    } as Partial<Request>);
-    const ctx = makeContext(req);
-    const next: CallHandler = { handle: () => of(undefined) };
-    interceptor.intercept(ctx, next).subscribe();
-    expect(store).toHaveProperty("userId", "user-abc");
-  });
+  describe("apiKeyId enrichment", () => {
+    it("sets apiKeyId from apiKey.keyPrefix when present", () => {
+      const store = { requestId: "req-1" };
+      mockGetStore.mockReturnValue(store);
+      const req = makeRequest({
+        apiKey: { groupId: "group-123", keyPrefix: "aBcDeFgH" },
+      } as Partial<Request>);
+      const ctx = makeContext(req);
+      const next: CallHandler = { handle: () => of(undefined) };
+      interceptor.intercept(ctx, next).subscribe();
+      expect(store).toHaveProperty("apiKeyId", "aBcDeFgH");
+    });
 
-  it("does not set userId when resolvedIdentity lacks userId key", () => {
-    const store = { requestId: "req-1" };
-    mockGetStore.mockReturnValue(store);
-    const req = makeRequest({
-      resolvedIdentity: { groupIds: [] },
-    } as Partial<Request>);
-    const ctx = makeContext(req);
-    const next: CallHandler = { handle: () => of(undefined) };
-    interceptor.intercept(ctx, next).subscribe();
-    expect(store).not.toHaveProperty("userId");
+    it("omits sessionId when request is authenticated via API key", () => {
+      const store = { requestId: "req-1" };
+      mockGetStore.mockReturnValue(store);
+      const req = makeRequest({
+        apiKey: { groupId: "group-123", keyPrefix: "aBcDeFgH" },
+      } as Partial<Request>);
+      const ctx = makeContext(req);
+      const next: CallHandler = { handle: () => of(undefined) };
+      interceptor.intercept(ctx, next).subscribe();
+      expect(store).toHaveProperty("apiKeyId", "aBcDeFgH");
+      expect(store).not.toHaveProperty("sessionId");
+    });
+
+    it("omits apiKeyId when request is authenticated via JWT", () => {
+      const store = { requestId: "req-1" };
+      mockGetStore.mockReturnValue(store);
+      const req = makeRequest({
+        user: { sub: "user-1", session_state: "keycloak-session-uuid-456" },
+        resolvedIdentity: { userId: "user-1" },
+      } as Partial<Request>);
+      const ctx = makeContext(req);
+      const next: CallHandler = { handle: () => of(undefined) };
+      interceptor.intercept(ctx, next).subscribe();
+      expect(store).toHaveProperty("sessionId", "keycloak-session-uuid-456");
+      expect(store).not.toHaveProperty("apiKeyId");
+    });
   });
 
   describe("logRequest", () => {

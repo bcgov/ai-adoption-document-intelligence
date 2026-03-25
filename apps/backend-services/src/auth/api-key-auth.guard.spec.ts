@@ -8,7 +8,6 @@ import { Reflector } from "@nestjs/core";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ApiKeyService } from "../api-key/api-key.service";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
-import { IdentityOptions } from "./identity.decorator";
 
 describe("ApiKeyAuthGuard", () => {
   let guard: ApiKeyAuthGuard;
@@ -80,7 +79,7 @@ describe("ApiKeyAuthGuard", () => {
   it("should return true if user is already authenticated", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue({
       allowApiKey: true,
-    } as IdentityOptions);
+    });
 
     const context = createMockExecutionContext({}, { sub: "testuser" });
     const result = await guard.canActivate(context);
@@ -92,7 +91,7 @@ describe("ApiKeyAuthGuard", () => {
   it("should throw UnauthorizedException if no API key header and no authenticated user", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue({
       allowApiKey: true,
-    } as IdentityOptions);
+    });
 
     const context = createMockExecutionContext({});
 
@@ -105,7 +104,7 @@ describe("ApiKeyAuthGuard", () => {
   it("should return true if no API key header but user is already authenticated", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue({
       allowApiKey: true,
-    } as IdentityOptions);
+    });
 
     const context = createMockExecutionContext({}, { sub: "testuser" });
     const result = await guard.canActivate(context);
@@ -117,7 +116,7 @@ describe("ApiKeyAuthGuard", () => {
   it("should throw UnauthorizedException for invalid API key", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue({
       allowApiKey: true,
-    } as IdentityOptions);
+    });
     mockApiKeyService.validateApiKey.mockResolvedValue(null);
 
     const context = createMockExecutionContext({ "x-api-key": "invalidkey" });
@@ -128,12 +127,13 @@ describe("ApiKeyAuthGuard", () => {
     expect(apiKeyService.validateApiKey).toHaveBeenCalledWith("invalidkey");
   });
 
-  it("should set apiKeyGroupId for valid API key", async () => {
+  it("should set apiKey for valid API key", async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue({
       allowApiKey: true,
-    } as IdentityOptions);
+    });
     mockApiKeyService.validateApiKey.mockResolvedValue({
       groupId: "group-abc",
+      keyPrefix: "aBcDeFgH",
     });
 
     const mockRequest: Record<string, unknown> = {
@@ -152,14 +152,17 @@ describe("ApiKeyAuthGuard", () => {
 
     expect(result).toBe(true);
     expect(mockRequest.user).toBeUndefined();
-    expect(mockRequest.apiKeyGroupId).toBe("group-abc");
+    expect(mockRequest.apiKey).toEqual({
+      groupId: "group-abc",
+      keyPrefix: "aBcDeFgH",
+    });
   });
 
   describe("failed-attempt throttling", () => {
     beforeEach(() => {
       (reflector.getAllAndOverride as jest.Mock).mockReturnValue({
         allowApiKey: true,
-      } as IdentityOptions);
+      });
       mockApiKeyService.validateApiKey.mockResolvedValue(null);
     });
 
@@ -249,6 +252,7 @@ describe("ApiKeyAuthGuard", () => {
       // Successful validation should reset the counter
       mockApiKeyService.validateApiKey.mockResolvedValueOnce({
         groupId: "group-reset",
+        keyPrefix: "validkey",
       });
 
       const mockRequest = {

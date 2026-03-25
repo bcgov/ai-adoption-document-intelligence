@@ -32,7 +32,7 @@ export { ROLE_ORDER };
  *   `resolvedIdentity.userId` is set with no DB queries.
  * - **API key path**: When the {@link Identity} decorator is present on the handler,
  *   `resolvedIdentity.isSystemAdmin` is set to `false` and `resolvedIdentity.groupRoles`
- *   is populated using `request.apiKeyGroupId` (set by `ApiKeyAuthGuard`) as the key
+ *   is populated using `request.apiKey.groupId` (set by `ApiKeyAuthGuard`) as the key
  *   with a default role of `GroupRole.MEMBER`. When the decorator is absent, a base
  *   identity object is set without enrichment. No database queries are made.
  *
@@ -71,7 +71,7 @@ export class IdentityGuard implements CanActivate {
       IdentityOptions | undefined
     >(IDENTITY_KEY, [context.getHandler(), context.getClass()]);
 
-    if (request.apiKeyGroupId) {
+    if (request.apiKey) {
       if (identityOptions !== undefined) {
         // Reject API key requests unless the endpoint explicitly opts in.
         if (!identityOptions.allowApiKey) {
@@ -83,7 +83,7 @@ export class IdentityGuard implements CanActivate {
         // No database queries required; the key is group-scoped.
         request.resolvedIdentity = {
           isSystemAdmin: false,
-          groupRoles: { [request.apiKeyGroupId]: GroupRole.MEMBER },
+          groupRoles: { [request.apiKey.groupId]: GroupRole.MEMBER },
         };
       } else {
         // Api-key was not explicity allowed. It it denied by default.

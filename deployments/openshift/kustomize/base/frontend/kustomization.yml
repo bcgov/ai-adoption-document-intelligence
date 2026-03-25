@@ -4,6 +4,7 @@ resources:
   - deployment.yml
   - service.yml
   - route.yml
+  - promtail-configmap.yml
   - networkpolicy.yml
 commonLabels:
   app: frontend

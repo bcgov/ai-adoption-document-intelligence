@@ -18,6 +18,9 @@ export class AppLoggerService {
     return {
       ...(ctx?.requestId && { requestId: ctx.requestId }),
       ...(ctx?.userId && { userId: ctx.userId }),
+      ...(ctx?.sessionId && { sessionId: ctx.sessionId }),
+      ...(ctx?.apiKeyId && { apiKeyId: ctx.apiKeyId }),
+      ...(ctx?.clientIp && { clientIp: ctx.clientIp }),
       ...context,
     };
   }
