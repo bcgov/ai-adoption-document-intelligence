@@ -132,6 +132,8 @@ model Actor {
   datasets                Dataset[]
   benchmarkProjects       BenchmarkProject[]
   benchmarkAuditLogs      BenchmarkAuditLog[]
+
+  @@map("actor")
 }
 
 model Workflow {

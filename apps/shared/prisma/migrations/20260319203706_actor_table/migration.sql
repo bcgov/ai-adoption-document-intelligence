@@ -27,10 +27,10 @@ ALTER COLUMN "generating_user_id" SET NOT NULL;
 ALTER TABLE "user" ADD COLUMN     "actor_id" TEXT NOT NULL;
 
 -- CreateTable
-CREATE TABLE "Actor" (
+CREATE TABLE "actor" (
     "id" TEXT NOT NULL,
 
-    CONSTRAINT "Actor_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "actor_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -49,10 +49,10 @@ CREATE UNIQUE INDEX "user_actor_id_key" ON "user"("actor_id");
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_generating_user_id_fkey" FOREIGN KEY ("generating_user_id") REFERENCES "user"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_actor_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "Actor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_actor_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "actor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "user" ADD CONSTRAINT "user_actor_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "Actor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "user" ADD CONSTRAINT "user_actor_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "actor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "datasets" ADD CONSTRAINT "datasets_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "group"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
