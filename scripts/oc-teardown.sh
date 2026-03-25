@@ -175,6 +175,24 @@ done
 log_info "All instance resources deleted."
 
 # ============================================================
+# Step 3b: Uninstall PLG Helm release
+# ============================================================
+PLG_RELEASE_NAME="${INSTANCE_NAME}-plg"
+
+if command -v helm &>/dev/null; then
+  if helm status "${PLG_RELEASE_NAME}" -n "${NAMESPACE}" &>/dev/null; then
+    log_info "Uninstalling PLG Helm release: ${PLG_RELEASE_NAME}"
+    helm uninstall "${PLG_RELEASE_NAME}" -n "${NAMESPACE}" || {
+      log_error "Failed to uninstall PLG Helm release '${PLG_RELEASE_NAME}'. Continuing with teardown."
+    }
+  else
+    log_info "No PLG Helm release '${PLG_RELEASE_NAME}' found — skipping."
+  fi
+else
+  log_info "Helm CLI not installed — skipping PLG release cleanup."
+fi
+
+# ============================================================
 # Step 4: Verify deletion
 # ============================================================
 log_step "Step 4: Verifying deletion"

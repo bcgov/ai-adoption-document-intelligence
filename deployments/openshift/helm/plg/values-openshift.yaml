@@ -1,0 +1,33 @@
+# PLG Stack - OpenShift Environment Overrides
+
+loki:
+  pvcSize: 10Gi
+  retentionDays: 30
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "500m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+
+prometheus:
+  pvcSize: 10Gi
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+grafana:
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"

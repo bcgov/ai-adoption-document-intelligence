@@ -28,8 +28,9 @@ export { ROLE_ORDER };
  *   `resolvedIdentity.userId` is set from `request.user.sub`
  * - **API key path**: When the {@link Identity} decorator is present on the handler,
  *   `resolvedIdentity.isSystemAdmin` is set to `false` and `resolvedIdentity.groupRoles`
- *   is populated using `request.apiKeyGroupId` (set by `ApiKeyAuthGuard`) as the key
- *   with a default role of `GroupRole.MEMBER`.
+ *   is populated using `request.apiKey.groupId` (set by `ApiKeyAuthGuard`) as the key
+ *   with a default role of `GroupRole.MEMBER`. When the decorator is absent, a base
+ *   identity object is set without enrichment. No database queries are made.
  *
  * Returns `true` when the request is allowed to proceed, or throws:
  * - {@link ForbiddenException} when `requireSystemAdmin: true` is set and the

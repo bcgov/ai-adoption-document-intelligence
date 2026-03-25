@@ -181,7 +181,11 @@ describe("ApiKeyService", () => {
 
       const result = await service.validateApiKey(validKey);
 
-      expect(result).toEqual({ groupId: "group-test", actorId: "actor-key-1" });
+      expect(result).toEqual({
+        groupId: "group-test",
+        keyPrefix: "testkey1",
+        actorId: "actor-key-1",
+      });
       expect(mockApiKeyDbService.findApiKeysByPrefix).toHaveBeenCalledWith(
         "testkey1",
       );

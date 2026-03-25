@@ -49,8 +49,8 @@ const JWT_ADMIN = {
   email: "admin@example.com",
 };
 
-const API_KEY_USER = { groupId: "group-user" };
-const API_KEY_ADMIN = { groupId: "group-admin" };
+const API_KEY_USER = { groupId: "group-user", keyPrefix: "test-pre" };
+const API_KEY_ADMIN = { groupId: "group-admin", keyPrefix: "test-pre" };
 
 // ---------------------------------------------------------------------------
 // Stub: replaces Passport JWT validation with a simple token check.
@@ -183,7 +183,7 @@ describe("Guard Composition Integration", () => {
     jest.clearAllMocks();
 
     mockApiKeyService.validateApiKey.mockImplementation(
-      (key: string): Promise<{ groupId: string } | null> => {
+      (key: string): Promise<{ groupId: string; keyPrefix: string } | null> => {
         if (key === VALID_API_KEY) return Promise.resolve(API_KEY_USER);
         if (key === "valid-admin-api-key")
           return Promise.resolve(API_KEY_ADMIN);

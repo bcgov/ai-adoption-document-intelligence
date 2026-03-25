@@ -121,6 +121,77 @@ describe("AppLoggerService", () => {
     });
   });
 
+  describe("with sessionId in request context", () => {
+    beforeEach(() =>
+      mockGetRequestContext.mockReturnValue({
+        requestId: "req-1",
+        userId: "user-1",
+        sessionId: "session-abc-123",
+      }),
+    );
+
+    it("includes sessionId in merged context", () => {
+      service.log("test message");
+      expect(mockLoggerMethods.info).toHaveBeenCalledWith("test message", {
+        requestId: "req-1",
+        userId: "user-1",
+        sessionId: "session-abc-123",
+      });
+    });
+  });
+
+  describe("with clientIp in request context", () => {
+    beforeEach(() =>
+      mockGetRequestContext.mockReturnValue({
+        requestId: "req-3",
+        clientIp: "203.0.113.50",
+      }),
+    );
+
+    it("includes clientIp in merged context", () => {
+      service.log("test message");
+      expect(mockLoggerMethods.info).toHaveBeenCalledWith("test message", {
+        requestId: "req-3",
+        clientIp: "203.0.113.50",
+      });
+    });
+  });
+
+  describe("with apiKeyId in request context", () => {
+    beforeEach(() =>
+      mockGetRequestContext.mockReturnValue({
+        requestId: "req-5",
+        apiKeyId: "aBcDeFgH",
+      }),
+    );
+
+    it("includes apiKeyId in merged context", () => {
+      service.log("test message");
+      expect(mockLoggerMethods.info).toHaveBeenCalledWith("test message", {
+        requestId: "req-5",
+        apiKeyId: "aBcDeFgH",
+      });
+    });
+  });
+
+  describe("omits falsy optional fields", () => {
+    beforeEach(() =>
+      mockGetRequestContext.mockReturnValue({
+        requestId: "req-6",
+        sessionId: undefined,
+        apiKeyId: undefined,
+        clientIp: undefined,
+      }),
+    );
+
+    it("does not include undefined optional fields", () => {
+      service.log("test message");
+      expect(mockLoggerMethods.info).toHaveBeenCalledWith("test message", {
+        requestId: "req-6",
+      });
+    });
+  });
+
   describe("static getLogLevel", () => {
     it("exposes the getLogLevel function", () => {
       expect(AppLoggerService.getLogLevel).toBeDefined();

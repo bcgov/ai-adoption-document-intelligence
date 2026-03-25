@@ -15,6 +15,8 @@ export const LOG_LEVELS: readonly LogLevel[] = [
 /** Optional context fields with consistent camelCase naming (per REQUIREMENTS Section 5). */
 export interface LogContext {
   requestId?: string;
+  sessionId?: string;
+  clientIp?: string;
   workflowExecutionId?: string;
   documentId?: string;
   actorId?: string;

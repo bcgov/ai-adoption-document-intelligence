@@ -288,6 +288,24 @@ spec:
           limits:
             memory: "64Mi"
             cpu: "50m"
+      - name: promtail
+        image: grafana/promtail:3.4.2
+        args:
+          - -config.file=/etc/promtail/promtail.yaml
+        volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+          readOnly: true
+        - name: promtail-config
+          mountPath: /etc/promtail
+          readOnly: true
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "50m"
+          limits:
+            memory: "64Mi"
+            cpu: "100m"
       volumes:
       - name: storage
         persistentVolumeClaim:
@@ -300,4 +318,6 @@ spec:
           name: backend-services-logrotate
       - name: logrotate-state
         emptyDir: {}
-
+      - name: promtail-config
+        configMap:
+          name: backend-services-promtail

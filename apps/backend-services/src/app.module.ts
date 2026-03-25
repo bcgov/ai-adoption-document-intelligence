@@ -16,6 +16,7 @@ import { GroupModule } from "./group/group.module";
 import { HitlModule } from "./hitl/hitl.module";
 import { LabelingModule } from "./labeling/labeling.module";
 import { LoggingModule } from "./logging/logging.module";
+import { MetricsModule } from "./metrics/metrics.module";
 import { OcrModule } from "./ocr/ocr.module";
 import { QueueModule } from "./queue/queue.module";
 import { TemporalModule } from "./temporal/temporal.module";
@@ -63,6 +64,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     AzureModule,
     BootstrapModule,
     GroupModule,
+    MetricsModule,
   ],
   providers: [
     {

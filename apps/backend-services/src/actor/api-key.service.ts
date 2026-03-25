@@ -5,6 +5,7 @@ import {
   ApiKeyInfoDto,
   GeneratedApiKeyDto,
 } from "@/actor/dto/api-key-info.dto";
+import type { ValidatedApiKey } from "@/auth/types";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { ApiKeyDbService } from "./api-key-db.service";
 
@@ -116,9 +117,7 @@ export class ApiKeyService {
     };
   }
 
-  async validateApiKey(
-    key: string,
-  ): Promise<{ groupId: string; actorId: string } | null> {
+  async validateApiKey(key: string): Promise<ValidatedApiKey | null> {
     // Extract prefix from the incoming key for indexed lookup
     const prefix = key.substring(0, 8);
 
@@ -132,7 +131,11 @@ export class ApiKeyService {
         // Update last_used timestamp
         await this.apiKeyDb.updateApiKeyLastUsed(apiKey.id);
 
-        return { groupId: apiKey.group_id, actorId: apiKey.actor_id };
+        return {
+          groupId: apiKey.group_id,
+          keyPrefix: apiKey.key_prefix,
+          actorId: apiKey.actor_id,
+        };
       }
     }
 
