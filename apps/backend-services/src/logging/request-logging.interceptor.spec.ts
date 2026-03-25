@@ -94,7 +94,7 @@ describe("RequestLoggingInterceptor", () => {
       expect(store).not.toHaveProperty("userId");
     });
 
-    it("sets userId from resolvedIdentity.userId when present", () => {
+    it("sets actorId from resolvedIdentity.actorId when present", () => {
       const store = { requestId: "req-1" };
       mockGetStore.mockReturnValue(store);
       const req = makeRequest({
@@ -106,7 +106,7 @@ describe("RequestLoggingInterceptor", () => {
       expect(store).toHaveProperty("actorId", "user-abc");
     });
 
-    it("does not set userId when resolvedIdentity lacks userId key", () => {
+    it("does not set actorId when resolvedIdentity lacks actorId key", () => {
       const store = { requestId: "req-1" };
       mockGetStore.mockReturnValue(store);
       const req = makeRequest({
@@ -115,7 +115,7 @@ describe("RequestLoggingInterceptor", () => {
       const ctx = makeContext(req);
       const next: CallHandler = { handle: () => of(undefined) };
       interceptor.intercept(ctx, next).subscribe();
-      expect(store).not.toHaveProperty("userId");
+      expect(store).not.toHaveProperty("actorId");
     });
   });
 
