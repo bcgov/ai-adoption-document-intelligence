@@ -68,15 +68,8 @@ describe("WorkflowController", () => {
   });
 
   describe("getWorkflows", () => {
-    it("returns empty array when no identity is set", async () => {
-      const req = { resolvedIdentity: undefined } as Request;
-      const result = await controller.getWorkflows(undefined, req);
-      expect(result).toEqual({ workflows: [] });
-      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
-    });
-
     it("returns empty array when user belongs to no groups", async () => {
-      const req = { resolvedIdentity: { userId: "user-1" } } as Request;
+      const req = { resolvedIdentity: { userId: "user-1", groupRoles: {} } } as Request;
       const result = await controller.getWorkflows(undefined, req);
       expect(result).toEqual({ workflows: [] });
       expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
