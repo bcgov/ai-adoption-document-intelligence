@@ -303,9 +303,4 @@ export class AuthController {
       groups,
     };
   }
-
-  @Get("test")
-  async test() {
-    return "hi";
-  }
 }
