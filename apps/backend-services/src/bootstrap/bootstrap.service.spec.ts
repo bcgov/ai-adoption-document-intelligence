@@ -8,22 +8,32 @@ const mockAuditService = {
   recordEvent: jest.fn().mockResolvedValue(undefined),
 } as unknown as AuditService;
 
+
 function createMockPrisma(adminCount = 0) {
-  return {
+  const user = { actor_id: "user-1" };
+  const group = {
+    id: "group-1",
+    name: "Default",
+    description: "Initial group created during system setup",
+  };
+  const prisma = {
     user: {
       count: jest.fn().mockResolvedValue(adminCount),
-      update: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn().mockResolvedValue(user),
     },
     group: {
-      create: jest.fn().mockResolvedValue({
-        id: "group-1",
-        name: "Default",
-        description: "Initial group created during system setup",
-      }),
+      create: jest.fn().mockResolvedValue(group),
     },
     userGroup: {
       create: jest.fn().mockResolvedValue(undefined),
     },
+  };
+  return {
+    prisma,
+    transaction: jest.fn(async (cb) => {
+      // Simulate the callback with the tx mock (prisma)
+      return cb(prisma);
+    }),
   };
 }
 
@@ -37,7 +47,7 @@ function createService(adminCount: number, bootstrapEmail: string | undefined) {
   } as unknown as ConfigService;
 
   const service = new BootstrapService(
-    { prisma: mockPrisma } as never,
+    mockPrisma as never,
     configService,
     mockAppLogger,
     mockAuditService,
@@ -98,18 +108,18 @@ describe("BootstrapService", () => {
       );
 
       expect(result).toEqual({ groupId: "group-1", groupName: "Default" });
-      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+      expect(mockPrisma.prisma.user.update).toHaveBeenCalledWith({
         where: { id: "user-1" },
         data: { is_system_admin: true },
       });
-      expect(mockPrisma.group.create).toHaveBeenCalledWith({
+      expect(mockPrisma.prisma.group.create).toHaveBeenCalledWith({
         data: {
           name: "Default",
           description: "Initial group created during system setup",
           created_by: "user-1",
         },
       });
-      expect(mockPrisma.userGroup.create).toHaveBeenCalledWith({
+      expect(mockPrisma.prisma.userGroup.create).toHaveBeenCalledWith({
         data: {
           user_id: "user-1",
           group_id: "group-1",
