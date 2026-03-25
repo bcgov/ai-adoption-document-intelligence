@@ -5,8 +5,8 @@ import {
   ApiKeyInfoDto,
   GeneratedApiKeyDto,
 } from "@/api-key/dto/api-key-info.dto";
-import { AppLoggerService } from "@/logging/app-logger.service";
 import type { ValidatedApiKey } from "@/auth/types";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { ApiKeyDbService } from "./api-key-db.service";
 
 @Injectable()
@@ -96,9 +96,7 @@ export class ApiKeyService {
     return this.generateApiKey(userId, groupId);
   }
 
-  async validateApiKey(
-    key: string,
-  ): Promise<ValidatedApiKey | null> {
+  async validateApiKey(key: string): Promise<ValidatedApiKey | null> {
     // Extract prefix from the incoming key for indexed lookup
     const prefix = key.substring(0, 8);
 

@@ -158,7 +158,9 @@ describe("IdentityGuard", () => {
       createReflectorWithIdentity({ allowApiKey: true }),
       groupService as unknown as GroupService,
     );
-    const request: Record<string, unknown> = { apiKey: { groupId: "group-123", keyPrefix: "aBcDeFgH" } };
+    const request: Record<string, unknown> = {
+      apiKey: { groupId: "group-123", keyPrefix: "aBcDeFgH" },
+    };
 
     await identityGuard.canActivate(createContext(request));
 
@@ -172,7 +174,9 @@ describe("IdentityGuard", () => {
       createReflectorWithIdentity({ allowApiKey: true }),
       groupService as unknown as GroupService,
     );
-    const request: Record<string, unknown> = { apiKey: { groupId: "group-123", keyPrefix: "aBcDeFgH" } };
+    const request: Record<string, unknown> = {
+      apiKey: { groupId: "group-123", keyPrefix: "aBcDeFgH" },
+    };
 
     await identityGuard.canActivate(createContext(request));
 
@@ -184,7 +188,9 @@ describe("IdentityGuard", () => {
 
   it("should throw ForbiddenException when @Identity is absent and request uses an API key", async () => {
     // Default guard has no @Identity in reflector mock
-    const request: Record<string, unknown> = { apiKey: { groupId: "group-123", keyPrefix: "aBcDeFgH" } };
+    const request: Record<string, unknown> = {
+      apiKey: { groupId: "group-123", keyPrefix: "aBcDeFgH" },
+    };
 
     await expect(guard.canActivate(createContext(request))).rejects.toThrow(
       ForbiddenException,
