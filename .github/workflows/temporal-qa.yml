@@ -36,6 +36,12 @@ jobs:
         run: npm run db:generate
         env:
           DATABASE_URL: "postgresql://localhost:5432/dummy"
+      - name: Lint
+        working-directory: apps/temporal
+        run: npm run lint
+      - name: Type Check
+        working-directory: apps/temporal
+        run: npm run type-check
       - name: Run tests
         working-directory: apps/temporal
         run: npm test
