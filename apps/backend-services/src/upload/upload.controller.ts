@@ -16,7 +16,6 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { QueueService } from "../queue/queue.service";
@@ -71,8 +70,6 @@ export class UploadController {
       if (!uploadDto.file || uploadDto.file.trim().length === 0) {
         throw new BadRequestException("File data is required");
       }
-
-      identityCanAccessGroup(req.resolvedIdentity, uploadDto.group_id);
 
       // Use original_filename from DTO or default to title
       const originalFilename =

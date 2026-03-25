@@ -958,7 +958,7 @@ X-CSRF-Token: abc123...</code></pre>
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     </div>
     <div>
-        <strong>Keycloak JWT roles are not used for authorization.</strong> The JWT strategy still normalizes Keycloak roles from the token into <code>request.user.roles</code>, but no guard, controller, or service reads this field. All authorization is handled by the <code>IdentityGuard</code> using database-backed roles: <code>is_system_admin</code> (boolean on the <code>User</code> table) and <code>GroupRole</code> (<code>ADMIN</code> | <code>MEMBER</code>, stored in the <code>UserGroup</code> table). See <a href="#authorization">Authorization</a> below.
+        <strong>Keycloak JWT roles are not used for authorization.</strong> All authorization is handled by the <code>IdentityGuard</code> using database-backed roles: <code>is_system_admin</code> (boolean on the <code>User</code> table) and <code>GroupRole</code> (<code>ADMIN</code> | <code>MEMBER</code>, stored in the <code>UserGroup</code> table). See <a href="#authorization">Authorization</a> below.
     </div>
 </div>
 
