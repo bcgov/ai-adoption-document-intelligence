@@ -96,6 +96,8 @@ export const useReviewSession = (sessionId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hitl-session", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
     },
   });
 
@@ -110,6 +112,8 @@ export const useReviewSession = (sessionId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hitl-session", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
     },
   });
 
@@ -124,6 +128,8 @@ export const useReviewSession = (sessionId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hitl-session", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
     },
   });
 
@@ -151,6 +157,9 @@ export const useReviewSession = (sessionId?: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["hitl-session", sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
     },
   });
 

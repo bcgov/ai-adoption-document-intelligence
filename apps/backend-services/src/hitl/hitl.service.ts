@@ -619,6 +619,26 @@ export class HitlService {
       payload: { document_id: session.document_id },
     });
 
+    // Revert ground truth job to awaiting_review if this document is part of GT generation
+    try {
+      const gtService = this.moduleRef.get(GroundTruthGenerationService, {
+        strict: false,
+      });
+      if (gtService) {
+        const job = await gtService.getJobByDocumentId(session.document_id);
+        if (job) {
+          await gtService.reopenJob(job.id);
+          this.logger.log(
+            `Ground truth job ${job.id} reverted for reopened session ${sessionId}`,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Ground truth reopen hook error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
     return {
       id: sessionId,
       status: ReviewStatus.in_progress,

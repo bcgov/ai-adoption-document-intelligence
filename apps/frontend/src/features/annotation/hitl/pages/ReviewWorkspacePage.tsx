@@ -13,7 +13,7 @@ import {
 } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconArrowLeft } from "@tabler/icons-react";
+import { IconArrowLeft, IconRotate } from "@tabler/icons-react";
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
@@ -154,6 +154,7 @@ export const ReviewWorkspacePage: FC = () => {
     isApproving,
     isEscalating,
     isSkipping,
+    reopenSessionAsync,
   } = useReviewSession(sessionId);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const {
@@ -182,6 +183,7 @@ export const ReviewWorkspacePage: FC = () => {
     "confidence",
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
   const documentImageRef = useRef<HTMLImageElement | null>(null);
   const isPdf = session?.document?.storage_path?.endsWith(".pdf");
 
@@ -347,6 +349,32 @@ export const ReviewWorkspacePage: FC = () => {
         action: CorrectionAction.CORRECTED,
       },
     }));
+  };
+
+  const handleReopen = async () => {
+    if (!sessionId) return;
+    setIsReopening(true);
+    try {
+      await reopenSessionAsync(sessionId);
+      // Remove readOnly param to switch into edit mode
+      const params = new URLSearchParams(location.search);
+      params.delete("readOnly");
+      const newSearch = params.toString();
+      navigate(
+        `${location.pathname}${newSearch ? `?${newSearch}` : ""}`,
+        { replace: true },
+      );
+    } catch {
+      notifications.show({
+        title: "Cannot reopen",
+        message:
+          "The reopen window may have expired or the dataset is frozen",
+        color: "red",
+        autoClose: 5000,
+      });
+    } finally {
+      setIsReopening(false);
+    }
   };
 
   const handleApprove = async () => {
@@ -648,6 +676,17 @@ export const ReviewWorkspacePage: FC = () => {
               </Text>
             </Stack>
           </Group>
+          {readOnly && (
+            <Button
+              variant="light"
+              color="blue"
+              leftSection={<IconRotate size={16} />}
+              onClick={handleReopen}
+              loading={isReopening}
+            >
+              Reopen for Editing
+            </Button>
+          )}
         </Group>
 
         {!readOnly && (
