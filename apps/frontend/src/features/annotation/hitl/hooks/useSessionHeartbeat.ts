@@ -13,8 +13,8 @@ export const useSessionHeartbeat = (
   const navigate = useNavigate();
   const [idleWarning, setIdleWarning] = useState(false);
   const lastActivityRef = useRef(Date.now());
-  const heartbeatRef = useRef<ReturnType<typeof setInterval>>();
-  const idleCheckRef = useRef<ReturnType<typeof setInterval>>();
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const idleCheckRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   const resetActivity = useCallback(() => {
     lastActivityRef.current = Date.now();

@@ -17,7 +17,7 @@ export const useUndoRedo = (sessionId: string | undefined) => {
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const [redoStack, setRedoStack] = useState<UndoEntry[]>([]);
   const [pendingReopen, setPendingReopen] = useState<ReopenUndoEntry | null>(null);
-  const reopenTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const reopenTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const pushUndo = useCallback((entry: UndoEntry) => {
     setUndoStack((prev) => [...prev, entry]);
@@ -25,14 +25,15 @@ export const useUndoRedo = (sessionId: string | undefined) => {
   }, []);
 
   const undo = useCallback((): UndoEntry | null => {
-    let popped: UndoEntry | null = null;
+    const poppedRef: { current: UndoEntry | null } = { current: null };
     setUndoStack((prev) => {
       if (prev.length === 0) return prev;
-      popped = prev[prev.length - 1];
+      poppedRef.current = prev[prev.length - 1];
       return prev.slice(0, -1);
     });
+    const popped = poppedRef.current;
     if (popped) {
-      setRedoStack((prev) => [...prev, popped!]);
+      setRedoStack((prev) => [...prev, popped]);
       if (popped.correctionId && sessionId) {
         apiService
           .delete(`/hitl/sessions/${sessionId}/corrections/${popped.correctionId}`)
@@ -43,14 +44,15 @@ export const useUndoRedo = (sessionId: string | undefined) => {
   }, [sessionId]);
 
   const redo = useCallback((): UndoEntry | null => {
-    let popped: UndoEntry | null = null;
+    const poppedRef: { current: UndoEntry | null } = { current: null };
     setRedoStack((prev) => {
       if (prev.length === 0) return prev;
-      popped = prev[prev.length - 1];
+      poppedRef.current = prev[prev.length - 1];
       return prev.slice(0, -1);
     });
+    const popped = poppedRef.current;
     if (popped) {
-      setUndoStack((prev) => [...prev, popped!]);
+      setUndoStack((prev) => [...prev, popped]);
     }
     return popped;
   }, []);
