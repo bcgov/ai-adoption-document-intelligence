@@ -319,6 +319,32 @@ export const ReviewWorkspacePage: FC = () => {
     return sortedFields.filter((f) => f.fieldKey.toLowerCase().includes(lower));
   }, [sortedFields, fieldFilter]);
 
+  // Focus first field input when a new session loads
+  useEffect(() => {
+    if (filteredSortedFields.length > 0 && session?.id) {
+      const firstField = filteredSortedFields[0];
+      setActiveFieldKey(firstField.fieldKey);
+      requestAnimationFrame(() => {
+        const input = document.querySelector<HTMLInputElement>(
+          `input[data-field-key="${firstField.fieldKey}"]`,
+        );
+        input?.focus();
+      });
+    }
+  }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Zoom to first field once the document image is loaded into the canvas
+  useEffect(() => {
+    if (documentImage && viewMode === "document" && filteredSortedFields.length > 0) {
+      const firstField = filteredSortedFields[0];
+      setActiveFieldKey(firstField.fieldKey);
+      // Wait for the canvas to render with the new image
+      requestAnimationFrame(() => {
+        focusField(firstField.fieldKey);
+      });
+    }
+  }, [documentImage]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const boxes = useMemo(() => {
     const result = sortedFields
       .filter((field) => field.boundingBox)
