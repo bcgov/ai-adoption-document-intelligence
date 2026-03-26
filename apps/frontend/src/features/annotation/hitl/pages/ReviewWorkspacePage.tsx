@@ -444,6 +444,12 @@ export const ReviewWorkspacePage: FC = () => {
     if (canUndo) {
       const entry = undo();
       if (entry) {
+        // Focus on the field being undone
+        setActiveFieldKey(entry.fieldKey);
+        if (viewMode === "document") {
+          focusField(entry.fieldKey);
+        }
+
         const originalField = fields.find(
           (f) => f.fieldKey === entry.fieldKey,
         );
@@ -475,6 +481,8 @@ export const ReviewWorkspacePage: FC = () => {
     undoSessionAction,
     fields,
     enrichmentCorrectedValues,
+    viewMode,
+    focusField,
   ]);
 
   const handleRedo = useCallback(() => {
@@ -509,6 +517,19 @@ export const ReviewWorkspacePage: FC = () => {
         ctrl: true,
         handler: () => navigateToField("prev"),
         description: "Previous field",
+      },
+      {
+        key: "Tab",
+        handler: () => navigateToField("next"),
+        description: "Next field (from edit)",
+        alwaysActive: true,
+      },
+      {
+        key: "Tab",
+        shift: true,
+        handler: () => navigateToField("prev"),
+        description: "Previous field (from edit)",
+        alwaysActive: true,
       },
       {
         key: "Enter",

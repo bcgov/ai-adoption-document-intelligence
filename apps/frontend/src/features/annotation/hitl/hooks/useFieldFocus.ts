@@ -2,7 +2,7 @@ import { useCallback, useRef } from "react";
 import type { AnnotationCanvasHandle } from "../../core/canvas/AnnotationCanvas";
 import type { BoundingBox } from "../../core/types/canvas";
 
-const DEFAULT_ZOOM = 2;
+const DEFAULT_ZOOM = 5;
 
 interface FieldWithBounds {
   fieldKey: string;

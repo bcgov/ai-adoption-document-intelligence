@@ -20,11 +20,19 @@ interface SnippetViewProps {
   readOnly?: boolean;
 }
 
+interface CropResult {
+  dataUrl: string;
+  /** Aspect ratio (width / height) of the cropped region */
+  aspectRatio: number;
+  /** Area of the bounding box relative to the full image — indicates how much text/content is in this field */
+  relativeArea: number;
+}
+
 const cropFieldSnippet = (
   image: HTMLImageElement,
   polygon: number[],
-  padding = 0.2,
-): string | null => {
+  padding = 0.3,
+): CropResult | null => {
   if (polygon.length < 4) return null;
 
   const xs: number[] = [];
@@ -56,7 +64,15 @@ const cropFieldSnippet = (
   if (!ctx) return null;
 
   ctx.drawImage(image, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-  return canvas.toDataURL();
+
+  const imageArea = image.naturalWidth * image.naturalHeight;
+  const relativeArea = imageArea > 0 ? (boxWidth * boxHeight) / imageArea : 0;
+
+  return {
+    dataUrl: canvas.toDataURL(),
+    aspectRatio: cropW / cropH,
+    relativeArea,
+  };
 };
 
 export const SnippetView: FC<SnippetViewProps> = ({
@@ -68,12 +84,12 @@ export const SnippetView: FC<SnippetViewProps> = ({
   correctionMap,
   readOnly,
 }) => {
-  const [snippets, setSnippets] = useState<Record<string, string | null>>({});
+  const [snippets, setSnippets] = useState<Record<string, CropResult | null>>({});
   const activeRowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!documentImage) return;
-    const newSnippets: Record<string, string | null> = {};
+    const newSnippets: Record<string, CropResult | null> = {};
     for (const field of fields) {
       const polygon = field.boundingRegions?.[0]?.polygon;
       if (polygon) {
@@ -94,9 +110,19 @@ export const SnippetView: FC<SnippetViewProps> = ({
       <Stack gap="md" p="sm">
         {fields.map((field) => {
           const isActive = field.fieldKey === activeFieldKey;
-          const snippet = snippets[field.fieldKey];
+          const cropResult = snippets[field.fieldKey];
           const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
           const correctedValue = correctionMap[field.fieldKey]?.corrected_value;
+
+          // Dynamic image width: larger regions (more text) get more space
+          // Base: 300px, scales up to 500px for large fields
+          const imageWidth = cropResult
+            ? Math.round(300 + Math.min(cropResult.relativeArea * 4000, 200))
+            : 300;
+          // Dynamic max height based on content area
+          const imageMaxHeight = cropResult
+            ? Math.round(150 + Math.min(cropResult.relativeArea * 3000, 250))
+            : 150;
 
           return (
             <Paper
@@ -115,21 +141,21 @@ export const SnippetView: FC<SnippetViewProps> = ({
               <Group align="flex-start" gap="md" wrap="nowrap">
                 <div
                   style={{
-                    width: 200,
-                    minWidth: 200,
+                    width: imageWidth,
+                    minWidth: imageWidth,
                     background: "#1a1a2e",
                     borderRadius: 4,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    minHeight: 60,
+                    minHeight: 80,
                   }}
                 >
-                  {snippet ? (
+                  {cropResult ? (
                     <img
-                      src={snippet}
+                      src={cropResult.dataUrl}
                       alt={`Source region for ${field.fieldKey}`}
-                      style={{ maxWidth: "100%", maxHeight: 150, objectFit: "contain" }}
+                      style={{ maxWidth: "100%", maxHeight: imageMaxHeight, objectFit: "contain" }}
                     />
                   ) : (
                     <Text size="xs" c="dimmed" ta="center" p="xs">
@@ -137,7 +163,7 @@ export const SnippetView: FC<SnippetViewProps> = ({
                     </Text>
                   )}
                 </div>
-                <Stack gap="xs" style={{ flex: 1 }}>
+                <Stack gap="xs" style={{ flex: 1, minWidth: 200 }}>
                   <Group justify="space-between">
                     <Text fw={600} size="sm">{field.fieldKey}</Text>
                     <ConfidenceIndicator confidence={field.confidence} />
