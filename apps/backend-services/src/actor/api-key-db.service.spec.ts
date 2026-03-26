@@ -1,7 +1,7 @@
-import type { ApiKey } from "@generated/client";
+import { ApiKey } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "@/database/prisma.service";
-import { ApiKeyDbService, type CreateApiKeyData } from "./api-key-db.service";
+import { ApiKeyDbService, CreateApiKeyData } from "./api-key-db.service";
 
 const mockApiKey: ApiKey = {
   id: "key-1",
@@ -284,9 +284,11 @@ describe("ApiKeyDbService", () => {
     it("should use tx when provided", async () => {
       const txActorPrisma = {
         delete: jest.fn().mockResolvedValue({ id: "actor-1" }),
+        findFirstOrThrow: jest.fn().mockResolvedValue({ id: "actor-1" }),
       };
       const txApiKeyPrisma = {
         delete: jest.fn().mockResolvedValue(mockApiKey),
+        findFirstOrThrow: jest.fn().mockResolvedValue(mockApiKey),
       };
       const tx = {
         apiKey: txApiKeyPrisma,
@@ -296,6 +298,12 @@ describe("ApiKeyDbService", () => {
       const result = await service.deleteApiKeyById("key-1", tx);
 
       expect(result).toEqual(mockApiKey);
+      expect(txApiKeyPrisma.findFirstOrThrow).toHaveBeenCalledWith({
+        where: { id: "key-1" },
+      });
+      expect(txActorPrisma.findFirstOrThrow).toHaveBeenCalledWith({
+        where: { id: mockApiKey.actor_id },
+      });
       expect(txActorPrisma.delete).toHaveBeenCalled();
       expect(txApiKeyPrisma.delete).toHaveBeenCalled();
     });

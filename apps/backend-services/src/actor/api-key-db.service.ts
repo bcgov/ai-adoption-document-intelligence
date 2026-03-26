@@ -132,14 +132,15 @@ export class ApiKeyDbService {
     tx?: Prisma.TransactionClient,
   ): Promise<ApiKey> {
     const deleteKeyHelper = async (tx: Prisma.TransactionClient) => {
-      const existingKey = await this.prisma.apiKey.findFirstOrThrow({
+      const existingKey = await tx.apiKey.findFirstOrThrow({
         where: { id: id },
       });
-      const actor = await this.prisma.actor.findFirstOrThrow({
+      const actor = await tx.actor.findFirstOrThrow({
         where: { id: existingKey.actor_id },
       });
+      const keyDeleteResult = await tx.apiKey.delete({ where: { id } });
       await tx.actor.delete({ where: { id: actor.id } });
-      return tx.apiKey.delete({ where: { id } });
+      return keyDeleteResult;
     };
     return tx
       ? await deleteKeyHelper(tx)
