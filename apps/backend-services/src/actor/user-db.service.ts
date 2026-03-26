@@ -13,6 +13,13 @@ export class UserDbService {
     return this.prismaService.prisma;
   }
 
+  /**
+   * Updates or inserts a user record.
+   * @param sub A user's Keyclock-provided sub.
+   * @param email The user's email
+   * @param tx Prisma transaction client.
+   * @returns The updated user record.
+   */
   async upsertUser(sub: string, email: string, tx?: Prisma.TransactionClient) {
     const client = tx ?? this.prisma;
     const lastLogin = new Date();
@@ -44,6 +51,7 @@ export class UserDbService {
       ? await userHelper(tx)
       : await this.prisma.$transaction(async (tx) => await userHelper(tx));
   }
+
   /**
    * Checks whether a user is a system admin.
    * @param userId - The ID of the user to check.
@@ -61,6 +69,13 @@ export class UserDbService {
     return user?.is_system_admin ?? false;
   }
 
+  /**
+   *
+   * @param userId Id of a user
+   * @param includeGroups Boolean value. Will join to the user groups if desired.
+   * @param tx Optional. Prisma tranaction client.
+   * @returns A single user record.
+   */
   async findUser(
     userId: string,
     includeGroups: boolean = false,
