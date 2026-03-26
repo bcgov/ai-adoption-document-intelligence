@@ -46,6 +46,11 @@ export class ReviewDbService {
         document: {
           include: {
             ocr_result: true,
+            groundTruthJob: {
+              include: {
+                datasetVersion: { select: { frozen: true } },
+              },
+            },
           },
         },
         corrections: true,
@@ -71,6 +76,11 @@ export class ReviewDbService {
         document: {
           include: {
             ocr_result: true,
+            groundTruthJob: {
+              include: {
+                datasetVersion: { select: { frozen: true } },
+              },
+            },
           },
         },
         corrections: true,
@@ -104,6 +114,12 @@ export class ReviewDbService {
       status: filters.status ?? DocumentStatus.completed_ocr,
       // Exclude documents belonging to ground truth generation jobs
       groundTruthJob: { is: null },
+      // Exclude documents with active (non-expired) locks
+      NOT: {
+        lock: {
+          expires_at: { gt: new Date() },
+        },
+      },
     };
 
     if (filters.groupIds) {
@@ -172,7 +188,7 @@ export class ReviewDbService {
    */
   async updateReviewSession(
     id: string,
-    data: { status?: ReviewStatus; completed_at?: Date },
+    data: { status?: ReviewStatus; completed_at?: Date | null },
     tx?: Prisma.TransactionClient,
   ): Promise<ReviewSessionData | null> {
     const client = tx ?? this.prisma;

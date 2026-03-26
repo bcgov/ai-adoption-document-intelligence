@@ -116,7 +116,16 @@ describe("ReviewDbService", () => {
           status: ReviewStatus.in_progress,
         },
         include: {
-          document: { include: { ocr_result: true } },
+          document: {
+            include: {
+              ocr_result: true,
+              groundTruthJob: {
+                include: {
+                  datasetVersion: { select: { frozen: true } },
+                },
+              },
+            },
+          },
           corrections: true,
         },
       });
@@ -141,7 +150,16 @@ describe("ReviewDbService", () => {
       expect(mockReviewSession.findUnique).toHaveBeenCalledWith({
         where: { id: "session-1" },
         include: {
-          document: { include: { ocr_result: true } },
+          document: {
+            include: {
+              ocr_result: true,
+              groundTruthJob: {
+                include: {
+                  datasetVersion: { select: { frozen: true } },
+                },
+              },
+            },
+          },
           corrections: true,
         },
       });
@@ -236,6 +254,24 @@ describe("ReviewDbService", () => {
 
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ take: 10, skip: 5 }),
+      );
+    });
+
+    it("should exclude documents with active locks", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({});
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            NOT: {
+              lock: {
+                expires_at: { gt: expect.any(Date) },
+              },
+            },
+          }),
+        }),
       );
     });
   });
@@ -563,7 +599,7 @@ describe("ReviewDbService", () => {
       expect(mockReviewSession.create).not.toHaveBeenCalled();
     });
 
-    it("should use provided tx client instead of this.prisma for findReviewSession", async () => {
+    it("should use provided tx client for findReviewSession", async () => {
       const session = makeReviewSession();
       const mockTxReviewSession = {
         findUnique: jest.fn().mockResolvedValue(session),

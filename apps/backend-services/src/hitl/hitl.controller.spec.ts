@@ -46,6 +46,10 @@ describe("HitlController", () => {
       getQueueStats: jest.fn(),
       getAnalytics: jest.fn(),
       findReviewSession: jest.fn().mockResolvedValue(mockSession),
+      heartbeat: jest.fn(),
+      deleteCorrection: jest.fn(),
+      reopenSession: jest.fn(),
+      getNextSession: jest.fn(),
     } as unknown as jest.Mocked<HitlService>;
 
     documentService = {
@@ -661,6 +665,216 @@ describe("HitlController", () => {
         NotFoundException,
       );
       expect(hitlService.skipSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("heartbeat", () => {
+    it("extends lock for a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      const mockResult = { ok: true, expiresAt: new Date() };
+      hitlService.heartbeat.mockResolvedValue(mockResult);
+      const result = await controller.heartbeat("session-1", req);
+      expect(result).toEqual(mockResult);
+      expect(hitlService.heartbeat).toHaveBeenCalledWith("session-1");
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
+      await expect(controller.heartbeat("session-1", req)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(hitlService.heartbeat).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException when session does not exist", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
+      await expect(controller.heartbeat("session-1", req)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(hitlService.heartbeat).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("deleteCorrection", () => {
+    it("deletes a correction for a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      const mockResult = { deleted: true };
+      hitlService.deleteCorrection.mockResolvedValue(mockResult);
+      const result = await controller.deleteCorrection(
+        "session-1",
+        "correction-1",
+        req,
+      );
+      expect(result).toEqual(mockResult);
+      expect(hitlService.deleteCorrection).toHaveBeenCalledWith(
+        "session-1",
+        "correction-1",
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
+      await expect(
+        controller.deleteCorrection("session-1", "correction-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(hitlService.deleteCorrection).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException when session does not exist", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
+      await expect(
+        controller.deleteCorrection("session-1", "correction-1", req),
+      ).rejects.toThrow(NotFoundException);
+      expect(hitlService.deleteCorrection).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("reopenSession", () => {
+    it("reopens session for the original reviewer", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      const mockResult = {
+        id: "session-1",
+        status: "in_progress",
+        message: "Review session reopened",
+      };
+      hitlService.reopenSession.mockResolvedValue(mockResult as any);
+      const result = await controller.reopenSession("session-1", req);
+      expect(result).toEqual(mockResult);
+      expect(hitlService.reopenSession).toHaveBeenCalledWith(
+        "session-1",
+        "user-1",
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
+      await expect(
+        controller.reopenSession("session-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(hitlService.reopenSession).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException when session does not exist", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
+      await expect(
+        controller.reopenSession("session-1", req),
+      ).rejects.toThrow(NotFoundException);
+      expect(hitlService.reopenSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getNextSession", () => {
+    it("delegates to service with group IDs from JWT identity", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      const mockResult = { id: "session-1", documentId: "doc-1" };
+      hitlService.getNextSession.mockResolvedValue(mockResult as any);
+      const result = await controller.getNextSession({} as any, req);
+      expect(result).toEqual(mockResult);
+      expect(hitlService.getNextSession).toHaveBeenCalledWith(
+        {},
+        "user-1",
+        ["group-1"],
+      );
+    });
+
+    it("scopes to a single group when group_id is provided", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      hitlService.getNextSession.mockResolvedValue(null);
+      await controller.getNextSession({ group_id: "group-1" } as any, req);
+      expect(hitlService.getNextSession).toHaveBeenCalledWith(
+        { group_id: "group-1" },
+        "user-1",
+        ["group-1"],
+      );
+    });
+
+    it("throws ForbiddenException when group_id is provided but user is not a member", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      await expect(
+        controller.getNextSession({ group_id: "group-2" } as any, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(hitlService.getNextSession).not.toHaveBeenCalled();
     });
   });
 });

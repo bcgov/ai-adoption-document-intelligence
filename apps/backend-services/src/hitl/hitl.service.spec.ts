@@ -3,7 +3,11 @@ import {
   DocumentStatus,
   ReviewStatus,
 } from "@generated/client";
-import { NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -85,6 +89,16 @@ describe("HitlService", () => {
     corrections: [],
   };
 
+  const mockDocumentLock = {
+    id: "lock-1",
+    document_id: "doc-1",
+    reviewer_id: "reviewer-1",
+    session_id: "session-1",
+    acquired_at: new Date(),
+    last_heartbeat: new Date(),
+    expires_at: new Date(Date.now() + 600000),
+  };
+
   const mockFieldCorrection = {
     id: "correction-1",
     session_id: "session-1",
@@ -108,6 +122,11 @@ describe("HitlService", () => {
       updateReviewSession: jest.fn(),
       createFieldCorrection: jest.fn(),
       findSessionCorrections: jest.fn(),
+      findActiveLock: jest.fn(),
+      acquireDocumentLock: jest.fn(),
+      releaseDocumentLock: jest.fn(),
+      refreshLockHeartbeat: jest.fn(),
+      deleteCorrection: jest.fn(),
     };
 
     const mockAnalytics = {
@@ -366,23 +385,32 @@ describe("HitlService", () => {
   });
 
   describe("startSession", () => {
-    it("should create a new review session", async () => {
+    it("should create a new review session and acquire a lock", async () => {
       const dto: ReviewSessionDto = {
         documentId: "doc-1",
       };
 
       mockDocumentService.findDocument.mockResolvedValueOnce(mockDocument);
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
       mockReviewDbService.createReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(mockDocumentLock);
 
       const result = await service.startSession(dto, "reviewer-1");
 
       expect(mockDocumentService.findDocument).toHaveBeenCalledWith("doc-1");
+      expect(mockReviewDbService.findActiveLock).toHaveBeenCalledWith("doc-1");
       expect(mockReviewDbService.createReviewSession).toHaveBeenCalledWith(
         "doc-1",
         "reviewer-1",
       );
+      expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith({
+        document_id: "doc-1",
+        reviewer_id: "reviewer-1",
+        session_id: "session-1",
+        expires_at: expect.any(Date),
+      });
 
       expect(result).toEqual({
         id: "session-1",
@@ -399,6 +427,45 @@ describe("HitlService", () => {
           },
         },
       });
+    });
+
+    it("should return existing session when same reviewer has lock", async () => {
+      const dto: ReviewSessionDto = {
+        documentId: "doc-1",
+      };
+
+      mockDocumentService.findDocument.mockResolvedValueOnce(mockDocument);
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce({
+        ...mockDocumentLock,
+        reviewer_id: "reviewer-1",
+      });
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+
+      const result = await service.startSession(dto, "reviewer-1");
+
+      expect(mockReviewDbService.createReviewSession).not.toHaveBeenCalled();
+      expect(result.id).toBe("session-1");
+    });
+
+    it("should throw ConflictException when different reviewer has lock", async () => {
+      const dto: ReviewSessionDto = {
+        documentId: "doc-1",
+      };
+
+      mockDocumentService.findDocument.mockResolvedValueOnce(mockDocument);
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce({
+        ...mockDocumentLock,
+        reviewer_id: "other-reviewer",
+        session_id: "session-2",
+      });
+
+      await expect(service.startSession(dto, "reviewer-1")).rejects.toThrow(
+        ConflictException,
+      );
+
+      expect(mockReviewDbService.createReviewSession).not.toHaveBeenCalled();
     });
 
     it("should throw NotFoundException if document does not exist", async () => {
@@ -528,7 +595,7 @@ describe("HitlService", () => {
   });
 
   describe("approveSession", () => {
-    it("should approve a review session", async () => {
+    it("should approve a review session and release the lock", async () => {
       const approvedSession = {
         ...mockReviewSession,
         status: ReviewStatus.approved,
@@ -541,6 +608,7 @@ describe("HitlService", () => {
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
         approvedSession as any,
       );
+      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
 
       const result = await service.approveSession("session-1");
 
@@ -553,6 +621,9 @@ describe("HitlService", () => {
           status: ReviewStatus.approved,
           completed_at: expect.any(Date),
         },
+      );
+      expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
+        "session-1",
       );
 
       expect(result).toEqual({
@@ -575,7 +646,7 @@ describe("HitlService", () => {
   });
 
   describe("escalateSession", () => {
-    it("should escalate a review session with reason", async () => {
+    it("should escalate a review session with reason and release the lock", async () => {
       const dto: EscalateDto = {
         reason: "Complex document requiring expert review",
       };
@@ -598,6 +669,7 @@ describe("HitlService", () => {
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
         escalatedSession as any,
       );
+      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
 
       const result = await service.escalateSession("session-1", dto);
 
@@ -618,6 +690,9 @@ describe("HitlService", () => {
           status: ReviewStatus.escalated,
           completed_at: expect.any(Date),
         },
+      );
+      expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
+        "session-1",
       );
 
       expect(result).toEqual({
@@ -645,7 +720,7 @@ describe("HitlService", () => {
   });
 
   describe("skipSession", () => {
-    it("should skip a review session", async () => {
+    it("should skip a review session and release the lock", async () => {
       const skippedSession = {
         ...mockReviewSession,
         status: ReviewStatus.skipped,
@@ -658,6 +733,7 @@ describe("HitlService", () => {
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
         skippedSession as any,
       );
+      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
 
       const result = await service.skipSession("session-1");
 
@@ -670,6 +746,9 @@ describe("HitlService", () => {
           status: ReviewStatus.skipped,
           completed_at: expect.any(Date),
         },
+      );
+      expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
+        "session-1",
       );
 
       expect(result).toEqual({
@@ -786,6 +865,282 @@ describe("HitlService", () => {
         undefined,
       );
       expect(result).toEqual(mockAnalytics);
+    });
+  });
+
+  describe("heartbeat", () => {
+    it("should refresh lock and return new expiry", async () => {
+      mockReviewDbService.refreshLockHeartbeat.mockResolvedValueOnce(true);
+
+      const result = await service.heartbeat("session-1");
+
+      expect(mockReviewDbService.refreshLockHeartbeat).toHaveBeenCalledWith(
+        "session-1",
+        expect.any(Date),
+      );
+      expect(result.ok).toBe(true);
+      expect(result.expiresAt).toBeInstanceOf(Date);
+    });
+
+    it("should throw ConflictException when lock is expired or not found", async () => {
+      mockReviewDbService.refreshLockHeartbeat.mockResolvedValueOnce(false);
+
+      await expect(service.heartbeat("session-1")).rejects.toThrow(
+        ConflictException,
+      );
+    });
+  });
+
+  describe("deleteCorrection", () => {
+    it("should delete a correction", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.deleteCorrection.mockResolvedValueOnce(true);
+
+      const result = await service.deleteCorrection(
+        "session-1",
+        "correction-1",
+      );
+
+      expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
+        "session-1",
+      );
+      expect(mockReviewDbService.deleteCorrection).toHaveBeenCalledWith(
+        "correction-1",
+        "session-1",
+      );
+      expect(result).toEqual({ deleted: true });
+    });
+
+    it("should throw NotFoundException when session not found", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
+
+      await expect(
+        service.deleteCorrection("session-1", "correction-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw NotFoundException when correction not found", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.deleteCorrection.mockResolvedValueOnce(false);
+
+      await expect(
+        service.deleteCorrection("session-1", "correction-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("reopenSession", () => {
+    it("should reopen a completed session within the 5-minute window", async () => {
+      const completedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+        completed_at: new Date(Date.now() - 60_000), // 1 minute ago
+        document: {
+          ...mockDocumentWithOcr,
+          groundTruthJob: null,
+        },
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        completedSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...completedSession,
+        status: ReviewStatus.in_progress,
+        completed_at: null,
+      } as any);
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(mockDocumentLock);
+
+      const result = await service.reopenSession("session-1", "reviewer-1");
+
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        {
+          status: ReviewStatus.in_progress,
+          completed_at: null,
+        },
+      );
+      expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith({
+        document_id: "doc-1",
+        reviewer_id: "reviewer-1",
+        session_id: "session-1",
+        expires_at: expect.any(Date),
+      });
+      expect(result).toEqual({
+        id: "session-1",
+        status: ReviewStatus.in_progress,
+        message: "Review session reopened",
+      });
+    });
+
+    it("should throw ForbiddenException when different reviewer tries to reopen", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+
+      await expect(
+        service.reopenSession("session-1", "other-reviewer"),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it("should throw ConflictException when session is already in progress", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+
+      await expect(
+        service.reopenSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("should throw ConflictException when reopen window has expired", async () => {
+      const completedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+        completed_at: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes ago
+        document: {
+          ...mockDocumentWithOcr,
+          groundTruthJob: null,
+        },
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        completedSession as any,
+      );
+
+      await expect(
+        service.reopenSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("should allow reopen for dataset labeling when version is not frozen", async () => {
+      const completedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+        completed_at: new Date(Date.now() - 60 * 60 * 1000), // 1 hour ago
+        document: {
+          ...mockDocumentWithOcr,
+          groundTruthJob: {
+            id: "gt-1",
+            datasetVersion: { frozen: false },
+          },
+        },
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        completedSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...completedSession,
+        status: ReviewStatus.in_progress,
+        completed_at: null,
+      } as any);
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(mockDocumentLock);
+
+      const result = await service.reopenSession("session-1", "reviewer-1");
+
+      expect(result.status).toBe(ReviewStatus.in_progress);
+    });
+
+    it("should throw ConflictException for dataset labeling when version is frozen", async () => {
+      const completedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+        completed_at: new Date(),
+        document: {
+          ...mockDocumentWithOcr,
+          groundTruthJob: {
+            id: "gt-1",
+            datasetVersion: { frozen: true },
+          },
+        },
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        completedSession as any,
+      );
+
+      await expect(
+        service.reopenSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("should throw NotFoundException when session not found", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
+
+      await expect(
+        service.reopenSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("getNextSession", () => {
+    it("should return a new session for the first eligible document", async () => {
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
+        mockDocumentWithOcr,
+      ] as any);
+      mockDocumentService.findDocument.mockResolvedValueOnce(mockDocument);
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.createReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(mockDocumentLock);
+
+      const result = await service.getNextSession(
+        {},
+        "reviewer-1",
+        ["group-1"],
+      );
+
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
+        status: DocumentStatus.completed_ocr,
+        modelId: undefined,
+        maxConfidence: 0.9,
+        limit: 10,
+        reviewStatus: "pending",
+        groupIds: ["group-1"],
+      });
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe("session-1");
+    });
+
+    it("should return null when no eligible documents", async () => {
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
+
+      const result = await service.getNextSession(
+        {},
+        "reviewer-1",
+        ["group-1"],
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it("should return null when documents have high confidence", async () => {
+      const highConfDoc = {
+        ...mockDocument,
+        ocr_result: {
+          ...mockOcrResult,
+          keyValuePairs: {
+            field1: { type: "string", content: "value", confidence: 0.95 },
+          },
+        },
+      };
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
+        highConfDoc,
+      ] as any);
+
+      const result = await service.getNextSession(
+        {},
+        "reviewer-1",
+        ["group-1"],
+      );
+
+      expect(result).toBeNull();
     });
   });
 });
