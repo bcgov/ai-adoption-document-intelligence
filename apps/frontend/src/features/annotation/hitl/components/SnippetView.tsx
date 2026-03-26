@@ -22,16 +22,12 @@ interface SnippetViewProps {
 
 interface CropResult {
   dataUrl: string;
-  /** Aspect ratio (width / height) of the cropped region */
-  aspectRatio: number;
-  /** Area of the bounding box relative to the full image — indicates how much text/content is in this field */
-  relativeArea: number;
 }
 
 const cropFieldSnippet = (
   image: HTMLImageElement,
   polygon: number[],
-  padding = 0.3,
+  padding = 0,
 ): CropResult | null => {
   if (polygon.length < 4) return null;
 
@@ -65,13 +61,8 @@ const cropFieldSnippet = (
 
   ctx.drawImage(image, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
-  const imageArea = image.naturalWidth * image.naturalHeight;
-  const relativeArea = imageArea > 0 ? (boxWidth * boxHeight) / imageArea : 0;
-
   return {
     dataUrl: canvas.toDataURL(),
-    aspectRatio: cropW / cropH,
-    relativeArea,
   };
 };
 
@@ -114,48 +105,44 @@ export const SnippetView: FC<SnippetViewProps> = ({
           const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
           const correctedValue = correctionMap[field.fieldKey]?.corrected_value;
 
-          // Dynamic image width: larger regions (more text) get more space
-          // Base: 300px, scales up to 500px for large fields
-          const imageWidth = cropResult
-            ? Math.round(300 + Math.min(cropResult.relativeArea * 4000, 200))
-            : 300;
-          // Dynamic max height based on content area
-          const imageMaxHeight = cropResult
-            ? Math.round(150 + Math.min(cropResult.relativeArea * 3000, 250))
-            : 150;
-
           return (
             <Paper
               key={field.fieldKey}
               ref={isActive ? activeRowRef : undefined}
               withBorder
-              p="sm"
               style={{
                 borderColor: isActive ? "#ff0000" : borderCss,
                 borderStyle: isActive ? "dashed" : "solid",
                 borderWidth: isActive ? "3px" : "2px",
                 cursor: "pointer",
+                overflow: "hidden",
               }}
               onClick={() => onFieldSelect(field.fieldKey)}
             >
-              <Group align="flex-start" gap="md" wrap="nowrap">
+              <Stack gap="xs" p="sm">
+                <Group justify="space-between">
+                  <Text fw={600} size="sm">{field.fieldKey}</Text>
+                  <ConfidenceIndicator confidence={field.confidence} />
+                </Group>
+                <TextInput
+                  data-field-key={field.fieldKey}
+                  value={correctedValue ?? field.value}
+                  onChange={(e) => onFieldChange(field.fieldKey, e.currentTarget.value)}
+                  disabled={readOnly}
+                  size="sm"
+                />
                 <div
                   style={{
-                    width: imageWidth,
-                    minWidth: imageWidth,
-                    background: "#1a1a2e",
-                    borderRadius: 4,
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minHeight: 80,
+                    alignItems: "flex-start",
+                    justifyContent: "flex-start",
                   }}
                 >
                   {cropResult ? (
                     <img
                       src={cropResult.dataUrl}
                       alt={`Source region for ${field.fieldKey}`}
-                      style={{ maxWidth: "100%", maxHeight: imageMaxHeight, objectFit: "contain" }}
+                      style={{ maxWidth: "100%", maxHeight: 200, objectFit: "contain" }}
                     />
                   ) : (
                     <Text size="xs" c="dimmed" ta="center" p="xs">
@@ -163,20 +150,7 @@ export const SnippetView: FC<SnippetViewProps> = ({
                     </Text>
                   )}
                 </div>
-                <Stack gap="xs" style={{ flex: 1, minWidth: 200 }}>
-                  <Group justify="space-between">
-                    <Text fw={600} size="sm">{field.fieldKey}</Text>
-                    <ConfidenceIndicator confidence={field.confidence} />
-                  </Group>
-                  <TextInput
-                    data-field-key={field.fieldKey}
-                    value={correctedValue ?? field.value}
-                    onChange={(e) => onFieldChange(field.fieldKey, e.currentTarget.value)}
-                    disabled={readOnly}
-                    size="sm"
-                  />
-                </Stack>
-              </Group>
+              </Stack>
             </Paper>
           );
         })}
