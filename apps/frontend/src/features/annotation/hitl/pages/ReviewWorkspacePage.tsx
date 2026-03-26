@@ -9,6 +9,7 @@ import {
   ScrollArea,
   Stack,
   Text,
+  Textarea,
   TextInput,
   Title,
 } from "@mantine/core";
@@ -328,10 +329,17 @@ export const ReviewWorkspacePage: FC = () => {
       const firstField = filteredSortedFields[0];
       setActiveFieldKey(firstField.fieldKey);
       requestAnimationFrame(() => {
-        const input = document.querySelector<HTMLInputElement>(
-          `input[data-field-key="${firstField.fieldKey}"]`,
+        const el = document.querySelector<HTMLElement>(
+          `[data-field-key="${firstField.fieldKey}"]`,
         );
-        input?.focus();
+        if (el) {
+          if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
+            el.focus();
+          } else {
+            const input = el.querySelector<HTMLInputElement>("input");
+            input?.focus();
+          }
+        }
       });
     }
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -495,12 +503,19 @@ export const ReviewWorkspacePage: FC = () => {
         if (viewMode === "document") {
           focusField(nextField.fieldKey);
         }
-        // Focus the input element after React re-renders
+        // Focus the input/textarea/checkbox after React re-renders
         requestAnimationFrame(() => {
-          const input = document.querySelector<HTMLInputElement>(
-            `input[data-field-key="${nextField.fieldKey}"]`,
+          const el = document.querySelector<HTMLElement>(
+            `[data-field-key="${nextField.fieldKey}"]`,
           );
-          input?.focus();
+          if (!el) return;
+          if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
+            el.focus();
+          } else {
+            // Checkbox wrapper — find the input inside
+            const input = el.querySelector<HTMLInputElement>("input");
+            input?.focus();
+          }
         });
       }
     },
@@ -569,18 +584,6 @@ export const ReviewWorkspacePage: FC = () => {
 
   const shortcuts: ShortcutDefinition[] = useMemo(
     () => [
-      {
-        key: "ArrowDown",
-        ctrl: true,
-        handler: () => navigateToField("next"),
-        description: "Next field",
-      },
-      {
-        key: "ArrowUp",
-        ctrl: true,
-        handler: () => navigateToField("prev"),
-        description: "Previous field",
-      },
       {
         key: "Tab",
         handler: () => navigateToField("next"),
@@ -978,6 +981,7 @@ export const ReviewWorkspacePage: FC = () => {
                             if (isSelectionMark) {
                               return (
                                 <Checkbox
+                                  data-field-key={field.fieldKey}
                                   checked={displayValue === ":selected:"}
                                   onChange={(event) =>
                                     handleFieldChange(
@@ -997,7 +1001,7 @@ export const ReviewWorkspacePage: FC = () => {
                               );
                             }
                             return (
-                              <TextInput
+                              <Textarea
                                 data-field-key={field.fieldKey}
                                 value={displayValue}
                                 onChange={(event) =>
@@ -1007,6 +1011,8 @@ export const ReviewWorkspacePage: FC = () => {
                                   )
                                 }
                                 disabled={readOnly}
+                                autosize
+                                minRows={1}
                               />
                             );
                           })()}

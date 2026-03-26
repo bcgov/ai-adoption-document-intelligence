@@ -1,4 +1,4 @@
-import { Checkbox, Group, Paper, ScrollArea, Stack, Text, TextInput } from "@mantine/core";
+import { Checkbox, Group, Paper, ScrollArea, Stack, Text, Textarea } from "@mantine/core";
 import { FC, useEffect, useRef, useState } from "react";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
@@ -132,6 +132,7 @@ export const SnippetView: FC<SnippetViewProps> = ({
                   if (isSelectionMark) {
                     return (
                       <Checkbox
+                        data-field-key={field.fieldKey}
                         checked={displayValue === ":selected:"}
                         onChange={(e) =>
                           onFieldChange(
@@ -152,12 +153,14 @@ export const SnippetView: FC<SnippetViewProps> = ({
                     );
                   }
                   return (
-                    <TextInput
+                    <Textarea
                       data-field-key={field.fieldKey}
                       value={displayValue}
                       onChange={(e) => onFieldChange(field.fieldKey, e.currentTarget.value)}
                       disabled={readOnly}
                       size="sm"
+                      autosize
+                      minRows={1}
                     />
                   );
                 })()}
