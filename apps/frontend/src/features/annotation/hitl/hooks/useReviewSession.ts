@@ -127,6 +127,33 @@ export const useReviewSession = (sessionId?: string) => {
     },
   });
 
+  const deleteCorrectionMutation = useMutation({
+    mutationFn: async ({ correctionId }: { correctionId: string }) => {
+      const response = await apiService.delete(
+        `/hitl/sessions/${sessionId}/corrections/${correctionId}`,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["hitl-session-corrections", sessionId],
+      });
+    },
+  });
+
+  const reopenSessionMutation = useMutation({
+    mutationFn: async (targetSessionId: string) => {
+      const response = await apiService.post(
+        `/hitl/sessions/${targetSessionId}/reopen`,
+        {},
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+    },
+  });
+
   const correctionsQuery = useQuery({
     queryKey: ["hitl-session-corrections", sessionId],
     queryFn: async () => {
@@ -164,5 +191,9 @@ export const useReviewSession = (sessionId?: string) => {
     isApproving: approveSessionMutation.isPending,
     isEscalating: escalateSessionMutation.isPending,
     isSkipping: skipSessionMutation.isPending,
+    deleteCorrection: deleteCorrectionMutation.mutate,
+    deleteCorrectionAsync: deleteCorrectionMutation.mutateAsync,
+    reopenSession: reopenSessionMutation.mutate,
+    reopenSessionAsync: reopenSessionMutation.mutateAsync,
   };
 };
