@@ -10,7 +10,7 @@ import {
 import { FC } from "react";
 
 type ViewMode = "document" | "snippet";
-type SortMode = "confidence" | "document-order";
+type SortMode = "confidence" | "alphabetical";
 
 interface ReviewToolbarProps {
   onApprove: () => void;
@@ -76,11 +76,15 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
           <Tooltip
             label={
               sortMode === "confidence"
-                ? "Sort by document order (Ctrl+Shift+O)"
+                ? "Sorting by confidence (Ctrl+Shift+O)"
                 : "Sort by confidence (Ctrl+Shift+O)"
             }
           >
-            <ActionIcon variant="subtle" onClick={onSortModeToggle} size="lg">
+            <ActionIcon
+              variant={sortMode === "confidence" ? "filled" : "subtle"}
+              onClick={onSortModeToggle}
+              size="lg"
+            >
               <IconArrowsSort size={18} />
             </ActionIcon>
           </Tooltip>

@@ -181,7 +181,7 @@ export const ReviewWorkspacePage: FC = () => {
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [fieldFilter, setFieldFilter] = useState("");
   const [viewMode, setViewMode] = useState<"document" | "snippet">("document");
-  const [sortMode, setSortMode] = useState<"confidence" | "document-order">(
+  const [sortMode, setSortMode] = useState<"confidence" | "alphabetical">(
     "confidence",
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -311,7 +311,9 @@ export const ReviewWorkspacePage: FC = () => {
         (a, b) => (a.confidence ?? 1) - (b.confidence ?? 1),
       );
     }
-    return fields;
+    return [...fields].sort((a, b) =>
+      a.fieldKey.localeCompare(b.fieldKey),
+    );
   }, [fields, sortMode]);
 
   const filteredSortedFields = useMemo(() => {
@@ -651,7 +653,7 @@ export const ReviewWorkspacePage: FC = () => {
         shift: true,
         handler: () =>
           setSortMode((m) =>
-            m === "confidence" ? "document-order" : "confidence",
+            m === "confidence" ? "alphabetical" : "confidence",
           ),
         description: "Toggle sort order",
         alwaysActive: true,
@@ -737,7 +739,7 @@ export const ReviewWorkspacePage: FC = () => {
             sortMode={sortMode}
             onSortModeToggle={() =>
               setSortMode((m) =>
-                m === "confidence" ? "document-order" : "confidence",
+                m === "confidence" ? "alphabetical" : "confidence",
               )
             }
           />
