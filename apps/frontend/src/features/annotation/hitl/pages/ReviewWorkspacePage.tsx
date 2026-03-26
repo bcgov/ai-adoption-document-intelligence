@@ -157,6 +157,7 @@ export const ReviewWorkspacePage: FC = () => {
     reopenSessionAsync,
   } = useReviewSession(sessionId);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [isDocumentLoading, setIsDocumentLoading] = useState(true);
   const {
     ref: canvasRef,
     width: canvasWidth,
@@ -209,40 +210,52 @@ export const ReviewWorkspacePage: FC = () => {
   const { advance } = useAutoAdvance();
 
   useEffect(() => {
+    let revoked = false;
+    let objectUrl: string | null = null;
+
     const loadDocument = async () => {
       if (!session?.document?.id) {
+        setIsDocumentLoading(false);
         return;
       }
+      setIsDocumentLoading(true);
       try {
         const response = await fetch(
           `/api/documents/${session.document.id}/download`,
           { credentials: "include" },
         );
-        if (!response.ok) return;
+        if (!response.ok || revoked) {
+          if (!revoked) setIsDocumentLoading(false);
+          return;
+        }
         const blob = await response.blob();
+        if (revoked) return;
         const url = URL.createObjectURL(blob);
+        objectUrl = url;
         setDocumentUrl(url);
+        setIsDocumentLoading(false);
 
         const img = new Image();
         img.src = url;
         img.onload = () => {
-          documentImageRef.current = img;
+          if (!revoked) {
+            documentImageRef.current = img;
+          }
         };
       } catch {
-        // Document load failed; leave URL unset
+        if (!revoked) setIsDocumentLoading(false);
       }
     };
 
     void loadDocument();
-  }, [session?.document?.id]);
 
-  useEffect(() => {
     return () => {
-      if (documentUrl) {
-        URL.revokeObjectURL(documentUrl);
+      revoked = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [documentUrl]);
+  }, [session?.document?.id]);
 
   const fields = useMemo<ReviewField[]>(() => {
     const ocrFields = session?.document?.ocr_result?.fields;
@@ -759,9 +772,13 @@ export const ReviewWorkspacePage: FC = () => {
                     justify="center"
                     style={{ position: "absolute", inset: 0 }}
                   >
-                    <Text size="sm" c="dimmed">
-                      Document preview is unavailable.
-                    </Text>
+                    {isDocumentLoading ? (
+                      <Loader size="md" />
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        Document preview is unavailable.
+                      </Text>
+                    )}
                   </Stack>
                 ) : (
                   <div
@@ -787,9 +804,13 @@ export const ReviewWorkspacePage: FC = () => {
                       justify="center"
                       style={{ position: "absolute", inset: 0 }}
                     >
-                      <Text size="sm" c="dimmed">
-                        Document preview is unavailable.
-                      </Text>
+                      {isDocumentLoading ? (
+                        <Loader size="md" />
+                      ) : (
+                        <Text size="sm" c="dimmed">
+                          Document preview is unavailable.
+                        </Text>
+                      )}
                     </Stack>
                   ) : (
                     canvasWidth > 0 &&
