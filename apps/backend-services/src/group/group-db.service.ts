@@ -8,6 +8,7 @@ import type {
   UserGroup,
 } from "@generated/client";
 import { Injectable } from "@nestjs/common";
+import { ResolvedIdentity } from "@/auth/types";
 import { PrismaService } from "../database/prisma.service";
 
 @Injectable()
@@ -23,6 +24,7 @@ export class GroupDbService {
   /**
    * Finds a group by ID (including soft-deleted groups).
    * @param id - The group ID.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findGroup(
     id: string,
@@ -35,6 +37,7 @@ export class GroupDbService {
   /**
    * Finds a non-deleted group by ID.
    * @param id - The group ID.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findActiveGroup(
     id: string,
@@ -47,6 +50,7 @@ export class GroupDbService {
   /**
    * Finds a group by name.
    * @param name - The group name.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findGroupByName(
     name: string,
@@ -61,6 +65,7 @@ export class GroupDbService {
    * Used for duplicate-name checks when updating a group.
    * @param name - The name to check.
    * @param excludeId - The group ID to exclude from the search.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findActiveGroupByNameExcluding(
     name: string,
@@ -75,6 +80,7 @@ export class GroupDbService {
 
   /**
    * Returns all non-deleted groups with their id, name, and description.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findAllGroups(
     tx?: Prisma.TransactionClient,
@@ -88,8 +94,10 @@ export class GroupDbService {
 
   /**
    * Creates a new group.
+   * @param created_by_id - The actor ID or the requestor.
    * @param name - The group name.
    * @param description - Optional description.
+   * @param tx - Optional. Prisma transaction client.
    */
   async createGroup(
     created_by_id: string,
@@ -112,6 +120,7 @@ export class GroupDbService {
    * Updates a group's name, description, and updated_by fields.
    * @param id - The group ID.
    * @param data - The fields to update.
+   * @param tx - Optional. Prisma transaction client.
    */
   async updateGroupData(
     id: string,
@@ -130,6 +139,7 @@ export class GroupDbService {
    * Soft-deletes a group by setting deleted_at and deleted_by.
    * @param id - The group ID.
    * @param deletedBy - The ID of the user performing the deletion.
+   * @param tx - Optional. Prisma transaction client.
    */
   async softDeleteGroup(
     id: string,
@@ -148,6 +158,7 @@ export class GroupDbService {
   /**
    * Returns all UserGroup records for a given user.
    * @param userId - The ID of the user whose group memberships to retrieve.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findUsersGroups(
     userId: string,
@@ -160,6 +171,7 @@ export class GroupDbService {
   /**
    * Returns all ADMIN-role UserGroup records for a given user.
    * @param userId - The user ID.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findUserAdminMemberships(
     userId: string,
@@ -174,6 +186,7 @@ export class GroupDbService {
   /**
    * Returns all non-deleted groups a user belongs to, including group data.
    * @param userId - The user ID.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findUserGroupsWithGroup(
     userId: string,
@@ -190,6 +203,7 @@ export class GroupDbService {
    * Returns UserGroup records (with group data) for a user, filtered to a specific set of group IDs.
    * @param userId - The user ID.
    * @param groupIds - The allowed group IDs.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findUserGroupsInGroups(
     userId: string,
@@ -211,6 +225,7 @@ export class GroupDbService {
    * Checks whether a user is a member of a given group.
    * @param userId - The user ID.
    * @param groupId - The group ID.
+   * @param tx - Optional. Prisma transaction client.
    */
   async isUserInGroup(
     userId: string,
@@ -228,6 +243,7 @@ export class GroupDbService {
    * Returns the UserGroup record for a specific user-group pair, or null if not found.
    * @param userId - The user ID.
    * @param groupId - The group ID.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findUserGroupMembership(
     userId: string,
@@ -244,6 +260,7 @@ export class GroupDbService {
    * Upserts a UserGroup record, creating it if it does not exist.
    * @param userId - The user ID.
    * @param groupId - The group ID.
+   * @param tx - Optional. Prisma transaction client.
    */
   async upsertUserGroup(
     userId: string,
@@ -262,6 +279,7 @@ export class GroupDbService {
    * Deletes a UserGroup record.
    * @param userId - The user ID.
    * @param groupId - The group ID.
+   * @param tx - Optional. Prisma transaction client.
    */
   async deleteUserGroup(
     userId: string,
@@ -277,6 +295,7 @@ export class GroupDbService {
   /**
    * Returns all members of a group, including user data.
    * @param groupId - The group ID.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findGroupMembersWithUser(
     groupId: string,
@@ -294,6 +313,7 @@ export class GroupDbService {
   /**
    * Finds a membership request by ID.
    * @param id - The request ID.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findMembershipRequest(
     id: string,
@@ -307,6 +327,7 @@ export class GroupDbService {
    * Finds the first PENDING membership request for a user in a group.
    * @param userId - The user ID.
    * @param groupId - The group ID.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findPendingMembershipRequest(
     userId: string,
@@ -327,10 +348,13 @@ export class GroupDbService {
    * Creates a new PENDING membership request.
    * @param userId - The requesting user ID.
    * @param groupId - The target group ID.
+   * @param identity - Identity object of requestor.
+   * @param tx - Optional. Prisma transaction client.
    */
   async createMembershipRequest(
     userId: string,
     groupId: string,
+    identity: ResolvedIdentity,
     tx?: Prisma.TransactionClient,
   ): Promise<GroupMembershipRequest> {
     const client = tx ?? this.prisma;
@@ -339,8 +363,8 @@ export class GroupDbService {
         user_id: userId,
         group_id: groupId,
         status: "PENDING" as $Enums.GroupMembershipRequestStatus,
-        created_by: userId,
-        updated_by: userId,
+        created_by: identity.actorId,
+        updated_by: identity.actorId,
       },
     });
   }
@@ -349,6 +373,7 @@ export class GroupDbService {
    * Updates a membership request with the provided data.
    * @param id - The request ID.
    * @param data - The fields to update.
+   * @param tx - Optional. Prisma transaction client.
    */
   async updateMembershipRequest(
     id: string,
@@ -366,6 +391,7 @@ export class GroupDbService {
    * @param requestGroupId - The group ID from the request.
    * @param requestId - The membership request ID.
    * @param resolutionData - The update payload for the request record.
+   * @param tx - Optional. Prisma transaction client.
    */
   async approveRequestTransaction(
     requestUserId: string,
@@ -414,6 +440,7 @@ export class GroupDbService {
    * Includes the requesting user's data.
    * @param groupId - The group ID.
    * @param status - Optional status filter.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findGroupMembershipRequests(
     groupId: string,
@@ -434,6 +461,7 @@ export class GroupDbService {
    * Includes the group name.
    * @param userId - The user ID.
    * @param status - Optional status filter.
+   * @param tx - Optional. Prisma transaction client.
    */
   async findUserMembershipRequests(
     userId: string,

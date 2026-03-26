@@ -2,10 +2,13 @@ import { GroupRole } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ResolvedIdentity } from "@/auth/types";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import TestFactory from "@/testUtils/testFactory";
 import { AuditService } from "../audit/audit.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { GroupService } from "./group.service";
 import { GroupDbService } from "./group-db.service";
+
+const { makeIdentity } = TestFactory();
 
 const mockAuditService = {
   recordEvent: jest.fn().mockResolvedValue(undefined),
@@ -86,9 +89,10 @@ describe("deleteGroup", () => {
     const softDeleteGroup = jest.fn().mockResolvedValue(undefined);
     const groupDb = makeGroupDb({ findGroup, softDeleteGroup });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await service.deleteGroup("g1", "admin-user");
+    const identity = makeIdentity();
+    await service.deleteGroup("g1", identity);
     expect(findGroup).toHaveBeenCalledWith("g1");
-    expect(softDeleteGroup).toHaveBeenCalledWith("g1", "admin-user");
+    expect(softDeleteGroup).toHaveBeenCalledWith("g1", identity.actorId);
   });
 
   it("should set deleted_at on soft-delete", async () => {
@@ -98,8 +102,9 @@ describe("deleteGroup", () => {
       softDeleteGroup,
     });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await service.deleteGroup("g1", "admin-user");
-    expect(softDeleteGroup).toHaveBeenCalledWith("g1", "admin-user");
+    const identity = makeIdentity();
+    await service.deleteGroup("g1", identity);
+    expect(softDeleteGroup).toHaveBeenCalledWith("g1", identity.actorId);
   });
 
   it("should throw NotFoundException if group not found", async () => {
@@ -109,7 +114,8 @@ describe("deleteGroup", () => {
       softDeleteGroup,
     });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await expect(service.deleteGroup("g1", "admin-user")).rejects.toThrow(
+    const identity = makeIdentity();
+    await expect(service.deleteGroup("g1", identity)).rejects.toThrow(
       "Group not found",
     );
     expect(softDeleteGroup).not.toHaveBeenCalled();
@@ -122,8 +128,9 @@ describe("deleteGroup", () => {
       softDeleteGroup,
     });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await service.deleteGroup("g1", "admin-user");
-    expect(softDeleteGroup).toHaveBeenCalledWith("g1", "admin-user");
+    const identity = makeIdentity();
+    await service.deleteGroup("g1", identity);
+    expect(softDeleteGroup).toHaveBeenCalledWith("g1", identity.actorId);
   });
 });
 
@@ -300,13 +307,13 @@ describe("requestMembership", () => {
       createMembershipRequest,
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await svc.requestMembership(userId, groupId, {
+    const identity = makeIdentity();
+    await svc.requestMembership(userId, groupId, identity);
+    expect(createMembershipRequest).toHaveBeenCalledWith(
       userId,
-      isSystemAdmin: false,
-      groupRoles: {},
-      actorId: "actor-1",
-    });
-    expect(createMembershipRequest).toHaveBeenCalledWith(userId, groupId);
+      groupId,
+      identity,
+    );
   });
 
   it("should throw NotFoundException when group does not exist", async () => {
@@ -375,7 +382,7 @@ describe("requestMembership", () => {
 // ---------------------------------------------------------------------------
 
 describe("createGroup", () => {
-  const callerId = "admin-user";
+  const identity = makeIdentity();
 
   it("should create a new group", async () => {
     const mockGroup = { id: "g1", name: "Test Group", description: null };
@@ -383,10 +390,14 @@ describe("createGroup", () => {
     const createGroup = jest.fn().mockResolvedValue(mockGroup);
     const groupDb = makeGroupDb({ findGroupByName, createGroup });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    const result = await service.createGroup(callerId, "Test Group");
+    const result = await service.createGroup(identity, "Test Group");
     expect(result).toEqual(mockGroup);
     expect(findGroupByName).toHaveBeenCalledWith("Test Group");
-    expect(createGroup).toHaveBeenCalledWith(callerId, "Test Group", undefined);
+    expect(createGroup).toHaveBeenCalledWith(
+      identity.actorId,
+      "Test Group",
+      undefined,
+    );
   });
 
   it("should include description when provided", async () => {
@@ -402,13 +413,13 @@ describe("createGroup", () => {
     });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
     const result = await service.createGroup(
-      callerId,
+      identity,
       "Test Group",
       "A test group",
     );
     expect(result).toEqual(mockGroup);
     expect(createGroup).toHaveBeenCalledWith(
-      callerId,
+      identity.actorId,
       "Test Group",
       "A test group",
     );
@@ -423,7 +434,7 @@ describe("createGroup", () => {
       createGroup,
     });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await expect(service.createGroup(callerId, "Test Group")).rejects.toThrow(
+    await expect(service.createGroup(identity, "Test Group")).rejects.toThrow(
       "Group with this name already exists",
     );
     expect(createGroup).not.toHaveBeenCalled();
@@ -478,6 +489,12 @@ describe("cancelMembershipRequest", () => {
     group_id: "group1",
     status: "PENDING",
   };
+  const identity: ResolvedIdentity = {
+    userId,
+    actorId: "1",
+    isSystemAdmin: false,
+    groupRoles: {},
+  };
 
   it("should update the request to CANCELLED with actor, resolved_at, and updated_by", async () => {
     const updateMembershipRequest = jest.fn().mockResolvedValue(undefined);
@@ -486,13 +503,12 @@ describe("cancelMembershipRequest", () => {
       updateMembershipRequest,
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await svc.cancelMembershipRequest(userId, requestId);
+    await svc.cancelMembershipRequest(identity, requestId);
     expect(updateMembershipRequest).toHaveBeenCalledWith(
       requestId,
       expect.objectContaining({
         status: "CANCELLED",
-        actor_id: userId,
-        updated_by: userId,
+        updated_by: identity.actorId,
         resolved_at: expect.any(Date),
       }),
     );
@@ -505,7 +521,7 @@ describe("cancelMembershipRequest", () => {
       updateMembershipRequest,
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await svc.cancelMembershipRequest(userId, requestId, "No longer needed");
+    await svc.cancelMembershipRequest(identity, requestId, "No longer needed");
     expect(updateMembershipRequest).toHaveBeenCalledWith(
       requestId,
       expect.objectContaining({ reason: "No longer needed" }),
@@ -519,7 +535,7 @@ describe("cancelMembershipRequest", () => {
       updateMembershipRequest,
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await svc.cancelMembershipRequest(userId, requestId);
+    await svc.cancelMembershipRequest(identity, requestId);
     const callData = updateMembershipRequest.mock.calls[0][1];
     expect(callData).not.toHaveProperty("reason");
   });
@@ -530,7 +546,7 @@ describe("cancelMembershipRequest", () => {
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
     await expect(
-      svc.cancelMembershipRequest(userId, requestId),
+      svc.cancelMembershipRequest(identity, requestId),
     ).rejects.toThrow("Membership request not found");
   });
 
@@ -541,7 +557,7 @@ describe("cancelMembershipRequest", () => {
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
     await expect(
-      svc.cancelMembershipRequest(userId, requestId),
+      svc.cancelMembershipRequest(identity, requestId),
     ).rejects.toThrow("Cannot cancel a request belonging to another user");
   });
 
@@ -553,7 +569,7 @@ describe("cancelMembershipRequest", () => {
       });
       const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
       await expect(
-        svc.cancelMembershipRequest(userId, requestId),
+        svc.cancelMembershipRequest(identity, requestId),
       ).rejects.toThrow("Only PENDING requests can be cancelled");
     }
   });
@@ -601,8 +617,7 @@ describe("approveMembershipRequest", () => {
       requestId,
       expect.objectContaining({
         status: "APPROVED",
-        actor_id: adminId,
-        updated_by: adminId,
+        updated_by: adminIdentity.actorId,
         resolved_at: expect.any(Date),
       }),
     );
@@ -719,7 +734,6 @@ describe("approveMembershipRequest", () => {
 // ---------------------------------------------------------------------------
 
 describe("denyMembershipRequest", () => {
-  const adminId = "admin1";
   const requestId = "req1";
   const pendingRequest = {
     id: requestId,
@@ -728,19 +742,19 @@ describe("denyMembershipRequest", () => {
     status: "PENDING",
   };
 
-  const adminIdentity: ResolvedIdentity = {
-    userId: adminId,
+  const adminIdentity: ResolvedIdentity = makeIdentity({
+    userId: "user-1",
     isSystemAdmin: false,
     groupRoles: { [pendingRequest.group_id]: GroupRole.ADMIN },
     actorId: "actor-1",
-  };
+  });
 
-  const systemAdminIdentity: ResolvedIdentity = {
-    userId: adminId,
+  const systemAdminIdentity: ResolvedIdentity = makeIdentity({
+    userId: "user-1",
     isSystemAdmin: true,
     groupRoles: {},
     actorId: "actor-1",
-  };
+  });
 
   it("should update the request to DENIED with actor_id, resolved_at, and updated_by", async () => {
     const updateMembershipRequest = jest.fn().mockResolvedValue(undefined);
@@ -754,8 +768,7 @@ describe("denyMembershipRequest", () => {
       requestId,
       expect.objectContaining({
         status: "DENIED",
-        actor_id: adminId,
-        updated_by: adminId,
+        updated_by: adminIdentity.actorId,
         resolved_at: expect.any(Date),
       }),
     );
@@ -834,7 +847,7 @@ describe("denyMembershipRequest", () => {
 
   it("should throw ForbiddenException when caller is a regular group member", async () => {
     const memberIdentity: ResolvedIdentity = {
-      userId: adminId,
+      userId: "user-1",
       isSystemAdmin: false,
       groupRoles: { [pendingRequest.group_id]: GroupRole.MEMBER },
       actorId: "actor-1",
@@ -850,7 +863,7 @@ describe("denyMembershipRequest", () => {
 
   it("should throw ForbiddenException when caller has no role in the request group", async () => {
     const differentGroupIdentity: ResolvedIdentity = {
-      userId: adminId,
+      userId: "user-1",
       isSystemAdmin: false,
       groupRoles: {},
       actorId: "actor-1",
@@ -1002,7 +1015,6 @@ describe("leaveGroup", () => {
 // ---------------------------------------------------------------------------
 
 describe("getGroupRequests", () => {
-  const callerId = "admin-1";
   const groupId = "group-1";
   const mockGroup = { id: groupId, deleted_at: null };
   const mockRequests = [
@@ -1036,7 +1048,7 @@ describe("getGroupRequests", () => {
       findGroupMembershipRequests: jest.fn().mockResolvedValue(mockRequests),
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    const result = await svc.getGroupRequests(callerId, groupId);
+    const result = await svc.getGroupRequests(groupId);
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({
       id: "req1",
@@ -1046,12 +1058,10 @@ describe("getGroupRequests", () => {
       status: "PENDING",
       createdAt: mockRequests[0].created_at,
     });
-    expect(result[0].actorId).toBeUndefined();
     expect(result[0].reason).toBeUndefined();
     expect(result[0].resolvedAt).toBeUndefined();
     expect(result[1]).toMatchObject({
       id: "req2",
-      actorId: "admin-1",
       reason: "Looks good",
     });
   });
@@ -1065,7 +1075,7 @@ describe("getGroupRequests", () => {
       findGroupMembershipRequests,
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await svc.getGroupRequests(callerId, groupId, "PENDING" as any);
+    await svc.getGroupRequests(groupId, "PENDING" as any);
     expect(findGroupMembershipRequests).toHaveBeenCalledWith(
       groupId,
       "PENDING",
@@ -1081,7 +1091,7 @@ describe("getGroupRequests", () => {
       findGroupMembershipRequests,
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await svc.getGroupRequests(callerId, groupId);
+    await svc.getGroupRequests(groupId);
     expect(findGroupMembershipRequests).toHaveBeenCalledWith(
       groupId,
       undefined,
@@ -1093,7 +1103,7 @@ describe("getGroupRequests", () => {
       findActiveGroup: jest.fn().mockResolvedValue(null),
     });
     const svc = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    await expect(svc.getGroupRequests(callerId, groupId)).rejects.toThrow(
+    await expect(svc.getGroupRequests(groupId)).rejects.toThrow(
       "Group not found",
     );
   });
@@ -1186,8 +1196,8 @@ describe("getMyRequests", () => {
 // ---------------------------------------------------------------------------
 
 describe("updateGroup", () => {
-  const callerId = "admin-user";
   const groupId = "group-1";
+  const identity = makeIdentity();
 
   it("should update the group name", async () => {
     const mockUpdated = { id: groupId, name: "New Name", description: null };
@@ -1202,13 +1212,13 @@ describe("updateGroup", () => {
       updateGroupData,
     });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
-    const result = await service.updateGroup(callerId, groupId, "New Name");
+    const result = await service.updateGroup(identity, groupId, "New Name");
     expect(result).toEqual(mockUpdated);
     expect(findActiveGroup).toHaveBeenCalledWith(groupId);
     expect(updateGroupData).toHaveBeenCalledWith(groupId, {
       name: "New Name",
       description: null,
-      updated_by: callerId,
+      updated_by: identity.actorId,
     });
   });
 
@@ -1228,7 +1238,7 @@ describe("updateGroup", () => {
     });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
     const result = await service.updateGroup(
-      callerId,
+      identity,
       groupId,
       "New Name",
       "A description",
@@ -1237,7 +1247,7 @@ describe("updateGroup", () => {
     expect(updateGroupData).toHaveBeenCalledWith(groupId, {
       name: "New Name",
       description: "A description",
-      updated_by: callerId,
+      updated_by: identity.actorId,
     });
   });
 
@@ -1249,7 +1259,7 @@ describe("updateGroup", () => {
     });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
     await expect(
-      service.updateGroup(callerId, groupId, "New Name"),
+      service.updateGroup(identity, groupId, "New Name"),
     ).rejects.toThrow("Group not found");
     expect(updateGroupData).not.toHaveBeenCalled();
   });
@@ -1267,7 +1277,7 @@ describe("updateGroup", () => {
     });
     const service = new GroupService(mockAppLogger, mockAuditService, groupDb);
     await expect(
-      service.updateGroup(callerId, groupId, "New Name"),
+      service.updateGroup(identity, groupId, "New Name"),
     ).rejects.toThrow("Group with this name already exists");
     expect(updateGroupData).not.toHaveBeenCalled();
   });

@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import TestFactory from "@/testUtils/testFactory";
 import { GroupMemberDto } from "./dto/group-member.dto";
 import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { MyMembershipRequestDto } from "./dto/my-membership-request.dto";
@@ -11,6 +12,7 @@ import { GroupService } from "./group.service";
 describe("GroupController", () => {
   let controller: GroupController;
   let service: GroupService;
+  const { makeIdentity } = TestFactory();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -92,19 +94,13 @@ describe("GroupController", () => {
 
   describe("requestMembership", () => {
     it("should call service with userId from JWT sub and groupId from body", async () => {
-      const sub = "jwt-user-id";
       const body: RequestMembershipDto = { groupId: "group1" };
-      const resolvedIdentity = {
-        userId: sub,
-        isSystemAdmin: false,
-        groupRoles: {},
-        actorId: sub,
-      };
+      const resolvedIdentity = makeIdentity();
       jest.spyOn(service, "requestMembership").mockResolvedValueOnce();
-      const req = { user: { sub }, resolvedIdentity } as any;
+      const req = { resolvedIdentity } as any;
       const result = await controller.requestMembership(req, body);
       expect(service.requestMembership).toHaveBeenCalledWith(
-        sub,
+        resolvedIdentity.userId,
         body.groupId,
         resolvedIdentity,
       );
@@ -114,15 +110,14 @@ describe("GroupController", () => {
 
   describe("cancelMembershipRequest", () => {
     it("should call service with userId from JWT, requestId from param, and reason from body", async () => {
-      const sub = "jwt-user-id";
       const requestId = "req1";
       jest.spyOn(service, "cancelMembershipRequest").mockResolvedValueOnce();
-      const req = { user: { sub } } as any;
+      const req = { resolvedIdentity: makeIdentity() } as any;
       const result = await controller.cancelMembershipRequest(req, requestId, {
         reason: "No longer needed",
       });
       expect(service.cancelMembershipRequest).toHaveBeenCalledWith(
-        sub,
+        makeIdentity(),
         requestId,
         "No longer needed",
       );
@@ -130,13 +125,12 @@ describe("GroupController", () => {
     });
 
     it("should call service without reason when body has no reason", async () => {
-      const sub = "jwt-user-id";
       const requestId = "req1";
       jest.spyOn(service, "cancelMembershipRequest").mockResolvedValueOnce();
-      const req = { user: { sub } } as any;
+      const req = { resolvedIdentity: makeIdentity() } as any;
       await controller.cancelMembershipRequest(req, requestId, {});
       expect(service.cancelMembershipRequest).toHaveBeenCalledWith(
-        sub,
+        makeIdentity(),
         requestId,
         undefined,
       );
@@ -215,15 +209,14 @@ describe("GroupController", () => {
 
   describe("denyMembershipRequest", () => {
     it("should call service with resolvedIdentity, requestId from param, and reason from body", async () => {
-      const adminId = "admin-id";
       const requestId = "req1";
       jest.spyOn(service, "denyMembershipRequest").mockResolvedValueOnce();
-      const req = { resolvedIdentity: { userId: adminId } } as any;
+      const req = { resolvedIdentity: makeIdentity() } as any;
       const result = await controller.denyMembershipRequest(req, requestId, {
         reason: "Not eligible",
       });
       expect(service.denyMembershipRequest).toHaveBeenCalledWith(
-        { userId: adminId },
+        makeIdentity(),
         requestId,
         "Not eligible",
       );
@@ -231,13 +224,12 @@ describe("GroupController", () => {
     });
 
     it("should call service without reason when body has no reason", async () => {
-      const adminId = "admin-id";
       const requestId = "req1";
       jest.spyOn(service, "denyMembershipRequest").mockResolvedValueOnce();
-      const req = { resolvedIdentity: { userId: adminId } } as any;
+      const req = { resolvedIdentity: makeIdentity() } as any;
       await controller.denyMembershipRequest(req, requestId, {});
       expect(service.denyMembershipRequest).toHaveBeenCalledWith(
-        { userId: adminId },
+        makeIdentity(),
         requestId,
         undefined,
       );
@@ -246,7 +238,6 @@ describe("GroupController", () => {
 
   describe("getGroupRequests", () => {
     it("should return requests when callerId from resolvedIdentity is provided", async () => {
-      const callerId = "admin-id";
       const groupId = "group1";
       const mockRequests: GroupMembershipRequestDto[] = [
         {
@@ -261,27 +252,18 @@ describe("GroupController", () => {
       jest
         .spyOn(service, "getGroupRequests")
         .mockResolvedValueOnce(mockRequests);
-      const req = { resolvedIdentity: { userId: callerId } } as any;
+      const req = { resolvedIdentity: makeIdentity() } as any;
       const result = await controller.getGroupRequests(req, groupId, undefined);
-      expect(service.getGroupRequests).toHaveBeenCalledWith(
-        callerId,
-        groupId,
-        undefined,
-      );
+      expect(service.getGroupRequests).toHaveBeenCalledWith(groupId, undefined);
       expect(result).toEqual(mockRequests);
     });
 
     it("should pass parsed status to service when valid status query param is provided", async () => {
-      const callerId = "admin-id";
       const groupId = "group1";
       jest.spyOn(service, "getGroupRequests").mockResolvedValueOnce([]);
-      const req = { resolvedIdentity: { userId: callerId } } as any;
+      const req = { resolvedIdentity: makeIdentity() } as any;
       await controller.getGroupRequests(req, groupId, "PENDING");
-      expect(service.getGroupRequests).toHaveBeenCalledWith(
-        callerId,
-        groupId,
-        "PENDING",
-      );
+      expect(service.getGroupRequests).toHaveBeenCalledWith(groupId, "PENDING");
     });
 
     it("should throw 400 when an invalid status value is provided", async () => {
@@ -387,16 +369,15 @@ describe("GroupController", () => {
 
   describe("createGroup", () => {
     it("should call service with callerId, name, and description and return the created group", async () => {
-      const callerId = "admin-id";
       const mockGroup = { id: "g1", name: "New Group", description: "Desc" };
       jest.spyOn(service, "createGroup").mockResolvedValueOnce(mockGroup);
-      const req = { resolvedIdentity: { userId: callerId } } as any;
+      const req = { resolvedIdentity: makeIdentity() } as any;
       const result = await controller.createGroup(req, {
         name: "New Group",
         description: "Desc",
       });
       expect(service.createGroup).toHaveBeenCalledWith(
-        callerId,
+        makeIdentity(),
         "New Group",
         "Desc",
       );
@@ -404,13 +385,12 @@ describe("GroupController", () => {
     });
 
     it("should call service without description when not provided", async () => {
-      const callerId = "admin-id";
       const mockGroup = { id: "g1", name: "New Group", description: null };
       jest.spyOn(service, "createGroup").mockResolvedValueOnce(mockGroup);
-      const req = { resolvedIdentity: { userId: callerId } } as any;
+      const req = { resolvedIdentity: makeIdentity() } as any;
       await controller.createGroup(req, { name: "New Group" });
       expect(service.createGroup).toHaveBeenCalledWith(
-        callerId,
+        req.resolvedIdentity,
         "New Group",
         undefined,
       );
@@ -433,20 +413,19 @@ describe("GroupController", () => {
     const groupId = "group-1";
 
     it("should call service with callerId, groupId, name, and description and return updated group", async () => {
-      const callerId = "admin-id";
       const mockGroup = {
         id: groupId,
         name: "Updated Name",
         description: "Desc",
       };
       jest.spyOn(service, "updateGroup").mockResolvedValueOnce(mockGroup);
-      const req = { resolvedIdentity: { userId: callerId } } as any;
+      const req = { resolvedIdentity: makeIdentity() } as any;
       const result = await controller.updateGroup(req, groupId, {
         name: "Updated Name",
         description: "Desc",
       });
       expect(service.updateGroup).toHaveBeenCalledWith(
-        callerId,
+        req.resolvedIdentity,
         groupId,
         "Updated Name",
         "Desc",
@@ -455,17 +434,16 @@ describe("GroupController", () => {
     });
 
     it("should call service without description when not provided", async () => {
-      const callerId = "admin-id";
       const mockGroup = {
         id: groupId,
         name: "Updated Name",
         description: null,
       };
       jest.spyOn(service, "updateGroup").mockResolvedValueOnce(mockGroup);
-      const req = { resolvedIdentity: { userId: callerId } } as any;
+      const req = { resolvedIdentity: makeIdentity() } as any;
       await controller.updateGroup(req, groupId, { name: "Updated Name" });
       expect(service.updateGroup).toHaveBeenCalledWith(
-        callerId,
+        req.resolvedIdentity,
         groupId,
         "Updated Name",
         undefined,
@@ -511,9 +489,12 @@ describe("GroupController", () => {
 
     it("should soft-delete a group and return success when caller is a system admin", async () => {
       jest.spyOn(service, "deleteGroup").mockResolvedValueOnce(undefined);
-      const req = { resolvedIdentity: { userId: "admin-id" } } as any;
+      const req = { resolvedIdentity: makeIdentity() } as any;
       const result = await controller.deleteGroup(req, groupId);
-      expect(service.deleteGroup).toHaveBeenCalledWith(groupId, "admin-id");
+      expect(service.deleteGroup).toHaveBeenCalledWith(
+        groupId,
+        req.resolvedIdentity,
+      );
       expect(result).toEqual({ success: true });
     });
 

@@ -106,12 +106,9 @@ model User {
   actor_id        String    @unique
   actor           Actor     @relation(fields: [actor_id], references: [id])
 
-  apiKeys                   ApiKey[]
-  userGroups                UserGroup[]
-  membershipRequests        GroupMembershipRequest[] @relation(name: "MembershipRequestUser")
-  actedMembershipRequests   GroupMembershipRequest[] @relation(name: "MembershipRequestActor")
-  createdMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestCreatedBy")
-  updatedMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestUpdatedBy")
+  apiKeys            ApiKey[]
+  userGroups         UserGroup[]
+  membershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestUser")
 
   @@map("user")
 }
@@ -121,17 +118,19 @@ model Actor {
   apiKey ApiKey?
   user   User?
 
-  workflows               Workflow[]
-  labelingProjects        LabelingProject[]
-  classifierModelsCreated ClassifierModel[]   @relation(name: "ClassifierCreatedByActor")
-  classifierModelsUpdated ClassifierModel[]   @relation(name: "ClassifierUpdatedByActor")
-  createdGroups           Group[]             @relation(name: "GroupCreatedBy")
-  updatedGroups           Group[]             @relation(name: "GroupUpdatedBy")
-  deletedGroups           Group[]             @relation(name: "GroupDeletedBy")
-  reviewSessions          ReviewSession[]
-  datasets                Dataset[]
-  benchmarkProjects       BenchmarkProject[]
-  benchmarkAuditLogs      BenchmarkAuditLog[]
+  workflows                 Workflow[]
+  labelingProjects          LabelingProject[]
+  classifierModelsCreated   ClassifierModel[]        @relation(name: "ClassifierCreatedByActor")
+  classifierModelsUpdated   ClassifierModel[]        @relation(name: "ClassifierUpdatedByActor")
+  createdGroups             Group[]                  @relation(name: "GroupCreatedBy")
+  updatedGroups             Group[]                  @relation(name: "GroupUpdatedBy")
+  deletedGroups             Group[]                  @relation(name: "GroupDeletedBy")
+  reviewSessions            ReviewSession[]
+  datasets                  Dataset[]
+  benchmarkProjects         BenchmarkProject[]
+  benchmarkAuditLogs        BenchmarkAuditLog[]
+  createdMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestCreatedBy")
+  updatedMembershipRequests GroupMembershipRequest[] @relation(name: "MembershipRequestUpdatedBy")
 
   @@map("actor")
 }
@@ -333,16 +332,14 @@ model GroupMembershipRequest {
   group_id    String
   group       Group                        @relation(fields: [group_id], references: [id])
   status      GroupMembershipRequestStatus @default(PENDING)
-  actor_id    String?
-  actor       User?                        @relation(name: "MembershipRequestActor", fields: [actor_id], references: [id])
   reason      String?
   resolved_at DateTime?
   created_at  DateTime                     @default(now())
   created_by  String
-  creator     User                         @relation(name: "MembershipRequestCreatedBy", fields: [created_by], references: [id])
+  creator     Actor                        @relation(name: "MembershipRequestCreatedBy", fields: [created_by], references: [id])
   updated_at  DateTime                     @updatedAt
   updated_by  String
-  updator     User                         @relation(name: "MembershipRequestUpdatedBy", fields: [updated_by], references: [id])
+  updator     Actor                        @relation(name: "MembershipRequestUpdatedBy", fields: [updated_by], references: [id])
 
   @@unique([group_id, user_id, status])
   @@map("group_membership_request")

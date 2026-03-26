@@ -1,7 +1,10 @@
-import { type $Enums, GroupRole } from "@generated/client";
+import { type $Enums, GroupRole, Prisma } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
+import TestFactory from "@/testUtils/testFactory";
 import { PrismaService } from "../database/prisma.service";
 import { GroupDbService } from "./group-db.service";
+
+const { makeIdentity } = TestFactory();
 
 const makeGroup = (id = "g-1") => ({
   id,
@@ -474,20 +477,26 @@ describe("GroupDbService", () => {
   describe("createMembershipRequest", () => {
     it("creates PENDING request (no tx)", async () => {
       const req = makeRequest();
+      const identity = makeIdentity();
       mockPrisma.groupMembershipRequest.create.mockResolvedValue(req);
-      expect(await service.createMembershipRequest("user-1", "g-1")).toEqual(
-        req,
-      );
+      expect(
+        await service.createMembershipRequest("user-1", "g-1", identity),
+      ).toEqual(req);
       expect(mockPrisma.groupMembershipRequest.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ status: "PENDING" }),
       });
     });
     it("uses tx client", async () => {
       const txReq = { create: jest.fn().mockResolvedValue(makeRequest()) };
-      const tx = { groupMembershipRequest: txReq } as unknown as Parameters<
-        typeof service.createMembershipRequest
-      >[2];
-      await service.createMembershipRequest("user-1", "g-1", tx);
+      const tx = {
+        groupMembershipRequest: txReq,
+      } as unknown as Prisma.TransactionClient;
+      await service.createMembershipRequest(
+        "user-1",
+        "g-1",
+        makeIdentity(),
+        tx,
+      );
       expect(txReq.create).toHaveBeenCalled();
       expect(mockPrisma.groupMembershipRequest.create).not.toHaveBeenCalled();
     });
