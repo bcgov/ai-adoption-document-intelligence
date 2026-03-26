@@ -186,6 +186,7 @@ export const ReviewWorkspacePage: FC = () => {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
   const documentImageRef = useRef<HTMLImageElement | null>(null);
+  const fieldPanelRef = useRef<HTMLDivElement | null>(null);
   const isPdf = session?.document?.storage_path?.endsWith(".pdf");
 
   const queuePath = location.pathname.match(
@@ -476,6 +477,13 @@ export const ReviewWorkspacePage: FC = () => {
         if (viewMode === "document") {
           focusField(nextField.fieldKey);
         }
+        // Focus the input element after React re-renders
+        requestAnimationFrame(() => {
+          const input = document.querySelector<HTMLInputElement>(
+            `input[data-field-key="${nextField.fieldKey}"]`,
+          );
+          input?.focus();
+        });
       }
     },
     [filteredSortedFields, activeFieldKey, viewMode, focusField],
@@ -836,6 +844,7 @@ export const ReviewWorkspacePage: FC = () => {
             </Paper>
 
             <Paper
+              ref={fieldPanelRef}
               withBorder
               p="sm"
               style={{
@@ -945,6 +954,7 @@ export const ReviewWorkspacePage: FC = () => {
                             />
                           </Group>
                           <TextInput
+                            data-field-key={field.fieldKey}
                             value={
                               correctionMap[field.fieldKey]?.corrected_value ??
                               enrichmentCorrectedValues.get(field.fieldKey) ??

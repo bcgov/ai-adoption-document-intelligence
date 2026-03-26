@@ -169,6 +169,7 @@ export const SnippetView: FC<SnippetViewProps> = ({
                     <ConfidenceIndicator confidence={field.confidence} />
                   </Group>
                   <TextInput
+                    data-field-key={field.fieldKey}
                     value={correctedValue ?? field.value}
                     onChange={(e) => onFieldChange(field.fieldKey, e.currentTarget.value)}
                     disabled={readOnly}
