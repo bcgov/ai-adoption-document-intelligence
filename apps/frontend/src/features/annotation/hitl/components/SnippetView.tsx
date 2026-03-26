@@ -1,4 +1,4 @@
-import { Group, Paper, ScrollArea, Stack, Text, TextInput } from "@mantine/core";
+import { Checkbox, Group, Paper, ScrollArea, Stack, Text, TextInput } from "@mantine/core";
 import { FC, useEffect, useRef, useState } from "react";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
@@ -124,13 +124,43 @@ export const SnippetView: FC<SnippetViewProps> = ({
                   <Text fw={600} size="sm">{field.fieldKey}</Text>
                   <ConfidenceIndicator confidence={field.confidence} />
                 </Group>
-                <TextInput
-                  data-field-key={field.fieldKey}
-                  value={correctedValue ?? field.value}
-                  onChange={(e) => onFieldChange(field.fieldKey, e.currentTarget.value)}
-                  disabled={readOnly}
-                  size="sm"
-                />
+                {(() => {
+                  const displayValue = correctedValue ?? field.value;
+                  const isSelectionMark =
+                    displayValue === ":selected:" ||
+                    displayValue === ":unselected:";
+                  if (isSelectionMark) {
+                    return (
+                      <Checkbox
+                        checked={displayValue === ":selected:"}
+                        onChange={(e) =>
+                          onFieldChange(
+                            field.fieldKey,
+                            e.currentTarget.checked
+                              ? ":selected:"
+                              : ":unselected:",
+                          )
+                        }
+                        disabled={readOnly}
+                        label={
+                          displayValue === ":selected:"
+                            ? "Selected"
+                            : "Unselected"
+                        }
+                        size="sm"
+                      />
+                    );
+                  }
+                  return (
+                    <TextInput
+                      data-field-key={field.fieldKey}
+                      value={displayValue}
+                      onChange={(e) => onFieldChange(field.fieldKey, e.currentTarget.value)}
+                      disabled={readOnly}
+                      size="sm"
+                    />
+                  );
+                })()}
                 <div
                   style={{
                     display: "flex",

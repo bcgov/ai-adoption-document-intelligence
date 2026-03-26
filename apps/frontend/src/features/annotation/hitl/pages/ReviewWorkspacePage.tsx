@@ -1,6 +1,7 @@
 import {
   Accordion,
   Button,
+  Checkbox,
   Group,
   Loader,
   Modal,
@@ -964,21 +965,49 @@ export const ReviewWorkspacePage: FC = () => {
                               confidence={field.confidence}
                             />
                           </Group>
-                          <TextInput
-                            data-field-key={field.fieldKey}
-                            value={
+                          {(() => {
+                            const displayValue =
                               correctionMap[field.fieldKey]?.corrected_value ??
                               enrichmentCorrectedValues.get(field.fieldKey) ??
-                              field.value
+                              field.value;
+                            const isSelectionMark =
+                              displayValue === ":selected:" ||
+                              displayValue === ":unselected:";
+                            if (isSelectionMark) {
+                              return (
+                                <Checkbox
+                                  checked={displayValue === ":selected:"}
+                                  onChange={(event) =>
+                                    handleFieldChange(
+                                      field,
+                                      event.currentTarget.checked
+                                        ? ":selected:"
+                                        : ":unselected:",
+                                    )
+                                  }
+                                  disabled={readOnly}
+                                  label={
+                                    displayValue === ":selected:"
+                                      ? "Selected"
+                                      : "Unselected"
+                                  }
+                                />
+                              );
                             }
-                            onChange={(event) =>
-                              handleFieldChange(
-                                field,
-                                event.currentTarget.value,
-                              )
-                            }
-                            disabled={readOnly}
-                          />
+                            return (
+                              <TextInput
+                                data-field-key={field.fieldKey}
+                                value={displayValue}
+                                onChange={(event) =>
+                                  handleFieldChange(
+                                    field,
+                                    event.currentTarget.value,
+                                  )
+                                }
+                                disabled={readOnly}
+                              />
+                            );
+                          })()}
                         </Stack>
                       </Paper>
                     );
