@@ -202,9 +202,6 @@ export const ReviewWorkspacePage: FC = () => {
     undo,
     redo,
     canUndo,
-    pendingReopen,
-    setPendingSessionReopen,
-    undoSessionAction,
     clear: clearUndoStack,
   } = useUndoRedo(sessionId);
 
@@ -400,15 +397,12 @@ export const ReviewWorkspacePage: FC = () => {
     }
     await approveSessionAsync();
 
-    if (sessionId) {
-      setPendingSessionReopen(sessionId, "approved", 5 * 60 * 1000);
-      notifications.show({
-        title: "Document approved",
-        message: "Press Ctrl+Z to undo",
-        color: "green",
-        autoClose: 5000,
-      });
-    }
+    notifications.show({
+      title: "Document approved",
+      message: "Moving to next document",
+      color: "green",
+      autoClose: 3000,
+    });
 
     clearUndoStack();
     setCorrectionMap({});
@@ -418,15 +412,12 @@ export const ReviewWorkspacePage: FC = () => {
   const handleSkip = async () => {
     await skipSessionAsync();
 
-    if (sessionId) {
-      setPendingSessionReopen(sessionId, "skipped", 5 * 60 * 1000);
-      notifications.show({
-        title: "Document skipped",
-        message: "Press Ctrl+Z to undo",
-        color: "gray",
-        autoClose: 3000,
-      });
-    }
+    notifications.show({
+      title: "Document skipped",
+      message: "Moving to next document",
+      color: "gray",
+      autoClose: 3000,
+    });
 
     clearUndoStack();
     setCorrectionMap({});
@@ -439,15 +430,12 @@ export const ReviewWorkspacePage: FC = () => {
     setEscalationOpen(false);
     setEscalationReason("");
 
-    if (sessionId) {
-      setPendingSessionReopen(sessionId, "escalated", 5 * 60 * 1000);
-      notifications.show({
-        title: "Document escalated",
-        message: "Press Ctrl+Z to undo",
-        color: "yellow",
-        autoClose: 3000,
-      });
-    }
+    notifications.show({
+      title: "Document escalated",
+      message: "Moving to next document",
+      color: "yellow",
+      autoClose: 3000,
+    });
 
     clearUndoStack();
     setCorrectionMap({});
@@ -520,14 +508,10 @@ export const ReviewWorkspacePage: FC = () => {
           return next;
         });
       }
-    } else if (pendingReopen) {
-      undoSessionAction();
     }
   }, [
     canUndo,
     undo,
-    pendingReopen,
-    undoSessionAction,
     fields,
     enrichmentCorrectedValues,
     viewMode,
