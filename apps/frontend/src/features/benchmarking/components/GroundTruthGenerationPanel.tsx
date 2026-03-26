@@ -168,20 +168,19 @@ export const GroundTruthGenerationPanel: FC<
                 <Text size="sm" c="dimmed">
                   {completedCount} of {total} samples completed
                 </Text>
-                {awaitingCount > 0 && (
-                  <Button
-                    size="xs"
-                    variant="light"
-                    leftSection={<IconEye size={14} />}
-                    onClick={() =>
-                      navigate(
-                        `/benchmarking/datasets/${datasetId}/versions/${versionId}/review`,
-                      )
-                    }
-                  >
-                    Open Review Queue ({awaitingCount})
-                  </Button>
-                )}
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconEye size={14} />}
+                  onClick={() =>
+                    navigate(
+                      `/benchmarking/datasets/${datasetId}/versions/${versionId}/review`,
+                    )
+                  }
+                >
+                  Open Review Queue
+                  {awaitingCount > 0 ? ` (${awaitingCount} pending)` : ""}
+                </Button>
               </Group>
             </Stack>
           </Card>

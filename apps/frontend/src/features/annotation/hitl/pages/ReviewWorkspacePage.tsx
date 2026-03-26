@@ -129,7 +129,7 @@ export const ReviewWorkspacePage: FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const readOnly = false;
+  const readOnly = new URLSearchParams(location.search).get("readOnly") === "true";
 
   const navigateToQueue = () => {
     const benchmarkMatch = location.pathname.match(

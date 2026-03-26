@@ -6,7 +6,6 @@ import {
   Card,
   Center,
   Grid,
-  Group,
   Loader,
   Paper,
   Stack,
@@ -15,18 +14,14 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import {
   IconAlertCircle,
   IconCheck,
   IconClock,
   IconEye,
-  IconRotate,
 } from "@tabler/icons-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { FC, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { apiService } from "@/data/services/api.service";
 import {
   type DatasetReviewQueueDocument,
   useDatasetReviewQueue,
@@ -39,32 +34,7 @@ export const DatasetReviewQueuePage: FC = () => {
     versionId: string;
   }>();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<string | null>("pending");
-  const [reopeningSessionId, setReopeningSessionId] = useState<string | null>(null);
-
-  const handleReopenSession = async (sessionId: string) => {
-    setReopeningSessionId(sessionId);
-    try {
-      await apiService.post(`/hitl/sessions/${sessionId}/reopen`, {});
-      notifications.show({
-        title: "Session reopened",
-        message: "Document returned to review queue",
-        color: "green",
-        autoClose: 3000,
-      });
-      queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
-    } catch {
-      notifications.show({
-        title: "Cannot reopen",
-        message: "The dataset version may be frozen for benchmarking",
-        color: "red",
-        autoClose: 5000,
-      });
-    } finally {
-      setReopeningSessionId(null);
-    }
-  };
 
   const { dataset } = useDataset(datasetId || "");
 
@@ -359,38 +329,20 @@ export const DatasetReviewQueuePage: FC = () => {
                         </Text>
                       </Table.Td>
                       <Table.Td>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="light"
-                            leftSection={<IconEye size={14} />}
-                            onClick={() =>
-                              handleStartSession(
-                                doc.lastSession?.id || doc.id,
-                                true,
-                              )
-                            }
-                            disabled={!doc.lastSession?.id}
-                          >
-                            View
-                          </Button>
-                          {doc.lastSession?.id && (
-                            <Button
-                              size="xs"
-                              variant="light"
-                              color="orange"
-                              leftSection={<IconRotate size={14} />}
-                              onClick={() =>
-                                handleReopenSession(doc.lastSession!.id)
-                              }
-                              loading={
-                                reopeningSessionId === doc.lastSession.id
-                              }
-                            >
-                              Reopen
-                            </Button>
-                          )}
-                        </Group>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          leftSection={<IconEye size={14} />}
+                          onClick={() =>
+                            handleStartSession(
+                              doc.lastSession?.id || doc.id,
+                              true,
+                            )
+                          }
+                          disabled={!doc.lastSession?.id}
+                        >
+                          View
+                        </Button>
                       </Table.Td>
                     </Table.Tr>
                   ))}
