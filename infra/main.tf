@@ -77,14 +77,14 @@ module "foundry" {
 resource "azurerm_public_ip" "apim" {
   count = var.apim_vnet_injection_enabled ? 1 : 0
 
-  name                = "${local.name_prefix}-apim-pip"
+  name                = "${local.name_prefix}-apim-pip2"
   location            = var.location
   resource_group_name = azurerm_resource_group.this.name
   allocation_method   = "Static"
   sku                 = "Standard"
   ip_version          = "IPv4"
 
-  domain_name_label = "${local.name_prefix}-apim"
+  domain_name_label = "${local.name_prefix}-apim2"
 
   tags = local.tags
 
