@@ -24,3 +24,21 @@ scrape_configs:
       # Use the compose project as the "project" label
       - source_labels: ["__meta_docker_container_label_com_docker_compose_project"]
         target_label: "project"
+
+  - job_name: host-apps
+    static_configs:
+      - targets: [localhost]
+        labels:
+          service: backend-services
+          project: host
+          __path__: /var/log/host-apps/backend-services.log
+      - targets: [localhost]
+        labels:
+          service: frontend
+          project: host
+          __path__: /var/log/host-apps/frontend.log
+      - targets: [localhost]
+        labels:
+          service: temporal-worker
+          project: host
+          __path__: /var/log/host-apps/temporal-worker.log
