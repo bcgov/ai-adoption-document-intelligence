@@ -6,27 +6,27 @@
 
 ## Acceptance Criteria
 
-- [ ] **Scenario 1**: Request rate panel
+- [x] **Scenario 1**: Request rate panel
     - **Given** Prometheus is scraping backend-services `/metrics`
     - **When** a user opens the Application Overview dashboard in Grafana
     - **Then** a panel displays the current request rate (requests/sec) derived from `http_requests_total`
 
-- [ ] **Scenario 2**: Error rate panel
+- [x] **Scenario 2**: Error rate panel
     - **Given** Prometheus is collecting error metrics
     - **When** a user views the dashboard
     - **Then** a panel displays the error rate (4xx/5xx per second) derived from `http_request_errors_total`
 
-- [ ] **Scenario 3**: Latency percentiles panel
+- [x] **Scenario 3**: Latency percentiles panel
     - **Given** Prometheus is collecting duration histograms
     - **When** a user views the dashboard
     - **Then** a panel displays p50, p95, and p99 latency percentiles derived from `http_request_duration_seconds`
 
-- [ ] **Scenario 4**: Active sessions panel
+- [x] **Scenario 4**: Active sessions panel
     - **Given** Loki is ingesting logs with `sessionId` fields
     - **When** a user views the dashboard
     - **Then** a panel displays the count of unique `sessionId` values seen in the last 5 minutes
 
-- [ ] **Scenario 5**: Dashboard shipped as ConfigMap
+- [x] **Scenario 5**: Dashboard shipped as ConfigMap
     - **Given** the dashboard JSON definition exists
     - **When** the Helm chart is deployed
     - **Then** the dashboard is automatically provisioned in Grafana via a ConfigMap (dashboards-as-code)

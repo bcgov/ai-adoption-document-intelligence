@@ -40,14 +40,33 @@ npm run dev:monitoring:logs
 
 - **Grafana**: `admin` / `admin` (override via `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` environment variables)
 
+## Collecting Host Process Logs
+
+By default, Promtail only collects logs from Docker containers. To also send logs from processes running on your host (backend-services, frontend, temporal-worker), use the `:log` script variants:
+
+```bash
+# Run backend with logs sent to Loki
+npm run dev:backend:log
+
+# Run frontend with logs sent to Loki
+npm run dev:frontend:log
+
+# Run both with logs sent to Loki
+npm run dev:log
+```
+
+These scripts tee process output to `logs/` directory files, which Promtail watches and forwards to Loki. You still see all output in your terminal as normal.
+
+The logs appear in Grafana under the `backend-services`, `frontend`, and `temporal-worker` service labels (same as they would in OpenShift).
+
 ## Architecture
 
 ### Components
 
 - **Loki** (grafana/loki:3.4.0) - Receives and stores logs. Configured with filesystem storage and 30-day retention.
-- **Promtail** (grafana/promtail:3.4.0) - Discovers running Docker containers via the Docker socket and forwards their stdout logs to Loki. Adds `service`, `container`, and `project` labels automatically.
+- **Promtail** (grafana/promtail:3.4.0) - Discovers running Docker containers via the Docker socket and forwards their stdout logs to Loki. Also watches `logs/` for host process output. Adds `service`, `container`, and `project` labels automatically.
 - **Prometheus** (prom/prometheus:v3.2.1) - Scrapes metrics from backend-services (`host.docker.internal:3002/metrics`) and the Temporal server (`temporal:9090/metrics`). Data is retained for 15 days.
-- **Grafana** (grafana/grafana:11.5.2) - Pre-configured with Prometheus and Loki data sources for querying metrics and logs.
+- **Grafana** (grafana/grafana:11.5.2) - Pre-configured with Prometheus and Loki data sources and pre-built dashboards.
 
 ### Data Persistence
 
