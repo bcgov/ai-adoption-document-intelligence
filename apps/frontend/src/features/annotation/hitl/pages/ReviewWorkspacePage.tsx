@@ -185,7 +185,7 @@ export const ReviewWorkspacePage: FC = () => {
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
-  const documentImageRef = useRef<HTMLImageElement | null>(null);
+  const [documentImage, setDocumentImage] = useState<HTMLImageElement | null>(null);
   const fieldPanelRef = useRef<HTMLDivElement | null>(null);
   const isPdf = session?.document?.storage_path?.endsWith(".pdf");
 
@@ -217,6 +217,7 @@ export const ReviewWorkspacePage: FC = () => {
         return;
       }
       setIsDocumentLoading(true);
+      setDocumentImage(null);
       try {
         const response = await fetch(
           `/api/documents/${session.document.id}/download`,
@@ -237,7 +238,7 @@ export const ReviewWorkspacePage: FC = () => {
         img.src = url;
         img.onload = () => {
           if (!revoked) {
-            documentImageRef.current = img;
+            setDocumentImage(img);
           }
         };
       } catch {
@@ -730,7 +731,7 @@ export const ReviewWorkspacePage: FC = () => {
                 boundingRegions: ocrField?.boundingRegions,
               };
             })}
-            documentImage={documentImageRef.current}
+            documentImage={documentImage}
             activeFieldKey={activeFieldKey}
             onFieldSelect={(key) => setActiveFieldKey(key)}
             onFieldChange={(key, value) => {
