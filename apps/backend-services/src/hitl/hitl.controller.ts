@@ -118,8 +118,7 @@ export class HitlController {
       throw new NotFoundException(`Document ${dto.documentId} not found`);
     }
     identityCanAccessGroup(req.resolvedIdentity, document.group_id);
-    const reviewerId =
-      req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
+    const reviewerId = req.resolvedIdentity.actorId;
     return this.hitlService.startSession(dto, reviewerId);
   }
 

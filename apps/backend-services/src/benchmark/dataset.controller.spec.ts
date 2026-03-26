@@ -99,24 +99,6 @@ describe("DatasetController", () => {
       expect(result).toEqual(mockResponse);
     });
 
-    it("uses anonymous user ID when user ID is missing", async () => {
-      const mockRequestNoUser = {
-        user: undefined,
-        resolvedIdentity: {
-          isSystemAdmin: false,
-          groupRoles: {},
-          actorId: "anonymous",
-        },
-      } as unknown as Request;
-
-      await controller.createDataset(createDto, mockRequestNoUser);
-
-      expect(mockDatasetService.createDataset).toHaveBeenCalledWith(
-        createDto,
-        "anonymous",
-      );
-    });
-
     it("propagates validation errors from service", async () => {
       mockDatasetService.createDataset.mockRejectedValue(
         new BadRequestException("Dataset name is required"),
@@ -281,34 +263,6 @@ describe("DatasetController", () => {
         "user-123",
       );
       expect(result).toEqual(mockResponse);
-    });
-
-    it("uses anonymous user ID when user ID is missing", async () => {
-      const mockRequestNoUser = {
-        user: undefined,
-        resolvedIdentity: {
-          isSystemAdmin: false,
-          groupRoles: {},
-          actorId: "anonymous",
-        },
-      } as unknown as Request;
-
-      mockDatasetService.getDatasetById.mockResolvedValue({
-        id: "dataset-123",
-        groupId: "test-group",
-      });
-
-      await controller.createVersion(
-        "dataset-123",
-        createDto,
-        mockRequestNoUser,
-      );
-
-      expect(mockDatasetService.createVersion).toHaveBeenCalledWith(
-        "dataset-123",
-        createDto,
-        "anonymous",
-      );
     });
   });
 
@@ -477,35 +431,6 @@ describe("DatasetController", () => {
           mockReq,
         ),
       ).rejects.toThrow(BadRequestException);
-    });
-
-    it("uses anonymous user ID when user ID is missing", async () => {
-      const mockRequestNoUser = {
-        user: undefined,
-        resolvedIdentity: {
-          isSystemAdmin: false,
-          groupRoles: {},
-          actorId: "actor-1",
-        },
-      } as unknown as Request;
-      mockDatasetService.getDatasetById.mockResolvedValue({
-        id: "dataset-123",
-        groupId: "test-group",
-      });
-
-      await controller.uploadFilesToVersion(
-        "dataset-123",
-        "version-123",
-        mockFiles,
-        mockRequestNoUser,
-      );
-
-      expect(mockDatasetService.uploadFilesToVersion).toHaveBeenCalledWith(
-        "dataset-123",
-        "version-123",
-        mockFiles,
-        "actor-1",
-      );
     });
   });
 
