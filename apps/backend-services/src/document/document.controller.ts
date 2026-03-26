@@ -543,7 +543,7 @@ export class DocumentController {
         event_type: "human_approval_signal_sent",
         resource_type: "workflow_run",
         resource_id: workflowId,
-        actor_id: body.reviewer,
+        actor_id: req.resolvedIdentity.actorId,
         document_id: documentId,
         workflow_execution_id: workflowId,
         group_id: document.group_id,
