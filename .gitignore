@@ -20,3 +20,4 @@ apps/backend-services/backend.log
 .oc-deploy/
 backups/
 deployments/openshift/config/*.env
+infra/
