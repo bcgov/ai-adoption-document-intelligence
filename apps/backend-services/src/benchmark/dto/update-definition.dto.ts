@@ -34,12 +34,12 @@ export class UpdateDefinitionDto {
   splitId?: string;
 
   /**
-   * Workflow ID
+   * Pinned workflow version ID (WorkflowVersion.id)
    */
   @ApiPropertyOptional({ description: "Workflow ID" })
   @IsString()
   @IsOptional()
-  workflowId?: string;
+  workflowVersionId?: string;
 
   /**
    * Evaluator type (must match a registered evaluator)

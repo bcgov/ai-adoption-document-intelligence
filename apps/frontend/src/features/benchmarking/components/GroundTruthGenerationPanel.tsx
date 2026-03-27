@@ -46,9 +46,9 @@ export const GroundTruthGenerationPanel: FC<
   GroundTruthGenerationPanelProps
 > = ({ datasetId, versionId }) => {
   const navigate = useNavigate();
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
-    null,
-  );
+  const [selectedWorkflowVersionId, setSelectedWorkflowVersionId] = useState<
+    string | null
+  >(null);
 
   const { workflows, isLoading: isLoadingWorkflows } = useWorkflows();
   const {
@@ -69,16 +69,16 @@ export const GroundTruthGenerationPanel: FC<
   const progressPercent = total > 0 ? (completedCount / total) * 100 : 0;
 
   const handleStartGeneration = async () => {
-    if (!selectedWorkflowId) return;
+    if (!selectedWorkflowVersionId) return;
     try {
-      await startGeneration(selectedWorkflowId);
+      await startGeneration(selectedWorkflowVersionId);
     } catch {
       // Error handled by mutation state
     }
   };
 
   const workflowOptions = workflows.map((w) => ({
-    value: w.id,
+    value: w.workflowVersionId,
     label: `${w.name} (v${w.version})`,
   }));
 
@@ -102,11 +102,11 @@ export const GroundTruthGenerationPanel: FC<
 
           <Group align="end">
             <Select
-              label="Workflow Template"
+              label="Workflow"
               placeholder="Select a workflow"
               data={workflowOptions}
-              value={selectedWorkflowId}
-              onChange={setSelectedWorkflowId}
+              value={selectedWorkflowVersionId}
+              onChange={setSelectedWorkflowVersionId}
               disabled={isLoadingWorkflows || isStarting}
               style={{ flex: 1 }}
               searchable
@@ -115,7 +115,7 @@ export const GroundTruthGenerationPanel: FC<
               leftSection={<IconPlayerPlay size={16} />}
               onClick={handleStartGeneration}
               loading={isStarting}
-              disabled={!selectedWorkflowId || hasActiveJobs}
+              disabled={!selectedWorkflowVersionId || hasActiveJobs}
             >
               Start Generation
             </Button>

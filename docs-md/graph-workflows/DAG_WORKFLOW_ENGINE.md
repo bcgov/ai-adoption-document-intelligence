@@ -724,6 +724,14 @@ if (input.initialCtx.documentId && typeof input.initialCtx.documentId === 'strin
 
 **Note**: The `document.updateStatus` activity remains available for mid-workflow status updates (e.g., updating `apimRequestId` after OCR submission).
 
+### 5.1.2 Benchmark OCR cache replay
+
+For benchmark runs that only change nodes **after** Azure OCR (`extractResults` and downstream), the benchmark orchestrator may set a reserved key on `initialCtx`:
+
+- **`__benchmarkOcrCache`**: `{ ocrResponse: OCRResponse }` — full Azure poll response JSON from a prior benchmark run (stored in `benchmark_ocr_cache`).
+
+The graph runner merges this into **`azureOcr.submit`**, **`azureOcr.poll`**, and **`azureOcr.extract`** activity parameters so submit/poll skip the network when replaying. See [OCR_IMPROVEMENT_PIPELINE.md](../OCR_IMPROVEMENT_PIPELINE.md) § Benchmark OCR cache.
+
 ### 5.2 Execution Algorithm
 
 The graph runner follows this algorithm:

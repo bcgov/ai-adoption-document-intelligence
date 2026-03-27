@@ -2,8 +2,16 @@ import { ApiProperty } from "@nestjs/swagger";
 import { GraphWorkflowConfig } from "../graph-workflow-types";
 
 export class WorkflowInfoDto {
-  @ApiProperty({ description: "Unique workflow ID" })
+  @ApiProperty({
+    description: "Stable workflow lineage ID (identity in lists and URLs)",
+  })
   id: string;
+
+  @ApiProperty({
+    description:
+      "ID of the workflow version row whose config is shown (head or pinned snapshot)",
+  })
+  workflowVersionId: string;
 
   @ApiProperty({ description: "Display name for the workflow" })
   name: string;
@@ -30,7 +38,10 @@ export class WorkflowInfoDto {
   @ApiProperty({ description: "Schema version for the workflow config" })
   schemaVersion: string;
 
-  @ApiProperty({ description: "Config version (incremented on config change)" })
+  @ApiProperty({
+    description:
+      "Immutable revision number for this workflow version row (increments on new config)",
+  })
   version: number;
 
   @ApiProperty({ description: "Creation timestamp" })
@@ -48,4 +59,28 @@ export class WorkflowResponseDto {
 export class WorkflowListResponseDto {
   @ApiProperty({ type: [WorkflowInfoDto] })
   workflows: WorkflowInfoDto[];
+}
+
+export class WorkflowVersionSummaryDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  versionNumber: number;
+
+  @ApiProperty()
+  createdAt: Date;
+}
+
+export class WorkflowVersionListResponseDto {
+  @ApiProperty({ type: [WorkflowVersionSummaryDto] })
+  versions: WorkflowVersionSummaryDto[];
+}
+
+export class RevertHeadDto {
+  @ApiProperty({
+    description:
+      "Existing WorkflowVersion.id within this lineage to set as head",
+  })
+  workflowVersionId: string;
 }

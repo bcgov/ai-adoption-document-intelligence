@@ -13,7 +13,7 @@ const mockPrismaClient = {
     findFirst: jest.fn(),
     findUnique: jest.fn(),
   },
-  workflow: {
+  workflowVersion: {
     findUnique: jest.fn(),
   },
   benchmarkDefinition: {
@@ -88,7 +88,7 @@ describe("BenchmarkDefinitionDbService", () => {
         projectId: "p-1",
         datasetVersionId: "v-1",
         splitId: "s-1",
-        workflowId: "w-1",
+        workflowVersionId: "w-1",
         immutable: false,
         isBaseline: false,
         description: null,
@@ -110,7 +110,7 @@ describe("BenchmarkDefinitionDbService", () => {
         projectId: "p-1",
         datasetVersionId: "v-1",
         splitId: "s-1",
-        workflowId: "w-1",
+        workflowVersionId: "w-1",
         evaluatorType: "schema-aware",
         evaluatorConfig: {},
         runtimeSettings: {},
@@ -284,21 +284,26 @@ describe("BenchmarkDefinitionDbService", () => {
     });
   });
 
-  describe("findWorkflow", () => {
-    it("finds a workflow (no tx)", async () => {
-      mockPrismaClient.workflow.findUnique.mockResolvedValue({ id: "w-1" });
-      const result = await service.findWorkflow("w-1");
-      expect(result).toEqual({ id: "w-1" });
+  describe("findWorkflowVersion", () => {
+    it("finds a workflow version (no tx)", async () => {
+      mockPrismaClient.workflowVersion.findUnique.mockResolvedValue({
+        id: "w-1",
+        config: {},
+      });
+      const result = await service.findWorkflowVersion("w-1");
+      expect(result).toEqual({ id: "w-1", config: {} });
     });
 
     it("uses provided tx client", async () => {
       const txWf = { findUnique: jest.fn().mockResolvedValue(null) };
       const tx = {
-        workflow: txWf,
+        workflowVersion: txWf,
       } as unknown as import("@generated/client").Prisma.TransactionClient;
-      await service.findWorkflow("w-1", tx);
+      await service.findWorkflowVersion("w-1", tx);
       expect(txWf.findUnique).toHaveBeenCalled();
-      expect(mockPrismaClient.workflow.findUnique).not.toHaveBeenCalled();
+      expect(
+        mockPrismaClient.workflowVersion.findUnique,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -314,7 +319,7 @@ describe("BenchmarkDefinitionDbService", () => {
           projectId: "p-1",
           datasetVersionId: "v-1",
           splitId: "s-1",
-          workflowId: "w-1",
+          workflowVersionId: "w-1",
           evaluatorType: "t",
           evaluatorConfig: {},
           runtimeSettings: {},

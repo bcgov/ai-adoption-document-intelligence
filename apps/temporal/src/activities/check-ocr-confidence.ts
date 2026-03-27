@@ -65,10 +65,11 @@ export async function checkOcrConfidence(params: {
       wordCount,
     });
 
-    // Update document status if review is required
+    // Update document status if review is required (skip in benchmark: no DB row exists)
     // Note: We keep status as 'ongoing_ocr' since the workflow is still in progress
     // The workflow itself tracks the 'awaiting_review' state separately
-    if (requiresReview) {
+    const isBenchmark = documentId.startsWith("benchmark-");
+    if (requiresReview && !isBenchmark) {
       const prisma = getPrismaClient();
       await prisma.document.update({
         where: { id: documentId },
@@ -81,6 +82,12 @@ export async function checkOcrConfidence(params: {
         event: "status_updated",
         status: "ongoing_ocr",
         requiresReview: true,
+      });
+    } else if (requiresReview && isBenchmark) {
+      log.debug("Skipping document status update for benchmark run", {
+        event: "status_update_skipped",
+        documentId,
+        reason: "benchmark",
       });
     }
 

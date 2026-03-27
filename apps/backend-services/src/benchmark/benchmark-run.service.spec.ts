@@ -8,9 +8,8 @@
 import { Prisma } from "@generated/client";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { AuditLogDbService } from "./audit-log-db.service";
+import { PrismaService } from "@/database/prisma.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
-import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetService } from "./dataset.service";
 
@@ -20,37 +19,41 @@ jest.mock("child_process", () => ({
   exec: jest.fn(),
 }));
 
-const mockIdentity = {
-  userId: "user-1",
-  isSystemAdmin: false,
-  groupRoles: {},
-  actorId: "actor-1",
-};
-
-const mockBenchmarkRunDbService = {
-  findBenchmarkDefinitionForRun: jest.fn(),
-  findBenchmarkProject: jest.fn(),
-  createBenchmarkRun: jest.fn(),
-  findBenchmarkRun: jest.fn(),
-  findBenchmarkRunUnique: jest.fn(),
-  findAllBenchmarkRuns: jest.fn(),
-  findBaselineBenchmarkRun: jest.fn(),
-  updateBenchmarkRun: jest.fn(),
-  deleteBenchmarkRun: jest.fn(),
-  markBenchmarkDefinitionImmutable: jest.fn(),
-  freezeDatasetVersion: jest.fn(),
-  freezeSplit: jest.fn(),
-};
-
-const mockAuditLogDbService = {
-  createAuditLog: jest.fn(),
-  findAllAuditLogs: jest.fn(),
+const mockPrismaClient = {
+  benchmarkProject: {
+    findUnique: jest.fn(),
+  },
+  benchmarkDefinition: {
+    findFirst: jest.fn(),
+    update: jest.fn(),
+  },
+  benchmarkRun: {
+    create: jest.fn(),
+    update: jest.fn(),
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    delete: jest.fn(),
+  },
+  datasetVersion: {
+    update: jest.fn(),
+  },
+  split: {
+    update: jest.fn(),
+  },
+  benchmarkAuditLog: {
+    create: jest.fn(),
+  },
+  workflowVersion: {
+    findUnique: jest.fn(),
+  },
 };
 
 describe("BenchmarkRunService", () => {
   let service: BenchmarkRunService;
   let benchmarkTemporal: BenchmarkTemporalService;
   let datasetService: DatasetService;
+  let prisma: typeof mockPrismaClient;
 
   const mockProject = {
     id: "project-1",
@@ -67,7 +70,7 @@ describe("BenchmarkRunService", () => {
     name: "Test Definition",
     datasetVersionId: "ds-version-1",
     splitId: "split-1",
-    workflowId: "workflow-1",
+    workflowVersionId: "wf-version-1",
     workflowConfigHash: "hash123",
     evaluatorType: "schema-aware",
     evaluatorConfig: { threshold: 0.9 },
@@ -79,6 +82,7 @@ describe("BenchmarkRunService", () => {
     project: mockProject,
     datasetVersion: {
       id: "ds-version-1",
+      datasetId: "ds-1",
       version: "v1.0.0",
       storagePrefix: "datasets/ds-1/ds-version-1/",
       dataset: {
@@ -91,11 +95,13 @@ describe("BenchmarkRunService", () => {
       type: "test",
       sampleIds: ["sample-1", "sample-2"],
     },
-    workflow: {
-      id: "workflow-1",
-      name: "Test Workflow",
-      version: 1,
+    workflowVersion: {
+      id: "wf-version-1",
       config: { nodes: {}, edges: [] },
+      lineage: {
+        id: "lineage-1",
+        name: "Test Workflow",
+      },
     },
   };
 
@@ -125,12 +131,8 @@ describe("BenchmarkRunService", () => {
       providers: [
         BenchmarkRunService,
         {
-          provide: BenchmarkRunDbService,
-          useValue: mockBenchmarkRunDbService,
-        },
-        {
-          provide: AuditLogDbService,
-          useValue: mockAuditLogDbService,
+          provide: PrismaService,
+          useValue: { prisma: mockPrismaClient },
         },
         {
           provide: BenchmarkTemporalService,
@@ -165,6 +167,8 @@ describe("BenchmarkRunService", () => {
       BenchmarkTemporalService,
     );
     datasetService = module.get<DatasetService>(DatasetService);
+
+    prisma = mockPrismaClient;
   });
 
   afterEach(() => {
@@ -181,12 +185,10 @@ describe("BenchmarkRunService", () => {
         tags: { team: "ml" },
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkDefinitionForRun as jest.Mock
-      ).mockResolvedValue(mockDefinition);
-      (
-        mockBenchmarkRunDbService.createBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
         ...mockRun,
         id: "run-1",
         temporalWorkflowId: "",
@@ -194,32 +196,23 @@ describe("BenchmarkRunService", () => {
       (
         benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
       ).mockResolvedValue("benchmark-run-run-1");
-      (
-        mockBenchmarkRunDbService.updateBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
         ...mockRun,
         temporalWorkflowId: "benchmark-run-run-1",
         status: "running",
         startedAt: new Date(),
       });
-      (
-        mockBenchmarkRunDbService.markBenchmarkDefinitionImmutable as jest.Mock
-      ).mockResolvedValue(undefined);
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
         ...mockRun,
         temporalWorkflowId: "benchmark-run-run-1",
         status: "running",
         startedAt: new Date(),
       });
 
-      const result = await service.startRun(
-        "project-1",
-        "def-1",
-        createDto,
-        mockIdentity,
-      );
+      const result = await service.startRun("project-1", "def-1", createDto);
 
       // Verify Temporal workflow was started
       expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
@@ -230,21 +223,232 @@ describe("BenchmarkRunService", () => {
       );
 
       // Verify definition was marked immutable
-      expect(
-        mockBenchmarkRunDbService.markBenchmarkDefinitionImmutable,
-      ).toHaveBeenCalledWith("def-1");
+      expect(prisma.benchmarkDefinition.update).toHaveBeenCalledWith({
+        where: { id: "def-1" },
+        data: { immutable: true },
+      });
 
       // Verify dataset version was frozen
-      expect(
-        mockBenchmarkRunDbService.freezeDatasetVersion,
-      ).toHaveBeenCalledWith("ds-version-1");
+      expect(prisma.datasetVersion.update).toHaveBeenCalledWith({
+        where: { id: "ds-version-1" },
+        data: { frozen: true },
+      });
 
       // Verify split was frozen
-      expect(mockBenchmarkRunDbService.freezeSplit).toHaveBeenCalledWith(
-        "split-1",
-      );
+      expect(prisma.split.update).toHaveBeenCalledWith({
+        where: { id: "split-1" },
+        data: { frozen: true },
+      });
 
       expect(result.status).toBe("running");
+    });
+
+    it("defaults persistOcrCache to true when omitted", async () => {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        id: "run-1",
+        temporalWorkflowId: "",
+      });
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+
+      await service.startRun("project-1", "def-1", {});
+
+      expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          persistOcrCache: true,
+        }),
+      );
+    });
+
+    it("sets persistOcrCache false when explicitly false", async () => {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        id: "run-1",
+        temporalWorkflowId: "",
+      });
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+
+      await service.startRun("project-1", "def-1", { persistOcrCache: false });
+
+      expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          persistOcrCache: false,
+        }),
+      );
+    });
+
+    it("sets persistOcrCache false when ocrCacheBaselineRunId is set (replay)", async () => {
+      const baselineId = "c3eb6015-f17f-49c5-80e7-5fdc97a3cbca";
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockImplementation(
+        (args: { where?: Record<string, unknown> }) => {
+          const w = args?.where;
+          if (
+            w?.status === "completed" &&
+            w?.definitionId &&
+            w?.id === baselineId
+          ) {
+            return Promise.resolve({ id: baselineId, status: "completed" });
+          }
+          return Promise.resolve({
+            ...mockRun,
+            definition: { name: "Test Definition" },
+          });
+        },
+      );
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        id: "run-1",
+        temporalWorkflowId: "",
+      });
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+
+      await service.startRun("project-1", "def-1", {
+        ocrCacheBaselineRunId: baselineId,
+      });
+
+      expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          persistOcrCache: false,
+          ocrCacheBaselineRunId: baselineId,
+        }),
+      );
+    });
+
+    it("loads workflow config from DB when candidateWorkflowVersionId is set without workflowConfigOverride", async () => {
+      const candidateConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        nodes: { n1: { id: "n1", type: "activity", activityType: "x" } },
+        edges: [],
+        entryNodeId: "n1",
+        ctx: {},
+      };
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue({
+        id: "wv-cand-1",
+        config: candidateConfig,
+      });
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        id: "run-1",
+        temporalWorkflowId: "",
+      });
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+
+      await service.startRun("project-1", "def-1", {
+        candidateWorkflowVersionId: "wv-cand-1",
+      });
+
+      expect(prisma.workflowVersion.findUnique).toHaveBeenCalledWith({
+        where: { id: "wv-cand-1" },
+        select: { config: true },
+      });
+      expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          workflowVersionId: "wv-cand-1",
+          workflowConfig: candidateConfig,
+        }),
+      );
+    });
+
+    it("throws BadRequestException when candidateWorkflowVersionId does not exist", async () => {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.startRun("project-1", "def-1", {
+          candidateWorkflowVersionId: "missing-wv",
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("throws when workflowConfigOverride does not match candidateWorkflowVersionId stored config", async () => {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue({
+        id: "wv-cand-1",
+        config: { a: 1 },
+      });
+
+      await expect(
+        service.startRun("project-1", "def-1", {
+          candidateWorkflowVersionId: "wv-cand-1",
+          workflowConfigOverride: { b: 2 },
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it("should freeze dataset version but not split when definition has no split", async () => {
@@ -254,12 +458,10 @@ describe("BenchmarkRunService", () => {
         split: null,
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkDefinitionForRun as jest.Mock
-      ).mockResolvedValue(definitionNoSplit);
-      (
-        mockBenchmarkRunDbService.createBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        definitionNoSplit,
+      );
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
         ...mockRun,
         id: "run-1",
         temporalWorkflowId: "",
@@ -267,41 +469,38 @@ describe("BenchmarkRunService", () => {
       (
         benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
       ).mockResolvedValue("benchmark-run-run-1");
-      (
-        mockBenchmarkRunDbService.updateBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
         ...mockRun,
         temporalWorkflowId: "benchmark-run-run-1",
         status: "running",
         startedAt: new Date(),
       });
-      (
-        mockBenchmarkRunDbService.markBenchmarkDefinitionImmutable as jest.Mock
-      ).mockResolvedValue(undefined);
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        definitionNoSplit,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
         ...mockRun,
         temporalWorkflowId: "benchmark-run-run-1",
         status: "running",
         startedAt: new Date(),
       });
 
-      await service.startRun("project-1", "def-1", {}, mockIdentity);
+      await service.startRun("project-1", "def-1", {});
 
       // Verify dataset version was frozen
-      expect(
-        mockBenchmarkRunDbService.freezeDatasetVersion,
-      ).toHaveBeenCalledWith("ds-version-1");
+      expect(prisma.datasetVersion.update).toHaveBeenCalledWith({
+        where: { id: "ds-version-1" },
+        data: { frozen: true },
+      });
 
       // Verify split was NOT frozen (no split on definition)
-      expect(mockBenchmarkRunDbService.freezeSplit).not.toHaveBeenCalled();
+      expect(prisma.split.update).not.toHaveBeenCalled();
     });
 
     it("should throw BadRequestException when dataset validation fails", async () => {
-      (
-        mockBenchmarkRunDbService.findBenchmarkDefinitionForRun as jest.Mock
-      ).mockResolvedValue(mockDefinition);
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
       (datasetService.validateDatasetVersion as jest.Mock).mockResolvedValue({
         valid: false,
         sampled: false,
@@ -328,48 +527,45 @@ describe("BenchmarkRunService", () => {
         ],
       });
 
-      await expect(
-        service.startRun("project-1", "def-1", {}, mockIdentity),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.startRun("project-1", "def-1", {})).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it("should throw NotFoundException when definition does not exist", async () => {
-      (
-        mockBenchmarkRunDbService.findBenchmarkDefinitionForRun as jest.Mock
-      ).mockResolvedValue(null);
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        null,
+      );
 
-      await expect(
-        service.startRun("project-1", "def-1", {}, mockIdentity),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.startRun("project-1", "def-1", {})).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it("should mark run as failed if Temporal workflow fails to start", async () => {
-      (
-        mockBenchmarkRunDbService.findBenchmarkDefinitionForRun as jest.Mock
-      ).mockResolvedValue(mockDefinition);
-      (
-        mockBenchmarkRunDbService.createBenchmarkRun as jest.Mock
-      ).mockResolvedValue(mockRun);
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue(mockRun);
       (
         benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
       ).mockRejectedValue(new Error("Temporal error"));
-      (
-        mockBenchmarkRunDbService.updateBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
         ...mockRun,
         status: "failed",
         error: "Failed to start Temporal workflow: Temporal error",
       });
 
-      await expect(
-        service.startRun("project-1", "def-1", {}, mockIdentity),
-      ).rejects.toThrow("Failed to start benchmark run workflow");
+      await expect(service.startRun("project-1", "def-1", {})).rejects.toThrow(
+        "Failed to start benchmark run workflow",
+      );
 
-      expect(mockBenchmarkRunDbService.updateBenchmarkRun).toHaveBeenCalledWith(
-        expect.any(String),
+      expect(prisma.benchmarkRun.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          status: "failed",
-          error: expect.stringContaining("Temporal error"),
+          data: expect.objectContaining({
+            status: "failed",
+            error: expect.stringContaining("Temporal error"),
+          }),
         }),
       );
     });
@@ -379,32 +575,26 @@ describe("BenchmarkRunService", () => {
       process.env.WORKER_IMAGE_DIGEST = "sha256:abc123def456";
 
       try {
-        (
-          mockBenchmarkRunDbService.findBenchmarkDefinitionForRun as jest.Mock
-        ).mockResolvedValue(mockDefinition);
-        (
-          mockBenchmarkRunDbService.createBenchmarkRun as jest.Mock
-        ).mockResolvedValue({
+        (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+          mockDefinition,
+        );
+        (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
           ...mockRun,
           workerImageDigest: "sha256:abc123def456",
         });
         (
           benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
         ).mockResolvedValue("benchmark-run-run-1");
-        (
-          mockBenchmarkRunDbService.updateBenchmarkRun as jest.Mock
-        ).mockResolvedValue({
+        (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
           ...mockRun,
           workerImageDigest: "sha256:abc123def456",
           temporalWorkflowId: "benchmark-run-run-1",
           status: "running",
         });
-        (
-          mockBenchmarkRunDbService.markBenchmarkDefinitionImmutable as jest.Mock
-        ).mockResolvedValue(undefined);
-        (
-          mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-        ).mockResolvedValue({
+        (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+          mockDefinition,
+        );
+        (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
           ...mockRun,
           workerImageDigest: "sha256:abc123def456",
           temporalWorkflowId: "benchmark-run-run-1",
@@ -414,14 +604,14 @@ describe("BenchmarkRunService", () => {
           },
         });
 
-        await service.startRun("project-1", "def-1", {}, mockIdentity);
+        await service.startRun("project-1", "def-1", {});
 
         // Verify worker image digest was captured in create call
-        expect(
-          mockBenchmarkRunDbService.createBenchmarkRun,
-        ).toHaveBeenCalledWith(
+        expect(prisma.benchmarkRun.create).toHaveBeenCalledWith(
           expect.objectContaining({
-            workerImageDigest: "sha256:abc123def456",
+            data: expect.objectContaining({
+              workerImageDigest: "sha256:abc123def456",
+            }),
           }),
         );
       } finally {
@@ -438,28 +628,22 @@ describe("BenchmarkRunService", () => {
       delete process.env.WORKER_IMAGE_DIGEST;
 
       try {
-        (
-          mockBenchmarkRunDbService.findBenchmarkDefinitionForRun as jest.Mock
-        ).mockResolvedValue(mockDefinition);
-        (
-          mockBenchmarkRunDbService.createBenchmarkRun as jest.Mock
-        ).mockResolvedValue(mockRun);
+        (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+          mockDefinition,
+        );
+        (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue(mockRun);
         (
           benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
         ).mockResolvedValue("benchmark-run-run-1");
-        (
-          mockBenchmarkRunDbService.updateBenchmarkRun as jest.Mock
-        ).mockResolvedValue({
+        (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
           ...mockRun,
           temporalWorkflowId: "benchmark-run-run-1",
           status: "running",
         });
-        (
-          mockBenchmarkRunDbService.markBenchmarkDefinitionImmutable as jest.Mock
-        ).mockResolvedValue(undefined);
-        (
-          mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-        ).mockResolvedValue({
+        (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+          mockDefinition,
+        );
+        (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
           ...mockRun,
           temporalWorkflowId: "benchmark-run-run-1",
           status: "running",
@@ -468,14 +652,14 @@ describe("BenchmarkRunService", () => {
           },
         });
 
-        await service.startRun("project-1", "def-1", {}, mockIdentity);
+        await service.startRun("project-1", "def-1", {});
 
         // Verify worker image digest is null
-        expect(
-          mockBenchmarkRunDbService.createBenchmarkRun,
-        ).toHaveBeenCalledWith(
+        expect(prisma.benchmarkRun.create).toHaveBeenCalledWith(
           expect.objectContaining({
-            workerImageDigest: null,
+            data: expect.objectContaining({
+              workerImageDigest: null,
+            }),
           }),
         );
       } finally {
@@ -497,23 +681,21 @@ describe("BenchmarkRunService", () => {
         startedAt: new Date(),
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(runningRun);
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        runningRun,
+      );
       (
         benchmarkTemporal.cancelBenchmarkRunWorkflow as jest.Mock
       ).mockResolvedValue(undefined);
 
-      (
-        mockBenchmarkRunDbService.updateBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
         ...runningRun,
         status: "cancelled",
         completedAt: new Date(),
       });
 
-      // Mock findBenchmarkRun for getRunById call - first call returns running run, second returns cancelled
-      (mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock)
+      // Mock findFirst for getRunById call - first call returns running run, second returns cancelled
+      (prisma.benchmarkRun.findFirst as jest.Mock)
         .mockResolvedValueOnce(runningRun)
         .mockResolvedValueOnce({
           ...runningRun,
@@ -529,19 +711,17 @@ describe("BenchmarkRunService", () => {
       expect(benchmarkTemporal.cancelBenchmarkRunWorkflow).toHaveBeenCalledWith(
         "benchmark-run-run-1",
       );
-      expect(mockBenchmarkRunDbService.updateBenchmarkRun).toHaveBeenCalledWith(
-        "run-1",
-        expect.objectContaining({
+      expect(prisma.benchmarkRun.update).toHaveBeenCalledWith({
+        where: { id: "run-1" },
+        data: expect.objectContaining({
           status: "cancelled",
         }),
-      );
+      });
       expect(result.status).toBe("cancelled");
     });
 
     it("should throw NotFoundException when run does not exist", async () => {
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(null);
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(null);
 
       await expect(service.cancelRun("project-1", "run-1")).rejects.toThrow(
         NotFoundException,
@@ -555,9 +735,9 @@ describe("BenchmarkRunService", () => {
         completedAt: new Date(),
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(completedRun);
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        completedRun,
+      );
 
       await expect(service.cancelRun("project-1", "run-1")).rejects.toThrow(
         BadRequestException,
@@ -570,9 +750,7 @@ describe("BenchmarkRunService", () => {
   // -----------------------------------------------------------------------
   describe("getRunById", () => {
     it("should return run details", async () => {
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
         ...mockRun,
         definition: {
           name: "Test Definition",
@@ -587,9 +765,7 @@ describe("BenchmarkRunService", () => {
     });
 
     it("should throw NotFoundException when run does not exist", async () => {
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(null);
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(null);
 
       await expect(service.getRunById("project-1", "run-1")).rejects.toThrow(
         NotFoundException,
@@ -605,12 +781,10 @@ describe("BenchmarkRunService", () => {
       const startedAt = new Date();
       const completedAt = new Date(startedAt.getTime() + 60000); // 1 minute later
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkProject as jest.Mock
-      ).mockResolvedValue(mockProject);
-      (
-        mockBenchmarkRunDbService.findAllBenchmarkRuns as jest.Mock
-      ).mockResolvedValue([
+      (prisma.benchmarkProject.findUnique as jest.Mock).mockResolvedValue(
+        mockProject,
+      );
+      (prisma.benchmarkRun.findMany as jest.Mock).mockResolvedValue([
         {
           ...mockRun,
           status: "completed",
@@ -632,9 +806,7 @@ describe("BenchmarkRunService", () => {
     });
 
     it("should throw NotFoundException when project does not exist", async () => {
-      (
-        mockBenchmarkRunDbService.findBenchmarkProject as jest.Mock
-      ).mockResolvedValue(null);
+      (prisma.benchmarkProject.findUnique as jest.Mock).mockResolvedValue(null);
 
       await expect(service.listRuns("project-1")).rejects.toThrow(
         NotFoundException,
@@ -700,9 +872,9 @@ describe("BenchmarkRunService", () => {
         },
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(completedRun);
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        completedRun,
+      );
 
       const result = await service.getDrillDown("project-1", "run-1");
 
@@ -720,9 +892,7 @@ describe("BenchmarkRunService", () => {
     });
 
     it("should throw NotFoundException when run does not exist", async () => {
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(null);
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(null);
 
       await expect(service.getDrillDown("project-1", "run-1")).rejects.toThrow(
         NotFoundException,
@@ -735,9 +905,9 @@ describe("BenchmarkRunService", () => {
         status: "running",
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(runningRun);
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        runningRun,
+      );
 
       await expect(service.getDrillDown("project-1", "run-1")).rejects.toThrow(
         BadRequestException,
@@ -753,15 +923,10 @@ describe("BenchmarkRunService", () => {
         isBaseline: false,
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValueOnce(completedRun); // First call: get the run to promote
-      (
-        mockBenchmarkRunDbService.findBaselineBenchmarkRun as jest.Mock
-      ).mockResolvedValueOnce(null); // find previous baseline (none exists)
-      (
-        mockBenchmarkRunDbService.updateBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      (prisma.benchmarkRun.findFirst as jest.Mock)
+        .mockResolvedValueOnce(completedRun) // First call: get the run to promote
+        .mockResolvedValueOnce(null); // Second call: find previous baseline (none exists)
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
         ...completedRun,
         isBaseline: true,
       });
@@ -771,14 +936,9 @@ describe("BenchmarkRunService", () => {
         { metricName: "precision", type: "absolute" as const, value: 0.9 },
       ];
 
-      const result = await service.promoteToBaseline(
-        "project-1",
-        "run-1",
-        {
-          thresholds,
-        },
-        mockIdentity,
-      );
+      const result = await service.promoteToBaseline("project-1", "run-1", {
+        thresholds,
+      });
 
       expect(result).toEqual({
         runId: "run-1",
@@ -787,13 +947,13 @@ describe("BenchmarkRunService", () => {
         thresholds,
       });
 
-      expect(mockBenchmarkRunDbService.updateBenchmarkRun).toHaveBeenCalledWith(
-        "run-1",
-        {
+      expect(prisma.benchmarkRun.update).toHaveBeenCalledWith({
+        where: { id: "run-1" },
+        data: {
           isBaseline: true,
           baselineThresholds: thresholds,
         },
-      );
+      });
     });
 
     it("should clear previous baseline when promoting a new one", async () => {
@@ -809,52 +969,40 @@ describe("BenchmarkRunService", () => {
         isBaseline: true,
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValueOnce(completedRun);
-      (
-        mockBenchmarkRunDbService.findBaselineBenchmarkRun as jest.Mock
-      ).mockResolvedValueOnce(previousBaseline);
+      (prisma.benchmarkRun.findFirst as jest.Mock)
+        .mockResolvedValueOnce(completedRun)
+        .mockResolvedValueOnce(previousBaseline);
 
-      (
-        mockBenchmarkRunDbService.updateBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
         ...completedRun,
         isBaseline: true,
       });
 
-      const result = await service.promoteToBaseline(
-        "project-1",
-        "run-1",
-        {},
-        mockIdentity,
-      );
+      const result = await service.promoteToBaseline("project-1", "run-1", {});
 
       expect(result.previousBaselineId).toBe("baseline-run-1");
 
       // Should clear previous baseline
-      expect(mockBenchmarkRunDbService.updateBenchmarkRun).toHaveBeenCalledWith(
-        "baseline-run-1",
-        { isBaseline: false },
-      );
+      expect(prisma.benchmarkRun.update).toHaveBeenCalledWith({
+        where: { id: "baseline-run-1" },
+        data: { isBaseline: false },
+      });
 
       // Should promote new baseline
-      expect(mockBenchmarkRunDbService.updateBenchmarkRun).toHaveBeenCalledWith(
-        "run-1",
-        {
+      expect(prisma.benchmarkRun.update).toHaveBeenCalledWith({
+        where: { id: "run-1" },
+        data: {
           isBaseline: true,
           baselineThresholds: Prisma.JsonNull,
         },
-      );
+      });
     });
 
     it("should throw NotFoundException if run does not exist", async () => {
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(null);
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(null);
 
       await expect(
-        service.promoteToBaseline("project-1", "run-1", {}, mockIdentity),
+        service.promoteToBaseline("project-1", "run-1", {}),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -864,12 +1012,12 @@ describe("BenchmarkRunService", () => {
         status: "running",
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(runningRun);
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        runningRun,
+      );
 
       await expect(
-        service.promoteToBaseline("project-1", "run-1", {}, mockIdentity),
+        service.promoteToBaseline("project-1", "run-1", {}),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -882,12 +1030,10 @@ describe("BenchmarkRunService", () => {
         metrics: { f1: 0.95, precision: 0.92 },
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRunUnique as jest.Mock
-      ).mockResolvedValue(completedRun);
-      (
-        mockBenchmarkRunDbService.findBaselineBenchmarkRun as jest.Mock
-      ).mockResolvedValue(null);
+      (prisma.benchmarkRun.findUnique as jest.Mock).mockResolvedValue(
+        completedRun,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(null);
 
       const result = await service.compareAgainstBaseline("run-1");
 
@@ -903,12 +1049,12 @@ describe("BenchmarkRunService", () => {
         metrics: { f1: 0.95 },
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRunUnique as jest.Mock
-      ).mockResolvedValue(baselineRun);
-      (
-        mockBenchmarkRunDbService.findBaselineBenchmarkRun as jest.Mock
-      ).mockResolvedValue(baselineRun);
+      (prisma.benchmarkRun.findUnique as jest.Mock).mockResolvedValue(
+        baselineRun,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        baselineRun,
+      );
 
       const result = await service.compareAgainstBaseline("run-1");
 
@@ -935,15 +1081,13 @@ describe("BenchmarkRunService", () => {
         tags: {},
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRunUnique as jest.Mock
-      ).mockResolvedValue(currentRun);
-      (
-        mockBenchmarkRunDbService.findBaselineBenchmarkRun as jest.Mock
-      ).mockResolvedValue(baselineRun);
-      (
-        mockBenchmarkRunDbService.updateBenchmarkRun as jest.Mock
-      ).mockResolvedValue(currentRun);
+      (prisma.benchmarkRun.findUnique as jest.Mock).mockResolvedValue(
+        currentRun,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        baselineRun,
+      );
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue(currentRun);
 
       const result = await service.compareAgainstBaseline("run-1");
 
@@ -953,13 +1097,13 @@ describe("BenchmarkRunService", () => {
       expect(result?.regressedMetrics).toContain("f1");
 
       // Should update run with comparison and regression tag
-      expect(mockBenchmarkRunDbService.updateBenchmarkRun).toHaveBeenCalledWith(
-        "run-1",
-        {
+      expect(prisma.benchmarkRun.update).toHaveBeenCalledWith({
+        where: { id: "run-1" },
+        data: {
           baselineComparison: expect.any(Object),
           tags: { regression: "true" },
         },
-      );
+      });
     });
 
     it("should compare metrics with absolute thresholds", async () => {
@@ -982,15 +1126,13 @@ describe("BenchmarkRunService", () => {
         tags: {},
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRunUnique as jest.Mock
-      ).mockResolvedValue(currentRun);
-      (
-        mockBenchmarkRunDbService.findBaselineBenchmarkRun as jest.Mock
-      ).mockResolvedValue(baselineRun);
-      (
-        mockBenchmarkRunDbService.updateBenchmarkRun as jest.Mock
-      ).mockResolvedValue(currentRun);
+      (prisma.benchmarkRun.findUnique as jest.Mock).mockResolvedValue(
+        currentRun,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        baselineRun,
+      );
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue(currentRun);
 
       const result = await service.compareAgainstBaseline("run-1");
 
@@ -1017,15 +1159,13 @@ describe("BenchmarkRunService", () => {
         tags: {},
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRunUnique as jest.Mock
-      ).mockResolvedValue(currentRun);
-      (
-        mockBenchmarkRunDbService.findBaselineBenchmarkRun as jest.Mock
-      ).mockResolvedValue(baselineRun);
-      (
-        mockBenchmarkRunDbService.updateBenchmarkRun as jest.Mock
-      ).mockResolvedValue(currentRun);
+      (prisma.benchmarkRun.findUnique as jest.Mock).mockResolvedValue(
+        currentRun,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue(
+        baselineRun,
+      );
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue(currentRun);
 
       const result = await service.compareAgainstBaseline("run-1");
 
@@ -1045,10 +1185,8 @@ describe("BenchmarkRunService", () => {
       const runId = "run-1";
       const projectId = "project-1";
 
-      // Mock findBenchmarkRun to return a completed run with per-sample results
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      // Mock Prisma findFirst to return a completed run with per-sample results
+      prisma.benchmarkRun.findFirst = jest.fn().mockResolvedValue({
         id: runId,
         projectId,
         status: "completed",
@@ -1106,9 +1244,7 @@ describe("BenchmarkRunService", () => {
     });
 
     it("should throw NotFoundException if run not found", async () => {
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(null);
+      prisma.benchmarkRun.findFirst = jest.fn().mockResolvedValue(null);
 
       await expect(
         service.getPerSampleResults("project-1", "run-1", {}, 1, 10),
@@ -1116,9 +1252,7 @@ describe("BenchmarkRunService", () => {
     });
 
     it("should throw BadRequestException if run is not completed", async () => {
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      prisma.benchmarkRun.findFirst = jest.fn().mockResolvedValue({
         id: "run-1",
         projectId: "project-1",
         status: "running",
@@ -1141,9 +1275,7 @@ describe("BenchmarkRunService", () => {
         metrics: { score: i * 0.01 },
       }));
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue({
+      prisma.benchmarkRun.findFirst = jest.fn().mockResolvedValue({
         id: runId,
         projectId,
         status: "completed",
@@ -1195,51 +1327,49 @@ describe("BenchmarkRunService", () => {
   // -----------------------------------------------------------------------
   describe("deleteRun", () => {
     it("deletes a completed run", async () => {
-      const runToDelete = {
+      const mockRun = {
         id: "run-1",
         projectId: "project-1",
         status: "completed",
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(runToDelete);
-      (
-        mockBenchmarkRunDbService.deleteBenchmarkRun as jest.Mock
-      ).mockResolvedValue(undefined);
+      jest
+        .spyOn(prisma.benchmarkRun, "findFirst")
+        .mockResolvedValue(mockRun as never);
+      jest
+        .spyOn(prisma.benchmarkRun, "delete")
+        .mockResolvedValue(mockRun as never);
 
       await service.deleteRun("project-1", "run-1");
 
-      expect(mockBenchmarkRunDbService.deleteBenchmarkRun).toHaveBeenCalledWith(
-        "run-1",
-      );
+      expect(prisma.benchmarkRun.delete).toHaveBeenCalledWith({
+        where: { id: "run-1" },
+      });
     });
 
     it("deletes a failed run", async () => {
-      const runToDelete = {
+      const mockRun = {
         id: "run-2",
         projectId: "project-1",
         status: "failed",
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(runToDelete);
-      (
-        mockBenchmarkRunDbService.deleteBenchmarkRun as jest.Mock
-      ).mockResolvedValue(undefined);
+      jest
+        .spyOn(prisma.benchmarkRun, "findFirst")
+        .mockResolvedValue(mockRun as never);
+      jest
+        .spyOn(prisma.benchmarkRun, "delete")
+        .mockResolvedValue(mockRun as never);
 
       await service.deleteRun("project-1", "run-2");
 
-      expect(mockBenchmarkRunDbService.deleteBenchmarkRun).toHaveBeenCalledWith(
-        "run-2",
-      );
+      expect(prisma.benchmarkRun.delete).toHaveBeenCalledWith({
+        where: { id: "run-2" },
+      });
     });
 
     it("throws NotFoundException when run does not exist", async () => {
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(null);
+      jest.spyOn(prisma.benchmarkRun, "findFirst").mockResolvedValue(null);
 
       await expect(
         service.deleteRun("project-1", "nonexistent"),
@@ -1247,15 +1377,15 @@ describe("BenchmarkRunService", () => {
     });
 
     it("throws BadRequestException when run is still running", async () => {
-      const runToDelete = {
+      const mockRun = {
         id: "run-3",
         projectId: "project-1",
         status: "running",
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(runToDelete);
+      jest
+        .spyOn(prisma.benchmarkRun, "findFirst")
+        .mockResolvedValue(mockRun as never);
 
       await expect(service.deleteRun("project-1", "run-3")).rejects.toThrow(
         BadRequestException,
@@ -1263,15 +1393,15 @@ describe("BenchmarkRunService", () => {
     });
 
     it("throws BadRequestException when run is pending", async () => {
-      const runToDelete = {
+      const mockRun = {
         id: "run-4",
         projectId: "project-1",
         status: "pending",
       };
 
-      (
-        mockBenchmarkRunDbService.findBenchmarkRun as jest.Mock
-      ).mockResolvedValue(runToDelete);
+      jest
+        .spyOn(prisma.benchmarkRun, "findFirst")
+        .mockResolvedValue(mockRun as never);
 
       await expect(service.deleteRun("project-1", "run-4")).rejects.toThrow(
         BadRequestException,

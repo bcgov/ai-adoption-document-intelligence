@@ -508,47 +508,54 @@ async function seedBenchmarkingData() {
     ),
   );
 
-  // Create Standard OCR Workflow
-  const workflow = await prisma.workflow.upsert({
-    where: { id: SEED_WORKFLOW_ID },
-    update: {
-      name: standardOcrConfig.metadata.name,
-      description: standardOcrConfig.metadata.description,
-      user_id: "test-user",
-      config: standardOcrConfig,
-      version: 1,
-    },
-    create: {
-      id: SEED_WORKFLOW_ID,
-      name: standardOcrConfig.metadata.name,
-      description: standardOcrConfig.metadata.description,
-      user_id: "test-user",
-      config: standardOcrConfig,
-      version: 1,
-      group_id: SEED_GROUP_ID,
-    },
-  });
+  const seedLineageVersion = async (
+    lineageId: string,
+    name: string,
+    description: string | undefined,
+    config: object,
+  ): Promise<string> => {
+    const versionId = `wv_${lineageId}`;
+    await prisma.workflowLineage.upsert({
+      where: { id: lineageId },
+      update: { name, description: description ?? null },
+      create: {
+        id: lineageId,
+        name,
+        description: description ?? null,
+        user_id: "test-user",
+        group_id: SEED_GROUP_ID,
+      },
+    });
+    await prisma.workflowVersion.upsert({
+      where: { id: versionId },
+      update: { config },
+      create: {
+        id: versionId,
+        lineage_id: lineageId,
+        version_number: 1,
+        config,
+      },
+    });
+    await prisma.workflowLineage.update({
+      where: { id: lineageId },
+      data: { head_version_id: versionId },
+    });
+    return versionId;
+  };
 
-  // Create Multi-Page Report Workflow
-  await prisma.workflow.upsert({
-    where: { id: SEED_WORKFLOW_ID_MULTI_PAGE },
-    update: {
-      name: multiPageReportConfig.metadata.name,
-      description: multiPageReportConfig.metadata.description,
-      user_id: "test-user",
-      config: multiPageReportConfig,
-      version: 1,
-    },
-    create: {
-      id: SEED_WORKFLOW_ID_MULTI_PAGE,
-      name: multiPageReportConfig.metadata.name,
-      description: multiPageReportConfig.metadata.description,
-      user_id: "test-user",
-      config: multiPageReportConfig,
-      version: 1,
-      group_id: SEED_GROUP_ID,
-    },
-  });
+  const standardWorkflowVersionId = await seedLineageVersion(
+    SEED_WORKFLOW_ID,
+    standardOcrConfig.metadata.name,
+    standardOcrConfig.metadata.description,
+    standardOcrConfig,
+  );
+
+  await seedLineageVersion(
+    SEED_WORKFLOW_ID_MULTI_PAGE,
+    multiPageReportConfig.metadata.name,
+    multiPageReportConfig.metadata.description,
+    multiPageReportConfig,
+  );
 
   // Create test dataset files with sample data
   // This enables e2e tests that require actual samples
@@ -831,6 +838,7 @@ async function seedBenchmarkingData() {
     where: { id: SEED_DEFINITION_ID },
     update: {
       name: "Baseline OCR Model",
+      workflowVersionId: standardWorkflowVersionId,
       workflowConfigHash: "hash-abc123",
       evaluatorType: "field-accuracy",
       evaluatorConfig: {
@@ -850,7 +858,7 @@ async function seedBenchmarkingData() {
       name: "Baseline OCR Model",
       datasetVersionId: datasetVersion.id,
       splitId: split.id,
-      workflowId: workflow.id,
+      workflowVersionId: standardWorkflowVersionId,
       workflowConfigHash: "hash-abc123",
       evaluatorType: "field-accuracy",
       evaluatorConfig: {

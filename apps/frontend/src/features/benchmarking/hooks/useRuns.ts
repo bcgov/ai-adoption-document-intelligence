@@ -61,8 +61,54 @@ interface RunDetails {
   createdAt: string;
 }
 
-interface CreateRunDto {
+export interface CreateRunDto {
   tags?: Record<string, string>;
+  /** When provided, the run uses this config instead of the definition's workflow (candidate run). */
+  workflowConfigOverride?: Record<string, unknown>;
+  /** When provided with workflowConfigOverride, references the candidate workflow record. */
+  candidateWorkflowVersionId?: string;
+  /** Persist Azure OCR poll JSON per sample for replay (benchmark OCR cache). Backend defaults to true when omitted. */
+  persistOcrCache?: boolean;
+  /** Replay OCR from a completed benchmark run's cache (same definition). */
+  ocrCacheBaselineRunId?: string;
+}
+
+export interface OcrImprovementBaselineComparison {
+  baselineRunId: string;
+  overallPassed: boolean;
+  metricComparisons: Array<{
+    metricName: string;
+    currentValue: number;
+    baselineValue: number;
+    delta: number;
+    deltaPercent: number;
+    passed: boolean;
+  }>;
+  regressedMetrics: string[];
+}
+
+export interface OcrImprovementRunResult {
+  candidateWorkflowVersionId: string;
+  benchmarkRunId: string;
+  recommendationsSummary: {
+    applied: number;
+    rejected: number;
+    toolIds: string[];
+  };
+  analysis?: string;
+  pipelineMessage?: string;
+  rejectionDetails?: string[];
+  status:
+    | "benchmark_started"
+    | "benchmark_completed"
+    | "benchmark_failed"
+    | "benchmark_cancelled"
+    | "benchmark_wait_timeout"
+    | "no_recommendations"
+    | "error";
+  error?: string;
+  benchmarkRunStatus?: string;
+  baselineComparison?: OcrImprovementBaselineComparison | null;
 }
 
 export const useRuns = (projectId: string) => {
@@ -242,6 +288,50 @@ export const useStartRun = (projectId: string, definitionId: string) => {
     startRun: startRunMutation.mutateAsync,
     isStarting: startRunMutation.isPending,
     startedRun: startRunMutation.data,
+  };
+};
+
+export const useRunOcrImprovement = (
+  projectId: string,
+  definitionId: string,
+) => {
+  const queryClient = useQueryClient();
+
+  const runPipelineMutation = useMutation({
+    mutationFn: async (
+      body: {
+        hitlFilters?: Record<string, unknown>;
+        waitForPipelineRunCompletion?: boolean;
+        pipelineRunPollIntervalMs?: number;
+        pipelineRunWaitTimeoutMs?: number;
+        /** Forces `emptyValueCoercion` on every `ocr.normalizeFields` node in the candidate workflow. */
+        normalizeFieldsEmptyValueCoercion?: "none" | "blank" | "null";
+      } = {},
+    ) => {
+      const response = await apiService.post<OcrImprovementRunResult>(
+        `/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/run`,
+        body,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-runs", projectId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-definition", projectId, definitionId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["benchmark-definitions", projectId],
+      });
+    },
+  });
+
+  return {
+    runOcrImprovement: runPipelineMutation.mutateAsync,
+    isRunning: runPipelineMutation.isPending,
+    result: runPipelineMutation.data,
+    error: runPipelineMutation.error,
   };
 };
 
