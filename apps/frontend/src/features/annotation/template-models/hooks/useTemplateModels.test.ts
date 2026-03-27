@@ -31,7 +31,7 @@ const activeGroup = { id: "group-1", name: "Group One" };
 const newTemplateModel = {
   id: "tm-1",
   name: "Test Template Model",
-  modelId: "test-template-model",
+  model_id: "test-template-model",
   description: "A test template model",
   status: "draft",
   created_by: "user-1",

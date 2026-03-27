@@ -335,10 +335,10 @@ export const ModelDetailPage: FC = () => {
             <Title order={2}>
               {templateModel?.name || "Template Model"}
             </Title>
-            {templateModel?.modelId && (
+            {templateModel?.model_id && (
               <Group gap="xs">
-                <Code>{templateModel.modelId}</Code>
-                <CopyButton value={templateModel.modelId}>
+                <Code>{templateModel.model_id}</Code>
+                <CopyButton value={templateModel.model_id}>
                   {({ copied, copy }) => (
                     <Tooltip label={copied ? "Copied!" : "Copy model ID"}>
                       <ActionIcon
@@ -589,7 +589,7 @@ export const ModelDetailPage: FC = () => {
         <Tabs.Panel value="training" pt="md">
           <TrainingPanel
             templateModelId={routeModelId}
-            templateModelModelId={templateModel?.modelId}
+            templateModelModelId={templateModel?.model_id}
           />
         </Tabs.Panel>
       </Tabs>

@@ -12,7 +12,7 @@ export type TemplateModelStatus = "draft" | "training" | "trained" | "failed";
 export interface TemplateModel {
   id: string;
   name: string;
-  modelId: string;
+  model_id: string;
   description?: string;
   createdBy: string;
   createdAt: string;

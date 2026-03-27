@@ -22,7 +22,7 @@ interface ModelCardProps {
   model: {
     id: string;
     name: string;
-    modelId: string;
+    model_id: string;
     description?: string;
     status: string;
     updated_at: string;
@@ -61,8 +61,8 @@ export const ModelCard: FC<ModelCardProps> = ({ model, onClick }) => {
         </Group>
 
         <Group gap="xs">
-          <Code>{model.modelId}</Code>
-          <CopyButton value={model.modelId}>
+          <Code>{model.model_id}</Code>
+          <CopyButton value={model.model_id}>
             {({ copied, copy }) => (
               <Tooltip label={copied ? "Copied!" : "Copy model ID"}>
                 <ActionIcon

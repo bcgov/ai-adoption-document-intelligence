@@ -32,7 +32,7 @@ interface BoundingBox {
 interface TemplateModel {
   id: string;
   name: string;
-  modelId: string;
+  model_id: string;
   description?: string;
   status: string;
   created_by: string;
