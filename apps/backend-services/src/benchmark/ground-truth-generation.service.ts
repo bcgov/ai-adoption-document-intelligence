@@ -16,8 +16,9 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { DatabaseService } from "@/database/database.service";
 import { PrismaService } from "@/database/prisma.service";
+import { DocumentService } from "@/document/document.service";
+import { ReviewDbService } from "@/hitl/review-db.service";
 import { ExtractedFields } from "@/ocr/azure-types";
 import { OcrService } from "@/ocr/ocr.service";
 import {
@@ -51,7 +52,8 @@ export class GroundTruthGenerationService {
 
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly db: DatabaseService,
+    private readonly documentService: DocumentService,
+    private readonly reviewDb: ReviewDbService,
     private readonly ocrService: OcrService,
     private readonly hitlDatasetService: HitlDatasetService,
     @Inject(BLOB_STORAGE) private readonly blobStorage: BlobStorageInterface,
@@ -299,7 +301,7 @@ export class GroundTruthGenerationService {
         group_id: groupId,
       };
 
-      await this.db.createDocument(documentData);
+      await this.documentService.createDocument(documentData);
 
       // Update job with document ID and set to processing
       await this.prisma.datasetGroundTruthJob.update({
@@ -471,7 +473,7 @@ export class GroundTruthGenerationService {
           lastSession: lastSession
             ? {
                 id: lastSession.id,
-                reviewer_id: lastSession.reviewer_id,
+                reviewer_id: lastSession.actor_id,
                 status: lastSession.status,
                 completed_at: lastSession.completed_at,
                 corrections_count: lastSession.corrections?.length || 0,
@@ -551,7 +553,7 @@ export class GroundTruthGenerationService {
     }
 
     // Load the review session with corrections
-    const session = await this.db.findReviewSession(sessionId);
+    const session = await this.reviewDb.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }

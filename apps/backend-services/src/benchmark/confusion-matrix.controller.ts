@@ -23,12 +23,8 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import type { ConfusionMatrixResult } from "./confusion-matrix.service";
 import { ConfusionMatrixService } from "./confusion-matrix.service";
@@ -42,13 +38,11 @@ export class ConfusionMatrixController {
   constructor(
     private readonly confusionMatrixService: ConfusionMatrixService,
     private readonly benchmarkProjectService: BenchmarkProjectService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   @Post("confusion-matrix/derive")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Derive character confusion matrix from HITL corrections",
     description:
@@ -71,11 +65,7 @@ export class ConfusionMatrixController {
     );
     const project =
       await this.benchmarkProjectService.getProjectById(projectId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      project.groupId,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
 
     const groupIds =
       dto.groupIds && dto.groupIds.length > 0

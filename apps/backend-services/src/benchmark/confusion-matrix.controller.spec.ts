@@ -3,12 +3,11 @@
  */
 
 jest.mock("@/auth/identity.helpers", () => ({
-  identityCanAccessGroup: jest.fn().mockResolvedValue(undefined),
+  identityCanAccessGroup: jest.fn().mockReturnValue(undefined),
 }));
 
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import { DatabaseService } from "@/database/database.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { ConfusionMatrixController } from "./confusion-matrix.controller";
 import { ConfusionMatrixService } from "./confusion-matrix.service";
@@ -42,10 +41,6 @@ describe("ConfusionMatrixController", () => {
     }),
   };
 
-  const mockDatabaseService = {
-    isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-  };
-
   const mockReq = {
     resolvedIdentity: { userId: "user-1" },
   } as unknown as Request;
@@ -60,7 +55,6 @@ describe("ConfusionMatrixController", () => {
           provide: ConfusionMatrixService,
           useValue: mockConfusionMatrixService,
         },
-        { provide: DatabaseService, useValue: mockDatabaseService },
       ],
     }).compile();
 

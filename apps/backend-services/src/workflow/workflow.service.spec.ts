@@ -45,6 +45,7 @@ const lineageRow = {
   head_version_id: "wv-1",
   created_at: new Date(),
   updated_at: new Date(),
+  user: { actor_id: "user-1" },
   headVersion,
 };
 
@@ -62,10 +63,15 @@ const mockVersion = {
   create: jest.fn(),
 };
 
+const mockUser = {
+  findUnique: jest.fn(),
+};
+
 const mockPrismaService = {
   prisma: {
     workflowLineage: mockLineage,
     workflowVersion: mockVersion,
+    user: mockUser,
     $transaction: jest.fn((fn: (tx: unknown) => Promise<unknown>) =>
       fn({
         workflowLineage: mockLineage,
@@ -95,6 +101,7 @@ describe("WorkflowService", () => {
     mockVersion.create.mockResolvedValue(headVersion);
     mockLineage.update.mockResolvedValue({ ...lineageRow, headVersion });
     mockLineage.delete.mockResolvedValue(undefined);
+    mockUser.findUnique.mockResolvedValue({ id: "user-1" });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -118,8 +125,8 @@ describe("WorkflowService", () => {
       expect(result[0].id).toBe("lin-1");
       expect(result[0].workflowVersionId).toBe("wv-1");
       expect(mockLineage.findMany).toHaveBeenCalledWith({
-        where: { user_id: "user-1", workflow_kind: "primary" },
-        include: { headVersion: true },
+        where: { user: { actor_id: "user-1" }, workflow_kind: "primary" },
+        include: { headVersion: true, user: { select: { actor_id: true } } },
         orderBy: { created_at: "desc" },
       });
     });
@@ -128,8 +135,8 @@ describe("WorkflowService", () => {
       mockLineage.findMany.mockResolvedValue([lineageRow]);
       await service.getUserWorkflows("user-1", true);
       expect(mockLineage.findMany).toHaveBeenCalledWith({
-        where: { user_id: "user-1" },
-        include: { headVersion: true },
+        where: { user: { actor_id: "user-1" } },
+        include: { headVersion: true, user: { select: { actor_id: true } } },
         orderBy: { created_at: "desc" },
       });
     });
@@ -144,7 +151,7 @@ describe("WorkflowService", () => {
           group_id: { in: ["group-1"] },
           workflow_kind: "primary",
         },
-        include: { headVersion: true },
+        include: { headVersion: true, user: { select: { actor_id: true } } },
         orderBy: { created_at: "desc" },
       });
     });
@@ -154,7 +161,7 @@ describe("WorkflowService", () => {
       await service.getGroupWorkflows(["group-1"], true);
       expect(mockLineage.findMany).toHaveBeenCalledWith({
         where: { group_id: { in: ["group-1"] } },
-        include: { headVersion: true },
+        include: { headVersion: true, user: { select: { actor_id: true } } },
         orderBy: { created_at: "desc" },
       });
     });
@@ -168,7 +175,7 @@ describe("WorkflowService", () => {
       expect(result.workflowVersionId).toBe("wv-1");
       expect(mockLineage.findUnique).toHaveBeenCalledWith({
         where: { id: "lin-1" },
-        include: { headVersion: true },
+        include: { headVersion: true, user: { select: { actor_id: true } } },
       });
     });
 
@@ -258,6 +265,7 @@ describe("WorkflowService", () => {
         group_id: "group-1",
         created_at: new Date(),
         updated_at: new Date(),
+        user: { actor_id: "user-1" },
         headVersion: {
           id: candidateVersionId,
           version_number: 1,
@@ -277,6 +285,22 @@ describe("WorkflowService", () => {
             },
           }),
       );
+
+      mockLineage.findUnique.mockResolvedValue({
+        id: candidateLineageId,
+        name: "Base Lineage (candidate v2)",
+        description: "AI-generated candidate from workflow version wv-source-1",
+        user_id: "user-1",
+        group_id: "group-1",
+        created_at: new Date(),
+        updated_at: new Date(),
+        user: { actor_id: "user-1" },
+        headVersion: {
+          id: candidateVersionId,
+          version_number: 1,
+          config: candidateConfig,
+        },
+      });
 
       const result = await service.createCandidateVersion(
         sourceVersionId,

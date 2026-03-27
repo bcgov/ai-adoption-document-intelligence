@@ -8,12 +8,8 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { DatabaseService } from "@/database/database.service";
-import {
-  ApiKeyAuth,
-  KeycloakSSOAuth,
-} from "@/decorators/custom-auth-decorators";
 import { DatasetService } from "./dataset.service";
 import {
   GroundTruthJobsListResponseDto,
@@ -32,7 +28,6 @@ export class GroundTruthGenerationController {
   constructor(
     private readonly groundTruthGenerationService: GroundTruthGenerationService,
     private readonly datasetService: DatasetService,
-    private readonly databaseService: DatabaseService,
   ) {}
 
   private async assertDatasetGroupAccess(
@@ -40,16 +35,11 @@ export class GroundTruthGenerationController {
     req: Request,
   ): Promise<void> {
     const dataset = await this.datasetService.getDatasetById(datasetId);
-    await identityCanAccessGroup(
-      req.resolvedIdentity,
-      dataset.groupId,
-      this.databaseService,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
   }
 
   @Post()
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Start ground truth generation via OCR workflow + HITL",
     description:
@@ -79,8 +69,7 @@ export class GroundTruthGenerationController {
   }
 
   @Get("jobs")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "List ground truth generation jobs",
     description:
@@ -111,8 +100,7 @@ export class GroundTruthGenerationController {
   }
 
   @Get("review/queue")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Get dataset-scoped HITL review queue",
     description:
@@ -153,8 +141,7 @@ export class GroundTruthGenerationController {
   }
 
   @Get("review/stats")
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Get ground truth review queue statistics",
   })

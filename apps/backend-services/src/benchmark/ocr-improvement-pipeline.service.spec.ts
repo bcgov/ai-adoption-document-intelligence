@@ -77,7 +77,7 @@ describe("OcrImprovementPipelineService", () => {
       workflowVersionId: "wf-1",
       benchmarkDefinitionId: "def-1",
       benchmarkProjectId: "project-1",
-      userId: "user-1",
+      actorId: "user-1",
     });
 
     expect(result.status).toBe("no_recommendations");
@@ -106,7 +106,7 @@ describe("OcrImprovementPipelineService", () => {
       workflowVersionId: "wf-missing",
       benchmarkDefinitionId: "def-1",
       benchmarkProjectId: "project-1",
-      userId: "user-1",
+      actorId: "user-1",
     });
 
     expect(result.status).toBe("error");
@@ -207,7 +207,7 @@ describe("OcrImprovementPipelineService", () => {
       workflowVersionId: "wf-1",
       benchmarkDefinitionId: "def-1",
       benchmarkProjectId: "project-1",
-      userId: "user-1",
+      actorId: "user-1",
       waitForPipelineRunCompletion: true,
       pipelineRunPollIntervalMs: 1,
       pipelineRunWaitTimeoutMs: 10_000,
@@ -325,7 +325,7 @@ describe("OcrImprovementPipelineService", () => {
       workflowVersionId: "wf-1",
       benchmarkDefinitionId: "def-1",
       benchmarkProjectId: "project-1",
-      userId: "user-1",
+      actorId: "user-1",
       normalizeFieldsEmptyValueCoercion: "null",
     });
 

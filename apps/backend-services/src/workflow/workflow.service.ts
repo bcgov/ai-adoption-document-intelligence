@@ -251,7 +251,9 @@ export class WorkflowService {
       throw new NotFoundException(`Workflow not found: ${lineageId}`);
     }
 
-    this.logger.debug(`getWorkflow: ${lineageId} requested by actor ${actorId}`);
+    this.logger.debug(
+      `getWorkflow: ${lineageId} requested by actor ${actorId}`,
+    );
 
     return this.mapLineageAndVersion(lineage, lineage.headVersion);
   }
@@ -298,7 +300,9 @@ export class WorkflowService {
       include: this.lineageWithHeadAndUser,
     });
     if (!full?.headVersion) {
-      throw new NotFoundException(`Workflow not found after create: ${lineageId}`);
+      throw new NotFoundException(
+        `Workflow not found after create: ${lineageId}`,
+      );
     }
 
     this.logger.log(
@@ -529,7 +533,9 @@ export class WorkflowService {
       throw error;
     }
 
-    this.logger.log(`Workflow lineage deleted: ${lineageId} by actor ${actorId}`);
+    this.logger.log(
+      `Workflow lineage deleted: ${lineageId} by actor ${actorId}`,
+    );
   }
 
   async listVersions(lineageId: string): Promise<WorkflowVersionSummary[]> {

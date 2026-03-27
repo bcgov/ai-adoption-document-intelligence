@@ -243,8 +243,7 @@ export class BenchmarkDefinitionController {
 
   @Post(":definitionId/promote-candidate-workflow")
   @HttpCode(HttpStatus.OK)
-  @ApiKeyAuth()
-  @KeycloakSSOAuth()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Apply a benchmark candidate workflow graph to the base workflow",
   })

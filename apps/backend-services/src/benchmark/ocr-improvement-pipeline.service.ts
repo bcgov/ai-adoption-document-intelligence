@@ -52,8 +52,8 @@ export interface PipelineInput {
   benchmarkProjectId: string;
   /** Filters for HITL correction aggregation. */
   hitlFilters?: HitlAggregationFilters;
-  /** User ID for workflow creation. */
-  userId: string;
+  /** Actor ID for workflow lineage ownership (resolves to User for persistence). */
+  actorId: string;
   /** Poll until candidate run completes and return baseline comparison. */
   waitForPipelineRunCompletion?: boolean;
   pipelineRunPollIntervalMs?: number;
@@ -366,7 +366,7 @@ export class OcrImprovementPipelineService {
       const candidate = await this.workflowService.createCandidateVersion(
         input.workflowVersionId,
         candidateConfig,
-        input.userId,
+        input.actorId,
       );
 
       // Step 8: Start benchmark run with workflow override (replay OCR from baseline cache when available)

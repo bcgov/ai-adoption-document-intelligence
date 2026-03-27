@@ -6,14 +6,13 @@
  */
 
 jest.mock("@/auth/identity.helpers", () => ({
-  identityCanAccessGroup: jest.fn().mockResolvedValue(undefined),
-  getIdentityGroupIds: jest.fn().mockResolvedValue(["test-group"]),
+  identityCanAccessGroup: jest.fn().mockReturnValue(undefined),
+  getIdentityGroupIds: jest.fn().mockReturnValue(["test-group"]),
 }));
 
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import { DatabaseService } from "@/database/database.service";
 import type { WorkflowInfo } from "@/workflow/workflow.service";
 import { WorkflowService } from "@/workflow/workflow.service";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
@@ -41,12 +40,6 @@ describe("BenchmarkRunController", () => {
     getProjectById: jest
       .fn()
       .mockResolvedValue({ id: "project-1", groupId: "test-group" }),
-  };
-
-  const mockDatabaseService = {
-    isUserSystemAdmin: jest.fn().mockResolvedValue(false),
-    getUsersGroups: jest.fn().mockResolvedValue([{ group_id: "test-group" }]),
-    isUserInGroup: jest.fn().mockResolvedValue(true),
   };
 
   const mockDefinitionService = {
@@ -93,7 +86,6 @@ describe("BenchmarkRunController", () => {
           provide: OcrImprovementPipelineService,
           useValue: mockOcrImprovementPipeline,
         },
-        { provide: DatabaseService, useValue: mockDatabaseService },
         { provide: WorkflowService, useValue: mockWorkflowService },
       ],
     }).compile();
@@ -187,7 +179,7 @@ describe("BenchmarkRunController", () => {
           workflowVersionId: "wv-workflow-1",
           benchmarkDefinitionId: "def-1",
           benchmarkProjectId: projectId,
-          userId: "user-1",
+          actorId: "user-1",
         }),
       );
       expect(result).toMatchObject({
@@ -234,13 +226,13 @@ describe("BenchmarkRunController", () => {
       );
     });
 
-    it("uses source workflow owner as userId when request has no SSO user (API key only)", async () => {
+    it("uses source workflow owner as actorId when request has no SSO user (API key only)", async () => {
       const sourceWorkflow: WorkflowInfo = {
         id: "workflow-1",
         workflowVersionId: "wv-workflow-1",
         name: "wf",
         description: null,
-        userId: "owner-from-source-workflow",
+        actorId: "owner-from-source-workflow",
         groupId: "test-group",
         config: {
           schemaVersion: "1.0",
@@ -266,7 +258,7 @@ describe("BenchmarkRunController", () => {
       );
       expect(mockOcrImprovementPipeline.run).toHaveBeenCalledWith(
         expect.objectContaining({
-          userId: "owner-from-source-workflow",
+          actorId: "owner-from-source-workflow",
         }),
       );
     });

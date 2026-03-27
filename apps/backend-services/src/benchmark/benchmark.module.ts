@@ -3,6 +3,7 @@ import { forwardRef, Module, OnModuleInit } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
 import { DatabaseModule } from "@/database/database.module";
+import { DocumentModule } from "@/document/document.module";
 import { HitlModule } from "@/hitl/hitl.module";
 import { OcrModule } from "@/ocr/ocr.module";
 import { WorkflowModule } from "@/workflow/workflow.module";
@@ -32,6 +33,7 @@ import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.servic
     HttpModule,
     BlobStorageModule,
     DatabaseModule,
+    DocumentModule,
     OcrModule,
     forwardRef(() => HitlModule),
     forwardRef(() => WorkflowModule),

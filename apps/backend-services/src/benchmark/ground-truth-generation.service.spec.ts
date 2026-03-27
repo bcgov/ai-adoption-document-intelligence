@@ -73,8 +73,9 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { DatabaseService } from "@/database/database.service";
 import { PrismaService } from "@/database/prisma.service";
+import { DocumentService } from "@/document/document.service";
+import { ReviewDbService } from "@/hitl/review-db.service";
 import { OcrService } from "@/ocr/ocr.service";
 import { GroundTruthGenerationService } from "./ground-truth-generation.service";
 import { HitlDatasetService } from "./hitl-dataset.service";
@@ -88,10 +89,11 @@ const mockBlobStorage: BlobStorageInterface = {
   deleteByPrefix: jest.fn().mockResolvedValue(undefined),
 };
 
-const mockDb = {
+const mockDocumentService = {
   createDocument: jest.fn(),
-  findDocument: jest.fn(),
-  updateDocument: jest.fn(),
+};
+
+const mockReviewDb = {
   findReviewSession: jest.fn(),
 };
 
@@ -138,8 +140,12 @@ describe("GroundTruthGenerationService", () => {
           useValue: { prisma: mockPrismaClient },
         },
         {
-          provide: DatabaseService,
-          useValue: mockDb,
+          provide: DocumentService,
+          useValue: mockDocumentService,
+        },
+        {
+          provide: ReviewDbService,
+          useValue: mockReviewDb,
         },
         {
           provide: OcrService,
@@ -453,7 +459,7 @@ describe("GroundTruthGenerationService", () => {
       };
 
       mockPrismaClient.datasetGroundTruthJob.findUnique.mockResolvedValue(job);
-      mockDb.findReviewSession.mockResolvedValue(session);
+      mockReviewDb.findReviewSession.mockResolvedValue(session);
       mockHitlDatasetService.buildGroundTruth.mockReturnValue({
         Name: "John",
         Date: "2026-01-15",
