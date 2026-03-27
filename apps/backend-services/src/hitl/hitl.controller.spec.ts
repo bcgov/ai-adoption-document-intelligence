@@ -255,13 +255,14 @@ describe("HitlController", () => {
           userId: "user-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
+          actorId: "actor-1",
         },
       } as unknown as Request;
       const mockResult = { id: "session-1", documentId: "doc-1" };
       hitlService.startSession.mockResolvedValue(mockResult as any);
       const result = await controller.startSession(dto, req);
       expect(result).toEqual(mockResult);
-      expect(hitlService.startSession).toHaveBeenCalledWith(dto, "user-1");
+      expect(hitlService.startSession).toHaveBeenCalledWith(dto, "actor-1");
       expect(documentService.findDocument).toHaveBeenCalledWith("doc-1");
     });
 

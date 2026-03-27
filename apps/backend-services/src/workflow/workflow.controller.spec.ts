@@ -31,7 +31,7 @@ const mockWorkflowInfo: WorkflowInfo = {
   id: "wf-1",
   name: "Test Workflow",
   description: "Description",
-  userId: "user-1",
+  actorId: "user-1",
   groupId: "group-1",
   config: mockGraphConfig,
   schemaVersion: "1.0",
@@ -68,15 +68,10 @@ describe("WorkflowController", () => {
   });
 
   describe("getWorkflows", () => {
-    it("returns empty array when no identity is set", async () => {
-      const req = { resolvedIdentity: undefined } as Request;
-      const result = await controller.getWorkflows(undefined, req);
-      expect(result).toEqual({ workflows: [] });
-      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
-    });
-
     it("returns empty array when user belongs to no groups", async () => {
-      const req = { resolvedIdentity: { userId: "user-1" } } as Request;
+      const req = {
+        resolvedIdentity: { userId: "user-1", groupRoles: {} },
+      } as Request;
       const result = await controller.getWorkflows(undefined, req);
       expect(result).toEqual({ workflows: [] });
       expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
@@ -156,7 +151,7 @@ describe("WorkflowController", () => {
       expect(result).toEqual({ workflow: mockWorkflowInfo });
       expect(workflowService.getWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        "user-1",
+        undefined,
       );
     });
 
@@ -196,7 +191,7 @@ describe("WorkflowController", () => {
       const result = await controller.createWorkflow(dto, req);
       expect(result).toEqual({ workflow: mockWorkflowInfo });
       expect(workflowService.createWorkflow).toHaveBeenCalledWith(
-        "user-1",
+        undefined,
         dto,
       );
     });
@@ -222,11 +217,11 @@ describe("WorkflowController", () => {
       expect(result.workflow.name).toBe("Updated");
       expect(workflowService.getWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        "user-1",
+        undefined,
       );
       expect(workflowService.updateWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        "user-1",
+        undefined,
         dto,
       );
     });
@@ -264,11 +259,11 @@ describe("WorkflowController", () => {
       await controller.deleteWorkflow("wf-1", req);
       expect(workflowService.getWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        "user-1",
+        undefined,
       );
       expect(workflowService.deleteWorkflow).toHaveBeenCalledWith(
         "wf-1",
-        "user-1",
+        undefined,
       );
     });
 

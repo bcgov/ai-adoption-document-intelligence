@@ -30,7 +30,12 @@ describe("BenchmarkProjectController", () => {
 
   const mockReq = {
     user: { sub: "user-1" },
-    resolvedIdentity: { userId: "user-1" },
+    resolvedIdentity: {
+      userId: "user-1",
+      isSystemAdmin: false,
+      groupRoles: {},
+      actorId: "user-1",
+    },
   } as unknown as Request;
 
   beforeEach(async () => {

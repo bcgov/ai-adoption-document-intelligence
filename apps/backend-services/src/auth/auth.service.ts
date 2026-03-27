@@ -7,8 +7,8 @@ import {
 import { ConfigService } from "@nestjs/config";
 import * as client from "openid-client";
 import { URL } from "url";
+import { UserService } from "@/actor/user.service";
 import { TokenClaims, TokenResponseDto } from "@/auth/dto/token-response.dto";
-import { PrismaService } from "../database/prisma.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 
 /**
@@ -41,7 +41,7 @@ export class AuthService implements OnModuleInit {
 
   constructor(
     private configService: ConfigService,
-    private prismaService: PrismaService,
+    private userService: UserService,
     private readonly logger: AppLoggerService,
   ) {
     const authServerUrl = this.configService.get<string>("SSO_AUTH_SERVER_URL");
@@ -249,24 +249,12 @@ export class AuthService implements OnModuleInit {
    */
   async upsertUserFromToken(tokenPayload: TokenClaims): Promise<void> {
     const { sub, email } = tokenPayload;
-    const lastLogin = new Date();
     if (!sub || !email) {
       throw new HttpException(
         "Token payload missing required fields: sub and email",
         HttpStatus.BAD_REQUEST,
       );
     }
-    await this.prismaService.prisma.user.upsert({
-      where: { id: sub },
-      update: {
-        email,
-        last_login_at: lastLogin,
-      },
-      create: {
-        id: sub,
-        email,
-        last_login_at: lastLogin,
-      },
-    });
+    await this.userService.upsertUser(sub, email);
   }
 }

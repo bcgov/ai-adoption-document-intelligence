@@ -16,12 +16,12 @@ describe("HitlDatasetController", () => {
 
   const mockReq = {
     user: { sub: "user-1" },
-    resolvedIdentity: { userId: "user-1" },
-  } as unknown as Request;
-
-  const mockReqNoUser = {
-    user: {},
-    resolvedIdentity: { userId: undefined },
+    resolvedIdentity: {
+      userId: "user-1",
+      actorId: "actor-1",
+      groupRoles: {},
+      isSystemAdmin: false,
+    },
   } as unknown as Request;
 
   const mockDatasetService = {
@@ -118,19 +118,7 @@ describe("HitlDatasetController", () => {
       expect(result.dataset.id).toBe("dataset-1");
       expect(mockService.createDatasetFromHitl).toHaveBeenCalledWith(
         dto,
-        "user-1",
-      );
-    });
-
-    it("uses anonymous user ID when user ID is missing", async () => {
-      await controller.createDatasetFromHitl(
-        { name: "Test", documentIds: ["doc-1"], groupId: "test-group" },
-        mockReqNoUser,
-      );
-
-      expect(mockService.createDatasetFromHitl).toHaveBeenCalledWith(
-        { name: "Test", documentIds: ["doc-1"], groupId: "test-group" },
-        "anonymous",
+        "actor-1",
       );
     });
   });
@@ -149,21 +137,7 @@ describe("HitlDatasetController", () => {
       expect(mockService.addVersionFromHitl).toHaveBeenCalledWith(
         "dataset-1",
         dto,
-        "user-1",
-      );
-    });
-
-    it("uses anonymous user ID when user ID is missing", async () => {
-      await controller.addVersionFromHitl(
-        "dataset-1",
-        { documentIds: ["doc-1"] },
-        mockReqNoUser,
-      );
-
-      expect(mockService.addVersionFromHitl).toHaveBeenCalledWith(
-        "dataset-1",
-        { documentIds: ["doc-1"] },
-        "anonymous",
+        "actor-1",
       );
     });
   });

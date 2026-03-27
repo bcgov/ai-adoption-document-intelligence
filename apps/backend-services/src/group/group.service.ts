@@ -1,4 +1,10 @@
-import { $Enums, GroupRole, Prisma, UserGroup } from "@generated/client";
+import {
+  $Enums,
+  GroupMembershipRequest,
+  GroupRole,
+  Prisma,
+  UserGroup,
+} from "@generated/client";
 import {
   BadRequestException,
   ConflictException,
@@ -6,6 +12,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { UserService } from "@/actor/user.service";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { ResolvedIdentity } from "@/auth/types";
 import { AuditService } from "../audit/audit.service";
@@ -53,41 +60,32 @@ export class GroupService {
   }
 
   /**
-   * Checks whether a user is a system admin.
-   * @param userId - The ID of the user to check.
-   * @param tx - Optional transaction client for atomic operations.
-   * @returns `true` when the user has `is_system_admin` set to `true`, `false` otherwise.
-   */
-  async isUserSystemAdmin(
-    userId: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<boolean> {
-    return this.groupDb.isUserSystemAdmin(userId, tx);
-  }
-  /**
    * Soft-deletes an existing group by ID.
    * Sets `deleted_at` to the current timestamp and `deleted_by` to the caller's userId.
    * @param groupId - The ID of the group to soft-delete.
-   * @param callerId - The ID of the user performing the deletion.
+   * @param identity - The identity object of the user performing the deletion.
    */
-  async deleteGroup(groupId: string, callerId: string): Promise<void> {
+  async deleteGroup(
+    groupId: string,
+    identity: ResolvedIdentity,
+  ): Promise<void> {
     const group = await this.groupDb.findGroup(groupId);
     if (!group) {
       throw new NotFoundException("Group not found");
     }
-    await this.groupDb.softDeleteGroup(groupId, callerId);
+    await this.groupDb.softDeleteGroup(groupId, identity.actorId);
     await this.auditService.recordEvent({
       event_type: "group_deleted",
       resource_type: "group",
       resource_id: groupId,
-      actor_id: callerId,
+      actor_id: identity.actorId,
       group_id: groupId,
       payload: { group_name: group.name },
     });
     this.logger.log("Group soft-deleted", {
       groupId,
       groupName: group.name,
-      actorId: callerId,
+      actorId: identity.actorId,
     });
   }
 
@@ -107,7 +105,7 @@ export class GroupService {
    * - The user themselves can view all their own groups.
    * - Group admins (admin role in any group) can only see groups where both the caller and the target user are members.
    * - Regular members cannot view another user's group memberships.
-   * @param callerId - The ID of the caller making the request.
+   * @param identity - The identity object of the caller making the request.
    * @param userId - The ID of the user whose groups are being retrieved.
    */
   async getUserGroups(
@@ -167,7 +165,11 @@ export class GroupService {
    * @param userId - The ID of the requesting user (from JWT sub claim).
    * @param groupId - The ID of the group to request membership for.
    */
-  async requestMembership(userId: string, groupId: string): Promise<void> {
+  async requestMembership(
+    userId: string,
+    groupId: string,
+    identity: ResolvedIdentity,
+  ): Promise<void> {
     const group = await this.groupDb.findGroup(groupId);
     if (!group) {
       throw new NotFoundException("Group not found");
@@ -191,18 +193,22 @@ export class GroupService {
       );
     }
 
-    const created = await this.groupDb.createMembershipRequest(userId, groupId);
+    const created = await this.groupDb.createMembershipRequest(
+      userId,
+      groupId,
+      identity,
+    );
     await this.auditService.recordEvent({
       event_type: "membership_request_created",
       resource_type: "group_membership_request",
       resource_id: created.id,
-      actor_id: userId,
+      actor_id: identity.actorId,
       group_id: groupId,
       payload: { user_id: userId, group_id: groupId },
     });
     this.logger.log("Membership request created", {
       requestId: created.id,
-      userId,
+      actorId: identity.actorId,
       groupId,
     });
   }
@@ -216,12 +222,12 @@ export class GroupService {
    * @param reason - Optional reason for cancellation.
    */
   async cancelMembershipRequest(
-    userId: string,
+    identity: ResolvedIdentity,
     requestId: string,
     reason?: string,
   ): Promise<void> {
     const request = await this.getValidPendingRequest(requestId, "cancelled");
-    if (request.user_id !== userId) {
+    if (request.user_id !== identity.userId) {
       throw new ForbiddenException(
         "Cannot cancel a request belonging to another user",
       );
@@ -229,7 +235,7 @@ export class GroupService {
     await this.groupDb.updateMembershipRequest(
       requestId,
       this.buildResolutionData(
-        userId,
+        identity.actorId,
         $Enums.GroupMembershipRequestStatus.CANCELLED,
         reason,
       ),
@@ -238,13 +244,13 @@ export class GroupService {
       event_type: "membership_request_cancelled",
       resource_type: "group_membership_request",
       resource_id: requestId,
-      actor_id: userId,
+      actor_id: identity.actorId,
       group_id: request.group_id,
       payload: { reason },
     });
     this.logger.log("Membership request cancelled", {
       requestId,
-      userId,
+      actorId: identity.actorId,
       groupId: request.group_id,
     });
   }
@@ -271,7 +277,7 @@ export class GroupService {
       request.group_id,
       requestId,
       this.buildResolutionData(
-        identity.userId!,
+        identity.actorId,
         $Enums.GroupMembershipRequestStatus.APPROVED,
         reason,
       ),
@@ -322,7 +328,7 @@ export class GroupService {
     await this.groupDb.updateMembershipRequest(
       requestId,
       this.buildResolutionData(
-        identity.userId!,
+        identity.actorId,
         $Enums.GroupMembershipRequestStatus.DENIED,
         reason,
       ),
@@ -331,13 +337,13 @@ export class GroupService {
       event_type: "membership_request_denied",
       resource_type: "group_membership_request",
       resource_id: requestId,
-      actor_id: identity.userId,
+      actor_id: identity.actorId,
       group_id: request.group_id,
       payload: { user_id: request.user_id, reason },
     });
     this.logger.log("Membership request denied", {
       requestId,
-      actorId: identity.userId,
+      actorId: identity.actorId,
       userId: request.user_id,
       groupId: request.group_id,
     });
@@ -371,10 +377,9 @@ export class GroupService {
     actorId: string,
     status: $Enums.GroupMembershipRequestStatus,
     reason?: string,
-  ) {
+  ): Partial<GroupMembershipRequest> {
     return {
       status,
-      actor_id: actorId,
       resolved_at: new Date(),
       updated_by: actorId,
       ...(reason !== undefined ? { reason } : {}),
@@ -385,12 +390,12 @@ export class GroupService {
    * Creates a new group with the given name and optional description.
    * Authorization is enforced at the controller layer (system admins only).
    * Throws ConflictException if a group with the same name already exists.
-   * @param callerId - The ID of the caller (from resolvedIdentity.userId).
+   * @param identity - The identity object of the caller.
    * @param name - The name of the new group.
    * @param description - Optional description for the group.
    */
   async createGroup(
-    callerId: string,
+    identity: ResolvedIdentity,
     name: string,
     description?: string,
   ): Promise<{ id: string; name: string; description: string | null }> {
@@ -399,12 +404,16 @@ export class GroupService {
       throw new ConflictException("Group with this name already exists");
     }
 
-    const group = await this.groupDb.createGroup(name, description);
+    const group = await this.groupDb.createGroup(
+      identity.actorId,
+      name,
+      description,
+    );
     await this.auditService.recordEvent({
       event_type: "group_created",
       resource_type: "group",
       resource_id: group.id,
-      actor_id: callerId,
+      actor_id: identity.actorId,
       group_id: group.id,
       payload: {
         name: group.name,
@@ -414,7 +423,7 @@ export class GroupService {
     this.logger.log("Group created", {
       groupId: group.id,
       name: group.name,
-      actorId: callerId,
+      actorId: identity.actorId,
     });
     return group;
   }
@@ -423,13 +432,13 @@ export class GroupService {
    * Updates an existing group's name and optional description.
    * Throws NotFoundException if the group does not exist or has been soft-deleted.
    * Throws ConflictException if another group already uses the provided name.
-   * @param callerId - The ID of the caller (from resolvedIdentity.userId).
+   * @param identity - The identity object of the caller.
    * @param groupId - The ID of the group to update.
    * @param name - The new name for the group.
    * @param description - Optional new description for the group.
    */
   async updateGroup(
-    callerId: string,
+    identity: ResolvedIdentity,
     groupId: string,
     name: string,
     description?: string,
@@ -450,13 +459,13 @@ export class GroupService {
     const updated = await this.groupDb.updateGroupData(groupId, {
       name,
       description: description ?? null,
-      updated_by: callerId,
+      updated_by: identity.actorId,
     });
     await this.auditService.recordEvent({
       event_type: "group_updated",
       resource_type: "group",
       resource_id: groupId,
-      actor_id: callerId,
+      actor_id: identity.actorId,
       group_id: groupId,
       payload: {
         name: updated.name,
@@ -466,7 +475,7 @@ export class GroupService {
     this.logger.log("Group updated", {
       groupId,
       name: updated.name,
-      actorId: callerId,
+      actorId: identity.actorId,
     });
     return updated;
   }
@@ -515,7 +524,6 @@ export class GroupService {
    * - System admins always have access.
    * - Regular members and group admins (users with any role in UserGroup) have read access.
    * - Non-members receive a 403 Forbidden.
-   * @param callerId - The user ID of the caller (from resolvedIdentity.userId).
    * @param groupId - The ID of the group whose members are being retrieved.
    * @returns An array of GroupMemberDto objects representing the group's members.
    * @throws NotFoundException when the group does not exist.
@@ -556,16 +564,12 @@ export class GroupService {
 
   /**
    * Returns all membership requests for a group, with optional status filtering.
-   * Authorization: the caller must be a group admin (UserGroup record with role = ADMIN) or a system admin.
-   * @param callerId - The ID of the caller (from resolvedIdentity.userId).
    * @param groupId - The ID of the group whose requests are being retrieved.
    * @param status - Optional status filter; when provided only requests matching the status are returned.
    * @returns An array of GroupMembershipRequestDto objects.
    * @throws NotFoundException when the group does not exist.
-   * @throws ForbiddenException when the caller is not a group admin or system admin.
    */
   async getGroupRequests(
-    callerId: string,
     groupId: string,
     status?: $Enums.GroupMembershipRequestStatus,
   ): Promise<GroupMembershipRequestDto[]> {
@@ -585,7 +589,6 @@ export class GroupService {
       email: r.user?.email ?? "",
       groupId: r.group_id,
       status: r.status,
-      actorId: r.actor_id ?? undefined,
       reason: r.reason ?? undefined,
       resolvedAt: r.resolved_at ?? undefined,
       createdAt: r.created_at,

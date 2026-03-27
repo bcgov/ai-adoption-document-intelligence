@@ -279,7 +279,7 @@ export class BenchmarkDefinitionController {
         return {
           promotedAt: log.timestamp,
           runId: log.entityId,
-          userId: log.userId,
+          actorId: log.actor_id,
           definitionId: metadata?.definitionId as string | undefined,
           projectId: metadata?.projectId as string | undefined,
         };

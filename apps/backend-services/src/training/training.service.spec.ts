@@ -416,7 +416,7 @@ describe("TrainingService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      const result = await service.startTraining("project-1", dto, "user-1");
+      const result = await service.startTraining("project-1", dto);
 
       expect(result).toHaveProperty("id", "job-1");
       expect(result).toHaveProperty("status", TrainingStatus.PENDING);
@@ -434,9 +434,9 @@ describe("TrainingService", () => {
         mockLabeledDocument,
       ]);
 
-      await expect(
-        service.startTraining("project-1", dto, "user-1"),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.startTraining("project-1", dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it("should delete existing model before training", async () => {
@@ -465,7 +465,7 @@ describe("TrainingService", () => {
       mockTrainingDb.deleteTrainedModel.mockResolvedValueOnce(mockTrainedModel);
       mockTrainingDb.createTrainingJob.mockResolvedValueOnce(mockTrainingJob);
 
-      await service.startTraining("project-1", dto, "user-1");
+      await service.startTraining("project-1", dto);
 
       expect(mockDelete).toHaveBeenCalled();
       expect(mockTrainingDb.deleteTrainedModel).toHaveBeenCalled();

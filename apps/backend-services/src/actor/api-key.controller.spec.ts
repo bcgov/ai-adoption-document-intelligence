@@ -10,7 +10,7 @@ describe("ApiKeyController", () => {
 
   const mockApiKeyService = {
     getApiKey: jest.fn(),
-    generateApiKey: jest.fn(),
+    createApiKey: jest.fn(),
     deleteApiKey: jest.fn(),
     regenerateApiKey: jest.fn(),
     getApiKeyGroupId: jest.fn(),
@@ -26,6 +26,7 @@ describe("ApiKeyController", () => {
       userId: "testuser",
       isSystemAdmin: false,
       groupRoles: { group123: GroupRole.ADMIN },
+      actorId: "actor-1",
     },
   };
 
@@ -79,7 +80,7 @@ describe("ApiKeyController", () => {
 
     it("should not throw when user has no email", async () => {
       // With new logic, email is not required for API key generation, so this should not throw
-      mockApiKeyService.generateApiKey.mockResolvedValue({});
+      mockApiKeyService.createApiKey.mockResolvedValue({});
       await expect(
         controller.generateApiKey(
           {
@@ -106,14 +107,14 @@ describe("ApiKeyController", () => {
         createdAt: new Date(),
         lastUsed: null,
       };
-      mockApiKeyService.generateApiKey.mockResolvedValue(mockGeneratedKey);
+      mockApiKeyService.createApiKey.mockResolvedValue(mockGeneratedKey);
 
       const result = await controller.generateApiKey(mockRequest as any, {
         groupId: "group123",
       });
 
       expect(result).toEqual({ apiKey: mockGeneratedKey });
-      expect(apiKeyService.generateApiKey).toHaveBeenCalledWith(
+      expect(apiKeyService.createApiKey).toHaveBeenCalledWith(
         "testuser",
         "group123",
       );
@@ -163,7 +164,7 @@ describe("ApiKeyController", () => {
           {
             ...mockRequest,
             resolvedIdentity: {
-              userId: "testuser",
+              actorId: "testuser",
               isSystemAdmin: false,
               groupRoles: {},
             },
@@ -210,6 +211,7 @@ describe("ApiKeyController", () => {
               userId: "testuser",
               isSystemAdmin: false,
               groupRoles: {},
+              actorId: "actor-1",
             },
           } as any,
           {
@@ -236,9 +238,10 @@ describe("ApiKeyController", () => {
       const reqWithDifferentUser = {
         user: { sub: newUserId },
         resolvedIdentity: {
-          userId: newUserId,
+          actorId: newUserId,
           isSystemAdmin: false,
           groupRoles: { group123: GroupRole.ADMIN },
+          userId: newUserId,
         },
       };
 

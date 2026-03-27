@@ -59,8 +59,7 @@ export class GroupController {
     @Req() req: Request,
     @Param("groupId") groupId: string,
   ): Promise<{ success: boolean }> {
-    const callerId = req.resolvedIdentity?.userId;
-    await this.groupService.deleteGroup(groupId, callerId);
+    await this.groupService.deleteGroup(groupId, req.resolvedIdentity);
     return { success: true };
   }
 
@@ -120,8 +119,12 @@ export class GroupController {
     @Req() req: Request & { user?: User },
     @Body() body: RequestMembershipDto,
   ): Promise<{ success: boolean }> {
-    const userId = req.user?.sub;
-    await this.groupService.requestMembership(userId, body.groupId);
+    const userId = req.resolvedIdentity.userId;
+    await this.groupService.requestMembership(
+      userId,
+      body.groupId,
+      req.resolvedIdentity,
+    );
     return { success: true };
   }
 
@@ -188,9 +191,8 @@ export class GroupController {
     @Param("requestId") requestId: string,
     @Body() body: MembershipRequestActionDto,
   ): Promise<{ success: boolean }> {
-    const userId = req.user?.sub;
     await this.groupService.cancelMembershipRequest(
-      userId,
+      req.resolvedIdentity,
       requestId,
       body.reason,
     );
@@ -297,9 +299,8 @@ export class GroupController {
     @Param("groupId") groupId: string,
     @Body() body: UpdateGroupDto,
   ): Promise<{ id: string; name: string; description: string | null }> {
-    const callerId = req.resolvedIdentity?.userId;
     return await this.groupService.updateGroup(
-      callerId,
+      req.resolvedIdentity,
       groupId,
       body.name,
       body.description,
@@ -329,9 +330,8 @@ export class GroupController {
     @Req() req: Request,
     @Body() body: CreateGroupDto,
   ): Promise<{ id: string; name: string; description: string | null }> {
-    const callerId = req.resolvedIdentity?.userId;
     return await this.groupService.createGroup(
-      callerId,
+      req.resolvedIdentity,
       body.name,
       body.description,
     );
@@ -406,8 +406,6 @@ export class GroupController {
     @Param("groupId") groupId: string,
     @Query("status") status?: string,
   ): Promise<GroupMembershipRequestDto[]> {
-    const callerId = req.resolvedIdentity?.userId;
-
     const validStatuses = Object.values($Enums.GroupMembershipRequestStatus);
     let parsedStatus: $Enums.GroupMembershipRequestStatus | undefined;
     if (status !== undefined) {
@@ -422,11 +420,7 @@ export class GroupController {
       parsedStatus = status as $Enums.GroupMembershipRequestStatus;
     }
 
-    return await this.groupService.getGroupRequests(
-      callerId,
-      groupId,
-      parsedStatus,
-    );
+    return await this.groupService.getGroupRequests(groupId, parsedStatus);
   }
 
   /**

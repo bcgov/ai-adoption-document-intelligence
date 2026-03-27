@@ -14,7 +14,7 @@ export class AuditService {
   /**
    * Records one or more audit events. Failures are logged and do not throw
    * so that audit write failures do not fail the main operation.
-   * When request_id or actor_id are omitted, they are filled from the current
+   * When request_id is omitted, it is filled from the current
    * request context (AsyncLocalStorage) when available.
    */
   async recordEvent(
@@ -28,7 +28,7 @@ export class AuditService {
           event_type: e.event_type,
           resource_type: e.resource_type,
           resource_id: e.resource_id,
-          actor_id: e.actor_id ?? ctx?.userId ?? null,
+          actor_id: e.actor_id,
           document_id: e.document_id ?? null,
           workflow_execution_id: e.workflow_execution_id ?? null,
           group_id: e.group_id ?? null,

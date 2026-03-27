@@ -40,7 +40,12 @@ describe("BenchmarkRunController", () => {
 
   const mockReq = {
     user: { sub: "user-1" },
-    resolvedIdentity: { userId: "user-1" },
+    resolvedIdentity: {
+      userId: "user-1",
+      isSystemAdmin: false,
+      groupRoles: {},
+      actorId: "user-1",
+    },
   } as unknown as Request;
 
   const projectId = "project-1";
@@ -87,6 +92,7 @@ describe("BenchmarkRunController", () => {
         projectId,
         "def-1",
         createRunDto,
+        mockReq.resolvedIdentity,
       );
       expect(result).toEqual(expected);
     });
@@ -341,6 +347,7 @@ describe("BenchmarkRunController", () => {
         projectId,
         "run-1",
         promoteDto,
+        mockReq.resolvedIdentity,
       );
       expect(result).toEqual(expected);
     });

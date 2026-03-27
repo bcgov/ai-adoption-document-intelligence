@@ -20,6 +20,13 @@ jest.mock("child_process", () => ({
   exec: jest.fn(),
 }));
 
+const mockIdentity = {
+  userId: "user-1",
+  isSystemAdmin: false,
+  groupRoles: {},
+  actorId: "actor-1",
+};
+
 const mockBenchmarkRunDbService = {
   findBenchmarkDefinitionForRun: jest.fn(),
   findBenchmarkProject: jest.fn(),
@@ -207,7 +214,12 @@ describe("BenchmarkRunService", () => {
         startedAt: new Date(),
       });
 
-      const result = await service.startRun("project-1", "def-1", createDto);
+      const result = await service.startRun(
+        "project-1",
+        "def-1",
+        createDto,
+        mockIdentity,
+      );
 
       // Verify Temporal workflow was started
       expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
@@ -275,7 +287,7 @@ describe("BenchmarkRunService", () => {
         startedAt: new Date(),
       });
 
-      await service.startRun("project-1", "def-1", {});
+      await service.startRun("project-1", "def-1", {}, mockIdentity);
 
       // Verify dataset version was frozen
       expect(
@@ -316,9 +328,9 @@ describe("BenchmarkRunService", () => {
         ],
       });
 
-      await expect(service.startRun("project-1", "def-1", {})).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.startRun("project-1", "def-1", {}, mockIdentity),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it("should throw NotFoundException when definition does not exist", async () => {
@@ -326,9 +338,9 @@ describe("BenchmarkRunService", () => {
         mockBenchmarkRunDbService.findBenchmarkDefinitionForRun as jest.Mock
       ).mockResolvedValue(null);
 
-      await expect(service.startRun("project-1", "def-1", {})).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.startRun("project-1", "def-1", {}, mockIdentity),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it("should mark run as failed if Temporal workflow fails to start", async () => {
@@ -349,9 +361,9 @@ describe("BenchmarkRunService", () => {
         error: "Failed to start Temporal workflow: Temporal error",
       });
 
-      await expect(service.startRun("project-1", "def-1", {})).rejects.toThrow(
-        "Failed to start benchmark run workflow",
-      );
+      await expect(
+        service.startRun("project-1", "def-1", {}, mockIdentity),
+      ).rejects.toThrow("Failed to start benchmark run workflow");
 
       expect(mockBenchmarkRunDbService.updateBenchmarkRun).toHaveBeenCalledWith(
         expect.any(String),
@@ -402,7 +414,7 @@ describe("BenchmarkRunService", () => {
           },
         });
 
-        await service.startRun("project-1", "def-1", {});
+        await service.startRun("project-1", "def-1", {}, mockIdentity);
 
         // Verify worker image digest was captured in create call
         expect(
@@ -456,7 +468,7 @@ describe("BenchmarkRunService", () => {
           },
         });
 
-        await service.startRun("project-1", "def-1", {});
+        await service.startRun("project-1", "def-1", {}, mockIdentity);
 
         // Verify worker image digest is null
         expect(
@@ -759,9 +771,14 @@ describe("BenchmarkRunService", () => {
         { metricName: "precision", type: "absolute" as const, value: 0.9 },
       ];
 
-      const result = await service.promoteToBaseline("project-1", "run-1", {
-        thresholds,
-      });
+      const result = await service.promoteToBaseline(
+        "project-1",
+        "run-1",
+        {
+          thresholds,
+        },
+        mockIdentity,
+      );
 
       expect(result).toEqual({
         runId: "run-1",
@@ -806,7 +823,12 @@ describe("BenchmarkRunService", () => {
         isBaseline: true,
       });
 
-      const result = await service.promoteToBaseline("project-1", "run-1", {});
+      const result = await service.promoteToBaseline(
+        "project-1",
+        "run-1",
+        {},
+        mockIdentity,
+      );
 
       expect(result.previousBaselineId).toBe("baseline-run-1");
 
@@ -832,7 +854,7 @@ describe("BenchmarkRunService", () => {
       ).mockResolvedValue(null);
 
       await expect(
-        service.promoteToBaseline("project-1", "run-1", {}),
+        service.promoteToBaseline("project-1", "run-1", {}, mockIdentity),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -847,7 +869,7 @@ describe("BenchmarkRunService", () => {
       ).mockResolvedValue(runningRun);
 
       await expect(
-        service.promoteToBaseline("project-1", "run-1", {}),
+        service.promoteToBaseline("project-1", "run-1", {}, mockIdentity),
       ).rejects.toThrow(BadRequestException);
     });
   });

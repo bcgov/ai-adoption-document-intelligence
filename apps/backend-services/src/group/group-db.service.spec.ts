@@ -1,7 +1,10 @@
-import { type $Enums, GroupRole } from "@generated/client";
+import { type $Enums, GroupRole, Prisma } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
+import TestFactory from "@/testUtils/testFactory";
 import { PrismaService } from "../database/prisma.service";
 import { GroupDbService } from "./group-db.service";
+
+const { makeIdentity } = TestFactory();
 
 const makeGroup = (id = "g-1") => ({
   id,
@@ -181,9 +184,9 @@ describe("GroupDbService", () => {
     it("creates without description (no tx)", async () => {
       const g = { id: "g-1", name: "N", description: null };
       mockPrisma.group.create.mockResolvedValue(g);
-      await service.createGroup("N");
+      await service.createGroup("creator-id", "N");
       expect(mockPrisma.group.create).toHaveBeenCalledWith({
-        data: { name: "N" },
+        data: { created_by: "creator-id", name: "N" },
         select: { id: true, name: true, description: true },
       });
     });
@@ -193,9 +196,9 @@ describe("GroupDbService", () => {
         name: "N",
         description: "d",
       });
-      await service.createGroup("N", "d");
+      await service.createGroup("creator-id", "N", "d");
       expect(mockPrisma.group.create).toHaveBeenCalledWith({
-        data: { name: "N", description: "d" },
+        data: { created_by: "creator-id", name: "N", description: "d" },
         select: { id: true, name: true, description: true },
       });
     });
@@ -207,8 +210,8 @@ describe("GroupDbService", () => {
       };
       const tx = { group: txGroup } as unknown as Parameters<
         typeof service.createGroup
-      >[2];
-      await service.createGroup("X", undefined, tx);
+      >[3];
+      await service.createGroup("creator-id", "X", undefined, tx);
       expect(txGroup.create).toHaveBeenCalled();
       expect(mockPrisma.group.create).not.toHaveBeenCalled();
     });
@@ -431,32 +434,6 @@ describe("GroupDbService", () => {
     });
   });
 
-  describe("isUserSystemAdmin", () => {
-    it("returns true when admin (no tx)", async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ is_system_admin: true });
-      expect(await service.isUserSystemAdmin("user-1")).toBe(true);
-    });
-    it("returns false when not admin", async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ is_system_admin: false });
-      expect(await service.isUserSystemAdmin("user-1")).toBe(false);
-    });
-    it("returns false when user not found", async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      expect(await service.isUserSystemAdmin("missing")).toBe(false);
-    });
-    it("uses tx client", async () => {
-      const txUser = {
-        findUnique: jest.fn().mockResolvedValue({ is_system_admin: true }),
-      };
-      const tx = { user: txUser } as unknown as Parameters<
-        typeof service.isUserSystemAdmin
-      >[1];
-      expect(await service.isUserSystemAdmin("user-1", tx)).toBe(true);
-      expect(txUser.findUnique).toHaveBeenCalled();
-      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
-    });
-  });
-
   describe("findMembershipRequest", () => {
     it("returns request (no tx)", async () => {
       const req = makeRequest();
@@ -500,20 +477,26 @@ describe("GroupDbService", () => {
   describe("createMembershipRequest", () => {
     it("creates PENDING request (no tx)", async () => {
       const req = makeRequest();
+      const identity = makeIdentity();
       mockPrisma.groupMembershipRequest.create.mockResolvedValue(req);
-      expect(await service.createMembershipRequest("user-1", "g-1")).toEqual(
-        req,
-      );
+      expect(
+        await service.createMembershipRequest("user-1", "g-1", identity),
+      ).toEqual(req);
       expect(mockPrisma.groupMembershipRequest.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ status: "PENDING" }),
       });
     });
     it("uses tx client", async () => {
       const txReq = { create: jest.fn().mockResolvedValue(makeRequest()) };
-      const tx = { groupMembershipRequest: txReq } as unknown as Parameters<
-        typeof service.createMembershipRequest
-      >[2];
-      await service.createMembershipRequest("user-1", "g-1", tx);
+      const tx = {
+        groupMembershipRequest: txReq,
+      } as unknown as Prisma.TransactionClient;
+      await service.createMembershipRequest(
+        "user-1",
+        "g-1",
+        makeIdentity(),
+        tx,
+      );
       expect(txReq.create).toHaveBeenCalled();
       expect(mockPrisma.groupMembershipRequest.create).not.toHaveBeenCalled();
     });

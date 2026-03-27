@@ -1,7 +1,7 @@
-import type { ApiKey } from "@generated/client";
+import { ApiKey } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "@/database/prisma.service";
-import { ApiKeyDbService, type CreateApiKeyData } from "./api-key-db.service";
+import { ApiKeyDbService, CreateApiKeyData } from "./api-key-db.service";
 
 const mockApiKey: ApiKey = {
   id: "key-1",
@@ -9,6 +9,7 @@ const mockApiKey: ApiKey = {
   key_prefix: "abcd1234",
   group_id: "grp-1",
   generating_user_id: "user-1",
+  actor_id: "actor-1",
   created_at: new Date("2024-01-01"),
   last_used: null,
 };
@@ -26,24 +27,49 @@ describe("ApiKeyDbService", () => {
     findFirst: jest.Mock;
     findUnique: jest.Mock;
     findMany: jest.Mock;
+    findFirstOrThrow: jest.Mock;
     create: jest.Mock;
     deleteMany: jest.Mock;
     delete: jest.Mock;
     update: jest.Mock;
   };
-  let mockPrisma: { apiKey: typeof mockApiKeyPrisma };
+  let mockActorPrisma: {
+    create: jest.Mock;
+    findFirstOrThrow: jest.Mock;
+    delete: jest.Mock;
+  };
+  let mockPrisma: {
+    apiKey: typeof mockApiKeyPrisma;
+    actor: typeof mockActorPrisma;
+    $transaction: jest.Mock;
+  };
 
   beforeEach(async () => {
     mockApiKeyPrisma = {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      findFirstOrThrow: jest.fn().mockResolvedValue(mockApiKey),
       create: jest.fn(),
       deleteMany: jest.fn(),
       delete: jest.fn(),
       update: jest.fn(),
     };
-    mockPrisma = { apiKey: mockApiKeyPrisma };
+    mockActorPrisma = {
+      create: jest.fn().mockResolvedValue({ id: "actor-1" }),
+      findFirstOrThrow: jest.fn().mockResolvedValue({ id: "actor-1" }),
+      delete: jest.fn().mockResolvedValue({ id: "actor-1" }),
+    };
+    mockPrisma = {
+      apiKey: mockApiKeyPrisma,
+      actor: mockActorPrisma,
+      $transaction: jest
+        .fn()
+        .mockImplementation(
+          async (callback: (tx: unknown) => Promise<unknown>) =>
+            callback({ apiKey: mockApiKeyPrisma, actor: mockActorPrisma }),
+        ),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -167,21 +193,37 @@ describe("ApiKeyDbService", () => {
       const result = await service.createApiKey(createData);
 
       expect(result).toEqual(mockApiKey);
-      expect(mockApiKeyPrisma.create).toHaveBeenCalledWith({
-        data: createData,
-      });
+      expect(mockActorPrisma.create).toHaveBeenCalled();
+      expect(mockApiKeyPrisma.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            key_hash: createData.key_hash,
+            key_prefix: createData.key_prefix,
+            generating_user_id: createData.generating_user_id,
+            group_id: createData.group_id,
+            actor_id: "actor-1",
+          }),
+        }),
+      );
     });
 
     it("should use tx when provided", async () => {
-      const txApiKey = { create: jest.fn().mockResolvedValue(mockApiKey) };
-      const tx = { apiKey: txApiKey } as unknown as Parameters<
-        typeof service.createApiKey
-      >[1];
+      const txActorPrisma = {
+        create: jest.fn().mockResolvedValue({ id: "actor-1" }),
+      };
+      const txApiKeyPrisma = {
+        create: jest.fn().mockResolvedValue(mockApiKey),
+      };
+      const tx = {
+        actor: txActorPrisma,
+        apiKey: txApiKeyPrisma,
+      } as unknown as Parameters<typeof service.createApiKey>[1];
 
       const result = await service.createApiKey(createData, tx);
 
       expect(result).toEqual(mockApiKey);
-      expect(txApiKey.create).toHaveBeenCalled();
+      expect(txActorPrisma.create).toHaveBeenCalled();
+      expect(txApiKeyPrisma.create).toHaveBeenCalled();
       expect(mockApiKeyPrisma.create).not.toHaveBeenCalled();
     });
   });
@@ -221,28 +263,49 @@ describe("ApiKeyDbService", () => {
   // ---------------------------------------------------------------------------
 
   describe("deleteApiKeyById", () => {
-    it("should delete the key using this.prisma when no tx", async () => {
+    it("should delete the key (and its actor) using this.prisma when no tx", async () => {
       mockApiKeyPrisma.delete.mockResolvedValue(mockApiKey);
 
       const result = await service.deleteApiKeyById("key-1");
 
       expect(result).toEqual(mockApiKey);
+      expect(mockApiKeyPrisma.findFirstOrThrow).toHaveBeenCalledWith({
+        where: { id: "key-1" },
+      });
+      expect(mockActorPrisma.findFirstOrThrow).toHaveBeenCalledWith({
+        where: { id: mockApiKey.actor_id },
+      });
+      expect(mockActorPrisma.delete).toHaveBeenCalled();
       expect(mockApiKeyPrisma.delete).toHaveBeenCalledWith({
         where: { id: "key-1" },
       });
     });
 
     it("should use tx when provided", async () => {
-      const txApiKey = { delete: jest.fn().mockResolvedValue(mockApiKey) };
-      const tx = { apiKey: txApiKey } as unknown as Parameters<
-        typeof service.deleteApiKeyById
-      >[1];
+      const txActorPrisma = {
+        delete: jest.fn().mockResolvedValue({ id: "actor-1" }),
+        findFirstOrThrow: jest.fn().mockResolvedValue({ id: "actor-1" }),
+      };
+      const txApiKeyPrisma = {
+        delete: jest.fn().mockResolvedValue(mockApiKey),
+        findFirstOrThrow: jest.fn().mockResolvedValue(mockApiKey),
+      };
+      const tx = {
+        apiKey: txApiKeyPrisma,
+        actor: txActorPrisma,
+      } as unknown as Parameters<typeof service.deleteApiKeyById>[1];
 
       const result = await service.deleteApiKeyById("key-1", tx);
 
       expect(result).toEqual(mockApiKey);
-      expect(txApiKey.delete).toHaveBeenCalled();
-      expect(mockApiKeyPrisma.delete).not.toHaveBeenCalled();
+      expect(txApiKeyPrisma.findFirstOrThrow).toHaveBeenCalledWith({
+        where: { id: "key-1" },
+      });
+      expect(txActorPrisma.findFirstOrThrow).toHaveBeenCalledWith({
+        where: { id: mockApiKey.actor_id },
+      });
+      expect(txActorPrisma.delete).toHaveBeenCalled();
+      expect(txApiKeyPrisma.delete).toHaveBeenCalled();
     });
   });
 

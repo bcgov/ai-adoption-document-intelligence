@@ -10,6 +10,7 @@ import { ClassifierStatus } from "./dto/classifier-constants.dto";
 const mockClassifierDbService = {
   findAllTrainingClassifiers: jest.fn(),
   updateClassifierModel: jest.fn(),
+  systemUpdateClassifierModel: jest.fn(),
 };
 const mockAzureService = {
   checkOperationStatus: jest.fn(),
@@ -96,7 +97,7 @@ describe("ClassifierPollerService", () => {
       });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(
-        mockClassifierDbService.updateClassifierModel,
+        mockClassifierDbService.systemUpdateClassifierModel,
       ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.READY });
       expect(mockBlobService.deleteFilesWithPrefix).toHaveBeenCalledWith(
         "gid/clf",
@@ -110,7 +111,7 @@ describe("ClassifierPollerService", () => {
       });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(
-        mockClassifierDbService.updateClassifierModel,
+        mockClassifierDbService.systemUpdateClassifierModel,
       ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.FAILED });
     });
 
@@ -120,7 +121,7 @@ describe("ClassifierPollerService", () => {
       });
       await (service as any).pollClassifierStatus("clf", "gid", "loc");
       expect(
-        mockClassifierDbService.updateClassifierModel,
+        mockClassifierDbService.systemUpdateClassifierModel,
       ).not.toHaveBeenCalled();
     });
 

@@ -81,34 +81,8 @@ describe("GroundTruthGenerationController", () => {
         datasetId,
         versionId,
         "wf-config-1",
-        "user-1",
       );
       expect(result).toEqual(expected);
-    });
-
-    it("uses anonymous when user sub is missing", async () => {
-      const reqNoUser = {
-        user: {},
-        resolvedIdentity: { userId: "user-1" },
-      } as unknown as Request;
-
-      mockGroundTruthService.startGeneration.mockResolvedValue({
-        jobsCreated: 0,
-      });
-
-      await controller.startGeneration(
-        datasetId,
-        versionId,
-        { workflowConfigId: "wf-1" },
-        reqNoUser,
-      );
-
-      expect(mockGroundTruthService.startGeneration).toHaveBeenCalledWith(
-        datasetId,
-        versionId,
-        "wf-1",
-        "anonymous",
-      );
     });
   });
 

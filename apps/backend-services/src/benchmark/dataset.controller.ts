@@ -81,7 +81,10 @@ export class DatasetController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupIdFrom: { body: "groupId" },
+  })
   @ApiOperation({ summary: "Create a new dataset" })
   @ApiBody({
     type: CreateDatasetDto,
@@ -100,11 +103,10 @@ export class DatasetController {
     @Body() createDto: CreateDatasetDto,
     @Req() req: Request,
   ): Promise<DatasetResponseDto> {
-    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
-
-    identityCanAccessGroup(req.resolvedIdentity, createDto.groupId);
-
-    return this.datasetService.createDataset(createDto, userId);
+    return this.datasetService.createDataset(
+      createDto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get()
@@ -244,9 +246,6 @@ export class DatasetController {
     @Req() req: Request,
   ): Promise<UploadResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
-
-    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
-
     if (!files || files.length === 0) {
       throw new BadRequestException("No files provided for upload");
     }
@@ -264,7 +263,7 @@ export class DatasetController {
       id,
       versionId,
       files,
-      userId,
+      req.resolvedIdentity.actorId,
     );
   }
 
@@ -295,10 +294,11 @@ export class DatasetController {
     @Req() req: Request,
   ): Promise<VersionResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
-
-    const userId = req.user?.sub || req.resolvedIdentity?.userId || "anonymous";
-
-    return this.datasetService.createVersion(id, createDto, userId);
+    return this.datasetService.createVersion(
+      id,
+      createDto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get(":id/versions")

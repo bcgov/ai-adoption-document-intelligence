@@ -59,12 +59,10 @@ export class GroundTruthGenerationController {
     @Req() req: Request,
   ) {
     await this.assertDatasetGroupAccess(datasetId, req);
-    const userId = req.user?.sub || "anonymous";
     return this.groundTruthGenerationService.startGeneration(
       datasetId,
       versionId,
       dto.workflowConfigId,
-      userId,
     );
   }
 

@@ -132,9 +132,14 @@ describe("ClassifierDbService", () => {
       };
       mockPrisma.classifierModel.update.mockResolvedValueOnce(expected);
 
-      await service.updateClassifierModel("clf1", "g1", {
-        status: ClassifierStatus.READY,
-      });
+      await service.updateClassifierModel(
+        "clf1",
+        "g1",
+        {
+          status: ClassifierStatus.READY,
+        },
+        undefined,
+      );
 
       expect(mockPrisma.classifierModel.update).toHaveBeenCalledWith({
         where: {
@@ -153,7 +158,7 @@ describe("ClassifierDbService", () => {
       );
 
       await expect(
-        service.updateClassifierModel("clf1", "g1", {}),
+        service.updateClassifierModel("clf1", "g1", {}, "actor-1"),
       ).rejects.toThrow("Prisma error");
     });
   });

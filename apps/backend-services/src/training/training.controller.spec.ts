@@ -155,7 +155,6 @@ describe("TrainingController", () => {
       expect(trainingService.startTraining).toHaveBeenCalledWith(
         "project-1",
         dto,
-        "user-from-id",
       );
     });
 
@@ -174,7 +173,6 @@ describe("TrainingController", () => {
       expect(trainingService.startTraining).toHaveBeenCalledWith(
         "project-1",
         dto,
-        "unknown",
       );
     });
 
@@ -185,6 +183,7 @@ describe("TrainingController", () => {
           userId: "user-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
+          adminId: "admin-1",
         },
       } as unknown as Request;
       labelingService.getProject.mockResolvedValue(mockProject as any);
@@ -194,7 +193,6 @@ describe("TrainingController", () => {
       expect(trainingService.startTraining).toHaveBeenCalledWith(
         "project-1",
         dto,
-        "user-1",
       );
     });
 

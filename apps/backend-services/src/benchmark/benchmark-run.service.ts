@@ -17,6 +17,7 @@ import {
 } from "@nestjs/common";
 import { execSync } from "child_process";
 import { createHash } from "crypto";
+import { ResolvedIdentity } from "@/auth/types";
 import { AuditLogDbService } from "./audit-log-db.service";
 import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
@@ -81,10 +82,11 @@ export class BenchmarkRunService {
     runId: string,
     action: "run_started" | "run_completed" | "baseline_promoted",
     metadata: Record<string, unknown>,
+    identity: ResolvedIdentity,
   ): Promise<void> {
     try {
       await this.auditLogDbService.createAuditLog({
-        userId: "system", // TODO: Get from auth context when available
+        actorId: identity.actorId,
         action: action as AuditAction,
         entityType: "BenchmarkRun",
         entityId: runId,
@@ -110,6 +112,7 @@ export class BenchmarkRunService {
     projectId: string,
     definitionId: string,
     dto: CreateRunDto,
+    identity: ResolvedIdentity,
   ): Promise<RunDetailsDto> {
     this.logger.log(
       `Starting benchmark run for project ${projectId}, definition ${definitionId}`,
@@ -252,10 +255,15 @@ export class BenchmarkRunService {
     }
 
     // Create audit log
-    await this.createAuditLog(run.id, "run_started", {
-      definitionId,
-      temporalWorkflowId,
-    });
+    await this.createAuditLog(
+      run.id,
+      "run_started",
+      {
+        definitionId,
+        temporalWorkflowId,
+      },
+      identity,
+    );
 
     // Return the updated run
     return this.getRunById(projectId, run.id);
@@ -577,6 +585,7 @@ export class BenchmarkRunService {
     projectId: string,
     runId: string,
     dto: PromoteBaselineDto,
+    identity: ResolvedIdentity,
   ): Promise<PromoteBaselineResponseDto> {
     this.logger.log(`Promoting run ${runId} to baseline`);
 
@@ -620,12 +629,17 @@ export class BenchmarkRunService {
     });
 
     // Create audit log
-    await this.createAuditLog(runId, "baseline_promoted", {
-      definitionId: run.definitionId,
-      projectId: run.projectId,
-      previousBaselineId: previousBaseline?.id || null,
-      thresholds: dto.thresholds || null,
-    });
+    await this.createAuditLog(
+      runId,
+      "baseline_promoted",
+      {
+        definitionId: run.definitionId,
+        projectId: run.projectId,
+        previousBaselineId: previousBaseline?.id || null,
+        thresholds: dto.thresholds || null,
+      },
+      identity,
+    );
 
     this.logger.log(`Run ${runId} promoted to baseline`);
 

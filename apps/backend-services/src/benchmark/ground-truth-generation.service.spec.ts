@@ -164,7 +164,6 @@ describe("GroundTruthGenerationService", () => {
     const datasetId = "dataset-1";
     const versionId = "version-1";
     const workflowConfigId = "workflow-1";
-    const userId = "user-1";
 
     it("should throw NotFoundException if version not found", async () => {
       mockGroundTruthJobDbService.findVersionForValidation.mockResolvedValue(
@@ -172,7 +171,7 @@ describe("GroundTruthGenerationService", () => {
       );
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId, userId),
+        service.startGeneration(datasetId, versionId, workflowConfigId),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -184,7 +183,7 @@ describe("GroundTruthGenerationService", () => {
       });
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId, userId),
+        service.startGeneration(datasetId, versionId, workflowConfigId),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -196,7 +195,7 @@ describe("GroundTruthGenerationService", () => {
       });
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId, userId),
+        service.startGeneration(datasetId, versionId, workflowConfigId),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -209,7 +208,7 @@ describe("GroundTruthGenerationService", () => {
       mockGroundTruthJobDbService.findWorkflow.mockResolvedValue(null);
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId, userId),
+        service.startGeneration(datasetId, versionId, workflowConfigId),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -253,7 +252,6 @@ describe("GroundTruthGenerationService", () => {
         datasetId,
         versionId,
         workflowConfigId,
-        userId,
       );
 
       expect(result.jobCount).toBe(2);
@@ -295,7 +293,7 @@ describe("GroundTruthGenerationService", () => {
       );
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId, userId),
+        service.startGeneration(datasetId, versionId, workflowConfigId),
       ).rejects.toThrow(BadRequestException);
     });
   });

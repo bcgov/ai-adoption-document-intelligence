@@ -83,45 +83,48 @@ export class BootstrapService {
       );
     }
 
-    // Promote user to system admin
-    await this.prismaService.prisma.user.update({
-      where: { id: userId },
-      data: { is_system_admin: true },
-    });
+    const { user, group } = await this.prismaService.transaction(async (tx) => {
+      // Promote user to system admin
+      const user = await tx.user.update({
+        where: { id: userId },
+        data: { is_system_admin: true },
+      });
 
-    // Create "Default" group
-    const group = await this.prismaService.prisma.group.create({
-      data: {
-        name: "Default",
-        description: "Initial group created during system setup",
-        created_by: userId,
-      },
-    });
+      // Create "Default" group
+      const group = await tx.group.create({
+        data: {
+          name: "Default",
+          description: "Initial group created during system setup",
+          created_by: user.actor_id,
+        },
+      });
 
-    // Assign user as group admin
-    await this.prismaService.prisma.userGroup.create({
-      data: {
-        user_id: userId,
+      // Assign user as group admin
+      await tx.userGroup.create({
+        data: {
+          user_id: userId,
+          group_id: group.id,
+          role: GroupRole.ADMIN,
+        },
+      });
+
+      await this.auditService.recordEvent({
+        event_type: "system_bootstrap",
+        resource_type: "system",
+        resource_id: "bootstrap",
+        actor_id: user.actor_id,
         group_id: group.id,
-        role: GroupRole.ADMIN,
-      },
-    });
-
-    await this.auditService.recordEvent({
-      event_type: "system_bootstrap",
-      resource_type: "system",
-      resource_id: "bootstrap",
-      actor_id: userId,
-      group_id: group.id,
-      payload: {
-        user_email: userEmail,
-        group_name: group.name,
-      },
+        payload: {
+          user_email: userEmail,
+          group_name: group.name,
+        },
+      });
+      return { user, group };
     });
 
     this.logger.log("System bootstrap completed", {
-      userId,
-      userEmail,
+      user: user.id,
+      userEmail: user.email,
       groupId: group.id,
       groupName: group.name,
     });

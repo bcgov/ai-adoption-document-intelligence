@@ -50,12 +50,12 @@ export class LabelingService {
     return this.labelingProjectDb.findAllLabelingProjects(groupIds);
   }
 
-  async createProject(dto: CreateProjectDto, userId: string) {
+  async createProject(dto: CreateProjectDto, actorId: string) {
     this.logger.debug(`Creating project: ${dto.name}`);
     return this.labelingProjectDb.createLabelingProject({
       name: dto.name,
       description: dto.description,
-      created_by: userId,
+      created_by: actorId,
       group_id: dto.group_id,
     });
   }

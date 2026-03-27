@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "async_hooks";
 
 export interface RequestContextData {
   requestId: string;
+  actorId?: string;
   userId?: string;
   sessionId?: string;
   apiKeyId?: string;

@@ -9,7 +9,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
-import { ApiKeyService } from "../api-key/api-key.service";
+import { ApiKeyService } from "@/actor/api-key.service";
 import {
   API_KEY_FAILED_WINDOW_MS,
   API_KEY_MAX_FAILED_ATTEMPTS,

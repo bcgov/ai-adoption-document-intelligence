@@ -29,7 +29,7 @@ import {
   GenerateApiKeyRequestDto,
   GeneratedApiKeyDto,
   GeneratedApiKeyWrapperDto,
-} from "@/api-key/dto/api-key-info.dto";
+} from "@/actor/dto/api-key-info.dto";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { GroupRole } from "@/generated";
@@ -85,10 +85,7 @@ export class ApiKeyController {
         "User ID is required to generate an API key",
       );
     }
-    const apiKey = await this.apiKeyService.generateApiKey(
-      userId,
-      body.groupId,
-    );
+    const apiKey = await this.apiKeyService.createApiKey(userId, body.groupId);
     return { apiKey };
   }
 

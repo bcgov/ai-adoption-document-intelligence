@@ -134,7 +134,7 @@ export class HitlDatasetService {
    */
   async createDatasetFromHitl(
     dto: CreateDatasetFromHitlDto,
-    userId: string,
+    actorId: string,
   ): Promise<{
     dataset: DatasetResponseDto;
     version: VersionResponseDto;
@@ -152,14 +152,14 @@ export class HitlDatasetService {
         metadata: { ...dto.metadata, source: "hitl" },
         groupId: dto.groupId,
       },
-      userId,
+      actorId,
     );
 
     // Create version and package documents
     const { version, skipped } = await this.packageDocumentsIntoVersion(
       dataset.id,
       dto.documentIds,
-      userId,
+      actorId,
     );
 
     return { dataset, version, skipped };
@@ -171,7 +171,7 @@ export class HitlDatasetService {
   async addVersionFromHitl(
     datasetId: string,
     dto: AddVersionFromHitlDto,
-    userId: string,
+    actorId: string,
   ): Promise<{ version: VersionResponseDto; skipped: SkippedDocument[] }> {
     this.logger.log(
       `Adding HITL version to dataset ${datasetId} from ${dto.documentIds.length} documents`,
@@ -180,7 +180,7 @@ export class HitlDatasetService {
     return this.packageDocumentsIntoVersion(
       datasetId,
       dto.documentIds,
-      userId,
+      actorId,
       dto.version,
       dto.name,
     );
@@ -192,7 +192,7 @@ export class HitlDatasetService {
   private async packageDocumentsIntoVersion(
     datasetId: string,
     documentIds: string[],
-    userId: string,
+    actorId: string,
     versionLabel?: string,
     versionName?: string,
   ): Promise<{ version: VersionResponseDto; skipped: SkippedDocument[] }> {
@@ -212,7 +212,7 @@ export class HitlDatasetService {
         version: versionLabel,
         name: versionName,
       },
-      userId,
+      actorId,
     );
 
     const storagePrefix = `datasets/${datasetId}/${version.id}`;
@@ -280,7 +280,7 @@ export class HitlDatasetService {
 
     // Audit log
     await this.auditLogService.logVersionPublished(
-      userId,
+      actorId,
       version.id,
       datasetId,
       {

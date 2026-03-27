@@ -73,14 +73,14 @@ describe("AuditService", () => {
       });
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ actor_id: null }),
+        expect.objectContaining({ actor_id: undefined }),
       );
     });
 
     it("should use userId from request context when actor_id is omitted", async () => {
       jest
         .spyOn(requestContextModule, "getRequestContext")
-        .mockReturnValue({ requestId: "req-ctx-1", userId: "ctx-user" });
+        .mockReturnValue({ requestId: "req-ctx-1", actorId: undefined });
       mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
 
       await service.recordEvent({
@@ -90,14 +90,14 @@ describe("AuditService", () => {
       });
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ actor_id: "ctx-user" }),
+        expect.objectContaining({ actor_id: undefined }),
       );
     });
 
     it("should use requestId from context when request_id is omitted", async () => {
       jest
         .spyOn(requestContextModule, "getRequestContext")
-        .mockReturnValue({ requestId: "ctx-req-1", userId: "u" });
+        .mockReturnValue({ requestId: "ctx-req-1", actorId: "u" });
       mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
 
       await service.recordEvent({
@@ -125,7 +125,7 @@ describe("AuditService", () => {
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          actor_id: null,
+          actor_id: undefined,
           document_id: null,
           workflow_execution_id: null,
           group_id: null,

@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Test, TestingModule } from "@nestjs/testing";
-import { ApiKeyService } from "../api-key/api-key.service";
+import { ApiKeyService } from "../actor/api-key.service";
 import { ApiKeyAuthGuard } from "./api-key-auth.guard";
 
 describe("ApiKeyAuthGuard", () => {
@@ -134,6 +134,7 @@ describe("ApiKeyAuthGuard", () => {
     mockApiKeyService.validateApiKey.mockResolvedValue({
       groupId: "group-abc",
       keyPrefix: "aBcDeFgH",
+      actorId: "actor-1",
     });
 
     const mockRequest: Record<string, unknown> = {
@@ -155,6 +156,7 @@ describe("ApiKeyAuthGuard", () => {
     expect(mockRequest.apiKey).toEqual({
       groupId: "group-abc",
       keyPrefix: "aBcDeFgH",
+      actorId: "actor-1",
     });
   });
 

@@ -58,9 +58,9 @@ export class DatasetService {
    */
   async createDataset(
     createDto: CreateDatasetDto,
-    userId: string,
+    actorId: string,
   ): Promise<DatasetResponseDto> {
-    this.logger.log(`Creating dataset: ${createDto.name} for user ${userId}`);
+    this.logger.log(`Creating dataset: ${createDto.name} for user ${actorId}`);
 
     if (!createDto.name) {
       throw new BadRequestException("Dataset name is required");
@@ -73,7 +73,7 @@ export class DatasetService {
         description: createDto.description || null,
         metadata: (createDto.metadata || {}) as Prisma.JsonValue,
         storagePath: "", // Will be set after we have the ID
-        createdBy: userId,
+        createdBy: actorId,
         group_id: createDto.groupId,
       });
 
@@ -83,7 +83,7 @@ export class DatasetService {
 
       // Create audit log entry
       await this.auditLogDbService.createAuditLog({
-        userId: userId,
+        actorId: actorId,
         action: AuditAction.dataset_created,
         entityType: "Dataset",
         entityId: dataset.id,
@@ -231,7 +231,7 @@ export class DatasetService {
   async createVersion(
     datasetId: string,
     createDto: CreateVersionDto,
-    userId: string,
+    actorId: string, // TODO: Why isn't this used?
   ): Promise<VersionResponseDto> {
     const dataset = await this.datasetDbService.findDataset(datasetId);
 
@@ -374,7 +374,7 @@ export class DatasetService {
       buffer: Buffer;
       size: number;
     }>,
-    userId: string,
+    actorId: string, // TODO: Why isn't this used?
   ): Promise<UploadResponseDto> {
     this.logger.log(
       `Uploading ${files.length} files to dataset ${datasetId}, version ${versionId}`,

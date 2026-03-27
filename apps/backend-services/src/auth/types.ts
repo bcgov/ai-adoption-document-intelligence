@@ -26,8 +26,9 @@ export interface User {
  */
 export interface ResolvedIdentity {
   userId?: string;
-  isSystemAdmin?: boolean;
-  groupRoles?: Record<string, GroupRole>;
+  isSystemAdmin: boolean;
+  groupRoles: Record<string, GroupRole>;
+  actorId: string;
 }
 
 /**
@@ -38,6 +39,7 @@ export interface ResolvedIdentity {
 export interface ValidatedApiKey {
   groupId: string;
   keyPrefix: string;
+  actorId: string;
 }
 
 declare module "express" {

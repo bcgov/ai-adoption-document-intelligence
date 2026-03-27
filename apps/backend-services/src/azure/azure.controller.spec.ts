@@ -23,6 +23,8 @@ describe("AzureController", () => {
       groupRoles: Object.fromEntries(
         groups.map((g) => [g, GroupRole.MEMBER]),
       ) as Record<string, GroupRole>,
+      actorId: "actor-1",
+      isSystemAdmin: false,
     },
   });
 
@@ -484,7 +486,7 @@ describe("AzureController", () => {
         "c1",
         "g1",
         { description: "new desc" },
-        "user1",
+        "actor-1",
       );
     });
     it("should throw NotFoundException if classifier does not exist", async () => {

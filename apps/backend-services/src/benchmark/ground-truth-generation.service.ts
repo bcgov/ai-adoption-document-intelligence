@@ -65,7 +65,6 @@ export class GroundTruthGenerationService {
     datasetId: string,
     versionId: string,
     workflowConfigId: string,
-    userId: string,
   ): Promise<StartGroundTruthGenerationResponseDto> {
     // Validate version exists and is not frozen
     const version = await this.groundTruthJobDbService.findVersionForValidation(
@@ -416,7 +415,7 @@ export class GroundTruthGenerationService {
           lastSession: lastSession
             ? {
                 id: lastSession.id,
-                reviewer_id: lastSession.reviewer_id,
+                reviewer_id: lastSession.actor_id,
                 status: lastSession.status,
                 completed_at: lastSession.completed_at,
                 corrections_count: lastSession.corrections?.length || 0,

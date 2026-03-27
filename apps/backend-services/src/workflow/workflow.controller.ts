@@ -91,10 +91,10 @@ export class WorkflowController {
     @Param("id") id: string,
     @Req() req: Request,
   ): Promise<{ workflow: WorkflowInfo }> {
-    const user = req.user;
-    const userId = user?.sub as string;
-
-    const workflow = await this.workflowService.getWorkflow(id, userId);
+    const workflow = await this.workflowService.getWorkflow(
+      id,
+      req.resolvedIdentity.actorId,
+    );
 
     identityCanAccessGroup(req.resolvedIdentity, workflow.groupId);
 
@@ -125,10 +125,10 @@ export class WorkflowController {
     @Body() dto: CreateWorkflowDto,
     @Req() req: Request,
   ): Promise<{ workflow: WorkflowInfo }> {
-    const user = req.user;
-    const userId = user?.sub as string;
-
-    const workflow = await this.workflowService.createWorkflow(userId, dto);
+    const workflow = await this.workflowService.createWorkflow(
+      req.resolvedIdentity.actorId,
+      dto,
+    );
     return { workflow };
   }
 
@@ -155,14 +155,16 @@ export class WorkflowController {
     @Body() dto: Partial<CreateWorkflowDto>,
     @Req() req: Request,
   ): Promise<{ workflow: WorkflowInfo }> {
-    const user = req.user;
-    const userId = user?.sub as string;
-
-    const existing = await this.workflowService.getWorkflow(id, userId);
+    const actorId = req.resolvedIdentity.actorId;
+    const existing = await this.workflowService.getWorkflow(id, actorId);
 
     identityCanAccessGroup(req.resolvedIdentity, existing.groupId);
 
-    const workflow = await this.workflowService.updateWorkflow(id, userId, dto);
+    const workflow = await this.workflowService.updateWorkflow(
+      id,
+      actorId,
+      dto,
+    );
     return { workflow };
   }
 
@@ -178,13 +180,11 @@ export class WorkflowController {
     @Param("id") id: string,
     @Req() req: Request,
   ): Promise<void> {
-    const user = req.user;
-    const userId = user?.sub as string;
-
-    const existing = await this.workflowService.getWorkflow(id, userId);
+    const actorId = req.resolvedIdentity.actorId;
+    const existing = await this.workflowService.getWorkflow(id, actorId);
 
     identityCanAccessGroup(req.resolvedIdentity, existing.groupId);
 
-    await this.workflowService.deleteWorkflow(id, userId);
+    await this.workflowService.deleteWorkflow(id, actorId);
   }
 }

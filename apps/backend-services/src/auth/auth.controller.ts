@@ -39,6 +39,7 @@ import {
   setAuthCookies,
 } from "./cookie-auth.utils";
 import { MeResponseDto, OAuthCallbackQueryDto, RefreshReturnDto } from "./dto";
+import { Identity } from "./identity.decorator";
 import { Public } from "./public.decorator";
 import { User } from "./types";
 
@@ -279,6 +280,7 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({ description: "Invalid token" })
+  @Identity({ allowApiKey: false })
   async getMe(@Req() req: Request): Promise<MeResponseDto> {
     const user = req.user as User;
     const now = Math.floor(Date.now() / 1000);

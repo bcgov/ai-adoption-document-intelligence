@@ -33,7 +33,7 @@ describe("AuditLogService", () => {
       const mockLog = {
         id: "log-1",
         timestamp: new Date(),
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.dataset_created,
         entityType: "Dataset",
         entityId: "dataset-1",
@@ -48,7 +48,7 @@ describe("AuditLogService", () => {
 
       expect(result).toEqual(mockLog);
       expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.dataset_created,
         entityType: "Dataset",
         entityId: "dataset-1",
@@ -62,7 +62,7 @@ describe("AuditLogService", () => {
       const mockLog = {
         id: "log-2",
         timestamp: new Date(),
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.version_published,
         entityType: "DatasetVersion",
         entityId: "version-1",
@@ -79,7 +79,7 @@ describe("AuditLogService", () => {
 
       expect(result).toEqual(mockLog);
       expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.version_published,
         entityType: "DatasetVersion",
         entityId: "version-1",
@@ -96,7 +96,7 @@ describe("AuditLogService", () => {
       const mockLog = {
         id: "log-3",
         timestamp: new Date(),
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.run_started,
         entityType: "BenchmarkRun",
         entityId: "run-1",
@@ -114,7 +114,7 @@ describe("AuditLogService", () => {
 
       expect(result).toEqual(mockLog);
       expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.run_started,
         entityType: "BenchmarkRun",
         entityId: "run-1",
@@ -131,7 +131,7 @@ describe("AuditLogService", () => {
       const mockLog = {
         id: "log-4",
         timestamp: new Date(),
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.run_completed,
         entityType: "BenchmarkRun",
         entityId: "run-1",
@@ -155,7 +155,7 @@ describe("AuditLogService", () => {
 
       expect(result).toEqual(mockLog);
       expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.run_completed,
         entityType: "BenchmarkRun",
         entityId: "run-1",
@@ -172,7 +172,7 @@ describe("AuditLogService", () => {
       const mockLog = {
         id: "log-5",
         timestamp: new Date(),
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.baseline_promoted,
         entityType: "BenchmarkRun",
         entityId: "run-1",
@@ -189,7 +189,7 @@ describe("AuditLogService", () => {
 
       expect(result).toEqual(mockLog);
       expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.baseline_promoted,
         entityType: "BenchmarkRun",
         entityId: "run-1",
@@ -206,7 +206,7 @@ describe("AuditLogService", () => {
         {
           id: "log-1",
           timestamp: new Date(),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.dataset_created,
           entityType: "Dataset",
           entityId: "dataset-1",
@@ -230,7 +230,7 @@ describe("AuditLogService", () => {
         {
           id: "log-1",
           timestamp: new Date(),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.run_started,
           entityType: "BenchmarkRun",
           entityId: "run-1",
@@ -254,7 +254,7 @@ describe("AuditLogService", () => {
         {
           id: "log-1",
           timestamp: new Date(),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.version_published,
           entityType: "DatasetVersion",
           entityId: "version-1",
@@ -282,7 +282,7 @@ describe("AuditLogService", () => {
         {
           id: "log-1",
           timestamp: new Date("2026-02-10"),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.run_started,
           entityType: "BenchmarkRun",
           entityId: "run-1",
@@ -307,7 +307,7 @@ describe("AuditLogService", () => {
         {
           id: "log-1",
           timestamp: new Date("2026-02-10"),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.run_started,
           entityType: "BenchmarkRun",
           entityId: "run-1",
@@ -340,7 +340,7 @@ describe("AuditLogService", () => {
         {
           id: "log-1",
           timestamp: new Date("2026-02-10T10:00:00"),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.run_started,
           entityType: "BenchmarkRun",
           entityId: "run-1",
@@ -349,7 +349,7 @@ describe("AuditLogService", () => {
         {
           id: "log-2",
           timestamp: new Date("2026-02-10T11:00:00"),
-          userId: "user-1",
+          actorId: "user-1",
           action: AuditAction.run_completed,
           entityType: "BenchmarkRun",
           entityId: "run-1",

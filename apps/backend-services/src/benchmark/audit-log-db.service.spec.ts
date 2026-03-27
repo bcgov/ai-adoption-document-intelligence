@@ -33,7 +33,7 @@ describe("AuditLogDbService", () => {
       const mockLog = {
         id: "log-1",
         timestamp: new Date(),
-        userId: "user-1",
+        actor_id: "user-1",
         action: AuditAction.dataset_created,
         entityType: "Dataset",
         entityId: "dataset-1",
@@ -43,7 +43,7 @@ describe("AuditLogDbService", () => {
       mockPrismaClient.benchmarkAuditLog.create.mockResolvedValue(mockLog);
 
       const result = await service.createAuditLog({
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.dataset_created,
         entityType: "Dataset",
         entityId: "dataset-1",
@@ -53,7 +53,7 @@ describe("AuditLogDbService", () => {
       expect(result).toEqual(mockLog);
       expect(mockPrismaClient.benchmarkAuditLog.create).toHaveBeenCalledWith({
         data: {
-          userId: "user-1",
+          actor_id: "user-1",
           action: AuditAction.dataset_created,
           entityType: "Dataset",
           entityId: "dataset-1",
@@ -67,7 +67,7 @@ describe("AuditLogDbService", () => {
       const mockLog = {
         id: "log-2",
         timestamp: ts,
-        userId: "user-1",
+        actor_id: "user-1",
         action: AuditAction.run_started,
         entityType: "BenchmarkRun",
         entityId: "run-1",
@@ -77,7 +77,7 @@ describe("AuditLogDbService", () => {
       mockPrismaClient.benchmarkAuditLog.create.mockResolvedValue(mockLog);
 
       await service.createAuditLog({
-        userId: "user-1",
+        actorId: "user-1",
         action: AuditAction.run_started,
         entityType: "BenchmarkRun",
         entityId: "run-1",

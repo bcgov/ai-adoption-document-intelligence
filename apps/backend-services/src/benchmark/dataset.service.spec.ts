@@ -282,8 +282,10 @@ describe("DatasetService", () => {
 
       const result = await service.createVersion(
         "dataset-1",
-        { version: "1.0.0" },
-        "user-1",
+        {
+          version: "1.0.0",
+        },
+        "actor-1",
       );
 
       expect(result.id).toBe("version-1");
@@ -295,7 +297,7 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDataset.mockResolvedValue(null);
 
       await expect(
-        service.createVersion("nonexistent", { version: "1.0.0" }, "user-1"),
+        service.createVersion("nonexistent", { version: "1.0.0" }, "actor-1"),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -420,7 +422,7 @@ describe("DatasetService", () => {
         "dataset-1",
         "version-1",
         mockFiles,
-        "user-1",
+        "actor-1",
       );
 
       // Verify files were uploaded to blob storage
@@ -451,7 +453,7 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDataset.mockResolvedValue(null);
 
       await expect(
-        service.uploadFilesToVersion("nonexistent", "v1", mockFiles, "user-1"),
+        service.uploadFilesToVersion("nonexistent", "v1", mockFiles, "actor-1"),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -464,7 +466,7 @@ describe("DatasetService", () => {
           "dataset-1",
           "nonexistent",
           mockFiles,
-          "user-1",
+          "actor-1",
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -481,7 +483,7 @@ describe("DatasetService", () => {
           "dataset-1",
           "version-1",
           mockFiles,
-          "user-1",
+          "actor-1",
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -1674,7 +1676,7 @@ describe("DatasetService", () => {
               size: 4,
             },
           ],
-          "user-1",
+          "actor-1",
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -1701,7 +1703,7 @@ describe("DatasetService", () => {
               size: 4,
             },
           ],
-          "user-1",
+          "actor-1",
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -1742,7 +1744,7 @@ describe("DatasetService", () => {
         "dataset-1",
         "version-1",
         dupeFiles,
-        "user-1",
+        "actor-1",
       );
 
       const filenames = result.uploadedFiles.map(

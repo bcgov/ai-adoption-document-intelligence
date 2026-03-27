@@ -9,6 +9,13 @@ export interface CreateApiKeyData {
   group_id: string;
 }
 
+export interface UpdateApiKeyData {
+  key_hash: string;
+  key_prefix: string;
+  generating_user_id: string;
+  group_id: string;
+}
+
 /**
  * Database service for ApiKey operations within the ApiKey module.
  */
@@ -72,8 +79,33 @@ export class ApiKeyDbService {
     data: CreateApiKeyData,
     tx?: Prisma.TransactionClient,
   ): Promise<ApiKey> {
+    const apiKeyHelper = async (tx: Prisma.TransactionClient) => {
+      const actor = await tx.actor.create({});
+      return await tx.apiKey.create({
+        data: {
+          ...data,
+          actor_id: actor.id,
+        },
+      });
+    };
+    return tx
+      ? await apiKeyHelper(tx)
+      : await this.prisma.$transaction(async (tx) => await apiKeyHelper(tx));
+  }
+
+  async updateApiKey(
+    data: UpdateApiKeyData,
+    tx?: Prisma.TransactionClient,
+  ): Promise<ApiKey> {
     const client = tx ?? this.prisma;
-    return client.apiKey.create({ data });
+    return client.apiKey.update({
+      where: { group_id: data.group_id },
+      data: {
+        generating_user_id: data.generating_user_id,
+        key_hash: data.key_hash,
+        key_prefix: data.key_prefix,
+      },
+    });
   }
 
   /**
@@ -99,8 +131,20 @@ export class ApiKeyDbService {
     id: string,
     tx?: Prisma.TransactionClient,
   ): Promise<ApiKey> {
-    const client = tx ?? this.prisma;
-    return client.apiKey.delete({ where: { id } });
+    const deleteKeyHelper = async (tx: Prisma.TransactionClient) => {
+      const existingKey = await tx.apiKey.findFirstOrThrow({
+        where: { id: id },
+      });
+      const actor = await tx.actor.findFirstOrThrow({
+        where: { id: existingKey.actor_id },
+      });
+      const keyDeleteResult = await tx.apiKey.delete({ where: { id } });
+      await tx.actor.delete({ where: { id: actor.id } });
+      return keyDeleteResult;
+    };
+    return tx
+      ? await deleteKeyHelper(tx)
+      : await this.prisma.$transaction(async (tx) => await deleteKeyHelper(tx));
   }
 
   /**

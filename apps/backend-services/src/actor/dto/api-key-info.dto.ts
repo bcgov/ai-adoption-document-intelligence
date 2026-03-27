@@ -30,6 +30,9 @@ export class ApiKeyInfoDto {
   groupId: string;
 
   @ApiProperty()
+  actorId: string;
+
+  @ApiProperty()
   createdAt: Date;
 
   @ApiProperty({ type: Date, nullable: true })

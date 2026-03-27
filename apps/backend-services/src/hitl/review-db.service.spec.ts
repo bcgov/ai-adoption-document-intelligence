@@ -103,7 +103,7 @@ describe("ReviewDbService", () => {
       expect(mockReviewSession.create).toHaveBeenCalledWith({
         data: {
           document_id: "doc-1",
-          reviewer_id: "reviewer-1",
+          actor_id: "reviewer-1",
           status: ReviewStatus.in_progress,
         },
         include: {
@@ -382,7 +382,7 @@ describe("ReviewDbService", () => {
       await service.getReviewAnalytics({ reviewerId: "reviewer-1" });
 
       expect(mockReviewSession.findMany).toHaveBeenCalledWith({
-        where: expect.objectContaining({ reviewer_id: "reviewer-1" }),
+        where: expect.objectContaining({ actor_id: "reviewer-1" }),
       });
     });
 

@@ -19,7 +19,7 @@ export interface LogContext {
   clientIp?: string;
   workflowExecutionId?: string;
   documentId?: string;
-  userId?: string;
+  actorId?: string;
   activity?: string;
   event?: string;
   durationMs?: number;

@@ -158,7 +158,7 @@ describe("LabelingController", () => {
 
     it("throws ForbiddenException when group_id is provided and user is not a member", async () => {
       const req = {
-        resolvedIdentity: { userId: "user-1" },
+        resolvedIdentity: { userId: "user-1", groupRoles: {} },
       } as Request;
       await expect(controller.getProjects(req, "group-1")).rejects.toThrow(
         ForbiddenException,
@@ -179,12 +179,16 @@ describe("LabelingController", () => {
         resolvedIdentity: {
           userId: "user-1",
           groupRoles: { "group-1": GroupRole.MEMBER },
+          actorId: "actor-1",
         },
       } as unknown as Request;
       labelingService.createProject.mockResolvedValue(mockProject as any);
       const result = await controller.createProject(dto, req);
       expect(result).toEqual(mockProject);
-      expect(labelingService.createProject).toHaveBeenCalledWith(dto, "user-1");
+      expect(labelingService.createProject).toHaveBeenCalledWith(
+        dto,
+        "actor-1",
+      );
     });
   });
 

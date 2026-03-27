@@ -104,9 +104,10 @@ export class LabelingController {
     type: LabelingProjectResponseDto,
   })
   async createProject(@Body() dto: CreateProjectDto, @Req() req: Request) {
-    const userId =
-      req.user?.sub || (req.user as { id?: string })?.id || "anonymous";
-    return this.labelingService.createProject(dto, userId);
+    return this.labelingService.createProject(
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get("projects/:id")
