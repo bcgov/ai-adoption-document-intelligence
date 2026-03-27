@@ -26,7 +26,8 @@ ALTER TABLE "group" DROP CONSTRAINT "group_deleted_by_fkey";
 ALTER TABLE "group" DROP CONSTRAINT "group_updated_by_fkey";
 
 -- DropForeignKey
-ALTER TABLE "labeling_projects" DROP CONSTRAINT "labeling_projects_created_by_fkey";
+ALTER TABLE "template_models" DROP CONSTRAINT IF EXISTS "labeling_projects_created_by_fkey";
+ALTER TABLE "template_models" DROP CONSTRAINT IF EXISTS "template_models_created_by_fkey";
 
 -- DropForeignKey
 ALTER TABLE "workflows" DROP CONSTRAINT "workflows_user_id_fkey";
@@ -56,7 +57,7 @@ CREATE INDEX "benchmark_audit_logs_actor_id_idx" ON "benchmark_audit_logs"("acto
 ALTER TABLE "workflows" ADD CONSTRAINT "workflows_actor_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "actor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "labeling_projects" ADD CONSTRAINT "labeling_projects_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "actor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "template_models" ADD CONSTRAINT "template_models_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "actor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "classifier_model" ADD CONSTRAINT "classifier_model_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "actor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
