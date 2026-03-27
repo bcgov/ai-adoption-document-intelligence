@@ -17,6 +17,7 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 import { computeConfigHash } from "@/workflow/config-hash";
+import { validateGraphConfig } from "@/workflow/graph-schema-validator";
 import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import {
@@ -110,14 +111,15 @@ export class BenchmarkDefinitionService {
       }
     }
 
-    // Validate that the workflow exists
-    const workflow = await this.prisma.workflow.findUnique({
-      where: { id: dto.workflowId },
+    // Validate that the workflow version exists
+    const workflowVersion = await this.prisma.workflowVersion.findUnique({
+      where: { id: dto.workflowVersionId },
+      include: { lineage: true },
     });
 
-    if (!workflow) {
+    if (!workflowVersion) {
       throw new BadRequestException(
-        `Workflow with ID "${dto.workflowId}" does not exist`,
+        `Workflow version with ID "${dto.workflowVersionId}" does not exist`,
       );
     }
 
@@ -130,7 +132,7 @@ export class BenchmarkDefinitionService {
 
     // Compute workflow config hash
     const workflowConfigHash = computeConfigHash(
-      workflow.config as GraphWorkflowConfig,
+      workflowVersion.config as GraphWorkflowConfig,
     );
 
     // Create the definition
@@ -140,7 +142,7 @@ export class BenchmarkDefinitionService {
         name: dto.name,
         datasetVersionId: dto.datasetVersionId,
         splitId: dto.splitId || null,
-        workflowId: dto.workflowId,
+        workflowVersionId: dto.workflowVersionId,
         workflowConfigHash,
         evaluatorType: dto.evaluatorType,
         evaluatorConfig: dto.evaluatorConfig as Prisma.InputJsonValue,
@@ -159,7 +161,7 @@ export class BenchmarkDefinitionService {
           },
         },
         split: true,
-        workflow: true,
+        workflowVersion: { include: { lineage: true } },
         benchmarkRuns: {
           select: {
             id: true,
@@ -209,7 +211,7 @@ export class BenchmarkDefinitionService {
             },
           },
         },
-        workflow: true,
+        workflowVersion: { include: { lineage: true } },
       },
       orderBy: {
         createdAt: "desc",
@@ -242,7 +244,7 @@ export class BenchmarkDefinitionService {
           },
         },
         split: true,
-        workflow: true,
+        workflowVersion: { include: { lineage: true } },
         benchmarkRuns: {
           select: {
             id: true,
@@ -319,7 +321,7 @@ export class BenchmarkDefinitionService {
           },
         },
         split: true,
-        workflow: true,
+        workflowVersion: { include: { lineage: true } },
       },
     });
 
@@ -364,20 +366,20 @@ export class BenchmarkDefinitionService {
     }
 
     let workflowConfigHash = existing.workflowConfigHash;
-    if (dto.workflowId) {
-      const workflow = await this.prisma.workflow.findUnique({
-        where: { id: dto.workflowId },
+    if (dto.workflowVersionId) {
+      const workflowVersion = await this.prisma.workflowVersion.findUnique({
+        where: { id: dto.workflowVersionId },
       });
 
-      if (!workflow) {
+      if (!workflowVersion) {
         throw new BadRequestException(
-          `Workflow with ID "${dto.workflowId}" does not exist`,
+          `Workflow version with ID "${dto.workflowVersionId}" does not exist`,
         );
       }
 
       // Recompute workflow config hash
       workflowConfigHash = computeConfigHash(
-        workflow.config as GraphWorkflowConfig,
+        workflowVersion.config as GraphWorkflowConfig,
       );
     }
 
@@ -406,7 +408,8 @@ export class BenchmarkDefinitionService {
           name: dto.name ?? existing.name,
           datasetVersionId: dto.datasetVersionId ?? existing.datasetVersionId,
           splitId: dto.splitId ?? existing.splitId,
-          workflowId: dto.workflowId ?? existing.workflowId,
+          workflowVersionId:
+            dto.workflowVersionId ?? existing.workflowVersionId,
           workflowConfigHash,
           evaluatorType: dto.evaluatorType ?? existing.evaluatorType,
           evaluatorConfig: (dto.evaluatorConfig ??
@@ -427,7 +430,7 @@ export class BenchmarkDefinitionService {
             },
           },
           split: true,
-          workflow: true,
+          workflowVersion: { include: { lineage: true } },
           benchmarkRuns: {
             select: {
               id: true,
@@ -455,8 +458,10 @@ export class BenchmarkDefinitionService {
       if (dto.datasetVersionId)
         updateData.datasetVersion = { connect: { id: dto.datasetVersionId } };
       if (dto.splitId) updateData.split = { connect: { id: dto.splitId } };
-      if (dto.workflowId) {
-        updateData.workflow = { connect: { id: dto.workflowId } };
+      if (dto.workflowVersionId) {
+        updateData.workflowVersion = {
+          connect: { id: dto.workflowVersionId },
+        };
         updateData.workflowConfigHash = workflowConfigHash;
       }
       if (dto.evaluatorType) updateData.evaluatorType = dto.evaluatorType;
@@ -481,7 +486,7 @@ export class BenchmarkDefinitionService {
             },
           },
           split: true,
-          workflow: true,
+          workflowVersion: { include: { lineage: true } },
           benchmarkRuns: {
             select: {
               id: true,
@@ -576,10 +581,10 @@ export class BenchmarkDefinitionService {
         name: string;
       };
     };
-    workflow: {
+    workflowVersion: {
       id: string;
-      name: string;
-      version: number;
+      version_number: number;
+      lineage: { id: string; name: string };
     };
   }): DefinitionSummaryDto {
     return {
@@ -591,9 +596,10 @@ export class BenchmarkDefinitionService {
         version: definition.datasetVersion.version,
       },
       workflow: {
-        id: definition.workflow.id,
-        name: definition.workflow.name,
-        version: definition.workflow.version,
+        id: definition.workflowVersion.lineage.id,
+        workflowVersionId: definition.workflowVersion.id,
+        name: definition.workflowVersion.lineage.name,
+        version: definition.workflowVersion.version_number,
       },
       evaluatorType: definition.evaluatorType,
       immutable: definition.immutable,
@@ -634,10 +640,10 @@ export class BenchmarkDefinitionService {
         name: string;
         type: string;
       } | null;
-      workflow: {
+      workflowVersion: {
         id: string;
-        name: string;
-        version: number;
+        version_number: number;
+        lineage: { id: string; name: string };
       };
       benchmarkRuns: Array<{
         id: string;
@@ -661,9 +667,10 @@ export class BenchmarkDefinitionService {
     };
 
     const workflow: WorkflowInfo = {
-      id: definition.workflow.id,
-      name: definition.workflow.name,
-      version: definition.workflow.version,
+      id: definition.workflowVersion.lineage.id,
+      workflowVersionId: definition.workflowVersion.id,
+      name: definition.workflowVersion.lineage.name,
+      version: definition.workflowVersion.version_number,
     };
 
     const split: SplitInfo | undefined = definition.split
@@ -725,6 +732,122 @@ export class BenchmarkDefinitionService {
     };
   }
 
+  async promoteCandidateWorkflow(
+    projectId: string,
+    definitionId: string,
+    candidateWorkflowVersionId: string,
+  ): Promise<DefinitionDetailsDto> {
+    this.logger.log(
+      `Promoting candidate workflow ${candidateWorkflowVersionId} into definition ${definitionId} (project ${projectId})`,
+    );
+
+    const definition = await this.prisma.benchmarkDefinition.findFirst({
+      where: { id: definitionId, projectId },
+      include: {
+        workflowVersion: { include: { lineage: true } },
+      },
+    });
+
+    if (!definition?.workflowVersion?.lineage) {
+      throw new NotFoundException(
+        `Benchmark definition with ID "${definitionId}" not found for project "${projectId}"`,
+      );
+    }
+
+    const baseLineageId = definition.workflowVersion.lineage.id;
+    const baseLineageGroupId = definition.workflowVersion.lineage.group_id;
+
+    const baseLineage = await this.prisma.workflowLineage.findUnique({
+      where: { id: baseLineageId },
+      select: { id: true, group_id: true, head_version_id: true },
+    });
+
+    if (!baseLineage?.head_version_id) {
+      throw new BadRequestException(
+        `Base workflow lineage ${baseLineageId} has no head version to promote into`,
+      );
+    }
+
+    const oldBaseHeadVersionId = baseLineage.head_version_id;
+
+    const candidateVersion = await this.prisma.workflowVersion.findUnique({
+      where: { id: candidateWorkflowVersionId },
+      include: { lineage: true },
+    });
+
+    if (!candidateVersion?.lineage) {
+      throw new NotFoundException(
+        `Candidate workflow version not found: ${candidateWorkflowVersionId}`,
+      );
+    }
+
+    const candidateLineage = candidateVersion.lineage;
+
+    if (candidateLineage.workflow_kind !== "benchmark_candidate") {
+      throw new BadRequestException(
+        `Candidate lineage ${candidateLineage.id} is not a benchmark candidate`,
+      );
+    }
+
+    if (candidateLineage.source_workflow_id !== baseLineageId) {
+      throw new BadRequestException(
+        `Candidate is not derived from the definition's base workflow lineage`,
+      );
+    }
+
+    if (candidateLineage.group_id !== baseLineageGroupId) {
+      throw new BadRequestException(
+        `Candidate lineage group does not match the definition's base lineage`,
+      );
+    }
+
+    const candidateConfig = candidateVersion.config as GraphWorkflowConfig;
+    const validation = validateGraphConfig(candidateConfig);
+    if (!validation.valid) {
+      throw new BadRequestException({
+        message: "Invalid candidate workflow configuration",
+        errors: validation.errors,
+      });
+    }
+
+    const latest = await this.prisma.workflowVersion.findFirst({
+      where: { lineage_id: baseLineageId },
+      orderBy: { version_number: "desc" },
+      select: { version_number: true },
+    });
+
+    const nextVersionNumber = (latest?.version_number ?? 0) + 1;
+
+    const newVersion = await this.prisma.workflowVersion.create({
+      data: {
+        lineage_id: baseLineageId,
+        version_number: nextVersionNumber,
+        config: candidateConfig as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    await this.prisma.workflowLineage.update({
+      where: { id: baseLineageId },
+      data: { head_version_id: newVersion.id },
+    });
+
+    const newHash = computeConfigHash(candidateConfig);
+
+    // Repin only definitions that were pinned to the old base head
+    await this.prisma.benchmarkDefinition.updateMany({
+      where: {
+        projectId,
+        workflowVersionId: oldBaseHeadVersionId,
+      },
+      data: {
+        workflowVersionId: newVersion.id,
+        workflowConfigHash: newHash,
+      },
+    });
+
+    return this.getDefinitionById(projectId, definitionId);
+  }
+
   /**
    * Configure schedule for a benchmark definition
    *
@@ -757,7 +880,7 @@ export class BenchmarkDefinitionService {
           },
         },
         split: true,
-        workflow: true,
+        workflowVersion: { include: { lineage: true } },
       },
     });
 
@@ -796,7 +919,7 @@ export class BenchmarkDefinitionService {
           definitionId: definition.id,
           datasetVersionId: definition.datasetVersionId,
           splitId: definition.splitId,
-          workflowId: definition.workflowId,
+          workflowVersionId: definition.workflowVersionId,
           workflowConfigHash: definition.workflowConfigHash,
           evaluatorType: definition.evaluatorType,
           evaluatorConfig: definition.evaluatorConfig as Record<
@@ -830,7 +953,7 @@ export class BenchmarkDefinitionService {
           },
         },
         split: true,
-        workflow: true,
+        workflowVersion: { include: { lineage: true } },
         benchmarkRuns: {
           orderBy: {
             createdAt: "desc",

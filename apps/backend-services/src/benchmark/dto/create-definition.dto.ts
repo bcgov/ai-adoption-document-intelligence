@@ -30,11 +30,11 @@ export class CreateDefinitionDto {
   splitId?: string;
 
   /**
-   * Workflow ID
+   * Pinned workflow version ID (WorkflowVersion.id)
    */
   @IsString()
   @IsNotEmpty()
-  workflowId: string;
+  workflowVersionId: string;
 
   /**
    * Evaluator type (must match a registered evaluator)

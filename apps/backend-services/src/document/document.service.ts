@@ -1,5 +1,5 @@
 import { DocumentStatus, Prisma } from "@generated/client";
-import { Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
 import {
   BLOB_STORAGE,
@@ -7,6 +7,7 @@ import {
 } from "../blob-storage/blob-storage.interface";
 import { DatabaseService, DocumentData } from "../database/database.service";
 import { AppLoggerService } from "../logging/app-logger.service";
+import { WorkflowService } from "../workflow/workflow.service";
 
 export interface UploadedDocument {
   id: string;
@@ -31,6 +32,7 @@ export class DocumentService {
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
     private readonly logger: AppLoggerService,
+    private readonly workflowService: WorkflowService,
   ) {}
 
   private getFileExtension(fileType: string): string {
@@ -81,6 +83,21 @@ export class DocumentService {
       await this.blobStorage.write(blobKey, fileBuffer);
       this.logger.debug(`File saved to blob storage: ${blobKey}`);
 
+      let workflowLineageId: string | null = null;
+      let workflowVersionId: string | null = null;
+      const trimmedWorkflowId = workflowId?.trim();
+      if (trimmedWorkflowId) {
+        const wf =
+          await this.workflowService.getWorkflowById(trimmedWorkflowId);
+        if (!wf) {
+          throw new BadRequestException(
+            `Workflow not found for id: ${trimmedWorkflowId}`,
+          );
+        }
+        workflowLineageId = wf.id;
+        workflowVersionId = wf.workflowVersionId;
+      }
+
       // Store metadata in database via API
       const documentData: Omit<DocumentData, "created_at" | "updated_at"> = {
         id: documentId,
@@ -93,8 +110,8 @@ export class DocumentService {
         source: "api",
         status: DocumentStatus.ongoing_ocr,
         apim_request_id: null,
-        workflow_id: workflowId || null, // Legacy field, kept for backward compatibility
-        workflow_config_id: workflowId || null, // New field for workflow configuration ID
+        workflow_id: workflowLineageId,
+        workflow_config_id: workflowVersionId,
         workflow_execution_id: null, // Will be set when workflow starts
         model_id: modelId,
         group_id: groupId,

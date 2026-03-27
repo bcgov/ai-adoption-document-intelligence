@@ -14,10 +14,14 @@ import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
 import { DatabaseService } from "@/database/database.service";
+import type { WorkflowInfo } from "@/workflow/workflow.service";
+import { WorkflowService } from "@/workflow/workflow.service";
+import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkRunController } from "./benchmark-run.controller";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import { CreateRunDto, PromoteBaselineDto } from "./dto";
+import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.service";
 
 describe("BenchmarkRunController", () => {
   let controller: BenchmarkRunController;
@@ -45,6 +49,29 @@ describe("BenchmarkRunController", () => {
     isUserInGroup: jest.fn().mockResolvedValue(true),
   };
 
+  const mockDefinitionService = {
+    getDefinitionById: jest.fn().mockResolvedValue({
+      workflow: { id: "workflow-1", workflowVersionId: "wv-workflow-1" },
+    }),
+  };
+
+  const mockOcrImprovementPipeline = {
+    run: jest.fn().mockResolvedValue({
+      candidateWorkflowVersionId: "wv-candidate-1",
+      benchmarkRunId: "run-1",
+      recommendationsSummary: {
+        applied: 1,
+        rejected: 0,
+        toolIds: ["ocr.spellcheck"],
+      },
+      status: "benchmark_started",
+    }),
+  };
+
+  const mockWorkflowService = {
+    getWorkflowById: jest.fn(),
+  };
+
   const mockReq = {
     user: { sub: "user-1" },
     resolvedIdentity: { userId: "user-1" },
@@ -58,7 +85,16 @@ describe("BenchmarkRunController", () => {
       providers: [
         { provide: BenchmarkRunService, useValue: mockRunService },
         { provide: BenchmarkProjectService, useValue: mockProjectService },
+        {
+          provide: BenchmarkDefinitionService,
+          useValue: mockDefinitionService,
+        },
+        {
+          provide: OcrImprovementPipelineService,
+          useValue: mockOcrImprovementPipeline,
+        },
         { provide: DatabaseService, useValue: mockDatabaseService },
+        { provide: WorkflowService, useValue: mockWorkflowService },
       ],
     }).compile();
 
@@ -128,6 +164,111 @@ describe("BenchmarkRunController", () => {
       await expect(
         controller.startRun(projectId, "def-bad", dto, mockReq),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("POST /definitions/:definitionId/ocr-improvement/run", () => {
+    it("runs OCR improvement pipeline and returns result", async () => {
+      const dto = {};
+      const result = await controller.runOcrImprovement(
+        projectId,
+        "def-1",
+        dto,
+        mockReq,
+      );
+
+      expect(mockDefinitionService.getDefinitionById).toHaveBeenCalledWith(
+        projectId,
+        "def-1",
+      );
+      expect(mockWorkflowService.getWorkflowById).not.toHaveBeenCalled();
+      expect(mockOcrImprovementPipeline.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowVersionId: "wv-workflow-1",
+          benchmarkDefinitionId: "def-1",
+          benchmarkProjectId: projectId,
+          userId: "user-1",
+        }),
+      );
+      expect(result).toMatchObject({
+        candidateWorkflowVersionId: "wv-candidate-1",
+        benchmarkRunId: "run-1",
+        recommendationsSummary: {
+          applied: 1,
+          rejected: 0,
+          toolIds: ["ocr.spellcheck"],
+        },
+        status: "benchmark_started",
+      });
+    });
+
+    it("passes wait options to the pipeline when set", async () => {
+      const dto = {
+        waitForPipelineRunCompletion: true,
+        pipelineRunPollIntervalMs: 2000,
+        pipelineRunWaitTimeoutMs: 120000,
+      };
+      await controller.runOcrImprovement(projectId, "def-1", dto, mockReq);
+
+      expect(mockOcrImprovementPipeline.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          waitForPipelineRunCompletion: true,
+          pipelineRunPollIntervalMs: 2000,
+          pipelineRunWaitTimeoutMs: 120000,
+        }),
+      );
+    });
+
+    it("passes normalizeFieldsEmptyValueCoercion to the pipeline when set", async () => {
+      await controller.runOcrImprovement(
+        projectId,
+        "def-1",
+        { normalizeFieldsEmptyValueCoercion: "null" },
+        mockReq,
+      );
+
+      expect(mockOcrImprovementPipeline.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          normalizeFieldsEmptyValueCoercion: "null",
+        }),
+      );
+    });
+
+    it("uses source workflow owner as userId when request has no SSO user (API key only)", async () => {
+      const sourceWorkflow: WorkflowInfo = {
+        id: "workflow-1",
+        workflowVersionId: "wv-workflow-1",
+        name: "wf",
+        description: null,
+        userId: "owner-from-source-workflow",
+        groupId: "test-group",
+        config: {
+          schemaVersion: "1.0",
+          metadata: {},
+          nodes: {},
+          edges: [],
+          entryNodeId: "n1",
+          ctx: {},
+        },
+        schemaVersion: "1.0",
+        version: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      mockWorkflowService.getWorkflowById.mockResolvedValue(sourceWorkflow);
+
+      const apiKeyOnlyReq = {} as Request;
+
+      await controller.runOcrImprovement(projectId, "def-1", {}, apiKeyOnlyReq);
+
+      expect(mockWorkflowService.getWorkflowById).toHaveBeenCalledWith(
+        "wv-workflow-1",
+      );
+      expect(mockOcrImprovementPipeline.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: "owner-from-source-workflow",
+        }),
+      );
     });
   });
 

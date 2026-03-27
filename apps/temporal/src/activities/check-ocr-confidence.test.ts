@@ -381,8 +381,18 @@ describe("checkOcrConfidence activity", () => {
           height: 11,
           unit: "inch",
           words: [
-            { content: "Word1", confidence: 0.85, polygon: [], span: { offset: 0, length: 5 } },
-            { content: "Word2", confidence: 0.9, polygon: [], span: { offset: 6, length: 5 } },
+            {
+              content: "Word1",
+              confidence: 0.85,
+              polygon: [],
+              span: { offset: 0, length: 5 },
+            },
+            {
+              content: "Word2",
+              confidence: 0.9,
+              polygon: [],
+              span: { offset: 6, length: 5 },
+            },
           ],
           lines: [],
           spans: [],

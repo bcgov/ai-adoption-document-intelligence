@@ -30,17 +30,22 @@ export class DatasetVersionInfo {
  */
 export class WorkflowInfo {
   /**
-   * Workflow ID
+   * Stable workflow lineage ID (WorkflowLineage.id)
    */
   id: string;
 
   /**
-   * Workflow name
+   * Pinned graph config version (WorkflowVersion.id)
+   */
+  workflowVersionId: string;
+
+  /**
+   * Workflow name (from lineage)
    */
   name: string;
 
   /**
-   * Workflow version
+   * Immutable config revision number
    */
   version: number;
 }

@@ -30,11 +30,11 @@ export class UpdateDefinitionDto {
   splitId?: string;
 
   /**
-   * Workflow ID
+   * Pinned workflow version ID (WorkflowVersion.id)
    */
   @IsString()
   @IsOptional()
-  workflowId?: string;
+  workflowVersionId?: string;
 
   /**
    * Evaluator type (must match a registered evaluator)

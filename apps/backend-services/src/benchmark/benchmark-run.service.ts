@@ -75,6 +75,10 @@ export class BenchmarkRunService {
     return digest;
   }
 
+  private hashWorkflowConfigJson(config: unknown): string {
+    return createHash("sha256").update(JSON.stringify(config)).digest("hex");
+  }
+
   /**
    * Create audit log entry
    */
@@ -101,6 +105,46 @@ export class BenchmarkRunService {
       );
       // Don't throw - audit logging failures shouldn't block operations
     }
+  }
+
+  private async assertOcrCacheBaselineRun(
+    projectId: string,
+    definitionId: string,
+    baselineRunId: string,
+  ): Promise<void> {
+    const run = await this.prisma.benchmarkRun.findFirst({
+      where: {
+        id: baselineRunId,
+        projectId,
+        definitionId,
+        status: "completed",
+      },
+    });
+    if (!run) {
+      throw new BadRequestException(
+        `ocrCacheBaselineRunId "${baselineRunId}" not found, not completed, or does not match this benchmark definition`,
+      );
+    }
+  }
+
+  /**
+   * Latest completed baseline run for a definition (used to replay cached OCR for candidate runs).
+   */
+  async getLatestCompletedBaselineRunId(
+    projectId: string,
+    definitionId: string,
+  ): Promise<string | null> {
+    const run = await this.prisma.benchmarkRun.findFirst({
+      where: {
+        projectId,
+        definitionId,
+        isBaseline: true,
+        status: "completed",
+      },
+      orderBy: { completedAt: "desc" },
+      select: { id: true },
+    });
+    return run?.id ?? null;
   }
 
   /**
@@ -132,13 +176,32 @@ export class BenchmarkRunService {
           },
         },
         split: true,
-        workflow: true,
+        workflowVersion: { include: { lineage: true } },
       },
     });
 
     if (!definition) {
       throw new NotFoundException(
         `Benchmark definition with ID "${definitionId}" not found for project "${projectId}"`,
+      );
+    }
+
+    if (dto.persistOcrCache === true && dto.ocrCacheBaselineRunId) {
+      throw new BadRequestException(
+        "Specify at most one of persistOcrCache or ocrCacheBaselineRunId",
+      );
+    }
+
+    /** Default true when omitted (replay runs never persist). */
+    const effectivePersistOcrCache = dto.ocrCacheBaselineRunId
+      ? false
+      : dto.persistOcrCache !== false;
+
+    if (dto.ocrCacheBaselineRunId) {
+      await this.assertOcrCacheBaselineRun(
+        projectId,
+        definitionId,
+        dto.ocrCacheBaselineRunId,
       );
     }
 
@@ -182,6 +245,70 @@ export class BenchmarkRunService {
 
     const runTags = dto.tags || {};
 
+    let workflowConfigUsed: Record<string, unknown>;
+    let workflowConfigHashUsed: string;
+
+    if (dto.workflowConfigOverride) {
+      workflowConfigUsed = dto.workflowConfigOverride;
+      workflowConfigHashUsed = this.hashWorkflowConfigJson(
+        dto.workflowConfigOverride,
+      );
+      if (dto.candidateWorkflowVersionId) {
+        const candidateRow = await this.prisma.workflowVersion.findUnique({
+          where: { id: dto.candidateWorkflowVersionId },
+          select: { config: true },
+        });
+        if (!candidateRow) {
+          throw new BadRequestException(
+            `candidateWorkflowVersionId "${dto.candidateWorkflowVersionId}" not found`,
+          );
+        }
+        if (
+          this.hashWorkflowConfigJson(candidateRow.config) !==
+          workflowConfigHashUsed
+        ) {
+          throw new BadRequestException(
+            "workflowConfigOverride does not match the stored config for candidateWorkflowVersionId",
+          );
+        }
+      }
+    } else if (dto.candidateWorkflowVersionId) {
+      const candidateRow = await this.prisma.workflowVersion.findUnique({
+        where: { id: dto.candidateWorkflowVersionId },
+        select: { config: true },
+      });
+      if (!candidateRow) {
+        throw new BadRequestException(
+          `candidateWorkflowVersionId "${dto.candidateWorkflowVersionId}" not found`,
+        );
+      }
+      workflowConfigUsed = candidateRow.config as Record<string, unknown>;
+      workflowConfigHashUsed = this.hashWorkflowConfigJson(candidateRow.config);
+    } else {
+      workflowConfigUsed = definition.workflowVersion.config as Record<
+        string,
+        unknown
+      >;
+      workflowConfigHashUsed = definition.workflowConfigHash;
+    }
+
+    const runParams: Record<string, unknown> = {
+      runtimeSettings: {
+        ...(definition.runtimeSettings as Record<string, unknown>),
+        ...(dto.runtimeSettingsOverride || {}),
+      },
+    };
+    if (dto.candidateWorkflowVersionId) {
+      runParams.candidateWorkflowVersionId = dto.candidateWorkflowVersionId;
+      runParams.workflowConfigHash = workflowConfigHashUsed;
+    }
+    if (effectivePersistOcrCache) {
+      runParams.persistOcrCache = true;
+    }
+    if (dto.ocrCacheBaselineRunId) {
+      runParams.ocrCacheBaselineRunId = dto.ocrCacheBaselineRunId;
+    }
+
     // Create BenchmarkRun record with status 'pending'
     const run = await this.prisma.benchmarkRun.create({
       data: {
@@ -191,12 +318,7 @@ export class BenchmarkRunService {
         temporalWorkflowId: "", // Will be updated after starting workflow
         workerGitSha,
         workerImageDigest,
-        params: {
-          runtimeSettings: {
-            ...(definition.runtimeSettings as Record<string, unknown>),
-            ...(dto.runtimeSettingsOverride || {}),
-          },
-        } as Prisma.InputJsonValue,
+        params: runParams as Prisma.InputJsonValue,
         tags: runTags as Prisma.InputJsonValue,
       },
       include: {
@@ -222,9 +344,10 @@ export class BenchmarkRunService {
           sampleIds: definition.split
             ? (definition.split.sampleIds as string[])
             : undefined,
-          workflowId: definition.workflowId,
-          workflowConfig: definition.workflow.config as Record<string, unknown>,
-          workflowConfigHash: definition.workflowConfigHash,
+          workflowVersionId:
+            dto.candidateWorkflowVersionId ?? definition.workflowVersionId,
+          workflowConfig: workflowConfigUsed,
+          workflowConfigHash: workflowConfigHashUsed,
           evaluatorType: definition.evaluatorType,
           evaluatorConfig: definition.evaluatorConfig as Record<
             string,
@@ -237,6 +360,8 @@ export class BenchmarkRunService {
           } as Record<string, unknown>,
           workerGitSha,
           workerImageDigest: workerImageDigest ?? undefined,
+          persistOcrCache: effectivePersistOcrCache,
+          ocrCacheBaselineRunId: dto.ocrCacheBaselineRunId,
         });
 
       // Update run with temporal workflow ID and status

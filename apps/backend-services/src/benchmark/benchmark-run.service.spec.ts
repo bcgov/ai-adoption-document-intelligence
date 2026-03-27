@@ -44,6 +44,9 @@ const mockPrismaClient = {
   benchmarkAuditLog: {
     create: jest.fn(),
   },
+  workflowVersion: {
+    findUnique: jest.fn(),
+  },
 };
 
 describe("BenchmarkRunService", () => {
@@ -67,7 +70,7 @@ describe("BenchmarkRunService", () => {
     name: "Test Definition",
     datasetVersionId: "ds-version-1",
     splitId: "split-1",
-    workflowId: "workflow-1",
+    workflowVersionId: "wf-version-1",
     workflowConfigHash: "hash123",
     evaluatorType: "schema-aware",
     evaluatorConfig: { threshold: 0.9 },
@@ -79,6 +82,7 @@ describe("BenchmarkRunService", () => {
     project: mockProject,
     datasetVersion: {
       id: "ds-version-1",
+      datasetId: "ds-1",
       version: "v1.0.0",
       storagePrefix: "datasets/ds-1/ds-version-1/",
       dataset: {
@@ -91,11 +95,13 @@ describe("BenchmarkRunService", () => {
       type: "test",
       sampleIds: ["sample-1", "sample-2"],
     },
-    workflow: {
-      id: "workflow-1",
-      name: "Test Workflow",
-      version: 1,
+    workflowVersion: {
+      id: "wf-version-1",
       config: { nodes: {}, edges: [] },
+      lineage: {
+        id: "lineage-1",
+        name: "Test Workflow",
+      },
     },
   };
 
@@ -235,6 +241,214 @@ describe("BenchmarkRunService", () => {
       });
 
       expect(result.status).toBe("running");
+    });
+
+    it("defaults persistOcrCache to true when omitted", async () => {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        id: "run-1",
+        temporalWorkflowId: "",
+      });
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+
+      await service.startRun("project-1", "def-1", {});
+
+      expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          persistOcrCache: true,
+        }),
+      );
+    });
+
+    it("sets persistOcrCache false when explicitly false", async () => {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        id: "run-1",
+        temporalWorkflowId: "",
+      });
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+
+      await service.startRun("project-1", "def-1", { persistOcrCache: false });
+
+      expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          persistOcrCache: false,
+        }),
+      );
+    });
+
+    it("sets persistOcrCache false when ocrCacheBaselineRunId is set (replay)", async () => {
+      const baselineId = "c3eb6015-f17f-49c5-80e7-5fdc97a3cbca";
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockImplementation(
+        (args: { where?: Record<string, unknown> }) => {
+          const w = args?.where;
+          if (
+            w?.status === "completed" &&
+            w?.definitionId &&
+            w?.id === baselineId
+          ) {
+            return Promise.resolve({ id: baselineId, status: "completed" });
+          }
+          return Promise.resolve({
+            ...mockRun,
+            definition: { name: "Test Definition" },
+          });
+        },
+      );
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        id: "run-1",
+        temporalWorkflowId: "",
+      });
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+
+      await service.startRun("project-1", "def-1", {
+        ocrCacheBaselineRunId: baselineId,
+      });
+
+      expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          persistOcrCache: false,
+          ocrCacheBaselineRunId: baselineId,
+        }),
+      );
+    });
+
+    it("loads workflow config from DB when candidateWorkflowVersionId is set without workflowConfigOverride", async () => {
+      const candidateConfig = {
+        schemaVersion: "1.0",
+        metadata: {},
+        nodes: { n1: { id: "n1", type: "activity", activityType: "x" } },
+        edges: [],
+        entryNodeId: "n1",
+        ctx: {},
+      };
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue({
+        id: "wv-cand-1",
+        config: candidateConfig,
+      });
+      (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        id: "run-1",
+        temporalWorkflowId: "",
+      });
+      (
+        benchmarkTemporal.startBenchmarkRunWorkflow as jest.Mock
+      ).mockResolvedValue("benchmark-run-run-1");
+      (prisma.benchmarkRun.update as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+      (prisma.benchmarkDefinition.update as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.benchmarkRun.findFirst as jest.Mock).mockResolvedValue({
+        ...mockRun,
+        temporalWorkflowId: "benchmark-run-run-1",
+        status: "running",
+      });
+
+      await service.startRun("project-1", "def-1", {
+        candidateWorkflowVersionId: "wv-cand-1",
+      });
+
+      expect(prisma.workflowVersion.findUnique).toHaveBeenCalledWith({
+        where: { id: "wv-cand-1" },
+        select: { config: true },
+      });
+      expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          workflowVersionId: "wv-cand-1",
+          workflowConfig: candidateConfig,
+        }),
+      );
+    });
+
+    it("throws BadRequestException when candidateWorkflowVersionId does not exist", async () => {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.startRun("project-1", "def-1", {
+          candidateWorkflowVersionId: "missing-wv",
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("throws when workflowConfigOverride does not match candidateWorkflowVersionId stored config", async () => {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue({
+        id: "wv-cand-1",
+        config: { a: 1 },
+      });
+
+      await expect(
+        service.startRun("project-1", "def-1", {
+          candidateWorkflowVersionId: "wv-cand-1",
+          workflowConfigOverride: { b: 2 },
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it("should freeze dataset version but not split when definition has no split", async () => {

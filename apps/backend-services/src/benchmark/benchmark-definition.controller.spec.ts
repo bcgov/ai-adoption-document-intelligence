@@ -71,8 +71,16 @@ describe("BenchmarkDefinitionController", () => {
 
   const mockWorkflow = {
     id: "wf-1",
+    workflowVersionId: "wv-workflow-1",
     name: "Test Workflow",
+    description: null,
+    userId: "user-1",
+    groupId: "test-group",
+    config: {} as never,
+    schemaVersion: "1.0",
     version: 1,
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 
   beforeEach(async () => {
@@ -104,7 +112,7 @@ describe("BenchmarkDefinitionController", () => {
         name: "My Definition",
         datasetVersionId: "dsv-1",
         evaluatorType: "schema-aware",
-        workflowId: "wf-1",
+        workflowVersionId: "wv-workflow-1",
         evaluatorConfig: {},
         runtimeSettings: {},
       };
@@ -147,7 +155,7 @@ describe("BenchmarkDefinitionController", () => {
         name: "Def",
         datasetVersionId: "v1",
         evaluatorType: "schema-aware",
-        workflowId: "wf-1",
+        workflowVersionId: "wv-workflow-1",
         evaluatorConfig: {},
         runtimeSettings: {},
       };

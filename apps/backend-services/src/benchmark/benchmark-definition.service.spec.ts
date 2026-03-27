@@ -8,6 +8,7 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "@/database/prisma.service";
+import { computeConfigHash } from "@/workflow/config-hash";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { EvaluatorRegistryService } from "./evaluator-registry.service";
@@ -22,14 +23,21 @@ const mockPrismaClient = {
   split: {
     findUnique: jest.fn(),
   },
-  workflow: {
+  workflowLineage: {
     findUnique: jest.fn(),
+    update: jest.fn(),
+  },
+  workflowVersion: {
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
+    create: jest.fn(),
   },
   benchmarkDefinition: {
     create: jest.fn(),
     findMany: jest.fn(),
     findFirst: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     delete: jest.fn(),
   },
   benchmarkRun: {
@@ -80,12 +88,9 @@ describe("BenchmarkDefinitionService", () => {
     createdAt: new Date(),
   };
 
-  const mockWorkflow = {
-    id: "workflow-1",
-    name: "Test Workflow",
-    description: "Test workflow description",
-    user_id: "user-1",
-    group_id: "test-group",
+  const mockWorkflowVersion = {
+    id: "wv-workflow-1",
+    version_number: 1,
     config: {
       schemaVersion: "1.0",
       metadata: { name: "Test", tags: [] },
@@ -94,9 +99,10 @@ describe("BenchmarkDefinitionService", () => {
       entryNodeId: "start",
       ctx: {},
     },
-    version: 1,
-    created_at: new Date(),
-    updated_at: new Date(),
+    lineage: {
+      id: "workflow-1",
+      name: "Test Workflow",
+    },
   };
 
   beforeEach(async () => {
@@ -147,7 +153,7 @@ describe("BenchmarkDefinitionService", () => {
       name: "Test Definition",
       datasetVersionId: "ds-version-1",
       splitId: "split-1",
-      workflowId: "workflow-1",
+      workflowVersionId: "wv-workflow-1",
       evaluatorType: "schema-aware",
       evaluatorConfig: { threshold: 0.9 },
       runtimeSettings: { timeout: 3600 },
@@ -161,7 +167,9 @@ describe("BenchmarkDefinitionService", () => {
         .spyOn(prisma.datasetVersion, "findUnique")
         .mockResolvedValue(mockDatasetVersion);
       jest.spyOn(prisma.split, "findUnique").mockResolvedValue(mockSplit);
-      jest.spyOn(prisma.workflow, "findUnique").mockResolvedValue(mockWorkflow);
+      jest
+        .spyOn(prisma.workflowVersion, "findUnique")
+        .mockResolvedValue(mockWorkflowVersion);
 
       const mockCreatedDefinition = {
         id: "def-1",
@@ -169,7 +177,7 @@ describe("BenchmarkDefinitionService", () => {
         name: createDto.name,
         datasetVersionId: createDto.datasetVersionId,
         splitId: createDto.splitId,
-        workflowId: createDto.workflowId,
+        workflowVersionId: createDto.workflowVersionId,
         workflowConfigHash: expect.any(String),
         evaluatorType: createDto.evaluatorType,
         evaluatorConfig: createDto.evaluatorConfig,
@@ -180,7 +188,7 @@ describe("BenchmarkDefinitionService", () => {
         updatedAt: new Date(),
         datasetVersion: mockDatasetVersion,
         split: mockSplit,
-        workflow: mockWorkflow,
+        workflowVersion: mockWorkflowVersion,
         benchmarkRuns: [],
       };
 
@@ -206,7 +214,9 @@ describe("BenchmarkDefinitionService", () => {
         .spyOn(prisma.datasetVersion, "findUnique")
         .mockResolvedValue(mockDatasetVersion);
       jest.spyOn(prisma.split, "findUnique").mockResolvedValue(mockSplit);
-      jest.spyOn(prisma.workflow, "findUnique").mockResolvedValue(mockWorkflow);
+      jest
+        .spyOn(prisma.workflowVersion, "findUnique")
+        .mockResolvedValue(mockWorkflowVersion);
 
       const mockCreatedDefinition = {
         id: "def-1",
@@ -214,7 +224,7 @@ describe("BenchmarkDefinitionService", () => {
         name: createDto.name,
         datasetVersionId: createDto.datasetVersionId,
         splitId: createDto.splitId,
-        workflowId: createDto.workflowId,
+        workflowVersionId: createDto.workflowVersionId,
         workflowConfigHash: "abc123hash",
         evaluatorType: createDto.evaluatorType,
         evaluatorConfig: createDto.evaluatorConfig,
@@ -225,7 +235,7 @@ describe("BenchmarkDefinitionService", () => {
         updatedAt: new Date(),
         datasetVersion: mockDatasetVersion,
         split: mockSplit,
-        workflow: mockWorkflow,
+        workflowVersion: mockWorkflowVersion,
         benchmarkRuns: [],
       };
 
@@ -249,7 +259,7 @@ describe("BenchmarkDefinitionService", () => {
       name: "Test Definition",
       datasetVersionId: "ds-version-1",
       splitId: "split-1",
-      workflowId: "workflow-1",
+      workflowVersionId: "wv-workflow-1",
       evaluatorType: "schema-aware",
       evaluatorConfig: { threshold: 0.9 },
       runtimeSettings: { timeout: 3600 },
@@ -326,14 +336,16 @@ describe("BenchmarkDefinitionService", () => {
         .spyOn(prisma.datasetVersion, "findUnique")
         .mockResolvedValue(mockDatasetVersion);
       jest.spyOn(prisma.split, "findUnique").mockResolvedValue(mockSplit);
-      jest.spyOn(prisma.workflow, "findUnique").mockResolvedValue(null);
+      jest.spyOn(prisma.workflowVersion, "findUnique").mockResolvedValue(null);
 
       await expect(
         service.createDefinition("project-1", createDto),
       ).rejects.toThrow(BadRequestException);
       await expect(
         service.createDefinition("project-1", createDto),
-      ).rejects.toThrow('Workflow with ID "workflow-1" does not exist');
+      ).rejects.toThrow(
+        'Workflow version with ID "wv-workflow-1" does not exist',
+      );
     });
 
     it("returns 400 when evaluator type is not registered", async () => {
@@ -344,7 +356,9 @@ describe("BenchmarkDefinitionService", () => {
         .spyOn(prisma.datasetVersion, "findUnique")
         .mockResolvedValue(mockDatasetVersion);
       jest.spyOn(prisma.split, "findUnique").mockResolvedValue(mockSplit);
-      jest.spyOn(prisma.workflow, "findUnique").mockResolvedValue(mockWorkflow);
+      jest
+        .spyOn(prisma.workflowVersion, "findUnique")
+        .mockResolvedValue(mockWorkflowVersion);
 
       const invalidDto = {
         ...createDto,
@@ -381,7 +395,7 @@ describe("BenchmarkDefinitionService", () => {
           createdAt: new Date(),
           updatedAt: new Date(),
           datasetVersion: mockDatasetVersion,
-          workflow: mockWorkflow,
+          workflowVersion: mockWorkflowVersion,
         },
         {
           id: "def-2",
@@ -392,7 +406,7 @@ describe("BenchmarkDefinitionService", () => {
           createdAt: new Date(),
           updatedAt: new Date(),
           datasetVersion: mockDatasetVersion,
-          workflow: mockWorkflow,
+          workflowVersion: mockWorkflowVersion,
         },
       ];
 
@@ -428,7 +442,7 @@ describe("BenchmarkDefinitionService", () => {
         name: "Test Definition",
         datasetVersionId: "ds-version-1",
         splitId: "split-1",
-        workflowId: "workflow-1",
+        workflowVersionId: "wv-workflow-1",
         workflowConfigHash: "abc123",
         evaluatorType: "schema-aware",
         evaluatorConfig: { threshold: 0.9 },
@@ -439,7 +453,7 @@ describe("BenchmarkDefinitionService", () => {
         updatedAt: new Date(),
         datasetVersion: mockDatasetVersion,
         split: mockSplit,
-        workflow: mockWorkflow,
+        workflowVersion: mockWorkflowVersion,
         benchmarkRuns: [
           {
             id: "run-1",
@@ -470,7 +484,7 @@ describe("BenchmarkDefinitionService", () => {
         name: "No Split Definition",
         datasetVersionId: "ds-version-1",
         splitId: null,
-        workflowId: "workflow-1",
+        workflowVersionId: "wv-workflow-1",
         workflowConfigHash: "abc123",
         evaluatorType: "schema-aware",
         evaluatorConfig: { threshold: 0.9 },
@@ -484,7 +498,7 @@ describe("BenchmarkDefinitionService", () => {
         updatedAt: new Date(),
         datasetVersion: mockDatasetVersion,
         split: null,
-        workflow: mockWorkflow,
+        workflowVersion: mockWorkflowVersion,
         benchmarkRuns: [],
       };
 
@@ -513,7 +527,7 @@ describe("BenchmarkDefinitionService", () => {
         name: "Original Name",
         datasetVersionId: "ds-version-1",
         splitId: "split-1",
-        workflowId: "workflow-1",
+        workflowVersionId: "wv-workflow-1",
         workflowConfigHash: "abc123",
         evaluatorType: "schema-aware",
         evaluatorConfig: { threshold: 0.9 },
@@ -524,7 +538,7 @@ describe("BenchmarkDefinitionService", () => {
         updatedAt: new Date(),
         datasetVersion: mockDatasetVersion,
         split: mockSplit,
-        workflow: mockWorkflow,
+        workflowVersion: mockWorkflowVersion,
         _count: {
           benchmarkRuns: 1, // Has runs
         },
@@ -582,7 +596,7 @@ describe("BenchmarkDefinitionService", () => {
         name: "Original Name",
         datasetVersionId: "ds-version-1",
         splitId: "split-1",
-        workflowId: "workflow-1",
+        workflowVersionId: "wv-workflow-1",
         workflowConfigHash: "abc123",
         evaluatorType: "schema-aware",
         evaluatorConfig: { threshold: 0.9 },
@@ -593,7 +607,7 @@ describe("BenchmarkDefinitionService", () => {
         updatedAt: new Date(),
         datasetVersion: mockDatasetVersion,
         split: mockSplit,
-        workflow: mockWorkflow,
+        workflowVersion: mockWorkflowVersion,
         _count: {
           benchmarkRuns: 0, // No runs
         },
@@ -661,7 +675,7 @@ describe("BenchmarkDefinitionService", () => {
       name: "Test Definition",
       datasetVersionId: "ds-version-1",
       splitId: "split-1",
-      workflowId: "workflow-1",
+      workflowVersionId: "wv-workflow-1",
       workflowConfigHash: "hash-123",
       evaluatorType: "schema-aware",
       evaluatorConfig: { threshold: 0.9 },
@@ -675,7 +689,7 @@ describe("BenchmarkDefinitionService", () => {
       updatedAt: new Date(),
       datasetVersion: mockDatasetVersion,
       split: mockSplit,
-      workflow: mockWorkflow,
+      workflowVersion: mockWorkflowVersion,
     };
 
     it("creates a new schedule when enabling", async () => {
@@ -845,6 +859,125 @@ describe("BenchmarkDefinitionService", () => {
       await expect(
         service.getScheduleInfo("project-1", "invalid-def"),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // promoteCandidateWorkflow
+  // -----------------------------------------------------------------------
+  describe("promoteCandidateWorkflow", () => {
+    it("appends a new base workflow version and repins pinned definitions", async () => {
+      const projectId = "project-1";
+      const definitionId = "def-1";
+      const candidateWorkflowVersionId = "wv-cand-1";
+
+      const baseLineageId = "lin-base";
+      const baseLineageGroupId = "group-1";
+      const oldBaseHeadVersionId = "wv-old-head";
+      const newBaseVersionId = "wv-new-base";
+
+      const candidateConfig = {
+        schemaVersion: "1.0",
+        metadata: { description: "Test graph" },
+        entryNodeId: "start",
+        ctx: { documentId: { type: "string" } },
+        nodes: {
+          start: {
+            id: "start",
+            type: "activity",
+            label: "Start",
+            activityType: "document.updateStatus",
+            inputs: [{ port: "documentId", ctxKey: "documentId" }],
+          },
+        },
+        edges: [],
+      };
+
+      const expectedDefinitionDetails = {
+        id: definitionId,
+      };
+
+      jest
+        .spyOn(service, "getDefinitionById")
+        .mockResolvedValue(expectedDefinitionDetails as never);
+
+      jest.spyOn(prisma.benchmarkDefinition, "findFirst").mockResolvedValue({
+        id: definitionId,
+        projectId,
+        workflowVersion: {
+          lineage: {
+            id: baseLineageId,
+            group_id: baseLineageGroupId,
+          },
+        },
+      } as never);
+
+      jest.spyOn(prisma.workflowLineage, "findUnique").mockResolvedValue({
+        id: baseLineageId,
+        group_id: baseLineageGroupId,
+        head_version_id: oldBaseHeadVersionId,
+      } as never);
+
+      jest.spyOn(prisma.workflowVersion, "findUnique").mockResolvedValue({
+        id: candidateWorkflowVersionId,
+        config: candidateConfig,
+        lineage: {
+          id: "lin-cand",
+          group_id: baseLineageGroupId,
+          workflow_kind: "benchmark_candidate",
+          source_workflow_id: baseLineageId,
+        },
+      } as never);
+
+      jest.spyOn(prisma.workflowVersion, "findFirst").mockResolvedValue({
+        version_number: 1,
+      } as never);
+
+      jest.spyOn(prisma.workflowVersion, "create").mockResolvedValue({
+        id: newBaseVersionId,
+      } as never);
+
+      jest
+        .spyOn(prisma.workflowLineage, "update")
+        .mockResolvedValue({} as never);
+      jest
+        .spyOn(prisma.benchmarkDefinition, "updateMany")
+        .mockResolvedValue({} as never);
+
+      const result = await service.promoteCandidateWorkflow(
+        projectId,
+        definitionId,
+        candidateWorkflowVersionId,
+      );
+
+      expect(result).toEqual(expectedDefinitionDetails);
+
+      expect(prisma.workflowVersion.create).toHaveBeenCalledWith({
+        data: {
+          lineage_id: baseLineageId,
+          version_number: 2,
+          config: candidateConfig,
+        },
+      });
+
+      expect(prisma.workflowLineage.update).toHaveBeenCalledWith({
+        where: { id: baseLineageId },
+        data: { head_version_id: newBaseVersionId },
+      });
+
+      const expectedHash = computeConfigHash(candidateConfig as never);
+      expect(prisma.benchmarkDefinition.updateMany).toHaveBeenCalledWith({
+        where: { projectId, workflowVersionId: oldBaseHeadVersionId },
+        data: {
+          workflowVersionId: newBaseVersionId,
+          workflowConfigHash: expectedHash,
+        },
+      });
+
+      expect(service.getDefinitionById).toHaveBeenCalledWith(
+        projectId,
+        definitionId,
+      );
     });
   });
 

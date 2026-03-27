@@ -70,7 +70,7 @@ describe("GroundTruthGenerationController", () => {
 
   describe("POST /ground-truth-generation", () => {
     it("starts generation successfully", async () => {
-      const dto = { workflowConfigId: "wf-config-1" };
+      const dto = { workflowVersionId: "wf-config-1" };
       const expected = {
         jobsCreated: 5,
         samplesWithoutGroundTruth: 5,
@@ -107,7 +107,7 @@ describe("GroundTruthGenerationController", () => {
       await controller.startGeneration(
         datasetId,
         versionId,
-        { workflowConfigId: "wf-1" },
+        { workflowVersionId: "wf-1" },
         reqNoUser,
       );
 

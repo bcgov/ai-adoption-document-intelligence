@@ -15,6 +15,7 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  NotFoundException,
   Param,
   Post,
   Query,
@@ -40,17 +41,46 @@ import {
   ApiKeyAuth,
   KeycloakSSOAuth,
 } from "@/decorators/custom-auth-decorators";
+import type { HitlAggregationFilters } from "@/hitl/hitl-aggregation.service";
+import { WorkflowService } from "@/workflow/workflow.service";
+import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import {
   CreateRunDto,
   DrillDownResponseDto,
+  OcrImprovementRunDto,
+  type OcrImprovementRunResponseDto,
   PerSampleResultsResponseDto,
   PromoteBaselineDto,
   PromoteBaselineResponseDto,
   RunDetailsDto,
   RunSummaryDto,
 } from "./dto";
+import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.service";
+
+function mapHitlFilters(
+  raw?: Record<string, unknown>,
+): HitlAggregationFilters | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const filters: HitlAggregationFilters = {};
+  if (raw.startDate != null) {
+    filters.startDate =
+      raw.startDate instanceof Date
+        ? raw.startDate
+        : new Date(String(raw.startDate));
+  }
+  if (raw.endDate != null) {
+    filters.endDate =
+      raw.endDate instanceof Date ? raw.endDate : new Date(String(raw.endDate));
+  }
+  if (Array.isArray(raw.groupIds)) filters.groupIds = raw.groupIds as string[];
+  if (Array.isArray(raw.fieldKeys))
+    filters.fieldKeys = raw.fieldKeys as string[];
+  if (Array.isArray(raw.actions)) filters.actions = raw.actions as string[];
+  if (typeof raw.limit === "number") filters.limit = raw.limit;
+  return Object.keys(filters).length > 0 ? filters : undefined;
+}
 
 @ApiTags("Benchmark - Runs")
 @Controller("api/benchmark/projects/:projectId")
@@ -60,7 +90,10 @@ export class BenchmarkRunController {
   constructor(
     private readonly benchmarkRunService: BenchmarkRunService,
     private readonly benchmarkProjectService: BenchmarkProjectService,
+    private readonly benchmarkDefinitionService: BenchmarkDefinitionService,
+    private readonly ocrImprovementPipeline: OcrImprovementPipelineService,
     private readonly databaseService: DatabaseService,
+    private readonly workflowService: WorkflowService,
   ) {}
 
   private async assertProjectGroupAccess(
@@ -74,6 +107,85 @@ export class BenchmarkRunController {
       project.groupId,
       this.databaseService,
     );
+  }
+
+  @Post("definitions/:definitionId/ocr-improvement/run")
+  @HttpCode(HttpStatus.OK)
+  @ApiKeyAuth()
+  @KeycloakSSOAuth()
+  @ApiOperation({
+    summary: "Run OCR improvement pipeline",
+    description:
+      "Aggregates HITL corrections, runs AI recommendation, creates candidate workflow, and starts a benchmark run with the candidate. " +
+      "Set waitForPipelineRunCompletion to poll until the run finishes and return baseline comparison (optional).",
+  })
+  @ApiParam({ name: "projectId", description: "Benchmark project ID" })
+  @ApiParam({ name: "definitionId", description: "Benchmark definition ID" })
+  @ApiBody({ type: OcrImprovementRunDto })
+  @ApiOkResponse({
+    description: "Pipeline result with candidate and run IDs",
+  })
+  @ApiNotFoundResponse({ description: "Definition not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async runOcrImprovement(
+    @Param("projectId") projectId: string,
+    @Param("definitionId") definitionId: string,
+    @Body() dto: OcrImprovementRunDto,
+    @Req() req: Request,
+  ): Promise<OcrImprovementRunResponseDto> {
+    this.logger.log(
+      `POST /api/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/run`,
+    );
+    await this.assertProjectGroupAccess(projectId, req);
+    const project =
+      await this.benchmarkProjectService.getProjectById(projectId);
+    const definition = await this.benchmarkDefinitionService.getDefinitionById(
+      projectId,
+      definitionId,
+    );
+    let userId =
+      (req as Request & { user?: { sub?: string } }).user?.sub ||
+      (req as Request & { resolvedIdentity?: { userId?: string } })
+        .resolvedIdentity?.userId ||
+      "anonymous";
+    if (userId === "anonymous") {
+      const sourceWorkflow = await this.workflowService.getWorkflowById(
+        definition.workflow.workflowVersionId,
+      );
+      if (!sourceWorkflow) {
+        throw new NotFoundException(
+          `Workflow not found: ${definition.workflow.workflowVersionId}`,
+        );
+      }
+      userId = sourceWorkflow.userId;
+    }
+    let hitlFilters = mapHitlFilters(dto.hitlFilters);
+    if (!hitlFilters?.groupIds?.length) {
+      hitlFilters = { ...hitlFilters, groupIds: [project.groupId] };
+    }
+    const result = await this.ocrImprovementPipeline.run({
+      workflowVersionId: definition.workflow.workflowVersionId,
+      benchmarkDefinitionId: definitionId,
+      benchmarkProjectId: projectId,
+      userId,
+      hitlFilters,
+      waitForPipelineRunCompletion: dto.waitForPipelineRunCompletion === true,
+      pipelineRunPollIntervalMs: dto.pipelineRunPollIntervalMs,
+      pipelineRunWaitTimeoutMs: dto.pipelineRunWaitTimeoutMs,
+      normalizeFieldsEmptyValueCoercion: dto.normalizeFieldsEmptyValueCoercion,
+    });
+    return {
+      candidateWorkflowVersionId: result.candidateWorkflowVersionId,
+      benchmarkRunId: result.benchmarkRunId,
+      recommendationsSummary: result.recommendationsSummary,
+      analysis: result.analysis,
+      pipelineMessage: result.pipelineMessage,
+      rejectionDetails: result.rejectionDetails,
+      status: result.status,
+      error: result.error,
+      benchmarkRunStatus: result.benchmarkRunStatus,
+      baselineComparison: result.baselineComparison,
+    };
   }
 
   @Post("definitions/:definitionId/runs")

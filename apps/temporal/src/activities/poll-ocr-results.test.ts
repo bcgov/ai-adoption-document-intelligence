@@ -51,6 +51,34 @@ describe("pollOCRResults activity", () => {
     process.env = originalEnv;
   });
 
+  it("returns cached response when benchmark OCR cache replay payload is present", async () => {
+    const mockOCRResponse: OCRResponse = {
+      status: "succeeded",
+      analyzeResult: {
+        apiVersion: "2024-11-30",
+        modelId: "prebuilt-layout",
+        content: "cached",
+        pages: [],
+        paragraphs: [],
+        tables: [],
+        keyValuePairs: [],
+        sections: [],
+        figures: [],
+        documents: [],
+      },
+    };
+
+    const result = await pollOCRResults({
+      apimRequestId: "any",
+      modelId: "prebuilt-layout",
+      __benchmarkOcrCache: { ocrResponse: mockOCRResponse },
+    });
+
+    expect(result.status).toBe("succeeded");
+    expect(result.response).toEqual(mockOCRResponse);
+    expect(documentIntelligenceMock).not.toHaveBeenCalled();
+  });
+
   it("polls for results and returns succeeded status", async () => {
     const mockOCRResponse: OCRResponse = {
       status: "succeeded",

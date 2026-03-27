@@ -17,7 +17,7 @@ const mockPrismaClient = {
     updateMany: jest.fn(),
     count: jest.fn(),
   },
-  workflow: {
+  workflowVersion: {
     findUnique: jest.fn(),
   },
   $transaction: jest.fn(),
@@ -164,14 +164,19 @@ describe("GroundTruthGenerationService", () => {
   describe("startGeneration", () => {
     const datasetId = "dataset-1";
     const versionId = "version-1";
-    const workflowConfigId = "workflow-1";
+    const workflowVersionId = "wv-workflow-1";
     const userId = "user-1";
 
     it("should throw NotFoundException if version not found", async () => {
       mockPrismaClient.datasetVersion.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId, userId),
+        service.startGeneration(
+          datasetId,
+          versionId,
+          workflowVersionId,
+          userId,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -183,7 +188,12 @@ describe("GroundTruthGenerationService", () => {
       });
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId, userId),
+        service.startGeneration(
+          datasetId,
+          versionId,
+          workflowVersionId,
+          userId,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -195,7 +205,12 @@ describe("GroundTruthGenerationService", () => {
       });
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId, userId),
+        service.startGeneration(
+          datasetId,
+          versionId,
+          workflowVersionId,
+          userId,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -205,10 +220,15 @@ describe("GroundTruthGenerationService", () => {
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
       });
-      mockPrismaClient.workflow.findUnique.mockResolvedValue(null);
+      mockPrismaClient.workflowVersion.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId, userId),
+        service.startGeneration(
+          datasetId,
+          versionId,
+          workflowVersionId,
+          userId,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -220,8 +240,8 @@ describe("GroundTruthGenerationService", () => {
         storagePrefix: "datasets/dataset-1/version-1",
         dataset: { group_id: "test-group" },
       });
-      mockPrismaClient.workflow.findUnique.mockResolvedValue({
-        id: workflowConfigId,
+      mockPrismaClient.workflowVersion.findUnique.mockResolvedValue({
+        id: workflowVersionId,
       });
       (mockBlobStorage.read as jest.Mock).mockResolvedValue(
         Buffer.from(JSON.stringify(sampleManifest)),
@@ -251,7 +271,7 @@ describe("GroundTruthGenerationService", () => {
       const result = await service.startGeneration(
         datasetId,
         versionId,
-        workflowConfigId,
+        workflowVersionId,
         userId,
       );
 
@@ -284,15 +304,20 @@ describe("GroundTruthGenerationService", () => {
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
       });
-      mockPrismaClient.workflow.findUnique.mockResolvedValue({
-        id: workflowConfigId,
+      mockPrismaClient.workflowVersion.findUnique.mockResolvedValue({
+        id: workflowVersionId,
       });
       (mockBlobStorage.read as jest.Mock).mockResolvedValue(
         Buffer.from(JSON.stringify(allWithGt)),
       );
 
       await expect(
-        service.startGeneration(datasetId, versionId, workflowConfigId, userId),
+        service.startGeneration(
+          datasetId,
+          versionId,
+          workflowVersionId,
+          userId,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -305,7 +330,7 @@ describe("GroundTruthGenerationService", () => {
           datasetVersionId: "v-1",
           sampleId: "doc-001",
           documentId: "doc-id-1",
-          workflowConfigId: "wf-1",
+          workflowVersionId: "wf-1",
           temporalWorkflowId: "temporal-1",
           status: GroundTruthJobStatus.processing,
           groundTruthPath: null,
@@ -398,7 +423,7 @@ describe("GroundTruthGenerationService", () => {
         datasetVersionId: "v-1",
         sampleId: "doc-001",
         documentId: "doc-id-1",
-        workflowConfigId: "wf-1",
+        workflowVersionId: "wf-1",
         status: GroundTruthJobStatus.awaiting_review,
         datasetVersion: {
           datasetId: "dataset-1",

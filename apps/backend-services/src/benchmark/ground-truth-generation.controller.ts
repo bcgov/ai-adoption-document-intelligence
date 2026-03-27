@@ -73,7 +73,7 @@ export class GroundTruthGenerationController {
     return this.groundTruthGenerationService.startGeneration(
       datasetId,
       versionId,
-      dto.workflowConfigId,
+      dto.workflowVersionId,
       userId,
     );
   }

@@ -83,35 +83,83 @@ export class LabelingOcrService {
     const labelingDocument =
       await this.db.findLabelingDocument(labelingDocumentId);
     if (!labelingDocument) {
+      this.logger.warn(
+        `processOcrForLabelingDocument: labeling document not found`,
+        { labelingDocumentId },
+      );
       return;
     }
 
+    this.logger.debug(`Starting OCR for labeling document`, {
+      labelingDocumentId,
+      file_path: labelingDocument.file_path,
+      azureEndpoint: this.azureEndpoint
+        ? `${this.azureEndpoint.replace(/\/$/, "").slice(0, 50)}...`
+        : undefined,
+    });
+
     try {
-      const apimRequestId = await this.requestOcr(labelingDocument.file_path);
+      const apimRequestId = await this.requestOcr(
+        labelingDocument.file_path,
+        labelingDocumentId,
+      );
 
       await this.db.updateLabelingDocument(labelingDocumentId, {
         apim_request_id: apimRequestId,
         status: DocumentStatus.ongoing_ocr,
       });
 
-      const analysisResponse = await this.waitForOcrCompletion(apimRequestId);
+      const analysisResponse = await this.waitForOcrCompletion(
+        apimRequestId,
+        labelingDocumentId,
+      );
 
       await this.db.updateLabelingDocument(labelingDocumentId, {
         status: DocumentStatus.completed_ocr,
         ocr_result: analysisResponse as unknown as JsonValue,
       });
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = error as Error & {
+        response?: { status?: number; data?: unknown };
+        config?: { url?: string; method?: string };
+      };
       this.logger.error(
-        `Labeling OCR failed for ${labelingDocumentId}: ${error.message}`,
+        `Labeling OCR failed for ${labelingDocumentId}: ${err.message}`,
       );
+      if (err.response) {
+        this.logger.error(`Labeling OCR HTTP error details`, {
+          labelingDocumentId,
+          statusCode: err.response.status,
+          responseData: err.response.data,
+          url: err.config?.url,
+          method: err.config?.method,
+        });
+      } else {
+        this.logger.error(`Labeling OCR error (non-HTTP)`, {
+          labelingDocumentId,
+          stack: err.stack,
+        });
+      }
       await this.db.updateLabelingDocument(labelingDocumentId, {
         status: DocumentStatus.failed,
       });
     }
   }
 
-  private async requestOcr(blobKey: string): Promise<string> {
+  private async requestOcr(
+    blobKey: string,
+    labelingDocumentId: string,
+  ): Promise<string> {
+    this.logger.debug(`Reading blob for OCR`, {
+      labelingDocumentId,
+      blobKey,
+    });
     const fileBuffer = await this.blobStorage.read(blobKey);
+    this.logger.debug(`Blob read complete`, {
+      labelingDocumentId,
+      blobKey,
+      sizeBytes: fileBuffer.length,
+    });
 
     const url = `${this.azureEndpoint}/documentintelligence/documentModels/prebuilt-layout:analyze?api-version=2024-11-30&features=keyValuePairs`;
 
@@ -120,6 +168,10 @@ export class LabelingOcrService {
       "Content-Type": "application/json",
     };
 
+    this.logger.debug(`Submitting OCR request to Azure Document Intelligence`, {
+      labelingDocumentId,
+      url: url.replace(/api-key=[^&]+/, "api-key=***"),
+    });
     const azureResponse = await lastValueFrom(
       this.httpService.post(
         url,
@@ -129,26 +181,56 @@ export class LabelingOcrService {
     );
 
     if (azureResponse.status !== 202) {
+      this.logger.error(`OCR submit returned non-202`, {
+        labelingDocumentId,
+        statusCode: azureResponse.status,
+        headers: azureResponse.headers,
+      });
       throw new Error("Failed to submit OCR request");
     }
 
-    return azureResponse.headers["apim-request-id"];
+    const apimRequestId = azureResponse.headers["apim-request-id"];
+    this.logger.debug(`OCR request submitted`, {
+      labelingDocumentId,
+      apimRequestId,
+      statusCode: azureResponse.status,
+    });
+    return apimRequestId;
   }
 
   private async waitForOcrCompletion(
     apimRequestId: string,
+    labelingDocumentId: string,
     maxAttempts = 30,
     delayMs = 2000,
   ): Promise<AnalysisResponse> {
+    const resultsUrl = `${this.azureEndpoint}/documentintelligence/documentModels/prebuilt-layout/analyzeResults/${apimRequestId}?api-version=2024-11-30`;
+    this.logger.debug(`Polling for OCR results`, {
+      labelingDocumentId,
+      apimRequestId,
+      resultsUrl: resultsUrl.replace(/api-key=[^&]+/, "api-key=***"),
+    });
+
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      this.logger.debug(`OCR results poll attempt`, {
+        labelingDocumentId,
+        attempt,
+        maxAttempts,
+      });
       const response = await lastValueFrom(
-        this.httpService.get(
-          `${this.azureEndpoint}/documentintelligence/documentModels/prebuilt-layout/analyzeResults/${apimRequestId}?api-version=2024-11-30`,
-          { headers: { "api-key": this.azureApiKey } },
-        ),
+        this.httpService.get(resultsUrl, {
+          headers: { "api-key": this.azureApiKey },
+        }),
       );
 
       if (response.status !== 200) {
+        this.logger.error(`OCR results poll returned non-200`, {
+          labelingDocumentId,
+          apimRequestId,
+          attempt,
+          statusCode: response.status,
+          data: response.data,
+        });
         throw new Error("Failed to retrieve OCR results");
       }
 
@@ -159,12 +241,27 @@ export class LabelingOcrService {
       }
 
       if (!analysisResponse.analyzeResult) {
+        this.logger.error(`OCR response missing analyzeResult`, {
+          labelingDocumentId,
+          apimRequestId,
+          analysisStatus: analysisResponse.status,
+        });
         throw new Error("OCR response missing analyzeResult");
       }
 
+      this.logger.debug(`OCR completed successfully`, {
+        labelingDocumentId,
+        apimRequestId,
+        attempt,
+      });
       return analysisResponse;
     }
 
+    this.logger.error(`OCR processing timed out`, {
+      labelingDocumentId,
+      apimRequestId,
+      maxAttempts,
+    });
     throw new Error("OCR processing timed out");
   }
 }

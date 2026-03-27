@@ -68,7 +68,7 @@ export class GroundTruthGenerationService {
   async startGeneration(
     datasetId: string,
     versionId: string,
-    workflowConfigId: string,
+    workflowVersionId: string,
     userId: string,
   ): Promise<StartGroundTruthGenerationResponseDto> {
     // Validate version exists and is not frozen
@@ -94,14 +94,14 @@ export class GroundTruthGenerationService {
       );
     }
 
-    // Validate workflow config exists
-    const workflow = await this.prisma.workflow.findUnique({
-      where: { id: workflowConfigId },
+    // Validate workflow version exists
+    const workflowVersion = await this.prisma.workflowVersion.findUnique({
+      where: { id: workflowVersionId },
     });
 
-    if (!workflow) {
+    if (!workflowVersion) {
       throw new NotFoundException(
-        `Workflow configuration ${workflowConfigId} not found`,
+        `Workflow version ${workflowVersionId} not found`,
       );
     }
 
@@ -147,7 +147,7 @@ export class GroundTruthGenerationService {
           data: {
             datasetVersionId: versionId,
             sampleId: sample.id,
-            workflowConfigId,
+            workflowVersionId,
             status: GroundTruthJobStatus.pending,
           },
         }),
@@ -257,11 +257,11 @@ export class GroundTruthGenerationService {
       const ext = path.extname(originalFilename);
 
       // Read modelId from workflow config ctx defaults
-      const workflow = await this.prisma.workflow.findUnique({
-        where: { id: job.workflowConfigId },
+      const workflowVersion = await this.prisma.workflowVersion.findUnique({
+        where: { id: job.workflowVersionId },
         select: { config: true },
       });
-      const workflowConfig = workflow?.config as {
+      const workflowConfig = workflowVersion?.config as {
         ctx?: Record<string, { defaultValue?: unknown }>;
       } | null;
       const modelId =
@@ -293,7 +293,7 @@ export class GroundTruthGenerationService {
         status: DocumentStatus.pre_ocr,
         apim_request_id: null,
         workflow_id: null,
-        workflow_config_id: job.workflowConfigId,
+        workflow_config_id: job.workflowVersionId,
         workflow_execution_id: null,
         model_id: modelId,
         group_id: groupId,
@@ -700,7 +700,7 @@ export class GroundTruthGenerationService {
     datasetVersionId: string;
     sampleId: string;
     documentId: string | null;
-    workflowConfigId: string;
+    workflowVersionId: string;
     temporalWorkflowId: string | null;
     status: GroundTruthJobStatus;
     groundTruthPath: string | null;
@@ -713,7 +713,7 @@ export class GroundTruthGenerationService {
       datasetVersionId: job.datasetVersionId,
       sampleId: job.sampleId,
       documentId: job.documentId,
-      workflowConfigId: job.workflowConfigId,
+      workflowVersionId: job.workflowVersionId,
       temporalWorkflowId: job.temporalWorkflowId,
       status: job.status,
       groundTruthPath: job.groundTruthPath,

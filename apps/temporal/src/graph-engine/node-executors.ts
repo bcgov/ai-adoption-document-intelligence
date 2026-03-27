@@ -34,6 +34,42 @@ import type { ExecutionState } from "./execution-state";
 import { computeReadySetForSubgraph } from "./graph-algorithms";
 import { executeWithConcurrencyLimit, parseDurationToMs } from "./runner-utils";
 
+const AZURE_OCR_CACHE_ACTIVITY_TYPES = new Set([
+  "azureOcr.submit",
+  "azureOcr.poll",
+  "azureOcr.extract",
+]);
+
+/**
+ * Inject benchmark OCR replay payload from ctx.__benchmarkOcrCache into Azure OCR
+ * activities so submit/poll/extract can short-circuit without graph definition changes.
+ */
+function mergeBenchmarkOcrCacheParams(
+  activityType: string,
+  activityParams: Record<string, unknown>,
+  ctx: Record<string, unknown>,
+): Record<string, unknown> {
+  const raw = ctx.__benchmarkOcrCache;
+  if (
+    !raw ||
+    typeof raw !== "object" ||
+    raw === null ||
+    !("ocrResponse" in raw) ||
+    !AZURE_OCR_CACHE_ACTIVITY_TYPES.has(activityType)
+  ) {
+    return activityParams;
+  }
+  const cache = raw as { ocrResponse?: unknown };
+  const merged: Record<string, unknown> = {
+    ...activityParams,
+    __benchmarkOcrCache: raw,
+  };
+  if (activityType === "azureOcr.extract" && cache.ocrResponse !== undefined) {
+    merged.ocrResponse = cache.ocrResponse;
+  }
+  return merged;
+}
+
 /**
  * Execute a node based on its type
  */
@@ -111,11 +147,16 @@ async function executeActivityNode(
   }
 
   // Step 3: Merge static parameters with resolved inputs; inject requestId for tracing
-  const activityParams = {
+  let activityParams: Record<string, unknown> = {
     ...inputs,
     ...node.parameters,
     ...(state.requestId && { requestId: state.requestId }),
   };
+  activityParams = mergeBenchmarkOcrCacheParams(
+    node.activityType,
+    activityParams,
+    state.ctx,
+  );
 
   // Step 4: Create activity proxy with timeout and retry configuration
   // Use defaults if not specified in node config
@@ -322,10 +363,15 @@ async function executePollUntilNode(
       }
     }
 
-    const activityParams = {
+    let activityParams: Record<string, unknown> = {
       ...inputs,
       ...node.parameters,
     };
+    activityParams = mergeBenchmarkOcrCacheParams(
+      node.activityType,
+      activityParams,
+      state.ctx,
+    );
 
     const result = (await activityFn(activityParams)) as Record<
       string,
