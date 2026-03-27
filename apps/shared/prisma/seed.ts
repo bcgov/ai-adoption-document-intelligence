@@ -27,7 +27,9 @@ const SDPR_TEMPLATE_MODEL_NAME = "SDPR Monthly Report";
 const SDPR_TEMPLATE_MODEL_MODEL_ID = "sdpr-monthly-report";
 const SDPR_TEMPLATE_MODEL_DESCRIPTION =
   "Seeded template model for SDPR monthly report field extraction.";
-const SDPR_TEMPLATE_MODEL_CREATED_BY = "seed";
+// Resolved after seedUsers() — holds Actor IDs
+let SEED_ACTOR_ID = "";
+let TEST_ACTOR_ID = "";
 
 type SeedFieldDefinition = {
   fieldKey: string;
@@ -515,7 +517,7 @@ async function seedBenchmarkingData() {
     update: {
       name: standardOcrConfig.metadata.name,
       description: standardOcrConfig.metadata.description,
-      user_id: "test-user",
+      actor_id: TEST_ACTOR_ID,
       config: standardOcrConfig,
       version: 1,
     },
@@ -523,7 +525,7 @@ async function seedBenchmarkingData() {
       id: SEED_WORKFLOW_ID,
       name: standardOcrConfig.metadata.name,
       description: standardOcrConfig.metadata.description,
-      user_id: "test-user",
+      actor_id: TEST_ACTOR_ID,
       config: standardOcrConfig,
       version: 1,
       group_id: SEED_GROUP_ID,
@@ -536,7 +538,7 @@ async function seedBenchmarkingData() {
     update: {
       name: multiPageReportConfig.metadata.name,
       description: multiPageReportConfig.metadata.description,
-      user_id: "test-user",
+      actor_id: TEST_ACTOR_ID,
       config: multiPageReportConfig,
       version: 1,
     },
@@ -544,7 +546,7 @@ async function seedBenchmarkingData() {
       id: SEED_WORKFLOW_ID_MULTI_PAGE,
       name: multiPageReportConfig.metadata.name,
       description: multiPageReportConfig.metadata.description,
-      user_id: "test-user",
+      actor_id: TEST_ACTOR_ID,
       config: multiPageReportConfig,
       version: 1,
       group_id: SEED_GROUP_ID,
@@ -573,7 +575,7 @@ async function seedBenchmarkingData() {
       description: "Sample invoice dataset for benchmarking OCR accuracy",
       metadata: { documentType: "invoice", language: "en" },
       storagePath: "datasets/invoice-test-dataset",
-      createdBy: "test-user",
+      createdBy: TEST_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
     create: {
@@ -582,7 +584,7 @@ async function seedBenchmarkingData() {
       description: "Sample invoice dataset for benchmarking OCR accuracy",
       metadata: { documentType: "invoice", language: "en" },
       storagePath: "datasets/invoice-test-dataset",
-      createdBy: "test-user",
+      createdBy: TEST_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
   });
@@ -594,7 +596,7 @@ async function seedBenchmarkingData() {
       description: "Sample receipt dataset for testing point-of-sale OCR",
       metadata: { documentType: "receipt", language: "en" },
       storagePath: "datasets/receipt-test-dataset",
-      createdBy: "seed-user",
+      createdBy: SEED_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
     create: {
@@ -603,7 +605,7 @@ async function seedBenchmarkingData() {
       description: "Sample receipt dataset for testing point-of-sale OCR",
       metadata: { documentType: "receipt", language: "en" },
       storagePath: "datasets/receipt-test-dataset",
-      createdBy: "seed-user",
+      createdBy: SEED_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
   });
@@ -615,7 +617,7 @@ async function seedBenchmarkingData() {
       description: "Dataset for evaluating structured form extraction",
       metadata: { documentType: "government-form", language: "en" },
       storagePath: "datasets/government-forms-dataset",
-      createdBy: "seed-user",
+      createdBy: SEED_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
     create: {
@@ -624,7 +626,7 @@ async function seedBenchmarkingData() {
       description: "Dataset for evaluating structured form extraction",
       metadata: { documentType: "government-form", language: "en" },
       storagePath: "datasets/government-forms-dataset",
-      createdBy: "seed-user",
+      createdBy: SEED_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
   });
@@ -815,14 +817,14 @@ async function seedBenchmarkingData() {
     update: {
       name: "Invoice Extraction Benchmark",
       description: "Benchmarking OCR accuracy on invoice documents",
-      createdBy: "test-user",
+      createdBy: TEST_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
     create: {
       id: SEED_PROJECT_ID,
       name: "Invoice Extraction Benchmark",
       description: "Benchmarking OCR accuracy on invoice documents",
-      createdBy: "test-user",
+      createdBy: TEST_ACTOR_ID,
       group_id: SEED_GROUP_ID,
     },
   });
@@ -1316,7 +1318,7 @@ async function seedBenchmarkingData() {
     data: {
       id: "audit-baseline-001",
       timestamp: twoDaysAgo,
-      actor_id: "test-user",
+      actor_id: TEST_ACTOR_ID,
       action: AuditAction.baseline_promoted,
       entityType: "BenchmarkRun",
       entityId: SEED_RUN_ID_COMPLETED,
@@ -1350,7 +1352,7 @@ async function seedTemplateModelData() {
     update: {
       name: SDPR_TEMPLATE_MODEL_NAME,
       description: SDPR_TEMPLATE_MODEL_DESCRIPTION,
-      created_by: SDPR_TEMPLATE_MODEL_CREATED_BY,
+      created_by: SEED_ACTOR_ID,
       status: TemplateModelStatus.draft,
     },
     create: {
@@ -1358,7 +1360,7 @@ async function seedTemplateModelData() {
       name: SDPR_TEMPLATE_MODEL_NAME,
       model_id: SDPR_TEMPLATE_MODEL_MODEL_ID,
       description: SDPR_TEMPLATE_MODEL_DESCRIPTION,
-      created_by: SDPR_TEMPLATE_MODEL_CREATED_BY,
+      created_by: SEED_ACTOR_ID,
       status: TemplateModelStatus.draft,
       group_id: SEED_GROUP_ID,
     },
@@ -1416,13 +1418,13 @@ async function seedTestApiKey() {
     where: { key_hash: keyHash },
     update: {
       key_prefix: keyPrefix,
-      generating_user_id: "test-user",
     },
     create: {
-      generating_user_id: "test-user",
+      generating_user: { connect: { id: "test-user" } },
       key_hash: keyHash,
       key_prefix: keyPrefix,
-      group_id: SEED_GROUP_ID,
+      group: { connect: { id: SEED_GROUP_ID } },
+      actor: { create: {} },
     },
   });
 
@@ -1435,14 +1437,34 @@ async function seedUsers() {
   await prisma.user.upsert({
     where: { id: "test-user" },
     update: {},
-    create: { id: "test-user", email: "test@example.com" },
+    create: {
+      id: "test-user",
+      email: "test@example.com",
+      actor: { create: {} },
+    },
   });
 
   await prisma.user.upsert({
     where: { id: "seed" },
     update: {},
-    create: { id: "seed", email: "seed@example.com" },
+    create: {
+      id: "seed",
+      email: "seed@example.com",
+      actor: { create: {} },
+    },
   });
+
+  // Resolve actor IDs for use in subsequent seed functions
+  const seedUser = await prisma.user.findUniqueOrThrow({
+    where: { id: "seed" },
+    select: { actor_id: true },
+  });
+  const testUser = await prisma.user.findUniqueOrThrow({
+    where: { id: "test-user" },
+    select: { actor_id: true },
+  });
+  SEED_ACTOR_ID = seedUser.actor_id;
+  TEST_ACTOR_ID = testUser.actor_id;
 
   console.log("  ✓ Users seeded");
 }
@@ -1457,7 +1479,7 @@ async function seedGroup() {
       id: SEED_GROUP_ID,
       name: SEED_GROUP_NAME,
       description: "Default seeded group",
-      created_by: "seed",
+      created_by: SEED_ACTOR_ID,
     },
   });
 
@@ -1494,7 +1516,7 @@ async function seedGroup() {
     await prisma.user.upsert({
       where: { id: seedUserSub },
       update: { is_system_admin: true },
-      create: { id: seedUserSub, email: seedUserEmail, is_system_admin: true },
+      create: { id: seedUserSub, email: seedUserEmail, is_system_admin: true, actor: { create: {} } },
     });
 
     await prisma.userGroup.upsert({
