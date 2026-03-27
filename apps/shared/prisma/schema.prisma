@@ -400,6 +400,7 @@ model FieldCorrection {
 }
 
 // ========== ENUMS ==========
+// TODO: Standarize these enums as constant casing
 enum TemplateModelStatus {
   draft
   training
