@@ -7,7 +7,7 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AppLoggerService } from "../logging/app-logger.service";
-import { TrainingDbService } from "./training-db.service";
+import { TrainingDbService, type TrainingJobWithTemplateModel } from "./training-db.service";
 
 interface AzureErrorResponse {
   error?: {
@@ -33,23 +33,6 @@ interface DocumentType {
 interface AzureModelResponse {
   docTypes?: Record<string, DocumentType>;
   description?: string;
-}
-
-interface TrainingJobWithTemplateModel {
-  id: string;
-  template_model_id: string;
-  template_model: {
-    id: string;
-    model_id: string;
-  };
-  status: TrainingStatus;
-  container_name: string;
-  sas_url: string | null;
-  blob_count: number;
-  operation_id: string | null;
-  error_message: string | null;
-  started_at: Date;
-  completed_at: Date | null;
 }
 
 @Injectable()
@@ -150,8 +133,6 @@ export class TrainingPollerService {
       if (!job) {
         return;
       }
-
-      const jobWithTemplateModel = job as TrainingJobWithTemplateModel;
 
       const elapsedSeconds = Math.floor(
         (Date.now() - job.started_at.getTime()) / 1000,
@@ -262,9 +243,9 @@ export class TrainingPollerService {
 
         // Create trained model record
         await this.trainingDb.createTrainedModel({
-          template_model_id: jobWithTemplateModel.template_model_id,
+          template_model_id: job.template_model_id,
           training_job_id: jobId,
-          model_id: jobWithTemplateModel.template_model.model_id,
+          model_id: job.template_model.model_id,
           description,
           doc_types: docTypes as Prisma.JsonValue,
           field_count: fieldCount,

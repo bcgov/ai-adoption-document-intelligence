@@ -1,18 +1,22 @@
 import type {
   Prisma,
   PrismaClient,
+  TemplateModel,
   TrainedModel,
   TrainingJob,
 } from "@generated/client";
 import { TrainingStatus } from "@generated/client";
+
+export type TrainingJobWithTemplateModel = TrainingJob & {
+  template_model: TemplateModel;
+};
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 
 export interface TrainingJobCreateData {
-  project_id: string;
+  template_model_id: string;
   status: TrainingStatus;
   container_name: string;
-  model_id: string;
 }
 
 export interface TrainingJobUpdateData {
@@ -25,7 +29,7 @@ export interface TrainingJobUpdateData {
 }
 
 export interface TrainedModelCreateData {
-  project_id: string;
+  template_model_id: string;
   training_job_id: string;
   model_id: string;
   description?: string | null;
@@ -67,9 +71,9 @@ export class TrainingDbService {
   async findTrainingJob(
     id: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<TrainingJob | null> {
+  ): Promise<TrainingJobWithTemplateModel | null> {
     const client = tx ?? this.prisma;
-    return client.trainingJob.findUnique({ where: { id } });
+    return client.trainingJob.findUnique({ where: { id }, include: { template_model: true } });
   }
 
   /**
@@ -84,7 +88,7 @@ export class TrainingDbService {
   ): Promise<TrainingJob[]> {
     const client = tx ?? this.prisma;
     return client.trainingJob.findMany({
-      where: { project_id: projectId },
+      where: { template_model_id: projectId },
       orderBy: { started_at: "desc" },
     });
   }
@@ -96,7 +100,7 @@ export class TrainingDbService {
    */
   async findAllActiveTrainingJobs(
     tx?: Prisma.TransactionClient,
-  ): Promise<TrainingJob[]> {
+  ): Promise<TrainingJobWithTemplateModel[]> {
     const client = tx ?? this.prisma;
     return client.trainingJob.findMany({
       where: {
@@ -104,6 +108,7 @@ export class TrainingDbService {
           in: [TrainingStatus.TRAINING, TrainingStatus.UPLOADED],
         },
       },
+      include: { template_model: true },
     });
   }
 
@@ -163,7 +168,7 @@ export class TrainingDbService {
   ): Promise<TrainedModel[]> {
     const client = tx ?? this.prisma;
     return client.trainedModel.findMany({
-      where: { project_id: projectId },
+      where: { template_model_id: projectId },
       orderBy: { created_at: "desc" },
     });
   }
