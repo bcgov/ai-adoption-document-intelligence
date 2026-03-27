@@ -14,15 +14,15 @@ export class FieldDefinitionResponseDto {
 export class TemplateModelResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() name: string;
-  @ApiProperty() modelId: string;
+  @ApiProperty() model_id: string;
   @ApiPropertyOptional() description?: string | null;
   @ApiProperty() status: string;
-  @ApiProperty() createdBy: string;
-  @ApiProperty() createdAt: Date;
-  @ApiProperty() updatedAt: Date;
-  @ApiProperty() groupId: string;
+  @ApiProperty() created_by: string;
+  @ApiProperty() created_at: Date;
+  @ApiProperty() updated_at: Date;
+  @ApiProperty() group_id: string;
   @ApiProperty({ type: [FieldDefinitionResponseDto] })
-  fieldSchema: FieldDefinitionResponseDto[];
+  field_schema: FieldDefinitionResponseDto[];
   @ApiPropertyOptional({ type: "array" })
   documents?: unknown[];
 }

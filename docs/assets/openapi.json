@@ -10257,7 +10257,7 @@
           "name": {
             "type": "string"
           },
-          "modelId": {
+          "model_id": {
             "type": "string"
           },
           "description": {
@@ -10266,21 +10266,21 @@
           "status": {
             "type": "string"
           },
-          "createdBy": {
+          "created_by": {
             "type": "string"
           },
-          "createdAt": {
+          "created_at": {
             "format": "date-time",
             "type": "string"
           },
-          "updatedAt": {
+          "updated_at": {
             "format": "date-time",
             "type": "string"
           },
-          "groupId": {
+          "group_id": {
             "type": "string"
           },
-          "fieldSchema": {
+          "field_schema": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FieldDefinitionResponseDto"
@@ -10293,13 +10293,13 @@
         "required": [
           "id",
           "name",
-          "modelId",
+          "model_id",
           "status",
-          "createdBy",
-          "createdAt",
-          "updatedAt",
-          "groupId",
-          "fieldSchema"
+          "created_by",
+          "created_at",
+          "updated_at",
+          "group_id",
+          "field_schema"
         ]
       },
       "CreateTemplateModelDto": {
