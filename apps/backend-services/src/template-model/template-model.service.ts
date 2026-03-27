@@ -60,13 +60,14 @@ export class TemplateModelService {
    * 8. On uniqueness collision, append `-2`, `-3`, etc.
    */
   generateModelIdBase(name: string): string {
-    let modelId = name.toLowerCase();
-    modelId = modelId.replace(/[^a-z0-9._~-]/g, "-");
-    modelId = modelId.replace(/-{2,}/g, "-");
-    modelId = modelId.replace(/^-+|-+$/g, "");
-    modelId = modelId.slice(0, 64);
-    modelId = modelId.replace(/^[^a-z0-9]+/, "");
-    return modelId || "model";
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9._~-]/g, "-")
+      .split("-")
+      .filter(Boolean)
+      .join("-");
+    const trimmed = slug.replace(/^[^a-z0-9]+/, "").slice(0, 64);
+    return trimmed || "model";
   }
 
   async generateUniqueModelId(name: string): Promise<string> {
