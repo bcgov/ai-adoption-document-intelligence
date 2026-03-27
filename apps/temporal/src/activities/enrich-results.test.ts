@@ -53,7 +53,7 @@ function minimalOcrResult(overrides: Partial<OCRResult> = {}): OCRResult {
   };
 }
 
-function projectWithSchema(
+function templateModelWithSchema(
   fieldSchema: Array<{
     field_key: string;
     field_type: string;
@@ -61,7 +61,7 @@ function projectWithSchema(
   }>,
 ) {
   return {
-    id: "project-1",
+    id: "tm-1",
     field_schema: fieldSchema,
   };
 }
@@ -86,14 +86,14 @@ describe("enrichResults activity", () => {
     jest.restoreAllMocks();
   });
 
-  describe("when project not found or empty schema", () => {
-    it("returns ocrResult unchanged and summary null when project not found", async () => {
+  describe("when template model not found or empty schema", () => {
+    it("returns ocrResult unchanged and summary null when template model not found", async () => {
       prismaMock.templateModel.findUnique.mockResolvedValue(null);
       const ocrResult = minimalOcrResult();
       const params: EnrichResultsParams = {
         documentId: "doc-1",
         ocrResult,
-        documentType: "missing-project",
+        documentType: "missing-tm",
       };
 
       const result = await enrichResults(params);
@@ -101,21 +101,21 @@ describe("enrichResults activity", () => {
       expect(result.ocrResult).toBe(ocrResult);
       expect(result.summary).toBeNull();
       expect(prismaMock.templateModel.findUnique).toHaveBeenCalledWith({
-        where: { id: "missing-project" },
+        where: { id: "missing-tm" },
         include: { field_schema: { orderBy: { display_order: "asc" } } },
       });
     });
 
     it("returns ocrResult unchanged and summary null when field_schema is empty", async () => {
       prismaMock.templateModel.findUnique.mockResolvedValue({
-        id: "project-1",
+        id: "tm-1",
         field_schema: [],
       });
       const ocrResult = minimalOcrResult();
       const params: EnrichResultsParams = {
         documentId: "doc-1",
         ocrResult,
-        documentType: "project-1",
+        documentType: "tm-1",
       };
 
       const result = await enrichResults(params);
@@ -126,24 +126,24 @@ describe("enrichResults activity", () => {
 
     it("returns ocrResult unchanged and summary null when field_schema is null/undefined", async () => {
       prismaMock.templateModel.findUnique.mockResolvedValue({
-        id: "project-1",
+        id: "tm-1",
         field_schema: null,
       });
       const ocrResult = minimalOcrResult();
       const result = await enrichResults({
         documentId: "doc-1",
         ocrResult,
-        documentType: "project-1",
+        documentType: "tm-1",
       });
       expect(result.ocrResult).toBe(ocrResult);
       expect(result.summary).toBeNull();
     });
   });
 
-  describe("when project has field_schema (rules only)", () => {
+  describe("when template model has field_schema (rules only)", () => {
     it("applies rules and returns enriched ocrResult with summary", async () => {
       prismaMock.templateModel.findUnique.mockResolvedValue(
-        projectWithSchema([
+        templateModelWithSchema([
           { field_key: "Date", field_type: "date", field_format: null },
           { field_key: "Amount", field_type: "number", field_format: null },
         ]),
@@ -152,7 +152,7 @@ describe("enrichResults activity", () => {
       const params: EnrichResultsParams = {
         documentId: "doc-1",
         ocrResult,
-        documentType: "project-1",
+        documentType: "tm-1",
       };
 
       const result = await enrichResults(params);
@@ -170,13 +170,13 @@ describe("enrichResults activity", () => {
 
     it("uses custom confidenceThreshold when provided", async () => {
       prismaMock.templateModel.findUnique.mockResolvedValue(
-        projectWithSchema([{ field_key: "Date", field_type: "date" }]),
+        templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const ocrResult = minimalOcrResult();
       await enrichResults({
         documentId: "doc-1",
         ocrResult,
-        documentType: "project-1",
+        documentType: "tm-1",
         confidenceThreshold: 0.9,
       });
       expect(prismaMock.templateModel.findUnique).toHaveBeenCalled();
@@ -194,7 +194,7 @@ describe("enrichResults activity", () => {
       delete process.env.AZURE_OPENAI_DEPLOYMENT;
 
       prismaMock.templateModel.findUnique.mockResolvedValue(
-        projectWithSchema([{ field_key: "Date", field_type: "date" }]),
+        templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const ocrResult = minimalOcrResult();
       ocrResult.keyValuePairs[0].confidence = 0.5;
@@ -202,7 +202,7 @@ describe("enrichResults activity", () => {
       const result = await enrichResults({
         documentId: "doc-1",
         ocrResult,
-        documentType: "project-1",
+        documentType: "tm-1",
         enableLlmEnrichment: true,
       });
 
@@ -241,7 +241,7 @@ describe("enrichResults activity", () => {
       process.env.AZURE_OPENAI_DEPLOYMENT = "gpt-4o";
 
       prismaMock.templateModel.findUnique.mockResolvedValue(
-        projectWithSchema([{ field_key: "Date", field_type: "date" }]),
+        templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const ocrResult = minimalOcrResult();
       ocrResult.keyValuePairs[0].confidence = 0.5;
@@ -249,7 +249,7 @@ describe("enrichResults activity", () => {
       const result = await enrichResults({
         documentId: "doc-1",
         ocrResult,
-        documentType: "project-1",
+        documentType: "tm-1",
         enableLlmEnrichment: true,
       });
 
@@ -281,7 +281,7 @@ describe("enrichResults activity", () => {
       process.env.AZURE_OPENAI_DEPLOYMENT = "gpt-4o";
 
       prismaMock.templateModel.findUnique.mockResolvedValue(
-        projectWithSchema([{ field_key: "Date", field_type: "date" }]),
+        templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const ocrResult = minimalOcrResult();
       ocrResult.keyValuePairs[0].confidence = 0.5;
@@ -289,7 +289,7 @@ describe("enrichResults activity", () => {
       const result = await enrichResults({
         documentId: "doc-1",
         ocrResult,
-        documentType: "project-1",
+        documentType: "tm-1",
         enableLlmEnrichment: true,
       });
 
@@ -314,7 +314,7 @@ describe("enrichResults activity", () => {
       const params: EnrichResultsParams = {
         documentId: "doc-1",
         ocrResult,
-        documentType: "project-1",
+        documentType: "tm-1",
       };
 
       const result = await enrichResults(params);
@@ -327,12 +327,12 @@ describe("enrichResults activity", () => {
   describe("return shape (graph contract)", () => {
     it("returns object with ocrResult and summary keys for output port binding", async () => {
       prismaMock.templateModel.findUnique.mockResolvedValue(
-        projectWithSchema([{ field_key: "Date", field_type: "date" }]),
+        templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const result = await enrichResults({
         documentId: "doc-1",
         ocrResult: minimalOcrResult(),
-        documentType: "project-1",
+        documentType: "tm-1",
       });
 
       expect(result).toHaveProperty("ocrResult");

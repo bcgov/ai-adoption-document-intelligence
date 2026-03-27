@@ -81,18 +81,18 @@ export class TrainingDbService {
   }
 
   /**
-   * Finds all training jobs for a project, ordered by start date descending.
-   * @param projectId The ID of the project.
+   * Finds all training jobs for a template model, ordered by start date descending.
+   * @param templateModelId The ID of the template model.
    * @param tx Optional transaction client.
    * @returns An array of TrainingJob records.
    */
   async findAllTrainingJobs(
-    projectId: string,
+    templateModelId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<TrainingJob[]> {
     const client = tx ?? this.prisma;
     return client.trainingJob.findMany({
-      where: { template_model_id: projectId },
+      where: { template_model_id: templateModelId },
       orderBy: { started_at: "desc" },
     });
   }
@@ -161,18 +161,18 @@ export class TrainingDbService {
   }
 
   /**
-   * Finds all trained models for a project, ordered by creation date descending.
-   * @param projectId The ID of the project.
+   * Finds all trained models for a template model, ordered by creation date descending.
+   * @param templateModelId The ID of the template model.
    * @param tx Optional transaction client.
    * @returns An array of TrainedModel records.
    */
   async findAllTrainedModels(
-    projectId: string,
+    templateModelId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<TrainedModel[]> {
     const client = tx ?? this.prisma;
     return client.trainedModel.findMany({
-      where: { template_model_id: projectId },
+      where: { template_model_id: templateModelId },
       orderBy: { created_at: "desc" },
     });
   }
@@ -192,7 +192,7 @@ export class TrainingDbService {
   }
 
   /**
-   * Returns all distinct trained model IDs across all projects.
+   * Returns all distinct trained model IDs across all template models.
    * @param tx Optional transaction client.
    * @returns An array of distinct model ID strings.
    */

@@ -556,7 +556,7 @@ export function WorkflowEditPage({
                     <Stack gap="xs">
                       <Switch
                         label="Enrich Results"
-                        description="Apply rules and optional LLM enrichment using a document type (LabelingProject)"
+                        description="Apply rules and optional LLM enrichment using a document type (Template Model)"
                         checked={config.steps.enrichResults?.enabled ?? false}
                         onChange={(e) =>
                           handleStepToggle(

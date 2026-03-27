@@ -152,15 +152,15 @@ describe("TrainingDbService", () => {
   // ---------------------------------------------------------------------------
 
   describe("findAllTrainingJobs", () => {
-    it("should return all training jobs for a project", async () => {
+    it("should return all training jobs for a template model", async () => {
       const jobs = [mockTrainingJob, { ...mockTrainingJob, id: "job-2" }];
       mockPrisma.trainingJob.findMany.mockResolvedValueOnce(jobs);
 
-      const result = await service.findAllTrainingJobs("project-1");
+      const result = await service.findAllTrainingJobs("tm-1");
 
       expect(result).toHaveLength(2);
       expect(mockPrisma.trainingJob.findMany).toHaveBeenCalledWith({
-        where: { template_model_id: "project-1" },
+        where: { template_model_id: "tm-1" },
         orderBy: { started_at: "desc" },
       });
     });
@@ -296,18 +296,18 @@ describe("TrainingDbService", () => {
   // ---------------------------------------------------------------------------
 
   describe("findAllTrainedModels", () => {
-    it("should return all trained models for a project", async () => {
+    it("should return all trained models for a template model", async () => {
       const models = [
         mockTrainedModel,
         { ...mockTrainedModel, id: "trained-2" },
       ];
       mockPrisma.trainedModel.findMany.mockResolvedValueOnce(models);
 
-      const result = await service.findAllTrainedModels("project-1");
+      const result = await service.findAllTrainedModels("tm-1");
 
       expect(result).toHaveLength(2);
       expect(mockPrisma.trainedModel.findMany).toHaveBeenCalledWith({
-        where: { template_model_id: "project-1" },
+        where: { template_model_id: "tm-1" },
         orderBy: { created_at: "desc" },
       });
     });
